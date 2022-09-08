@@ -1,0 +1,14 @@
+[workspace]
+
+members = [
+  "core",
+  "transactor",
+  "client",
+  "facade",
+  "cli",
+  "solana",
+  "crypto",
+]
+
+[profile.dev.package.num-bigint-dig]
+opt-level = 3

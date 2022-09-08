@@ -1,0 +1,15 @@
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+race-core = { path = "../core" }
+race-facade = { path = "../facade" }
+tokio = { version = "1.21.0", features = ["full"] }
+uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
+clap = { version = "4.0.26", features = ["derive"] }
+jsonrpsee = { version = "0.16.1", features = ["http-client"] }
+anyhow = "1.0.64"

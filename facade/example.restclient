@@ -1,0 +1,50 @@
+:bundle=8b6f1ab1-8e14-49c3-9659-1771dc3248a1
+:transactor=http://localhost:12000
+:facade=http://localhost:12002
+
+
+# Create account info
+
+POST http://:facade
+Content-Type: application/json
+
+{
+        "jsonrpc": "2.0",
+        "method": "create_game",
+        "params": [{"addr": "abcd", "data": [0, 0, 1, 1, 42, 42]}],
+        "id": "UUID"
+}
+
+# Get account info
+
+POST http://:facade
+Content-Type: application/json
+
+{
+        "jsonrpc": "2.0",
+        "method": "get_account_info",
+        "params": [{"addr": "abcd"}],
+        "id": "UUID2"
+}
+
+# Get game bundle
+POST http://:facade
+Content-Type: application/json
+
+{
+        "jsonrpc": "2.0",
+        "method": "get_game_bundle",
+        "params": [{"addr": ":bundle"}],
+        "id": "UUID"
+}
+
+# Attach game
+POST http://:transactor
+Content-Type: application/json
+
+{
+        "jsonrpc": "2.0",
+        "method": "attach_game",
+        "params": [{"addr": ":bundle", "chain": "facade"}],
+        "id": "UUID"
+}
