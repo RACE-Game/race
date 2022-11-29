@@ -3,8 +3,6 @@
 //! - Randomness implementation
 //! - Encryption/decryption implementation
 
-#![feature(derive_default_enum)]
-
 pub mod context;
 pub mod engine;
 pub mod error;

@@ -1,9 +1,9 @@
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::Serialize;
 
 use crate::{
     error::{Error, Result},
-    event::SecretIdent,
+    event::{Event, SecretIdent},
     random::{RandomSpec, RandomState},
 };
 use std::collections::HashMap;
@@ -65,9 +65,9 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(addr: String) -> Self {
+    pub fn new<S: Into<String>>(addr: S) -> Self {
         Self {
-            addr,
+            addr: addr.into(),
             status: PlayerStatus::Ready,
         }
     }
@@ -115,6 +115,18 @@ pub struct RandomAssign<'a> {
     pub player_addr: &'a str,
 }
 
+#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+pub struct DispatchEvent {
+    pub timeout: u64,
+    pub event: Event,
+}
+
+impl DispatchEvent {
+    pub fn new(event: Event, timeout: u64) -> Self {
+        Self { timeout, event }
+    }
+}
+
 /// The context for secrets holder. This context is for private
 /// information, should never be shared with other nodes.
 pub struct SecretContext<'a> {
@@ -135,7 +147,7 @@ pub struct GameContext {
     pub players: Vec<Player>,
     /// List of validators serving this game
     pub transactors: Vec<Validator>,
-
+    pub dispatch: Option<DispatchEvent>,
     // All runtime random state, each stores the ciphers and assignments.
     // pub random_states: Vec<RandomState<'a>>,
     // /// The encrption keys from every nodes.
@@ -157,6 +169,10 @@ impl GameContext {
             game_addr: game_addr.into(),
             ..Default::default()
         }
+    }
+
+    pub fn dispatch(&mut self, event: Event, timeout: u64) {
+        self.dispatch = Some(DispatchEvent::new(event, timeout));
     }
 
     // /// Initialize the a randomness and return its id in the context.
@@ -229,7 +245,8 @@ mod test {
 
     #[test]
     fn test_borsh_serialize() {
-        let ctx = GameContext::new("FAKE GAME ADDR");
+        let mut ctx = GameContext::new("FAKE GAME ADDR");
+        ctx.players.push(Player::new("FAKE PLAYER ADDR"));
         let encoded = ctx.try_to_vec().unwrap();
         let decoded = GameContext::try_from_slice(&encoded).unwrap();
         assert_eq!(ctx, decoded);

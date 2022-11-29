@@ -8,6 +8,11 @@ members = [
   "cli",
   "solana",
   "crypto",
+  "minimal",
+]
+
+exclude = [
+  "holdem"
 ]
 
 [profile.dev.package.num-bigint-dig]
