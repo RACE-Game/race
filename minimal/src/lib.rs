@@ -59,14 +59,16 @@ pub extern "C" fn handle_event(context_size: u32, event_size: u32) -> u32 {
     let context_slice = unsafe { slice::from_raw_parts_mut(context_ptr, context_size as _) };
     let mut context = GameContext::try_from_slice(&context_slice).unwrap();
     let event_ptr = unsafe { context_ptr.add(context_size as usize) };
-    let event_slice = unsafe { slice::from_raw_parts(event_ptr, event_size as _)};
+    let event_slice = unsafe { slice::from_raw_parts(event_ptr, event_size as _) };
     let event = Event::try_from_slice(&event_slice).unwrap();
-    let mut handler = Minimal::default();
+    let mut handler = if let Some(ref state_json) = context.state_json {
+        serde_json::from_str(&state_json).unwrap()
+    } else {
+        Minimal::default()
+    };
     handler.handle_event(&mut context, event).unwrap();
-
+    context.state_json = Some(serde_json::to_string(&handler).unwrap());
     let context_vec = context.try_to_vec().unwrap();
-    unsafe {
-        copy(context_vec.as_ptr(), context_ptr, context_vec.len())
-    }
+    unsafe { copy(context_vec.as_ptr(), context_ptr, context_vec.len()) }
     context_vec.len().try_into().unwrap()
 }

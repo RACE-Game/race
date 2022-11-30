@@ -100,6 +100,7 @@ async fn run_server() -> anyhow::Result<ServerHandle> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    println!("Start facade server at: {:?}", HTTP_HOST);
     let server_handle = run_server().await?;
     server_handle.stopped().await;
     Ok(())

@@ -14,7 +14,7 @@ pub struct WrappedHandlerState {}
 impl WrappedHandler {
     pub fn new() -> Result<Self> {
         let mut store = Store::default();
-        let module = Module::from_file(&store, "../target/wasm32-unknown-unknown/debug/minimal.wasm")
+        let module = Module::from_file(&store, "../target/wasm32-unknown-unknown/release/minimal.wasm")
             .expect("Fail to load module");
         let import_object = imports![];
         let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
@@ -65,10 +65,14 @@ mod tests {
             player_addr: "FAKE_ADDR".into(),
             timestamp: 0,
         };
-        let r = hdlr.handle_event(&mut ctx, event);
+        hdlr.handle_event(&mut ctx, event);
         assert_eq!(
             Some(DispatchEvent::new(Event::Custom("{\"Increase\":1}".into()), 0)),
             ctx.dispatch
+        );
+        assert_eq!(
+            "{\"counter\":0}",
+            ctx.state_json.unwrap()
         );
     }
 }

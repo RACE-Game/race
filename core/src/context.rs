@@ -148,6 +148,7 @@ pub struct GameContext {
     /// List of validators serving this game
     pub transactors: Vec<Validator>,
     pub dispatch: Option<DispatchEvent>,
+    pub state_json: Option<String>,
     // All runtime random state, each stores the ciphers and assignments.
     // pub random_states: Vec<RandomState<'a>>,
     // /// The encrption keys from every nodes.
