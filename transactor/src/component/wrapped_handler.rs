@@ -58,7 +58,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_hanle_event() {
+    fn test_handle_event() {
         let mut hdlr = WrappedHandler::new().unwrap();
         let mut ctx = GameContext::default();
         let event = Event::Ready {

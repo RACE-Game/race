@@ -7,7 +7,7 @@ pub struct SecretIdent {
     secret_key: String,
 }
 
-#[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq)]
+#[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Event {
     /// Custom game events
     Custom(String),

@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use race_core::{
     context::GameContext,
     engine::{GameHandler, Result},
-    event::Event,
+    event::{CustomEvent, Event},
 };
 use serde::{Deserialize, Serialize};
 use once_cell::sync::Lazy;
@@ -16,6 +16,8 @@ pub enum GameEvent {
     Bet(u64),
     Raise(u64),
 }
+
+impl CustomEvent for GameEvent {}
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Pot {
@@ -50,14 +52,4 @@ impl GameHandler for Holdem {
             _ => Ok(()),
         }
     }
-}
-
-static CONTEXT: Lazy<Mutex<GameContext>> = Lazy::new(|| Mutex::new(GameContext::default()));
-static INSTANCE: Lazy<Mutex<Holdem>> = Lazy::new(|| Mutex::new(Holdem::default()));
-
-pub fn handle_event(event: String) {
-    let event: GameEvent = GameEvent::Call;
-    let mut instance = INSTANCE.lock().unwrap();
-    let mut context = CONTEXT.lock().unwrap();
-    instance.handle_game_event(&mut context, event).unwrap();
 }

@@ -1,6 +1,6 @@
-:bundle=8b6f1ab1-8e14-49c3-9659-1771dc3248a1
-:transactor=http://localhost:12000
-:facade=http://localhost:12002
+:bundle=facade-game-addr
+:transactor=localhost:12000
+:facade=localhost:12002
 
 
 # Create account info

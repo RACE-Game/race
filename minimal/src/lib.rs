@@ -1,8 +1,4 @@
 use core::slice;
-use std::alloc::dealloc;
-use std::alloc::Layout;
-use std::ffi::c_void;
-use std::mem;
 use std::ptr::copy;
 use std::str;
 
@@ -48,6 +44,31 @@ impl GameHandler for Minimal {
                 Ok(())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use race_core::context::DispatchEvent;
+
+    use super::*;
+
+    #[test]
+    fn test_player_join() {
+        let mut ctx = GameContext::default();
+        let evt = Event::Join { player_addr: "Alice".into(), timestamp: 0 };
+        let mut hdlr = Minimal::default();
+        hdlr.handle_event(&mut ctx, evt).unwrap();
+        assert_eq!(Some(DispatchEvent::new(Event::Custom("{\"Increase\":1}".into()), 0)), ctx.dispatch);
+    }
+
+    #[test]
+    fn test_increase() {
+        let mut ctx = GameContext::default();
+        let evt = Event::Custom("{\"Increase\":1}".into());
+        let mut hdlr = Minimal::default();
+        hdlr.handle_event(&mut ctx, evt).unwrap();
+        assert_eq!(1, hdlr.counter);
     }
 }
 
