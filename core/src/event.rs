@@ -1,13 +1,15 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+use crate::types::SettleParams;
+
 pub struct SecretIdent {
     from_addr: String,
     to_addr: Option<String>,
     secret_key: String,
 }
 
-#[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum Event {
     /// Custom game events
     Custom(String),

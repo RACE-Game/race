@@ -1,7 +1,10 @@
+use std::path::PathBuf;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
 use race_core::error::{Error, Result};
 use race_core::event::Event;
+use race_core::transport::TransportT;
 use wasmer::{imports, Instance, Memory, MemoryType, Module, Store, TypedFunction};
 
 pub struct WrappedHandler {
@@ -12,10 +15,18 @@ pub struct WrappedHandler {
 pub struct WrappedHandlerState {}
 
 impl WrappedHandler {
-    pub fn new() -> Result<Self> {
+    pub async fn load_by_addr(addr: &str, transport: &dyn TransportT) -> Result<Self> {
         let mut store = Store::default();
-        let module = Module::from_file(&store, "../target/wasm32-unknown-unknown/release/minimal.wasm")
-            .expect("Fail to load module");
+        let game_bundle = transport.get_game_bundle(addr).await.ok_or(Error::GameBundleNotFound)?;
+        let module = Module::from_binary(&store, &game_bundle.data).or(Err(Error::MalformedGameBundle))?;
+        let import_object = imports![];
+        let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
+        Ok(Self { store, instance })
+    }
+
+    pub fn load_by_path(path: PathBuf) -> Result<Self> {
+        let mut store = Store::default();
+        let module = Module::from_file(&store, path).expect("Fail to load module");
         let import_object = imports![];
         let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
         Ok(Self { store, instance })
@@ -59,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_handle_event() {
-        let mut hdlr = WrappedHandler::new().unwrap();
+        let mut hdlr = WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/minimal.wasm".into()).unwrap();
         let mut ctx = GameContext::default();
         let event = Event::Ready {
             player_addr: "FAKE_ADDR".into(),
@@ -70,9 +81,6 @@ mod tests {
             Some(DispatchEvent::new(Event::Custom("{\"Increase\":1}".into()), 0)),
             ctx.dispatch
         );
-        assert_eq!(
-            "{\"counter\":0}",
-            ctx.state_json.unwrap()
-        );
+        assert_eq!("{\"counter\":0}", ctx.state_json.unwrap());
     }
 }

@@ -1,21 +1,22 @@
 use std::sync::Arc;
 
-use tokio::sync::{mpsc, oneshot, watch, Mutex};
+use race_core::types::{EventFrame, GameAccount};
+use tokio::sync::{broadcast, mpsc, oneshot, watch, Mutex};
 
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
-use race_core::types::{EventFrame, GameAccount};
 
-struct BroadcasterContext {
+pub struct BroadcasterContext {
     input_rx: mpsc::Receiver<EventFrame>,
     closed_tx: oneshot::Sender<CloseReason>,
+    broadcast_tx: broadcast::Sender<EventFrame>,
 }
 
 /// A component that pushs event to clients.
 pub struct Broadcaster {
     input_tx: mpsc::Sender<EventFrame>,
     closed_rx: oneshot::Receiver<CloseReason>,
-    snapshot: Arc<Mutex<GameAccount>>,
+    snapshot: Arc<Mutex<String>>,
     ctx: Option<BroadcasterContext>,
 }
 
@@ -42,10 +43,15 @@ impl Component<BroadcasterContext> for Broadcaster {
             loop {
                 if let Some(event) = ctx.input_rx.recv().await {
                     match event {
-                        EventFrame::Broadcast { event: _event, state } => {
+                        EventFrame::Broadcast {
+                            addr,
+                            event,
+                            state_json,
+                        } => {
                             let mut snapshot = snapshot.lock().await;
-                            *snapshot = state;
+                            *snapshot = state_json;
                             // TODO, broad cast event
+                            ctx.broadcast_tx.send(EventFrame::Broadcast { addr: addr.to_owned(), state_json: snapshot.clone(), event }).unwrap();
                         }
                         _ => (),
                     }
@@ -67,11 +73,15 @@ impl Component<BroadcasterContext> for Broadcaster {
 }
 
 impl Broadcaster {
-    pub fn new(init_state: GameAccount) -> Self {
-        let snapshot = Arc::new(Mutex::new(init_state));
+    pub fn new(init_state: GameAccount, broadcast_tx: broadcast::Sender<EventFrame>) -> Self {
+        let snapshot = Arc::new(Mutex::new("".into()));
         let (input_tx, input_rx) = mpsc::channel(3);
         let (closed_tx, closed_rx) = oneshot::channel();
-        let ctx = Some(BroadcasterContext { closed_tx, input_rx });
+        let ctx = Some(BroadcasterContext {
+            closed_tx,
+            input_rx,
+            broadcast_tx,
+        });
         Self {
             input_tx,
             closed_rx,

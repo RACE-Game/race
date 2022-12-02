@@ -48,6 +48,7 @@ impl WrappedGameHandler {
             Event::ActionTimeout { player_addr, timestamp } => todo!(),
             Event::SecretsReady { timestamp } => todo!(),
             Event::RandomnessReady { timestamp } => todo!(),
+            _ => todo!()
         }
     }
 }

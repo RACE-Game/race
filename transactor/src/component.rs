@@ -14,3 +14,4 @@ pub use synchronizer::GameSynchronizer;
 pub use traits::Component;
 pub use traits::Named;
 pub use traits::Attachable;
+pub use wrapped_handler::WrappedHandler;

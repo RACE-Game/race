@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
-use race_core::types::{EventFrame, GameAccount};
-use tokio::sync::{mpsc, oneshot, watch, Mutex};
+use race_core::event::Event;
+use race_core::types::{GameAccount, EventFrame};
+use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
@@ -42,7 +43,7 @@ impl Component<SubmitterContext> for Submitter {
         tokio::spawn(async move {
             while let Some(event) = ctx.input_rx.recv().await {
                 match event {
-                    EventFrame::SettleGameResult { params } => {
+                    EventFrame::Settle { addr, params } => {
                         ctx.transport.settle_game(params).await.unwrap();
                     }
                     _ => (),

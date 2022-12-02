@@ -41,6 +41,9 @@ pub enum Error {
 
     #[error("game not loaded")]
     GameNotLoaded,
+
+    #[error("malformed game bundle")]
+    MalformedGameBundle,
 }
 
 impl From<serde_json::Error> for Error {

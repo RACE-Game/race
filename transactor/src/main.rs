@@ -1,14 +1,17 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use context::Context;
+use context::ApplicationContext;
+use jsonrpsee::core::error::SubscriptionClosed;
 use jsonrpsee::core::Error;
+use jsonrpsee::types::SubscriptionEmptyError;
+use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
-use race_core::types::{AttachGameParams, SendEventParams};
+use race_core::types::{AttachGameParams, SendEventParams, GetStateParams};
 use tokio::sync::Mutex;
+use tokio_stream::wrappers::BroadcastStream;
 
 mod component;
 mod context;
-mod runtime;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -20,18 +23,18 @@ async fn main() -> anyhow::Result<()> {
 
 const HTTP_HOST: &str = "127.0.0.1:12000";
 
-async fn attach_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
+async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
     let params: AttachGameParams = params.one()?;
-    println!("Attach game: {:?}", params);
     let mut context = context.lock().await;
+    let broadcast_tx = context.broadcast_tx.clone();
     context
         .game_manager
-        .start_game(params)
+        .start_game(params, broadcast_tx)
         .await
         .map_err(|e| Error::Custom(e.to_string()))
 }
 
-async fn send_event(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
+async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
     let params: SendEventParams = params.one()?;
     let context = context.lock().await;
     context
@@ -41,13 +44,45 @@ async fn send_event(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<
         .map_err(|e| Error::Custom(e.to_string()))
 }
 
+async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
+    let params: GetStateParams = params.one()?;
+    let context = context.lock().await;
+    Ok(())
+}
+
+fn subscribe_state(
+    params: Params<'_>,
+    mut sink: SubscriptionSink,
+    context: Arc<Mutex<ApplicationContext>>,
+) -> std::result::Result<(), SubscriptionEmptyError> {
+    {
+        let tx = context.blocking_lock().broadcast_tx.clone();
+        let rx = BroadcastStream::new(tx.subscribe());
+
+        tokio::spawn(async move {
+            match sink.pipe_from_try_stream(rx).await {
+                SubscriptionClosed::Success => {
+                    sink.close(SubscriptionClosed::Success);
+                }
+                SubscriptionClosed::RemotePeerAborted => (),
+                SubscriptionClosed::Failed(err) => {
+                    sink.close(err);
+                }
+            };
+        });
+        Ok(())
+    }
+}
+
 async fn run_server() -> anyhow::Result<()> {
     let server = ServerBuilder::default().build(HTTP_HOST.parse::<SocketAddr>()?).await?;
-    let context = Mutex::new(Context::default());
+    let context = Mutex::new(ApplicationContext::default());
     let mut module = RpcModule::new(context);
 
     module.register_async_method("attach_game", attach_game)?;
-    module.register_async_method("send_event", send_event)?;
+    module.register_async_method("submit_event", submit_event)?;
+    module.register_async_method("get_state", get_state)?;
+    module.register_subscription("subscribe_event", "s_event", "unsubscribe_event", subscribe_state)?;
 
     let handle = server.start(module)?;
     println!("Server started");

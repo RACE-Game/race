@@ -52,8 +52,9 @@ impl Default for EventBus {
 }
 
 /// Create an event of [[EventFrame::PlayerJoined]].
-pub fn player_joined(old_players: &Vec<Option<Player>>, new_players: &Vec<Option<Player>>) -> EventFrame {
+pub fn player_joined(addr: String, old_players: &Vec<Option<Player>>, new_players: &Vec<Option<Player>>) -> EventFrame {
     EventFrame::PlayerJoined {
+        addr,
         players: new_players
             .iter()
             .enumerate()

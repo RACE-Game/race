@@ -11,6 +11,7 @@ race-facade = { path = "../facade" }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 anyhow = "1.0.64"
 tokio = { version = "1.21.0", features = ["full"] }
+tokio-stream = { version = "0.1.11", features = ["sync"] }
 jsonrpsee = { version = "0.16.1", features = ["full"] }
 tower-http = { version = "0.3.4", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }

@@ -57,7 +57,7 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                 let state = ctx.transport.get_game_account(&init_state.addr).await;
                 if let Some(state) = state {
                     if access_serial < state.access_serial {
-                        let event = player_joined(&curr_players, &state.players);
+                        let event = player_joined(init_state.addr.to_owned(), &curr_players, &state.players);
                         if ctx.output_tx.send(event).is_err() {
                             ctx.closed_tx.send(CloseReason::Complete).unwrap();
                             break;

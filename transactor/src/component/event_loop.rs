@@ -1,15 +1,17 @@
+use race_core::context::GameContext;
 use race_core::error::Error;
 use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::component::event_bus::CloseReason;
+use crate::component::wrapped_handler::WrappedHandler;
 use crate::component::traits::{Attachable, Component, Named};
 use race_core::types::{EventFrame, GameAccount};
 
-struct EventLoopContext {
+pub struct EventLoopContext {
     input_rx: mpsc::Receiver<EventFrame>,
     output_tx: watch::Sender<EventFrame>,
     closed_tx: oneshot::Sender<CloseReason>,
-    game_handler: Box<dyn WrappedGameHandler>,
+    handler: WrappedHandler,
 }
 
 pub trait WrappedGameHandler: Send {
@@ -44,17 +46,17 @@ impl Attachable for EventLoop {
 impl Component<EventLoopContext> for EventLoop {
     fn run(&mut self, mut ctx: EventLoopContext) {
         tokio::spawn(async move {
-            let mut game_handler = ctx.game_handler;
+            let handler = ctx.handler;
             let mut fault = false;
             while let Some(event) = ctx.input_rx.recv().await {
-                if let Ok(events) = game_handler.handle_event(event) {
-                    for e in events.into_iter() {
-                        ctx.output_tx.send(e).unwrap();
-                    }
-                } else {
-                    fault = true;
-                    break;
-                }
+                // if let Ok(events) = handler.handle_event(&mut GameContext::default(), event) {
+                //     for e in events.into_iter() {
+                //         ctx.output_tx.send(e).unwrap();
+                //     }
+                // } else {
+                //     fault = true;
+                //     break;
+                // }
             }
             if fault {
                 ctx.closed_tx.send(CloseReason::Fault).unwrap();
@@ -74,17 +76,17 @@ impl Component<EventLoopContext> for EventLoop {
 }
 
 impl EventLoop {
-    pub fn new(mut game_handler: Box<dyn WrappedGameHandler>, init_state: GameAccount) -> Self {
+    pub fn new(handler: WrappedHandler, init_state: GameAccount) -> Self {
         let (input_tx, input_rx) = mpsc::channel(3);
         let (output_tx, output_rx) = watch::channel(EventFrame::Empty);
         let (closed_tx, closed_rx) = oneshot::channel();
-        game_handler.init(init_state).unwrap();
+        // game_handler.init(init_state).unwrap();
 
         let ctx = Some(EventLoopContext {
             input_rx,
             output_tx,
             closed_tx,
-            game_handler,
+            handler,
         });
         Self {
             input_tx,
