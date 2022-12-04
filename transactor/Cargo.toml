@@ -23,3 +23,6 @@ serde_json = "1.0.85"
 serde = "1.0.144"
 thiserror = "1.0.35"
 wasmer = "3.0.2"
+
+[dev-dependencies]
+race-mock-transport = { path = "../mock_transport" }

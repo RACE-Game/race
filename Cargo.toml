@@ -9,6 +9,7 @@ members = [
   "solana",
   "crypto",
   "minimal",
+  "mock_transport",
 ]
 
 exclude = [

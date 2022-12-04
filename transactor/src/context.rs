@@ -1,4 +1,5 @@
 use crate::component::{Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedHandler};
+use race_core::context::GameContext;
 use race_core::event::Event;
 use race_core::types::{AttachGameParams, EventFrame};
 use race_facade::FacadeTransport;
@@ -27,18 +28,20 @@ pub struct Handle {
 }
 
 impl Handle {
-    pub async fn new(addr: &str, chain: &str, broadcast_tx: broadcast::Sender<EventFrame>) -> Result<Self> {
+    pub async fn new(addr: &str, chain: &str) -> Result<Self> {
         let transport = create_transport(chain)?;
-        let init_state = transport
+        let game_account = transport
             .get_game_account(addr)
             .await
             .ok_or(Error::GameAccountNotFound)?;
-        let handler = WrappedHandler::load_by_addr(addr, transport.as_ref()).await?;
+        let mut handler = WrappedHandler::load_by_addr(addr, transport.as_ref()).await?;
+        let mut game_context = GameContext::new(&game_account);
+        handler.init_state(&mut game_context, &game_account);
         let event_bus = EventBus::default();
-        let submitter = Submitter::new(transport.clone(), init_state.clone());
-        let synchronizer = GameSynchronizer::new(transport.clone(), init_state.clone());
-        let broadcaster = Broadcaster::new(init_state.clone(), broadcast_tx);
-        let event_loop = EventLoop::new(handler, init_state);
+        let submitter = Submitter::new(transport.clone(), game_account.clone());
+        let synchronizer = GameSynchronizer::new(transport.clone(), game_account.clone());
+        let broadcaster = Broadcaster::new(&game_account);
+        let event_loop = EventLoop::new(handler, game_account);
 
         Ok(Self {
             addr: addr.into(),
@@ -70,9 +73,9 @@ pub struct GameManager {
 }
 
 impl GameManager {
-    pub async fn start_game(&mut self, params: AttachGameParams, broadcast_tx: broadcast::Sender<EventFrame>) -> Result<()> {
+    pub async fn start_game(&mut self, params: AttachGameParams) -> Result<()> {
         if !self.handles.contains_key(&params.addr) {
-            let mut handle = Handle::new(&params.addr, &params.chain, broadcast_tx).await?;
+            let mut handle = Handle::new(&params.addr, &params.chain).await?;
             handle.start().await;
             self.handles.insert(params.addr, handle);
         }
@@ -105,7 +108,7 @@ impl Default for ApplicationContext {
         let (tx, _rx) = broadcast::channel(16);
         Self {
             broadcast_tx: tx,
-            ..Default::default()
+            game_manager: GameManager::default(),
         }
     }
 }

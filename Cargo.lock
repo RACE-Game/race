@@ -1859,6 +1859,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "race-mock-transport"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "race-core",
+ "tokio",
+]
+
+[[package]]
 name = "race-transactor"
 version = "0.1.0"
 dependencies = [
@@ -1868,6 +1877,7 @@ dependencies = [
  "jsonrpsee",
  "race-core",
  "race-facade",
+ "race-mock-transport",
  "serde",
  "serde_json",
  "thiserror",

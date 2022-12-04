@@ -4,22 +4,32 @@ use serde::{Deserialize, Serialize};
 use crate::event::Event;
 
 /// The data represent on-chain in-game player information.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
 pub struct Player {
     pub addr: String,
     pub balance: u64,
 }
 
+impl Player {
+    pub fn new<S: Into<String>>(addr: S, balance: u64) -> Self {
+        Self {
+            addr: addr.into(),
+            balance,
+        }
+    }
+}
+
 /// The data represent the state of on-chain game account.
 /// A larger `access_serial` means the account has been updated by players.
 /// A larger `settle_serial` means the account has been updated by transactors.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub struct GameAccount {
     pub addr: String,
-    pub version: u64,
+    pub game_addr: String,
     pub settle_serial: u64,
     pub access_serial: u64,
     pub players: Vec<Option<Player>>,
+    pub data_len: u32,
     pub data: Vec<u8>,
 }
 
@@ -54,30 +64,35 @@ pub enum PlayerStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-pub enum AssetChangeType {
+pub enum AssetChange {
     Add,
     Sub,
     NoChange,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-pub struct AssetChange {
-    pub token_addr: String,
-    pub change_type: AssetChangeType,
-    pub amount: u64,
-}
-
 /// The data represents how a player's asset changed.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct Settle {
-    pub player_addr: String,
-    pub player_status: PlayerStatus,
-    pub asset_change: AssetChange,
+    pub addr: String,
+    pub status: PlayerStatus,
+    pub change: AssetChange,
+    pub amount: u64,
+}
+
+impl Settle {
+    pub fn new<S: Into<String>>(addr: S, status: PlayerStatus, change: AssetChange, amount: u64) -> Self {
+        Self {
+            addr: addr.into(),
+            status,
+            change,
+            amount,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct SettleParams {
-    pub game_addr: String,
+    pub addr: String,
     pub settles: Vec<Settle>,
 }
 
@@ -100,6 +115,11 @@ pub struct GetStateParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubscribeEventParams {
+    pub addr: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SendEventParams {
     pub addr: String,
     pub event: Event,
@@ -116,7 +136,7 @@ pub enum EventFrame {
     Empty,
     PlayerJoined {
         addr: String,
-        players: Vec<Option<Player>>
+        players: Vec<Option<Player>>,
     },
     SendEvent {
         addr: String,
@@ -129,6 +149,7 @@ pub enum EventFrame {
     },
     Settle {
         addr: String,
-        params: SettleParams
-    }
+        params: SettleParams,
+    },
+    Shutdown,
 }

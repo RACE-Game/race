@@ -6,7 +6,7 @@ use jsonrpsee::core::Error;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
-use race_core::types::{AttachGameParams, SendEventParams, GetStateParams};
+use race_core::types::{AttachGameParams, GetStateParams, SendEventParams, SubscribeEventParams};
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -26,10 +26,9 @@ const HTTP_HOST: &str = "127.0.0.1:12000";
 async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
     let params: AttachGameParams = params.one()?;
     let mut context = context.lock().await;
-    let broadcast_tx = context.broadcast_tx.clone();
     context
         .game_manager
-        .start_game(params, broadcast_tx)
+        .start_game(params)
         .await
         .map_err(|e| Error::Custom(e.to_string()))
 }
@@ -44,10 +43,16 @@ async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>
         .map_err(|e| Error::Custom(e.to_string()))
 }
 
-async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
+async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<String> {
     let params: GetStateParams = params.one()?;
     let context = context.lock().await;
-    Ok(())
+
+    let game_handle = context
+        .game_manager
+        .get_game(&params.addr)
+        .ok_or(Error::Custom("Game not found".into()))?;
+    let snapshot = game_handle.broadcaster.get_snapshot().await;
+    Ok(snapshot)
 }
 
 fn subscribe_state(
@@ -56,8 +61,15 @@ fn subscribe_state(
     context: Arc<Mutex<ApplicationContext>>,
 ) -> std::result::Result<(), SubscriptionEmptyError> {
     {
-        let tx = context.blocking_lock().broadcast_tx.clone();
-        let rx = BroadcastStream::new(tx.subscribe());
+        let params: SubscribeEventParams = params.one()?;
+        let context = context.blocking_lock();
+
+        let handle = context
+            .game_manager
+            .get_game(&params.addr)
+            .ok_or(SubscriptionEmptyError)?;
+
+        let rx = BroadcastStream::new(handle.broadcaster.get_broadcast_rx());
 
         tokio::spawn(async move {
             match sink.pipe_from_try_stream(rx).await {

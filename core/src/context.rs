@@ -1,12 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::Serialize;
 
-use crate::{
-    error::{Error, Result},
-    event::{Event, SecretIdent},
-    random::{RandomSpec, RandomState},
-};
-use std::collections::HashMap;
+use crate::{event::Event, types::GameAccount};
 
 #[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub enum PlayerStatus {
@@ -139,7 +133,7 @@ pub struct SecretContext<'a> {
 }
 
 /// The context for public data.
-#[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct GameContext {
     pub game_addr: String,
     pub status: GameStatus,
@@ -148,7 +142,7 @@ pub struct GameContext {
     /// List of validators serving this game
     pub transactors: Vec<Validator>,
     pub dispatch: Option<DispatchEvent>,
-    pub state_json: Option<String>,
+    pub state_json: String,
     // All runtime random state, each stores the ciphers and assignments.
     // pub random_states: Vec<RandomState<'a>>,
     // /// The encrption keys from every nodes.
@@ -162,13 +156,14 @@ pub struct GameContext {
 }
 
 impl GameContext {
-    pub fn new<S>(game_addr: S) -> Self
-    where
-        S: Into<String>,
-    {
+    pub fn new(game_account: &GameAccount) -> Self {
         Self {
-            game_addr: game_addr.into(),
-            ..Default::default()
+            game_addr: game_account.addr.clone(),
+            status: GameStatus::Uninit,
+            players: Default::default(),
+            transactors: Default::default(),
+            dispatch: None,
+            state_json: "".into(),
         }
     }
 
@@ -246,7 +241,16 @@ mod test {
 
     #[test]
     fn test_borsh_serialize() {
-        let mut ctx = GameContext::new("FAKE GAME ADDR");
+        let game_account = GameAccount {
+            addr: "ACC ADDR".into(),
+            game_addr: "GAME ADDR".into(),
+            settle_serial: 0,
+            access_serial: 0,
+            players: vec![],
+            data_len: 0,
+            data: vec![],
+        };
+        let mut ctx = GameContext::new(&game_account);
         ctx.players.push(Player::new("FAKE PLAYER ADDR"));
         let encoded = ctx.try_to_vec().unwrap();
         let decoded = GameContext::try_from_slice(&encoded).unwrap();

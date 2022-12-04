@@ -44,6 +44,9 @@ pub enum Error {
 
     #[error("malformed game bundle")]
     MalformedGameBundle,
+
+    #[error("deserialize error")]
+    DeserializeError,
 }
 
 impl From<serde_json::Error> for Error {

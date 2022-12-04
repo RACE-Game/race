@@ -18,6 +18,7 @@ pub struct Broadcaster {
     closed_rx: oneshot::Receiver<CloseReason>,
     snapshot: Arc<Mutex<String>>,
     ctx: Option<BroadcasterContext>,
+    broadcast_tx: broadcast::Sender<EventFrame>,
 }
 
 impl Named for Broadcaster {
@@ -50,10 +51,17 @@ impl Component<BroadcasterContext> for Broadcaster {
                         } => {
                             let mut snapshot = snapshot.lock().await;
                             *snapshot = state_json;
-                            // TODO, broad cast event
-                            ctx.broadcast_tx.send(EventFrame::Broadcast { addr: addr.to_owned(), state_json: snapshot.clone(), event }).unwrap();
+                            ctx.broadcast_tx
+                                .send(EventFrame::Broadcast {
+                                    addr: addr.to_owned(),
+                                    state_json: snapshot.clone(),
+                                    event,
+                                })
+                                .unwrap();
                         }
-                        _ => (),
+                        _ => {
+                            println!("Input closed");
+                        },
                     }
                 } else {
                     ctx.closed_tx.send(CloseReason::Complete).unwrap();
@@ -73,20 +81,62 @@ impl Component<BroadcasterContext> for Broadcaster {
 }
 
 impl Broadcaster {
-    pub fn new(init_state: GameAccount, broadcast_tx: broadcast::Sender<EventFrame>) -> Self {
+    pub fn new(init_state: &GameAccount) -> Self {
         let snapshot = Arc::new(Mutex::new("".into()));
         let (input_tx, input_rx) = mpsc::channel(3);
         let (closed_tx, closed_rx) = oneshot::channel();
+        let (broadcast_tx, broadcast_rx) = broadcast::channel(3);
+        drop(broadcast_rx);
         let ctx = Some(BroadcasterContext {
             closed_tx,
             input_rx,
-            broadcast_tx,
+            broadcast_tx: broadcast_tx.clone(),
         });
         Self {
             input_tx,
             closed_rx,
             snapshot,
             ctx,
+            broadcast_tx,
         }
+    }
+
+    pub async fn get_snapshot(&self) -> String {
+        self.snapshot.lock().await.to_owned()
+    }
+
+    pub fn get_broadcast_rx(&self) -> broadcast::Receiver<EventFrame> {
+        self.broadcast_tx.subscribe()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use race_core::event::Event;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_broadcast_event() {
+        let game_account = GameAccount {
+            addr: "ACC ADDR".into(),
+            game_addr: "GAME ADDR".into(),
+            settle_serial: 0,
+            access_serial: 0,
+            players: vec![],
+            data_len: 0,
+            data: vec![],
+        };
+        let mut broadcaster = Broadcaster::new(&game_account);
+        let mut rx = broadcaster.get_broadcast_rx();
+        let event_frame = EventFrame::Broadcast {
+            addr: "ACC ADDR".into(),
+            state_json: "STATE JSON".into(),
+            event: Event::Custom("CUSTOM EVENT".into()),
+        };
+        broadcaster.start();
+        broadcaster.input_tx.send(event_frame.clone()).await.unwrap();
+        let event = rx.recv().await.expect("Failed to receive event");
+        assert_eq!(event, event_frame);
     }
 }

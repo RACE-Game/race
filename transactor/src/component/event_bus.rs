@@ -119,7 +119,7 @@ mod tests {
             tokio::spawn(async move {
                 loop {
                     println!("Producer started");
-                    let event = EventFrame::PlayerJoined { players: vec![] };
+                    let event = EventFrame::PlayerJoined { addr: "FAKE ADDR".into(), players: vec![] };
                     match ctx.output_tx.send(event.clone()) {
                         Ok(_) => sleep(Duration::from_secs(5)).await,
                         Err(_) => {
@@ -246,7 +246,6 @@ mod tests {
 
     // #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
     #[tokio::test]
-    // #[tokio::test]
     async fn test_component_produce() {
         let mut p = TestProducer::new();
         let mut c = TestConsumer::new();

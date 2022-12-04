@@ -4,9 +4,11 @@ use std::str;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
-use race_core::engine::{GameHandler, Result};
+use race_core::engine::GameHandler;
+use race_core::error::{Error, Result};
 use race_core::event::CustomEvent;
 use race_core::event::Event;
+use race_core::types::GameAccount;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -18,6 +20,11 @@ impl CustomEvent for GameEvent {}
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Minimal {
+    pub counter: u64,
+}
+
+#[derive(Default, BorshSerialize, BorshDeserialize)]
+pub struct MinimalAccountData {
     pub counter: u64,
 }
 
@@ -33,6 +40,14 @@ impl Minimal {
 }
 
 impl GameHandler for Minimal {
+    fn init_state(_context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
+        let data = init_account.data;
+        let account_data = MinimalAccountData::try_from_slice(&data).or(Err(Error::DeserializeError))?;
+        Ok(Self {
+            counter: account_data.counter,
+        })
+    }
+
     fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
         match event {
             Event::Custom(s) => {
@@ -56,10 +71,16 @@ mod tests {
     #[test]
     fn test_player_join() {
         let mut ctx = GameContext::default();
-        let evt = Event::Join { player_addr: "Alice".into(), timestamp: 0 };
+        let evt = Event::Join {
+            player_addr: "Alice".into(),
+            timestamp: 0,
+        };
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
-        assert_eq!(Some(DispatchEvent::new(Event::Custom("{\"Increase\":1}".into()), 0)), ctx.dispatch);
+        assert_eq!(
+            Some(DispatchEvent::new(Event::Custom("{\"Increase\":1}".into()), 0)),
+            ctx.dispatch
+        );
     }
 
     #[test]
@@ -74,22 +95,39 @@ mod tests {
 
 // to be generated
 
+pub fn read_ptr<T: BorshDeserialize>(ptr: &mut *mut u8, size: u32) -> T {
+    let slice = unsafe { slice::from_raw_parts_mut(*ptr, size as _) };
+    let parsed = T::try_from_slice(&slice).expect("Borsh deserialize error");
+    *ptr = unsafe { ptr.add(size as _) };
+    parsed
+}
+
+pub fn write_ptr<T: BorshSerialize>(ptr: &mut *mut u8, data: T) -> u32 {
+    let vec = data.try_to_vec().expect("Borsh serialize error");
+    unsafe { copy(vec.as_ptr(), *ptr, vec.len()) }
+    *ptr = unsafe { ptr.add(vec.len() as _) };
+    vec.len() as _
+}
+
 #[no_mangle]
 pub extern "C" fn handle_event(context_size: u32, event_size: u32) -> u32 {
-    let context_ptr = 1 as *mut u8;
-    let context_slice = unsafe { slice::from_raw_parts_mut(context_ptr, context_size as _) };
-    let mut context = GameContext::try_from_slice(&context_slice).unwrap();
-    let event_ptr = unsafe { context_ptr.add(context_size as usize) };
-    let event_slice = unsafe { slice::from_raw_parts(event_ptr, event_size as _) };
-    let event = Event::try_from_slice(&event_slice).unwrap();
-    let mut handler = if let Some(ref state_json) = context.state_json {
-        serde_json::from_str(&state_json).unwrap()
-    } else {
-        Minimal::default()
-    };
+    let mut ptr = 1 as *mut u8;
+    let mut context: GameContext = read_ptr(&mut ptr, context_size);
+    let event: Event = read_ptr(&mut ptr, event_size);
+    let mut handler: Minimal = serde_json::from_str(&context.state_json).unwrap();
     handler.handle_event(&mut context, event).unwrap();
-    context.state_json = Some(serde_json::to_string(&handler).unwrap());
-    let context_vec = context.try_to_vec().unwrap();
-    unsafe { copy(context_vec.as_ptr(), context_ptr, context_vec.len()) }
-    context_vec.len().try_into().unwrap()
+    context.state_json = serde_json::to_string(&handler).unwrap();
+    let mut ptr = 1 as *mut u8;
+    write_ptr(&mut ptr, context)
+}
+
+#[no_mangle]
+pub extern "C" fn init_state(context_size: u32, init_account_size: u32) -> u32 {
+    let mut ptr = 1 as *mut u8;
+    let mut context: GameContext = read_ptr(&mut ptr, context_size);
+    let init_account: GameAccount = read_ptr(&mut ptr, init_account_size);
+    let handler = Minimal::init_state(&mut context, init_account).unwrap();
+    context.state_json = serde_json::to_string(&handler).unwrap();
+    let mut ptr = 1 as *mut u8;
+    write_ptr(&mut ptr, context)
 }
