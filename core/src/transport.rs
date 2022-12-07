@@ -1,14 +1,15 @@
 use crate::{
-    error::{Error, Result},
-    types::{GameAccount, GameBundle, Settle, SettleParams, CreateGameAccountParams},
+    error::Result,
+    types::{CreateGameAccountParams, GameAccount, GameBundle, JoinParams, Settle, SettleParams},
 };
-use std::marker::Send;
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use std::marker::Send;
 
 #[async_trait]
 pub trait TransportT: Send + Sync {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String>;
+
+    async fn join(&self, params: JoinParams) -> Result<()>;
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount>;
 

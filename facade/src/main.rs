@@ -40,18 +40,51 @@ async fn get_game_bundle(params: Params<'_>, context: Arc<Mutex<Context>>) -> Re
 }
 
 async fn create_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<String> {
-    let CreateGameAccountParams { addr, data } = params.one()?;
-    println!("Create game: {:?}", addr);
+    let addr: String = "facade-game-addr".into();
+    let CreateGameAccountParams {
+        size,
+        bundle_addr,
+        data,
+    } = params.one()?;
     let account = GameAccount {
         addr: addr.clone(),
+        bundle_addr,
         settle_serial: 0,
         access_serial: 0,
-        players: vec![],
+        players: std::iter::repeat(None).take(size as _).collect(),
+        data_len: data.len() as u32,
         data,
     };
     let mut context = context.lock().await;
     context.accounts.insert(addr.clone(), account);
     Ok(addr)
+}
+
+async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
+    let JoinParams {
+        player_addr,
+        game_addr,
+        amount,
+    } = params.one()?;
+    println!(
+        "Join game: player: {:?}, game: {:?}, amount: {:?}",
+        player_addr, game_addr, amount
+    );
+    let mut context = context.lock().await;
+    let p = Player {
+        addr: player_addr,
+        balance: amount,
+    };
+    if let Some(game_account) = context.accounts.get_mut(&game_addr) {
+        if let Some(player) = game_account.players.iter_mut().find(|p| p.is_none()) {
+            player.replace(p);
+            Ok(())
+        } else {
+            Err(Error::Custom("Game is full".into()))
+        }
+    } else {
+        Err(Error::Custom("Game not found".into()))
+    }
 }
 
 async fn get_account_info(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<GameAccount> {
@@ -62,22 +95,6 @@ async fn get_account_info(params: Params<'_>, context: Arc<Mutex<Context>>) -> R
     } else {
         Err(Error::Custom("Not found".into()))
     }
-}
-
-async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
-    let JoinParams {
-        player_addr,
-        game_addr,
-        amount,
-    } = params.one()?;
-    let context = context.lock().await;
-    // if let Some(account) = context.accounts.get(&addr) {
-    //     let mut players = &mut account.players;
-    //     if players.iter().any(|p| p.is_some_with(|p| p.addr.eq(player_addr))) {
-
-    //     }
-    // }
-    Ok(())
 }
 
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {

@@ -102,20 +102,20 @@ mod tests {
         let transport = MockTransport::default();
         let ga_0 = GameAccount {
             addr: MockTransport::mock_game_account_addr(),
-            game_addr: MockTransport::mock_game_bundle_addr(),
+            bundle_addr: MockTransport::mock_game_bundle_addr(),
             access_serial: 0,
             ..Default::default()
         };
         let ga_1 = GameAccount {
             addr: MockTransport::mock_game_account_addr(),
-            game_addr: MockTransport::mock_game_bundle_addr(),
+            bundle_addr: MockTransport::mock_game_bundle_addr(),
             access_serial: 1,
             players: vec![Some(Player::new("Alice", 100))],
             ..Default::default()
         };
         let ga_2 = GameAccount {
             addr: MockTransport::mock_game_account_addr(),
-            game_addr: MockTransport::mock_game_bundle_addr(),
+            bundle_addr: MockTransport::mock_game_bundle_addr(),
             access_serial: 2,
             players: vec![Some(Player::new("Alice", 100)), Some(Player::new("Bob", 200))],
             ..Default::default()

@@ -25,7 +25,7 @@ impl Player {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub struct GameAccount {
     pub addr: String,
-    pub game_addr: String,
+    pub bundle_addr: String,
     pub settle_serial: u64,
     pub access_serial: u64,
     pub players: Vec<Option<Player>>,
@@ -41,7 +41,8 @@ pub struct GameBundle {
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct CreateGameAccountParams {
-    pub addr: String,
+    pub bundle_addr: String,
+    pub size: u8,
     pub data: Vec<u8>,
 }
 
@@ -97,13 +98,6 @@ pub struct SettleParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct JoinParams {
-    pub player_addr: String,
-    pub game_addr: String,
-    pub amount: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttachGameParams {
     pub addr: String,
     pub chain: String,
@@ -117,6 +111,13 @@ pub struct GetStateParams {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubscribeEventParams {
     pub addr: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JoinParams {
+    pub player_addr: String,
+    pub game_addr: String,
+    pub amount: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

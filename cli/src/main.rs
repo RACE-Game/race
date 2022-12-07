@@ -1,5 +1,5 @@
 use clap::{arg, Command};
-use race_core::{types::GameBundle, transport::TransportT};
+use race_core::{transport::TransportT, types::{GameBundle, JoinParams, CreateGameAccountParams}};
 use race_facade::FacadeTransport;
 use std::{fs::File, io::Read};
 
@@ -24,7 +24,7 @@ fn cli() -> Command {
         )
 }
 
-async fn publish(bundle: &str, chain: &str) {
+async fn publish(chain: &str, bundle: &str) {
     let transport = create_transport(chain);
     let mut file = File::open(bundle).unwrap();
     let mut buf = Vec::with_capacity(0x4000);
@@ -42,7 +42,7 @@ async fn main() {
         Some(("publish", sub_matches)) => {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
             let bundle = sub_matches.get_one::<String>("BUNDLE").expect("required");
-            publish(bundle, chain).await;
+            publish(chain, bundle).await;
         }
         _ => unreachable!(),
     }

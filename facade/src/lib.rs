@@ -6,7 +6,8 @@ use jsonrpsee::rpc_params;
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{
-    CreateGameAccountParams, GameAccount, GameBundle, GetAccountInfoParams, GetGameBundleParams, SettleParams,
+    CreateGameAccountParams, GameAccount, GameBundle, GetAccountInfoParams, GetGameBundleParams, JoinParams,
+    SettleParams,
 };
 
 pub struct FacadeTransport {
@@ -40,10 +41,18 @@ impl TransportT for FacadeTransport {
         self.client.request("get_game_bundle", rpc_params![params]).await.ok()
     }
 
+    async fn join(&self, params: JoinParams) -> Result<()> {
+        self.client
+            .request("join", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
     async fn publish_game(&self, bundle: GameBundle) -> Result<String> {
-        self.client.request("publish_game_bundle", rpc_params![bundle])
-        .await
-        .map_err(|e| Error::RpcError(e.to_string()))
+        self.client
+            .request("publish_game_bundle", rpc_params![bundle])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
     }
 
     async fn settle_game(&self, params: SettleParams) -> Result<()> {

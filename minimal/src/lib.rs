@@ -14,25 +14,30 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub enum GameEvent {
     Increase(u64),
+    Dispatch,
 }
 
 impl CustomEvent for GameEvent {}
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Minimal {
-    pub counter: u64,
+    counter_value: u64,
+    counter_players: u64,
 }
 
 #[derive(Default, BorshSerialize, BorshDeserialize)]
 pub struct MinimalAccountData {
-    pub counter: u64,
+    pub counter_value_default: u64,
 }
 
 impl Minimal {
     fn handle_custom_event(&mut self, context: &mut GameContext, event: GameEvent) -> Result<()> {
         match event {
             GameEvent::Increase(n) => {
-                self.counter += n;
+                self.counter_value += n;
+            }
+            GameEvent::Dispatch => {
+                context.dispatch(Event::custom(&GameEvent::Increase(1)), 0);
             }
         }
         Ok(())
@@ -44,7 +49,8 @@ impl GameHandler for Minimal {
         let data = init_account.data;
         let account_data = MinimalAccountData::try_from_slice(&data).or(Err(Error::DeserializeError))?;
         Ok(Self {
-            counter: account_data.counter,
+            counter_value: account_data.counter_value_default,
+            counter_players: init_account.players.len() as _,
         })
     }
 
@@ -54,10 +60,21 @@ impl GameHandler for Minimal {
                 let event: GameEvent = serde_json::from_str(&s)?;
                 self.handle_custom_event(context, event)
             }
-            _ => {
-                context.dispatch(Event::custom(&GameEvent::Increase(1)), 0);
+            Event::Join {
+                player_addr: _,
+                timestamp: _,
+            } => {
+                self.counter_players += 1;
                 Ok(())
             }
+            Event::Leave {
+                player_addr: _,
+                timestamp: _,
+            } => {
+                self.counter_players -= 1;
+                Ok(())
+            }
+            _ => Ok(()),
         }
     }
 }
@@ -77,8 +94,17 @@ mod tests {
         };
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
+        assert_eq!(1, hdlr.counter_players);
+    }
+
+    #[test]
+    fn test_dispatch() {
+        let mut ctx = GameContext::default();
+        let evt = Event::Custom("\"Dispatch\"".into());
+        let mut hdlr = Minimal::default();
+        hdlr.handle_event(&mut ctx, evt).unwrap();
         assert_eq!(
-            Some(DispatchEvent::new(Event::Custom("{\"Increase\":1}".into()), 0)),
+            Some(DispatchEvent::new(Event::custom(&GameEvent::Increase(1)), 0)),
             ctx.dispatch
         );
     }
@@ -89,7 +115,7 @@ mod tests {
         let evt = Event::Custom("{\"Increase\":1}".into());
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
-        assert_eq!(1, hdlr.counter);
+        assert_eq!(1, hdlr.counter_value);
     }
 }
 

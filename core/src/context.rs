@@ -133,7 +133,7 @@ pub struct SecretContext<'a> {
 }
 
 /// The context for public data.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+#[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct GameContext {
     pub game_addr: String,
     pub status: GameStatus,
@@ -143,6 +143,7 @@ pub struct GameContext {
     pub transactors: Vec<Validator>,
     pub dispatch: Option<DispatchEvent>,
     pub state_json: String,
+    pub timestamp: u64,
     // All runtime random state, each stores the ciphers and assignments.
     // pub random_states: Vec<RandomState<'a>>,
     // /// The encrption keys from every nodes.
@@ -164,7 +165,12 @@ impl GameContext {
             transactors: Default::default(),
             dispatch: None,
             state_json: "".into(),
+            timestamp: 0,
         }
+    }
+
+    pub fn set_timestamp(&mut self, timestamp: u64) {
+        self.timestamp = timestamp;
     }
 
     pub fn dispatch(&mut self, event: Event, timeout: u64) {
@@ -243,7 +249,7 @@ mod test {
     fn test_borsh_serialize() {
         let game_account = GameAccount {
             addr: "ACC ADDR".into(),
-            game_addr: "GAME ADDR".into(),
+            bundle_addr: "GAME ADDR".into(),
             settle_serial: 0,
             access_serial: 0,
             players: vec![],

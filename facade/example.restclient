@@ -1,4 +1,5 @@
-:bundle=facade-game-addr
+:game_addr=facade-game-addr
+:bundle_addr=facade-bundle-addr
 :transactor=localhost:12000
 :facade=localhost:12002
 
@@ -11,7 +12,11 @@ Content-Type: application/json
 {
         "jsonrpc": "2.0",
         "method": "create_game",
-        "params": [{"addr": "abcd", "data": [0, 0, 1, 1, 42, 42]}],
+        "params": [{
+                "game_addr": ":game_addr",
+                "bundle_addr": ":bundle_addr",
+                "data": [0, 0, 1, 1, 42, 42]
+        }],
         "id": "UUID"
 }
 

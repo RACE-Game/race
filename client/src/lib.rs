@@ -60,14 +60,14 @@ impl From<jsonrpsee::core::Error> for Error {
 }
 
 #[wasm_bindgen]
-pub struct RaceClient {
+pub struct Client {
     addr: String,
     instance: Instance,
     context: GameContext,
 }
 
 #[wasm_bindgen]
-impl RaceClient {
+impl Client {
     #[wasm_bindgen]
     pub async fn init(addr: &str) -> Result<RaceClient, Error> {
         let context = GameContext::default();

@@ -1,4 +1,4 @@
-use crate::{context::{GameContext, Player}, event::Event, types::GameAccount, error::{Result, Error}};
+use crate::{context::GameContext, error::Result, event::Event, types::GameAccount};
 
 pub trait GameHandler: Sized {
     fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self>;

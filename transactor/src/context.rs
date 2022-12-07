@@ -5,7 +5,7 @@ use race_core::types::{AttachGameParams, EventFrame};
 use race_facade::FacadeTransport;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Mutex};
 
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
@@ -41,7 +41,7 @@ impl Handle {
         let submitter = Submitter::new(transport.clone(), game_account.clone());
         let synchronizer = GameSynchronizer::new(transport.clone(), game_account.clone());
         let broadcaster = Broadcaster::new(&game_account);
-        let event_loop = EventLoop::new(handler, game_account);
+        let event_loop = EventLoop::new(handler, game_context);
 
         Ok(Self {
             addr: addr.into(),

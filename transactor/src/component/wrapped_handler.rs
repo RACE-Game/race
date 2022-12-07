@@ -6,7 +6,7 @@ use race_core::error::{Error, Result};
 use race_core::event::Event;
 use race_core::transport::TransportT;
 use race_core::types::GameAccount;
-use wasmer::{imports, Instance, Memory, MemoryType, Module, Store, TypedFunction};
+use wasmer::{imports, Instance, Module, Store, TypedFunction};
 
 pub struct WrappedHandler {
     store: Store,
@@ -106,14 +106,14 @@ mod tests {
 
     #[derive(BorshSerialize)]
     pub struct MinimalAccountData {
-        counter: u64,
+        counter_value_default: u64,
     }
 
     fn make_game_account() -> GameAccount {
-        let data = MinimalAccountData { counter: 42 }.try_to_vec().unwrap();
+        let data = MinimalAccountData { counter_value_default: 42 }.try_to_vec().unwrap();
         GameAccount {
             addr: "ACC ADDR".into(),
-            game_addr: "GAME ADDR".into(),
+            bundle_addr: "GAME ADDR".into(),
             settle_serial: 0,
             access_serial: 0,
             players: vec![],
@@ -132,7 +132,7 @@ mod tests {
         let game_account = make_game_account();
         let mut ctx = GameContext::new(&game_account);
         hdlr.init_state(&mut ctx, &game_account);
-        assert_eq!("{\"counter\":42}", ctx.state_json);
+        assert_eq!("{\"counter_value\":42,\"counter_players\":0}", ctx.state_json);
     }
 
     #[test]
@@ -140,16 +140,9 @@ mod tests {
         let mut hdlr = make_wrapped_handler();
         let game_account = make_game_account();
         let mut ctx = GameContext::new(&game_account);
-        let event = Event::Ready {
-            player_addr: "FAKE_ADDR".into(),
-            timestamp: 0,
-        };
+        let event = Event::Join { player_addr: "FAKE_ADDR".into(), timestamp: 0 };
         hdlr.init_state(&mut ctx, &game_account);
         hdlr.handle_event(&mut ctx, &event);
-        assert_eq!(
-            Some(DispatchEvent::new(Event::Custom("{\"Increase\":1}".into()), 0)),
-            ctx.dispatch
-        );
-        assert_eq!("{\"counter\":42}", ctx.state_json);
+        assert_eq!("{\"counter_value\":42,\"counter_players\":1}", ctx.state_json);
     }
 }

@@ -120,7 +120,7 @@ mod tests {
     async fn test_broadcast_event() {
         let game_account = GameAccount {
             addr: "ACC ADDR".into(),
-            game_addr: "GAME ADDR".into(),
+            bundle_addr: "GAME ADDR".into(),
             settle_serial: 0,
             access_serial: 0,
             players: vec![],
