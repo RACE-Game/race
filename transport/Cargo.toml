@@ -1,13 +1,18 @@
 [package]
-name = "race-mock-transport"
+name = "transport"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+jsonrpsee = { version = "0.16.1" }
+getrandom = { version = "0.2" }
 race-core = { path = "../core" }
 async-trait = "0.1.58"
+thiserror = "1.0.35"
+serde_json = "1.0.85"
+serde = "1.0.144"
 
 [dev-dependencies]
 tokio = { version = "1.21.0", features = ["full"] }

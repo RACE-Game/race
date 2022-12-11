@@ -3,17 +3,10 @@
 members = [
   "core",
   "transactor",
-  "client",
-  "facade",
   "cli",
-  "solana",
   "crypto",
-  "minimal",
-  "mock_transport",
-]
-
-exclude = [
-  "holdem"
+  "transport",
+  "facade",
 ]
 
 [profile.dev.package.num-bigint-dig]

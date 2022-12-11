@@ -363,16 +363,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "console_error_panic_hook"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
-dependencies = [
- "cfg-if",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "const-oid"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -854,10 +844,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c05aeb6a22b8f62540c194aac980f2115af067bfe15a0734d7277a768d396b31"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "wasi",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -1442,16 +1430,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "minimal"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "race-core",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1797,25 +1775,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "race-client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "borsh",
- "getrandom",
- "js-sys",
- "jsonrpsee",
- "race-core",
- "race-crypto",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-bindgen-test",
- "web-sys",
-]
-
-[[package]]
 name = "race-core"
 version = "0.1.0"
 dependencies = [
@@ -1846,6 +1805,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "futures",
+ "getrandom",
  "hyper",
  "jsonrpsee",
  "race-core",
@@ -1856,15 +1816,6 @@ dependencies = [
  "tower",
  "tower-http",
  "uuid",
-]
-
-[[package]]
-name = "race-mock-transport"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "race-core",
- "tokio",
 ]
 
 [[package]]
@@ -1873,22 +1824,33 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "clap",
  "hyper",
  "jsonrpsee",
  "race-core",
  "race-facade",
- "race-mock-transport",
+ "race-transport-mock",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
  "tokio-stream",
+ "toml",
  "tower",
  "tower-http",
  "tracing",
  "tracing-subscriber",
  "uuid",
  "wasmer",
+]
+
+[[package]]
+name = "race-transport-mock"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "race-core",
+ "tokio",
 ]
 
 [[package]]
@@ -2150,12 +2112,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "scoped-tls"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1cf6437eb19a8f4a6cc0f7dca544973b0b78843adbfeb3683d1a94a0024a294"
-
-[[package]]
 name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2346,10 +2302,6 @@ dependencies = [
  "rand",
  "sha-1",
 ]
-
-[[package]]
-name = "solana"
-version = "0.1.0"
 
 [[package]]
 name = "spin"
@@ -2645,6 +2597,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "transport"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "getrandom",
+ "jsonrpsee",
+ "race-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2792,30 +2758,6 @@ name = "wasm-bindgen-shared"
 version = "0.2.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c38c045535d93ec4f0b4defec448e4291638ee608530863b1e2ba115d4fff7f"
-
-[[package]]
-name = "wasm-bindgen-test"
-version = "0.3.33"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09d2fff962180c3fadf677438054b1db62bee4aa32af26a45388af07d1287e1d"
-dependencies = [
- "console_error_panic_hook",
- "js-sys",
- "scoped-tls",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-bindgen-test-macro",
-]
-
-[[package]]
-name = "wasm-bindgen-test-macro"
-version = "0.3.33"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4683da3dfc016f704c9f82cf401520c4f1cb3ee440f7f52b3d6ac29506a49ca7"
-dependencies = [
- "proc-macro2",
- "quote",
-]
 
 [[package]]
 name = "wasm-encoder"

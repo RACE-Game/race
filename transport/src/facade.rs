@@ -1,8 +1,9 @@
 use async_trait::async_trait;
-use futures::TryFutureExt;
 use jsonrpsee::core::client::ClientT;
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::rpc_params;
+
+use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBuilder};
+
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{
@@ -11,13 +12,13 @@ use race_core::types::{
 };
 
 pub struct FacadeTransport {
-    client: HttpClient,
+    client: Client,
 }
 
-impl Default for FacadeTransport {
-    fn default() -> Self {
+impl FacadeTransport {
+    pub fn new() -> Self {
         Self {
-            client: HttpClientBuilder::default().build("http://localhost:12002").unwrap(),
+            client: ClientBuilder::default().build("http://localhost:12002").unwrap(),
         }
     }
 }

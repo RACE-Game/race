@@ -1,4 +1,5 @@
 use crate::component::{Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedHandler};
+use crate::config::Config;
 use race_core::context::GameContext;
 use race_core::event::Event;
 use race_core::types::{AttachGameParams, EventFrame};
@@ -11,7 +12,7 @@ use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 
 /// Create transport based on chain name.
-pub fn create_transport(chain: &str) -> Result<Arc<dyn TransportT>> {
+pub fn create_transport(config: &Config, chain: &str) -> Result<Arc<dyn TransportT>> {
     match chain {
         "facade" => Ok(Arc::new(FacadeTransport::default())),
         _ => Err(Error::InvalidChainName),
@@ -28,8 +29,8 @@ pub struct Handle {
 }
 
 impl Handle {
-    pub async fn new(addr: &str, chain: &str) -> Result<Self> {
-        let transport = create_transport(chain)?;
+    pub async fn new(config: &Config, addr: &str, chain: &str) -> Result<Self> {
+        let transport = create_transport(config, chain)?;
         let game_account = transport
             .get_game_account(addr)
             .await
@@ -73,9 +74,9 @@ pub struct GameManager {
 }
 
 impl GameManager {
-    pub async fn start_game(&mut self, params: AttachGameParams) -> Result<()> {
+    pub async fn start_game(&mut self, config: &Config, params: AttachGameParams) -> Result<()> {
         if !self.handles.contains_key(&params.addr) {
-            let mut handle = Handle::new(&params.addr, &params.chain).await?;
+            let mut handle = Handle::new(config, &params.addr, &params.chain).await?;
             handle.start().await;
             self.handles.insert(params.addr, handle);
         }
@@ -99,14 +100,16 @@ impl GameManager {
 
 /// Transactor runtime context
 pub struct ApplicationContext {
+    pub config: Config,
     pub game_manager: GameManager,
     pub broadcast_tx: broadcast::Sender<EventFrame>,
 }
 
-impl Default for ApplicationContext {
-    fn default() -> Self {
+impl ApplicationContext {
+    pub fn new(config: Config) -> Self {
         let (tx, _rx) = broadcast::channel(16);
         Self {
+            config,
             broadcast_tx: tx,
             game_manager: GameManager::default(),
         }

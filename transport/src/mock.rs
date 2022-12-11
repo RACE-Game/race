@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use race_core::error::{Error, Result};
-use race_core::types::SettleParams;
+use race_core::types::{SettleParams, JoinParams};
 use race_core::{
     transport::TransportT,
     types::{CreateGameAccountParams, GameAccount, GameBundle, Settle},
@@ -49,6 +49,10 @@ impl Default for MockTransport {
 impl TransportT for MockTransport {
     async fn create_game_account(&self, _params: CreateGameAccountParams) -> Result<String> {
         Ok(MockTransport::mock_game_account_addr())
+    }
+
+    async fn join(&self, params: JoinParams) -> Result<()> {
+        Ok(())
     }
 
     async fn get_game_account(&self, _addr: &str) -> Option<GameAccount> {

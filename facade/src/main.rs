@@ -41,11 +41,17 @@ async fn get_game_bundle(params: Params<'_>, context: Arc<Mutex<Context>>) -> Re
 
 async fn create_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<String> {
     let addr: String = "facade-game-addr".into();
+    let mut context = context.lock().await;
     let CreateGameAccountParams {
         size,
         bundle_addr,
         data,
     } = params.one()?;
+
+    if context.bundles.contains_key(&bundle_addr) {
+        return Err(Error::Custom("Game bundle not exist!".into()))
+    }
+
     let account = GameAccount {
         addr: addr.clone(),
         bundle_addr,
@@ -55,7 +61,6 @@ async fn create_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result
         data_len: data.len() as u32,
         data,
     };
-    let mut context = context.lock().await;
     context.accounts.insert(addr.clone(), account);
     Ok(addr)
 }
