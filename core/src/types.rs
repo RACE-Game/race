@@ -39,6 +39,13 @@ pub struct GameBundle {
     pub data: Vec<u8>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PlayerProfile {
+    pub addr: String,
+    pub pfp: String,
+    pub data: Vec<u8>,
+}
+
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct CreateGameAccountParams {
     pub bundle_addr: String,
@@ -48,6 +55,11 @@ pub struct CreateGameAccountParams {
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct GetAccountInfoParams {
+    pub addr: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct CloseGameAccountParams {
     pub addr: String,
 }
 

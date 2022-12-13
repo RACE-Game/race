@@ -7,6 +7,8 @@ members = [
   "crypto",
   "transport",
   "facade",
+  "env",
+  "client",
 ]
 
 [profile.dev.package.num-bigint-dig]

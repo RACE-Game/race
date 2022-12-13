@@ -1,23 +1,13 @@
 use crate::component::{Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedHandler};
-use crate::config::Config;
 use race_core::context::GameContext;
 use race_core::event::Event;
 use race_core::types::{AttachGameParams, EventFrame};
-use race_facade::FacadeTransport;
+use race_env::Config;
+use race_transport::create_transport;
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::broadcast;
 
 use race_core::error::{Error, Result};
-use race_core::transport::TransportT;
-
-/// Create transport based on chain name.
-pub fn create_transport(config: &Config, chain: &str) -> Result<Arc<dyn TransportT>> {
-    match chain {
-        "facade" => Ok(Arc::new(FacadeTransport::default())),
-        _ => Err(Error::InvalidChainName),
-    }
-}
 
 pub struct Handle {
     pub addr: String,
@@ -31,6 +21,7 @@ pub struct Handle {
 impl Handle {
     pub async fn new(config: &Config, addr: &str, chain: &str) -> Result<Self> {
         let transport = create_transport(config, chain)?;
+        println!("Transport for {:?} created", chain);
         let game_account = transport
             .get_game_account(addr)
             .await
@@ -89,7 +80,10 @@ impl GameManager {
 
     pub async fn send_event(&self, addr: &str, event: Event) -> Result<()> {
         if let Some(handle) = self.handles.get(addr) {
-            let event_frame = EventFrame::SendEvent { addr: addr.to_owned(), event };
+            let event_frame = EventFrame::SendEvent {
+                addr: addr.to_owned(),
+                event,
+            };
             handle.event_bus.send(event_frame).await;
             Ok(())
         } else {

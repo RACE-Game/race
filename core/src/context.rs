@@ -77,19 +77,7 @@ pub struct EncryptionKeyContainer {
     pub keys: Vec<String>,
 }
 
-/// The state contains all sensitive information.
-/// This state is private.
-#[derive(Default)]
-pub struct SecretState<'a> {
-    /// The secrets used when masking the raw data, each key corresponds to one section.
-    mask_secrets: Vec<String>,
 
-    /// The secrets used when encrypting the data, each key corresponds to one item.
-    encrypt_secrets: Vec<String>,
-
-    /// Recevied secrets from other nodes.
-    recevied_secrets: Vec<Secret<'a>>,
-}
 
 #[derive(Default)]
 pub enum RandomStatus {
@@ -119,17 +107,6 @@ impl DispatchEvent {
     pub fn new(event: Event, timeout: u64) -> Self {
         Self { timeout, event }
     }
-}
-
-/// The context for secrets holder. This context is for private
-/// information, should never be shared with other nodes.
-pub struct SecretContext<'a> {
-    /// The private key used for sign key share message
-    pub sign_key: String,
-    /// The private key used to decrypt message
-    pub decrypt_key: Vec<u8>,
-    /// All runtime states for secret, each item corresponds to a randomness.
-    pub secret_states: Vec<SecretState<'a>>,
 }
 
 /// The context for public data.

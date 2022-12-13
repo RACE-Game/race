@@ -1,0 +1,9 @@
+[package]
+name = "race-env"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+toml = "0.5.9"
+serde = "1.0.144"
+tokio = { version = "1.21.0", features = ["full"] }

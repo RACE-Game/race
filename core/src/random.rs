@@ -22,6 +22,12 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+pub enum RandomRole {
+    Shuffler,
+    Drawer
+}
+
 /// An interface for randomness
 /// Since we are using P2P generated randomness, so this structure doesn't really hold the random result.
 /// `Randomness` holds the option of values, the identifiers and the generation status.

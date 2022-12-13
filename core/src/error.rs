@@ -47,6 +47,9 @@ pub enum Error {
 
     #[error("deserialize error")]
     DeserializeError,
+
+    #[error("config missing")]
+    ConfigMissing,
 }
 
 impl From<serde_json::Error> for Error {

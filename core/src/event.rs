@@ -1,12 +1,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::types::SettleParams;
-
 pub struct SecretIdent {
-    from_addr: String,
-    to_addr: Option<String>,
-    secret_key: String,
+    pub from_addr: String,
+    pub to_addr: Option<String>,
+    pub secret_key: String,
 }
 
 #[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone)]

@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use race_core::error::{Error, Result};
-use race_core::types::{SettleParams, JoinParams};
+use race_core::types::{SettleParams, JoinParams, CloseGameAccountParams, PlayerProfile};
 use race_core::{
     transport::TransportT,
     types::{CreateGameAccountParams, GameAccount, GameBundle, Settle},
@@ -51,6 +51,10 @@ impl TransportT for MockTransport {
         Ok(MockTransport::mock_game_account_addr())
     }
 
+    async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
+        Ok(())
+    }
+
     async fn join(&self, params: JoinParams) -> Result<()> {
         Ok(())
     }
@@ -75,6 +79,10 @@ impl TransportT for MockTransport {
         } else {
             None
         }
+    }
+
+    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
+        None
     }
 
     async fn publish_game(&self, bundle: GameBundle) -> Result<String> {

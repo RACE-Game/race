@@ -7,8 +7,8 @@ use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBu
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{
-    CreateGameAccountParams, GameAccount, GameBundle, GetAccountInfoParams, GetGameBundleParams, JoinParams,
-    SettleParams,
+    CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, GetAccountInfoParams,
+    GetGameBundleParams, JoinParams, SettleParams, PlayerProfile,
 };
 
 pub struct FacadeTransport {
@@ -16,7 +16,7 @@ pub struct FacadeTransport {
 }
 
 impl FacadeTransport {
-    pub fn new() -> Self {
+    pub fn new(url: &str) -> Self {
         Self {
             client: ClientBuilder::default().build("http://localhost:12002").unwrap(),
         }
@@ -32,6 +32,13 @@ impl TransportT for FacadeTransport {
             .map_err(|e| Error::RpcError(e.to_string()))
     }
 
+    async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
+        self.client
+            .request("close_game", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let params = GetAccountInfoParams { addr: addr.into() };
         self.client.request("get_account_info", rpc_params![params]).await.ok()
@@ -40,6 +47,10 @@ impl TransportT for FacadeTransport {
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
         let params = GetGameBundleParams { addr: addr.into() };
         self.client.request("get_game_bundle", rpc_params![params]).await.ok()
+    }
+
+    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
+        None
     }
 
     async fn join(&self, params: JoinParams) -> Result<()> {

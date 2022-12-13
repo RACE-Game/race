@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 race-core = { path = "../core" }
 race-facade = { path = "../facade" }
+race-transport = { path = "../transport" }
+race-env = { path = "../env" }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 anyhow = "1.0.64"
 tokio = { version = "1.21.0", features = ["full"] }
@@ -24,7 +26,3 @@ serde = "1.0.144"
 thiserror = "1.0.35"
 wasmer = "3.0.2"
 clap = { version = "4.0.26", features = ["derive"] }
-toml = "0.5.9"
-
-[dev-dependencies]
-race-transport-mock = { path = "../transport-mock" }

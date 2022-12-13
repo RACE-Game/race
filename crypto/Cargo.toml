@@ -9,5 +9,5 @@ edition = "2021"
 race-core = { path = "../core" }
 sha1 = { version = "0.10.5", default-features = false, features = ["oid"] }
 chacha20 = "0.9.0"
-rsa = "0.7.1"
+rsa = "0.5.0"
 rand = "0.8.5"
