@@ -23,7 +23,7 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
-pub enum RandomRole {
+pub enum RandomMode {
     Shuffler,
     Drawer
 }

@@ -18,18 +18,13 @@ const HTTP_HOST: &str = "127.0.0.1:12000";
 async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
     let params: AttachGameParams = params.one()?;
     let context = &mut *(context.lock().await);
-    let ApplicationContext { ref mut game_manager, ref config, broadcast_tx: _ } = context;
-    game_manager
-        .start_game(config, params)
-        .await
-        .map_err(|e| Error::Custom(e.to_string()))
+    context.start_game(params).await.map_err(|e| Error::Custom(e.to_string()))
 }
 
 async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
     let params: SendEventParams = params.one()?;
     let context = context.lock().await;
     context
-        .game_manager
         .send_event(&params.addr, params.event)
         .await
         .map_err(|e| Error::Custom(e.to_string()))
@@ -40,7 +35,6 @@ async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) 
     let context = context.lock().await;
 
     let game_handle = context
-        .game_manager
         .get_game(&params.addr)
         .ok_or(Error::Custom("Game not found".into()))?;
     let snapshot = game_handle.broadcaster.get_snapshot().await;
@@ -57,7 +51,6 @@ fn subscribe_state(
         let context = context.blocking_lock();
 
         let handle = context
-            .game_manager
             .get_game(&params.addr)
             .ok_or(SubscriptionEmptyError)?;
 
