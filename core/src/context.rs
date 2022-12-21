@@ -229,6 +229,8 @@ mod test {
             bundle_addr: "GAME ADDR".into(),
             settle_serial: 0,
             access_serial: 0,
+            max_players: 2,
+            transactors: vec![],
             players: vec![],
             data_len: 0,
             data: vec![],

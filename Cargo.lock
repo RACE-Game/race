@@ -3339,6 +3339,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "race-example-minimal"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "race-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "race-facade"
 version = "0.1.0"
 dependencies = [

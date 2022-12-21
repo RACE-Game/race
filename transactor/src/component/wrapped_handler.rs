@@ -70,7 +70,6 @@ impl WrappedHandler {
 
     pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) {
         let memory = self.instance.exports.get_memory("memory").expect("Get memory failed");
-        memory.grow(&mut self.store, 10).expect("Failed to grow");
         let handle_event: TypedFunction<(u32, u32), u32> = self
             .instance
             .exports

@@ -4,8 +4,6 @@ use race_core::event::Event;
 use race_core::types::{AttachGameParams, EventFrame};
 use race_env::Config;
 use race_transport::create_transport;
-use std::collections::HashMap;
-use tokio::sync::broadcast;
 use race_core::error::{Error, Result};
 
 pub struct Handle {

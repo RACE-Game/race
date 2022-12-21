@@ -19,9 +19,20 @@ impl Player {
     }
 }
 
+/// The data represent the state of on-chain transactor registration.
+pub struct TransactorAccount {
+    pub addr: String,
+    // The public key of transactor owner
+    pub transactor_addr: String,
+    // The endpoint for transactor server
+    pub endpoint: String,
+}
+
 /// The data represent the state of on-chain game account.
 /// A larger `access_serial` means the account has been updated by players.
 /// A larger `settle_serial` means the account has been updated by transactors.
+/// The length of `players` is `max_players`.
+/// The length of `transactors` is 10, fixed.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub struct GameAccount {
     pub addr: String,
@@ -29,6 +40,8 @@ pub struct GameAccount {
     pub settle_serial: u64,
     pub access_serial: u64,
     pub players: Vec<Option<Player>>,
+    pub transactors: Vec<Option<String>>,
+    pub max_players: u8,
     pub data_len: u32,
     pub data: Vec<u8>,
 }
@@ -65,6 +78,16 @@ pub struct CloseGameAccountParams {
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct GetGameBundleParams {
+    pub addr: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct RegisterTransactorParams {
+    pub addr: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct UnregisterTransactorParams {
     pub addr: String,
 }
 

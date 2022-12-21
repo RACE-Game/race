@@ -1,16 +1,22 @@
 use crate::{
     error::Result,
-    types::{CreateGameAccountParams, GameAccount, GameBundle, JoinParams, SettleParams, CloseGameAccountParams, PlayerProfile},
+    types::{
+        CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
+        RegisterTransactorParams, SettleParams, UnregisterTransactorParams,
+    },
 };
 use async_trait::async_trait;
 use std::marker::Send;
 
 #[async_trait]
 pub trait TransportT: Send + Sync {
-
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String>;
 
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()>;
+
+    async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()>;
+
+    async fn unregister_transactor(&self, params: UnregisterTransactorParams) -> Result<()>;
 
     async fn join(&self, params: JoinParams) -> Result<()>;
 

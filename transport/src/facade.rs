@@ -8,7 +8,7 @@ use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, GetAccountInfoParams,
-    GetGameBundleParams, JoinParams, SettleParams, PlayerProfile,
+    GetGameBundleParams, JoinParams, SettleParams, PlayerProfile, UnregisterTransactorParams, RegisterTransactorParams,
 };
 
 pub struct FacadeTransport {
@@ -72,5 +72,13 @@ impl TransportT for FacadeTransport {
             .request("settle", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
+    async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()> {
+        Ok(())
+    }
+
+    async fn unregister_transactor(&self, params: UnregisterTransactorParams) -> Result<()> {
+        Ok(())
     }
 }

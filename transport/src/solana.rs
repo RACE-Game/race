@@ -3,6 +3,7 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use race_core::error::{Error, Result};
 
+use race_core::types::{RegisterTransactorParams, UnregisterTransactorParams};
 use race_core::{
     transport::TransportT,
     types::{
@@ -41,6 +42,8 @@ impl TransportT for SolanaTransport {
             bundle_addr: "".into(),
             settle_serial: 0,
             access_serial: 0,
+            max_players: 2,
+            transactors: vec![],
             players: vec![],
             data_len: data.len() as _,
             data,
@@ -60,6 +63,14 @@ impl TransportT for SolanaTransport {
 
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
         todo!()
+    }
+
+    async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()> {
+        Ok(())
+    }
+
+    async fn unregister_transactor(&self, params: UnregisterTransactorParams) -> Result<()> {
+        Ok(())
     }
 }
 

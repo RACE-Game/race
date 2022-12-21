@@ -6,11 +6,15 @@ use race_env::Config;
 
 pub mod evm;
 pub mod facade;
-pub mod mock;
+pub mod dummy;
 pub mod solana;
 
 pub fn create_transport(config: &Config, chain: &str) -> Result<Arc<dyn TransportT>> {
     match chain {
+        "dummy" => {
+            let transport = dummy::DummyTransport::default();
+            Ok(Arc::new(transport))
+        }
         "facade" => {
             if let Some(ref params) = config.facade {
                 let transport = facade::FacadeTransport::new(&params.host);

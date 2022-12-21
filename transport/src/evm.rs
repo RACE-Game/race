@@ -4,7 +4,7 @@ use race_core::{
     transport::TransportT,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-        SettleParams,
+        SettleParams, RegisterTransactorParams, UnregisterTransactorParams,
     },
     error::{Error, Result}
 };
@@ -47,6 +47,14 @@ impl TransportT for EvmTransport {
 
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
         todo!()
+    }
+
+    async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()> {
+        Ok(())
+    }
+
+    async fn unregister_transactor(&self, params: UnregisterTransactorParams) -> Result<()> {
+        Ok(())
     }
 }
 
