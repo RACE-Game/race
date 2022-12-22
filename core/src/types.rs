@@ -83,12 +83,10 @@ pub struct GetGameBundleParams {
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct RegisterTransactorParams {
-    pub addr: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct UnregisterTransactorParams {
-    pub addr: String,
 }
 
 /// The player status in settlement.
@@ -140,6 +138,11 @@ pub struct AttachGameParams {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetStateParams {
+    pub addr: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetContextParams {
     pub addr: String,
 }
 

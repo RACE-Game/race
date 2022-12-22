@@ -2,6 +2,7 @@ mod component;
 mod handle;
 mod context;
 mod server;
+mod reg;
 
 use crate::server::run_server;
 use clap::{arg, Command};
@@ -17,17 +18,13 @@ fn cli() -> Command {
         .subcommand(Command::new("reg"))
 }
 
-pub async fn run(config: Config) {
-    run_server(config).await.expect("Unexpected error occured");
-}
-
 #[tokio::main]
 pub async fn main() {
     let matches = cli().get_matches();
     let config = Config::from_path(&matches.get_one::<String>("config").unwrap().into()).await;
     match matches.subcommand() {
         Some(("run", _)) => {
-            run(config).await;
+            run_server(config).await.expect("Unexpected error occured");
         }
         Some(("reg", _)) => {
         }

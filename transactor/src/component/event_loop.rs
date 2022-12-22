@@ -130,7 +130,7 @@ mod tests {
     #[tokio::test]
     async fn test_player_join() {
         let hdlr =
-            WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/minimal.wasm".into()).unwrap();
+            WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into()).unwrap();
         let game_account = GameAccount {
             addr: "FAKE ADDR".into(),
             bundle_addr: "FAKE ADDR".into(),

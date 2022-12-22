@@ -25,6 +25,9 @@ impl Handle {
             .ok_or(Error::GameAccountNotFound)?;
         let mut handler = WrappedHandler::load_by_addr(addr, transport.as_ref()).await?;
         let mut game_context = GameContext::new(&game_account);
+
+        // We should initialize the game state if we are the main transactor
+        // Otherwise, the state will be initialized when receiving the first event
         handler.init_state(&mut game_context, &game_account);
         let event_bus = EventBus::default();
         let submitter = Submitter::new(transport.clone(), game_account.clone());

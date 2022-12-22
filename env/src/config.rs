@@ -14,16 +14,25 @@ pub struct FacadeConfig {
 pub struct SolanaConfig {
     pub rpc: String,
     pub keyfile: PathBuf,
+    pub reg_center: String,
 }
 
 #[derive(Deserialize)]
 pub struct BnbConfig {
     pub rpc: String,
     pub keyfile: PathBuf,
+    pub reg_center: String,
+}
+
+#[derive(Deserialize)]
+pub struct TransactorConfig {
+    pub endpoint: String,
+    pub chain: String,
 }
 
 #[derive(Deserialize)]
 pub struct Config {
+    pub transactor: Option<TransactorConfig>,
     pub facade: Option<FacadeConfig>,
     pub solana: Option<SolanaConfig>,
     pub bnb: Option<BnbConfig>,

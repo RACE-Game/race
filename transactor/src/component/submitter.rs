@@ -87,7 +87,7 @@ mod tests {
 
     use std::ops::Deref;
     use race_core::types::{SettleParams, PlayerStatus, AssetChange, Settle};
-    use race_mock_transport::MockTransport;
+    use race_transport::dummy::DummyTransport;
     use super::*;
 
     #[tokio::test]
@@ -97,15 +97,17 @@ mod tests {
             bundle_addr: "GAME ADDR".into(),
             settle_serial: 0,
             access_serial: 0,
+            max_players: 2,
             players: vec![],
+            transactors: vec![],
             data_len: 0,
             data: vec![],
         };
-        let transport = Arc::new(MockTransport::default());
+        let transport = Arc::new(DummyTransport::default());
         let mut submitter = Submitter::new(transport.clone(), game_account);
         let settles = vec![Settle::new("Alice", PlayerStatus::Normal, AssetChange::Add, 100)];
-        let params = SettleParams { addr: MockTransport::mock_game_account_addr(), settles: settles.clone() };
-        let event_frame = EventFrame::Settle { addr: MockTransport::mock_game_account_addr(), params };
+        let params = SettleParams { addr: DummyTransport::mock_game_account_addr(), settles: settles.clone() };
+        let event_frame = EventFrame::Settle { addr: DummyTransport::mock_game_account_addr(), params };
         submitter.start();
         submitter.input_tx.send(event_frame).await.unwrap();
         submitter.input_tx.send(EventFrame::Shutdown).await.unwrap();

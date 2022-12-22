@@ -13,8 +13,6 @@ pub struct WrappedHandler {
     instance: Instance,
 }
 
-pub struct WrappedHandlerState {}
-
 impl WrappedHandler {
     /// Load WASM bundle by game address
     pub async fn load_by_addr(addr: &str, transport: &dyn TransportT) -> Result<Self> {
@@ -118,11 +116,13 @@ mod tests {
             players: vec![],
             data_len: data.len() as _,
             data,
+            transactors: vec![],
+            max_players: 2,
         }
     }
 
     fn make_wrapped_handler() -> WrappedHandler {
-        WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/minimal.wasm".into()).unwrap()
+        WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into()).unwrap()
     }
 
     #[test]

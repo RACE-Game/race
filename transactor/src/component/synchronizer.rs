@@ -104,20 +104,20 @@ impl GameSynchronizer {
 mod tests {
     use super::*;
     use race_core::types::{GameAccount, Player};
-    use race_mock_transport::MockTransport;
+    use race_transport::dummy::DummyTransport;
 
     #[tokio::test]
     async fn test_sync_state() {
-        let transport = Arc::new(MockTransport::default());
+        let transport = Arc::new(DummyTransport::default());
         let p = Some(Player::new("Alice", 5000));
         let ga_0 = GameAccount {
-            addr: MockTransport::mock_game_account_addr(),
-            bundle_addr: MockTransport::mock_game_bundle_addr(),
+            addr: DummyTransport::mock_game_account_addr(),
+            bundle_addr: DummyTransport::mock_game_bundle_addr(),
             ..Default::default()
         };
         let ga_1 = GameAccount {
-            addr: MockTransport::mock_game_account_addr(),
-            bundle_addr: MockTransport::mock_game_bundle_addr(),
+            addr: DummyTransport::mock_game_account_addr(),
+            bundle_addr: DummyTransport::mock_game_bundle_addr(),
             access_serial: 1,
             players: vec![p.clone()],
             ..Default::default()
@@ -128,6 +128,6 @@ mod tests {
         synchronizer.start();
         let output = &mut synchronizer.output_rx;
         output.changed().await.unwrap();
-        assert_eq!(*output.borrow(), EventFrame::PlayerJoined { addr: MockTransport::mock_game_account_addr(), players: vec![p] });
+        assert_eq!(*output.borrow(), EventFrame::PlayerJoined { addr: DummyTransport::mock_game_account_addr(), players: vec![p] });
     }
 }
