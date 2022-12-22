@@ -1,0 +1,13 @@
+[package]
+name = "holdem"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+race-core = { path = "../race/core" }
+serde_json = "1.0.85"
+serde = "1.0.144"
+borsh = "0.9.3"

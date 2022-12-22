@@ -9,7 +9,8 @@ members = [
   "facade",
   "env",
   "client",
-  "examples/minimal/core"
+  "examples/minimal/core",
+  "examples/holdem"
 ]
 
 [profile.dev.package.num-bigint-dig]
