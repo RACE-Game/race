@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-race-core = { path = "../race/core" }
+race-core = { path = "../../core" }
 serde_json = "1.0.85"
 serde = "1.0.144"
 borsh = "0.9.3"
