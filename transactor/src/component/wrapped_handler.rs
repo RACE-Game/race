@@ -107,7 +107,11 @@ mod tests {
     }
 
     fn make_game_account() -> GameAccount {
-        let data = MinimalAccountData { counter_value_default: 42 }.try_to_vec().unwrap();
+        let data = MinimalAccountData {
+            counter_value_default: 42,
+        }
+        .try_to_vec()
+        .unwrap();
         GameAccount {
             addr: "ACC ADDR".into(),
             bundle_addr: "GAME ADDR".into(),
@@ -122,7 +126,8 @@ mod tests {
     }
 
     fn make_wrapped_handler() -> WrappedHandler {
-        WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into()).unwrap()
+        WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into())
+            .unwrap()
     }
 
     #[test]
@@ -139,7 +144,9 @@ mod tests {
         let mut hdlr = make_wrapped_handler();
         let game_account = make_game_account();
         let mut ctx = GameContext::new(&game_account);
-        let event = Event::Join { player_addr: "FAKE_ADDR".into(), timestamp: 0 };
+        let event = Event::Join {
+            player_addr: "FAKE_ADDR".into(),
+        };
         hdlr.init_state(&mut ctx, &game_account);
         hdlr.handle_event(&mut ctx, &event);
         assert_eq!("{\"counter_value\":42,\"counter_players\":1}", ctx.state_json);

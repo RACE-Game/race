@@ -61,7 +61,7 @@ impl Component<BroadcasterContext> for Broadcaster {
                         }
                         _ => {
                             println!("Input closed");
-                        },
+                        }
                     }
                 } else {
                     ctx.closed_tx.send(CloseReason::Complete).unwrap();
@@ -134,7 +134,9 @@ mod tests {
         let event_frame = EventFrame::Broadcast {
             addr: "ACC ADDR".into(),
             state_json: "STATE JSON".into(),
-            event: Event::Custom("CUSTOM EVENT".into()),
+            event: Event::SystemCustom {
+                raw: "CUSTOM EVENT".into(),
+            },
         };
         broadcaster.start();
         broadcaster.input_tx.send(event_frame.clone()).await.unwrap();

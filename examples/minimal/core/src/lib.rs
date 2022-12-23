@@ -37,7 +37,7 @@ impl Minimal {
                 self.counter_value += n;
             }
             GameEvent::Dispatch => {
-                context.dispatch(Event::custom(&GameEvent::Increase(1)), 0);
+                context.dispatch(Event::system_custom(&GameEvent::Increase(1)), 0);
             }
         }
         Ok(())
@@ -56,20 +56,18 @@ impl GameHandler for Minimal {
 
     fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
         match event {
-            Event::Custom(s) => {
-                let event: GameEvent = serde_json::from_str(&s)?;
+            Event::SystemCustom{ raw } => {
+                let event: GameEvent = serde_json::from_str(&raw)?;
                 self.handle_custom_event(context, event)
             }
             Event::Join {
                 player_addr: _,
-                timestamp: _,
             } => {
                 self.counter_players += 1;
                 Ok(())
             }
             Event::Leave {
                 player_addr: _,
-                timestamp: _,
             } => {
                 self.counter_players -= 1;
                 Ok(())
@@ -90,7 +88,6 @@ mod tests {
         let mut ctx = GameContext::default();
         let evt = Event::Join {
             player_addr: "Alice".into(),
-            timestamp: 0,
         };
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
@@ -100,11 +97,11 @@ mod tests {
     #[test]
     fn test_dispatch() {
         let mut ctx = GameContext::default();
-        let evt = Event::Custom("\"Dispatch\"".into());
+        let evt = Event::system_custom(&GameEvent::Dispatch);
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
         assert_eq!(
-            Some(DispatchEvent::new(Event::custom(&GameEvent::Increase(1)), 0)),
+            Some(DispatchEvent::new(Event::system_custom(&GameEvent::Increase(1)), 0)),
             ctx.dispatch
         );
     }
@@ -112,7 +109,7 @@ mod tests {
     #[test]
     fn test_increase() {
         let mut ctx = GameContext::default();
-        let evt = Event::Custom("{\"Increase\":1}".into());
+        let evt = Event::system_custom(&GameEvent::Increase(1));
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
         assert_eq!(1, hdlr.counter_value);

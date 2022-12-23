@@ -23,8 +23,10 @@ pub enum ValidatorStatus {
 pub enum GameStatus {
     #[default]
     Uninit,
+    Initializing,               // initalizing randomness
     Waiting,
     Running,
+    Sharing,
     Closed,
 }
 

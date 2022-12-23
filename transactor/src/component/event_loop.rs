@@ -56,10 +56,7 @@ impl Component<EventLoopContext> for EventLoop {
                     EventFrame::PlayerJoined { addr, players } => {
                         for p in players.into_iter() {
                             if let Some(p) = p {
-                                let event = Event::Join {
-                                    player_addr: p.addr,
-                                    timestamp: 0,
-                                };
+                                let event = Event::Join { player_addr: p.addr };
                                 handler.handle_event(&mut game_context, &event);
                                 output_tx
                                     .send(EventFrame::Broadcast {
@@ -130,7 +127,8 @@ mod tests {
     #[tokio::test]
     async fn test_player_join() {
         let hdlr =
-            WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into()).unwrap();
+            WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into())
+                .unwrap();
         let game_account = GameAccount {
             addr: "FAKE ADDR".into(),
             bundle_addr: "FAKE ADDR".into(),
@@ -158,7 +156,6 @@ mod tests {
                     state_json: "{\"counter_value\":42,\"counter_player\":1}".into(),
                     event: Event::Join {
                         player_addr: "Alice".into(),
-                        timestamp: 0
                     }
                 }
             )
