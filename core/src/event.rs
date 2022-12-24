@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-#[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(Hash, Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone, PartialOrd, Ord)]
 pub struct SecretIdent {
     pub from_addr: String,
     pub to_addr: Option<String>,
@@ -40,6 +40,7 @@ pub enum Event {
     /// This event is sent by transactors.
     Randomize {
         sender: String,
+        random_id: u32,
         op: RandomizeOp,
         ciphertexts: Vec<Ciphertext>
     },
@@ -50,7 +51,7 @@ pub enum Event {
 
     /// Client joined game.
     /// This event is sent by transactor based on client's connection status.
-    Join { player_addr: String },
+    Join { player_addr: String, balance: u64 },
 
     /// Client left game
     /// This event is sent by transactor based on client's connection status.
@@ -74,9 +75,9 @@ pub enum Event {
 }
 
 impl Event {
-    pub fn custom<S: Into<String>, E: CustomEvent>(player_addr: S, e: &E) -> Self {
+    pub fn custom<S: Into<String>, E: CustomEvent>(sender: S, e: &E) -> Self {
         Self::Custom {
-            sender: player_addr.into(),
+            sender: sender.into(),
             raw: serde_json::to_string(&e).unwrap(),
         }
     }

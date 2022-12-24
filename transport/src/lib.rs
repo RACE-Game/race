@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_env::Config;
@@ -9,16 +7,16 @@ pub mod facade;
 pub mod dummy;
 pub mod solana;
 
-pub fn create_transport(config: &Config, chain: &str) -> Result<Arc<dyn TransportT>> {
+pub fn create_transport(config: &Config, chain: &str) -> Result<Box<dyn TransportT>> {
     match chain {
         "dummy" => {
             let transport = dummy::DummyTransport::default();
-            Ok(Arc::new(transport))
+            Ok(Box::new(transport))
         }
         "facade" => {
             if let Some(ref params) = config.facade {
                 let transport = facade::FacadeTransport::new(&params.host);
-                Ok(Arc::new(transport))
+                Ok(Box::new(transport))
             } else {
                 Err(Error::ConfigMissing)
             }
@@ -26,7 +24,7 @@ pub fn create_transport(config: &Config, chain: &str) -> Result<Arc<dyn Transpor
         "solana" => {
             if let Some(ref params) = config.solana {
                 let transport = solana::SolanaTransport::new(&params.rpc);
-                Ok(Arc::new(transport))
+                Ok(Box::new(transport))
             } else {
                 Err(Error::ConfigMissing)
             }
@@ -34,7 +32,7 @@ pub fn create_transport(config: &Config, chain: &str) -> Result<Arc<dyn Transpor
         "bnb" => {
             if let Some(ref params) = config.bnb {
                 let transport = evm::EvmTransport::new(&params.rpc);
-                Ok(Arc::new(transport))
+                Ok(Box::new(transport))
             } else {
                 Err(Error::ConfigMissing)
             }

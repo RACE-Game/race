@@ -62,6 +62,7 @@ impl GameHandler for Minimal {
             }
             Event::Join {
                 player_addr: _,
+                balance: _,
             } => {
                 self.counter_players += 1;
                 Ok(())

@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::{event::Event, types::GameAccount};
+use crate::{event::{Event, SecretIdent}, types::GameAccount, random::{RandomState, RandomSpec}};
+use crate::error::{Error, Result};
 
 #[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub enum PlayerStatus {
@@ -58,13 +61,15 @@ pub struct SecretTest<'a> {
 pub struct Player {
     pub addr: String,
     pub status: PlayerStatus,
+    pub amount: u64,
 }
 
 impl Player {
-    pub fn new<S: Into<String>>(addr: S) -> Self {
+    pub fn new<S: Into<String>>(addr: S, amount: u64) -> Self {
         Self {
             addr: addr.into(),
             status: PlayerStatus::Ready,
+            amount,
         }
     }
 }
@@ -123,8 +128,12 @@ pub struct GameContext {
     pub dispatch: Option<DispatchEvent>,
     pub state_json: String,
     pub timestamp: u64,
+    // Whether a player can leave or not
+    pub allow_leave: bool,
     // All runtime random state, each stores the ciphers and assignments.
-    // pub random_states: Vec<RandomState<'a>>,
+    pub random_states: Vec<RandomState>,
+    // Shared secrets
+    pub shared_secrets: HashMap<SecretIdent, String>,
     // /// The encrption keys from every nodes.
     // /// Keys are node address.
     // pub encrypt_keys: HashMap<&'a str, Vec<u8>>,
@@ -145,6 +154,9 @@ impl GameContext {
             dispatch: None,
             state_json: "".into(),
             timestamp: 0,
+            allow_leave: false,
+            random_states: vec![],
+            shared_secrets: Default::default(),
         }
     }
 
@@ -156,31 +168,32 @@ impl GameContext {
         self.dispatch = Some(DispatchEvent::new(event, timeout));
     }
 
-    // /// Initialize the a randomness and return its id in the context.
-    // pub fn init_randomness(&mut self, rnd: &dyn RandomSpec) -> usize {
-    //     let id = self.random_states.len();
-    //     let opts = rnd.options();
-    //     // self.random_states.push(Default::default());
-    //     id
-    // }
+    /// Initialize the a randomness and return its id in the context.
+    pub fn init_randomness(&mut self, rnd: &dyn RandomSpec) -> usize {
+        let id = self.random_states.len();
+        let owners: Vec<String> = self.transactors.iter().map(|t| t.addr.to_owned()).collect();
+        let rnd_st = RandomState::new(rnd, &owners);
+        self.random_states.push(rnd_st);
+        id
+    }
 
-    // /// Get the random state by its id.
-    // pub fn get_random_state(&self, id: usize) -> Result<&RandomState> {
-    //     if let Some(rnd_st) = self.random_states.get(id) {
-    //         Ok(rnd_st)
-    //     } else {
-    //         Err(Error::InvalidRandomId)
-    //     }
-    // }
+    /// Get the random state by its id.
+    pub fn get_random_state(&self, id: u32) -> Result<&RandomState> {
+        if let Some(rnd_st) = self.random_states.get(id as usize) {
+            Ok(rnd_st)
+        } else {
+            Err(Error::InvalidRandomId)
+        }
+    }
 
-    // /// Get the mutable random state by its id.
-    // pub fn get_mut_random_state(&'a mut self, id: usize) -> Result<&'a mut RandomState> {
-    //     if let Some(rnd_st) = self.random_states.get_mut(id) {
-    //         Ok(rnd_st)
-    //     } else {
-    //         Err(Error::InvalidRandomId)
-    //     }
-    // }
+    /// Get the mutable random state by its id.
+    pub fn get_mut_random_state(&mut self, id: u32) -> Result<&mut RandomState> {
+        if let Some(rnd_st) = self.random_states.get_mut(id as usize) {
+            Ok(rnd_st)
+        } else {
+            Err(Error::InvalidRandomId)
+        }
+    }
 
     // /// Assign a random item to a player.
     // pub fn assign(&'a mut self, random_id: usize, item_id: usize, player_addr: &'a str) -> Result<()> {
@@ -238,7 +251,7 @@ mod test {
             data: vec![],
         };
         let mut ctx = GameContext::new(&game_account);
-        ctx.players.push(Player::new("FAKE PLAYER ADDR"));
+        ctx.players.push(Player::new("FAKE PLAYER ADDR", 1000));
         let encoded = ctx.try_to_vec().unwrap();
         let decoded = GameContext::try_from_slice(&encoded).unwrap();
         assert_eq!(ctx, decoded);

@@ -4,20 +4,45 @@
 
 pub type Ciphertext = Vec<u8>;
 
+use thiserror::Error;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
+
+    #[error("invalid cipher status")]
     InvalidCipherStatus,
+
+    #[error("invalid operator")]
     InvalidOperator,
+
+    #[error("duplicated mask")]
     DuplicatedMask,
+
+    #[error("duplicated lock")]
     DuplicatedLock,
+
+    #[error("can't mask")]
     CantMask,
+
+    #[error("invalid ciphertexts")]
     InvalidCiphertexts,
+
+    #[error("update expired")]
     UpdateExpired,
+
+    #[error("invalid index")]
     InvalidIndex,
+
+    #[error("ciphertext already assigned")]
     CiphertextAlreadyAssigned,
+}
+
+impl From<Error> for crate::error::Error {
+    fn from(e: Error) -> Self {
+        Self::RandomizationError(e.to_string())
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -137,6 +162,7 @@ pub enum CipherStatus {
     Masking,
 }
 
+/// RandomState represents the public information for a single randomness.
 #[derive(Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 pub struct RandomState {
     pub serial: u32,
@@ -176,11 +202,7 @@ impl RandomState {
         }
     }
 
-    pub fn mask<S: AsRef<str>>(&mut self, serial: u32, addr: S, mut ciphertexts: Vec<Ciphertext>) -> Result<()> {
-        if self.serial != serial {
-            return Err(Error::UpdateExpired);
-        }
-        self.serial += 1;
+    pub fn mask<S: AsRef<str>>(&mut self, addr: S, mut ciphertexts: Vec<Ciphertext>) -> Result<()> {
         if self.status.ne(&CipherStatus::Masking) {
             return Err(Error::InvalidCipherStatus);
         }
@@ -209,17 +231,12 @@ impl RandomState {
 
     pub fn lock<S>(
         &mut self,
-        serial: u32,
         addr: S,
         mut ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
     ) -> Result<()>
     where
         S: Into<String> + AsRef<str> + Clone,
     {
-        if self.serial != serial {
-            return Err(Error::UpdateExpired);
-        }
-        self.serial += 1;
         if self.status.ne(&CipherStatus::Locking) {
             return Err(Error::InvalidCipherStatus);
         }
@@ -248,11 +265,7 @@ impl RandomState {
         Ok(())
     }
 
-    pub fn assign<S: Into<String>>(&mut self, serial: u32, addr: S, index: usize) -> Result<()> {
-        if self.serial != serial {
-            return Err(Error::UpdateExpired);
-        }
-        self.serial += 1;
+    pub fn assign<S: Into<String>>(&mut self, addr: S, index: usize) -> Result<()> {
         if self.status.ne(&CipherStatus::Ready) {
             return Err(Error::InvalidCipherStatus);
         }

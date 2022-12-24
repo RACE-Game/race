@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::context::GameContext;
+use race_core::context::{GameContext, GameStatus, Player, PlayerStatus};
 use race_core::error::{Error, Result};
-use race_core::event::Event;
+use race_core::event::{Event, RandomizeOp, SecretIdent};
 use race_core::transport::TransportT;
 use race_core::types::GameAccount;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
@@ -66,7 +66,7 @@ impl WrappedHandler {
         *context = GameContext::try_from_slice(&buf).unwrap();
     }
 
-    pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) {
+    fn custom_handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
         let memory = self.instance.exports.get_memory("memory").expect("Get memory failed");
         let handle_event: TypedFunction<(u32, u32), u32> = self
             .instance
@@ -92,6 +92,103 @@ impl WrappedHandler {
         println!("buf len: {:?}", buf.len());
         mem_view.read(1u64, &mut buf).unwrap();
         *context = GameContext::try_from_slice(&buf).unwrap();
+        Ok(())
+    }
+
+    fn general_handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
+        match event {
+            Event::Ready { sender } => {
+                if let Some(p) = context.players.iter_mut().find(|p| p.addr.eq(sender)) {
+                    p.status = PlayerStatus::Ready;
+                    Ok(())
+                } else {
+                    Err(Error::InvalidPlayerAddress)
+                }
+            }
+
+            Event::ShareSecrets {
+                sender: _,
+                secret_ident,
+                secret_data,
+            } => {
+                if context.shared_secrets.contains_key(secret_ident) {
+                    Err(Error::DuplicatedSecretSharing)
+                } else {
+                    context.shared_secrets.insert(secret_ident.clone(), secret_data.clone());
+                    Ok(())
+                }
+            }
+
+            Event::Randomize {
+                sender,
+                random_id,
+                op,
+                ciphertexts,
+            } => {
+                match op {
+                    RandomizeOp::Lock => {
+                        let rnd_st = context.get_mut_random_state(*random_id)?;
+                        rnd_st.lock(sender, vec![])?;
+                    }
+                    RandomizeOp::Mask => {
+                        let rnd_st = context.get_mut_random_state(*random_id)?;
+                        rnd_st.mask(sender, ciphertexts.clone())?;
+                    }
+                }
+                Ok(())
+            }
+
+            Event::RandomnessReady => Ok(()),
+
+            Event::Join {
+                player_addr,
+                balance: amount,
+            } => {
+                if let Some(_) = context.players.iter().find(|p| p.addr.eq(player_addr)) {
+                    Err(Error::PlayerAlreadyJoined)
+                } else {
+                    let p = Player::new(player_addr, *amount);
+                    context.players.push(p);
+                    Ok(())
+                }
+            }
+            Event::Leave { player_addr: _ } => {
+                // This event is for game handler
+                if context.allow_leave {
+                    Ok(())
+                } else {
+                    Err(Error::CantLeave)
+                }
+            }
+
+            Event::GameStart => {
+                context.status = GameStatus::Running;
+                Ok(())
+            }
+
+            Event::WaitTimeout => Ok(()),
+
+            Event::DrawRandomItems {
+                sender,
+                random_id,
+                indexes,
+            } => {
+                Ok(())
+            }
+
+            Event::ActionTimeout { player_addr: _ } => {
+                // This event is for game handler
+                Ok(())
+            }
+
+            Event::SecretsReady => Ok(()),
+            _ => Ok(()),
+        }
+    }
+
+    pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
+        self.general_handle_event(context, event)?;
+        self.custom_handle_event(context, event)
     }
 }
 
@@ -146,9 +243,11 @@ mod tests {
         let mut ctx = GameContext::new(&game_account);
         let event = Event::Join {
             player_addr: "FAKE_ADDR".into(),
+            balance: 1000,
         };
         hdlr.init_state(&mut ctx, &game_account);
-        hdlr.handle_event(&mut ctx, &event);
+        println!("ctx: {:?}", ctx);
+        hdlr.handle_event(&mut ctx, &event).unwrap();
         assert_eq!("{\"counter_value\":42,\"counter_players\":1}", ctx.state_json);
     }
 }

@@ -39,6 +39,12 @@ pub enum Error {
     #[error("invalid chain name")]
     InvalidChainName,
 
+    #[error("invalid player address")]
+    InvalidPlayerAddress,
+
+    #[error("invalid player status")]
+    InvalidPlayerStatus,
+
     #[error("game not loaded")]
     GameNotLoaded,
 
@@ -50,6 +56,15 @@ pub enum Error {
 
     #[error("config missing")]
     ConfigMissing,
+
+    #[error("can't leave")]
+    CantLeave,
+
+    #[error("randomization error")]
+    RandomizationError(String),
+
+    #[error("duplicated secret sharing")]
+    DuplicatedSecretSharing,
 }
 
 impl From<serde_json::Error> for Error {

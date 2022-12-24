@@ -1,9 +1,11 @@
-use crate::component::{Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedHandler};
+use std::sync::Arc;
+
+use crate::component::{Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedHandler, WrappedTransport};
 use race_core::context::GameContext;
 use race_core::event::Event;
+use race_core::transport::TransportT;
 use race_core::types::{AttachGameParams, EventFrame};
 use race_env::Config;
-use race_transport::create_transport;
 use race_core::error::{Error, Result};
 
 pub struct Handle {
@@ -17,12 +19,9 @@ pub struct Handle {
 
 impl Handle {
     pub async fn new(config: &Config, addr: &str, chain: &str) -> Result<Self> {
-        let transport = create_transport(config, chain)?;
+        let transport = Arc::new(WrappedTransport::new(config));
         println!("Transport for {:?} created", chain);
-        let game_account = transport
-            .get_game_account(addr)
-            .await
-            .ok_or(Error::GameAccountNotFound)?;
+        let game_account = transport.get_game_account(addr).await.ok_or(Error::GameAccountNotFound)?;
         let mut handler = WrappedHandler::load_by_addr(addr, transport.as_ref()).await?;
         let mut game_context = GameContext::new(&game_account);
 

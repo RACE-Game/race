@@ -56,27 +56,32 @@ impl Component<EventLoopContext> for EventLoop {
                     EventFrame::PlayerJoined { addr, players } => {
                         for p in players.into_iter() {
                             if let Some(p) = p {
-                                let event = Event::Join { player_addr: p.addr };
-                                handler.handle_event(&mut game_context, &event);
-                                output_tx
-                                    .send(EventFrame::Broadcast {
-                                        addr: addr.clone(),
-                                        state_json: game_context.state_json.clone(),
-                                        event,
-                                    })
-                                    .unwrap();
+                                let event = Event::Join {
+                                    player_addr: p.addr,
+                                    balance: p.balance,
+                                };
+                                if let Ok(_) = handler.handle_event(&mut game_context, &event) {
+                                    output_tx
+                                        .send(EventFrame::Broadcast {
+                                            addr: addr.clone(),
+                                            state_json: game_context.state_json.clone(),
+                                            event,
+                                        })
+                                        .unwrap();
+                                }
                             }
                         }
                     }
                     EventFrame::SendEvent { addr, event } => {
-                        handler.handle_event(&mut game_context, &event);
-                        output_tx
-                            .send(EventFrame::Broadcast {
-                                addr,
-                                state_json: game_context.state_json.clone(),
-                                event,
-                            })
-                            .unwrap();
+                        if let Ok(_) = handler.handle_event(&mut game_context, &event) {
+                            output_tx
+                                .send(EventFrame::Broadcast {
+                                    addr,
+                                    state_json: game_context.state_json.clone(),
+                                    event,
+                                })
+                                .unwrap();
+                        }
                     }
                     EventFrame::Shutdown => {
                         ctx.closed_tx.send(CloseReason::Complete).unwrap();
@@ -156,6 +161,7 @@ mod tests {
                     state_json: "{\"counter_value\":42,\"counter_player\":1}".into(),
                     event: Event::Join {
                         player_addr: "Alice".into(),
+                        balance: 1000
                     }
                 }
             )

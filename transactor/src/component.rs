@@ -5,6 +5,7 @@ mod synchronizer;
 mod submitter;
 mod traits;
 mod wrapped_handler;
+mod wrapped_transport;
 
 pub use broadcaster::Broadcaster;
 pub use event_loop::EventLoop;
@@ -15,3 +16,4 @@ pub use traits::Component;
 pub use traits::Named;
 pub use traits::Attachable;
 pub use wrapped_handler::WrappedHandler;
+pub use wrapped_transport::WrappedTransport;
