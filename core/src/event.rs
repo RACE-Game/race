@@ -68,6 +68,9 @@ pub enum Event {
     /// Random drawer takes random items by indexes.
     DrawRandomItems { sender: String, random_id: u32, indexes: Vec<u32> },
 
+    /// Timeout for drawing random items
+    DrawTimeout,
+
     /// Timeout when waiting for player's action
     /// Sent by transactor.
     ActionTimeout { player_addr: String },

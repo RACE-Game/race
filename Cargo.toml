@@ -2,6 +2,7 @@
 
 members = [
   "core",
+  "proc-macro",
   "transactor",
   "cli",
   "crypto",
@@ -10,7 +11,8 @@ members = [
   "env",
   "client",
   "examples/minimal/core",
-  "examples/holdem"
+  "examples/one-card-ranking",
+  "examples/holdem",
 ]
 
 [profile.dev.package.num-bigint-dig]
