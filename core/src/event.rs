@@ -9,11 +9,6 @@ pub struct SecretIdent {
     pub index: u32,
 }
 
-#[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub enum RandomizeOp {
-    Lock, Mask
-}
-
 pub type Ciphertext = Vec<u8>;
 
 #[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone)]
@@ -41,8 +36,15 @@ pub enum Event {
     Randomize {
         sender: String,
         random_id: u32,
-        op: RandomizeOp,
         ciphertexts: Vec<Ciphertext>
+    },
+
+    /// Lock items.
+    /// This event is sent by transactors.
+    Lock {
+        sender: String,
+        random_id: u32,
+        ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
     },
 
     /// All randomness is prepared.

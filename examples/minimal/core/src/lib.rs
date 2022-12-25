@@ -89,6 +89,7 @@ mod tests {
         let mut ctx = GameContext::default();
         let evt = Event::Join {
             player_addr: "Alice".into(),
+            balance: 1000,
         };
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::{GameContext, GameStatus, Player, PlayerStatus};
 use race_core::error::{Error, Result};
-use race_core::event::{Event, RandomizeOp, SecretIdent};
+use race_core::event::{Event, SecretIdent};
 use race_core::transport::TransportT;
 use race_core::types::GameAccount;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
@@ -11,6 +11,101 @@ use wasmer::{imports, Instance, Module, Store, TypedFunction};
 pub struct WrappedHandler {
     store: Store,
     instance: Instance,
+}
+
+fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<()> {
+    match event {
+        Event::Ready { sender } => {
+            if let Some(p) = context.players.iter_mut().find(|p| p.addr.eq(sender)) {
+                p.status = PlayerStatus::Ready;
+                Ok(())
+            } else {
+                Err(Error::InvalidPlayerAddress)
+            }
+        }
+
+        Event::ShareSecrets {
+            sender: _,
+            secret_ident,
+            secret_data,
+        } => {
+            if context.shared_secrets.contains_key(secret_ident) {
+                Err(Error::DuplicatedSecretSharing)
+            } else {
+                context.shared_secrets.insert(secret_ident.clone(), secret_data.clone());
+                Ok(())
+            }
+        }
+
+        Event::Randomize {
+            sender,
+            random_id,
+            ciphertexts,
+        } => {
+            let rnd_st = context.get_mut_random_state(*random_id)?;
+            rnd_st.mask(sender, ciphertexts.clone())?;
+            Ok(())
+        }
+
+        Event::Lock {
+            sender,
+            random_id,
+            ciphertexts_and_tests,
+        } => {
+            let rnd_st = context.get_mut_random_state(*random_id)?;
+            rnd_st.lock(sender, ciphertexts_and_tests.clone())?;
+            Ok(())
+        }
+
+        Event::RandomnessReady => Ok(()),
+
+        Event::Join {
+            player_addr,
+            balance: amount,
+        } => {
+            if let Some(_) = context.players.iter().find(|p| p.addr.eq(player_addr)) {
+                Err(Error::PlayerAlreadyJoined)
+            } else {
+                let p = Player::new(player_addr, *amount);
+                context.players.push(p);
+                Ok(())
+            }
+        }
+
+        Event::Leave { player_addr: _ } => {
+            // This event is for game handler
+            if context.allow_leave {
+                Ok(())
+            } else {
+                Err(Error::CantLeave)
+            }
+        }
+
+        Event::GameStart => {
+            context.status = GameStatus::Running;
+            Ok(())
+        }
+
+        Event::WaitTimeout => Ok(()),
+
+        Event::DrawRandomItems {
+            sender,
+            random_id,
+            indexes,
+        } => {
+            let rnd_st = context.get_mut_random_state(*random_id)?;
+            rnd_st.assign(sender.clone(), indexes.clone())?;
+            Ok(())
+        }
+
+        Event::ActionTimeout { player_addr: _ } => {
+            // This event is for game handler
+            Ok(())
+        }
+
+        Event::SecretsReady => Ok(()),
+        _ => Ok(()),
+    }
 }
 
 impl WrappedHandler {
@@ -37,7 +132,7 @@ impl WrappedHandler {
 
     pub fn init_state(&mut self, context: &mut GameContext, init_account: &GameAccount) {
         let memory = self.instance.exports.get_memory("memory").expect("Get memory failed");
-        memory.grow(&mut self.store, 10).expect("Failed to grow");
+        memory.grow(&mut self.store, 1).expect("Failed to grow");
         let init_state: TypedFunction<(u32, u32), u32> = self
             .instance
             .exports
@@ -95,99 +190,8 @@ impl WrappedHandler {
         Ok(())
     }
 
-    fn general_handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
-        match event {
-            Event::Ready { sender } => {
-                if let Some(p) = context.players.iter_mut().find(|p| p.addr.eq(sender)) {
-                    p.status = PlayerStatus::Ready;
-                    Ok(())
-                } else {
-                    Err(Error::InvalidPlayerAddress)
-                }
-            }
-
-            Event::ShareSecrets {
-                sender: _,
-                secret_ident,
-                secret_data,
-            } => {
-                if context.shared_secrets.contains_key(secret_ident) {
-                    Err(Error::DuplicatedSecretSharing)
-                } else {
-                    context.shared_secrets.insert(secret_ident.clone(), secret_data.clone());
-                    Ok(())
-                }
-            }
-
-            Event::Randomize {
-                sender,
-                random_id,
-                op,
-                ciphertexts,
-            } => {
-                match op {
-                    RandomizeOp::Lock => {
-                        let rnd_st = context.get_mut_random_state(*random_id)?;
-                        rnd_st.lock(sender, vec![])?;
-                    }
-                    RandomizeOp::Mask => {
-                        let rnd_st = context.get_mut_random_state(*random_id)?;
-                        rnd_st.mask(sender, ciphertexts.clone())?;
-                    }
-                }
-                Ok(())
-            }
-
-            Event::RandomnessReady => Ok(()),
-
-            Event::Join {
-                player_addr,
-                balance: amount,
-            } => {
-                if let Some(_) = context.players.iter().find(|p| p.addr.eq(player_addr)) {
-                    Err(Error::PlayerAlreadyJoined)
-                } else {
-                    let p = Player::new(player_addr, *amount);
-                    context.players.push(p);
-                    Ok(())
-                }
-            }
-            Event::Leave { player_addr: _ } => {
-                // This event is for game handler
-                if context.allow_leave {
-                    Ok(())
-                } else {
-                    Err(Error::CantLeave)
-                }
-            }
-
-            Event::GameStart => {
-                context.status = GameStatus::Running;
-                Ok(())
-            }
-
-            Event::WaitTimeout => Ok(()),
-
-            Event::DrawRandomItems {
-                sender,
-                random_id,
-                indexes,
-            } => {
-                Ok(())
-            }
-
-            Event::ActionTimeout { player_addr: _ } => {
-                // This event is for game handler
-                Ok(())
-            }
-
-            Event::SecretsReady => Ok(()),
-            _ => Ok(()),
-        }
-    }
-
     pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
-        self.general_handle_event(context, event)?;
+        general_handle_event(context, event)?;
         self.custom_handle_event(context, event)
     }
 }
@@ -250,4 +254,44 @@ mod tests {
         hdlr.handle_event(&mut ctx, &event).unwrap();
         assert_eq!("{\"counter_value\":42,\"counter_players\":1}", ctx.state_json);
     }
+
+    #[test]
+    fn test_general_handle_event_join() {
+        let game_account = make_game_account();
+        let mut ctx = GameContext::new(&game_account);
+        let event = Event::Join {
+            player_addr: "Alice".into(),
+            balance: 1000,
+        };
+        general_handle_event(&mut ctx, &event).expect("handle event error");
+        assert_eq!(1, ctx.players.len());
+    }
+
+    #[test]
+    fn test_general_handle_event_ready() {
+        let game_account = make_game_account();
+        let mut ctx = GameContext::new(&game_account);
+        let event = Event::Ready { sender: "Alice".into() };
+        general_handle_event(&mut ctx, &event).expect_err("handle event should failed");
+        ctx.players.push(Player::new("Alice", 1000));
+        general_handle_event(&mut ctx, &event).expect("handle event failed");
+        assert_eq!(PlayerStatus::Ready, ctx.players[0].status);
+    }
+
+    #[test]
+    fn test_general_handle_event_share_secrets() {
+
+    }
+
+    #[test]
+    fn test_general_handle_event_randomize() {}
+
+    #[test]
+    fn test_general_handle_event_lock() {}
+
+    #[test]
+    fn test_general_handle_event_game_start() {}
+
+    #[test]
+    fn test_general_handle_event_draw_random_items() {}
 }

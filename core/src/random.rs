@@ -4,13 +4,12 @@
 
 pub type Ciphertext = Vec<u8>;
 
-use thiserror::Error;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
-
     #[error("invalid cipher status")]
     InvalidCipherStatus,
 
@@ -50,7 +49,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub enum RandomMode {
     Shuffler,
-    Drawer
+    Drawer,
 }
 
 /// An interface for randomness
@@ -177,7 +176,11 @@ impl RandomState {
     }
 
     fn is_fully_locked(&self) -> bool {
-        self.masks.iter().all(|m| !m.is_removed())
+        self.masks.iter().all(|m| m.is_removed())
+    }
+
+    fn get_ciphertext(&self, index: usize) -> Option<&LockedCiphertext> {
+        self.ciphertexts.get(index)
     }
 
     fn get_ciphertext_mut(&mut self, index: usize) -> Option<&mut LockedCiphertext> {
@@ -229,11 +232,7 @@ impl RandomState {
         Ok(())
     }
 
-    pub fn lock<S>(
-        &mut self,
-        addr: S,
-        mut ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
-    ) -> Result<()>
+    pub fn lock<S>(&mut self, addr: S, mut ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>) -> Result<()>
     where
         S: Into<String> + AsRef<str> + Clone,
     {
@@ -265,21 +264,43 @@ impl RandomState {
         Ok(())
     }
 
-    pub fn assign<S: Into<String>>(&mut self, addr: S, index: usize) -> Result<()> {
+    pub fn assign<S>(&mut self, addr: S, indexes: Vec<u32>) -> Result<()>
+    where
+        S: ToOwned<Owned = String>,
+    {
         if self.status.ne(&CipherStatus::Ready) {
             return Err(Error::InvalidCipherStatus);
         }
-        if let Some(c) = self.get_ciphertext_mut(index) {
-            if c.owner.is_some() {
-                return Err(Error::CiphertextAlreadyAssigned);
-            } else {
-                c.owner = Some(addr.into());
+
+        if indexes
+            .iter()
+            .map(|i| self.get_ciphertext(*i as usize))
+            .flatten()
+            .any(|c| c.owner.is_some())
+        {
+            return Err(Error::CiphertextAlreadyAssigned);
+        }
+
+        for i in indexes.into_iter() {
+            if let Some(c) = self.get_ciphertext_mut(i as usize) {
+                c.owner = Some(addr.to_owned());
             }
-        } else {
-            return Err(Error::InvalidIndex);
         }
         Ok(())
     }
+}
+
+// helpers for convenience
+
+/// Create a deck of cards.
+/// Use A, 2-9, T, J, Q, K for kinds.
+/// Use S(spade), D(diamond), C(club), H(heart) for suits.
+pub fn deck_of_cards() -> ShuffledList {
+    ShuffledList::new(vec![
+        "ha", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9", "ht", "hj", "hq", "hk", "sa", "s2", "s3", "s4", "s5",
+        "s6", "s7", "s8", "s9", "st", "sj", "sq", "sk", "da", "d2", "d3", "d4", "d5", "d6", "d7", "d8", "d9", "dt",
+        "dj", "dq", "dk", "ca", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "ct", "cj", "cq", "ck",
+    ])
 }
 
 #[cfg(test)]
@@ -300,5 +321,48 @@ mod tests {
         let encoded = mask.try_to_vec().unwrap();
         let decoded = Mask::try_from_slice(&encoded).unwrap();
         assert_eq!(mask, decoded);
+    }
+
+    #[test]
+    fn test_mask() {
+        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
+        let mut state = RandomState::new(&rnd, &["alice".into(), "bob".into()]);
+        state
+            .mask("alice", vec![vec![1], vec![2], vec![3]])
+            .expect("failed to mask");
+        assert_eq!(false, state.is_fully_masked());
+        state
+            .mask("bob", vec![vec![1], vec![2], vec![3]])
+            .expect("failed to mask");
+        assert_eq!(true, state.is_fully_masked());
+    }
+
+    #[test]
+    fn test_lock() {
+        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
+        let mut state = RandomState::new(&rnd, &["alice".into(), "bob".into()]);
+        state
+            .mask("alice", vec![vec![1], vec![2], vec![3]])
+            .expect("failed to mask");
+        state
+            .lock(
+                "alice",
+                vec![(vec![1], vec![1]), (vec![2], vec![2]), (vec![3], vec![3])],
+            )
+            .expect_err("should failed to lock");
+        state
+            .mask("bob", vec![vec![1], vec![2], vec![3]])
+            .expect("failed to mask");
+        state
+            .lock(
+                "alice",
+                vec![(vec![1], vec![1]), (vec![2], vec![2]), (vec![3], vec![3])],
+            )
+            .expect("failed to lock");
+        assert_eq!(false, state.is_fully_locked());
+        state
+            .lock("bob", vec![(vec![1], vec![1]), (vec![2], vec![2]), (vec![3], vec![3])])
+            .expect("failed to lock");
+        assert_eq!(true, state.is_fully_locked());
     }
 }
