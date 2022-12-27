@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::{
-    context::{GameContext, GameContextUpdates, GameStatus},
+    context::{GameContext, GameStatus},
     engine::GameHandler,
     error::{Error, Result},
     event::{CustomEvent, Event},
@@ -66,7 +66,7 @@ impl OneCard {
 }
 
 impl GameHandler for OneCard {
-    fn init_state(context: &GameContext, init_account: GameAccount) -> Result<Self> {
+    fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
         Ok(Self {
             deck_random_id: 0,
             dealer: 0,
@@ -75,7 +75,7 @@ impl GameHandler for OneCard {
         })
     }
 
-    fn handle_event(&mut self, context: &GameContext, event: Event) -> Result<GameContextUpdates> {
+    fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
         match event {
             // Custom events are the events we defined for this game epecifically
             // See [[GameEvent]].
@@ -118,16 +118,16 @@ impl GameHandler for OneCard {
 
             // Deal player cards, each player will get one card.
             Event::RandomnessReady => {
-                let p0 = context.get_player_by_index(0).unwrap();
-                let p1 = context.get_player_by_index(1).unwrap();
-                context.assign(self.deck_random_id, &p0.addr, vec![0]);
-                context.assign(self.deck_random_id, &p1.addr, vec![0]);
+                let addr0 = context.get_player_by_index(0).unwrap().addr.clone();
+                let addr1 = context.get_player_by_index(1).unwrap().addr.clone();
+                context.assign(self.deck_random_id, addr0, vec![0])?;
+                context.assign(self.deck_random_id, addr1, vec![1])?;
             }
 
             // Start game when there are two players.
             Event::Join { player_addr, balance } => {
 
-                if context.players.len() == 2 {
+                if context.players().len() == 2 {
                     context.set_game_status(GameStatus::Initializing);
                 }
                 self.chips.insert(player_addr.to_owned(), balance);

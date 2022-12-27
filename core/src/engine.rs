@@ -9,10 +9,10 @@ use crate::{
 
 pub trait GameHandler: Sized + Serialize + DeserializeOwned {
     /// Initialize handler state with on-chain game account data.
-    fn init_state(context: &GameContext, init_account: GameAccount) -> Result<Self>;
+    fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self>;
 
     /// Handle event.
-    fn handle_event(&mut self, context: &GameContext, event: Event) -> Result<()>;
+    fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()>;
 }
 
 pub fn general_init_state(context: &mut GameContext, init_account: &GameAccount) -> Result<()> {

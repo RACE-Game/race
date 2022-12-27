@@ -22,7 +22,7 @@ fn test() -> Result<()> {
     let mut handler = create_handler(&mut ctx)?;
 
     {
-        assert_eq!(1, ctx.players.len());
+        assert_eq!(1, ctx.players().len());
         let state: &OneCard = handler.get_state();
         assert_eq!(0, state.dealer);
         assert_eq!(HashMap::from([("Alice".into(), 1000)]), state.chips);
@@ -37,7 +37,7 @@ fn test() -> Result<()> {
 
     {
         let state: &OneCard = handler.get_state();
-        assert_eq!(2, ctx.players.len());
+        assert_eq!(2, ctx.players().len());
         assert_eq!(
             HashMap::from([("Alice".into(), 1000), ("Bob".into(), 1000)]),
             state.chips

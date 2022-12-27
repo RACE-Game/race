@@ -236,9 +236,9 @@ impl GameContext {
     }
 
     /// Assign random item to a player
-    pub fn assign<S: Into<String>>(&mut self, random_id: usize, player_addr: S, indexes: Vec<usize>) -> Result<()> {
+    pub fn assign(&mut self, random_id: usize, player_addr: String, indexes: Vec<usize>) -> Result<()> {
         let rnd_st = self.get_mut_random_state(random_id)?;
-        rnd_st.assign(player_addr.into(), indexes)?;
+        rnd_st.assign(player_addr, indexes)?;
         Ok(())
     }
 
