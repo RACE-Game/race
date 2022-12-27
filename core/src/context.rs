@@ -1,11 +1,18 @@
 use std::collections::HashMap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::Serialize;
 
-use crate::{event::{Event, SecretIdent}, types::GameAccount, random::{RandomState, RandomSpec}};
+use crate::engine::GameHandler;
 use crate::error::{Error, Result};
+use crate::random::Ciphertext;
+use crate::{
+    event::{Event, SecretIdent},
+    random::{RandomSpec, RandomState},
+    types::GameAccount,
+};
 
-#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub enum PlayerStatus {
     #[default]
     Absent,
@@ -14,7 +21,7 @@ pub enum PlayerStatus {
     DropOff,
 }
 
-#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub enum ValidatorStatus {
     #[default]
     Absent,
@@ -22,11 +29,11 @@ pub enum ValidatorStatus {
     DropOff,
 }
 
-#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub enum GameStatus {
     #[default]
     Uninit,
-    Initializing,               // initalizing randomness
+    Initializing, // initalizing randomness
     Waiting,
     Running,
     Sharing,
@@ -57,24 +64,24 @@ pub struct SecretTest<'a> {
     pub secret_type: SecretType,
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub struct Player {
     pub addr: String,
     pub status: PlayerStatus,
-    pub amount: u64,
+    pub balance: u64,
 }
 
 impl Player {
-    pub fn new<S: Into<String>>(addr: S, amount: u64) -> Self {
+    pub fn new<S: Into<String>>(addr: S, balance: u64) -> Self {
         Self {
             addr: addr.into(),
             status: PlayerStatus::Ready,
-            amount,
+            balance,
         }
     }
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub struct Validator {
     pub addr: String,
     pub status: ValidatorStatus,
@@ -83,8 +90,6 @@ pub struct Validator {
 pub struct EncryptionKeyContainer {
     pub keys: Vec<String>,
 }
-
-
 
 #[derive(Default)]
 pub enum RandomStatus {
@@ -99,12 +104,14 @@ pub enum RandomStatus {
 /// A structure represents the assignment of a random item. If an
 /// item is assigned to a specific player, then every nodes will share
 /// their secrets to this player.
-pub struct RandomAssign<'a> {
-    pub item_id: usize,
-    pub player_addr: &'a str,
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct RandomAssign {
+    pub random_id: usize,
+    pub player_addr: String,
+    pub indexes: Vec<usize>,
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub struct DispatchEvent {
     pub timeout: u64,
     pub event: Event,
@@ -117,23 +124,23 @@ impl DispatchEvent {
 }
 
 /// The context for public data.
-#[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+#[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GameContext {
-    pub game_addr: String,
-    pub status: GameStatus,
+    game_addr: String,
+    status: GameStatus,
     /// List of players playing in this game
-    pub players: Vec<Player>,
+    players: Vec<Player>,
     /// List of validators serving this game
-    pub transactors: Vec<Validator>,
-    pub dispatch: Option<DispatchEvent>,
-    pub state_json: String,
-    pub timestamp: u64,
+    validators: Vec<Validator>,
+    dispatch: Option<DispatchEvent>,
+    state_json: String,
+    timestamp: u64,
     // Whether a player can leave or not
-    pub allow_leave: bool,
+    allow_leave: bool,
     // All runtime random state, each stores the ciphers and assignments.
-    pub random_states: Vec<RandomState>,
+    random_states: Vec<RandomState>,
     // Shared secrets
-    pub shared_secrets: HashMap<SecretIdent, String>,
+    shared_secrets: HashMap<SecretIdent, String>,
     // /// The encrption keys from every nodes.
     // /// Keys are node address.
     // pub encrypt_keys: HashMap<&'a str, Vec<u8>>,
@@ -150,7 +157,7 @@ impl GameContext {
             game_addr: game_account.addr.clone(),
             status: GameStatus::Uninit,
             players: Default::default(),
-            transactors: Default::default(),
+            validators: Default::default(),
             dispatch: None,
             state_json: "".into(),
             timestamp: 0,
@@ -164,21 +171,54 @@ impl GameContext {
         self.timestamp = timestamp;
     }
 
+    pub fn get_handler_state_json(&self) -> &str {
+        &self.state_json
+    }
+
+    pub fn get_handler_state<H>(&self) -> H
+    where
+        H: GameHandler,
+    {
+        serde_json::from_str(&self.state_json).unwrap()
+    }
+
+    pub fn set_handler_state<H>(&mut self, handler: &H)
+    where
+        H: Serialize,
+    {
+        self.state_json = serde_json::to_string(&handler).unwrap();
+    }
+
+    pub fn get_player_by_index(&self, index: usize) -> Option<&Player> {
+        self.players.get(index)
+    }
+
+    pub fn get_mut_player_by_index(&mut self, index: usize) -> Option<&mut Player> {
+        self.players.get_mut(index)
+    }
+
+    pub fn get_player_by_address(&self, addr: &str) -> Option<&Player> {
+        self.players.iter().find(|p| p.addr.eq(addr))
+    }
+
+    pub fn get_mut_player_by_address(&mut self, addr: &str) -> Option<&mut Player> {
+        self.players.iter_mut().find(|p| p.addr.eq(addr))
+    }
+
     pub fn dispatch(&mut self, event: Event, timeout: u64) {
         self.dispatch = Some(DispatchEvent::new(event, timeout));
     }
 
-    /// Initialize the a randomness and return its id in the context.
-    pub fn init_randomness(&mut self, rnd: &dyn RandomSpec) -> usize {
-        let id = self.random_states.len();
-        let owners: Vec<String> = self.transactors.iter().map(|t| t.addr.to_owned()).collect();
-        let rnd_st = RandomState::new(rnd, &owners);
-        self.random_states.push(rnd_st);
-        id
+    pub fn players(&self) -> &Vec<Player> {
+        &self.players
+    }
+
+    pub(crate) fn set_players(&mut self, players: Vec<Player>) {
+        self.players = players;
     }
 
     /// Get the random state by its id.
-    pub fn get_random_state(&self, id: u32) -> Result<&RandomState> {
+    pub fn get_random_state(&self, id: usize) -> Result<&RandomState> {
         if let Some(rnd_st) = self.random_states.get(id as usize) {
             Ok(rnd_st)
         } else {
@@ -187,7 +227,7 @@ impl GameContext {
     }
 
     /// Get the mutable random state by its id.
-    pub fn get_mut_random_state(&mut self, id: u32) -> Result<&mut RandomState> {
+    pub fn get_mut_random_state(&mut self, id: usize) -> Result<&mut RandomState> {
         if let Some(rnd_st) = self.random_states.get_mut(id as usize) {
             Ok(rnd_st)
         } else {
@@ -195,42 +235,93 @@ impl GameContext {
         }
     }
 
-    // /// Assign a random item to a player.
-    // pub fn assign(&'a mut self, random_id: usize, item_id: usize, player_addr: &'a str) -> Result<()> {
-    //     Ok(())
-    // }
+    /// Assign random item to a player
+    pub fn assign<S: Into<String>>(&mut self, random_id: usize, player_addr: S, indexes: Vec<usize>) -> Result<()> {
+        let rnd_st = self.get_mut_random_state(random_id)?;
+        rnd_st.assign(player_addr.into(), indexes)?;
+        Ok(())
+    }
 
-    // /// Reveal a random item to public.
-    // pub fn reveal(&'a mut self, random_id: usize, item_id: usize) -> Result<()> {
-    //     let rnd_st = self.get_mut_random_state(random_id)?;
-    //     if item_id >= rnd_st.ciphertexts.len() {
-    //         return Err(Error::InvalidRandomnessRevealing);
-    //     }
-    //     // rnd_st.reveals.push(item_id);
-    //     Ok(())
-    // }
+    /// Set game status
+    pub fn set_game_status(&mut self, status: GameStatus) {
+        self.status = status;
+    }
 
-    // pub fn submit_mask(&mut self, submitter_addr: &str, random_id: usize, ciphertexts: Vec<String>) {}
+    /// Set player status by address.
+    /// Using in custom event handler is not allowed.
+    pub fn set_player_status(&mut self, addr: &str, status: PlayerStatus) -> Result<()> {
+        if let Some(p) = self.players.iter_mut().find(|p| p.addr.eq(&addr)) {
+            p.status = status;
+        } else {
+            return Err(Error::InvalidPlayerAddress);
+        }
+        Ok(())
+    }
 
-    // pub fn submit_unmask() {}
+    /// Add player to the game.
+    /// Using in custom event handler is not allowed.
+    pub fn add_player(&mut self, addr: &str, balance: u64) -> Result<()> {
+        if self.get_player_by_address(&addr).is_some() {
+            return Err(Error::PlayerAlreadyJoined);
+        }
+        self.players.push(Player::new(addr, balance));
 
-    // /// Commit the random result to context
-    // pub fn submit_determined_random(&mut self, submitter_addr: &str, random_id: usize, ciphertexts: Vec<String>) {}
+        Ok(())
+    }
 
-    // /// Commit a branch for future randomness
-    // pub fn commit_branch_random(
-    //     &mut self,
-    //     submitter_addr: &str,
-    //     random_id: usize,
-    //     key: String,
-    //     ciphertexts: Vec<String>,
-    // ) {
-    // }
+    /// Remove player from the game.
+    pub fn remove_player(&mut self, addr: &str) -> Result<()> {
+        self.players.retain(|p| p.addr.eq(&addr));
 
-    // /// Prepare the random items
-    // pub fn prepare(&mut self, random_id: usize, item_ids: Vec<usize>) {}
+        Ok(())
+    }
 
-    // pub fn apply_secret(&mut self, secret_ident: SecretIdent, secret_data: String) {}
+    /// Dispatch event after timeout.
+    pub fn disptach(&mut self, event: Event, timeout: u64) -> Result<()> {
+        if self.dispatch.is_some() {
+            return Err(Error::DuplicatedEventDispatching);
+        }
+        self.dispatch = Some(DispatchEvent::new(event, timeout));
+        Ok(())
+    }
+
+    pub fn init_random_state(&mut self, rnd: &dyn RandomSpec) -> usize {
+        let random_id = self.random_states.len();
+        let owners: Vec<String> = self.validators.iter().map(|v| v.addr.clone()).collect();
+        let random_state = RandomState::new(rnd, &owners);
+        self.random_states.push(random_state);
+        random_id
+    }
+
+    pub fn add_shared_secrets(&mut self, _addr: &str, secret_ident: SecretIdent, secret_data: String) -> Result<()> {
+        if self.shared_secrets.contains_key(&secret_ident) {
+            return Err(Error::DuplicatedSecretSharing);
+        }
+        self.shared_secrets.insert(secret_ident, secret_data);
+
+        Ok(())
+    }
+
+    pub fn randomize(&mut self, addr: &str, random_id: usize, ciphertexts: Vec<Ciphertext>) -> Result<()> {
+        let rnd_st = self.get_mut_random_state(random_id)?;
+        rnd_st.mask(addr, ciphertexts)?;
+
+        Ok(())
+    }
+
+    pub fn lock(
+        &mut self,
+        addr: &str,
+        random_id: usize,
+        ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
+    ) -> Result<()> {
+        let rnd_st = self.get_mut_random_state(random_id)?;
+        rnd_st.lock(addr, ciphertexts_and_tests)?;
+
+        Ok(())
+    }
+
+    pub fn settle() {}
 }
 
 #[cfg(test)]
@@ -256,4 +347,7 @@ mod test {
         let decoded = GameContext::try_from_slice(&encoded).unwrap();
         assert_eq!(ctx, decoded);
     }
+
+    #[test]
+    fn test_assign() {}
 }

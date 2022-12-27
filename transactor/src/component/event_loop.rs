@@ -64,7 +64,7 @@ impl Component<EventLoopContext> for EventLoop {
                                     output_tx
                                         .send(EventFrame::Broadcast {
                                             addr: addr.clone(),
-                                            state_json: game_context.state_json.clone(),
+                                            state_json: game_context.get_handler_state_json().to_owned(),
                                             event,
                                         })
                                         .unwrap();
@@ -77,7 +77,7 @@ impl Component<EventLoopContext> for EventLoop {
                             output_tx
                                 .send(EventFrame::Broadcast {
                                     addr,
-                                    state_json: game_context.state_json.clone(),
+                                    state_json: game_context.get_handler_state_json().to_owned(),
                                     event,
                                 })
                                 .unwrap();

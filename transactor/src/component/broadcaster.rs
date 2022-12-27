@@ -134,7 +134,8 @@ mod tests {
         let event_frame = EventFrame::Broadcast {
             addr: "ACC ADDR".into(),
             state_json: "STATE JSON".into(),
-            event: Event::SystemCustom {
+            event: Event::Custom {
+                sender: "Alice".into(),
                 raw: "CUSTOM EVENT".into(),
             },
         };

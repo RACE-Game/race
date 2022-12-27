@@ -1,7 +1,8 @@
 use thiserror::Error;
 use serde::{Serialize, Deserialize};
+use borsh::{BorshDeserialize, BorshSerialize};
 
-#[derive(Error, Debug, Serialize, Deserialize)]
+#[derive(Error, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
 pub enum Error {
     #[error("player already joined")]
     PlayerAlreadyJoined,
@@ -65,6 +66,15 @@ pub enum Error {
 
     #[error("duplicated secret sharing")]
     DuplicatedSecretSharing,
+
+    #[error("duplicated event dispatching")]
+    DuplicatedEventDispatching,
+
+    #[error("invalid amount")]
+    InvalidAmount,
+
+    #[error("not allowed in custom handler")]
+    NotAllowedInCustomHandler,
 }
 
 impl From<serde_json::Error> for Error {

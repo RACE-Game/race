@@ -54,10 +54,6 @@ impl GameHandler for Minimal {
 
     fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
         match event {
-            Event::SystemCustom{ raw } => {
-                let event: GameEvent = serde_json::from_str(&raw)?;
-                self.handle_custom_event(context, event)
-            }
             Event::Join {
                 player_addr: _,
                 balance: _,

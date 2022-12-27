@@ -16,9 +16,6 @@ pub enum Event {
     /// Custom game event sent by players.
     Custom { sender: String, raw: String },
 
-    /// Custom game event sent by transactors(without player address).
-    SystemCustom { raw: String },
-
     /// Client marks itself as ready for the next game
     /// This event is sent by client.
     Ready { sender: String },
@@ -35,7 +32,7 @@ pub enum Event {
     /// This event is sent by transactors.
     Randomize {
         sender: String,
-        random_id: u32,
+        random_id: usize,
         ciphertexts: Vec<Ciphertext>
     },
 
@@ -43,7 +40,7 @@ pub enum Event {
     /// This event is sent by transactors.
     Lock {
         sender: String,
-        random_id: u32,
+        random_id: usize,
         ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
     },
 
@@ -59,14 +56,14 @@ pub enum Event {
     /// This event is sent by transactor based on client's connection status.
     Leave { player_addr: String },
 
-    /// Start the game
+    /// Transactor uses this game as the start for each game.
     GameStart,
 
     /// Timeout when waiting for start
     WaitTimeout,
 
     /// Random drawer takes random items by indexes.
-    DrawRandomItems { sender: String, random_id: u32, indexes: Vec<u32> },
+    DrawRandomItems { sender: String, random_id: usize, indexes: Vec<usize> },
 
     /// Timeout for drawing random items
     DrawTimeout,
@@ -83,12 +80,6 @@ impl Event {
     pub fn custom<S: Into<String>, E: CustomEvent>(sender: S, e: &E) -> Self {
         Self::Custom {
             sender: sender.into(),
-            raw: serde_json::to_string(&e).unwrap(),
-        }
-    }
-
-    pub fn system_custom<E: CustomEvent>(e: &E) -> Self {
-        Self::SystemCustom {
             raw: serde_json::to_string(&e).unwrap(),
         }
     }

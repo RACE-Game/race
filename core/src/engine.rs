@@ -1,40 +1,149 @@
-use crate::{context::GameContext, error::Result, event::Event, types::GameAccount};
+use serde::{de::DeserializeOwned, Serialize};
 
-pub trait GameHandler: Sized {
-    fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self>;
+use crate::{
+    context::{GameContext, GameStatus, Player, PlayerStatus},
+    error::Result,
+    event::Event,
+    types::GameAccount,
+};
 
-    fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()>;
+pub trait GameHandler: Sized + Serialize + DeserializeOwned {
+    /// Initialize handler state with on-chain game account data.
+    fn init_state(context: &GameContext, init_account: GameAccount) -> Result<Self>;
+
+    /// Handle event.
+    fn handle_event(&mut self, context: &GameContext, event: Event) -> Result<()>;
 }
 
-// pub struct GeneralGameHandler {
-//     pub handler: Box<dyn GameHandler>,
-// }
+pub fn general_init_state(context: &mut GameContext, init_account: &GameAccount) -> Result<()> {
+    let players = init_account
+        .players
+        .iter()
+        .filter_map(|p| {
+            if let Some(p) = p {
+                Some(Player::new(p.addr.to_owned(), p.balance))
+            } else {
+                None
+            }
+        })
+        .collect();
 
-// impl GeneralGameHandler {
-//     pub fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
-//         match event {
-//             Event::Custom(_) => todo!(),
-//             Event::Join { ref player_addr, timestamp: _ } => {
-//                 if context.players.iter().find(|p| p.addr.eq(player_addr)).is_some() {
-//                     return Err(Error::PlayerAlreadyInGame);
-//                 }
-//                 context.players.push(Player::new(player_addr.to_owned()));
-//                 self.handler.handle_event(context, event)
-//             }
-//             Event::Leave { ref player_addr, timestamp: _ } => {
-//                 if context.players.iter().find(|p| p.addr.eq(player_addr)).is_none() {
-//                     return Err(Error::NoSuchPlayer);
-//                 }
-//                 context.players.retain(|p|p.addr.ne(player_addr));
-//                 self.handler.handle_event(context, event)
-//             }
-//             Event::Ready { player_addr, timestamp } => todo!(),
-//             Event::GameStart { timestamp } => todo!(),
-//             Event::WaitTimeout { timestamp } => todo!(),
-//             Event::ActionTimeout { player_addr, timestamp } => todo!(),
-//             Event::SecretsReady { timestamp } => todo!(),
-//             Event::RandomnessReady { timestamp } => todo!(),
-//             _ => todo!()
-//         }
-//     }
-// }
+    context.set_players(players);
+
+    Ok(())
+}
+
+pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<()> {
+    match event {
+        Event::Ready { sender } => context.set_player_status(&sender, PlayerStatus::Ready),
+
+        Event::ShareSecrets {
+            sender,
+            secret_ident,
+            secret_data,
+        } => context.add_shared_secrets(sender, secret_ident.clone(), secret_data.clone()),
+
+        Event::Randomize {
+            sender,
+            random_id,
+            ciphertexts,
+        } => context.randomize(sender, *random_id, ciphertexts.clone()),
+
+        Event::Lock {
+            sender,
+            random_id,
+            ciphertexts_and_tests,
+        } => context.lock(sender, *random_id, ciphertexts_and_tests.clone()),
+
+        Event::RandomnessReady => Ok(()),
+
+        Event::Join { player_addr, balance } => context.add_player(player_addr, *balance),
+
+        Event::Leave { player_addr } => context.remove_player(player_addr),
+
+        Event::GameStart => {
+            context.set_game_status(GameStatus::Initializing);
+            Ok(())
+        }
+
+        Event::WaitTimeout => Ok(()),
+
+        Event::ActionTimeout { player_addr: _ } => {
+            // This event is for game handler
+            Ok(())
+        }
+
+        Event::SecretsReady => Ok(()),
+
+        _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use borsh::BorshSerialize;
+
+    use super::*;
+
+    #[derive(BorshSerialize)]
+    pub struct MinimalAccountData {
+        counter_value_default: u64,
+    }
+
+    fn make_game_account() -> GameAccount {
+        let data = MinimalAccountData {
+            counter_value_default: 42,
+        }
+        .try_to_vec()
+        .unwrap();
+        GameAccount {
+            addr: "ACC ADDR".into(),
+            bundle_addr: "GAME ADDR".into(),
+            settle_serial: 0,
+            access_serial: 0,
+            players: vec![],
+            data_len: data.len() as _,
+            data,
+            transactors: vec![],
+            max_players: 2,
+        }
+    }
+
+    #[test]
+    fn test_general_handle_event_join() {
+        let game_account = make_game_account();
+        let mut ctx = GameContext::new(&game_account);
+        let event = Event::Join {
+            player_addr: "Alice".into(),
+            balance: 1000,
+        };
+        general_handle_event(&mut ctx, &event).expect("handle event error");
+        assert_eq!(1, ctx.players().len());
+    }
+
+    // #[test]
+    // fn test_general_handle_event_ready() {
+    //     let game_account = make_game_account();
+    //     let mut ctx = GameContextAccess::new(GameContext::new(&game_account));
+    //     let event = Event::Ready { sender: "Alice".into() };
+    //     general_handle_event(&mut ctx, &event).expect_err("handle event should failed");
+    //     ctx.players.push(Player::new("Alice", 1000));
+    //     general_handle_event(&mut ctx, &event).expect("handle event failed");
+    //     assert_eq!(PlayerStatus::Ready, ctx.players[0].status);
+    // }
+
+    #[test]
+    fn test_general_handle_event_share_secrets() {}
+
+    #[test]
+    fn test_general_handle_event_randomize() {}
+
+    #[test]
+    fn test_general_handle_event_lock() {}
+
+    #[test]
+    fn test_general_handle_event_game_start() {}
+
+    #[test]
+    fn test_general_handle_event_draw_random_items() {}
+}

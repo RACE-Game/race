@@ -10,9 +10,10 @@ members = [
   "facade",
   "env",
   "client",
-  "examples/minimal/core",
-  "examples/one-card-ranking",
-  "examples/holdem",
+  "test",
+  # "examples/minimal/core",
+  "examples/one-card",
+  # "examples/holdem",
 ]
 
 [profile.dev.package.num-bigint-dig]

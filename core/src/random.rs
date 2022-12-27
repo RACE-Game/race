@@ -136,7 +136,7 @@ impl Lock {
 
 /// The representation for a ciphertext with locks applied.
 /// If all locks required are applied, then it's ready.
-#[derive(Debug, Default, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Default, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
 pub struct LockedCiphertext {
     pub locks: Vec<Lock>,
     pub owner: Option<String>,
@@ -153,7 +153,7 @@ impl LockedCiphertext {
     }
 }
 
-#[derive(Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
+#[derive(Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
 pub enum CipherStatus {
     #[default]
     Ready,
@@ -162,7 +162,7 @@ pub enum CipherStatus {
 }
 
 /// RandomState represents the public information for a single randomness.
-#[derive(Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
+#[derive(Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
 pub struct RandomState {
     pub serial: u32,
     pub status: CipherStatus,
@@ -264,7 +264,7 @@ impl RandomState {
         Ok(())
     }
 
-    pub fn assign<S>(&mut self, addr: S, indexes: Vec<u32>) -> Result<()>
+    pub fn assign<S>(&mut self, addr: S, indexes: Vec<usize>) -> Result<()>
     where
         S: ToOwned<Owned = String>,
     {
@@ -274,7 +274,7 @@ impl RandomState {
 
         if indexes
             .iter()
-            .map(|i| self.get_ciphertext(*i as usize))
+            .map(|i| self.get_ciphertext(*i))
             .flatten()
             .any(|c| c.owner.is_some())
         {
@@ -282,7 +282,7 @@ impl RandomState {
         }
 
         for i in indexes.into_iter() {
-            if let Some(c) = self.get_ciphertext_mut(i as usize) {
+            if let Some(c) = self.get_ciphertext_mut(i) {
                 c.owner = Some(addr.to_owned());
             }
         }
