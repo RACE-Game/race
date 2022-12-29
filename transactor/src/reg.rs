@@ -1,7 +1,7 @@
 //! Register current transactor into on-chain transactor list
 //! Find available games and serve them.
 
-use race_core::{error::{Error, Result}, types::RegisterTransactorParams};
+use race_core::{error::Result, types::RegisterTransactorParams};
 use race_env::Config;
 use race_transport::create_transport;
 
@@ -17,6 +17,6 @@ pub async fn start_self_registration(config: &Config) -> Result<()> {
                 transport.register_transactor(params).await.expect("Failed to register");
             }
         }
-        _ => panic!("Missing transactor configuration")
+        _ => panic!("Missing transactor configuration"),
     }
 }

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs::create_dir};
 
 use race_core::{
-    context::GameContext,
+    context::{GameContext, GameStatus},
     error::Result,
     event::Event,
     types::{GameAccount, Player},
@@ -38,6 +38,7 @@ fn test() -> Result<()> {
     {
         let state: &OneCard = handler.get_state();
         assert_eq!(2, ctx.players().len());
+        assert_eq!(GameStatus::Initializing, ctx.status());
         assert_eq!(
             HashMap::from([("Alice".into(), 1000), ("Bob".into(), 1000)]),
             state.chips

@@ -66,8 +66,8 @@ async fn game_info(config: Config, chain: &str, addr: &str) {
         Some(game_account) => {
             println!("Game account: {:?}", game_account.addr);
             println!("Game bundle: {:?}", game_account.bundle_addr);
-            println!("Access serial: {:?}", game_account.access_serial);
-            println!("Settle serial: {:?}", game_account.settle_serial);
+            println!("Access version: {:?}", game_account.access_version);
+            println!("Settle version: {:?}", game_account.settle_version);
             println!("Data size: {:?}", game_account.data.len());
             println!("Players:");
             for p in game_account.players.iter() {

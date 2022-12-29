@@ -75,6 +75,18 @@ pub enum Error {
 
     #[error("not allowed in custom handler")]
     NotAllowedInCustomHandler,
+
+    #[error("game not served")]
+    GameNotServed,
+
+    #[error("can't find transactor")]
+    CantFindTransactor,
+
+    #[error("invalid transactor address")]
+    InvalidTransactorAddress,
+
+    #[error("initialize rpc client error")]
+    InitializeRpcClientError,
 }
 
 impl From<serde_json::Error> for Error {

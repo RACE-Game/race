@@ -1,7 +1,7 @@
 //! Wrapped transport, which support retry
 
 use jsonrpsee::core::async_trait;
-use race_core::{transport::TransportT, types::{GameAccount, CreateGameAccountParams, CloseGameAccountParams, GameBundle, JoinParams, PlayerProfile, SettleParams, UnregisterTransactorParams, RegisterTransactorParams}};
+use race_core::{transport::TransportT, types::{GameAccount, CreateGameAccountParams, CloseGameAccountParams, GameBundle, JoinParams, PlayerProfile, SettleParams, UnregisterTransactorParams, RegisterTransactorParams, TransactorAccount}};
 use race_core::error::Result;
 use race_env::Config;
 use race_transport::create_transport;
@@ -37,8 +37,13 @@ impl TransportT for WrappedTransport {
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         self.internal.get_game_account(addr).await
     }
+
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
         self.internal.get_game_bundle(addr).await
+    }
+
+    async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount> {
+        self.internal.get_transactor_account(addr).await
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {

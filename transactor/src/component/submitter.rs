@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use race_core::event::Event;
 use race_core::types::{EventFrame, GameAccount};
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -88,21 +87,12 @@ mod tests {
     use std::ops::Deref;
     use race_core::types::{SettleParams, PlayerStatus, AssetChange, Settle};
     use race_transport::dummy::DummyTransport;
+    use crate::utils::tests::game_account_with_empty_data;
     use super::*;
 
     #[tokio::test]
     async fn test_submit_settle() {
-        let game_account = GameAccount {
-            addr: "ACC ADDR".into(),
-            bundle_addr: "GAME ADDR".into(),
-            settle_serial: 0,
-            access_serial: 0,
-            max_players: 2,
-            players: vec![],
-            transactors: vec![],
-            data_len: 0,
-            data: vec![],
-        };
+        let game_account = game_account_with_empty_data();
         let transport = Arc::new(DummyTransport::default());
         let mut submitter = Submitter::new(transport.clone(), game_account);
         let settles = vec![Settle::new("Alice", PlayerStatus::Normal, AssetChange::Add, 100)];

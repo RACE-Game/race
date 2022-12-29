@@ -49,8 +49,8 @@ pub fn create_test_game_account<B: BorshSerialize>(
     GameAccount {
         addr: "FAKE ACCOUNT ADDR".into(),
         bundle_addr: "FAKE BUNDLE ADDR".into(),
-        settle_serial: 0,
-        access_serial: 0,
+        settle_version: 0,
+        access_version: 0,
         players,
         transactors: vec![Some("TRANSACTOR 0".into()), Some("TRANSACTOR 1".into())],
         max_players,

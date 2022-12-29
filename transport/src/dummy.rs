@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use race_core::error::{Error, Result};
-use race_core::types::{CloseGameAccountParams, JoinParams, PlayerProfile, SettleParams, RegisterTransactorParams, UnregisterTransactorParams};
+use race_core::types::{CloseGameAccountParams, JoinParams, PlayerProfile, SettleParams, RegisterTransactorParams, UnregisterTransactorParams, TransactorAccount};
 use race_core::{
     transport::TransportT,
     types::{CreateGameAccountParams, GameAccount, GameBundle, Settle},
@@ -18,11 +18,11 @@ pub struct DummyTransport {
 
 impl DummyTransport {
     pub fn mock_game_account_addr() -> String {
-        "FAKE GAME ACCOUNT ADDR".into()
+        "ACC ADDR".into()
     }
 
     pub fn mock_game_bundle_addr() -> String {
-        "FAKE GAME BUNDLE ADDR".into()
+        "GAME ADDR".into()
     }
 
     #[allow(dead_code)]
@@ -46,6 +46,7 @@ impl Default for DummyTransport {
 }
 
 #[async_trait]
+#[allow(unused_variables)]
 impl TransportT for DummyTransport {
     async fn create_game_account(&self, _params: CreateGameAccountParams) -> Result<String> {
         Ok(DummyTransport::mock_game_account_addr())
@@ -79,6 +80,10 @@ impl TransportT for DummyTransport {
         } else {
             None
         }
+    }
+
+    async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount> {
+        todo!()
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
@@ -128,20 +133,20 @@ mod tests {
         let ga_0 = GameAccount {
             addr: DummyTransport::mock_game_account_addr(),
             bundle_addr: DummyTransport::mock_game_bundle_addr(),
-            access_serial: 0,
+            access_version: 0,
             ..Default::default()
         };
         let ga_1 = GameAccount {
             addr: DummyTransport::mock_game_account_addr(),
             bundle_addr: DummyTransport::mock_game_bundle_addr(),
-            access_serial: 1,
+            access_version: 1,
             players: vec![Some(Player::new("Alice", 100))],
             ..Default::default()
         };
         let ga_2 = GameAccount {
             addr: DummyTransport::mock_game_account_addr(),
             bundle_addr: DummyTransport::mock_game_bundle_addr(),
-            access_serial: 2,
+            access_version: 2,
             players: vec![Some(Player::new("Alice", 100)), Some(Player::new("Bob", 200))],
             ..Default::default()
         };

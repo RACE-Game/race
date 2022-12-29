@@ -3400,6 +3400,7 @@ dependencies = [
  "hyper",
  "jsonrpsee",
  "race-core",
+ "race-crypto",
  "race-env",
  "race-facade",
  "race-transport",

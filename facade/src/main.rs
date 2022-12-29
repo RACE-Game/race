@@ -55,8 +55,8 @@ async fn create_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result
     let account = GameAccount {
         addr: addr.clone(),
         bundle_addr,
-        settle_serial: 0,
-        access_serial: 0,
+        settle_version: 0,
+        access_version: 0,
         players: std::iter::repeat(None).take(size as _).collect(),
         data_len: data.len() as u32,
         data,

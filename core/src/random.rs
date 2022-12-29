@@ -36,6 +36,12 @@ pub enum Error {
 
     #[error("ciphertext already assigned")]
     CiphertextAlreadyAssigned,
+
+    #[error("invalid mask provider")]
+    InvalidMaskProvider,
+
+    #[error("invalid lock provider")]
+    InvalidLockProvider,
 }
 
 impl From<Error> for crate::error::Error {
@@ -157,25 +163,26 @@ impl LockedCiphertext {
 pub enum CipherStatus {
     #[default]
     Ready,
-    Locking,
-    Masking,
+    Locking(String), // The address to mask the ciphertexts
+    Masking(String), // The address to lock the ciphertexts
 }
 
 /// RandomState represents the public information for a single randomness.
 #[derive(Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
 pub struct RandomState {
-    pub serial: u32,
+    pub id: usize,
+    pub size: usize,
     pub status: CipherStatus,
     pub masks: Vec<Mask>,
     pub ciphertexts: Vec<LockedCiphertext>,
 }
 
 impl RandomState {
-    fn is_fully_masked(&self) -> bool {
+    pub fn is_fully_masked(&self) -> bool {
         self.masks.iter().all(|m| !m.is_required())
     }
 
-    fn is_fully_locked(&self) -> bool {
+    pub fn is_fully_locked(&self) -> bool {
         self.masks.iter().all(|m| m.is_removed())
     }
 
@@ -187,7 +194,7 @@ impl RandomState {
         self.ciphertexts.get_mut(index)
     }
 
-    pub fn new(rnd: &dyn RandomSpec, owners: &[String]) -> Self {
+    pub fn new(id: usize, rnd: &dyn RandomSpec, owners: &[String]) -> Self {
         let options = rnd.options();
         let ciphertexts = options
             .iter()
@@ -198,70 +205,83 @@ impl RandomState {
             .collect();
         let masks = owners.into_iter().map(|o| Mask::new(o)).collect();
         Self {
-            serial: 0,
+            id,
+            size: rnd.size(),
             masks,
-            status: CipherStatus::Masking,
+            status: CipherStatus::Masking(owners.first().unwrap().to_owned()),
             ciphertexts,
         }
     }
 
     pub fn mask<S: AsRef<str>>(&mut self, addr: S, mut ciphertexts: Vec<Ciphertext>) -> Result<()> {
-        if self.status.ne(&CipherStatus::Masking) {
-            return Err(Error::InvalidCipherStatus);
-        }
-        if let Some(mut mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr.as_ref())) {
-            if !mask.is_required() {
-                return Err(Error::DuplicatedMask);
-            } else {
-                mask.status = MaskStatus::Applied;
-                if ciphertexts.len() != self.ciphertexts.len() {
-                    return Err(Error::InvalidCiphertexts);
+        match self.status {
+            CipherStatus::Masking(ref mask_addr) => {
+                let addr = addr.as_ref();
+                if mask_addr.ne(addr) {
+                    return Err(Error::InvalidMaskProvider);
                 }
-                for c in self.ciphertexts.iter_mut() {
-                    c.ciphertext = ciphertexts.remove(0);
+                if let Some(mut mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr)) {
+                    if !mask.is_required() {
+                        return Err(Error::DuplicatedMask);
+                    } else {
+                        mask.status = MaskStatus::Applied;
+                        if ciphertexts.len() != self.ciphertexts.len() {
+                            return Err(Error::InvalidCiphertexts);
+                        }
+                        for c in self.ciphertexts.iter_mut() {
+                            c.ciphertext = ciphertexts.remove(0);
+                        }
+                        if let Some(m) = self.masks.iter().find(|m| m.is_required()) {
+                            self.status = CipherStatus::Masking(m.owner.clone());
+                        } else {
+                            self.status = CipherStatus::Locking(self.masks.first().unwrap().owner.clone());
+                        }
+                    }
+                } else {
+                    return Err(Error::InvalidOperator);
                 }
+                Ok(())
             }
-        } else {
-            return Err(Error::InvalidOperator);
+            _ => Err(Error::InvalidCipherStatus),
         }
-
-        if self.is_fully_masked() {
-            self.status = CipherStatus::Locking;
-        }
-
-        Ok(())
     }
 
     pub fn lock<S>(&mut self, addr: S, mut ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>) -> Result<()>
     where
         S: Into<String> + AsRef<str> + Clone,
     {
-        if self.status.ne(&CipherStatus::Locking) {
-            return Err(Error::InvalidCipherStatus);
-        }
+        match self.status {
+            CipherStatus::Locking(ref lock_addr) => {
+                let addr = addr.as_ref();
+                if addr.ne(lock_addr) {
+                    return Err(Error::InvalidLockProvider);
+                }
 
-        if let Some(mut mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr.as_ref())) {
-            if mask.status.eq(&MaskStatus::Removed) {
-                return Err(Error::DuplicatedLock);
+                if let Some(mut mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr)) {
+                    if mask.status.eq(&MaskStatus::Removed) {
+                        return Err(Error::DuplicatedLock);
+                    }
+                    mask.status = MaskStatus::Removed;
+                    if ciphertexts_and_tests.len() != self.ciphertexts.len() {
+                        return Err(Error::InvalidCiphertexts);
+                    }
+                    for c in self.ciphertexts.iter_mut() {
+                        let (new_text, test) = ciphertexts_and_tests.remove(0);
+                        c.ciphertext = new_text;
+                        c.locks.push(Lock::new(addr.to_owned(), test));
+                    }
+                    if let Some(m) = self.masks.iter().find(|m| !m.is_removed()) {
+                        self.status = CipherStatus::Locking(m.owner.clone());
+                    } else {
+                        self.status = CipherStatus::Ready;
+                    }
+                } else {
+                    return Err(Error::InvalidOperator);
+                }
+                Ok(())
             }
-            mask.status = MaskStatus::Removed;
-            if ciphertexts_and_tests.len() != self.ciphertexts.len() {
-                return Err(Error::InvalidCiphertexts);
-            }
-            for c in self.ciphertexts.iter_mut() {
-                let (new_text, test) = ciphertexts_and_tests.remove(0);
-                c.ciphertext = new_text;
-                c.locks.push(Lock::new(addr.to_owned(), test));
-            }
-        } else {
-            return Err(Error::InvalidOperator);
+            _ => Err(Error::InvalidCipherStatus),
         }
-
-        if self.is_fully_locked() {
-            self.status = CipherStatus::Ready;
-        }
-
-        Ok(())
     }
 
     pub fn assign<S>(&mut self, addr: S, indexes: Vec<usize>) -> Result<()>
@@ -311,7 +331,7 @@ mod tests {
     #[test]
     fn test_new_random_spec() {
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let state = RandomState::new(&rnd, &["alice".into(), "bob".into(), "charlie".into()]);
+        let state = RandomState::new(0, &rnd, &["alice".into(), "bob".into(), "charlie".into()]);
         assert_eq!(3, state.masks.len());
     }
 
@@ -326,21 +346,25 @@ mod tests {
     #[test]
     fn test_mask() {
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::new(&rnd, &["alice".into(), "bob".into()]);
+        let mut state = RandomState::new(0, &rnd, &["alice".into(), "bob".into()]);
+        assert_eq!(CipherStatus::Masking("alice".into()), state.status);
         state
             .mask("alice", vec![vec![1], vec![2], vec![3]])
             .expect("failed to mask");
+
+        assert_eq!(CipherStatus::Masking("bob".into()), state.status);
         assert_eq!(false, state.is_fully_masked());
         state
             .mask("bob", vec![vec![1], vec![2], vec![3]])
             .expect("failed to mask");
+        assert_eq!(CipherStatus::Locking("alice".into()), state.status);
         assert_eq!(true, state.is_fully_masked());
     }
 
     #[test]
     fn test_lock() {
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::new(&rnd, &["alice".into(), "bob".into()]);
+        let mut state = RandomState::new(0, &rnd, &["alice".into(), "bob".into()]);
         state
             .mask("alice", vec![vec![1], vec![2], vec![3]])
             .expect("failed to mask");
@@ -353,16 +377,19 @@ mod tests {
         state
             .mask("bob", vec![vec![1], vec![2], vec![3]])
             .expect("failed to mask");
+        assert_eq!(CipherStatus::Locking("alice".into()), state.status);
         state
             .lock(
                 "alice",
                 vec![(vec![1], vec![1]), (vec![2], vec![2]), (vec![3], vec![3])],
             )
             .expect("failed to lock");
+        assert_eq!(CipherStatus::Locking("bob".into()), state.status);
         assert_eq!(false, state.is_fully_locked());
         state
             .lock("bob", vec![(vec![1], vec![1]), (vec![2], vec![2]), (vec![3], vec![3])])
             .expect("failed to lock");
+        assert_eq!(CipherStatus::Ready, state.status);
         assert_eq!(true, state.is_fully_locked());
     }
 }

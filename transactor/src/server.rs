@@ -6,8 +6,7 @@ use jsonrpsee::core::Error;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
-use race_core::context::GameContext;
-use race_core::types::{AttachGameParams, GetStateParams, SendEventParams, SubscribeEventParams, GetContextParams};
+use race_core::types::{AttachGameParams, GetStateParams, SendEventParams, SubscribeEventParams};
 use race_env::Config;
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
@@ -19,7 +18,10 @@ const HTTP_HOST: &str = "127.0.0.1:12000";
 async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
     let params: AttachGameParams = params.one()?;
     let context = &mut *(context.lock().await);
-    context.start_game(params).await.map_err(|e| Error::Custom(e.to_string()))
+    context
+        .start_game(params)
+        .await
+        .map_err(|e| Error::Custom(e.to_string()))
 }
 
 async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
@@ -51,9 +53,7 @@ fn subscribe_state(
         let params: SubscribeEventParams = params.one()?;
         let context = context.blocking_lock();
 
-        let handle = context
-            .get_game(&params.addr)
-            .ok_or(SubscriptionEmptyError)?;
+        let handle = context.get_game(&params.addr).ok_or(SubscriptionEmptyError)?;
 
         let rx = BroadcastStream::new(handle.broadcaster.get_broadcast_rx());
 

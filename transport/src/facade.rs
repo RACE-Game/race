@@ -8,7 +8,7 @@ use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, GetAccountInfoParams,
-    GetGameBundleParams, JoinParams, SettleParams, PlayerProfile, UnregisterTransactorParams, RegisterTransactorParams,
+    GetGameBundleParams, JoinParams, SettleParams, PlayerProfile, UnregisterTransactorParams, RegisterTransactorParams, TransactorAccount,
 };
 
 pub struct FacadeTransport {
@@ -18,12 +18,13 @@ pub struct FacadeTransport {
 impl FacadeTransport {
     pub fn new(url: &str) -> Self {
         Self {
-            client: ClientBuilder::default().build("http://localhost:12002").unwrap(),
+            client: ClientBuilder::default().build(url).unwrap(),
         }
     }
 }
 
 #[async_trait]
+#[allow(unused_variables)]
 impl TransportT for FacadeTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
         self.client
@@ -47,6 +48,10 @@ impl TransportT for FacadeTransport {
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
         let params = GetGameBundleParams { addr: addr.into() };
         self.client.request("get_game_bundle", rpc_params![params]).await.ok()
+    }
+
+    async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount> {
+        todo!()
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {

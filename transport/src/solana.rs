@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use race_core::error::{Error, Result};
+use race_core::error::Result;
 
-use race_core::types::{RegisterTransactorParams, UnregisterTransactorParams};
+use race_core::types::{RegisterTransactorParams, TransactorAccount, UnregisterTransactorParams};
 use race_core::{
     transport::TransportT,
     types::{
@@ -12,8 +12,8 @@ use race_core::{
     },
 };
 
-use solana_client::rpc_client::{RpcClient, RpcClientConfig};
-use solana_sdk::commitment_config::{CommitmentLevel, CommitmentConfig};
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 
 pub struct SolanaTransport {
@@ -21,6 +21,7 @@ pub struct SolanaTransport {
 }
 
 #[async_trait]
+#[allow(unused_variables)]
 impl TransportT for SolanaTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
         Ok("".into())
@@ -40,8 +41,9 @@ impl TransportT for SolanaTransport {
         Some(GameAccount {
             addr: addr.to_owned(),
             bundle_addr: "".into(),
-            settle_serial: 0,
-            access_serial: 0,
+            served: true,
+            settle_version: 0,
+            access_version: 0,
             max_players: 2,
             transactors: vec![],
             players: vec![],
@@ -50,6 +52,10 @@ impl TransportT for SolanaTransport {
         })
     }
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
+        todo!()
+    }
+
+    async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount> {
         todo!()
     }
 

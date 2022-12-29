@@ -29,7 +29,7 @@ pub enum ValidatorStatus {
     DropOff,
 }
 
-#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone)]
 pub enum GameStatus {
     #[default]
     Uninit,
@@ -213,8 +213,16 @@ impl GameContext {
         &self.players
     }
 
+    pub fn status(&self) -> GameStatus {
+        self.status
+    }
+
     pub(crate) fn set_players(&mut self, players: Vec<Player>) {
         self.players = players;
+    }
+
+    pub fn list_random_states(&self) -> &Vec<RandomState> {
+        &self.random_states
     }
 
     /// Get the random state by its id.
@@ -241,6 +249,11 @@ impl GameContext {
         rnd_st.assign(player_addr, indexes)?;
         Ok(())
     }
+
+    /// List all required secrets
+    pub fn list_required_secrets(&self) {}
+
+    pub fn list_required_secrets_by_addr(&self, _addr: &str) {}
 
     /// Set game status
     pub fn set_game_status(&mut self, status: GameStatus) {
@@ -288,7 +301,7 @@ impl GameContext {
     pub fn init_random_state(&mut self, rnd: &dyn RandomSpec) -> usize {
         let random_id = self.random_states.len();
         let owners: Vec<String> = self.validators.iter().map(|v| v.addr.clone()).collect();
-        let random_state = RandomState::new(rnd, &owners);
+        let random_state = RandomState::new(random_id, rnd, &owners);
         self.random_states.push(random_state);
         random_id
     }
@@ -333,8 +346,9 @@ mod test {
         let game_account = GameAccount {
             addr: "ACC ADDR".into(),
             bundle_addr: "GAME ADDR".into(),
-            settle_serial: 0,
-            access_serial: 0,
+            served: true,
+            settle_version: 0,
+            access_version: 0,
             max_players: 2,
             transactors: vec![],
             players: vec![],

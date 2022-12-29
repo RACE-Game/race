@@ -102,7 +102,9 @@ impl GameHandler for OneCard {
                 sender,
                 secret_ident,
                 secret_data,
-            } => {}
+            } => {
+
+            }
 
             Event::Randomize {
                 sender,

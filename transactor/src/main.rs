@@ -2,7 +2,9 @@ mod component;
 mod handle;
 mod context;
 mod server;
+mod client;
 mod reg;
+mod utils;
 
 use crate::server::run_server;
 use clap::{arg, Command};

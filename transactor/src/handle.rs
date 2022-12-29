@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use crate::component::{Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedHandler, WrappedTransport};
 use race_core::context::GameContext;
-use race_core::event::Event;
 use race_core::transport::TransportT;
-use race_core::types::{AttachGameParams, EventFrame};
 use race_env::Config;
 use race_core::error::{Error, Result};
 

@@ -33,6 +33,7 @@ pub fn general_init_state(context: &mut GameContext, init_account: &GameAccount)
     Ok(())
 }
 
+/// A general function for system events handling.
 pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<()> {
     match event {
         Event::Ready { sender } => context.set_player_status(&sender, PlayerStatus::Ready),
@@ -79,6 +80,15 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
     }
 }
 
+/// Context maintaining after event handling.
+pub fn after_handle_event(context: &mut GameContext) -> Result<()> {
+
+    // If any secrets are required, set current status to SecretSharing.
+    context.set_game_status(GameStatus::Sharing);
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use borsh::BorshSerialize;
@@ -99,8 +109,9 @@ mod tests {
         GameAccount {
             addr: "ACC ADDR".into(),
             bundle_addr: "GAME ADDR".into(),
-            settle_serial: 0,
-            access_serial: 0,
+            served: true,
+            settle_version: 0,
+            access_version: 0,
             players: vec![],
             data_len: data.len() as _,
             data,

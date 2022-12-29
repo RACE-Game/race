@@ -37,8 +37,9 @@ pub struct TransactorAccount {
 pub struct GameAccount {
     pub addr: String,
     pub bundle_addr: String,
-    pub settle_serial: u64,
-    pub access_serial: u64,
+    pub served: bool,
+    pub settle_version: u64,
+    pub access_version: u64,
     pub players: Vec<Option<Player>>,
     pub transactors: Vec<Option<String>>,
     pub max_players: u8,

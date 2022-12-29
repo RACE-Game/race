@@ -81,7 +81,7 @@ impl Component<BroadcasterContext> for Broadcaster {
 }
 
 impl Broadcaster {
-    pub fn new(init_state: &GameAccount) -> Self {
+    pub fn new(_init_state: &GameAccount) -> Self {
         let snapshot = Arc::new(Mutex::new("".into()));
         let (input_tx, input_rx) = mpsc::channel(3);
         let (closed_tx, closed_rx) = oneshot::channel();
@@ -113,22 +113,13 @@ impl Broadcaster {
 #[cfg(test)]
 mod tests {
     use race_core::event::Event;
+    use crate::utils::tests::game_account_with_empty_data;
 
     use super::*;
 
     #[tokio::test]
     async fn test_broadcast_event() {
-        let game_account = GameAccount {
-            addr: "ACC ADDR".into(),
-            bundle_addr: "GAME ADDR".into(),
-            settle_serial: 0,
-            access_serial: 0,
-            max_players: 2,
-            transactors: vec![],
-            players: vec![],
-            data_len: 0,
-            data: vec![],
-        };
+        let game_account = game_account_with_empty_data();
         let mut broadcaster = Broadcaster::new(&game_account);
         let mut rx = broadcaster.get_broadcast_rx();
         let event_frame = EventFrame::Broadcast {

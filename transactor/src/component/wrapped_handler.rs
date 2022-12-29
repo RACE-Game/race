@@ -2,10 +2,10 @@ use std::mem::swap;
 use std::path::PathBuf;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::context::{GameContext, GameStatus, Player, PlayerStatus};
-use race_core::engine::{general_handle_event, general_init_state};
+use race_core::context::GameContext;
+use race_core::engine::{after_handle_event, general_handle_event, general_init_state};
 use race_core::error::{Error, Result};
-use race_core::event::{Event, SecretIdent};
+use race_core::event::Event;
 use race_core::transport::TransportT;
 use race_core::types::GameAccount;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
@@ -102,11 +102,12 @@ impl WrappedHandler {
         let mut new_context = context.clone();
         general_handle_event(&mut new_context, event)?;
         self.custom_handle_event(&mut new_context, event)?;
+        after_handle_event(&mut new_context)?;
         swap(context, &mut new_context);
         Ok(())
     }
 
-    pub fn init_state(&mut self, context: &mut GameContext, init_account: &GameAccount) -> Result<()>{
+    pub fn init_state(&mut self, context: &mut GameContext, init_account: &GameAccount) -> Result<()> {
         let mut new_context = context.clone();
         general_init_state(&mut new_context, init_account)?;
         self.custom_init_state(&mut new_context, init_account)?;
@@ -117,7 +118,8 @@ impl WrappedHandler {
 
 #[cfg(test)]
 mod tests {
-    use race_core::{context::DispatchEvent, types::GameAccount};
+    use crate::utils::tests::game_account_with_account_data;
+    use race_core::types::GameAccount;
 
     use super::*;
 
@@ -129,20 +131,8 @@ mod tests {
     fn make_game_account() -> GameAccount {
         let data = MinimalAccountData {
             counter_value_default: 42,
-        }
-        .try_to_vec()
-        .unwrap();
-        GameAccount {
-            addr: "ACC ADDR".into(),
-            bundle_addr: "GAME ADDR".into(),
-            settle_serial: 0,
-            access_serial: 0,
-            players: vec![],
-            data_len: data.len() as _,
-            data,
-            transactors: vec![],
-            max_players: 2,
-        }
+        };
+        game_account_with_account_data(data)
     }
 
     fn make_wrapped_handler() -> WrappedHandler {
@@ -156,7 +146,10 @@ mod tests {
         let game_account = make_game_account();
         let mut ctx = GameContext::new(&game_account);
         hdlr.init_state(&mut ctx, &game_account).unwrap();
-        assert_eq!("{\"counter_value\":42,\"counter_players\":0}", ctx.get_handler_state_json());
+        assert_eq!(
+            "{\"counter_value\":42,\"counter_players\":0}",
+            ctx.get_handler_state_json()
+        );
     }
 
     #[test]
@@ -171,7 +164,9 @@ mod tests {
         hdlr.init_state(&mut ctx, &game_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
-        assert_eq!("{\"counter_value\":42,\"counter_players\":1}", ctx.get_handler_state_json());
+        assert_eq!(
+            "{\"counter_value\":42,\"counter_players\":1}",
+            ctx.get_handler_state_json()
+        );
     }
-
 }

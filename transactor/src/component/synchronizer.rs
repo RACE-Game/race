@@ -49,20 +49,20 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
         tokio::spawn(async move {
             let init_state = ctx.init_state;
 
-            let mut access_serial = init_state.access_serial;
+            let mut access_version = init_state.access_version;
             let mut curr_players = init_state.players;
 
             loop {
                 let state = ctx.transport.get_game_account(&init_state.addr).await;
                 if let Some(state) = state {
-                    if access_serial < state.access_serial {
+                    if access_version < state.access_version {
                         let event = player_joined(init_state.addr.to_owned(), &curr_players, &state.players);
                         if ctx.output_tx.send(event).is_err() {
                             ctx.closed_tx.send(CloseReason::Complete).unwrap();
                             break;
                         }
                         curr_players = state.players;
-                        access_serial = state.access_serial;
+                        access_version = state.access_version;
                     } else {
                         sleep(Duration::from_secs(5)).await;
                     }
@@ -103,31 +103,30 @@ impl GameSynchronizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use race_core::types::{GameAccount, Player};
+    use crate::utils::tests::game_account_with_empty_data;
+    use race_core::types::Player;
     use race_transport::dummy::DummyTransport;
 
     #[tokio::test]
     async fn test_sync_state() {
         let transport = Arc::new(DummyTransport::default());
         let p = Some(Player::new("Alice", 5000));
-        let ga_0 = GameAccount {
-            addr: DummyTransport::mock_game_account_addr(),
-            bundle_addr: DummyTransport::mock_game_bundle_addr(),
-            ..Default::default()
-        };
-        let ga_1 = GameAccount {
-            addr: DummyTransport::mock_game_account_addr(),
-            bundle_addr: DummyTransport::mock_game_bundle_addr(),
-            access_serial: 1,
-            players: vec![p.clone()],
-            ..Default::default()
-        };
+        let ga_0 = game_account_with_empty_data();
+        let mut ga_1 = game_account_with_empty_data();
+        ga_1.access_version = 1;
+        ga_1.players = vec![p.clone()];
 
         transport.simulate_states(vec![ga_1]);
         let mut synchronizer = GameSynchronizer::new(transport.clone(), ga_0);
         synchronizer.start();
         let output = &mut synchronizer.output_rx;
         output.changed().await.unwrap();
-        assert_eq!(*output.borrow(), EventFrame::PlayerJoined { addr: DummyTransport::mock_game_account_addr(), players: vec![p] });
+        assert_eq!(
+            *output.borrow(),
+            EventFrame::PlayerJoined {
+                addr: DummyTransport::mock_game_account_addr(),
+                players: vec![p]
+            }
+        );
     }
 }

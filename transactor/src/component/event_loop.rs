@@ -125,6 +125,7 @@ impl EventLoop {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::tests::game_account_with_data;
     use race_core::types::Player;
 
     use super::*;
@@ -134,13 +135,7 @@ mod tests {
         let hdlr =
             WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into())
                 .unwrap();
-        let game_account = GameAccount {
-            addr: "FAKE ADDR".into(),
-            bundle_addr: "FAKE ADDR".into(),
-            data_len: 4,
-            data: vec![0, 0, 0, 42],
-            ..Default::default()
-        };
+        let game_account = game_account_with_data(vec![0, 0, 0, 42]);
         let ctx = GameContext::new(&game_account);
         let mut event_loop = EventLoop::new(hdlr, ctx);
         event_loop.start();

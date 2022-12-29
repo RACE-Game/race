@@ -9,6 +9,7 @@ edition = "2021"
 race-core = { path = "../core" }
 race-facade = { path = "../facade" }
 race-transport = { path = "../transport" }
+race-crypto = { path = "../crypto" }
 race-env = { path = "../env" }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 anyhow = "1.0.64"
