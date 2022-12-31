@@ -1,22 +1,31 @@
 //! Wrapped transport, which support retry
 
 use jsonrpsee::core::async_trait;
-use race_core::{transport::TransportT, types::{GameAccount, CreateGameAccountParams, CloseGameAccountParams, GameBundle, JoinParams, PlayerProfile, SettleParams, UnregisterTransactorParams, RegisterTransactorParams, TransactorAccount}};
 use race_core::error::Result;
+use race_core::types::{CreateRegistrationParams, RegisterGameParams, UnregisterGameParams};
+use race_core::{
+    transport::TransportT,
+    types::{
+        CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, GetRegistrationParams, JoinParams,
+        PlayerProfile, RegisterTransactorParams, RegistrationAccount, SettleParams, TransactorAccount,
+    },
+};
 use race_env::Config;
 use race_transport::create_transport;
 
 pub struct WrappedTransport {
-    internal: Box<dyn TransportT>
+    internal: Box<dyn TransportT>,
 }
 
 impl WrappedTransport {
     pub fn new(config: &Config) -> Self {
-        let chain: &str = &config.transactor.as_ref().expect("Missing transactor configuration").chain;
+        let chain: &str = &config
+            .transactor
+            .as_ref()
+            .expect("Missing transactor configuration")
+            .chain;
         let transport = create_transport(config, chain).expect("Failed to create transport");
-        Self {
-            internal: transport
-        }
+        Self { internal: transport }
     }
 }
 
@@ -62,7 +71,19 @@ impl TransportT for WrappedTransport {
         self.internal.register_transactor(params).await
     }
 
-    async fn unregister_transactor(&self, params: UnregisterTransactorParams) -> Result<()> {
-        self.internal.unregister_transactor(params).await
+    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {
+        self.internal.get_registration(params).await
+    }
+
+    async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
+        self.internal.create_registration(params).await
+    }
+
+    async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
+        self.internal.register_game(params).await
+    }
+
+    async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
+        self.internal.unregister_game(params).await
     }
 }
