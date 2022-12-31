@@ -56,5 +56,6 @@ pub fn create_test_game_account<B: BorshSerialize>(
         max_players,
         data_len: data_len as _,
         data,
+        served: true,
     }
 }

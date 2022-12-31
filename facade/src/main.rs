@@ -226,7 +226,7 @@ async fn register_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Resu
 }
 
 async fn unregister_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
-    let UnregisterGameParams{ game_addr, reg_addr } = params.one()?;
+    let UnregisterGameParams { game_addr, reg_addr } = params.one()?;
     let mut context = context.lock().await;
 
     let reg_acc = context

@@ -50,8 +50,8 @@ impl OneCard {
     ) -> Result<()> {
         match event {
             GameEvent::Bet(amount) => {
-                let player = context.get_player_by_address(&sender).unwrap();
-                if player.balance < amount {
+                let curr_chips = self.chips.get(&sender).unwrap();
+                if *curr_chips < amount {
                     return Err(Error::InvalidAmount);
                 }
                 *self.bets.entry(sender.clone()).or_insert(0) += amount;
