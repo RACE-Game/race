@@ -7,8 +7,9 @@ use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBu
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{
-    CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, GetAccountInfoParams,
-    GetGameBundleParams, JoinParams, SettleParams, PlayerProfile, UnregisterTransactorParams, RegisterTransactorParams, TransactorAccount,
+    CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount, GameBundle,
+    GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams, JoinParams, PlayerProfile, RegisterGameParams,
+    RegisterTransactorParams, RegistrationAccount, SettleParams, TransactorAccount, UnregisterGameParams,
 };
 
 pub struct FacadeTransport {
@@ -80,10 +81,37 @@ impl TransportT for FacadeTransport {
     }
 
     async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()> {
-        Ok(())
+        self.client
+            .request("register_transactor", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
     }
 
-    async fn unregister_transactor(&self, params: UnregisterTransactorParams) -> Result<()> {
-        Ok(())
+    async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
+        self.client
+            .request("create_registration", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
+    async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
+        self.client
+            .request("register_game", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
+    async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
+        self.client
+            .request("unregister_game", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
+    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {
+        self.client
+            .request("get_registration", rpc_params![params])
+            .await
+            .ok()
     }
 }

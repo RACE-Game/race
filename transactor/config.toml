@@ -4,3 +4,4 @@ chain = "facade"
 
 [facade]
 host = "http://localhost:12002"
+registration_address = "default"

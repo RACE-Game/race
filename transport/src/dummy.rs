@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use race_core::error::{Error, Result};
-use race_core::types::{CloseGameAccountParams, JoinParams, PlayerProfile, SettleParams, RegisterTransactorParams, UnregisterTransactorParams, TransactorAccount};
+use race_core::types::{CloseGameAccountParams, JoinParams, PlayerProfile, SettleParams, RegisterTransactorParams, TransactorAccount, CreateRegistrationParams, RegisterGameParams, UnregisterGameParams, GetRegistrationParams, RegistrationAccount};
 use race_core::{
     transport::TransportT,
     types::{CreateGameAccountParams, GameAccount, GameBundle, Settle},
@@ -108,8 +108,20 @@ impl TransportT for DummyTransport {
         Ok(())
     }
 
-    async fn unregister_transactor(&self, params: UnregisterTransactorParams) -> Result<()> {
+    async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
+        Ok("".into())
+    }
+
+    async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
         Ok(())
+    }
+
+    async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
+        Ok(())
+    }
+
+    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {
+        None
     }
 }
 

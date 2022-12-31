@@ -2,7 +2,7 @@ use crate::{
     error::Result,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-        RegisterTransactorParams, SettleParams, UnregisterTransactorParams, TransactorAccount,
+        SettleParams, TransactorAccount, RegisterTransactorParams, RegisterGameParams, UnregisterGameParams, CreateRegistrationParams, GetRegistrationParams, RegistrationAccount,
     },
 };
 use async_trait::async_trait;
@@ -16,8 +16,6 @@ pub trait TransportT: Send + Sync {
 
     async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()>;
 
-    async fn unregister_transactor(&self, params: UnregisterTransactorParams) -> Result<()>;
-
     async fn join(&self, params: JoinParams) -> Result<()>;
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount>;
@@ -28,7 +26,15 @@ pub trait TransportT: Send + Sync {
 
     async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount>;
 
+    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount>;
+
     async fn publish_game(&self, bundle: GameBundle) -> Result<String>;
 
     async fn settle_game(&self, params: SettleParams) -> Result<()>;
+
+    async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String>;
+
+    async fn register_game(&self, params: RegisterGameParams) -> Result<()>;
+
+    async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()>;
 }

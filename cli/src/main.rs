@@ -1,7 +1,7 @@
 use clap::{arg, Command};
 use race_core::{
     transport::TransportT,
-    types::{CreateGameAccountParams, GameBundle, JoinParams},
+    types::{CreateGameAccountParams, GameBundle, JoinParams, CreateRegistrationParams},
 };
 use race_env::Config;
 use race_transport::create_transport;
@@ -32,6 +32,12 @@ fn cli() -> Command {
                 .about("Query game account information")
                 .arg(arg!(<CHAIN> "The chain to interact"))
                 .arg(arg!(<ADDRESS> "The game account address"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
+            Command::new("create-reg")
+                .about("Create registration center")
+                .arg(arg!(<CHAIN> "The chain to interact"))
                 .arg_required_else_help(true),
         )
 }
@@ -82,6 +88,15 @@ async fn game_info(config: Config, chain: &str, addr: &str) {
     }
 }
 
+async fn create_reg(config: Config, chain: &str) {
+    let transport = create_transport(&config, chain).expect("Failed to create transport");
+    let params = CreateRegistrationParams {
+        is_private: false,
+        size: 100,
+    };
+    transport.create_registration(params).await.expect("Create registration falied");
+}
+
 #[tokio::main]
 async fn main() {
     let matches = cli().get_matches();
@@ -103,6 +118,10 @@ async fn main() {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
             game_info(config, chain, addr).await;
+        }
+        Some(("create-reg", sub_matches)) => {
+            let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
+            create_reg(config, chain).await;
         }
         _ => unreachable!(),
     }

@@ -3,7 +3,10 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use race_core::error::Result;
 
-use race_core::types::{RegisterTransactorParams, TransactorAccount, UnregisterTransactorParams};
+use race_core::types::{
+    CreateRegistrationParams, GetRegistrationParams, RegisterGameParams, RegisterTransactorParams, RegistrationAccount,
+    TransactorAccount, UnregisterGameParams,
+};
 use race_core::{
     transport::TransportT,
     types::{
@@ -75,8 +78,20 @@ impl TransportT for SolanaTransport {
         Ok(())
     }
 
-    async fn unregister_transactor(&self, params: UnregisterTransactorParams) -> Result<()> {
+    async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
+        Ok("".into())
+    }
+
+    async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
         Ok(())
+    }
+
+    async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
+        Ok(())
+    }
+
+    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {
+        None
     }
 }
 

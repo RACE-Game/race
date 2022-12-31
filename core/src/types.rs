@@ -20,10 +20,11 @@ impl Player {
 }
 
 /// The data represent the state of on-chain transactor registration.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub struct TransactorAccount {
     pub addr: String,
     // The public key of transactor owner
-    pub transactor_addr: String,
+    pub owner_addr: String,
     // The endpoint for transactor server
     pub endpoint: String,
 }
@@ -47,6 +48,22 @@ pub struct GameAccount {
     pub data: Vec<u8>,
 }
 
+#[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+pub struct GameRegistration {
+    pub addr: String,
+    pub reg_time: u64,
+    pub bundle_addr: String,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+pub struct RegistrationAccount {
+    pub addr: String,
+    pub is_private: bool,
+    pub size: u16,
+    pub owner: Option<String>, // No owner for public registration
+    pub games: Vec<GameRegistration>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GameBundle {
     pub addr: String,
@@ -60,6 +77,10 @@ pub struct PlayerProfile {
     pub data: Vec<u8>,
 }
 
+// ---------------------------------------------
+// RPC Parameters
+// ---------------------------------------------
+
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct CreateGameAccountParams {
     pub bundle_addr: String,
@@ -68,7 +89,47 @@ pub struct CreateGameAccountParams {
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct ServeParams {
+    pub account_addr: String,
+    pub transactor_addr: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct RegisterTransactorParams {
+    pub owner_addr: String,
+    pub endpoint: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct UnregisterTransactorParams {
+    pub addr: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct CreateRegistrationParams {
+    pub is_private: bool,
+    pub size: u16,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct RegisterGameParams {
+    pub game_addr: String,
+    pub reg_addr: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct UnregisterGameParams {
+    pub game_addr: String,
+    pub reg_addr: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct GetAccountInfoParams {
+    pub addr: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct GetTransactorInfoParams {
     pub addr: String,
 }
 
@@ -83,11 +144,8 @@ pub struct GetGameBundleParams {
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-pub struct RegisterTransactorParams {
-}
-
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-pub struct UnregisterTransactorParams {
+pub struct GetRegistrationParams {
+    pub addr: String,
 }
 
 /// The player status in settlement.
