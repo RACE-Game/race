@@ -1,11 +1,8 @@
 use clap::{arg, Command};
-use race_core::{
-    transport::TransportT,
-    types::{CreateGameAccountParams, GameBundle, JoinParams, CreateRegistrationParams},
-};
+use race_core::types::{CreateRegistrationParams, GameBundle, GetRegistrationParams};
 use race_env::Config;
 use race_transport::create_transport;
-use std::{fs::File, io::Read, path::PathBuf};
+use std::{fs::File, io::Read};
 
 fn cli() -> Command {
     Command::new("cli")
@@ -38,6 +35,13 @@ fn cli() -> Command {
             Command::new("create-reg")
                 .about("Create registration center")
                 .arg(arg!(<CHAIN> "The chain to interact"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
+            Command::new("reg-info")
+                .about("Query registration center")
+                .arg(arg!(<CHAIN> "The chain to interact"))
+                .arg(arg!(<ADDRESS> "The address of registration account"))
                 .arg_required_else_help(true),
         )
 }
@@ -88,13 +92,37 @@ async fn game_info(config: Config, chain: &str, addr: &str) {
     }
 }
 
+async fn reg_info(config: Config, chain: &str, addr: &str) {
+    let transport = create_transport(&config, chain).expect("Failed to create transport");
+    match transport
+        .get_registration(GetRegistrationParams { addr: addr.to_owned() })
+        .await
+    {
+        Some(reg) => {
+            println!("Registration account: {:?}", reg.addr);
+            println!("Size(Registered): {:?}({:?})", reg.size, reg.games.len());
+            println!("Owner: {:?}", reg.owner.unwrap_or("None".into()));
+            println!("Games:");
+            for g in reg.games.iter() {
+                println!("Game account: {:?}, Game bundle: {:?}", g.addr, g.bundle_addr);
+            }
+        }
+        None => {
+            println!("Registration not found");
+        }
+    }
+}
+
 async fn create_reg(config: Config, chain: &str) {
     let transport = create_transport(&config, chain).expect("Failed to create transport");
     let params = CreateRegistrationParams {
         is_private: false,
         size: 100,
     };
-    transport.create_registration(params).await.expect("Create registration falied");
+    transport
+        .create_registration(params)
+        .await
+        .expect("Create registration falied");
 }
 
 #[tokio::main]
@@ -122,6 +150,11 @@ async fn main() {
         Some(("create-reg", sub_matches)) => {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
             create_reg(config, chain).await;
+        }
+        Some(("reg-info", sub_matches)) => {
+            let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
+            let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
+            reg_info(config, chain, addr).await;
         }
         _ => unreachable!(),
     }

@@ -79,7 +79,7 @@ impl Client {
     }
 
     fn decrypt(&self, context: &GameContext) -> Result<()> {
-
+        Ok(())
     }
 
     /// Handle context changes.

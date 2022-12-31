@@ -12,9 +12,12 @@ pub async fn start_self_registration(config: &Config) -> Result<()> {
     match config.transactor {
         Some(ref conf) => {
             let transport = create_transport(config, &conf.chain).expect("Failed to create transport");
+            let params = RegisterTransactorParams {
+                endpoint: conf.endpoint.clone(),
+                owner_addr: "".into(),
+            };
             loop {
-                let params = RegisterTransactorParams {};
-                transport.register_transactor(params).await.expect("Failed to register");
+                transport.register_transactor(params.clone()).await.expect("Failed to register");
             }
         }
         _ => panic!("Missing transactor configuration"),

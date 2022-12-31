@@ -94,7 +94,7 @@ pub struct ServeParams {
     pub transactor_addr: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
 pub struct RegisterTransactorParams {
     pub owner_addr: String,
     pub endpoint: String,

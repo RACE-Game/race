@@ -109,9 +109,14 @@ impl TransportT for FacadeTransport {
     }
 
     async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {
+        println!("Get registration: {:?}", params);
         self.client
-            .request("get_registration", rpc_params![params])
+            .request("get_registration_info", rpc_params![params])
             .await
+            .map_err(|e| {
+                println!("error: {:?}", e);
+                e
+            })
             .ok()
     }
 }
