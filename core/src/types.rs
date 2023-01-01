@@ -31,18 +31,16 @@ pub struct TransactorAccount {
 
 /// The data represent the state of on-chain game account.
 /// A larger `access_serial` means the account has been updated by players.
-/// A larger `settle_serial` means the account has been updated by transactors.
 /// The length of `players` is `max_players`.
-/// The length of `transactors` is 10, fixed.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub struct GameAccount {
     pub addr: String,
     pub bundle_addr: String,
-    pub served: bool,
     pub settle_version: u64,
     pub access_version: u64,
-    pub players: Vec<Option<Player>>,
-    pub transactors: Vec<Option<String>>,
+    pub players: Vec<Player>,
+    pub server_addrs: Vec<String>,
+    pub transactor_addr: Option<String>,
     pub max_players: u8,
     pub data_len: u32,
     pub data: Vec<u8>,
@@ -84,7 +82,7 @@ pub struct PlayerProfile {
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct CreateGameAccountParams {
     pub bundle_addr: String,
-    pub size: u8,
+    pub max_players: u8,
     pub data: Vec<u8>,
 }
 
@@ -234,7 +232,7 @@ pub enum EventFrame {
     Empty,
     PlayerJoined {
         addr: String,
-        players: Vec<Option<Player>>,
+        players: Vec<Player>,
     },
     SendEvent {
         addr: String,

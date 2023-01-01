@@ -1,6 +1,7 @@
 [transactor]
 endpoint = "http://localhost:12003"
 chain = "facade"
+address = ""
 
 [facade]
 host = "http://localhost:12002"

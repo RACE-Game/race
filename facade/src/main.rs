@@ -2,9 +2,10 @@ use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error, RpcModule};
 use race_core::types::{
-    CreateGameAccountParams, CreateRegistrationParams, GameAccount, GameBundle, GameRegistration, GetAccountInfoParams,
-    GetGameBundleParams, GetRegistrationParams, GetTransactorInfoParams, JoinParams, Player, RegisterGameParams,
-    RegisterTransactorParams, RegistrationAccount, ServeParams, TransactorAccount, UnregisterGameParams,
+    CreateGameAccountParams, CreateRegistrationParams, GameAccount, GameBundle, GameRegistration,
+    GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams, GetTransactorInfoParams,
+    JoinParams, Player, RegisterGameParams, RegisterTransactorParams, RegistrationAccount,
+    ServeParams, TransactorAccount, UnregisterGameParams,
 };
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -66,7 +67,10 @@ async fn get_game_bundle(params: Params<'_>, context: Arc<Mutex<Context>>) -> Re
     }
 }
 
-async fn get_registration_info(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<RegistrationAccount> {
+async fn get_registration_info(
+    params: Params<'_>,
+    context: Arc<Mutex<Context>>,
+) -> Result<RegistrationAccount> {
     let GetRegistrationParams { addr } = params.one()?;
     println!("Get registration account: {:?}", addr);
     let context = context.lock().await;
@@ -81,7 +85,7 @@ async fn create_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result
     let addr: String = random_addr();
     let mut context = context.lock().await;
     let CreateGameAccountParams {
-        size,
+        max_players,
         bundle_addr,
         data,
     } = params.one()?;
@@ -93,14 +97,14 @@ async fn create_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result
     let account = GameAccount {
         addr: addr.clone(),
         bundle_addr,
-        served: true,
-        transactors: vec![],
+        transactor_addr: None,
+        server_addrs: vec![],
         settle_version: 0,
         access_version: 0,
-        players: std::iter::repeat(None).take(size as _).collect(),
+        players: vec![],
         data_len: data.len() as u32,
         data,
-        max_players: 2,
+        max_players,
     };
     context.accounts.insert(addr.clone(), account);
     Ok(addr)
@@ -137,18 +141,21 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         balance: amount,
     };
     if let Some(game_account) = context.accounts.get_mut(&game_addr) {
-        if let Some(player) = game_account.players.iter_mut().find(|p| p.is_none()) {
-            player.replace(p);
-            Ok(())
-        } else {
+        if game_account.players.len() >= game_account.max_players as _ {
             Err(Error::Custom("Game is full".into()))
+        } else {
+            game_account.players.push(p);
+            Ok(())
         }
     } else {
         Err(Error::Custom("Game not found".into()))
     }
 }
 
-async fn get_transactor_info(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<TransactorAccount> {
+async fn get_transactor_info(
+    params: Params<'_>,
+    context: Arc<Mutex<Context>>,
+) -> Result<TransactorAccount> {
     let GetTransactorInfoParams { addr } = params.one()?;
     let context = context.lock().await;
     if let Some(transactor) = context.transactors.get(&addr) {
@@ -159,7 +166,10 @@ async fn get_transactor_info(params: Params<'_>, context: Arc<Mutex<Context>>) -
 }
 
 async fn register_transactor(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<String> {
-    let RegisterTransactorParams { owner_addr, endpoint } = params.one()?;
+    let RegisterTransactorParams {
+        owner_addr,
+        endpoint,
+    } = params.one()?;
     let addr = random_addr();
     let transactor = TransactorAccount {
         addr: addr.clone(),
@@ -185,21 +195,25 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         .accounts
         .get_mut(&account_addr)
         .ok_or(Error::Custom("Account not found".into()))?;
-    if account.transactors.contains(&Some(transactor_addr.clone())) {
-        return Err(Error::Custom("Game is already served by this transactor".into()));
+    if account.server_addrs.contains(&transactor_addr) {
+        return Err(Error::Custom(
+            "Game is already served by this transactor".into(),
+        ));
     } else {
-        if let Some(t) = account.transactors.iter_mut().find(|t| t.is_none()) {
-            let transactor = Some(transactor_addr);
-            std::mem::replace(t, transactor).ok_or(Error::Custom("Failed to update".into()))?;
-        } else {
+        if account.server_addrs.len() >= 3 {
             return Err(Error::Custom("Transactor queue is full".into()));
+        } else {
+            account.server_addrs.push(transactor_addr);
         }
     }
     Ok(())
 }
 
 async fn register_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
-    let RegisterGameParams { game_addr, reg_addr } = params.one()?;
+    let RegisterGameParams {
+        game_addr,
+        reg_addr,
+    } = params.one()?;
     let mut context = context.lock().await;
 
     let game_acc = context
@@ -226,7 +240,10 @@ async fn register_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Resu
 }
 
 async fn unregister_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
-    let UnregisterGameParams { game_addr, reg_addr } = params.one()?;
+    let UnregisterGameParams {
+        game_addr,
+        reg_addr,
+    } = params.one()?;
     let mut context = context.lock().await;
 
     let reg_acc = context
@@ -254,7 +271,9 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> 
 }
 
 async fn run_server() -> anyhow::Result<ServerHandle> {
-    let http_server = ServerBuilder::default().build(HTTP_HOST.parse::<SocketAddr>()?).await?;
+    let http_server = ServerBuilder::default()
+        .build(HTTP_HOST.parse::<SocketAddr>()?)
+        .await?;
     let context = Mutex::new(Context::new());
     let mut module = RpcModule::new(context);
     module.register_async_method("create_game", create_game)?;

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::component::traits::Attachable;
-use race_core::types::{Player, EventFrame};
+use race_core::types::{EventFrame, Player};
 
 /// An event bus that passes the events between different components.
 pub struct EventBus {
@@ -47,26 +47,23 @@ impl Default for EventBus {
                 }
             }
         });
-        Self { tx, attached_txs: txs }
+        Self {
+            tx,
+            attached_txs: txs,
+        }
     }
 }
 
 /// Create an event of [[EventFrame::PlayerJoined]].
-pub fn player_joined(addr: String, old_players: &Vec<Option<Player>>, new_players: &Vec<Option<Player>>) -> EventFrame {
-    EventFrame::PlayerJoined {
-        addr,
-        players: new_players
-            .iter()
-            .enumerate()
-            .map(|(i, x)| {
-                if x.is_some() && old_players.get(i).is_none() {
-                    x.clone()
-                } else {
-                    None
-                }
-            })
-            .collect(),
-    }
+pub fn player_joined(
+    addr: String,
+    old_players: &Vec<Player>,
+    new_players: &Vec<Player>,
+) -> EventFrame {
+    let mut players = vec![];
+    players.extend(old_players.clone());
+    players.extend(new_players.clone());
+    EventFrame::PlayerJoined { addr, players }
 }
 
 /// A data represent the reason of closing.
@@ -81,7 +78,10 @@ mod tests {
 
     use super::*;
     use crate::component::traits::{Attachable, Component, Named};
-    use tokio::{time::{sleep, Duration}, sync::{watch, oneshot}};
+    use tokio::{
+        sync::{oneshot, watch},
+        time::{sleep, Duration},
+    };
 
     struct TestProducerCtx {
         output_tx: watch::Sender<EventFrame>,
@@ -119,7 +119,10 @@ mod tests {
             tokio::spawn(async move {
                 loop {
                     println!("Producer started");
-                    let event = EventFrame::PlayerJoined { addr: "FAKE ADDR".into(), players: vec![] };
+                    let event = EventFrame::PlayerJoined {
+                        addr: "FAKE ADDR".into(),
+                        players: vec![],
+                    };
                     match ctx.output_tx.send(event.clone()) {
                         Ok(_) => sleep(Duration::from_secs(5)).await,
                         Err(_) => {
@@ -140,7 +143,10 @@ mod tests {
         fn new() -> Self {
             let (output_tx, output_rx) = watch::channel(EventFrame::Empty);
             let (closed_tx, closed_rx) = oneshot::channel();
-            let ctx = TestProducerCtx { output_tx, closed_tx };
+            let ctx = TestProducerCtx {
+                output_tx,
+                closed_tx,
+            };
             Self {
                 output_rx,
                 closed_rx,

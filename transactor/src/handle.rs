@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
-use crate::component::{Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedHandler, WrappedTransport};
+use crate::component::{
+    Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedHandler, WrappedTransport,
+};
 use race_core::context::GameContext;
+use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_env::Config;
-use race_core::error::{Error, Result};
 
 pub struct Handle {
     pub addr: String,
@@ -19,7 +21,18 @@ impl Handle {
     pub async fn new(config: &Config, addr: &str, chain: &str) -> Result<Self> {
         let transport = Arc::new(WrappedTransport::new(config));
         println!("Transport for {:?} created", chain);
-        let game_account = transport.get_game_account(addr).await.ok_or(Error::GameAccountNotFound)?;
+        let game_account = transport
+            .get_game_account(addr)
+            .await
+            .ok_or(Error::GameAccountNotFound)?;
+
+        // Ensure the game is served, otherwise there may not be
+        // enough transactors for randomization, thus the fairness is
+        // not guaranteed
+        if game_account.transactor_addr.is_none() {
+            return Err(Error::GameNotServed);
+        }
+
         let mut handler = WrappedHandler::load_by_addr(addr, transport.as_ref()).await?;
         let mut game_context = GameContext::new(&game_account);
 

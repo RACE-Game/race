@@ -52,7 +52,7 @@ pub fn create_test_game_account<B: BorshSerialize>(
         settle_version: 0,
         access_version: 0,
         players,
-        transactors: vec![Some("TRANSACTOR 0".into()), Some("TRANSACTOR 1".into())],
+        nodes: vec![Some("TRANSACTOR 0".into()), Some("TRANSACTOR 1".into())],
         max_players,
         data_len: data_len as _,
         data,

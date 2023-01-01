@@ -53,7 +53,9 @@ fn subscribe_state(
         let params: SubscribeEventParams = params.one()?;
         let context = context.blocking_lock();
 
-        let handle = context.get_game(&params.addr).ok_or(SubscriptionEmptyError)?;
+        let handle = context
+            .get_game(&params.addr)
+            .ok_or(SubscriptionEmptyError)?;
 
         let rx = BroadcastStream::new(handle.broadcaster.get_broadcast_rx());
 
@@ -72,15 +74,23 @@ fn subscribe_state(
     }
 }
 
-pub async fn run_server(config: Config) -> anyhow::Result<()> {
-    let server = ServerBuilder::default().build(HTTP_HOST.parse::<SocketAddr>()?).await?;
-    let context = Mutex::new(ApplicationContext::new(config));
+pub async fn run_server(
+    context: Mutex<ApplicationContext>,
+) -> anyhow::Result<()> {
+    let server = ServerBuilder::default()
+        .build(HTTP_HOST.parse::<SocketAddr>()?)
+        .await?;
     let mut module = RpcModule::new(context);
 
     module.register_async_method("attach_game", attach_game)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("get_state", get_state)?;
-    module.register_subscription("subscribe_event", "s_event", "unsubscribe_event", subscribe_state)?;
+    module.register_subscription(
+        "subscribe_event",
+        "s_event",
+        "unsubscribe_event",
+        subscribe_state,
+    )?;
 
     let handle = server.start(module)?;
     println!("Server started");

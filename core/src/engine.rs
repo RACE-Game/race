@@ -19,13 +19,7 @@ pub fn general_init_state(context: &mut GameContext, init_account: &GameAccount)
     let players = init_account
         .players
         .iter()
-        .filter_map(|p| {
-            if let Some(p) = p {
-                Some(Player::new(p.addr.to_owned(), p.balance))
-            } else {
-                None
-            }
-        })
+        .map(|p| Player::new(p.addr.to_owned(), p.balance))
         .collect();
 
     context.set_players(players);
@@ -58,7 +52,10 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
 
         Event::RandomnessReady => Ok(()),
 
-        Event::Join { player_addr, balance } => context.add_player(player_addr, *balance),
+        Event::Join {
+            player_addr,
+            balance,
+        } => context.add_player(player_addr, *balance),
 
         Event::Leave { player_addr } => context.remove_player(player_addr),
 
@@ -82,7 +79,6 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
 
 /// Context maintaining after event handling.
 pub fn after_handle_event(context: &mut GameContext) -> Result<()> {
-
     // If any secrets are required, set current status to SecretSharing.
     context.set_game_status(GameStatus::Sharing);
 
@@ -115,7 +111,7 @@ mod tests {
             players: vec![],
             data_len: data.len() as _,
             data,
-            transactors: vec![],
+            nodes: vec![],
             max_players: 2,
         }
     }

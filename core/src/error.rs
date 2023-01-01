@@ -58,6 +58,9 @@ pub enum Error {
     #[error("config missing")]
     ConfigMissing,
 
+    #[error("transactor config missing")]
+    TransactorConfigMissing,
+
     #[error("can't leave")]
     CantLeave,
 

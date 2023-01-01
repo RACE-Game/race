@@ -22,7 +22,7 @@ pub mod tests {
             players: vec![],
             data_len: data.len() as _,
             data,
-            transactors: vec![],
+            nodes: vec![],
             max_players: 2,
         }
     }

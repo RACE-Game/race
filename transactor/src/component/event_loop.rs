@@ -55,20 +55,20 @@ impl Component<EventLoopContext> for EventLoop {
                 match event_frame {
                     EventFrame::PlayerJoined { addr, players } => {
                         for p in players.into_iter() {
-                            if let Some(p) = p {
-                                let event = Event::Join {
-                                    player_addr: p.addr,
-                                    balance: p.balance,
-                                };
-                                if let Ok(_) = handler.handle_event(&mut game_context, &event) {
-                                    output_tx
-                                        .send(EventFrame::Broadcast {
-                                            addr: addr.clone(),
-                                            state_json: game_context.get_handler_state_json().to_owned(),
-                                            event,
-                                        })
-                                        .unwrap();
-                                }
+                            let event = Event::Join {
+                                player_addr: p.addr,
+                                balance: p.balance,
+                            };
+                            if let Ok(_) = handler.handle_event(&mut game_context, &event) {
+                                output_tx
+                                    .send(EventFrame::Broadcast {
+                                        addr: addr.clone(),
+                                        state_json: game_context
+                                            .get_handler_state_json()
+                                            .to_owned(),
+                                        event,
+                                    })
+                                    .unwrap();
                             }
                         }
                     }
@@ -132,9 +132,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_player_join() {
-        let hdlr =
-            WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into())
-                .unwrap();
+        let hdlr = WrappedHandler::load_by_path(
+            "../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into(),
+        )
+        .unwrap();
         let game_account = game_account_with_data(vec![0, 0, 0, 42]);
         let ctx = GameContext::new(&game_account);
         let mut event_loop = EventLoop::new(hdlr, ctx);

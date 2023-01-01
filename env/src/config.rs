@@ -28,6 +28,7 @@ pub struct BnbConfig {
 pub struct TransactorConfig {
     pub endpoint: String,
     pub chain: String,
+    pub address: String,
 }
 
 #[derive(Deserialize)]

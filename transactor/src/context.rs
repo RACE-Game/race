@@ -1,7 +1,9 @@
 use crate::handle::Handle;
 use race_core::event::Event;
-use race_core::types::{AttachGameParams, EventFrame};
+use race_core::transport::TransportT;
+use race_core::types::{AttachGameParams, EventFrame, TransactorAccount};
 use race_env::Config;
+use race_transport::create_transport;
 use std::collections::HashMap;
 use tokio::sync::broadcast;
 
@@ -40,19 +42,30 @@ impl GameManager {
     }
 }
 
+async fn get_transactor_account(config: &Config) -> Result<TransactorAccount> {
+    if let Some(ref transactor_config) = config.transactor {
+        let transport = create_transport(config, &transactor_config.chain)?;
+        transport.get_transactor_account(&transactor_config.address).await.ok_or(Error::InvalidTransactorAddress)
+    } else {
+        Err(Error::TransactorConfigMissing)
+    }
+}
+
+
 /// Transactor runtime context
 pub struct ApplicationContext {
     pub config: Config,
+    pub account: TransactorAccount,
     pub games: HashMap<String, Handle>,
-    pub broadcast_tx: broadcast::Sender<EventFrame>,
 }
 
 impl ApplicationContext {
-    pub fn new(config: Config) -> Self {
-        let (tx, _rx) = broadcast::channel(16);
+    pub async fn new(config: Config) -> Self {
+        let account = get_transactor_account(&config).await.expect("Failed to read on-chain transactor account");
+
         Self {
             config,
-            broadcast_tx: tx,
+            account,
             games: HashMap::default(),
         }
     }

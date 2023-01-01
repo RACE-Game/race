@@ -41,18 +41,7 @@ impl TransportT for SolanaTransport {
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let pubkey = Pubkey::from_str(addr).unwrap();
         let data = self.client.get_account_data(&pubkey).unwrap();
-        Some(GameAccount {
-            addr: addr.to_owned(),
-            bundle_addr: "".into(),
-            served: true,
-            settle_version: 0,
-            access_version: 0,
-            max_players: 2,
-            transactors: vec![],
-            players: vec![],
-            data_len: data.len() as _,
-            data,
-        })
+        None
     }
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
         todo!()

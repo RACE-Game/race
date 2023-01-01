@@ -350,7 +350,7 @@ mod test {
             settle_version: 0,
             access_version: 0,
             max_players: 2,
-            transactors: vec![],
+            nodes: vec![],
             players: vec![],
             data_len: 0,
             data: vec![],

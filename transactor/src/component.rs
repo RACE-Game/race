@@ -6,6 +6,7 @@ mod submitter;
 mod traits;
 mod wrapped_handler;
 mod wrapped_transport;
+mod client;
 
 pub use broadcaster::Broadcaster;
 pub use event_loop::EventLoop;
@@ -17,3 +18,4 @@ pub use traits::Named;
 pub use traits::Attachable;
 pub use wrapped_handler::WrappedHandler;
 pub use wrapped_transport::WrappedTransport;
+pub use client::Client;
