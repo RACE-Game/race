@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use race_core::types::{EventFrame, GameAccount};
+use race_core::types::GameAccount;
 use tokio::sync::{mpsc, oneshot, watch};
 
+use crate::frame::EventFrame;
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
 use race_core::transport::TransportT;
@@ -84,20 +85,31 @@ impl Submitter {
 #[cfg(test)]
 mod tests {
 
-    use std::ops::Deref;
-    use race_core::types::{SettleParams, PlayerStatus, AssetChange, Settle};
-    use race_transport::dummy::DummyTransport;
-    use crate::utils::tests::game_account_with_empty_data;
     use super::*;
+    use crate::utils::tests::game_account_with_empty_data;
+    use race_core::types::{AssetChange, PlayerStatus, Settle, SettleParams};
+    use race_transport::dummy::DummyTransport;
+    use std::ops::Deref;
 
     #[tokio::test]
     async fn test_submit_settle() {
         let game_account = game_account_with_empty_data();
         let transport = Arc::new(DummyTransport::default());
         let mut submitter = Submitter::new(transport.clone(), game_account);
-        let settles = vec![Settle::new("Alice", PlayerStatus::Normal, AssetChange::Add, 100)];
-        let params = SettleParams { addr: DummyTransport::mock_game_account_addr(), settles: settles.clone() };
-        let event_frame = EventFrame::Settle { addr: DummyTransport::mock_game_account_addr(), params };
+        let settles = vec![Settle::new(
+            "Alice",
+            PlayerStatus::Normal,
+            AssetChange::Add,
+            100,
+        )];
+        let params = SettleParams {
+            addr: DummyTransport::mock_game_account_addr(),
+            settles: settles.clone(),
+        };
+        let event_frame = EventFrame::Settle {
+            addr: DummyTransport::mock_game_account_addr(),
+            params,
+        };
         submitter.start();
         submitter.input_tx.send(event_frame).await.unwrap();
         submitter.input_tx.send(EventFrame::Shutdown).await.unwrap();

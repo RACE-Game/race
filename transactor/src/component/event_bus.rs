@@ -3,7 +3,8 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::component::traits::Attachable;
-use race_core::types::{EventFrame, Player};
+use crate::frame::EventFrame;
+use race_core::types::Player;
 
 /// An event bus that passes the events between different components.
 pub struct EventBus {

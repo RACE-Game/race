@@ -5,8 +5,9 @@ use tokio::{
     time::sleep,
 };
 
+use crate::frame::EventFrame;
 use race_core::transport::TransportT;
-use race_core::types::{EventFrame, GameAccount};
+use race_core::types::GameAccount;
 
 use crate::component::{
     event_bus::{player_joined, CloseReason},
@@ -56,7 +57,11 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                 let state = ctx.transport.get_game_account(&init_state.addr).await;
                 if let Some(state) = state {
                     if access_version < state.access_version {
-                        let event = player_joined(init_state.addr.to_owned(), &curr_players, &state.players);
+                        let event = player_joined(
+                            init_state.addr.to_owned(),
+                            &curr_players,
+                            &state.players,
+                        );
                         if ctx.output_tx.send(event).is_err() {
                             ctx.closed_tx.send(CloseReason::Complete).unwrap();
                             break;

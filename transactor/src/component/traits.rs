@@ -3,7 +3,7 @@ use std::mem::swap;
 use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::component::event_bus::CloseReason;
-use race_core::types::EventFrame;
+use crate::frame::EventFrame;
 
 /// An interface for a component that has a name.
 pub trait Named {

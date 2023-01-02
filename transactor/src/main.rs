@@ -4,6 +4,7 @@ mod context;
 mod server;
 mod reg;
 mod utils;
+mod frame;
 
 use crate::server::run_server;
 use clap::{arg, Command};

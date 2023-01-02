@@ -1,11 +1,12 @@
 use crate::handle::Handle;
 use race_core::event::Event;
 use race_core::transport::TransportT;
-use race_core::types::{AttachGameParams, EventFrame, TransactorAccount};
+use race_core::types::{AttachGameParams, TransactorAccount};
 use race_env::Config;
 use race_transport::create_transport;
 use std::collections::HashMap;
 use tokio::sync::broadcast;
+use crate::frame::EventFrame;
 
 use race_core::error::{Error, Result};
 

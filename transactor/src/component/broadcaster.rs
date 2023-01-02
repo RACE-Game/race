@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
-use race_core::types::{EventFrame, GameAccount};
+use race_core::types::GameAccount;
 use tokio::sync::{broadcast, mpsc, oneshot, watch, Mutex};
 
+use crate::frame::{EventFrame, BroadcastFrame};
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
 
 pub struct BroadcasterContext {
     input_rx: mpsc::Receiver<EventFrame>,
     closed_tx: oneshot::Sender<CloseReason>,
-    broadcast_tx: broadcast::Sender<EventFrame>,
+    broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 /// A component that pushs event to clients.
@@ -18,7 +19,7 @@ pub struct Broadcaster {
     closed_rx: oneshot::Receiver<CloseReason>,
     snapshot: Arc<Mutex<String>>,
     ctx: Option<BroadcasterContext>,
-    broadcast_tx: broadcast::Sender<EventFrame>,
+    broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 impl Named for Broadcaster {
@@ -50,11 +51,11 @@ impl Component<BroadcasterContext> for Broadcaster {
                             state_json,
                         } => {
                             let mut snapshot = snapshot.lock().await;
-                            *snapshot = state_json;
+                            *snapshot = state_json.clone();
                             ctx.broadcast_tx
-                                .send(EventFrame::Broadcast {
-                                    addr: addr.to_owned(),
-                                    state_json: snapshot.clone(),
+                                .send(BroadcastFrame {
+                                    game_addr: addr.to_owned(),
+                                    state_json,
                                     event,
                                 })
                                 .unwrap();
@@ -105,15 +106,15 @@ impl Broadcaster {
         self.snapshot.lock().await.to_owned()
     }
 
-    pub fn get_broadcast_rx(&self) -> broadcast::Receiver<EventFrame> {
+    pub fn get_broadcast_rx(&self) -> broadcast::Receiver<BroadcastFrame> {
         self.broadcast_tx.subscribe()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use race_core::event::Event;
     use crate::utils::tests::game_account_with_empty_data;
+    use race_core::event::Event;
 
     use super::*;
 
@@ -131,7 +132,11 @@ mod tests {
             },
         };
         broadcaster.start();
-        broadcaster.input_tx.send(event_frame.clone()).await.unwrap();
+        broadcaster
+            .input_tx
+            .send(event_frame.clone())
+            .await
+            .unwrap();
         let event = rx.recv().await.expect("Failed to receive event");
         assert_eq!(event, event_frame);
     }

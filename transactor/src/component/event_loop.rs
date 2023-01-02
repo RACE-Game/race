@@ -6,7 +6,8 @@ use tokio::sync::{mpsc, oneshot, watch};
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
 use crate::component::wrapped_handler::WrappedHandler;
-use race_core::types::{EventFrame, GameAccount};
+use crate::frame::EventFrame;
+use race_core::types::GameAccount;
 
 pub struct EventLoopContext {
     input_rx: mpsc::Receiver<EventFrame>,
