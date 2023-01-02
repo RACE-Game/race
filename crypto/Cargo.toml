@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 race-core = { path = "../core" }
+thiserror = "1.0.35"
 sha1 = { version = "0.10.5", default-features = false, features = ["oid"] }
 chacha20 = "0.9.0"
 rsa = "0.5.0"

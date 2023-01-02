@@ -157,6 +157,10 @@ impl LockedCiphertext {
             ciphertext: text,
         }
     }
+
+    pub fn ciphertext(&self) -> &Ciphertext {
+        &self.ciphertext
+    }
 }
 
 #[derive(Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]

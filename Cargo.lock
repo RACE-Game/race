@@ -3327,6 +3327,7 @@ dependencies = [
  "rand 0.8.5",
  "rsa",
  "sha1",
+ "thiserror",
 ]
 
 [[package]]

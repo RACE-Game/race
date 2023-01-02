@@ -11,7 +11,8 @@ use std::sync::Arc;
 use crate::frame::EventFrame;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use race_core::context::GameContext;
-use race_core::error::Result;
+use race_core::error::{Error, Result};
+use race_core::event::Event;
 use race_core::random::{CipherStatus, RandomMode};
 use race_core::transport::TransportT;
 use race_core::types::{GameAccount, TransactorAccount};
@@ -114,14 +115,51 @@ async fn update_secret_state(
 }
 
 async fn randomize(client_context: &mut ClientContext, game_context: &GameContext) -> Result<()> {
-    for rnd_st in game_context.list_random_states().iter() {
-        match rnd_st.status {
+    for random_state in game_context.list_random_states().iter() {
+        match random_state.status {
             CipherStatus::Ready => (),
             CipherStatus::Locking(ref addr) => {
                 // check if our operation is being requested
-                if client_context.server_addr.eq(addr) {}
+                if client_context.server_addr.eq(addr) {
+                    let secret_state = client_context
+                        .secret_states
+                        .get_mut(random_state.id)
+                        .expect("Failed to get secret state");
+                }
             }
-            CipherStatus::Masking(_) => todo!(),
+            CipherStatus::Masking(ref addr) => {
+                // check if our operation is being requested
+                if client_context.server_addr.eq(addr) {
+                    let secret_state = client_context
+                        .secret_states
+                        .get_mut(random_state.id)
+                        .expect("Failed to get secret state");
+
+                    let origin = random_state
+                        .ciphertexts
+                        .iter()
+                        .map(|c| c.ciphertext().to_owned())
+                        .collect();
+
+                    let masked = secret_state
+                        .mask(origin)
+                        .map_err(|e| Error::RandomizationError(e.to_string()))?;
+
+                    let event = Event::Randomize {
+                        sender: client_context.server_addr.clone(),
+                        random_id: random_state.id,
+                        ciphertexts: masked,
+                    };
+
+                    let event_frame = EventFrame::SendServerEvent {
+                        addr: client_context.server_addr.clone(),
+                        event,
+                    };
+
+                    client_context.output_tx.send(event_frame).map_err(|e| Error::InternalError(e.to_string()))?;
+
+                }
+            }
         }
     }
     Ok(())

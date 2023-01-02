@@ -90,6 +90,9 @@ pub enum Error {
 
     #[error("initialize rpc client error")]
     InitializeRpcClientError,
+
+    #[error("internal error")]
+    InternalError(String),
 }
 
 impl From<serde_json::Error> for Error {

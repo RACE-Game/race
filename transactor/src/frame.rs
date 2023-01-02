@@ -1,6 +1,10 @@
-use race_core::{types::{Player, SettleParams}, event::Event, context::GameContext};
-use borsh::{BorshSerialize, BorshDeserialize};
-use serde::{Serialize, Deserialize};
+use borsh::{BorshDeserialize, BorshSerialize};
+use race_core::{
+    context::GameContext,
+    event::Event,
+    types::{Player, SettleParams},
+};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub enum EventFrame {
@@ -11,6 +15,10 @@ pub enum EventFrame {
     },
     SendEvent {
         addr: String,
+        event: Event,
+    },
+    SendServerEvent {
+        addr: String, //  server address
         event: Event,
     },
     Broadcast {

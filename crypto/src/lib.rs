@@ -13,21 +13,36 @@ use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha1::{Digest, Sha1};
 
 use race_core::random::{RandomMode, RandomSpec, RandomState};
+use thiserror::Error;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
+
+    #[error("key gen failed")]
     KeyGenFailed,
+
+    #[error("encode failed")]
     EncodeFailed,
+
+    #[error("rsa encrypt failed")]
     RsaEncryptFailed(String),
+
+    #[error("rsa decrypt failed")]
     RsaDecryptFailed(String),
+
+    #[error("sign failed")]
     SignFailed(String),
+
+    #[error("verify failed")]
     VerifyFailed(String),
+
+    #[error("aes encrypt failed")]
     AesEncryptFailed,
+
+    #[error("aes decrypt failed")]
     AesDecryptFailed,
-    BranchNotExist,
-    CantMask,
-    CantUnmask,
-    CantLock,
+
+    #[error("invalid ciphertexts size")]
     InvalidCiphertextsSize,
 }
 
@@ -133,6 +148,7 @@ impl SecretState {
         }
     }
 
+    /// Mask the given ciphertexts using mask secret.
     pub fn mask(&mut self, mut ciphertexts: Vec<Ciphertext>) -> Result<Vec<Ciphertext>> {
         if self.size != ciphertexts.len() {
             return Err(Error::InvalidCiphertextsSize);
