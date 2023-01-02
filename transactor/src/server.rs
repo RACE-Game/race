@@ -39,7 +39,8 @@ async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) 
 
     let game_handle = context
         .get_game(&params.addr)
-        .ok_or(Error::Custom("Game not found".into()))?;
+        .ok_or_else(|| Error::Custom("Game not found".into()))?;
+
     let snapshot = game_handle.broadcaster.get_snapshot().await;
     Ok(snapshot)
 }

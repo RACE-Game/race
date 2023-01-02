@@ -8,7 +8,6 @@ use std::collections::HashMap;
 
 use chacha20::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
 use chacha20::ChaCha20;
-use rand;
 use rsa::pkcs1::ToRsaPublicKey;
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha1::{Digest, Sha1};
@@ -61,14 +60,14 @@ pub fn encrypt(pubkey: &RsaPublicKey, text: &[u8]) -> Result<Vec<u8>> {
     let mut rng = rand::thread_rng();
     pubkey
         .encrypt(&mut rng, PaddingScheme::PKCS1v15Encrypt, text)
-        .or_else(|e| Err(Error::RsaEncryptFailed(e.to_string())))
+        .map_err(|e| Error::RsaEncryptFailed(e.to_string()))
 }
 
 /// Decrypt the message use RSA private key
 pub fn decrypt(privkey: &RsaPrivateKey, text: &[u8]) -> Result<Vec<u8>> {
     privkey
         .decrypt(PaddingScheme::PKCS1v15Encrypt, text)
-        .or_else(|e| Err(Error::RsaDecryptFailed(e.to_string())))
+        .map_err(|e| Error::RsaDecryptFailed(e.to_string()))
 }
 
 pub fn sign(privkey: &RsaPrivateKey, text: &[u8]) -> Result<Vec<u8>> {
@@ -76,15 +75,15 @@ pub fn sign(privkey: &RsaPrivateKey, text: &[u8]) -> Result<Vec<u8>> {
     let hashed = Sha1::digest(text);
     privkey
         .sign(padding, &hashed)
-        .or_else(|e| Err(Error::SignFailed(e.to_string())))
+        .map_err(|e| Error::SignFailed(e.to_string()))
 }
 
-pub fn verify(pubkey: &RsaPublicKey, text: &[u8], signature: &Vec<u8>) -> Result<()> {
+pub fn verify(pubkey: &RsaPublicKey, text: &[u8], signature: &[u8]) -> Result<()> {
     let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
     let hashed = Sha1::digest(text).to_vec();
     pubkey
-        .verify(padding, &hashed, &signature)
-        .or_else(|e| Err(Error::VerifyFailed(e.to_string())))
+        .verify(padding, &hashed, signature)
+        .map_err(|e| Error::VerifyFailed(e.to_string()))
 }
 
 pub fn apply(cipher: &mut ChaCha20, buffer: &mut [u8]) {
@@ -164,7 +163,7 @@ impl SecretState {
                 let mut t = tester.clone();
                 apply(lock, c.as_mut());
                 apply(lock, t.as_mut());
-                (c, t.into())
+                (c, t)
             })
             .collect();
         Ok(r)

@@ -26,7 +26,7 @@ impl DummyTransport {
     }
 
     #[allow(dead_code)]
-    pub fn get_settles<'a>(&'a self) -> impl Deref<Target = Vec<Settle>> + 'a {
+    pub fn get_settles(&self) -> impl Deref<Target = Vec<Settle>> + '_ {
         self.settles.lock().unwrap()
     }
 

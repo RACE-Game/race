@@ -203,7 +203,7 @@ impl RandomState {
                 LockedCiphertext::new(ciphertext)
             })
             .collect();
-        let masks = owners.into_iter().map(|o| Mask::new(o)).collect();
+        let masks = owners.iter().map(Mask::new).collect();
         Self {
             id,
             size: rnd.size(),
@@ -294,8 +294,7 @@ impl RandomState {
 
         if indexes
             .iter()
-            .map(|i| self.get_ciphertext(*i))
-            .flatten()
+            .filter_map(|i| self.get_ciphertext(*i))
             .any(|c| c.owner.is_some())
         {
             return Err(Error::CiphertextAlreadyAssigned);

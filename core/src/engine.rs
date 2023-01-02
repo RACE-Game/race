@@ -30,7 +30,7 @@ pub fn general_init_state(context: &mut GameContext, init_account: &GameAccount)
 /// A general function for system events handling.
 pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<()> {
     match event {
-        Event::Ready { sender } => context.set_player_status(&sender, PlayerStatus::Ready),
+        Event::Ready { sender } => context.set_player_status(sender, PlayerStatus::Ready),
 
         Event::ShareSecrets {
             sender,

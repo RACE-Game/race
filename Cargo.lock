@@ -3402,7 +3402,6 @@ dependencies = [
  "race-core",
  "race-crypto",
  "race-env",
- "race-facade",
  "race-transport",
  "serde",
  "serde_json",

@@ -274,7 +274,7 @@ impl GameContext {
     /// Add player to the game.
     /// Using in custom event handler is not allowed.
     pub fn add_player(&mut self, addr: &str, balance: u64) -> Result<()> {
-        if self.get_player_by_address(&addr).is_some() {
+        if self.get_player_by_address(addr).is_some() {
             return Err(Error::PlayerAlreadyJoined);
         }
         self.players.push(Player::new(addr, balance));

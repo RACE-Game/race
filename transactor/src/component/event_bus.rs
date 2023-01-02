@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use race_core::error::Error;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::component::traits::Attachable;
@@ -58,12 +59,12 @@ impl Default for EventBus {
 /// Create an event of [[EventFrame::PlayerJoined]].
 pub fn player_joined(
     addr: String,
-    old_players: &Vec<Player>,
-    new_players: &Vec<Player>,
+    old_players: &[Player],
+    new_players: &[Player],
 ) -> EventFrame {
-    let mut players = vec![];
-    players.extend(old_players.clone());
-    players.extend(new_players.clone());
+    let mut players: Vec<Player> = vec![];
+    players.extend(old_players.iter().map(|p| p.to_owned()).collect::<Vec<Player>>());
+    players.extend(new_players.iter().map(|p| p.to_owned()).collect::<Vec<Player>>());
     EventFrame::PlayerJoined { addr, players }
 }
 
@@ -71,7 +72,7 @@ pub fn player_joined(
 #[derive(Debug, Clone)]
 pub enum CloseReason {
     Complete,
-    Fault,
+    Fault(Error),
 }
 
 #[cfg(test)]

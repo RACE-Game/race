@@ -60,8 +60,7 @@ impl WrappedHandler {
             .call(&mut self.store, context_bs.len() as _, init_account_bs.len() as _)
             .expect("Handle event error");
         println!("Len: {:?}", len);
-        let mut buf = Vec::with_capacity(len as _);
-        buf.resize(len as _, 0);
+        let mut buf = vec![0; len as _];
         println!("buf: {:?}", buf);
         println!("buf len: {:?}", buf.len());
         mem_view.read(1u64, &mut buf).unwrap();
@@ -89,8 +88,7 @@ impl WrappedHandler {
             .call(&mut self.store, context_bs.len() as _, event_bs.len() as _)
             .expect("Handle event error");
         println!("Len: {:?}", len);
-        let mut buf = Vec::with_capacity(len as _);
-        buf.resize(len as _, 0);
+        let mut buf = vec![0; len as _];
         println!("buf: {:?}", buf);
         println!("buf len: {:?}", buf.len());
         mem_view.read(1u64, &mut buf).unwrap();

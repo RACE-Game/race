@@ -2,7 +2,7 @@ use thiserror::Error;
 use serde::{Serialize, Deserialize};
 use borsh::{BorshDeserialize, BorshSerialize};
 
-#[derive(Error, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
+#[derive(Error, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize, Clone)]
 pub enum Error {
     #[error("player already joined")]
     PlayerAlreadyJoined,

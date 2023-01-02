@@ -60,7 +60,7 @@ impl Component<EventLoopContext> for EventLoop {
                                 player_addr: p.addr,
                                 balance: p.balance,
                             };
-                            if let Ok(_) = handler.handle_event(&mut game_context, &event) {
+                            if handler.handle_event(&mut game_context, &event).is_ok() {
                                 output_tx
                                     .send(EventFrame::Broadcast {
                                         addr: addr.clone(),
@@ -74,7 +74,7 @@ impl Component<EventLoopContext> for EventLoop {
                         }
                     }
                     EventFrame::SendEvent { addr, event } => {
-                        if let Ok(_) = handler.handle_event(&mut game_context, &event) {
+                        if handler.handle_event(&mut game_context, &event).is_ok() {
                             output_tx
                                 .send(EventFrame::Broadcast {
                                     addr,
