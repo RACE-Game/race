@@ -165,7 +165,7 @@ async fn randomize(client_context: &mut ClientContext, game_context: &GameContex
     Ok(())
 }
 
-async fn decrypt(game_context: &GameContext) -> Result<()> {
+async fn decrypt(client_context: &mut ClientContext, game_context: &GameContext) -> Result<()> {
     Ok(())
 }
 
@@ -176,7 +176,7 @@ async fn run_as_transactor(client_context: &mut ClientContext) -> Result<()> {
             EventFrame::ContextUpdated { ref context } => {
                 update_secret_state(client_context, context).await?;
                 randomize(client_context, context).await?;
-                decrypt(context).await?;
+                decrypt(client_context, context).await?;
             }
             EventFrame::Shutdown => break,
             _ => (),
@@ -197,6 +197,8 @@ async fn run_as_validator(client_context: &mut ClientContext) -> Result<()> {
         match event_frame {
             EventFrame::ContextUpdated { ref context } => {
                 update_secret_state(client_context, context).await?;
+                randomize(client_context, context).await?;
+                decrypt(client_context, context).await?;
             }
             EventFrame::Shutdown => break,
             _ => (),

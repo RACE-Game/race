@@ -3322,6 +3322,7 @@ dependencies = [
 name = "race-crypto"
 version = "0.1.0"
 dependencies = [
+ "arrayref",
  "chacha20",
  "race-core",
  "rand 0.8.5",

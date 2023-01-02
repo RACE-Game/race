@@ -6,7 +6,8 @@
 
 use std::collections::HashMap;
 
-use chacha20::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
+use arrayref::{array_refs, mut_array_refs};
+use chacha20::cipher::{KeyIvInit, StreamCipher};
 use chacha20::ChaCha20;
 use rsa::pkcs1::ToRsaPublicKey;
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
@@ -17,7 +18,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
-
     #[error("key gen failed")]
     KeyGenFailed,
 
@@ -48,6 +48,7 @@ pub enum Error {
 
 pub type Ciphertext = Vec<u8>;
 pub type Result<T> = std::result::Result<T, Error>;
+pub type Secret = [u8; 44];
 
 pub fn gen_rsa() -> Result<(RsaPrivateKey, RsaPublicKey)> {
     let mut rng = rand::thread_rng();
@@ -58,6 +59,14 @@ pub fn gen_rsa() -> Result<(RsaPrivateKey, RsaPublicKey)> {
     } else {
         Err(Error::KeyGenFailed)
     }
+}
+
+pub fn gen_secret() -> Secret {
+    let mut secret = [0 as u8; 44];
+    let (key, nonce) = mut_array_refs![&mut secret, 32, 12];
+    key.copy_from_slice(&rand::random::<[u8; 32]>());
+    nonce.copy_from_slice(&rand::random::<[u8; 12]>());
+    secret
 }
 
 pub fn gen_chacha20() -> ChaCha20 {
@@ -101,8 +110,9 @@ pub fn verify(pubkey: &RsaPublicKey, text: &[u8], signature: &[u8]) -> Result<()
         .map_err(|e| Error::VerifyFailed(e.to_string()))
 }
 
-pub fn apply(cipher: &mut ChaCha20, buffer: &mut [u8]) {
-    cipher.seek(0u32);
+pub fn apply(secret: &Secret, buffer: &mut [u8]) {
+    let (key, nonce) = array_refs![secret, 32, 12];
+    let mut cipher = ChaCha20::new(key.into(), nonce.into());
     cipher.apply_keystream(buffer);
 }
 
@@ -111,11 +121,11 @@ pub fn apply(cipher: &mut ChaCha20, buffer: &mut [u8]) {
 pub struct SecretState {
     pub mode: RandomMode,
     /// My lock keys
-    pub lock_keys: Vec<ChaCha20>,
+    pub lock_keys: Vec<Secret>,
     /// My mask keys
-    pub mask: ChaCha20,
+    pub mask: Secret,
     /// Locks received from others
-    pub received: Vec<Option<ChaCha20>>,
+    pub received: Vec<Option<Secret>>,
     /// Decryption results
     pub decrypted: Vec<Option<String>>,
     /// The size of randomness
@@ -123,8 +133,6 @@ pub struct SecretState {
 }
 
 impl SecretState {
-
-
     pub fn from_random_state(random_state: &RandomState, mode: RandomMode) -> Self {
         SecretState::new(random_state.size, mode)
     }
@@ -134,8 +142,8 @@ impl SecretState {
     }
 
     pub fn new(size: usize, mode: RandomMode) -> Self {
-        let mask = gen_chacha20();
-        let lock_keys = std::iter::repeat_with(gen_chacha20).take(size).collect();
+        let mask = gen_secret();
+        let lock_keys = std::iter::repeat_with(gen_secret).take(size).collect();
         let received = std::iter::repeat_with(|| None).take(size).collect();
         let decrypted = std::iter::repeat_with(|| None).take(size).collect();
         Self {
@@ -154,7 +162,7 @@ impl SecretState {
             return Err(Error::InvalidCiphertextsSize);
         }
         ciphertexts.iter_mut().for_each(|c| {
-            apply(&mut self.mask, c.as_mut());
+            apply(&self.mask, c.as_mut());
         });
         Ok(ciphertexts)
     }
@@ -163,11 +171,13 @@ impl SecretState {
         if self.size != ciphertexts.len() {
             return Err(Error::InvalidCiphertextsSize);
         }
-        ciphertexts.iter_mut().for_each(|c| apply(&mut self.mask, c.as_mut()));
+        ciphertexts
+            .iter_mut()
+            .for_each(|c| apply(&mut self.mask, c.as_mut()));
         Ok(ciphertexts)
     }
 
-    pub fn lock(&mut self, tester: Ciphertext, ciphertexts: Vec<Ciphertext>) -> Result<Vec<(Ciphertext, Ciphertext)>> {
+    pub fn lock(&mut self, ciphertexts: Vec<Ciphertext>) -> Result<Vec<(Ciphertext, Ciphertext)>> {
         if self.size != ciphertexts.len() {
             return Err(Error::InvalidCiphertextsSize);
         }
@@ -176,10 +186,10 @@ impl SecretState {
             .enumerate()
             .map(|(i, mut c)| {
                 let lock = self.lock_keys.get_mut(i).unwrap();
-                let mut t = tester.clone();
+                // let mut t = tester.clone();
+                let digest = Sha1::digest(&lock);
                 apply(lock, c.as_mut());
-                apply(lock, t.as_mut());
-                (c, t)
+                (c, digest.to_vec())
             })
             .collect();
         Ok(r)
@@ -228,23 +238,26 @@ mod tests {
     fn test_apply() {
         let text = b"hello";
 
-        let mut cipher1 = gen_chacha20();
-        let mut cipher2 = gen_chacha20();
+        let secret1 = gen_secret();
+        let secret2 = gen_secret();
 
         let mut buffer = text.clone();
-        cipher1.apply_keystream(&mut buffer);
-        cipher2.apply_keystream(&mut buffer);
-        cipher1.seek(0u32);
-        cipher2.seek(0u32);
-        cipher2.apply_keystream(&mut buffer);
-        cipher1.apply_keystream(&mut buffer);
+        apply(&secret1, &mut buffer);
+        apply(&secret2, &mut buffer);
+        apply(&secret1, &mut buffer);
+        apply(&secret2, &mut buffer);
         assert_eq!(&buffer, text);
     }
 
     #[test]
     fn test_randomizing() {
         let rnd = ShuffledList {
-            options: vec!["a".to_string(), "b".to_string(), "c".to_string(), "d".to_string()],
+            options: vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+            ],
         };
     }
 
@@ -273,8 +286,7 @@ mod tests {
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
         let mut state = SecretState::from_random_spec(&rnd, RandomMode::Shuffler);
         let original_ciphertexts = vec![vec![41; 16], vec![42; 16], vec![43; 16]];
-        let tester = vec![13; 16];
-        let ciphertexts_and_tests = state.lock(tester, original_ciphertexts)?;
+        let ciphertexts_and_tests = state.lock(original_ciphertexts)?;
         assert_eq!(3, ciphertexts_and_tests.len());
         Ok(())
     }
