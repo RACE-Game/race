@@ -52,6 +52,9 @@ pub enum Error {
     #[error("malformed game bundle")]
     MalformedGameBundle,
 
+    #[error("malformed game account")]
+    MalformedGameAccount,
+
     #[error("deserialize error")]
     DeserializeError,
 

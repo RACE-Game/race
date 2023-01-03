@@ -22,7 +22,7 @@ pub enum PlayerStatus {
 }
 
 #[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
-pub enum ValidatorStatus {
+pub enum ServerStatus {
     #[default]
     Absent,
     Ready,
@@ -82,9 +82,18 @@ impl Player {
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
-pub struct Validator {
+pub struct Server {
     pub addr: String,
-    pub status: ValidatorStatus,
+    pub status: ServerStatus,
+}
+
+impl Server {
+    pub fn new<S: Into<String>>(addr: S) -> Self {
+        Server {
+            addr: addr.into(),
+            status: ServerStatus::Absent
+        }
+    }
 }
 
 pub struct EncryptionKeyContainer {
@@ -133,7 +142,7 @@ pub struct GameContext {
     /// List of players playing in this game
     players: Vec<Player>,
     /// List of validators serving this game
-    validators: Vec<Validator>,
+    servers: Vec<Server>,
     dispatch: Option<DispatchEvent>,
     state_json: String,
     timestamp: u64,
@@ -160,7 +169,7 @@ impl GameContext {
             transactor_addr: game_account.transactor_addr.as_ref().unwrap().to_owned(),
             status: GameStatus::Uninit,
             players: Default::default(),
-            validators: Default::default(),
+            servers: game_account.server_addrs.iter().map(Server::new).collect(),
             dispatch: None,
             state_json: "".into(),
             timestamp: 0,
@@ -190,6 +199,14 @@ impl GameContext {
         H: Serialize,
     {
         self.state_json = serde_json::to_string(&handler).unwrap();
+    }
+
+    pub fn game_addr(&self) -> &str {
+        &self.game_addr
+    }
+
+    pub fn transactor_addr(&self) -> &str {
+        &self.transactor_addr
     }
 
     pub fn get_player_by_index(&self, index: usize) -> Option<&Player> {
@@ -319,7 +336,7 @@ impl GameContext {
 
     pub fn init_random_state(&mut self, rnd: &dyn RandomSpec) -> usize {
         let random_id = self.random_states.len();
-        let owners: Vec<String> = self.validators.iter().map(|v| v.addr.clone()).collect();
+        let owners: Vec<String> = self.servers.iter().map(|v| v.addr.clone()).collect();
         let random_state = RandomState::new(random_id, rnd, &owners);
         self.random_states.push(random_state);
         random_id
