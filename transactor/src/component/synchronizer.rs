@@ -108,14 +108,13 @@ impl GameSynchronizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::game_account_with_empty_data;
     use race_core::types::Player;
-    use race_transport::dummy::DummyTransport;
+    use race_core_test::*;
 
     #[tokio::test]
     async fn test_sync_state() {
         let transport = Arc::new(DummyTransport::default());
-        let p = Some(Player::new("Alice", 5000));
+        let p = Player::new("Alice", 5000);
         let ga_0 = game_account_with_empty_data();
         let mut ga_1 = game_account_with_empty_data();
         ga_1.access_version = 1;
@@ -129,7 +128,7 @@ mod tests {
         assert_eq!(
             *output.borrow(),
             EventFrame::PlayerJoined {
-                addr: DummyTransport::mock_game_account_addr(),
+                addr: game_account_addr(),
                 players: vec![p]
             }
         );

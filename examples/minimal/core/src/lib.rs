@@ -35,7 +35,7 @@ impl Minimal {
                 self.counter_value += n;
             }
             GameEvent::Dispatch => {
-                context.dispatch(Event::system_custom(&GameEvent::Increase(1)), 0);
+                context.dispatch_custom(&GameEvent::Increase(1), 0);
             }
         }
         Ok(())

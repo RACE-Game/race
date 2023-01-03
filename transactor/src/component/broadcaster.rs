@@ -3,9 +3,9 @@ use std::sync::Arc;
 use race_core::types::GameAccount;
 use tokio::sync::{broadcast, mpsc, oneshot, watch, Mutex};
 
-use crate::frame::{EventFrame, BroadcastFrame};
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
+use crate::frame::{BroadcastFrame, EventFrame};
 
 pub struct BroadcasterContext {
     input_rx: mpsc::Receiver<EventFrame>,
@@ -113,8 +113,8 @@ impl Broadcaster {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::tests::game_account_with_empty_data;
     use race_core::event::Event;
+    use race_core_test::*;
 
     use super::*;
 
@@ -124,7 +124,15 @@ mod tests {
         let mut broadcaster = Broadcaster::new(&game_account);
         let mut rx = broadcaster.get_broadcast_rx();
         let event_frame = EventFrame::Broadcast {
-            addr: "ACC ADDR".into(),
+            addr: "GAME ADDR".into(),
+            state_json: "STATE JSON".into(),
+            event: Event::Custom {
+                sender: "Alice".into(),
+                raw: "CUSTOM EVENT".into(),
+            },
+        };
+        let broadcast_frame = BroadcastFrame {
+            game_addr: "GAME ADDR".into(),
             state_json: "STATE JSON".into(),
             event: Event::Custom {
                 sender: "Alice".into(),
@@ -132,12 +140,8 @@ mod tests {
             },
         };
         broadcaster.start();
-        broadcaster
-            .input_tx
-            .send(event_frame.clone())
-            .await
-            .unwrap();
+        broadcaster.input_tx.send(event_frame).await.unwrap();
         let event = rx.recv().await.expect("Failed to receive event");
-        assert_eq!(event, event_frame);
+        assert_eq!(event, broadcast_frame);
     }
 }

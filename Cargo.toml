@@ -10,8 +10,8 @@ members = [
   "facade",
   "env",
   "client",
-  "test",
-  # "examples/minimal/core",
+  "core-test",
+  "examples/minimal/core",
   "examples/one-card",
   # "examples/holdem",
 ]

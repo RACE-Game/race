@@ -115,7 +115,7 @@ impl GameHandler for OneCard {
             Event::Lock {
                 sender,
                 random_id,
-                ciphertexts_and_tests,
+                ciphertexts_and_digests: ciphertexts_and_tests,
             } => {}
 
             // Deal player cards, each player will get one card.

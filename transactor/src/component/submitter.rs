@@ -43,7 +43,7 @@ impl Component<SubmitterContext> for Submitter {
         tokio::spawn(async move {
             while let Some(event) = ctx.input_rx.recv().await {
                 match event {
-                    EventFrame::Settle { addr, params } => {
+                    EventFrame::Settle { addr: _, params } => {
                         ctx.transport.settle_game(params).await.unwrap();
                     }
                     EventFrame::Shutdown => {
@@ -66,7 +66,7 @@ impl Component<SubmitterContext> for Submitter {
 }
 
 impl Submitter {
-    pub fn new(transport: Arc<dyn TransportT>, init_state: GameAccount) -> Self {
+    pub fn new(transport: Arc<dyn TransportT>, _init_state: GameAccount) -> Self {
         let (input_tx, input_rx) = mpsc::channel(32);
         let (close_tx, close_rx) = oneshot::channel();
         let ctx = Some(SubmitterContext {
@@ -86,10 +86,8 @@ impl Submitter {
 mod tests {
 
     use super::*;
-    use crate::utils::tests::game_account_with_empty_data;
     use race_core::types::{AssetChange, PlayerStatus, Settle, SettleParams};
-    use race_transport::dummy::DummyTransport;
-    use std::ops::Deref;
+    use race_core_test::*;
 
     #[tokio::test]
     async fn test_submit_settle() {
@@ -103,17 +101,17 @@ mod tests {
             100,
         )];
         let params = SettleParams {
-            addr: DummyTransport::mock_game_account_addr(),
+            addr: game_account_addr(),
             settles: settles.clone(),
         };
         let event_frame = EventFrame::Settle {
-            addr: DummyTransport::mock_game_account_addr(),
+            addr: game_account_addr(),
             params,
         };
         submitter.start();
         submitter.input_tx.send(event_frame).await.unwrap();
         submitter.input_tx.send(EventFrame::Shutdown).await.unwrap();
         submitter.closed().await.unwrap();
-        assert_eq!(transport.get_settles().deref(), &settles);
+        assert_eq!(*transport.get_settles(), settles);
     }
 }

@@ -126,7 +126,7 @@ impl EventLoop {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::tests::game_account_with_data;
+    use race_core_test::*;
     use race_core::types::Player;
 
     use super::*;
@@ -145,7 +145,7 @@ mod tests {
             .input_tx
             .send(EventFrame::PlayerJoined {
                 addr: "FAKE ADDR".into(),
-                players: vec![Some(Player::new("Alice", 1000))],
+                players: vec![Player::new("Alice", 1000)],
             })
             .await
             .unwrap();

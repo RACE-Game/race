@@ -1,5 +1,5 @@
 [package]
-name = "race-test"
+name = "race-core-test"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 race-core = { path = "../core" }
 borsh = "0.9.3"
+async-trait = "0.1.58"
+
+[dev-dependencies]
+tokio = { version = "1.21.0", features = ["full"] }

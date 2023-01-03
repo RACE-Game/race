@@ -14,6 +14,7 @@ use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha1::{Digest, Sha1};
 
 use race_core::random::{RandomMode, RandomSpec, RandomState};
+use race_core::types::{Ciphertext, SecretDigest, Secret};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -46,9 +47,7 @@ pub enum Error {
     InvalidCiphertextsSize,
 }
 
-pub type Ciphertext = Vec<u8>;
 pub type Result<T> = std::result::Result<T, Error>;
-pub type Secret = [u8; 44];
 
 pub fn gen_rsa() -> Result<(RsaPrivateKey, RsaPublicKey)> {
     let mut rng = rand::thread_rng();
@@ -62,7 +61,7 @@ pub fn gen_rsa() -> Result<(RsaPrivateKey, RsaPublicKey)> {
 }
 
 pub fn gen_secret() -> Secret {
-    let mut secret = [0 as u8; 44];
+    let mut secret = [0u8; 44];
     let (key, nonce) = mut_array_refs![&mut secret, 32, 12];
     key.copy_from_slice(&rand::random::<[u8; 32]>());
     nonce.copy_from_slice(&rand::random::<[u8; 12]>());
@@ -173,11 +172,11 @@ impl SecretState {
         }
         ciphertexts
             .iter_mut()
-            .for_each(|c| apply(&mut self.mask, c.as_mut()));
+            .for_each(|c| apply(&self.mask, c.as_mut()));
         Ok(ciphertexts)
     }
 
-    pub fn lock(&mut self, ciphertexts: Vec<Ciphertext>) -> Result<Vec<(Ciphertext, Ciphertext)>> {
+    pub fn lock(&mut self, ciphertexts: Vec<Ciphertext>) -> Result<Vec<(Ciphertext, SecretDigest)>> {
         if self.size != ciphertexts.len() {
             return Err(Error::InvalidCiphertextsSize);
         }
@@ -186,7 +185,6 @@ impl SecretState {
             .enumerate()
             .map(|(i, mut c)| {
                 let lock = self.lock_keys.get_mut(i).unwrap();
-                // let mut t = tester.clone();
                 let digest = Sha1::digest(&lock);
                 apply(lock, c.as_mut());
                 (c, digest.to_vec())
@@ -247,18 +245,6 @@ mod tests {
         apply(&secret1, &mut buffer);
         apply(&secret2, &mut buffer);
         assert_eq!(&buffer, text);
-    }
-
-    #[test]
-    fn test_randomizing() {
-        let rnd = ShuffledList {
-            options: vec![
-                "a".to_string(),
-                "b".to_string(),
-                "c".to_string(),
-                "d".to_string(),
-            ],
-        };
     }
 
     #[test]

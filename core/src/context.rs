@@ -5,11 +5,11 @@ use serde::Serialize;
 
 use crate::engine::GameHandler;
 use crate::error::{Error, Result};
-use crate::random::Ciphertext;
+use crate::event::CustomEvent;
 use crate::{
     event::{Event, SecretIdent},
     random::{RandomSpec, RandomState},
-    types::GameAccount,
+    types::{Ciphertext, GameAccount},
 };
 
 #[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
@@ -127,6 +127,8 @@ impl DispatchEvent {
 #[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GameContext {
     game_addr: String,
+    // Current transactor's address
+    transactor_addr: String,
     status: GameStatus,
     /// List of players playing in this game
     players: Vec<Player>,
@@ -155,6 +157,7 @@ impl GameContext {
     pub fn new(game_account: &GameAccount) -> Self {
         Self {
             game_addr: game_account.addr.clone(),
+            transactor_addr: game_account.transactor_addr.as_ref().unwrap().to_owned(),
             status: GameStatus::Uninit,
             players: Default::default(),
             validators: Default::default(),
@@ -209,6 +212,17 @@ impl GameContext {
         self.dispatch = Some(DispatchEvent::new(event, timeout));
     }
 
+    pub fn dispatch_custom<E>(&mut self, e: &E, timeout: u64)
+    where
+        E: CustomEvent,
+    {
+        let event = Event::Custom {
+            sender: self.transactor_addr.to_owned(),
+            raw: serde_json::to_string(e).unwrap(),
+        };
+        self.dispatch = Some(DispatchEvent::new(event, timeout));
+    }
+
     pub fn players(&self) -> &Vec<Player> {
         &self.players
     }
@@ -244,7 +258,12 @@ impl GameContext {
     }
 
     /// Assign random item to a player
-    pub fn assign(&mut self, random_id: usize, player_addr: String, indexes: Vec<usize>) -> Result<()> {
+    pub fn assign(
+        &mut self,
+        random_id: usize,
+        player_addr: String,
+        indexes: Vec<usize>,
+    ) -> Result<()> {
         let rnd_st = self.get_mut_random_state(random_id)?;
         rnd_st.assign(player_addr, indexes)?;
         Ok(())
@@ -306,7 +325,12 @@ impl GameContext {
         random_id
     }
 
-    pub fn add_shared_secrets(&mut self, _addr: &str, secret_ident: SecretIdent, secret_data: String) -> Result<()> {
+    pub fn add_shared_secrets(
+        &mut self,
+        _addr: &str,
+        secret_ident: SecretIdent,
+        secret_data: String,
+    ) -> Result<()> {
         if self.shared_secrets.contains_key(&secret_ident) {
             return Err(Error::DuplicatedSecretSharing);
         }
@@ -315,7 +339,12 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn randomize(&mut self, addr: &str, random_id: usize, ciphertexts: Vec<Ciphertext>) -> Result<()> {
+    pub fn randomize(
+        &mut self,
+        addr: &str,
+        random_id: usize,
+        ciphertexts: Vec<Ciphertext>,
+    ) -> Result<()> {
         let rnd_st = self.get_mut_random_state(random_id)?;
         rnd_st.mask(addr, ciphertexts)?;
 
@@ -340,21 +369,11 @@ impl GameContext {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::types::tests::*;
 
     #[test]
     fn test_borsh_serialize() {
-        let game_account = GameAccount {
-            addr: "ACC ADDR".into(),
-            bundle_addr: "GAME ADDR".into(),
-            served: true,
-            settle_version: 0,
-            access_version: 0,
-            max_players: 2,
-            nodes: vec![],
-            players: vec![],
-            data_len: 0,
-            data: vec![],
-        };
+        let game_account = game_account_with_empty_data();
         let mut ctx = GameContext::new(&game_account);
         ctx.players.push(Player::new("FAKE PLAYER ADDR", 1000));
         let encoded = ctx.try_to_vec().unwrap();

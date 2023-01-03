@@ -1,8 +1,10 @@
 use crate::{
     error::Result,
     types::{
-        CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-        SettleParams, TransactorAccount, RegisterTransactorParams, RegisterGameParams, UnregisterGameParams, CreateRegistrationParams, GetRegistrationParams, RegistrationAccount,
+        CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
+        GameBundle, GetRegistrationParams, JoinParams, PlayerProfile, RegisterGameParams,
+        RegisterTransactorParams, RegistrationAccount, SettleParams, TransactorAccount,
+        UnregisterGameParams,
     },
 };
 use async_trait::async_trait;

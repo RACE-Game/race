@@ -2,11 +2,11 @@
 //!
 //! We use Mental Poker randomization between transactors.
 
-pub type Ciphertext = Vec<u8>;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::types::{SecretDigest, Ciphertext};
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -127,14 +127,14 @@ impl Mask {
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 pub struct Lock {
-    pub test: Ciphertext,
+    pub digest: SecretDigest,
     pub owner: String,
 }
 
 impl Lock {
-    pub fn new<S: Into<String>>(owner: S, test: Ciphertext) -> Self {
+    pub fn new<S: Into<String>>(owner: S, digest: SecretDigest) -> Self {
         Self {
-            test,
+            digest,
             owner: owner.into(),
         }
     }

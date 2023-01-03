@@ -1,5 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use crate::types::{Ciphertext, SecretDigest};
 
 #[derive(Hash, Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone, PartialOrd, Ord)]
 pub struct SecretIdent {
@@ -8,8 +9,6 @@ pub struct SecretIdent {
     pub random_id: u32,
     pub index: u32,
 }
-
-pub type Ciphertext = Vec<u8>;
 
 #[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum Event {
@@ -41,7 +40,7 @@ pub enum Event {
     Lock {
         sender: String,
         random_id: usize,
-        ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
+        ciphertexts_and_digests: Vec<(Ciphertext, SecretDigest)>,
     },
 
     /// All randomness is prepared.
@@ -85,4 +84,4 @@ impl Event {
     }
 }
 
-pub trait CustomEvent: Serialize + DeserializeOwned {}
+pub trait CustomEvent: Serialize + DeserializeOwned + Sized {}

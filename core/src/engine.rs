@@ -47,7 +47,7 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
         Event::Lock {
             sender,
             random_id,
-            ciphertexts_and_tests,
+            ciphertexts_and_digests: ciphertexts_and_tests,
         } => context.lock(sender, *random_id, ciphertexts_and_tests.clone()),
 
         Event::RandomnessReady => Ok(()),
@@ -87,38 +87,12 @@ pub fn after_handle_event(context: &mut GameContext) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use borsh::BorshSerialize;
-
     use super::*;
-
-    #[derive(BorshSerialize)]
-    pub struct MinimalAccountData {
-        counter_value_default: u64,
-    }
-
-    fn make_game_account() -> GameAccount {
-        let data = MinimalAccountData {
-            counter_value_default: 42,
-        }
-        .try_to_vec()
-        .unwrap();
-        GameAccount {
-            addr: "ACC ADDR".into(),
-            bundle_addr: "GAME ADDR".into(),
-            served: true,
-            settle_version: 0,
-            access_version: 0,
-            players: vec![],
-            data_len: data.len() as _,
-            data,
-            nodes: vec![],
-            max_players: 2,
-        }
-    }
+    use crate::types::tests::*;
 
     #[test]
     fn test_general_handle_event_join() {
-        let game_account = make_game_account();
+        let game_account = game_account_with_empty_data();
         let mut ctx = GameContext::new(&game_account);
         let event = Event::Join {
             player_addr: "Alice".into(),

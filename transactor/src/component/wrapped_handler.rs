@@ -116,8 +116,8 @@ impl WrappedHandler {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::tests::game_account_with_account_data;
     use race_core::types::GameAccount;
+    use race_core_test::*;
 
     use super::*;
 

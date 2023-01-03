@@ -48,7 +48,7 @@ pub struct ClientContext {
 
 /// Create RPC client for the transactor of given address.
 async fn create_rpc_client_for_transactor(
-    transport: &Arc<dyn TransportT>,
+    transport: &dyn TransportT,
     addr: &str,
 ) -> HttpClient {
     let transactor_account = transport
@@ -125,6 +125,32 @@ async fn randomize(client_context: &mut ClientContext, game_context: &GameContex
                         .secret_states
                         .get_mut(random_state.id)
                         .expect("Failed to get secret state");
+
+                    let origin = random_state
+                        .ciphertexts
+                        .iter()
+                        .map(|c| c.ciphertext().to_owned())
+                        .collect();
+
+                    let locked = secret_state
+                        .lock(origin)
+                        .map_err(|e| Error::RandomizationError(e.to_string()))?;
+
+                    let event = Event::Lock {
+                        sender: client_context.server_addr.clone(),
+                        random_id: random_state.id,
+                        ciphertexts_and_digests: locked,
+                    };
+
+                    let event_frame = EventFrame::SendServerEvent {
+                        addr: client_context.server_addr.clone(),
+                        event,
+                    };
+
+                    client_context
+                        .output_tx
+                        .send(event_frame)
+                        .map_err(|e| Error::InternalError(e.to_string()))?;
                 }
             }
             CipherStatus::Masking(ref addr) => {
@@ -156,8 +182,10 @@ async fn randomize(client_context: &mut ClientContext, game_context: &GameContex
                         event,
                     };
 
-                    client_context.output_tx.send(event_frame).map_err(|e| Error::InternalError(e.to_string()))?;
-
+                    client_context
+                        .output_tx
+                        .send(event_frame)
+                        .map_err(|e| Error::InternalError(e.to_string()))?;
                 }
             }
         }
@@ -165,7 +193,7 @@ async fn randomize(client_context: &mut ClientContext, game_context: &GameContex
     Ok(())
 }
 
-async fn decrypt(client_context: &mut ClientContext, game_context: &GameContext) -> Result<()> {
+async fn decrypt(_client_context: &mut ClientContext, _game_context: &GameContext) -> Result<()> {
     Ok(())
 }
 
@@ -188,7 +216,7 @@ async fn run_as_transactor(client_context: &mut ClientContext) -> Result<()> {
 /// Read events from main transactor and validate.
 async fn run_as_validator(client_context: &mut ClientContext) -> Result<()> {
     let _rpc_client = create_rpc_client_for_transactor(
-        &client_context.transport,
+        &*client_context.transport,
         &client_context.transactor_addr,
     )
     .await;
@@ -257,5 +285,17 @@ impl Component<ClientContext> for Client {
 
 #[cfg(test)]
 mod tests {
+    use race_core_test::*;
+
     use super::*;
+
+    #[test]
+    fn test_mask() {
+        let game_account = game_account_with_empty_data();
+        let transactor_account = transactor_account();
+        let transport = DummyTransport::default();
+
+        let client = Client::new(&transactor_account, &game_account, Arc::new(transport));
+
+    }
 }

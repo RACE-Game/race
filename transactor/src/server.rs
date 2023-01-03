@@ -7,7 +7,6 @@ use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
 use race_core::types::{AttachGameParams, GetStateParams, SendEventParams, SubscribeEventParams};
-use race_env::Config;
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
 
