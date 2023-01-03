@@ -13,7 +13,8 @@ members = [
   "core-test",
   "examples/minimal/core",
   "examples/one-card",
-  # "examples/holdem",
+  "examples/holdem",
+
 ]
 
 [profile.dev.package.num-bigint-dig]
