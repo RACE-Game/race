@@ -3,7 +3,7 @@ mod accounts;
 mod transactor_params;
 mod transport_params;
 
-pub use common::{Ciphertext, SecretDigest, Secret};
+pub use common::{Ciphertext, SecretDigest, SecretKey, empty_secret_key};
 
 pub use accounts::{
     GameAccount, GameBundle, GameRegistration, Player, PlayerProfile, RegistrationAccount,

@@ -3334,6 +3334,7 @@ version = "0.1.0"
 dependencies = [
  "arrayref",
  "chacha20",
+ "hex",
  "race-core",
  "rand 0.8.5",
  "rsa",
@@ -3410,8 +3411,10 @@ name = "race-transactor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arrayref",
  "borsh",
  "clap 4.0.29",
+ "hex",
  "hyper",
  "jsonrpsee",
  "race-core",

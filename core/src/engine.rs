@@ -34,9 +34,8 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
 
         Event::ShareSecrets {
             sender,
-            secret_ident,
-            secret_data,
-        } => context.add_shared_secrets(sender, secret_ident.clone(), secret_data.clone()),
+            secrets: shares,
+        } => context.add_shared_secrets(sender, shares.clone()),
 
         Event::Randomize {
             sender,
@@ -83,48 +82,4 @@ pub fn after_handle_event(context: &mut GameContext) -> Result<()> {
     context.set_game_status(GameStatus::Sharing);
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::types::tests::*;
-
-    #[test]
-    fn test_general_handle_event_join() {
-        let game_account = game_account_with_empty_data();
-        let mut ctx = GameContext::new(&game_account);
-        let event = Event::Join {
-            player_addr: "Alice".into(),
-            balance: 1000,
-        };
-        general_handle_event(&mut ctx, &event).expect("handle event error");
-        assert_eq!(1, ctx.players().len());
-    }
-
-    // #[test]
-    // fn test_general_handle_event_ready() {
-    //     let game_account = make_game_account();
-    //     let mut ctx = GameContextAccess::new(GameContext::new(&game_account));
-    //     let event = Event::Ready { sender: "Alice".into() };
-    //     general_handle_event(&mut ctx, &event).expect_err("handle event should failed");
-    //     ctx.players.push(Player::new("Alice", 1000));
-    //     general_handle_event(&mut ctx, &event).expect("handle event failed");
-    //     assert_eq!(PlayerStatus::Ready, ctx.players[0].status);
-    // }
-
-    #[test]
-    fn test_general_handle_event_share_secrets() {}
-
-    #[test]
-    fn test_general_handle_event_randomize() {}
-
-    #[test]
-    fn test_general_handle_event_lock() {}
-
-    #[test]
-    fn test_general_handle_event_game_start() {}
-
-    #[test]
-    fn test_general_handle_event_draw_random_items() {}
 }

@@ -18,7 +18,7 @@ pub enum EventFrame {
         event: Event,
     },
     SendServerEvent {
-        addr: String, //  server address
+        addr: String,
         event: Event,
     },
     Broadcast {

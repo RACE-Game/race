@@ -1,13 +1,70 @@
+use std::collections::HashMap;
+
+use crate::types::{Ciphertext, SecretDigest};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use crate::types::{Ciphertext, SecretDigest};
 
-#[derive(Hash, Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone, PartialOrd, Ord)]
+#[derive(
+    Hash,
+    Debug,
+    BorshDeserialize,
+    BorshSerialize,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    PartialOrd,
+    Ord,
+)]
 pub struct SecretIdent {
     pub from_addr: String,
     pub to_addr: Option<String>,
-    pub random_id: u32,
-    pub index: u32,
+    pub random_id: usize,
+    pub index: usize,
+}
+
+#[derive(
+    Hash,
+    Debug,
+    BorshDeserialize,
+    BorshSerialize,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    PartialOrd,
+    Ord,
+)]
+pub struct ItemIdent {
+    pub random_id: usize,
+    pub index: usize,
+}
+
+impl SecretIdent {
+    pub fn new_for_assigned<S: Into<String>>(
+        random_id: usize,
+        index: usize,
+        from_addr: S,
+        to_addr: S,
+    ) -> Self {
+        SecretIdent {
+            from_addr: from_addr.into(),
+            to_addr: Some(to_addr.into()),
+            random_id,
+            index,
+        }
+    }
+
+    pub fn new_for_revealed<S: Into<String>>(random_id: usize, index: usize, from_addr: S) -> Self {
+        SecretIdent {
+            from_addr: from_addr.into(),
+            to_addr: None,
+            random_id,
+            index,
+        }
+    }
 }
 
 #[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone)]
@@ -23,8 +80,7 @@ pub enum Event {
     /// The `secret_data` is encrypted with the receiver's public key.
     ShareSecrets {
         sender: String,
-        secret_ident: SecretIdent,
-        secret_data: String,
+        secrets: HashMap<SecretIdent, String>,
     },
 
     /// Randomize items.
@@ -32,7 +88,7 @@ pub enum Event {
     Randomize {
         sender: String,
         random_id: usize,
-        ciphertexts: Vec<Ciphertext>
+        ciphertexts: Vec<Ciphertext>,
     },
 
     /// Lock items.
@@ -62,7 +118,11 @@ pub enum Event {
     WaitTimeout,
 
     /// Random drawer takes random items by indexes.
-    DrawRandomItems { sender: String, random_id: usize, indexes: Vec<usize> },
+    DrawRandomItems {
+        sender: String,
+        random_id: usize,
+        indexes: Vec<usize>,
+    },
 
     /// Timeout for drawing random items
     DrawTimeout,

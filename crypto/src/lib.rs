@@ -14,7 +14,7 @@ use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha1::{Digest, Sha1};
 
 use race_core::random::{RandomMode, RandomSpec, RandomState};
-use race_core::types::{Ciphertext, SecretDigest, Secret};
+use race_core::types::{Ciphertext, SecretKey, SecretDigest};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -45,6 +45,15 @@ pub enum Error {
 
     #[error("invalid ciphertexts size")]
     InvalidCiphertextsSize,
+
+    #[error("Invalid key index")]
+    InvalidKeyIndex,
+}
+
+impl From<Error> for race_core::error::Error {
+    fn from(e: Error) -> Self {
+        race_core::error::Error::RandomizationError(e.to_string())
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -60,7 +69,7 @@ pub fn gen_rsa() -> Result<(RsaPrivateKey, RsaPublicKey)> {
     }
 }
 
-pub fn gen_secret() -> Secret {
+pub fn gen_secret() -> SecretKey {
     let mut secret = [0u8; 44];
     let (key, nonce) = mut_array_refs![&mut secret, 32, 12];
     key.copy_from_slice(&rand::random::<[u8; 32]>());
@@ -109,7 +118,7 @@ pub fn verify(pubkey: &RsaPublicKey, text: &[u8], signature: &[u8]) -> Result<()
         .map_err(|e| Error::VerifyFailed(e.to_string()))
 }
 
-pub fn apply(secret: &Secret, buffer: &mut [u8]) {
+pub fn apply(secret: &SecretKey, buffer: &mut [u8]) {
     let (key, nonce) = array_refs![secret, 32, 12];
     let mut cipher = ChaCha20::new(key.into(), nonce.into());
     cipher.apply_keystream(buffer);
@@ -120,11 +129,11 @@ pub fn apply(secret: &Secret, buffer: &mut [u8]) {
 pub struct SecretState {
     pub mode: RandomMode,
     /// My lock keys
-    pub lock_keys: Vec<Secret>,
+    pub lock_keys: Vec<SecretKey>,
     /// My mask keys
-    pub mask: Secret,
+    pub mask: SecretKey,
     /// Locks received from others
-    pub received: Vec<Option<Secret>>,
+    pub received: Vec<Option<SecretKey>>,
     /// Decryption results
     pub decrypted: Vec<Option<String>>,
     /// The size of randomness
@@ -155,6 +164,14 @@ impl SecretState {
         }
     }
 
+    pub fn get_key(&self, index: usize) -> Result<String> {
+        if let Some(key) = self.lock_keys.get(index) {
+            Ok(hex::encode_upper(key))
+        } else {
+            Err(Error::InvalidKeyIndex)
+        }
+    }
+
     /// Mask the given ciphertexts using mask secret.
     pub fn mask(&mut self, mut ciphertexts: Vec<Ciphertext>) -> Result<Vec<Ciphertext>> {
         if self.size != ciphertexts.len() {
@@ -176,7 +193,10 @@ impl SecretState {
         Ok(ciphertexts)
     }
 
-    pub fn lock(&mut self, ciphertexts: Vec<Ciphertext>) -> Result<Vec<(Ciphertext, SecretDigest)>> {
+    pub fn lock(
+        &mut self,
+        ciphertexts: Vec<Ciphertext>,
+    ) -> Result<Vec<(Ciphertext, SecretDigest)>> {
         if self.size != ciphertexts.len() {
             return Err(Error::InvalidCiphertextsSize);
         }
@@ -192,8 +212,6 @@ impl SecretState {
             .collect();
         Ok(r)
     }
-
-    pub fn decrypt(&mut self) {}
 }
 
 /// The context for secrets holder. This context is for private

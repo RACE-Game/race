@@ -70,9 +70,6 @@ pub enum Error {
     #[error("randomization error")]
     RandomizationError(String),
 
-    #[error("duplicated secret sharing")]
-    DuplicatedSecretSharing,
-
     #[error("duplicated event dispatching")]
     DuplicatedEventDispatching,
 
@@ -96,6 +93,15 @@ pub enum Error {
 
     #[error("internal error")]
     InternalError(String),
+
+    #[error("missing secret")]
+    MissingSecret,
+
+    #[error("invalid secret")]
+    InvalidSecret,
+
+    #[error("decryption failed")]
+    DecryptionFailed,
 }
 
 impl From<serde_json::Error> for Error {

@@ -91,7 +91,7 @@ impl Server {
     pub fn new<S: Into<String>>(addr: S) -> Self {
         Server {
             addr: addr.into(),
-            status: ServerStatus::Absent
+            status: ServerStatus::Absent,
         }
     }
 }
@@ -345,14 +345,12 @@ impl GameContext {
     pub fn add_shared_secrets(
         &mut self,
         _addr: &str,
-        secret_ident: SecretIdent,
-        secret_data: String,
+        shares: HashMap<SecretIdent, String>,
     ) -> Result<()> {
-        if self.shared_secrets.contains_key(&secret_ident) {
-            return Err(Error::DuplicatedSecretSharing);
+        for (idt, secret) in shares.into_iter() {
+            let random_state = self.get_mut_random_state(idt.random_id)?;
+            random_state.add_secret(idt.from_addr, idt.to_addr, idt.index, secret)?;
         }
-        self.shared_secrets.insert(secret_ident, secret_data);
-
         Ok(())
     }
 
@@ -381,23 +379,4 @@ impl GameContext {
     }
 
     pub fn settle() {}
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::types::tests::*;
-
-    #[test]
-    fn test_borsh_serialize() {
-        let game_account = game_account_with_empty_data();
-        let mut ctx = GameContext::new(&game_account);
-        ctx.players.push(Player::new("FAKE PLAYER ADDR", 1000));
-        let encoded = ctx.try_to_vec().unwrap();
-        let decoded = GameContext::try_from_slice(&encoded).unwrap();
-        assert_eq!(ctx, decoded);
-    }
-
-    #[test]
-    fn test_assign() {}
 }

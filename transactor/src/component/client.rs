@@ -6,16 +6,17 @@
 //! Following events will be handled by this component:
 //! - ContextUpdated
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::frame::EventFrame;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use race_core::context::GameContext;
 use race_core::error::{Error, Result};
-use race_core::event::Event;
-use race_core::random::{CipherStatus, RandomMode};
+use race_core::event::{Event, SecretIdent};
+use race_core::random::{RandomMode, RandomStatus};
 use race_core::transport::TransportT;
-use race_core::types::{GameAccount, TransactorAccount};
+use race_core::types::{empty_secret_key, GameAccount, TransactorAccount};
 use race_crypto::SecretState;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -35,11 +36,14 @@ pub struct Client {
     pub ctx: Option<ClientContext>,
 }
 
+
+
 pub struct ClientContext {
     pub input_rx: mpsc::Receiver<EventFrame>,
     pub output_tx: watch::Sender<EventFrame>,
     pub closed_tx: oneshot::Sender<CloseReason>,
     pub transport: Arc<dyn TransportT>,
+    pub decryption: HashMap<(usize, usize), String>,
     pub mode: ClientMode,        // client running mode
     pub transactor_addr: String, // address of current transactor
     pub server_addr: String, // address of current node, it's the same with above if current node is running as transactor
@@ -82,6 +86,7 @@ impl Client {
             output_tx,
             closed_tx,
             transport,
+            decryption: HashMap::new(),
             mode,
             server_addr,
             transactor_addr,
@@ -111,11 +116,43 @@ async fn update_secret_state(
     Ok(())
 }
 
-async fn randomize(client_context: &mut ClientContext, game_context: &GameContext) -> Result<()> {
+async fn randomize_and_share(
+    client_context: &mut ClientContext,
+    game_context: &GameContext,
+) -> Result<()> {
     for random_state in game_context.list_random_states().iter() {
         match random_state.status {
-            CipherStatus::Ready => (),
-            CipherStatus::Locking(ref addr) => {
+            RandomStatus::Ready => (),
+            RandomStatus::WaitingSecrets => {
+                // check if our secret is required
+                let required_idents =
+                    random_state.list_required_secrets_by_from_addr(&client_context.server_addr);
+                let shares = required_idents
+                    .into_iter()
+                    .map(|idt| {
+                        if let Some(secret_state) = client_context.secret_states.get(idt.random_id)
+                        {
+                            let secret = secret_state.get_key(idt.index)?;
+                            Ok((idt, secret))
+                        } else {
+                            Err(Error::MissingSecret)
+                        }
+                    })
+                    .collect::<Result<HashMap<SecretIdent, String>>>()?;
+                let event = Event::ShareSecrets {
+                    sender: client_context.server_addr.clone(),
+                    secrets: shares,
+                };
+                let event_frame = EventFrame::SendServerEvent {
+                    addr: game_context.game_addr().to_owned(),
+                    event,
+                };
+                client_context
+                    .output_tx
+                    .send(event_frame)
+                    .map_err(|e| Error::InternalError(e.to_string()))?;
+            }
+            RandomStatus::Locking(ref addr) => {
                 // check if our operation is being requested
                 if client_context.server_addr.eq(addr) {
                     let secret_state = client_context
@@ -150,7 +187,7 @@ async fn randomize(client_context: &mut ClientContext, game_context: &GameContex
                         .map_err(|e| Error::InternalError(e.to_string()))?;
                 }
             }
-            CipherStatus::Masking(ref addr) => {
+            RandomStatus::Masking(ref addr) => {
                 // check if our operation is being requested
                 if client_context.server_addr.eq(addr) {
                     let secret_state = client_context
@@ -190,7 +227,27 @@ async fn randomize(client_context: &mut ClientContext, game_context: &GameContex
     Ok(())
 }
 
-async fn decrypt(_client_context: &mut ClientContext, _game_context: &GameContext) -> Result<()> {
+async fn decrypt(client_context: &mut ClientContext, game_context: &GameContext) -> Result<()> {
+    for random_state in game_context.list_random_states().iter() {
+        if random_state.status == RandomStatus::Ready {
+            let secrets = random_state.list_revealed_secrets()?;
+            for (index, secrets) in secrets {
+                let mut ciphertext = random_state
+                    .get_ciphertext(index)
+                    .ok_or(Error::DecryptionFailed)?
+                    .ciphertext
+                    .to_owned();
+                for s in secrets.iter() {
+                    let mut key = empty_secret_key();
+                    hex::decode_to_slice(s, &mut key).or(Err(Error::DecryptionFailed))?;
+                    race_crypto::apply(&key, &mut ciphertext);
+                }
+
+                let val = String::from_utf8(ciphertext).or(Err(Error::DecryptionFailed))?;
+                client_context.decryption.insert((random_state.id, index), val);
+            }
+        }
+    }
     Ok(())
 }
 
@@ -200,7 +257,7 @@ async fn run_as_transactor(client_context: &mut ClientContext) -> Result<()> {
         match event_frame {
             EventFrame::ContextUpdated { ref context } => {
                 update_secret_state(client_context, context).await?;
-                randomize(client_context, context).await?;
+                randomize_and_share(client_context, context).await?;
                 decrypt(client_context, context).await?;
             }
             EventFrame::Shutdown => break,
@@ -222,7 +279,7 @@ async fn run_as_validator(client_context: &mut ClientContext) -> Result<()> {
         match event_frame {
             EventFrame::ContextUpdated { ref context } => {
                 update_secret_state(client_context, context).await?;
-                randomize(client_context, context).await?;
+                randomize_and_share(client_context, context).await?;
                 decrypt(client_context, context).await?;
             }
             EventFrame::Shutdown => break,
@@ -288,20 +345,27 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_lock() {
+    fn setup() -> (Client, GameContext) {
         let game_account = game_account_with_empty_data();
         let transactor_account = transactor_account();
         let transport = DummyTransport::default();
-
         let mut client = Client::new(&transactor_account, &game_account, Arc::new(transport));
-        let mut ctx = GameContext::new(&game_account);
-        let random = ShuffledList::new(vec!["a", "b", "c"]);
-        let rid = ctx.init_random_state(&random);
+        client.start();
+        let context = GameContext::new(&game_account);
+        (client, context)
+    }
+
+    #[tokio::test]
+    async fn test_lock() {
+        let (mut client, mut ctx) = setup();
 
         // Mask the random_state
+        let random = ShuffledList::new(vec!["a", "b", "c"]);
+        let rid = ctx.init_random_state(&random);
         let random_state = ctx.get_mut_random_state(rid).unwrap();
-        random_state.mask(transactor_account.addr.clone(), vec![vec![0], vec![0], vec![0]]).unwrap();
+        random_state
+            .mask(transactor_account_addr(), vec![vec![0], vec![0], vec![0]])
+            .unwrap();
 
         println!("client created");
         client.start();
@@ -314,35 +378,36 @@ mod tests {
         let event_frame = client.output_rx.borrow();
 
         match &*event_frame {
-            EventFrame::SendServerEvent { ref addr, ref event } => {
-                assert_eq!(addr, &game_account.addr);
+            EventFrame::SendServerEvent {
+                ref addr,
+                ref event,
+            } => {
+                assert_eq!(addr, &game_account_addr());
                 match event {
-                    Event::Lock { sender, random_id, ciphertexts_and_digests } => {
+                    Event::Lock {
+                        sender,
+                        random_id,
+                        ciphertexts_and_digests,
+                    } => {
                         assert_eq!(rid, *random_id);
-                        assert_eq!(sender, &transactor_account.addr);
+                        assert_eq!(sender, &transactor_account_addr());
                         assert_eq!(3, ciphertexts_and_digests.len());
                     }
-                    _ => panic!("invalid event type")
+                    _ => panic!("invalid event type"),
                 }
-            },
-            _ => panic!("invalid event frame")
+            }
+            _ => panic!("invalid event frame"),
         }
-
     }
 
     #[tokio::test]
-    async fn test_mask()  {
-        let game_account = game_account_with_empty_data();
-        let transactor_account = transactor_account();
-        let transport = DummyTransport::default();
+    async fn test_mask() {
+        let (mut client, mut ctx) = setup();
 
-        let mut client = Client::new(&transactor_account, &game_account, Arc::new(transport));
-        let mut ctx = GameContext::new(&game_account);
         let random = ShuffledList::new(vec!["a", "b", "c"]);
         let rid = ctx.init_random_state(&random);
         println!("random inited");
 
-
         println!("client created");
         client.start();
 
@@ -354,18 +419,25 @@ mod tests {
         let event_frame = client.output_rx.borrow();
 
         match &*event_frame {
-            EventFrame::SendServerEvent { ref addr, ref event } => {
-                assert_eq!(addr, &game_account.addr);
+            EventFrame::SendServerEvent {
+                ref addr,
+                ref event,
+            } => {
+                assert_eq!(addr, &game_account_addr());
                 match event {
-                    Event::Randomize { sender, random_id, ciphertexts } => {
+                    Event::Randomize {
+                        sender,
+                        random_id,
+                        ciphertexts,
+                    } => {
                         assert_eq!(rid, *random_id);
-                        assert_eq!(sender, &transactor_account.addr);
+                        assert_eq!(sender, &transactor_account_addr());
                         assert_eq!(3, ciphertexts.len());
                     }
-                    _ => panic!("invalid event type")
+                    _ => panic!("invalid event type"),
                 }
-            },
-            _ => panic!("invalid event frame")
+            }
+            _ => panic!("invalid event frame"),
         }
     }
 }

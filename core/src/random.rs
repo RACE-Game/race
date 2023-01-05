@@ -2,11 +2,16 @@
 //!
 //! We use Mental Poker randomization between transactors.
 
+use std::collections::HashMap;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::types::{SecretDigest, Ciphertext};
+use crate::{
+    event::SecretIdent,
+    types::{Ciphertext, SecretDigest},
+};
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -42,6 +47,12 @@ pub enum Error {
 
     #[error("invalid lock provider")]
     InvalidLockProvider,
+
+    #[error("duplicated secret")]
+    DuplicatedSecret,
+
+    #[error("secrets not ready")]
+    SecretsNotReady,
 }
 
 impl From<Error> for crate::error::Error {
@@ -140,12 +151,23 @@ impl Lock {
     }
 }
 
+#[derive(Debug, Default, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
+pub enum CipherOwner {
+    #[default]
+    Unclaimed,
+    // Only one guy can see,
+    Assigned(String),
+    // Assigned to multiple players
+    MultiAssigned(Vec<String>),
+    Revealed,
+}
+
 /// The representation for a ciphertext with locks applied.
 /// If all locks required are applied, then it's ready.
 #[derive(Debug, Default, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
 pub struct LockedCiphertext {
     pub locks: Vec<Lock>,
-    pub owner: Option<String>,
+    pub owner: CipherOwner,
     pub ciphertext: Ciphertext,
 }
 
@@ -153,7 +175,7 @@ impl LockedCiphertext {
     pub fn new(text: Ciphertext) -> Self {
         Self {
             locks: vec![],
-            owner: None,
+            owner: CipherOwner::Unclaimed,
             ciphertext: text,
         }
     }
@@ -163,12 +185,23 @@ impl LockedCiphertext {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
+pub struct SecretShare {
+    from_addr: String,
+    // None means public revealed
+    to_addr: Option<String>,
+    index: usize,
+    // None means missing
+    secret: Option<String>,
+}
+
 #[derive(Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
-pub enum CipherStatus {
+pub enum RandomStatus {
     #[default]
     Ready,
     Locking(String), // The address to mask the ciphertexts
     Masking(String), // The address to lock the ciphertexts
+    WaitingSecrets,  // Waiting for the secrets to be shared
 }
 
 /// RandomState represents the public information for a single randomness.
@@ -176,9 +209,11 @@ pub enum CipherStatus {
 pub struct RandomState {
     pub id: usize,
     pub size: usize,
-    pub status: CipherStatus,
+    pub owners: Vec<String>,
+    pub status: RandomStatus,
     pub masks: Vec<Mask>,
     pub ciphertexts: Vec<LockedCiphertext>,
+    pub secret_shares: Vec<SecretShare>,
 }
 
 impl RandomState {
@@ -190,7 +225,7 @@ impl RandomState {
         self.masks.iter().all(|m| m.is_removed())
     }
 
-    fn get_ciphertext(&self, index: usize) -> Option<&LockedCiphertext> {
+    pub fn get_ciphertext(&self, index: usize) -> Option<&LockedCiphertext> {
         self.ciphertexts.get(index)
     }
 
@@ -212,14 +247,16 @@ impl RandomState {
             id,
             size: rnd.size(),
             masks,
-            status: CipherStatus::Masking(owners.first().unwrap().to_owned()),
+            owners: owners.to_owned(),
+            status: RandomStatus::Masking(owners.first().unwrap().to_owned()),
             ciphertexts,
+            secret_shares: Vec::new(),
         }
     }
 
     pub fn mask<S: AsRef<str>>(&mut self, addr: S, mut ciphertexts: Vec<Ciphertext>) -> Result<()> {
         match self.status {
-            CipherStatus::Masking(ref mask_addr) => {
+            RandomStatus::Masking(ref mask_addr) => {
                 let addr = addr.as_ref();
                 if mask_addr.ne(addr) {
                     return Err(Error::InvalidMaskProvider);
@@ -236,9 +273,10 @@ impl RandomState {
                             c.ciphertext = ciphertexts.remove(0);
                         }
                         if let Some(m) = self.masks.iter().find(|m| m.is_required()) {
-                            self.status = CipherStatus::Masking(m.owner.clone());
+                            self.status = RandomStatus::Masking(m.owner.clone());
                         } else {
-                            self.status = CipherStatus::Locking(self.masks.first().unwrap().owner.clone());
+                            self.status =
+                                RandomStatus::Locking(self.masks.first().unwrap().owner.clone());
                         }
                     }
                 } else {
@@ -250,12 +288,16 @@ impl RandomState {
         }
     }
 
-    pub fn lock<S>(&mut self, addr: S, mut ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>) -> Result<()>
+    pub fn lock<S>(
+        &mut self,
+        addr: S,
+        mut ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
+    ) -> Result<()>
     where
         S: Into<String> + AsRef<str> + Clone,
     {
         match self.status {
-            CipherStatus::Locking(ref lock_addr) => {
+            RandomStatus::Locking(ref lock_addr) => {
                 let addr = addr.as_ref();
                 if addr.ne(lock_addr) {
                     return Err(Error::InvalidLockProvider);
@@ -275,9 +317,9 @@ impl RandomState {
                         c.locks.push(Lock::new(addr.to_owned(), test));
                     }
                     if let Some(m) = self.masks.iter().find(|m| !m.is_removed()) {
-                        self.status = CipherStatus::Locking(m.owner.clone());
+                        self.status = RandomStatus::Locking(m.owner.clone());
                     } else {
-                        self.status = CipherStatus::Ready;
+                        self.status = RandomStatus::Ready;
                     }
                 } else {
                     return Err(Error::InvalidOperator);
@@ -292,23 +334,107 @@ impl RandomState {
     where
         S: ToOwned<Owned = String>,
     {
-        if self.status.ne(&CipherStatus::Ready) {
+        if self.status.ne(&RandomStatus::Ready) {
             return Err(Error::InvalidCipherStatus);
         }
 
         if indexes
             .iter()
             .filter_map(|i| self.get_ciphertext(*i))
-            .any(|c| c.owner.is_some())
+            .any(|c| matches!(c.owner, CipherOwner::Assigned(_) | CipherOwner::Revealed))
         {
             return Err(Error::CiphertextAlreadyAssigned);
         }
 
         for i in indexes.into_iter() {
             if let Some(c) = self.get_ciphertext_mut(i) {
-                c.owner = Some(addr.to_owned());
+                c.owner = CipherOwner::Assigned(addr.to_owned());
+            }
+            let secrets = &mut self.secret_shares;
+            for o in self.owners.iter() {
+                secrets.push(SecretShare {
+                    from_addr: o.to_owned(),
+                    to_addr: Some(addr.to_owned()),
+                    index: i,
+                    secret: None,
+                });
             }
         }
+
+        self.status = RandomStatus::WaitingSecrets;
+
+        Ok(())
+    }
+
+    pub fn list_required_secrets_by_from_addr(&self, from_addr: &str) -> Vec<SecretIdent> {
+        self.secret_shares
+            .iter()
+            .filter(|ss| ss.secret.is_none() && ss.from_addr.eq(from_addr))
+            .map(|ss| SecretIdent {
+                from_addr: ss.from_addr.clone(),
+                to_addr: ss.to_addr.clone(),
+                random_id: self.id,
+                index: ss.index,
+            })
+            .collect()
+    }
+
+    pub fn list_revealed_secrets(&self) -> Result<HashMap<usize, Vec<String>>> {
+        if self.status != RandomStatus::Ready {
+            return Err(Error::SecretsNotReady);
+        }
+        let ret = self
+            .secret_shares
+            .iter()
+            .filter(|ss| ss.to_addr.is_none())
+            .fold(HashMap::new(), |mut acc, ss| {
+                acc.entry(ss.index)
+                    .and_modify(|v: &mut Vec<String>| v.push(ss.secret.as_ref().unwrap().clone()))
+                    .or_insert_with(|| vec![ss.secret.as_ref().unwrap().clone()]);
+                acc
+            });
+        Ok(ret)
+    }
+
+    pub fn list_assigned_secrets(&self, to_addr: &str) -> Result<HashMap<usize, Vec<String>>> {
+        if self.status != RandomStatus::Ready {
+            return Err(Error::SecretsNotReady);
+        }
+        let ret = self
+            .secret_shares
+            .iter()
+            .filter(|ss| ss.to_addr.is_some() && ss.to_addr.as_ref().unwrap().eq(to_addr))
+            .fold(HashMap::new(), |mut acc, ss| {
+                acc.entry(ss.index)
+                    .and_modify(|v: &mut Vec<String>| v.push(ss.secret.as_ref().unwrap().clone()))
+                    .or_insert_with(|| vec![ss.secret.as_ref().unwrap().clone()]);
+                acc
+            });
+        Ok(ret)
+    }
+
+    pub fn add_secret(
+        &mut self,
+        from_addr: String,
+        to_addr: Option<String>,
+        index: usize,
+        secret: String,
+    ) -> Result<()> {
+        if let Some(secret_share) = self
+            .secret_shares
+            .iter_mut()
+            .find(|ss| ss.from_addr.eq(&from_addr) && ss.to_addr.eq(&to_addr) && ss.index == index)
+        {
+            match secret_share.secret {
+                None => secret_share.secret = Some(secret),
+                Some(_) => return Err(Error::DuplicatedSecret),
+            }
+        }
+
+        if self.secret_shares.iter().all(|ss| ss.secret.is_some()) {
+            self.status = RandomStatus::Ready;
+        }
+
         Ok(())
     }
 }
@@ -320,9 +446,10 @@ impl RandomState {
 /// Use S(spade), D(diamond), C(club), H(heart) for suits.
 pub fn deck_of_cards() -> ShuffledList {
     ShuffledList::new(vec![
-        "ha", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9", "ht", "hj", "hq", "hk", "sa", "s2", "s3", "s4", "s5",
-        "s6", "s7", "s8", "s9", "st", "sj", "sq", "sk", "da", "d2", "d3", "d4", "d5", "d6", "d7", "d8", "d9", "dt",
-        "dj", "dq", "dk", "ca", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "ct", "cj", "cq", "ck",
+        "ha", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9", "ht", "hj", "hq", "hk", "sa", "s2",
+        "s3", "s4", "s5", "s6", "s7", "s8", "s9", "st", "sj", "sq", "sk", "da", "d2", "d3", "d4",
+        "d5", "d6", "d7", "d8", "d9", "dt", "dj", "dq", "dk", "ca", "c2", "c3", "c4", "c5", "c6",
+        "c7", "c8", "c9", "ct", "cj", "cq", "ck",
     ])
 }
 
@@ -350,17 +477,17 @@ mod tests {
     fn test_mask() {
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
         let mut state = RandomState::new(0, &rnd, &["alice".into(), "bob".into()]);
-        assert_eq!(CipherStatus::Masking("alice".into()), state.status);
+        assert_eq!(RandomStatus::Masking("alice".into()), state.status);
         state
             .mask("alice", vec![vec![1], vec![2], vec![3]])
             .expect("failed to mask");
 
-        assert_eq!(CipherStatus::Masking("bob".into()), state.status);
+        assert_eq!(RandomStatus::Masking("bob".into()), state.status);
         assert_eq!(false, state.is_fully_masked());
         state
             .mask("bob", vec![vec![1], vec![2], vec![3]])
             .expect("failed to mask");
-        assert_eq!(CipherStatus::Locking("alice".into()), state.status);
+        assert_eq!(RandomStatus::Locking("alice".into()), state.status);
         assert_eq!(true, state.is_fully_masked());
     }
 
@@ -380,19 +507,22 @@ mod tests {
         state
             .mask("bob", vec![vec![1], vec![2], vec![3]])
             .expect("failed to mask");
-        assert_eq!(CipherStatus::Locking("alice".into()), state.status);
+        assert_eq!(RandomStatus::Locking("alice".into()), state.status);
         state
             .lock(
                 "alice",
                 vec![(vec![1], vec![1]), (vec![2], vec![2]), (vec![3], vec![3])],
             )
             .expect("failed to lock");
-        assert_eq!(CipherStatus::Locking("bob".into()), state.status);
+        assert_eq!(RandomStatus::Locking("bob".into()), state.status);
         assert_eq!(false, state.is_fully_locked());
         state
-            .lock("bob", vec![(vec![1], vec![1]), (vec![2], vec![2]), (vec![3], vec![3])])
+            .lock(
+                "bob",
+                vec![(vec![1], vec![1]), (vec![2], vec![2]), (vec![3], vec![3])],
+            )
             .expect("failed to lock");
-        assert_eq!(CipherStatus::Ready, state.status);
+        assert_eq!(RandomStatus::Ready, state.status);
         assert_eq!(true, state.is_fully_locked());
     }
 }

@@ -26,6 +26,8 @@ serde = "1.0.144"
 thiserror = "1.0.35"
 wasmer = "3.0.2"
 clap = { version = "4.0.26", features = ["derive"] }
+arrayref = "0.3.6"
+hex = "0.4.3"
 
 [dev-dependencies]
 race-core-test = { path = "../core-test" }
