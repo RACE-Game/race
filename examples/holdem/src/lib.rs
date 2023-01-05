@@ -274,6 +274,7 @@ impl GameHandler for Holdem {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use race_core_test::*;
 
     fn create_holdem(ctx: &mut GameContext) -> Holdem {
 
@@ -288,20 +289,8 @@ mod tests {
             token: String::from("USDC1234567890"),
         };
 
-        let v: Vec<u8> = holdem_acct.try_to_vec().unwrap();
+        let init_acct = game_account_with_account_data(holdem_acct);
 
-        let init_acct = GameAccount {
-            addr: "FAKE_ADDR_ON_CHAIN".into(),      // A game's on-chian address
-            bundle_addr: String::from("FAKE ADDR"), // Address linked to Holdem game (players, street, pots, etc)
-            settle_version: 0,
-            access_version: 0,
-            players: vec![],                        // Vec<Option<Player>>
-            transactors: vec![],
-            max_players: 6,
-            data_len: v.len() as _,                 // ?
-            data: v,
-            served: true,
-        };
         // init_acct (GameAccount + HoldemAccount) + GameContext = Holdem
         Holdem::init_state(ctx, init_acct).unwrap()
     }

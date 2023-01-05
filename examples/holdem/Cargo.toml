@@ -12,3 +12,6 @@ race-proc-macro = { path = "../../proc-macro" }
 serde_json = "1.0.85"
 serde = "1.0.144"
 borsh = "0.9.3"
+
+[dev-dependencies]
+race-core-test = { path = "../../core-test" }
