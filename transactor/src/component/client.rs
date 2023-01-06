@@ -36,8 +36,6 @@ pub struct Client {
     pub ctx: Option<ClientContext>,
 }
 
-
-
 pub struct ClientContext {
     pub input_rx: mpsc::Receiver<EventFrame>,
     pub output_tx: watch::Sender<EventFrame>,
@@ -75,7 +73,7 @@ impl Client {
         let transactor_addr = init_account
             .transactor_addr
             .clone()
-            .expect("Game not served");
+            .expect("Game is not served");
         let mode = if server_addr.eq(&transactor_addr) {
             ClientMode::Transactor
         } else {
@@ -143,10 +141,7 @@ async fn randomize_and_share(
                     sender: client_context.server_addr.clone(),
                     secrets: shares,
                 };
-                let event_frame = EventFrame::SendServerEvent {
-                    addr: game_context.game_addr().to_owned(),
-                    event,
-                };
+                let event_frame = EventFrame::SendServerEvent { event };
                 client_context
                     .output_tx
                     .send(event_frame)
@@ -176,10 +171,7 @@ async fn randomize_and_share(
                         ciphertexts_and_digests: locked,
                     };
 
-                    let event_frame = EventFrame::SendServerEvent {
-                        addr: game_context.game_addr().to_owned(),
-                        event,
-                    };
+                    let event_frame = EventFrame::SendServerEvent { event };
 
                     client_context
                         .output_tx
@@ -211,10 +203,7 @@ async fn randomize_and_share(
                         ciphertexts: masked,
                     };
 
-                    let event_frame = EventFrame::SendServerEvent {
-                        addr: game_context.game_addr().to_owned(),
-                        event,
-                    };
+                    let event_frame = EventFrame::SendServerEvent { event };
 
                     client_context
                         .output_tx
@@ -244,7 +233,9 @@ async fn decrypt(client_context: &mut ClientContext, game_context: &GameContext)
                 }
 
                 let val = String::from_utf8(ciphertext).or(Err(Error::DecryptionFailed))?;
-                client_context.decryption.insert((random_state.id, index), val);
+                client_context
+                    .decryption
+                    .insert((random_state.id, index), val);
             }
         }
     }
@@ -346,12 +337,15 @@ mod tests {
     use super::*;
 
     fn setup() -> (Client, GameContext) {
-        let game_account = game_account_with_empty_data();
+        let game_account = TestGameAccountBuilder::default()
+            .add_players(2)
+            .add_servers(1)
+            .build();
         let transactor_account = transactor_account();
         let transport = DummyTransport::default();
         let mut client = Client::new(&transactor_account, &game_account, Arc::new(transport));
         client.start();
-        let context = GameContext::new(&game_account);
+        let context = GameContext::new(&game_account).unwrap();
         (client, context)
     }
 
@@ -378,24 +372,18 @@ mod tests {
         let event_frame = client.output_rx.borrow();
 
         match &*event_frame {
-            EventFrame::SendServerEvent {
-                ref addr,
-                ref event,
-            } => {
-                assert_eq!(addr, &game_account_addr());
-                match event {
-                    Event::Lock {
-                        sender,
-                        random_id,
-                        ciphertexts_and_digests,
-                    } => {
-                        assert_eq!(rid, *random_id);
-                        assert_eq!(sender, &transactor_account_addr());
-                        assert_eq!(3, ciphertexts_and_digests.len());
-                    }
-                    _ => panic!("invalid event type"),
+            EventFrame::SendServerEvent { ref event } => match event {
+                Event::Lock {
+                    sender,
+                    random_id,
+                    ciphertexts_and_digests,
+                } => {
+                    assert_eq!(rid, *random_id);
+                    assert_eq!(sender, &transactor_account_addr());
+                    assert_eq!(3, ciphertexts_and_digests.len());
                 }
-            }
+                _ => panic!("invalid event type"),
+            },
             _ => panic!("invalid event frame"),
         }
     }
@@ -419,24 +407,18 @@ mod tests {
         let event_frame = client.output_rx.borrow();
 
         match &*event_frame {
-            EventFrame::SendServerEvent {
-                ref addr,
-                ref event,
-            } => {
-                assert_eq!(addr, &game_account_addr());
-                match event {
-                    Event::Randomize {
-                        sender,
-                        random_id,
-                        ciphertexts,
-                    } => {
-                        assert_eq!(rid, *random_id);
-                        assert_eq!(sender, &transactor_account_addr());
-                        assert_eq!(3, ciphertexts.len());
-                    }
-                    _ => panic!("invalid event type"),
+            EventFrame::SendServerEvent { ref event } => match event {
+                Event::Randomize {
+                    sender,
+                    random_id,
+                    ciphertexts,
+                } => {
+                    assert_eq!(rid, *random_id);
+                    assert_eq!(sender, &transactor_account_addr());
+                    assert_eq!(3, ciphertexts.len());
                 }
-            }
+                _ => panic!("invalid event type"),
+            },
             _ => panic!("invalid event frame"),
         }
     }

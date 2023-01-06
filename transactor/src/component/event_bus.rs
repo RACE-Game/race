@@ -5,7 +5,6 @@ use tokio::sync::{mpsc, Mutex};
 
 use crate::component::traits::Attachable;
 use crate::frame::EventFrame;
-use race_core::types::Player;
 
 /// An event bus that passes the events between different components.
 pub struct EventBus {
@@ -54,18 +53,6 @@ impl Default for EventBus {
             attached_txs: txs,
         }
     }
-}
-
-/// Create an event of [[EventFrame::PlayerJoined]].
-pub fn player_joined(
-    addr: String,
-    old_players: &[Player],
-    new_players: &[Player],
-) -> EventFrame {
-    let mut players: Vec<Player> = vec![];
-    players.extend(old_players.iter().map(|p| p.to_owned()).collect::<Vec<Player>>());
-    players.extend(new_players.iter().map(|p| p.to_owned()).collect::<Vec<Player>>());
-    EventFrame::PlayerJoined { addr, players }
 }
 
 /// A data represent the reason of closing.
@@ -122,8 +109,7 @@ mod tests {
                 loop {
                     println!("Producer started");
                     let event = EventFrame::PlayerJoined {
-                        addr: "FAKE ADDR".into(),
-                        players: vec![],
+                        new_players: vec![]
                     };
                     match ctx.output_tx.send(event.clone()) {
                         Ok(_) => sleep(Duration::from_secs(5)).await,

@@ -129,6 +129,8 @@ impl TransportT for DummyTransport {
 #[cfg(test)]
 mod tests {
 
+    use race_core::types::{PlayerStatus, AssetChange};
+
     use super::*;
 
     #[tokio::test]
@@ -148,20 +150,8 @@ mod tests {
             access_version: 0,
             ..Default::default()
         };
-        let ga_1 = GameAccount {
-            addr: game_account_addr(),
-            bundle_addr: game_bundle_addr(),
-            access_version: 1,
-            players: vec![Player::new("Alice", 100)],
-            ..Default::default()
-        };
-        let ga_2 = GameAccount {
-            addr: game_account_addr(),
-            bundle_addr: game_bundle_addr(),
-            access_version: 2,
-            players: vec![Player::new("Alice", 100), Player::new("Bob", 200)],
-            ..Default::default()
-        };
+        let ga_1 = TestGameAccountBuilder::default().add_players(1).build();
+        let ga_2 = TestGameAccountBuilder::default().add_players(2).build();
         let states = vec![ga_0.clone(), ga_1.clone(), ga_2.clone()];
         transport.simulate_states(states);
 

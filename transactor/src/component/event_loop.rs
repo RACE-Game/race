@@ -54,16 +54,16 @@ impl Component<EventLoopContext> for EventLoop {
             let output_tx = ctx.output_tx;
             while let Some(event_frame) = ctx.input_rx.recv().await {
                 match event_frame {
-                    EventFrame::PlayerJoined { addr, players } => {
-                        for p in players.into_iter() {
+                    EventFrame::PlayerJoined { new_players } => {
+                        for p in new_players.into_iter() {
                             let event = Event::Join {
                                 player_addr: p.addr,
-                                balance: p.balance,
+                                balance: p.amount,
+                                position: p.position,
                             };
                             if handler.handle_event(&mut game_context, &event).is_ok() {
                                 output_tx
                                     .send(EventFrame::Broadcast {
-                                        addr: addr.clone(),
                                         state_json: game_context
                                             .get_handler_state_json()
                                             .to_owned(),
@@ -73,11 +73,10 @@ impl Component<EventLoopContext> for EventLoop {
                             }
                         }
                     }
-                    EventFrame::SendEvent { addr, event } => {
+                    EventFrame::SendEvent { event } => {
                         if handler.handle_event(&mut game_context, &event).is_ok() {
                             output_tx
                                 .send(EventFrame::Broadcast {
-                                    addr,
                                     state_json: game_context.get_handler_state_json().to_owned(),
                                     event,
                                 })
@@ -127,7 +126,8 @@ impl EventLoop {
 #[cfg(test)]
 mod tests {
     use race_core_test::*;
-    use race_core::types::Player;
+
+    use crate::frame::NewPlayer;
 
     use super::*;
 
@@ -137,15 +137,24 @@ mod tests {
             "../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into(),
         )
         .unwrap();
-        let game_account = game_account_with_data(vec![0, 0, 0, 42]);
-        let ctx = GameContext::new(&game_account);
+
+        let game_account = TestGameAccountBuilder::default()
+            .add_servers(1)
+            .with_data_vec(vec![0, 0, 0, 42])
+            .build();
+        let ctx = GameContext::new(&game_account).unwrap();
         let mut event_loop = EventLoop::new(hdlr, ctx);
+
+        let new_player = NewPlayer {
+            addr: "Alice".into(),
+            position: 0,
+            amount: 10000,
+        };
         event_loop.start();
         event_loop
             .input_tx
             .send(EventFrame::PlayerJoined {
-                addr: "FAKE ADDR".into(),
-                players: vec![Player::new("Alice", 1000)],
+                new_players: vec![new_player.clone()],
             })
             .await
             .unwrap();
@@ -154,11 +163,11 @@ mod tests {
             assert_eq!(
                 *ef,
                 EventFrame::Broadcast {
-                    addr: "FAKE ADDR".into(),
                     state_json: "{\"counter_value\":42,\"counter_player\":1}".into(),
                     event: Event::Join {
-                        player_addr: "Alice".into(),
-                        balance: 1000
+                        player_addr: new_player.addr,
+                        balance: new_player.amount,
+                        position: new_player.position,
                     }
                 }
             )

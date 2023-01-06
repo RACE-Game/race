@@ -45,7 +45,8 @@ impl Minimal {
 impl GameHandler for Minimal {
     fn init_state(_context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
         let data = init_account.data;
-        let account_data = MinimalAccountData::try_from_slice(&data).or(Err(Error::DeserializeError))?;
+        let account_data =
+            MinimalAccountData::try_from_slice(&data).or(Err(Error::DeserializeError))?;
         Ok(Self {
             counter_value: account_data.counter_value_default,
             counter_players: init_account.players.len() as _,
@@ -54,16 +55,18 @@ impl GameHandler for Minimal {
 
     fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
         match event {
+            Event::Custom { sender: _, ref raw } => {
+                self.handle_custom_event(context, serde_json::from_str(raw).unwrap())
+            }
             Event::Join {
                 player_addr: _,
                 balance: _,
+                position: _,
             } => {
                 self.counter_players += 1;
                 Ok(())
             }
-            Event::Leave {
-                player_addr: _,
-            } => {
+            Event::Leave { player_addr: _ } => {
                 self.counter_players -= 1;
                 Ok(())
             }
@@ -84,6 +87,7 @@ mod tests {
         let evt = Event::Join {
             player_addr: "Alice".into(),
             balance: 1000,
+            position: 0,
         };
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
@@ -93,19 +97,22 @@ mod tests {
     #[test]
     fn test_dispatch() {
         let mut ctx = GameContext::default();
-        let evt = Event::system_custom(&GameEvent::Dispatch);
+        let evt = Event::custom(ctx.transactor_addr().to_owned(), &GameEvent::Dispatch);
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
         assert_eq!(
-            Some(DispatchEvent::new(Event::system_custom(&GameEvent::Increase(1)), 0)),
-            ctx.dispatch
+            Some(DispatchEvent::new(
+                Event::custom(ctx.transactor_addr().to_owned(), &GameEvent::Increase(1)),
+                0
+            )),
+            *ctx.get_dispatch()
         );
     }
 
     #[test]
     fn test_increase() {
         let mut ctx = GameContext::default();
-        let evt = Event::system_custom(&GameEvent::Increase(1));
+        let evt = Event::custom(ctx.transactor_addr().to_owned(), &GameEvent::Increase(1));
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
         assert_eq!(1, hdlr.counter_value);

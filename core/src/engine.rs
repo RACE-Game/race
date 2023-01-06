@@ -19,10 +19,17 @@ pub fn general_init_state(context: &mut GameContext, init_account: &GameAccount)
     let players = init_account
         .players
         .iter()
-        .map(|p| Player::new(p.addr.to_owned(), p.balance))
+        .map(|p| Player::new(p.addr.to_owned(), 0, p.position))
         .collect();
 
     context.set_players(players);
+
+    // Accumulate deposits
+    for deposit in init_account.deposits.iter() {
+        if let Some(p) = context.get_player_mut_by_address(&deposit.addr) {
+            p.balance += deposit.amount;
+        }
+    }
 
     Ok(())
 }
@@ -35,7 +42,13 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
         Event::ShareSecrets {
             sender,
             secrets: shares,
-        } => context.add_shared_secrets(sender, shares.clone()),
+        } => {
+            context.add_shared_secrets(sender, shares.clone())?;
+            if context.secrets_ready() {
+                context.disptach(Event::SecretsReady, 0)?;
+            }
+            Ok(())
+        }
 
         Event::Randomize {
             sender,
@@ -54,7 +67,8 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
         Event::Join {
             player_addr,
             balance,
-        } => context.add_player(player_addr, *balance),
+            position,
+        } => context.add_player(player_addr, *balance, *position),
 
         Event::Leave { player_addr } => context.remove_player(player_addr),
 

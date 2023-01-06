@@ -105,7 +105,7 @@ pub enum Event {
 
     /// Client joined game.
     /// This event is sent by transactor based on client's connection status.
-    Join { player_addr: String, balance: u64 },
+    Join { player_addr: String, balance: u64, position: usize },
 
     /// Client left game
     /// This event is sent by transactor based on client's connection status.

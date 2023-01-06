@@ -7,12 +7,11 @@ use race_core::{
     types::{GameAccount, Player},
 };
 use race_example_one_card::{GameEvent, OneCard, OneCardGameAccountData};
-use race_test::{create_test_game_account, TestHandler};
+use race_core_test::{game_account_with_empty_data, TestHandler};
 
 fn create_handler(ctx: &mut GameContext) -> Result<TestHandler<OneCard>> {
     let acc_data = OneCardGameAccountData {};
-    let players = vec![Some(Player::new("Alice", 1000))];
-    let init_acc = create_test_game_account(players, 2, acc_data);
+    let init_acc = game_account_with_empty_data(2, acc_data);
     TestHandler::<OneCard>::init_state(ctx, init_acc)
 }
 

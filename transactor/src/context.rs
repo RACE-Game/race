@@ -61,7 +61,6 @@ impl ApplicationContext {
     pub async fn send_event(&self, addr: &str, event: Event) -> Result<()> {
         if let Some(handle) = self.games.get(addr) {
             let event_frame = EventFrame::SendEvent {
-                addr: addr.to_owned(),
                 event,
             };
             handle.event_bus.send(event_frame).await;

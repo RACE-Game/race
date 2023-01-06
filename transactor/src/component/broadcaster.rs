@@ -8,6 +8,7 @@ use crate::component::traits::{Attachable, Component, Named};
 use crate::frame::{BroadcastFrame, EventFrame};
 
 pub struct BroadcasterContext {
+    game_addr: String,
     input_rx: mpsc::Receiver<EventFrame>,
     closed_tx: oneshot::Sender<CloseReason>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
@@ -46,7 +47,6 @@ impl Component<BroadcasterContext> for Broadcaster {
                 if let Some(event) = ctx.input_rx.recv().await {
                     match event {
                         EventFrame::Broadcast {
-                            addr,
                             event,
                             state_json,
                         } => {
@@ -54,7 +54,7 @@ impl Component<BroadcasterContext> for Broadcaster {
                             *snapshot = state_json.clone();
                             ctx.broadcast_tx
                                 .send(BroadcastFrame {
-                                    game_addr: addr.to_owned(),
+                                    game_addr: ctx.game_addr.clone(),
                                     state_json,
                                     event,
                                 })
@@ -82,13 +82,14 @@ impl Component<BroadcasterContext> for Broadcaster {
 }
 
 impl Broadcaster {
-    pub fn new(_init_state: &GameAccount) -> Self {
+    pub fn new(init_state: &GameAccount) -> Self {
         let snapshot = Arc::new(Mutex::new("".into()));
         let (input_tx, input_rx) = mpsc::channel(3);
         let (closed_tx, closed_rx) = oneshot::channel();
         let (broadcast_tx, broadcast_rx) = broadcast::channel(3);
         drop(broadcast_rx);
         let ctx = Some(BroadcasterContext {
+            game_addr: init_state.addr.clone(),
             closed_tx,
             input_rx,
             broadcast_tx: broadcast_tx.clone(),
@@ -120,11 +121,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_broadcast_event() {
-        let game_account = game_account_with_empty_data();
+        let game_account = TestGameAccountBuilder::default().add_players(2).build();
         let mut broadcaster = Broadcaster::new(&game_account);
         let mut rx = broadcaster.get_broadcast_rx();
         let event_frame = EventFrame::Broadcast {
-            addr: "GAME ADDR".into(),
             state_json: "STATE JSON".into(),
             event: Event::Custom {
                 sender: "Alice".into(),
@@ -132,7 +132,7 @@ mod tests {
             },
         };
         let broadcast_frame = BroadcastFrame {
-            game_addr: "GAME ADDR".into(),
+            game_addr: game_account.addr,
             state_json: "STATE JSON".into(),
             event: Event::Custom {
                 sender: "Alice".into(),
@@ -141,7 +141,7 @@ mod tests {
         };
         broadcaster.start();
         broadcaster.input_tx.send(event_frame).await.unwrap();
-        let event = rx.recv().await.expect("Failed to receive event");
-        assert_eq!(event, broadcast_frame);
+        let frame = rx.recv().await.expect("Failed to receive event");
+        assert_eq!(frame, broadcast_frame);
     }
 }

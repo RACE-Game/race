@@ -37,7 +37,7 @@ impl Handle {
         }
 
         let mut handler = WrappedHandler::load_by_addr(addr, transport.as_ref()).await?;
-        let mut game_context = GameContext::new(&game_account);
+        let mut game_context = GameContext::new(&game_account)?;
 
         // We should initialize the game state if we are the main transactor
         // Otherwise, the state will be initialized when receiving the first event

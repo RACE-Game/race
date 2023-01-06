@@ -6,6 +6,7 @@ use serde::Serialize;
 use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
+use crate::random::RandomStatus;
 use crate::{
     event::{Event, SecretIdent},
     random::{RandomSpec, RandomState},
@@ -67,16 +68,18 @@ pub struct SecretTest<'a> {
 #[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub struct Player {
     pub addr: String,
+    pub position: usize,
     pub status: PlayerStatus,
     pub balance: u64,
 }
 
 impl Player {
-    pub fn new<S: Into<String>>(addr: S, balance: u64) -> Self {
+    pub fn new<S: Into<String>>(addr: S, balance: u64, position: usize) -> Self {
         Self {
             addr: addr.into(),
             status: PlayerStatus::Ready,
             balance,
+            position,
         }
     }
 }
@@ -98,16 +101,6 @@ impl Server {
 
 pub struct EncryptionKeyContainer {
     pub keys: Vec<String>,
-}
-
-#[derive(Default)]
-pub enum RandomStatus {
-    #[default]
-    Init,
-    Shuffling,
-    Encrypting,
-    Ready,
-    Broken,
 }
 
 /// A structure represents the assignment of a random item. If an
@@ -163,10 +156,11 @@ pub struct GameContext {
 }
 
 impl GameContext {
-    pub fn new(game_account: &GameAccount) -> Self {
-        Self {
+    pub fn new(game_account: &GameAccount) -> Result<Self> {
+        let transactor_addr = game_account.transactor_addr.as_ref().ok_or(Error::GameNotServed)?;
+        Ok(Self {
             game_addr: game_account.addr.clone(),
-            transactor_addr: game_account.transactor_addr.as_ref().unwrap().to_owned(),
+            transactor_addr: transactor_addr.to_owned(),
             status: GameStatus::Uninit,
             players: Default::default(),
             servers: game_account.server_addrs.iter().map(Server::new).collect(),
@@ -176,7 +170,7 @@ impl GameContext {
             allow_leave: false,
             random_states: vec![],
             shared_secrets: Default::default(),
-        }
+        })
     }
 
     pub fn set_timestamp(&mut self, timestamp: u64) {
@@ -213,7 +207,7 @@ impl GameContext {
         self.players.get(index)
     }
 
-    pub fn get_mut_player_by_index(&mut self, index: usize) -> Option<&mut Player> {
+    pub fn get_player_mut_by_index(&mut self, index: usize) -> Option<&mut Player> {
         self.players.get_mut(index)
     }
 
@@ -221,7 +215,7 @@ impl GameContext {
         self.players.iter().find(|p| p.addr.eq(addr))
     }
 
-    pub fn get_mut_player_by_address(&mut self, addr: &str) -> Option<&mut Player> {
+    pub fn get_player_mut_by_address(&mut self, addr: &str) -> Option<&mut Player> {
         self.players.iter_mut().find(|p| p.addr.eq(addr))
     }
 
@@ -256,9 +250,13 @@ impl GameContext {
         &self.random_states
     }
 
+    pub fn get_dispatch(&self) -> &Option<DispatchEvent> {
+        &self.dispatch
+    }
+
     /// Get the random state by its id.
     pub fn get_random_state(&self, id: usize) -> Result<&RandomState> {
-        if let Some(rnd_st) = self.random_states.get(id as usize) {
+        if let Some(rnd_st) = self.random_states.get(id) {
             Ok(rnd_st)
         } else {
             Err(Error::InvalidRandomId)
@@ -267,7 +265,7 @@ impl GameContext {
 
     /// Get the mutable random state by its id.
     pub fn get_mut_random_state(&mut self, id: usize) -> Result<&mut RandomState> {
-        if let Some(rnd_st) = self.random_states.get_mut(id as usize) {
+        if let Some(rnd_st) = self.random_states.get_mut(id) {
             Ok(rnd_st)
         } else {
             Err(Error::InvalidRandomId)
@@ -286,10 +284,11 @@ impl GameContext {
         Ok(())
     }
 
-    /// List all required secrets
-    pub fn list_required_secrets(&self) {}
-
-    pub fn list_required_secrets_by_addr(&self, _addr: &str) {}
+    pub fn secrets_ready(&self) -> bool {
+        self.random_states
+            .iter()
+            .all(|st| st.status == RandomStatus::Ready)
+    }
 
     /// Set game status
     pub fn set_game_status(&mut self, status: GameStatus) {
@@ -309,11 +308,11 @@ impl GameContext {
 
     /// Add player to the game.
     /// Using in custom event handler is not allowed.
-    pub fn add_player(&mut self, addr: &str, balance: u64) -> Result<()> {
+    pub fn add_player(&mut self, addr: &str, balance: u64, position: usize) -> Result<()> {
         if self.get_player_by_address(addr).is_some() {
             return Err(Error::PlayerAlreadyJoined);
         }
-        self.players.push(Player::new(addr, balance));
+        self.players.push(Player::new(addr, balance, position));
 
         Ok(())
     }

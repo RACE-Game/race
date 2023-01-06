@@ -70,7 +70,11 @@ impl GameHandler for OneCard {
         Ok(Self {
             deck_random_id: 0,
             dealer: 0,
-            chips: context.players().iter().map(|p| (p.addr.to_owned(), p.balance)).collect(),
+            chips: context
+                .players()
+                .iter()
+                .map(|p| (p.addr.to_owned(), p.balance))
+                .collect(),
             bets: HashMap::new(),
         })
     }
@@ -99,12 +103,9 @@ impl GameHandler for OneCard {
             Event::Ready { sender } => {}
 
             Event::ShareSecrets {
-                sender,
-                secret_ident,
-                secret_data,
-            } => {
-
-            }
+                sender: _,
+                secrets: _,
+            } => {}
 
             Event::Randomize {
                 sender,
@@ -127,8 +128,10 @@ impl GameHandler for OneCard {
             }
 
             // Start game when there are two players.
-            Event::Join { player_addr, balance } => {
-
+            Event::Join {
+                player_addr,
+                balance,
+            } => {
                 if context.players().len() == 2 {
                     context.set_game_status(GameStatus::Initializing);
                 }

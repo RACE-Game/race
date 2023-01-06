@@ -3,17 +3,38 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
+/// Represent a player call the join instruction in contract.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-pub struct Player {
+pub struct PlayerJoin {
     pub addr: String,
-    pub balance: u64,
+    pub position: usize,
+    pub access_version: u64,
 }
 
-impl Player {
-    pub fn new<S: Into<String>>(addr: S, balance: u64) -> Self {
+impl PlayerJoin {
+    pub fn new<S: Into<String>>(addr: S, position: usize, access_version: u64) -> Self {
         Self {
             addr: addr.into(),
-            balance,
+            position,
+            access_version,
+        }
+    }
+}
+
+/// Represent a player call the deposit instruction in contract.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+pub struct PlayerDeposit {
+    pub addr: String,
+    pub amount: u64,
+    pub access_version: u64,
+}
+
+impl PlayerDeposit {
+    pub fn new<S: Into<String>>(addr: S, balance: u64, access_version: u64) -> Self {
+        Self {
+            addr: addr.into(),
+            amount: balance,
+            access_version,
         }
     }
 }
@@ -37,7 +58,8 @@ pub struct GameAccount {
     pub bundle_addr: String,
     pub settle_version: u64,
     pub access_version: u64,
-    pub players: Vec<Player>,
+    pub players: Vec<PlayerJoin>,
+    pub deposits: Vec<PlayerDeposit>,
     pub server_addrs: Vec<String>,
     pub transactor_addr: Option<String>,
     pub max_players: u8,

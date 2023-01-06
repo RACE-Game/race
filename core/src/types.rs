@@ -1,13 +1,13 @@
-mod common;
 mod accounts;
+mod common;
 mod transactor_params;
 mod transport_params;
 
-pub use common::{Ciphertext, SecretDigest, SecretKey, empty_secret_key};
+pub use common::{empty_secret_key, Ciphertext, SecretDigest, SecretKey};
 
 pub use accounts::{
-    GameAccount, GameBundle, GameRegistration, Player, PlayerProfile, RegistrationAccount,
-    TransactorAccount,
+    GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin, PlayerProfile,
+    RegistrationAccount, TransactorAccount,
 };
 
 pub use transport_params::{

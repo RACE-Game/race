@@ -43,7 +43,7 @@ impl Component<SubmitterContext> for Submitter {
         tokio::spawn(async move {
             while let Some(event) = ctx.input_rx.recv().await {
                 match event {
-                    EventFrame::Settle { addr: _, params } => {
+                    EventFrame::Settle { params } => {
                         ctx.transport.settle_game(params).await.unwrap();
                     }
                     EventFrame::Shutdown => {
@@ -91,7 +91,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_settle() {
-        let game_account = game_account_with_empty_data();
+        let game_account = TestGameAccountBuilder::default().add_players(2).build();
         let transport = Arc::new(DummyTransport::default());
         let mut submitter = Submitter::new(transport.clone(), game_account);
         let settles = vec![Settle::new(
@@ -105,7 +105,6 @@ mod tests {
             settles: settles.clone(),
         };
         let event_frame = EventFrame::Settle {
-            addr: game_account_addr(),
             params,
         };
         submitter.start();

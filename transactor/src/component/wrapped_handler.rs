@@ -19,8 +19,12 @@ impl WrappedHandler {
     /// Load WASM bundle by game address
     pub async fn load_by_addr(addr: &str, transport: &dyn TransportT) -> Result<Self> {
         let mut store = Store::default();
-        let game_bundle = transport.get_game_bundle(addr).await.ok_or(Error::GameBundleNotFound)?;
-        let module = Module::from_binary(&store, &game_bundle.data).or(Err(Error::MalformedGameBundle))?;
+        let game_bundle = transport
+            .get_game_bundle(addr)
+            .await
+            .ok_or(Error::GameBundleNotFound)?;
+        let module =
+            Module::from_binary(&store, &game_bundle.data).or(Err(Error::MalformedGameBundle))?;
         let import_object = imports![];
         let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
         Ok(Self { store, instance })
@@ -37,8 +41,16 @@ impl WrappedHandler {
         Ok(Self { store, instance })
     }
 
-    pub fn custom_init_state(&mut self, context: &mut GameContext, init_account: &GameAccount) -> Result<()> {
-        let memory = self.instance.exports.get_memory("memory").expect("Get memory failed");
+    pub fn custom_init_state(
+        &mut self,
+        context: &mut GameContext,
+        init_account: &GameAccount,
+    ) -> Result<()> {
+        let memory = self
+            .instance
+            .exports
+            .get_memory("memory")
+            .expect("Get memory failed");
         memory.grow(&mut self.store, 1).expect("Failed to grow");
         let init_state: TypedFunction<(u32, u32), u32> = self
             .instance
@@ -57,7 +69,11 @@ impl WrappedHandler {
             .write(offset as _, &init_account_bs)
             .expect("Failed to write init account");
         let len = init_state
-            .call(&mut self.store, context_bs.len() as _, init_account_bs.len() as _)
+            .call(
+                &mut self.store,
+                context_bs.len() as _,
+                init_account_bs.len() as _,
+            )
             .expect("Handle event error");
         println!("Len: {:?}", len);
         let mut buf = vec![0; len as _];
@@ -69,7 +85,11 @@ impl WrappedHandler {
     }
 
     fn custom_handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
-        let memory = self.instance.exports.get_memory("memory").expect("Get memory failed");
+        let memory = self
+            .instance
+            .exports
+            .get_memory("memory")
+            .expect("Get memory failed");
         let handle_event: TypedFunction<(u32, u32), u32> = self
             .instance
             .exports
@@ -83,7 +103,9 @@ impl WrappedHandler {
             .write(offset as _, &context_bs)
             .expect("Failed to write context");
         offset += context_bs.len() as u64;
-        mem_view.write(offset as _, &event_bs).expect("Failed to write event");
+        mem_view
+            .write(offset as _, &event_bs)
+            .expect("Failed to write event");
         let len = handle_event
             .call(&mut self.store, context_bs.len() as _, event_bs.len() as _)
             .expect("Handle event error");
@@ -105,7 +127,11 @@ impl WrappedHandler {
         Ok(())
     }
 
-    pub fn init_state(&mut self, context: &mut GameContext, init_account: &GameAccount) -> Result<()> {
+    pub fn init_state(
+        &mut self,
+        context: &mut GameContext,
+        init_account: &GameAccount,
+    ) -> Result<()> {
         let mut new_context = context.clone();
         general_init_state(&mut new_context, init_account)?;
         self.custom_init_state(&mut new_context, init_account)?;
@@ -130,19 +156,24 @@ mod tests {
         let data = MinimalAccountData {
             counter_value_default: 42,
         };
-        game_account_with_account_data(data)
+        TestGameAccountBuilder::default()
+            .with_data(data)
+            .add_servers(1)
+            .build()
     }
 
     fn make_wrapped_handler() -> WrappedHandler {
-        WrappedHandler::load_by_path("../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into())
-            .unwrap()
+        WrappedHandler::load_by_path(
+            "../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into(),
+        )
+        .unwrap()
     }
 
     #[test]
     fn test_init_state() {
         let mut hdlr = make_wrapped_handler();
         let game_account = make_game_account();
-        let mut ctx = GameContext::new(&game_account);
+        let mut ctx = GameContext::new(&game_account).unwrap();
         hdlr.init_state(&mut ctx, &game_account).unwrap();
         assert_eq!(
             "{\"counter_value\":42,\"counter_players\":0}",
@@ -154,10 +185,11 @@ mod tests {
     fn test_handle_event() {
         let mut hdlr = make_wrapped_handler();
         let game_account = make_game_account();
-        let mut ctx = GameContext::new(&game_account);
+        let mut ctx = GameContext::new(&game_account).unwrap();
         let event = Event::Join {
             player_addr: "FAKE_ADDR".into(),
             balance: 1000,
+            position: 0,
         };
         hdlr.init_state(&mut ctx, &game_account).unwrap();
         println!("ctx: {:?}", ctx);

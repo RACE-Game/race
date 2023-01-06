@@ -5,12 +5,12 @@ use tokio::{
     time::sleep,
 };
 
-use crate::frame::EventFrame;
+use crate::frame::{EventFrame, NewPlayer};
 use race_core::transport::TransportT;
 use race_core::types::GameAccount;
 
 use crate::component::{
-    event_bus::{player_joined, CloseReason},
+    event_bus::CloseReason,
     traits::{Attachable, Component, Named},
 };
 
@@ -51,22 +51,31 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
             let init_state = ctx.init_state;
 
             let mut access_version = init_state.access_version;
-            let mut curr_players = init_state.players;
 
             loop {
                 let state = ctx.transport.get_game_account(&init_state.addr).await;
                 if let Some(state) = state {
                     if access_version < state.access_version {
-                        let event = player_joined(
-                            init_state.addr.to_owned(),
-                            &curr_players,
-                            &state.players,
-                        );
+                        let mut new_players = vec![];
+                        for p in state.players.iter() {
+                            if p.access_version > access_version {
+                                // Only when we can find player's deposit record
+                                if let Some(deposit) = state.deposits.iter().find(|d| {
+                                    d.addr.eq(&p.addr) && d.access_version == p.access_version
+                                }) {
+                                    new_players.push(NewPlayer {
+                                        addr: p.addr.clone(),
+                                        position: p.position,
+                                        amount: deposit.amount,
+                                    });
+                                }
+                            }
+                        }
+                        let event = EventFrame::PlayerJoined { new_players };
                         if ctx.output_tx.send(event).is_err() {
                             ctx.closed_tx.send(CloseReason::Complete).unwrap();
                             break;
                         }
-                        curr_players = state.players;
                         access_version = state.access_version;
                     } else {
                         sleep(Duration::from_secs(5)).await;
@@ -108,17 +117,17 @@ impl GameSynchronizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use race_core::types::Player;
     use race_core_test::*;
 
     #[tokio::test]
     async fn test_sync_state() {
         let transport = Arc::new(DummyTransport::default());
-        let p = Player::new("Alice", 5000);
-        let ga_0 = game_account_with_empty_data();
-        let mut ga_1 = game_account_with_empty_data();
-        ga_1.access_version = 1;
-        ga_1.players = vec![p.clone()];
+        let ga_0 = TestGameAccountBuilder::default().add_players(1).build();
+        let ga_1 = TestGameAccountBuilder::from_account(&ga_0)
+            .add_players(1)
+            .build();
+        println!("ga_0: {:?}", ga_0);
+        println!("ga_1: {:?}", ga_1);
 
         transport.simulate_states(vec![ga_1]);
         let mut synchronizer = GameSynchronizer::new(transport.clone(), ga_0);
@@ -128,8 +137,11 @@ mod tests {
         assert_eq!(
             *output.borrow(),
             EventFrame::PlayerJoined {
-                addr: game_account_addr(),
-                players: vec![p]
+                new_players: vec![NewPlayer {
+                    addr: PLAYER_ADDRS[1].to_owned(),
+                    position: 1,
+                    amount: DEFAULT_DEPOSIT_AMOUNT,
+                }]
             }
         );
     }
