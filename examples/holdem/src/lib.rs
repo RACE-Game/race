@@ -1,40 +1,221 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::error::{Error, Result};
-use race_core::event::Event;
+use race_core::event::{Event, CustomEvent};
 use race_core::{context::{GameContext, GameStatus as GeneralStatus}, engine::GameHandler, types::GameAccount};
 use serde::{Deserialize, Serialize};
 use race_proc_macro::game_handler;
 
-mod holdem_models;
-use holdem_models::{HoldemAccount, Bet, GameEvent, GameStatus as HoldemStatus, Street, Pot, Player, PlayerStatus};
-// Imported mods used in test section wont be counted as 'used'
 // u8 ~ 256
 // u16 ~ 65536
 // Byte = 8 bit
 
+
+// HoldemAccount offers necessary (static) data (serialized in vec) to GameAccount for Holdem games
+// This HoldemAccount data go to the (Raw) data field and
+// Holdem (the WASM), the actual game, go to the bundle_addr field
+#[derive(Default, BorshSerialize, BorshDeserialize, PartialEq, Debug)]
+pub struct HoldemAccount {
+    pub sb: u64,
+    pub bb: u64,
+    pub buyin: u64,
+    pub btn: u8,                // current btn position, zero-indexed?
+    pub rake: f32,
+    pub size: u8,               // table size: total number of players
+    pub mode: String,           // game type: cash, sng or tourney?
+    pub token: String,          // token should be a struct of its own?
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub enum PlayerStatus {
+    #[default]
+    Wait,                       // or Idle?
+    Acted,
+    Acting,                     // or In_Action?
+    Allin,
+    Fold,
+}
+
+#[derive(Default, Serialize, Deserialize, Clone)]
+pub struct Player {             // or <'p>
+    pub addr: String,
+    pub chips: u64,
+    pub position: u8,           // zero indexed
+    pub status: PlayerStatus,   // or &'p str?
+    // pub online_status
+    // pub drop_count
+    // pub timebank
+    // pub nickname
+}
+
+impl Player {
+    pub fn new<T: Into<String>>(id: T, bb: u64, pos: u8) -> Player {
+        Self {
+            addr: id.into(),
+            chips: 20 * bb,     // suppose initial chips are 20 bbs
+            position: pos,
+            status: Default::default(),
+        }
+    }
+
+    // Whether need to act
+    pub fn to_act(&self) -> bool {
+        match self.status {
+            PlayerStatus::Wait | PlayerStatus::Acted => true,
+            _ => false
+        }
+    }
+
+
+    pub fn to_remain(&self) -> bool {
+        match self.status {
+            PlayerStatus::Fold => false,
+            _ => true
+        }
+    }
+
+    pub fn next_to_act(&self) -> bool {
+        match self.status {
+            PlayerStatus::Allin | PlayerStatus::Fold => false,
+            _ => true
+        }
+    }
+
+    pub fn take_bet(&mut self, bet: u64) {
+        // ignore allin for now
+        self.chips = self.chips - bet;
+    }
+}
+
+#[derive(Default, Serialize, Deserialize, Clone)]
+pub struct Pot {
+    owners: Vec<String>,
+    winners: Vec<String>,
+    amount: u64,
+}
+
+impl Pot {
+    pub fn new() -> Pot {
+        Self {
+            owners: vec![],
+            winners: vec![],
+            amount: 0
+        }
+    }
+
+    pub fn amount(&self) -> u64 {
+        self.amount
+    }
+
+    pub fn owners(&self) -> Vec<String> {
+        self.owners.clone()
+    }
+
+    pub fn winners(&self) -> Vec<String> {
+        self.winners.clone()
+    }
+
+    pub fn update_winners(&mut self, winners: Vec<String>) {
+        self.winners = winners;
+    }
+}
+
+#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+pub enum Street {
+    Init,
+    Preflop,
+    Flop,
+    Turn,
+    River,
+    Done,
+}
+
+#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+pub struct Bet {
+    owner: String,
+    amount: u64,
+}
+
+impl Bet {
+    pub fn new<S: Into<String>>(owner: S, amount: u64) -> Self {
+        Self {
+            owner: owner.into(),
+            amount
+        }
+    }
+
+    pub fn amount(&self) -> u64 {
+        self.amount
+    }
+
+    pub fn addr(&self) -> String {
+        self.owner.clone()
+    }
+}
+
+// Game status for holdem
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
+pub enum HoldemStatus {
+    Init,
+    Encrypt,
+    ShareKey,
+    Play,
+    Runner,
+    Settle,
+    Showdown,
+    Shuffle,
+
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum GameEvent {
+    Bet(u64),
+    Check,
+    Call,
+    Fold,
+    Raise(u64),
+}
+
+impl CustomEvent for GameEvent {}
+
+
 #[game_handler]
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Holdem {// must have random cards id
-    sb: u64,
-    bb: u64,
-    buyin: u64,
-    btn: u8,                // current btn position, zero-indexed?
-    rake: f32,
-    size: u8,               // table size: total number of players
-    status: HoldemStatus,
+    pub sb: u64,
+    pub bb: u64,
+    pub buyin: u64,
+    pub btn: u8,               // current btn position, zero-indexed?
+    pub rake: f32,
+    pub size: u8,              // table size: total number of players
+    pub status: HoldemStatus,
     // mode: String,           // game type: cash, sng or tourney? Treat as CASH GAME
     // token: String,          // token should be a struct of its own?
-    street: Street,
-    street_bet: u64,
-    bet_map: Vec<Bet>,   // each bet's index maps to player's pos (index) in the below player list
-    players: Vec<Player>,
-    act_idx: usize,         // position of the player who should take action
-    pot: Pot,
+    pub street: Street,
+    pub street_bet: u64,
+    pub bet_map: Vec<Bet>,     // each bet's index maps to player's pos (index) in the below player list
+    pub players: Vec<Player>,
+    pub act_idx: usize,        // position of the player who should take action
+    pub pots: Vec<Pot>,        // 1st main pot + rest side pot(s)
 }
 
 // TODO:
 // handle game start event
 
+// Associated fns
+impl Holdem {
+    fn next_action_player(street_bet: u64, bet_map: Vec<Bet>, players_toact: Vec<&Player>) -> Player {
+        for p in players_toact {
+            if let Some(bet) = bet_map.get(usize::from(p.position)) {
+                if bet.amount() < street_bet || p.status == PlayerStatus::Wait {
+                    return p.clone();
+                }
+            }
+        }
+        return Player::default();
+    }
+}
+
+// Methods
 impl Holdem {
     fn init_players(&mut self, players: Vec<Player>) {
         self.players = players;
@@ -74,18 +255,53 @@ impl Holdem {
         }
     }
 
-    fn next_action_player(street_bet: u64, bet_map: Vec<Bet>, players_toact: Vec<&Player>) -> Player {
-        for p in players_toact {
-            if let Some(player) = bet_map.get(usize::from(p.position)) {
-                if player.get_bet_amount() < street_bet || p.status == PlayerStatus::Wait {
-                    return p.clone();
-                }
+    pub fn assign_winners(&mut self, winner_sets: &Vec<Vec<String>>) -> Vec<Pot> {
+        let mut pots = self.pots.clone();
+
+        for pot in &mut pots {
+            let mut real_wnrs: Vec<String> = vec![];
+            for wnr_set in winner_sets {
+                real_wnrs = pot.owners().iter()
+                    .filter(|w| wnr_set.contains(w))
+                    .map(|w| (*w).clone())
+                    .collect();
             }
+            pot.update_winners(real_wnrs);
         }
-        return Player::default();
+        pots
     }
 
-    fn next_state(&mut self, context: &mut GameContext) -> Result<()> {
+    pub fn collect_bets(&mut self) -> Vec<Pot> {
+        // filter bets: arrange from small to big and remove duplicates
+        let mut bets: Vec<u64> = self.bet_map.iter().map(|b| b.amount()).collect();
+        bets.sort_by(|b1,b2| b1.cmp(b2));
+        bets.dedup();
+
+        let mut pots: Vec<Pot> = vec![];
+        let mut prev_bet: u64 = 0;
+        // group players by bets and make pots: those who bet the same in the same pot(s)
+        for bet in bets {
+            let mut owners: Vec<String> = vec![];
+            let mut amount: u64 = 0;
+            for ply in self.bet_map.clone() {
+                if ply.amount() >= bet {
+                    owners.push(ply.addr());
+                    amount += bet - prev_bet;
+                }
+            }
+            pots.push(
+                Pot {
+                    owners,
+                    winners: vec![],
+                    amount,
+                });
+
+            prev_bet = bet;
+        }
+        pots
+    }
+
+    pub fn next_state(&mut self, context: &mut GameContext) -> Result<()> {
         // 4. go to next game state, which is one of the following:
         // 4.1 detect current street: preflop + no bets => blind bets
         // 4.2 detect player number: 1 or a few?
@@ -106,73 +322,66 @@ impl Holdem {
         let next_action_player = Holdem::next_action_player(self.street_bet, bet_map, players_toact);
 
         // blind bets
-        match self.street {
-            Street::Preflop => {
-                if self.bet_map.is_empty() {
-                    // take bets (sb and bb) from sb/bb players
-                    let mut bb_player = all_players[0].clone();
-                    let mut sb_player = all_players[1].clone();
-                    bb_player.take_bet(self.bb);
-                    sb_player.take_bet(self.sb);
+        if self.street == Street::Preflop && self.bet_map.is_empty() {
+            // take bets (sb and bb) from sb/bb players
+            let mut bb_player = all_players[0].clone();
+            let mut sb_player = all_players[1].clone();
+            bb_player.take_bet(self.bb);
+            sb_player.take_bet(self.sb);
 
-                    // update bet map
-                    self.update_betmap(
-                        vec![Bet::new(bb_player.addr, self.bb),
-                             Bet::new(sb_player.addr, self.sb)]
-                    );
+            // update bet map
+            self.update_betmap(
+                vec![Bet::new(bb_player.addr, self.bb),
+                     Bet::new(sb_player.addr, self.sb)]
+            );
 
-                    // update street bet
-                    self.update_streetbet(self.street_bet);
+            // update street bet
+            self.update_streetbet(self.street_bet);
 
-                    let action_players: Vec<&Player> = all_players[2..].iter()
-                        .filter(|p| p.to_take_action())
-                        .collect();
+            let action_players: Vec<&Player> = all_players[2..].iter()
+                .filter(|p| p.next_to_act())
+                .collect();
 
-                    if let Some(player) = action_players.get(0) {
-                        // skip pot for now
-                        println!("Blind bets!");
-                        todo!()
-                    }
-                }
-            }
-            _ => {
-                println!("Unhandled street");
+            if let Some(player) = action_players.get(0) {
+                // skip pot for now
+                println!("Blind bets!");
+                todo!()
+            } else {
                 todo!()
             }
-        }
-
-        // Single player wins
-        if remain_players.len() == 1 {
-            println!("All other players folded and the one left won the game!");
         } else if all_players.len() == 1 {
+            // single player wins: one player in the game
             println!("Only one player left and won the game!");
-        }
-
-        // Next player to act
-        if !next_action_player.addr.is_empty() {
-            println!("Ask next player to act!");
-        }
-
-        // Runner
-        match self.status {
-            HoldemStatus::Runner => { println!("Already runner"); },
-            _ => {
-                if remain_players.len() == allin_players.len() + 1 {
-                    println!("Entering runner state");
-                }
+            todo!()
+        } else if remain_players.len() == 1 {
+            // single player wins: one player bets and all others folded
+            println!("All other players folded and the one left won the game!");
+            let new_pots: Vec<Pot> = self.collect_bets();
+            for pot in new_pots {
+                println!("The pot amount is {}", pot.amount);
             }
-        }
-
-        // New street
-        {
+            todo!()
+        } else if !next_action_player.addr.is_empty() {
+            println!("Ask next player to act!");
+            let new_pots: Vec<Pot> = self.collect_bets();
+            for pot in new_pots {
+                println!("The pot amount is {}", pot.amount);
+            }
+            todo!()
+        } else if self.status != HoldemStatus::Runner && remain_players.len() == allin_players.len() + 1 {
+                // Runner
+            println!("Entering runner state");
+            todo!()
+        } else {
             let new_street = self.next_street();
             // change_street(new_street);
             todo!()
         }
+
         // Showdown
     }
 
-    // implement methods for Holdem as handlers for custom events
+    // implement methods for Holdem to handle custom events
     fn handle_custom_event(&mut self, context: &mut GameContext, event: GameEvent, sender: String) -> Result<()> {
         // let next_action_player: Option<&Player> = remain_players.get(self.act_idx);
         match event {
@@ -186,15 +395,6 @@ impl Holdem {
                 } else {
                     return Err(Error::Custom(String::from("Not the player's turn to act!")));
                 }
-
-                // 4. go to next game state, which is one of the following:
-                // 4.1 detect current street: preflop + no bets => blind bets
-                // 4.2 detect player number: 1 or a few?
-                // 4.3 single player win? (All other players folded)
-                // 4.4 next player to act (none of the above)
-                // 4.5 runner
-                // 4.6 new street or
-                // 4.7 showdown
 
                 Ok(())
 
@@ -231,7 +431,9 @@ impl GameHandler for Holdem {
             street_bet: account.bb,
             bet_map: vec![],    // suppose p[0] at bb, p[1] at sb, p[3] at btn, p[n-1] (last) frist to act
             players: vec![],
-            pot: Pot {owners: vec![], winners: vec![], amount: 0},
+            pots: vec![
+                Pot {owners: vec![], winners: vec![], amount: 0}
+            ],
             act_idx: usize::from(0u8), // starts from last in Vec<Player>
         })
     }
@@ -267,139 +469,5 @@ impl GameHandler for Holdem {
                 return Err(Error::Custom(String::from("Unknow event type!")));
             }
         }
-    }
-}
-
-// -- tests ----------------------------------------------------
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use race_test::*;
-
-    fn create_holdem(ctx: &mut GameContext) -> Holdem {
-
-        let holdem_acct = HoldemAccount {
-            sb: 50,
-            bb: 100,
-            buyin: 2000,
-            btn: 0,
-            rake: 0.02,
-            size: 6,
-            mode: String::from("cash"),
-            token: String::from("USDC1234567890"),
-        };
-
-        let init_acct = game_account_with_account_data(holdem_acct);
-
-        // init_acct (GameAccount + HoldemAccount) + GameContext = Holdem
-        Holdem::init_state(ctx, init_acct).unwrap()
-    }
-
-
-    #[test]
-    pub fn test_init_state() {
-
-        let mut ctx = GameContext::default();
-        let holdem = create_holdem(&mut ctx);
-        assert_eq!(50, holdem.sb);
-        assert_eq!(100, holdem.bb);
-        // assert_eq!(String::from("gentoo"), holdem.player_nick);
-        // assert_eq!(String::from("qwertyuiop"), holdem.player_id);
-        assert_eq!(Street::Init, holdem.street);
-    }
-
-    #[test]
-    pub fn test_handle_join() {
-        let mut ctx = GameContext::default();
-        let event = Event::Join { player_addr: "Alice".into(), balance: 1000 };
-        let mut holdem = create_holdem(&mut ctx);
-        holdem.handle_event(&mut ctx, event).unwrap();
-        // assert_eq!(100, holdem.sb;)
-    }
-
-    #[test]
-    pub fn test_next_state() {
-        // Set up the game context
-        let mut ctx = GameContext::default();
-        ctx.set_game_status(GeneralStatus::Running);
-        ctx.add_player("Alice", 10000).unwrap();
-        ctx.add_player("Bob", 10000).unwrap();
-        ctx.add_player("Charlie", 10000).unwrap();
-        ctx.add_player("Gentoo", 10000).unwrap();
-
-        // Set up the holdem game state
-        let mut holdem = create_holdem(&mut ctx);
-
-        let mut players_list: Vec<Player> = vec![]; // player list
-        let mut pos: u8 = 0;                        // player position
-        for p in ctx.get_players() {
-            players_list.push(
-                Player::new(p.addr.clone(), holdem.bb, pos)
-            );
-            pos += 1;
-        }
-        holdem.init_players(players_list);
-        holdem.set_act_idx(pos);
-        holdem.street = Street::Preflop;
-        // match holdem.street {
-        //     Street::River => {
-        //         println!("River already");
-        //     },
-        //     Street::Done => {
-        //         println!("Should settle");
-        //     },
-        //     _ => { holdem.street = holdem.next_street();}
-        // }
-
-        // blind bets
-        let next_game_state = holdem.next_state(&mut ctx).unwrap();
-        assert_eq!((), next_game_state);
-        // single player win (1 player left)
-
-        // single player win (All other players folded)
-
-        // next player to act
-
-        // runner
-
-        // new street
-
-        // showdown
-    }
-
-    #[test]
-    pub fn test_player_event() {
-        // Set up the game context
-        let mut ctx = GameContext::default();
-        ctx.set_game_status(GeneralStatus::Running);
-        ctx.add_player("Alice", 10000).unwrap();
-        ctx.add_player("Bob", 10000).unwrap();
-        ctx.add_player("Charlie", 10000).unwrap();
-        ctx.add_player("Gentoo", 10000).unwrap();
-
-        // Set up the holdem game state
-        let mut holdem = create_holdem(&mut ctx);
-
-        let mut players_list: Vec<Player> = vec![]; // player list
-        let mut pos: u8 = 0;                        // player position
-        for p in ctx.get_players() {
-            players_list.push(
-                Player::new(p.addr.clone(), holdem.bb, pos)
-            );
-            pos += 1;
-        }
-        holdem.init_players(players_list);
-        holdem.set_act_idx(pos);
-
-
-        // Custom Event - fold
-        let evt = Event::custom("Gentoo", &GameEvent::Fold);
-        let can_fold = holdem.handle_event(&mut ctx, evt).unwrap();
-        assert_eq!((), can_fold);
-
-        // Custom Event - bet
-        // Custom Event - call
-        // Custom Event - check
-        // Custom Event - raise
     }
 }
