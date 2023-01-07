@@ -117,7 +117,7 @@ impl GameSynchronizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use race_core_test::*;
+    use race_test::*;
 
     #[tokio::test]
     async fn test_sync_state() {

@@ -126,6 +126,7 @@ pub fn apply(secret: &SecretKey, buffer: &mut [u8]) {
 
 /// Represent a private state that contains all the secrets and
 /// decryption results.
+#[derive(Debug)]
 pub struct SecretState {
     pub mode: RandomMode,
     /// My lock keys

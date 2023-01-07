@@ -242,14 +242,14 @@ impl GameHandler for Holdem {
             // Handle custom events
             Event::Custom { sender, raw } => {
                 // 1. Check if event sender is in the players
-                if let Some(_) = context.players().iter().find(|&p| p.addr == sender) {
+                if let Some(_) = context.get_players().iter().find(|&p| p.addr == sender) {
                     println!("Valid player");
                 } else {
                     return Err(Error::Custom(String::from("Unknown player!")));
                 }
 
                 // 2. Check game status is valid (running)?
-                match context.status() {
+                match context.get_status() {
                     GeneralStatus::Running => {
                         println!("Valid game status: Running");
                     },
@@ -274,7 +274,7 @@ impl GameHandler for Holdem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use race_core_test::*;
+    use race_test::*;
 
     fn create_holdem(ctx: &mut GameContext) -> Holdem {
 
@@ -332,7 +332,7 @@ mod tests {
 
         let mut players_list: Vec<Player> = vec![]; // player list
         let mut pos: u8 = 0;                        // player position
-        for p in ctx.players() {
+        for p in ctx.get_players() {
             players_list.push(
                 Player::new(p.addr.clone(), holdem.bb, pos)
             );
@@ -382,7 +382,7 @@ mod tests {
 
         let mut players_list: Vec<Player> = vec![]; // player list
         let mut pos: u8 = 0;                        // player position
-        for p in ctx.players() {
+        for p in ctx.get_players() {
             players_list.push(
                 Player::new(p.addr.clone(), holdem.bb, pos)
             );

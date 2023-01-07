@@ -87,7 +87,7 @@ mod tests {
 
     use super::*;
     use race_core::types::{AssetChange, PlayerStatus, Settle, SettleParams};
-    use race_core_test::*;
+    use race_test::*;
 
     #[tokio::test]
     async fn test_submit_settle() {

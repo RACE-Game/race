@@ -85,7 +85,7 @@ pub enum Event {
 
     /// Randomize items.
     /// This event is sent by transactors.
-    Randomize {
+    Mask {
         sender: String,
         random_id: usize,
         ciphertexts: Vec<Ciphertext>,

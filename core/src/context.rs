@@ -195,11 +195,11 @@ impl GameContext {
         self.state_json = serde_json::to_string(&handler).unwrap();
     }
 
-    pub fn game_addr(&self) -> &str {
+    pub fn get_game_addr(&self) -> &str {
         &self.game_addr
     }
 
-    pub fn transactor_addr(&self) -> &str {
+    pub fn get_transactor_addr(&self) -> &str {
         &self.transactor_addr
     }
 
@@ -234,11 +234,11 @@ impl GameContext {
         self.dispatch = Some(DispatchEvent::new(event, timeout));
     }
 
-    pub fn players(&self) -> &Vec<Player> {
+    pub fn get_players(&self) -> &Vec<Player> {
         &self.players
     }
 
-    pub fn status(&self) -> GameStatus {
+    pub fn get_status(&self) -> GameStatus {
         self.status
     }
 
@@ -263,8 +263,12 @@ impl GameContext {
         }
     }
 
+    pub fn get_random_state_unchecked(&self, id: usize) -> &RandomState {
+        &self.random_states[id]
+    }
+
     /// Get the mutable random state by its id.
-    pub fn get_mut_random_state(&mut self, id: usize) -> Result<&mut RandomState> {
+    pub fn get_random_state_mut(&mut self, id: usize) -> Result<&mut RandomState> {
         if let Some(rnd_st) = self.random_states.get_mut(id) {
             Ok(rnd_st)
         } else {
@@ -279,7 +283,7 @@ impl GameContext {
         player_addr: String,
         indexes: Vec<usize>,
     ) -> Result<()> {
-        let rnd_st = self.get_mut_random_state(random_id)?;
+        let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.assign(player_addr, indexes)?;
         Ok(())
     }
@@ -347,7 +351,7 @@ impl GameContext {
         shares: HashMap<SecretIdent, String>,
     ) -> Result<()> {
         for (idt, secret) in shares.into_iter() {
-            let random_state = self.get_mut_random_state(idt.random_id)?;
+            let random_state = self.get_random_state_mut(idt.random_id)?;
             random_state.add_secret(idt.from_addr, idt.to_addr, idt.index, secret)?;
         }
         Ok(())
@@ -359,7 +363,7 @@ impl GameContext {
         random_id: usize,
         ciphertexts: Vec<Ciphertext>,
     ) -> Result<()> {
-        let rnd_st = self.get_mut_random_state(random_id)?;
+        let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.mask(addr, ciphertexts)?;
 
         Ok(())
@@ -371,7 +375,7 @@ impl GameContext {
         random_id: usize,
         ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
     ) -> Result<()> {
-        let rnd_st = self.get_mut_random_state(random_id)?;
+        let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.lock(addr, ciphertexts_and_tests)?;
 
         Ok(())

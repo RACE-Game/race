@@ -125,7 +125,7 @@ impl EventLoop {
 
 #[cfg(test)]
 mod tests {
-    use race_core_test::*;
+    use race_test::*;
 
     use crate::frame::NewPlayer;
 

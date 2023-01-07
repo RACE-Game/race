@@ -143,7 +143,7 @@ impl WrappedHandler {
 #[cfg(test)]
 mod tests {
     use race_core::types::GameAccount;
-    use race_core_test::*;
+    use race_test::*;
 
     use super::*;
 

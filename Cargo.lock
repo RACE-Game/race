@@ -1876,8 +1876,8 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "race-core",
- "race-core-test",
  "race-proc-macro",
+ "race-test",
  "serde",
  "serde_json",
 ]
@@ -3331,16 +3331,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "race-core-test"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "borsh",
- "race-core",
- "tokio",
-]
-
-[[package]]
 name = "race-crypto"
 version = "0.1.0"
 dependencies = [
@@ -3380,8 +3370,8 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "race-core",
- "race-core-test",
  "race-proc-macro",
+ "race-test",
  "serde",
  "serde_json",
 ]
@@ -3419,6 +3409,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "race-test"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "borsh",
+ "race-core",
+ "race-crypto",
+ "tokio",
+]
+
+[[package]]
 name = "race-transactor"
 version = "0.1.0"
 dependencies = [
@@ -3430,9 +3431,9 @@ dependencies = [
  "hyper",
  "jsonrpsee",
  "race-core",
- "race-core-test",
  "race-crypto",
  "race-env",
+ "race-test",
  "race-transport",
  "serde",
  "serde_json",

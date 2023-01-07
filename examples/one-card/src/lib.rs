@@ -71,7 +71,7 @@ impl GameHandler for OneCard {
             deck_random_id: 0,
             dealer: 0,
             chips: context
-                .players()
+                .get_players()
                 .iter()
                 .map(|p| (p.addr.to_owned(), p.balance))
                 .collect(),
@@ -107,7 +107,7 @@ impl GameHandler for OneCard {
                 secrets: _,
             } => {}
 
-            Event::Randomize {
+            Event::Mask {
                 sender,
                 random_id,
                 ciphertexts,
@@ -131,9 +131,11 @@ impl GameHandler for OneCard {
             Event::Join {
                 player_addr,
                 balance,
+                position: _
             } => {
-                if context.players().len() == 2 {
+                if context.get_players().len() == 2 {
                     context.set_game_status(GameStatus::Initializing);
+                    context.dispatch(Event::GameStart, 0);
                 }
                 self.chips.insert(player_addr.to_owned(), balance);
             }

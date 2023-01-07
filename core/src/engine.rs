@@ -50,7 +50,7 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
             Ok(())
         }
 
-        Event::Randomize {
+        Event::Mask {
             sender,
             random_id,
             ciphertexts,
@@ -91,9 +91,6 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
 }
 
 /// Context maintaining after event handling.
-pub fn after_handle_event(context: &mut GameContext) -> Result<()> {
-    // If any secrets are required, set current status to SecretSharing.
-    context.set_game_status(GameStatus::Sharing);
-
+pub fn after_handle_event(_context: &mut GameContext) -> Result<()> {
     Ok(())
 }

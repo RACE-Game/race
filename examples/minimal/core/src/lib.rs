@@ -97,12 +97,12 @@ mod tests {
     #[test]
     fn test_dispatch() {
         let mut ctx = GameContext::default();
-        let evt = Event::custom(ctx.transactor_addr().to_owned(), &GameEvent::Dispatch);
+        let evt = Event::custom(ctx.get_transactor_addr().to_owned(), &GameEvent::Dispatch);
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
         assert_eq!(
             Some(DispatchEvent::new(
-                Event::custom(ctx.transactor_addr().to_owned(), &GameEvent::Increase(1)),
+                Event::custom(ctx.get_transactor_addr().to_owned(), &GameEvent::Increase(1)),
                 0
             )),
             *ctx.get_dispatch()
@@ -112,7 +112,7 @@ mod tests {
     #[test]
     fn test_increase() {
         let mut ctx = GameContext::default();
-        let evt = Event::custom(ctx.transactor_addr().to_owned(), &GameEvent::Increase(1));
+        let evt = Event::custom(ctx.get_transactor_addr().to_owned(), &GameEvent::Increase(1));
         let mut hdlr = Minimal::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
         assert_eq!(1, hdlr.counter_value);

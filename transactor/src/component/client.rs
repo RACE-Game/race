@@ -16,18 +16,13 @@ use race_core::error::{Error, Result};
 use race_core::event::{Event, SecretIdent};
 use race_core::random::{RandomMode, RandomStatus};
 use race_core::transport::TransportT;
-use race_core::types::{empty_secret_key, GameAccount, TransactorAccount};
+use race_core::types::{empty_secret_key, GameAccount, TransactorAccount, ClientMode};
 use race_crypto::SecretState;
 use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::component::traits::{Attachable, Component, Named};
 
 use super::event_bus::CloseReason;
-
-pub enum ClientMode {
-    Transactor,
-    Validator,
-}
 
 pub struct Client {
     pub input_tx: mpsc::Sender<EventFrame>,
@@ -197,7 +192,7 @@ async fn randomize_and_share(
                         .mask(origin)
                         .map_err(|e| Error::RandomizationError(e.to_string()))?;
 
-                    let event = Event::Randomize {
+                    let event = Event::Mask {
                         sender: client_context.server_addr.clone(),
                         random_id: random_state.id,
                         ciphertexts: masked,
@@ -277,6 +272,7 @@ async fn run_as_validator(client_context: &mut ClientContext) -> Result<()> {
             _ => (),
         }
     }
+
     Ok(())
 }
 
@@ -332,7 +328,7 @@ impl Component<ClientContext> for Client {
 mod tests {
 
     use race_core::random::ShuffledList;
-    use race_core_test::*;
+    use race_test::*;
 
     use super::*;
 
@@ -356,7 +352,7 @@ mod tests {
         // Mask the random_state
         let random = ShuffledList::new(vec!["a", "b", "c"]);
         let rid = ctx.init_random_state(&random);
-        let random_state = ctx.get_mut_random_state(rid).unwrap();
+        let random_state = ctx.get_random_state_mut(rid).unwrap();
         random_state
             .mask(transactor_account_addr(), vec![vec![0], vec![0], vec![0]])
             .unwrap();
@@ -408,7 +404,7 @@ mod tests {
 
         match &*event_frame {
             EventFrame::SendServerEvent { ref event } => match event {
-                Event::Randomize {
+                Event::Mask {
                     sender,
                     random_id,
                     ciphertexts,

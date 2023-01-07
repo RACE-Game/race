@@ -1,5 +1,5 @@
 [package]
-name = "race-core-test"
+name = "race-test"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 race-core = { path = "../core" }
+race-crypto = { path = "../crypto" }
 borsh = "0.9.3"
 async-trait = "0.1.58"
 

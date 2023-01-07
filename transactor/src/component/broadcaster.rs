@@ -115,7 +115,7 @@ impl Broadcaster {
 #[cfg(test)]
 mod tests {
     use race_core::event::Event;
-    use race_core_test::*;
+    use race_test::*;
 
     use super::*;
 

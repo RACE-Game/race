@@ -114,11 +114,11 @@ mod tests {
                     match ctx.output_tx.send(event.clone()) {
                         Ok(_) => sleep(Duration::from_secs(5)).await,
                         Err(_) => {
-                            drop(ctx);
                             break;
                         }
                     }
                 }
+                ctx.closed_tx.send(CloseReason::Complete).unwrap();
             });
         }
 
