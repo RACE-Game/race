@@ -37,28 +37,27 @@ pub struct OneCard {
     // Real-time chips
     pub chips: HashMap<String, u64>,
 
-    // Bet amounts by player addresses
-    pub bets: HashMap<String, u64>,
+    // Bet amount
+    pub bet: u64,
 }
 
 impl OneCard {
+
     fn custom_handle_event(
         &mut self,
-        context: &GameContext,
-        sender: String,
+        context: &mut GameContext,
+        _sender: String,
         event: GameEvent,
     ) -> Result<()> {
         match event {
             GameEvent::Bet(amount) => {
-                let curr_chips = self.chips.get(&sender).unwrap();
-                if *curr_chips < amount {
+                if self.chips.values().any(|c| *c < amount) {
                     return Err(Error::InvalidAmount);
                 }
-                *self.bets.entry(sender.clone()).or_insert(0) += amount;
-                *self.chips.get_mut(&sender).unwrap() -= amount;
+                self.bet = amount;
             }
             GameEvent::Call => {
-                let curr_chips = self.chips.get(&sender).unwrap();
+                context.reveal(self.deck_random_id, vec![0, 1])?;
             }
             GameEvent::Fold => {}
         }
@@ -77,7 +76,7 @@ impl GameHandler for OneCard {
                 .iter()
                 .map(|p| (p.addr.to_owned(), p.balance))
                 .collect(),
-            bets: HashMap::new(),
+            bet: 0,
         })
     }
 

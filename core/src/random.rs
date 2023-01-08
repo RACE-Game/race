@@ -381,6 +381,41 @@ impl RandomState {
         Ok(())
     }
 
+    pub fn reveal(&mut self, indexes: Vec<usize>) -> Result<()> {
+        if !matches!(
+            self.status,
+            RandomStatus::Ready | RandomStatus::WaitingSecrets
+        ) {
+            return Err(Error::InvalidCipherStatus);
+        }
+
+        if indexes
+            .iter()
+            .filter_map(|i| self.get_ciphertext(*i))
+            .any(|c| c.owner == CipherOwner::Revealed)
+        {
+            return Err(Error::CiphertextAlreadyAssigned);
+        }
+
+        for i in indexes.into_iter() {
+            if let Some(c) = self.get_ciphertext_mut(i) {
+                c.owner = CipherOwner::Revealed;
+            }
+            let secrets = &mut self.secret_shares;
+            for o in self.owners.iter() {
+                secrets.push(SecretShare {
+                    from_addr: o.to_owned(),
+                    to_addr: None,
+                    index: i,
+                    secret: None,
+                })
+            }
+        }
+
+        self.status = RandomStatus::WaitingSecrets;
+        Ok(())
+    }
+
     pub fn list_required_secrets_by_from_addr(&self, from_addr: &str) -> Vec<SecretIdent> {
         self.secret_shares
             .iter()
@@ -394,7 +429,7 @@ impl RandomState {
             .collect()
     }
 
-    pub fn list_revealed_esecrets(&self) -> Result<HashMap<usize, Vec<Ciphertext>>> {
+    pub fn list_revealed_secrets(&self) -> Result<HashMap<usize, Vec<Ciphertext>>> {
         if self.status != RandomStatus::Ready {
             return Err(Error::SecretsNotReady);
         }

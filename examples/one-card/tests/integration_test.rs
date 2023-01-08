@@ -44,7 +44,7 @@ fn test() -> Result<()> {
         let state: &OneCard = handler.get_state();
         assert_eq!(0, state.dealer);
         assert_eq!(HashMap::from([("Alice".into(), 10000)]), state.chips);
-        assert_eq!(HashMap::new(), state.bets);
+        assert_eq!(0, state.bet);
     }
 
     // Another player joined the game.
@@ -175,16 +175,17 @@ fn test() -> Result<()> {
     handler.handle_event(&mut ctx, &event)?;
     {
         let state = handler.get_state();
-        assert_eq!(Some(&500), state.bets.get("Alice"));
+        assert_eq!(500, state.bet);
     }
 
     // Bob call this.
-    // let event = bob.create_custom_event(GameEvent::Call);
-    // handler.handle_event(&mut ctx, &event)?;
-    // {
-    //     let state = handler.get_state();
-    //     assert_eq!(Some(&500), state.bets.get("Bob"));
-    // }
+    // Now, it's time to reveal the cards, so two secrets for hands are required.
+    let event = bob.create_custom_event(GameEvent::Call);
+    handler.handle_event(&mut ctx, &event)?;
+    {
+        let random_state = ctx.get_random_state_unchecked(0);
+        assert_eq!(2, random_state.list_required_secrets_by_from_addr(&transactor_addr).len());
+    }
 
     Ok(())
 }

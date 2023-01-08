@@ -7,7 +7,7 @@ use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
 use crate::random::RandomStatus;
-use crate::types::SecretKey;
+use crate::types::{SecretKey, Settle};
 use crate::{
     event::{Event, SecretIdent},
     random::{RandomSpec, RandomState},
@@ -146,6 +146,8 @@ pub struct GameContext {
     pub(crate) random_states: Vec<RandomState>,
     // Shared secrets
     pub(crate) shared_secrets: HashMap<SecretIdent, String>,
+    // Settles, if is not None, will be handled by event loop.
+    pub(crate) settles: Option<Vec<Settle>>,
     // /// The encrption keys from every nodes.
     // /// Keys are node address.
     // pub encrypt_keys: HashMap<&'a str, Vec<u8>>,
@@ -174,6 +176,7 @@ impl GameContext {
             allow_leave: false,
             random_states: vec![],
             shared_secrets: Default::default(),
+            settles: None,
         })
     }
 
@@ -292,6 +295,12 @@ impl GameContext {
         Ok(())
     }
 
+    pub fn reveal(&mut self, random_id: usize, indexes: Vec<usize>) -> Result<()> {
+        let rnd_st = self.get_random_state_mut(random_id)?;
+        rnd_st.reveal(indexes)?;
+        Ok(())
+    }
+
     pub fn random_ready(&self) -> bool {
         self.random_states
             .iter()
@@ -393,5 +402,7 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn settle() {}
+    pub fn settle(&mut self, settles: Vec<Settle>) {
+        self.settles = Some(settles);
+    }
 }
