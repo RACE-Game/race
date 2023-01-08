@@ -3,7 +3,7 @@ mod common;
 mod transactor_params;
 mod transport_params;
 
-pub use common::{empty_secret_key, Ciphertext, ClientMode, SecretDigest, SecretKey};
+pub use common::{empty_secret_key_raw, empty_secret_key, Ciphertext, ClientMode, SecretDigest, SecretKey, SecretKeyRaw};
 
 pub use accounts::{
     GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin, PlayerProfile,

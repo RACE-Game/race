@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use crate::{
     event::SecretIdent,
-    types::{Ciphertext, SecretDigest},
+    types::{Ciphertext, SecretDigest, SecretKey},
 };
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -51,7 +51,13 @@ pub enum Error {
     #[error("duplicated secret")]
     DuplicatedSecret,
 
-    #[error("secrets not ready")]
+    #[error("invalid secret")]
+    InvalidSecret,
+
+    #[error("randomness is not ready")]
+    RandomnessNotReady,
+
+    #[error("secrets are not ready")]
     SecretsNotReady,
 }
 
@@ -192,7 +198,7 @@ pub struct SecretShare {
     to_addr: Option<String>,
     index: usize,
     // None means missing
-    secret: Option<String>,
+    secret: Option<SecretKey>,
 }
 
 #[derive(Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
@@ -229,6 +235,10 @@ impl RandomState {
         self.ciphertexts.get(index)
     }
 
+    pub fn get_ciphertext_unchecked(&self, index: usize) -> &LockedCiphertext {
+        &self.ciphertexts[index]
+    }
+
     fn get_ciphertext_mut(&mut self, index: usize) -> Option<&mut LockedCiphertext> {
         self.ciphertexts.get_mut(index)
     }
@@ -242,6 +252,7 @@ impl RandomState {
                 LockedCiphertext::new(ciphertext)
             })
             .collect();
+        println!("Random state created, original ciphertexts: {:?}", ciphertexts);
         let masks = owners.iter().map(Mask::new).collect();
         Self {
             id,
@@ -255,6 +266,7 @@ impl RandomState {
     }
 
     pub fn mask<S: AsRef<str>>(&mut self, addr: S, mut ciphertexts: Vec<Ciphertext>) -> Result<()> {
+        println!("Random state: mask");
         match self.status {
             RandomStatus::Masking(ref mask_addr) => {
                 let addr = addr.as_ref();
@@ -296,6 +308,7 @@ impl RandomState {
     where
         S: Into<String> + AsRef<str> + Clone,
     {
+        println!("Random state: lock");
         match self.status {
             RandomStatus::Locking(ref lock_addr) => {
                 let addr = addr.as_ref();
@@ -334,7 +347,10 @@ impl RandomState {
     where
         S: ToOwned<Owned = String>,
     {
-        if self.status.ne(&RandomStatus::Ready) {
+        if !matches!(
+            self.status,
+            RandomStatus::Ready | RandomStatus::WaitingSecrets
+        ) {
             return Err(Error::InvalidCipherStatus);
         }
 
@@ -379,7 +395,7 @@ impl RandomState {
             .collect()
     }
 
-    pub fn list_revealed_secrets(&self) -> Result<HashMap<usize, Vec<String>>> {
+    pub fn list_revealed_esecrets(&self) -> Result<HashMap<usize, Vec<Ciphertext>>> {
         if self.status != RandomStatus::Ready {
             return Err(Error::SecretsNotReady);
         }
@@ -389,28 +405,47 @@ impl RandomState {
             .filter(|ss| ss.to_addr.is_none())
             .fold(HashMap::new(), |mut acc, ss| {
                 acc.entry(ss.index)
-                    .and_modify(|v: &mut Vec<String>| v.push(ss.secret.as_ref().unwrap().clone()))
+                    .and_modify(|v: &mut Vec<SecretKey>| v.push(ss.secret.as_ref().unwrap().clone()))
                     .or_insert_with(|| vec![ss.secret.as_ref().unwrap().clone()]);
                 acc
             });
         Ok(ret)
     }
 
-    pub fn list_assigned_secrets(&self, to_addr: &str) -> Result<HashMap<usize, Vec<String>>> {
-        if self.status != RandomStatus::Ready {
+    /// List all ciphertexts assigned to a specific address.
+    /// Return a mapping from item index to ciphertext.
+    pub fn list_assigned_ciphertexts(&self, addr: &str) -> HashMap<usize, Ciphertext> {
+        self.ciphertexts
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| {
+                if matches!(&c.owner, CipherOwner::Assigned(a) if a.eq(addr)) {
+                    Some((i, c.ciphertext.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// List shared secrets by receiver address.
+    /// Return a mapping from item index to list of secrets(each is in HEX format).
+    /// Return [[Error::SecretsNotReady]] in case of any missing secret.
+    pub fn list_shared_secrets(&self, to_addr: &str) -> Result<HashMap<usize, Vec<SecretKey>>> {
+        if self.status.ne(&RandomStatus::Ready) {
             return Err(Error::SecretsNotReady);
         }
-        let ret = self
+
+        Ok(self
             .secret_shares
             .iter()
             .filter(|ss| ss.to_addr.is_some() && ss.to_addr.as_ref().unwrap().eq(to_addr))
             .fold(HashMap::new(), |mut acc, ss| {
                 acc.entry(ss.index)
-                    .and_modify(|v: &mut Vec<String>| v.push(ss.secret.as_ref().unwrap().clone()))
+                    .and_modify(|v: &mut Vec<SecretKey>| v.push(ss.secret.as_ref().unwrap().clone()))
                     .or_insert_with(|| vec![ss.secret.as_ref().unwrap().clone()]);
                 acc
-            });
-        Ok(ret)
+            }))
     }
 
     pub fn add_secret(
@@ -418,7 +453,7 @@ impl RandomState {
         from_addr: String,
         to_addr: Option<String>,
         index: usize,
-        secret: String,
+        secret: SecretKey,
     ) -> Result<()> {
         if let Some(secret_share) = self
             .secret_shares
@@ -426,7 +461,19 @@ impl RandomState {
             .find(|ss| ss.from_addr.eq(&from_addr) && ss.to_addr.eq(&to_addr) && ss.index == index)
         {
             match secret_share.secret {
-                None => secret_share.secret = Some(secret),
+                None => {
+                    if let Some(_ciphertext) = self.ciphertexts.get(secret_share.index) {
+                        // TODO, check digest
+                        // if let Some(lock) = ciphertext.locks.iter().find(|l| l.owner.eq(&from_addr)) {
+
+                        // } else {
+                        //     return Err(Error::InvalidSecret);
+                        // }
+                        secret_share.secret = Some(secret);
+                    } else {
+                        return Err(Error::InvalidSecret);
+                    }
+                }
                 Some(_) => return Err(Error::DuplicatedSecret),
             }
         }

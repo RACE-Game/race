@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use arrayref::{array_refs, mut_array_refs};
+use arrayref::{array_refs, mut_array_refs, array_ref};
 use chacha20::cipher::{KeyIvInit, StreamCipher};
 use chacha20::ChaCha20;
 use rsa::pkcs1::ToRsaPublicKey;
@@ -14,7 +14,7 @@ use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha1::{Digest, Sha1};
 
 use race_core::random::{RandomMode, RandomSpec, RandomState};
-use race_core::types::{Ciphertext, SecretKey, SecretDigest};
+use race_core::types::{Ciphertext, SecretDigest, SecretKey};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -74,7 +74,7 @@ pub fn gen_secret() -> SecretKey {
     let (key, nonce) = mut_array_refs![&mut secret, 32, 12];
     key.copy_from_slice(&rand::random::<[u8; 32]>());
     nonce.copy_from_slice(&rand::random::<[u8; 12]>());
-    secret
+    secret.to_vec()
 }
 
 pub fn gen_chacha20() -> ChaCha20 {
@@ -118,10 +118,17 @@ pub fn verify(pubkey: &RsaPublicKey, text: &[u8], signature: &[u8]) -> Result<()
         .map_err(|e| Error::VerifyFailed(e.to_string()))
 }
 
-pub fn apply(secret: &SecretKey, buffer: &mut [u8]) {
+pub fn apply<S: AsRef<SecretKey>>(secret: &S, buffer: &mut [u8]) {
+    let secret = array_ref![secret.as_ref(), 0, 44];
     let (key, nonce) = array_refs![secret, 32, 12];
     let mut cipher = ChaCha20::new(key.into(), nonce.into());
     cipher.apply_keystream(buffer);
+}
+
+pub fn apply_multi<S: AsRef<SecretKey>>(secrets: Vec<S>, buffer: &mut [u8]) {
+    for secret in secrets.into_iter() {
+        apply(secret.as_ref(), buffer);
+    }
 }
 
 /// Represent a private state that contains all the secrets and
@@ -165,9 +172,17 @@ impl SecretState {
         }
     }
 
-    pub fn get_key(&self, index: usize) -> Result<String> {
+    pub fn get_key_hex(&self, index: usize) -> Result<String> {
         if let Some(key) = self.lock_keys.get(index) {
             Ok(hex::encode_upper(key))
+        } else {
+            Err(Error::InvalidKeyIndex)
+        }
+    }
+
+    pub fn get_key(&self, index: usize) -> Result<SecretKey> {
+        if let Some(key) = self.lock_keys.get(index) {
+            Ok(key.clone())
         } else {
             Err(Error::InvalidKeyIndex)
         }

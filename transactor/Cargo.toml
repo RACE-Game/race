@@ -28,6 +28,7 @@ wasmer = "3.0.2"
 clap = { version = "4.0.26", features = ["derive"] }
 arrayref = "0.3.6"
 hex = "0.4.3"
+log = "0.4.17"
 
 [dev-dependencies]
 race-test = { path = "../test" }

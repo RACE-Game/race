@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Read};
 
 use race_core::{
     context::GameContext,
-    error::{Result, Error},
+    error::{Error, Result},
     event::{Event, SecretIdent},
     random::{RandomMode, RandomStatus},
-    types::{ClientMode, GameAccount},
+    types::{ClientMode, GameAccount, SecretKey},
 };
 use race_crypto::SecretState;
 
@@ -56,21 +56,20 @@ impl TestClient {
                 RandomStatus::Ready => (),
                 RandomStatus::WaitingSecrets => {
                     // check if our secret is required
-                    let required_idents = random_state
-                        .list_required_secrets_by_from_addr(&self.server_addr);
+                    let required_idents =
+                        random_state.list_required_secrets_by_from_addr(&self.server_addr);
+
                     let shares = required_idents
                         .into_iter()
                         .map(|idt| {
-                            if let Some(secret_state) =
-                                self.secret_states.get(idt.random_id)
-                            {
+                            if let Some(secret_state) = self.secret_states.get(idt.random_id) {
                                 let secret = secret_state.get_key(idt.index)?;
                                 Ok((idt, secret))
                             } else {
                                 Err(Error::MissingSecret)
                             }
                         })
-                        .collect::<Result<HashMap<SecretIdent, String>>>()?;
+                        .collect::<Result<HashMap<SecretIdent, SecretKey>>>()?;
                     let event = Event::ShareSecrets {
                         sender: self.server_addr.clone(),
                         secrets: shares,
@@ -142,5 +141,32 @@ impl TestClient {
         let events = self.randomize_and_share(ctx)?;
 
         Ok(events)
+    }
+
+    /// Decrypt the ciphertexts with shared secrets.
+    /// Return a mapping from mapping from indexes to decrypted value.
+    pub fn decrypt(
+        &mut self,
+        ctx: &GameContext,
+        player_addr: &str,
+        random_id: usize,
+    ) -> Result<HashMap<usize, String>> {
+        let mut ret = HashMap::new();
+        let random_state = ctx.get_random_state(random_id)?;
+        let assigned_ciphertexts = random_state.list_assigned_ciphertexts(player_addr);
+        let mut shared_secrets = random_state.list_shared_secrets(player_addr)?;
+        for (i, mut buf) in assigned_ciphertexts.into_iter() {
+            if let Some(secrets) = shared_secrets.remove(&i) {
+                println!("secrets: {:?}", &secrets);
+                println!("buf: {:?}", buf);
+                race_crypto::apply_multi(secrets, &mut buf);
+                println!("buf2: {:?}", buf);
+                let value = String::from_utf8(buf).or(Err(Error::DecryptionFailed))?;
+                ret.insert(i, value);
+            } else {
+                return Err(Error::MissingSecret);
+            }
+        }
+        Ok(ret)
     }
 }

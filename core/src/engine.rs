@@ -36,6 +36,11 @@ pub fn general_init_state(context: &mut GameContext, init_account: &GameAccount)
 
 /// A general function for system events handling.
 pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<()> {
+
+    // Remove current event disptaching
+    context.dispatch = None;
+
+    // General event handling
     match event {
         Event::Ready { sender } => context.set_player_status(sender, PlayerStatus::Ready),
 
@@ -46,6 +51,7 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
             context.add_shared_secrets(sender, shares.clone())?;
             if context.secrets_ready() {
                 context.disptach(Event::SecretsReady, 0)?;
+                context.set_game_status(GameStatus::Running);
             }
             Ok(())
         }

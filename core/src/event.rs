@@ -80,7 +80,7 @@ pub enum Event {
     /// The `secret_data` is encrypted with the receiver's public key.
     ShareSecrets {
         sender: String,
-        secrets: HashMap<SecretIdent, String>,
+        secrets: HashMap<SecretIdent, Vec<u8>>,
     },
 
     /// Randomize items.

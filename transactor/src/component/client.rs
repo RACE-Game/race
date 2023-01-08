@@ -16,7 +16,7 @@ use race_core::error::{Error, Result};
 use race_core::event::{Event, SecretIdent};
 use race_core::random::{RandomMode, RandomStatus};
 use race_core::transport::TransportT;
-use race_core::types::{empty_secret_key, GameAccount, TransactorAccount, ClientMode};
+use race_core::types::{empty_secret_key, GameAccount, TransactorAccount, ClientMode, SecretKey};
 use race_crypto::SecretState;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -131,7 +131,7 @@ async fn randomize_and_share(
                             Err(Error::MissingSecret)
                         }
                     })
-                    .collect::<Result<HashMap<SecretIdent, String>>>()?;
+                    .collect::<Result<HashMap<SecretIdent, SecretKey>>>()?;
                 let event = Event::ShareSecrets {
                     sender: client_context.server_addr.clone(),
                     secrets: shares,
@@ -214,7 +214,7 @@ async fn randomize_and_share(
 async fn decrypt(client_context: &mut ClientContext, game_context: &GameContext) -> Result<()> {
     for random_state in game_context.list_random_states().iter() {
         if random_state.status == RandomStatus::Ready {
-            let secrets = random_state.list_revealed_secrets()?;
+            let secrets = random_state.list_revealed_esecrets()?;
             for (index, secrets) in secrets {
                 let mut ciphertext = random_state
                     .get_ciphertext(index)

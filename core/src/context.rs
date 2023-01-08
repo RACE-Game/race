@@ -7,6 +7,7 @@ use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
 use crate::random::RandomStatus;
+use crate::types::SecretKey;
 use crate::{
     event::{Event, SecretIdent},
     random::{RandomSpec, RandomState},
@@ -128,23 +129,23 @@ impl DispatchEvent {
 /// The context for public data.
 #[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GameContext {
-    game_addr: String,
+    pub(crate) game_addr: String,
     // Current transactor's address
-    transactor_addr: String,
-    status: GameStatus,
+    pub(crate) transactor_addr: String,
+    pub(crate) status: GameStatus,
     /// List of players playing in this game
-    players: Vec<Player>,
+    pub(crate) players: Vec<Player>,
     /// List of validators serving this game
-    servers: Vec<Server>,
-    dispatch: Option<DispatchEvent>,
-    state_json: String,
-    timestamp: u64,
+    pub(crate) servers: Vec<Server>,
+    pub(crate) dispatch: Option<DispatchEvent>,
+    pub(crate) state_json: String,
+    pub(crate) timestamp: u64,
     // Whether a player can leave or not
-    allow_leave: bool,
+    pub(crate) allow_leave: bool,
     // All runtime random state, each stores the ciphers and assignments.
-    random_states: Vec<RandomState>,
+    pub(crate) random_states: Vec<RandomState>,
     // Shared secrets
-    shared_secrets: HashMap<SecretIdent, String>,
+    pub(crate) shared_secrets: HashMap<SecretIdent, String>,
     // /// The encrption keys from every nodes.
     // /// Keys are node address.
     // pub encrypt_keys: HashMap<&'a str, Vec<u8>>,
@@ -157,7 +158,10 @@ pub struct GameContext {
 
 impl GameContext {
     pub fn new(game_account: &GameAccount) -> Result<Self> {
-        let transactor_addr = game_account.transactor_addr.as_ref().ok_or(Error::GameNotServed)?;
+        let transactor_addr = game_account
+            .transactor_addr
+            .as_ref()
+            .ok_or(Error::GameNotServed)?;
         Ok(Self {
             game_addr: game_account.addr.clone(),
             transactor_addr: transactor_addr.to_owned(),
@@ -288,6 +292,12 @@ impl GameContext {
         Ok(())
     }
 
+    pub fn random_ready(&self) -> bool {
+        self.random_states
+            .iter()
+            .all(|st| st.status == RandomStatus::Ready)
+    }
+
     pub fn secrets_ready(&self) -> bool {
         self.random_states
             .iter()
@@ -348,7 +358,7 @@ impl GameContext {
     pub fn add_shared_secrets(
         &mut self,
         _addr: &str,
-        shares: HashMap<SecretIdent, String>,
+        shares: HashMap<SecretIdent, SecretKey>,
     ) -> Result<()> {
         for (idt, secret) in shares.into_iter() {
             let random_state = self.get_random_state_mut(idt.random_id)?;
@@ -377,7 +387,9 @@ impl GameContext {
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.lock(addr, ciphertexts_and_tests)?;
-
+        if self.random_ready() {
+            self.dispatch(Event::RandomnessReady, 0);
+        }
         Ok(())
     }
 
