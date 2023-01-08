@@ -16,7 +16,7 @@ use race_core::error::{Error, Result};
 use race_core::event::{Event, SecretIdent};
 use race_core::random::{RandomMode, RandomStatus};
 use race_core::transport::TransportT;
-use race_core::types::{empty_secret_key, GameAccount, TransactorAccount, ClientMode, SecretKey};
+use race_core::types::{empty_secret_key, ClientMode, GameAccount, SecretKey, TransactorAccount};
 use race_crypto::SecretState;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -156,8 +156,12 @@ async fn randomize_and_share(
                         .map(|c| c.ciphertext().to_owned())
                         .collect();
 
+                    let unmasked = secret_state
+                        .unmask(origin)
+                        .map_err(|e| Error::RandomizationError(e.to_string()))?;
+
                     let locked = secret_state
-                        .lock(origin)
+                        .lock(unmasked)
                         .map_err(|e| Error::RandomizationError(e.to_string()))?;
 
                     let event = Event::Lock {

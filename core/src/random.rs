@@ -216,6 +216,7 @@ pub struct RandomState {
     pub id: usize,
     pub size: usize,
     pub owners: Vec<String>,
+    pub options: Vec<String>,
     pub status: RandomStatus,
     pub masks: Vec<Mask>,
     pub ciphertexts: Vec<LockedCiphertext>,
@@ -252,13 +253,13 @@ impl RandomState {
                 LockedCiphertext::new(ciphertext)
             })
             .collect();
-        println!("Random state created, original ciphertexts: {:?}", ciphertexts);
         let masks = owners.iter().map(Mask::new).collect();
         Self {
             id,
             size: rnd.size(),
             masks,
             owners: owners.to_owned(),
+            options: options.clone(),
             status: RandomStatus::Masking(owners.first().unwrap().to_owned()),
             ciphertexts,
             secret_shares: Vec::new(),
@@ -266,7 +267,6 @@ impl RandomState {
     }
 
     pub fn mask<S: AsRef<str>>(&mut self, addr: S, mut ciphertexts: Vec<Ciphertext>) -> Result<()> {
-        println!("Random state: mask");
         match self.status {
             RandomStatus::Masking(ref mask_addr) => {
                 let addr = addr.as_ref();
@@ -308,7 +308,6 @@ impl RandomState {
     where
         S: Into<String> + AsRef<str> + Clone,
     {
-        println!("Random state: lock");
         match self.status {
             RandomStatus::Locking(ref lock_addr) => {
                 let addr = addr.as_ref();
@@ -405,7 +404,9 @@ impl RandomState {
             .filter(|ss| ss.to_addr.is_none())
             .fold(HashMap::new(), |mut acc, ss| {
                 acc.entry(ss.index)
-                    .and_modify(|v: &mut Vec<SecretKey>| v.push(ss.secret.as_ref().unwrap().clone()))
+                    .and_modify(|v: &mut Vec<SecretKey>| {
+                        v.push(ss.secret.as_ref().unwrap().clone())
+                    })
                     .or_insert_with(|| vec![ss.secret.as_ref().unwrap().clone()]);
                 acc
             });
@@ -442,7 +443,9 @@ impl RandomState {
             .filter(|ss| ss.to_addr.is_some() && ss.to_addr.as_ref().unwrap().eq(to_addr))
             .fold(HashMap::new(), |mut acc, ss| {
                 acc.entry(ss.index)
-                    .and_modify(|v: &mut Vec<SecretKey>| v.push(ss.secret.as_ref().unwrap().clone()))
+                    .and_modify(|v: &mut Vec<SecretKey>| {
+                        v.push(ss.secret.as_ref().unwrap().clone())
+                    })
                     .or_insert_with(|| vec![ss.secret.as_ref().unwrap().clone()]);
                 acc
             }))

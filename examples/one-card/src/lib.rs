@@ -57,7 +57,9 @@ impl OneCard {
                 *self.bets.entry(sender.clone()).or_insert(0) += amount;
                 *self.chips.get_mut(&sender).unwrap() -= amount;
             }
-            GameEvent::Call => {}
+            GameEvent::Call => {
+                let curr_chips = self.chips.get(&sender).unwrap();
+            }
             GameEvent::Fold => {}
         }
 

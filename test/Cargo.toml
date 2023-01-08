@@ -10,6 +10,9 @@ race-core = { path = "../core" }
 race-crypto = { path = "../crypto" }
 borsh = "0.9.3"
 async-trait = "0.1.58"
+rand = "0.8.5"
+serde_json = "1.0.85"
+serde = "1.0.144"
 
 [dev-dependencies]
 tokio = { version = "1.21.0", features = ["full"] }

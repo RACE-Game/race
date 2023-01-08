@@ -100,6 +100,9 @@ pub enum Error {
     #[error("invalid secret")]
     InvalidSecret,
 
+    #[error("invalid decrypted value")]
+    InvalidDecryptedValue(String),
+
     #[error("decryption failed")]
     DecryptionFailed,
 }

@@ -7,8 +7,8 @@ use race_core::{
     random::RandomStatus,
     types::ClientMode,
 };
-use race_example_one_card::{GameEvent, OneCard, OneCardGameAccountData};
-use race_test::{TestClient, TestGameAccountBuilder, TestHandler};
+use race_example_one_card::{OneCard, OneCardGameAccountData, GameEvent};
+use race_test::{TestClient, TestGameAccountBuilder, TestHandler, TestPlayerClient};
 
 #[macro_use]
 extern crate log;
@@ -25,6 +25,10 @@ fn test() -> Result<()> {
         .add_players(1)
         .build();
     let transactor_addr = game_account.transactor_addr.as_ref().unwrap().clone();
+
+    // Initialize player client, which simulates the behavior of player.
+    let mut alice = TestPlayerClient::new("Alice");
+    let mut bob = TestPlayerClient::new("Bob");
 
     // Initialize the client, which simulates the behavior of transactor.
     let mut client = TestClient::new(ClientMode::Transactor, &game_account);
@@ -68,7 +72,6 @@ fn test() -> Result<()> {
 
     // Now the dispatching event should be `GameStart`.
     // By handling this event, a random deck of cards should be created.
-    info!("Handle GameStart");
     handler.handle_dispatch_event(&mut ctx)?;
     {
         let state: &OneCard = handler.get_state();
@@ -92,7 +95,6 @@ fn test() -> Result<()> {
     }
 
     // Send the mask event to handler, we expect the random status to be changed to `Locking`.
-    println!("Handle Mask: {:?}", events[0]);
     handler.handle_event(&mut ctx, &events[0])?;
 
     {
@@ -111,7 +113,6 @@ fn test() -> Result<()> {
 
     // Send the lock event to handler, we expect the random status to be changed to `Ready`.
     // Since all randomness is ready, an event of `RandomnessReady` will be dispatched.
-    println!("Handle Lock: {:?}", events[0]);
     handler.handle_event(&mut ctx, &events[0])?;
 
     {
@@ -127,7 +128,6 @@ fn test() -> Result<()> {
 
     // Handle this dispatched `RandomnessReady`.
     // We expect each player got one card assigned.
-    println!("Handle RandomnessReady");
     handler.handle_dispatch_event(&mut ctx)?;
     {
         let random_state = ctx.get_random_state_unchecked(0);
@@ -150,7 +150,6 @@ fn test() -> Result<()> {
 
     // Handle `ShareSecret` event.
     // Expect the random status to be changed to ready.
-    println!("Handle ShareSecret");
     handler.handle_event(&mut ctx, &events[0])?;
     {
         assert_eq!(RandomStatus::Ready, ctx.get_random_state_unchecked(0).status);
@@ -160,13 +159,32 @@ fn test() -> Result<()> {
     }
 
     // Now, client should be able to see their cards.
-    println!("Check decryption");
-    let alice_decryption = client.decrypt(&ctx, "Alice", 0)?;
-    let bob_decryption = client.decrypt(&ctx, "Bob", 0)?;
+    let alice_decryption = alice.decrypt(&ctx, 0)?;
+    let bob_decryption = bob.decrypt(&ctx, 0)?;
     {
+        info!("Alice decryption: {:?}", alice_decryption);
+        info!("Bob decryption: {:?}", bob_decryption);
         assert_eq!(1, alice_decryption.len());
         assert_eq!(1, bob_decryption.len());
     }
+
+
+    // Now, Alice should be the dealer.
+    // So, she can send a bet event and we expect the bet amount of Alice to be updated to 500.
+    let event = alice.create_custom_event(GameEvent::Bet(500));
+    handler.handle_event(&mut ctx, &event)?;
+    {
+        let state = handler.get_state();
+        assert_eq!(Some(&500), state.bets.get("Alice"));
+    }
+
+    // Bob call this.
+    // let event = bob.create_custom_event(GameEvent::Call);
+    // handler.handle_event(&mut ctx, &event)?;
+    // {
+    //     let state = handler.get_state();
+    //     assert_eq!(Some(&500), state.bets.get("Bob"));
+    // }
 
     Ok(())
 }
