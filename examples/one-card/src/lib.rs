@@ -9,7 +9,7 @@ use race_core::{
     error::{Error, Result},
     event::{CustomEvent, Event},
     random::deck_of_cards,
-    types::GameAccount,
+    types::{GameAccount, PlayerStatus, Settle},
 };
 use race_proc_macro::game_handler;
 use serde::{Deserialize, Serialize};
@@ -26,23 +26,31 @@ impl CustomEvent for GameEvent {}
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct OneCardGameAccountData {}
 
+#[derive(Default, Serialize, Deserialize)]
+pub enum GameStage {
+    #[default]
+    Dealing,
+    Revealing,
+}
+
 #[game_handler]
 #[derive(Default, Serialize, Deserialize)]
 pub struct OneCard {
     pub deck_random_id: usize,
 
     // Current dealer position
-    pub dealer: usize,
+    pub dealer_idx: usize,
 
     // Real-time chips
     pub chips: HashMap<String, u64>,
+
+    pub stage: GameStage,
 
     // Bet amount
     pub bet: u64,
 }
 
 impl OneCard {
-
     fn custom_handle_event(
         &mut self,
         context: &mut GameContext,
@@ -58,6 +66,7 @@ impl OneCard {
             }
             GameEvent::Call => {
                 context.reveal(self.deck_random_id, vec![0, 1])?;
+                self.stage = GameStage::Revealing;
             }
             GameEvent::Fold => {}
         }
@@ -66,17 +75,32 @@ impl OneCard {
     }
 }
 
+// A simple function used to compare cards
+fn is_better_than(card_a: &str, card_b: &str) -> bool {
+    let ranking = vec![
+        '2', '3', '4', '5', '6', '7', '8', '9', 't', 'j', 'q', 'k', 'a',
+    ];
+    let rank_a = ranking
+        .iter()
+        .rposition(|r| r.eq(&card_a.chars().nth_back(0).unwrap()));
+    let rank_b = ranking
+        .iter()
+        .rposition(|r| r.eq(&card_b.chars().nth_back(0).unwrap()));
+    rank_a > rank_b
+}
+
 impl GameHandler for OneCard {
     fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
         Ok(Self {
             deck_random_id: 0,
-            dealer: 0,
+            dealer_idx: 0,
             chips: context
                 .get_players()
                 .iter()
                 .map(|p| (p.addr.to_owned(), p.balance))
                 .collect(),
             bet: 0,
+            stage: GameStage::Dealing,
         })
     }
 
@@ -93,34 +117,9 @@ impl GameHandler for OneCard {
             Event::GameStart => {
                 let rnd_spec = deck_of_cards();
                 self.deck_random_id = context.init_random_state(&rnd_spec);
+                self.stage = GameStage::Dealing;
             }
 
-            // Wait player join to start.  We don't need to handle
-            // this event in this game.  The start will be triggered
-            // by PlayerJoined event.
-            Event::WaitTimeout => {}
-
-            // Player send ready.
-            Event::Ready { sender } => {}
-
-            Event::ShareSecrets {
-                sender: _,
-                secrets: _,
-            } => {}
-
-            Event::Mask {
-                sender,
-                random_id,
-                ciphertexts,
-            } => {}
-
-            Event::Lock {
-                sender,
-                random_id,
-                ciphertexts_and_digests: ciphertexts_and_tests,
-            } => {}
-
-            // Deal player cards, each player will get one card.
             Event::RandomnessReady => {
                 let addr0 = context.get_player_by_index(0).unwrap().addr.clone();
                 let addr1 = context.get_player_by_index(1).unwrap().addr.clone();
@@ -132,7 +131,7 @@ impl GameHandler for OneCard {
             Event::Join {
                 player_addr,
                 balance,
-                position: _
+                position: _,
             } => {
                 if context.get_players().len() == 2 {
                     context.set_game_status(GameStatus::Initializing);
@@ -141,15 +140,46 @@ impl GameHandler for OneCard {
                 self.chips.insert(player_addr.to_owned(), balance);
             }
 
-            Event::Leave { player_addr } => {}
-            Event::DrawRandomItems {
-                sender,
-                random_id,
-                indexes,
-            } => {}
-            Event::DrawTimeout => {}
-            Event::ActionTimeout { player_addr } => {}
-            Event::SecretsReady => {}
+            Event::SecretsReady => match self.stage {
+                GameStage::Dealing => {
+                }
+                GameStage::Revealing => {
+                    let decryption = context.get_revealed(self.deck_random_id)?;
+                    let player_idx: usize = if self.dealer_idx == 0 { 1 } else { 0 };
+                    let dealer_addr = context
+                        .get_player_by_index(self.dealer_idx)
+                        .unwrap()
+                        .addr
+                        .clone();
+                    let player_addr = context
+                        .get_player_by_index(player_idx)
+                        .unwrap()
+                        .addr
+                        .clone();
+                    let dealer_card = decryption.get(&self.dealer_idx).unwrap();
+                    let player_card = decryption.get(&player_idx).unwrap();
+                    let (winner, loser) = if is_better_than(dealer_card, player_card) {
+                        (dealer_addr, player_addr)
+                    } else {
+                        (player_addr, dealer_addr)
+                    };
+                    context.settle(vec![
+                        Settle::new(
+                            winner,
+                            PlayerStatus::Normal,
+                            race_core::types::AssetChange::Add,
+                            self.bet,
+                        ),
+                        Settle::new(
+                            loser,
+                            PlayerStatus::Normal,
+                            race_core::types::AssetChange::Sub,
+                            self.bet,
+                        ),
+                    ]);
+                }
+            },
+            _ => ()
         }
 
         Ok(())

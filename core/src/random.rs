@@ -221,6 +221,7 @@ pub struct RandomState {
     pub masks: Vec<Mask>,
     pub ciphertexts: Vec<LockedCiphertext>,
     pub secret_shares: Vec<SecretShare>,
+    pub revealed: HashMap<usize, String>,
 }
 
 impl RandomState {
@@ -262,6 +263,7 @@ impl RandomState {
             options: options.clone(),
             status: RandomStatus::Masking(owners.first().unwrap().to_owned()),
             ciphertexts,
+            revealed: HashMap::new(),
             secret_shares: Vec::new(),
         }
     }
@@ -464,6 +466,20 @@ impl RandomState {
             .collect()
     }
 
+    pub fn list_revealed_ciphertexts(&self) -> HashMap<usize, Ciphertext> {
+        self.ciphertexts
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| {
+                if c.owner == CipherOwner::Revealed {
+                    Some((i, c.ciphertext.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     /// List shared secrets by receiver address.
     /// Return a mapping from item index to list of secrets(each is in HEX format).
     /// Return [[Error::SecretsNotReady]] in case of any missing secret.
@@ -484,6 +500,20 @@ impl RandomState {
                     .or_insert_with(|| vec![ss.secret.as_ref().unwrap().clone()]);
                 acc
             }))
+    }
+
+    pub fn add_revealed(&mut self, revealed: HashMap<usize, String>) -> Result<()> {
+        for (index, value) in revealed.into_iter() {
+            if index >= self.size {
+                return Err(Error::InvalidIndex);
+            }
+            self.revealed.insert(index, value);
+        }
+        Ok(())
+    }
+
+    pub fn get_revealed(&self) -> &HashMap<usize, String> {
+        &self.revealed
     }
 
     pub fn add_secret(

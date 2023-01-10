@@ -7,7 +7,7 @@ use race_core::{
     random::RandomStatus,
     types::ClientMode,
 };
-use race_example_one_card::{OneCard, OneCardGameAccountData, GameEvent};
+use race_example_one_card::{GameEvent, OneCard, OneCardGameAccountData};
 use race_test::{TestClient, TestGameAccountBuilder, TestHandler, TestPlayerClient};
 
 #[macro_use]
@@ -15,7 +15,6 @@ extern crate log;
 
 #[test]
 fn test() -> Result<()> {
-
     env_logger::builder().is_test(true).try_init().unwrap();
 
     // Initialize the game account, with 1 player joined.
@@ -42,7 +41,7 @@ fn test() -> Result<()> {
     {
         assert_eq!(1, ctx.get_players().len());
         let state: &OneCard = handler.get_state();
-        assert_eq!(0, state.dealer);
+        assert_eq!(0, state.dealer_idx);
         assert_eq!(HashMap::from([("Alice".into(), 10000)]), state.chips);
         assert_eq!(0, state.bet);
     }
@@ -152,7 +151,10 @@ fn test() -> Result<()> {
     // Expect the random status to be changed to ready.
     handler.handle_event(&mut ctx, &events[0])?;
     {
-        assert_eq!(RandomStatus::Ready, ctx.get_random_state_unchecked(0).status);
+        assert_eq!(
+            RandomStatus::Ready,
+            ctx.get_random_state_unchecked(0).status
+        );
         let random_state = ctx.get_random_state_unchecked(0);
         assert_eq!(1, random_state.list_shared_secrets("Alice").unwrap().len());
         assert_eq!(1, random_state.list_shared_secrets("Bob").unwrap().len());
@@ -167,7 +169,6 @@ fn test() -> Result<()> {
         assert_eq!(1, alice_decryption.len());
         assert_eq!(1, bob_decryption.len());
     }
-
 
     // Now, Alice should be the dealer.
     // So, she can send a bet event and we expect the bet amount of Alice to be updated to 500.
@@ -184,7 +185,68 @@ fn test() -> Result<()> {
     handler.handle_event(&mut ctx, &event)?;
     {
         let random_state = ctx.get_random_state_unchecked(0);
-        assert_eq!(2, random_state.list_required_secrets_by_from_addr(&transactor_addr).len());
+        assert_eq!(
+            2,
+            random_state
+                .list_required_secrets_by_from_addr(&transactor_addr)
+                .len()
+        );
+    }
+
+    // Let the client handle this update.
+    // We expect two secrets to be shared.
+    let events = client.handle_updated_context(&ctx)?;
+    {
+        let event = &events[0];
+        info!(
+            "Required ident: {:?}",
+            ctx.get_random_state_unchecked(0)
+                .list_required_secrets_by_from_addr(&transactor_addr)
+        );
+        assert_eq!(
+            2,
+            ctx.get_random_state_unchecked(0)
+                .list_required_secrets_by_from_addr(&transactor_addr)
+                .len()
+        );
+        assert!(
+            matches!(event, Event::ShareSecrets { sender, secrets } if sender.eq(&transactor_addr) && secrets.len() == 2)
+        );
+    }
+
+    // Handle `ShareSecret` event.
+    info!("Handle ShareSecret event.");
+    handler.handle_event(&mut ctx, &events[0])?;
+    {
+        info!(
+            "Required ident: {:?}",
+            ctx.get_random_state_unchecked(0)
+                .list_required_secrets_by_from_addr(&transactor_addr)
+        );
+        assert_eq!(
+            0,
+            ctx.get_random_state_unchecked(0)
+                .list_required_secrets_by_from_addr(&transactor_addr)
+                .len()
+        );
+        assert_eq!(
+            Some(DispatchEvent::new(Event::SecretsReady, 0)),
+            *ctx.get_dispatch()
+        );
+    }
+
+    // Now, the transactor should be able to reveal all hole cards.
+    let decryption = client.decrypt(&ctx, 0)?;
+    info!("Decryption: {:?}", decryption);
+    assert_eq!(2, decryption.len());
+    ctx.add_revealed(0, decryption)?;
+
+    // Now send `SecretReady` to handler.
+    handler.handle_dispatch_event(&mut ctx)?;
+    {
+        assert!(matches!(ctx.get_settles(),
+                         Some(settles) if settles.len() == 2
+        ));
     }
 
     Ok(())

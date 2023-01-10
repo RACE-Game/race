@@ -5,7 +5,7 @@ use race_core::{
     error::{Error, Result},
     event::{CustomEvent, Event, SecretIdent},
     random::{RandomMode, RandomStatus},
-    types::{ClientMode, GameAccount, SecretKey},
+    types::{Ciphertext, ClientMode, GameAccount, SecretKey},
 };
 use race_crypto::SecretState;
 use rand::seq::SliceRandom;
@@ -18,6 +18,27 @@ pub struct TestClient {
     pub transactor_addr: String,
     pub server_addr: String,
     pub secret_states: Vec<SecretState>,
+}
+
+fn decrypt_with_secrets(
+    ciphertext_map: HashMap<usize, Ciphertext>,
+    mut secret_map: HashMap<usize, Vec<SecretKey>>,
+    options: &Vec<String>,
+) -> Result<HashMap<usize, String>> {
+    let mut ret = HashMap::new();
+    for (i, mut buf) in ciphertext_map.into_iter() {
+        if let Some(secrets) = secret_map.remove(&i) {
+            race_crypto::apply_multi(secrets, &mut buf);
+            let value = String::from_utf8(buf).or(Err(Error::DecryptionFailed))?;
+            if !options.contains(&value) {
+                return Err(Error::InvalidDecryptedValue(value))?;
+            }
+            ret.insert(i, value);
+        } else {
+            return Err(Error::MissingSecret);
+        }
+    }
+    Ok(ret)
 }
 
 impl TestClient {
@@ -150,6 +171,25 @@ impl TestClient {
 
         Ok(events)
     }
+
+    /// Decrypt the ciphertexts with shared secrets.
+    /// Return a mapping from mapping from indexes to decrypted value.
+    pub fn decrypt(
+        &mut self,
+        ctx: &GameContext,
+        random_id: usize,
+    ) -> Result<HashMap<usize, String>> {
+        let random_state = ctx.get_random_state(random_id)?;
+        let options = &random_state.options;
+
+        let revealed = decrypt_with_secrets(
+            random_state.list_revealed_ciphertexts(),
+            random_state.list_revealed_secrets()?,
+            options,
+        )?;
+
+        Ok(revealed)
+    }
 }
 
 pub struct TestPlayerClient {
@@ -173,20 +213,22 @@ impl TestPlayerClient {
         let mut ret = HashMap::new();
         let random_state = ctx.get_random_state(random_id)?;
         let options = &random_state.options;
-        let assigned_ciphertexts = random_state.list_assigned_ciphertexts(&self.player_addr);
-        let mut shared_secrets = random_state.list_shared_secrets(&self.player_addr)?;
-        for (i, mut buf) in assigned_ciphertexts.into_iter() {
-            if let Some(secrets) = shared_secrets.remove(&i) {
-                race_crypto::apply_multi(secrets, &mut buf);
-                let value = String::from_utf8(buf).or(Err(Error::DecryptionFailed))?;
-                if !options.contains(&value) {
-                    return Err(Error::InvalidDecryptedValue(value))?;
-                }
-                ret.insert(i, value);
-            } else {
-                return Err(Error::MissingSecret);
-            }
-        }
+
+        let assigned = decrypt_with_secrets(
+            random_state.list_assigned_ciphertexts(&self.player_addr),
+            random_state.list_shared_secrets(&self.player_addr)?,
+            options,
+        )?;
+
+        let revealed = decrypt_with_secrets(
+            random_state.list_revealed_ciphertexts(),
+            random_state.list_revealed_secrets()?,
+            options,
+        )?;
+
+        ret.extend(assigned);
+        ret.extend(revealed);
+
         Ok(ret)
     }
 

@@ -320,7 +320,6 @@ mod tests {
         let random = deck_of_cards();
         let random_state = RandomState::new(0, &random, &["Foo".into(), "Bar".into()]);
         let secret_state = SecretState::from_random_state(&random_state, RandomMode::Shuffler);
-        random_state.assign("Alice", vec![0, 1]);
 
         // Realize first 6 items
 

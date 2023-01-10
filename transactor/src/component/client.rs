@@ -218,7 +218,7 @@ async fn randomize_and_share(
 async fn decrypt(client_context: &mut ClientContext, game_context: &GameContext) -> Result<()> {
     for random_state in game_context.list_random_states().iter() {
         if random_state.status == RandomStatus::Ready {
-            let secrets = random_state.list_revealed_esecrets()?;
+            let secrets = random_state.list_revealed_secrets()?;
             for (index, secrets) in secrets {
                 let mut ciphertext = random_state
                     .get_ciphertext(index)

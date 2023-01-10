@@ -405,4 +405,24 @@ impl GameContext {
     pub fn settle(&mut self, settles: Vec<Settle>) {
         self.settles = Some(settles);
     }
+
+    pub fn get_settles(&self) -> &Option<Vec<Settle>> {
+        &self.settles
+    }
+
+    pub fn add_revealed(
+        &mut self,
+        random_id: usize,
+        revealed: HashMap<usize, String>,
+    ) -> Result<()> {
+        let rnd_st = self.get_random_state_mut(random_id)?;
+        rnd_st
+            .add_revealed(revealed)
+            .or(Err(Error::InvalidDecryptedValue("Invalid index".into())))
+    }
+
+    pub fn get_revealed(&self, random_id: usize) -> Result<&HashMap<usize, String>> {
+        let rnd_st = self.get_random_state(random_id)?;
+        Ok(&rnd_st.revealed)
+    }
 }
