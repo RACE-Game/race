@@ -1,120 +1,187 @@
+//! A minimal game to demonstrate how the protocol works.
+
+use std::collections::HashMap;
+
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::context::GameContext;
-use race_core::engine::GameHandler;
-use race_core::error::{Error, Result};
-use race_core::event::CustomEvent;
-use race_core::event::Event;
-use race_core::types::GameAccount;
+use race_core::{
+    context::{GameContext, GameStatus},
+    engine::GameHandler,
+    error::{Error, Result},
+    event::{CustomEvent, Event},
+    random::deck_of_cards,
+    types::{GameAccount, PlayerStatus, Settle},
+};
 use race_proc_macro::game_handler;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub enum GameEvent {
-    Increase(u64),
-    Dispatch,
+    Bet(u64),
+    Call,
+    Fold,
 }
 
 impl CustomEvent for GameEvent {}
 
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct MinimalAccountData {}
+
+#[derive(Default, Serialize, Deserialize)]
+pub enum GameStage {
+    #[default]
+    Dealing,
+    Revealing,
+}
+
 #[game_handler]
-#[derive(Default, Deserialize, Serialize)]
-pub struct Minimal {
-    counter_value: u64,
-    counter_players: u64,
+#[derive(Default, Serialize, Deserialize)]
+pub struct MinimalHandler {
+    pub deck_random_id: usize,
+
+    // Current dealer position
+    pub dealer_idx: usize,
+
+    // Real-time chips
+    pub chips: HashMap<String, u64>,
+
+    pub stage: GameStage,
+
+    // Bet amount
+    pub bet: u64,
 }
 
-#[derive(Default, BorshSerialize, BorshDeserialize)]
-pub struct MinimalAccountData {
-    pub counter_value_default: u64,
-}
-
-impl Minimal {
-    fn handle_custom_event(&mut self, context: &mut GameContext, event: GameEvent) -> Result<()> {
+impl MinimalHandler {
+    fn custom_handle_event(
+        &mut self,
+        context: &mut GameContext,
+        _sender: String,
+        event: GameEvent,
+    ) -> Result<()> {
         match event {
-            GameEvent::Increase(n) => {
-                self.counter_value += n;
+            GameEvent::Bet(amount) => {
+                if self.chips.values().any(|c| *c < amount) {
+                    return Err(Error::InvalidAmount);
+                }
+                self.bet = amount;
             }
-            GameEvent::Dispatch => {
-                context.dispatch_custom(&GameEvent::Increase(1), 0);
+            GameEvent::Call => {
+                context.reveal(self.deck_random_id, vec![0, 1])?;
+                self.stage = GameStage::Revealing;
             }
+            GameEvent::Fold => {}
         }
+
         Ok(())
     }
 }
 
-impl GameHandler for Minimal {
-    fn init_state(_context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
-        let data = init_account.data;
-        let account_data =
-            MinimalAccountData::try_from_slice(&data).or(Err(Error::DeserializeError))?;
+// A simple function used to compare cards
+fn is_better_than(card_a: &str, card_b: &str) -> bool {
+    let ranking = vec![
+        '2', '3', '4', '5', '6', '7', '8', '9', 't', 'j', 'q', 'k', 'a',
+    ];
+    let rank_a = ranking
+        .iter()
+        .rposition(|r| r.eq(&card_a.chars().nth_back(0).unwrap()));
+    let rank_b = ranking
+        .iter()
+        .rposition(|r| r.eq(&card_b.chars().nth_back(0).unwrap()));
+    rank_a > rank_b
+}
+
+impl GameHandler for MinimalHandler {
+    fn init_state(context: &mut GameContext, _init_account: GameAccount) -> Result<Self> {
         Ok(Self {
-            counter_value: account_data.counter_value_default,
-            counter_players: init_account.players.len() as _,
+            deck_random_id: 0,
+            dealer_idx: 0,
+            chips: context
+                .get_players()
+                .iter()
+                .map(|p| (p.addr.to_owned(), p.balance))
+                .collect(),
+            bet: 0,
+            stage: GameStage::Dealing,
         })
     }
 
     fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
         match event {
-            Event::Custom { sender: _, ref raw } => {
-                self.handle_custom_event(context, serde_json::from_str(raw).unwrap())
+            // Custom events are the events we defined for this game epecifically
+            // See [[GameEvent]].
+            Event::Custom { sender, raw } => {
+                let event = serde_json::from_str(&raw).unwrap();
+                self.custom_handle_event(context, sender, event)?;
             }
+
+            // Reset current game state.  Set up randomness
+            Event::GameStart => {
+                let rnd_spec = deck_of_cards();
+                self.deck_random_id = context.init_random_state(&rnd_spec);
+                self.stage = GameStage::Dealing;
+            }
+
+            Event::RandomnessReady => {
+                let addr0 = context.get_player_by_index(0).unwrap().addr.clone();
+                let addr1 = context.get_player_by_index(1).unwrap().addr.clone();
+                context.assign(self.deck_random_id, addr0, vec![0])?;
+                context.assign(self.deck_random_id, addr1, vec![1])?;
+            }
+
+            // Start game when there are two players.
             Event::Join {
-                player_addr: _,
-                balance: _,
+                player_addr,
+                balance,
                 position: _,
             } => {
-                self.counter_players += 1;
-                Ok(())
+                if context.get_players().len() == 2 {
+                    context.set_game_status(GameStatus::Initializing);
+                    context.dispatch(Event::GameStart, 0);
+                }
+                self.chips.insert(player_addr.to_owned(), balance);
             }
-            Event::Leave { player_addr: _ } => {
-                self.counter_players -= 1;
-                Ok(())
-            }
-            _ => Ok(()),
+
+            Event::SecretsReady => match self.stage {
+                GameStage::Dealing => {
+                }
+                GameStage::Revealing => {
+                    let decryption = context.get_revealed(self.deck_random_id)?;
+                    let player_idx: usize = if self.dealer_idx == 0 { 1 } else { 0 };
+                    let dealer_addr = context
+                        .get_player_by_index(self.dealer_idx)
+                        .unwrap()
+                        .addr
+                        .clone();
+                    let player_addr = context
+                        .get_player_by_index(player_idx)
+                        .unwrap()
+                        .addr
+                        .clone();
+                    let dealer_card = decryption.get(&self.dealer_idx).unwrap();
+                    let player_card = decryption.get(&player_idx).unwrap();
+                    let (winner, loser) = if is_better_than(dealer_card, player_card) {
+                        (dealer_addr, player_addr)
+                    } else {
+                        (player_addr, dealer_addr)
+                    };
+                    context.settle(vec![
+                        Settle::new(
+                            winner,
+                            PlayerStatus::Normal,
+                            race_core::types::AssetChange::Add,
+                            self.bet,
+                        ),
+                        Settle::new(
+                            loser,
+                            PlayerStatus::Normal,
+                            race_core::types::AssetChange::Sub,
+                            self.bet,
+                        ),
+                    ]);
+                }
+            },
+            _ => ()
         }
-    }
-}
 
-#[cfg(test)]
-mod tests {
-    use race_core::context::DispatchEvent;
-
-    use super::*;
-
-    #[test]
-    fn test_player_join() {
-        let mut ctx = GameContext::default();
-        let evt = Event::Join {
-            player_addr: "Alice".into(),
-            balance: 1000,
-            position: 0,
-        };
-        let mut hdlr = Minimal::default();
-        hdlr.handle_event(&mut ctx, evt).unwrap();
-        assert_eq!(1, hdlr.counter_players);
-    }
-
-    #[test]
-    fn test_dispatch() {
-        let mut ctx = GameContext::default();
-        let evt = Event::custom(ctx.get_transactor_addr().to_owned(), &GameEvent::Dispatch);
-        let mut hdlr = Minimal::default();
-        hdlr.handle_event(&mut ctx, evt).unwrap();
-        assert_eq!(
-            Some(DispatchEvent::new(
-                Event::custom(ctx.get_transactor_addr().to_owned(), &GameEvent::Increase(1)),
-                0
-            )),
-            *ctx.get_dispatch()
-        );
-    }
-
-    #[test]
-    fn test_increase() {
-        let mut ctx = GameContext::default();
-        let evt = Event::custom(ctx.get_transactor_addr().to_owned(), &GameEvent::Increase(1));
-        let mut hdlr = Minimal::default();
-        hdlr.handle_event(&mut ctx, evt).unwrap();
-        assert_eq!(1, hdlr.counter_value);
+        Ok(())
     }
 }

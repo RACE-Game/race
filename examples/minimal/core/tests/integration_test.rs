@@ -7,7 +7,7 @@ use race_core::{
     random::RandomStatus,
     types::ClientMode,
 };
-use race_example_one_card::{GameEvent, OneCard, OneCardGameAccountData};
+use race_example_minimal::{MinimalHandler, GameEvent};
 use race_test::{TestClient, TestGameAccountBuilder, TestHandler, TestPlayerClient};
 
 #[macro_use]
@@ -40,7 +40,7 @@ fn test() -> Result<()> {
 
     {
         assert_eq!(1, ctx.get_players().len());
-        let state: &OneCard = handler.get_state();
+        let state: &MinimalHandler = handler.get_state();
         assert_eq!(0, state.dealer_idx);
         assert_eq!(HashMap::from([("Alice".into(), 10000)]), state.chips);
         assert_eq!(0, state.bet);
@@ -56,7 +56,7 @@ fn test() -> Result<()> {
     handler.handle_event(&mut ctx, &join_event)?;
 
     {
-        let state: &OneCard = handler.get_state();
+        let state: &MinimalHandler = handler.get_state();
         assert_eq!(2, ctx.get_players().len());
         assert_eq!(
             Some(DispatchEvent::new(Event::GameStart, 0)),
@@ -73,7 +73,7 @@ fn test() -> Result<()> {
     // By handling this event, a random deck of cards should be created.
     handler.handle_dispatch_event(&mut ctx)?;
     {
-        let state: &OneCard = handler.get_state();
+        let state: &MinimalHandler = handler.get_state();
         assert_eq!(0, state.deck_random_id);
         assert_eq!(
             RandomStatus::Masking(transactor_addr.clone()),

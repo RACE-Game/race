@@ -25,13 +25,6 @@ pub struct SubscribeEventParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct JoinParams {
-    pub player_addr: String,
-    pub game_addr: String,
-    pub amount: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SendEventParams {
     pub addr: String,
     pub event: Event,

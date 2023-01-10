@@ -3368,7 +3368,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "race-example-minimal"
+name = "race-example-counter"
 version = "0.1.0"
 dependencies = [
  "borsh",
@@ -3379,7 +3379,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "race-example-one-card"
+name = "race-example-minimal"
 version = "0.1.0"
 dependencies = [
  "borsh",

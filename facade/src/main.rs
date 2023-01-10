@@ -4,8 +4,8 @@ use jsonrpsee::{core::Error, RpcModule};
 use race_core::types::{
     CreateGameAccountParams, CreateRegistrationParams, GameAccount, GameBundle, GameRegistration,
     GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams, GetTransactorInfoParams,
-    JoinParams, Player, RegisterGameParams, RegisterTransactorParams, RegistrationAccount,
-    ServeParams, TransactorAccount, UnregisterGameParams,
+    JoinParams, PlayerDeposit, PlayerJoin, RegisterGameParams, RegisterTransactorParams,
+    RegistrationAccount, ServeParams, TransactorAccount, UnregisterGameParams,
 };
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -97,14 +97,10 @@ async fn create_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result
     let account = GameAccount {
         addr: addr.clone(),
         bundle_addr,
-        transactor_addr: None,
-        server_addrs: vec![],
-        settle_version: 0,
-        access_version: 0,
-        players: vec![],
         data_len: data.len() as u32,
         data,
         max_players,
+        ..Default::default()
     };
     context.accounts.insert(addr.clone(), account);
     Ok(addr)
@@ -129,22 +125,31 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
     let JoinParams {
         player_addr,
         game_addr,
+        position,
         amount,
+        access_version,
     } = params.one()?;
     println!(
         "Join game: player: {:?}, game: {:?}, amount: {:?}",
         player_addr, game_addr, amount
     );
     let mut context = context.lock().await;
-    let p = Player {
+    let player_join = PlayerJoin {
+        addr: player_addr.clone(),
+        position,
+        access_version,
+    };
+    let player_deposit = PlayerDeposit {
         addr: player_addr,
-        balance: amount,
+        amount,
+        access_version,
     };
     if let Some(game_account) = context.accounts.get_mut(&game_addr) {
         if game_account.players.len() >= game_account.max_players as _ {
             Err(Error::Custom("Game is full".into()))
         } else {
-            game_account.players.push(p);
+            game_account.players.push(player_join);
+            game_account.deposits.push(player_deposit);
             Ok(())
         }
     } else {

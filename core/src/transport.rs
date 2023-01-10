@@ -2,9 +2,9 @@ use crate::{
     error::Result,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
-        GameBundle, GetRegistrationParams, JoinParams, PlayerProfile, RegisterGameParams,
+        GameBundle, GetRegistrationParams, PlayerProfile, RegisterGameParams,
         RegisterTransactorParams, RegistrationAccount, SettleParams, TransactorAccount,
-        UnregisterGameParams,
+        UnregisterGameParams, JoinParams,
     },
 };
 use async_trait::async_trait;

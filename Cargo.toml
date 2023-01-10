@@ -11,8 +11,8 @@ members = [
   "env",
   "client",
   "test",
+  "examples/counter/core",
   "examples/minimal/core",
-  "examples/one-card",
   "examples/holdem",
 
 ]

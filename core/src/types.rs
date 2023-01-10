@@ -3,7 +3,10 @@ mod common;
 mod transactor_params;
 mod transport_params;
 
-pub use common::{empty_secret_key_raw, empty_secret_key, Ciphertext, ClientMode, SecretDigest, SecretKey, SecretKeyRaw};
+pub use common::{
+    empty_secret_key, empty_secret_key_raw, Ciphertext, ClientMode, SecretDigest, SecretKey,
+    SecretKeyRaw,
+};
 
 pub use accounts::{
     GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin, PlayerProfile,
@@ -13,11 +16,10 @@ pub use accounts::{
 pub use transport_params::{
     AssetChange, CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams,
     GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams, GetTransactorInfoParams,
-    PlayerStatus, RegisterGameParams, RegisterTransactorParams, ServeParams, Settle, SettleParams,
-    UnregisterGameParams,
+    JoinParams, PlayerStatus, RegisterGameParams, RegisterTransactorParams, ServeParams, Settle,
+    SettleParams, UnregisterGameParams,
 };
 
 pub use transactor_params::{
-    AttachGameParams, GetContextParams, GetStateParams, JoinParams, SendEventParams,
-    SubscribeEventParams,
+    AttachGameParams, GetContextParams, GetStateParams, SendEventParams, SubscribeEventParams,
 };

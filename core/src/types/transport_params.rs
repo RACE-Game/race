@@ -115,3 +115,12 @@ pub struct SettleParams {
     pub addr: String,
     pub settles: Vec<Settle>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JoinParams {
+    pub player_addr: String,
+    pub game_addr: String,
+    pub amount: u64,
+    pub access_version: u64,
+    pub position: usize,
+}
