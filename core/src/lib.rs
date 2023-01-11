@@ -10,3 +10,5 @@ pub mod event;
 pub mod random;
 pub mod transport;
 pub mod types;
+pub mod crypto;
+pub mod client;

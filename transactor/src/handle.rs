@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::component::{
-    Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedHandler, WrappedTransport, Client,
+    Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedHandler, WrappedTransport, WrappedClient,
 };
 use race_core::context::GameContext;
 use race_core::error::{Error, Result};
@@ -15,7 +15,7 @@ pub struct Handle {
     pub submitter: Submitter,
     pub synchronizer: GameSynchronizer,
     pub broadcaster: Broadcaster,
-    pub client: Client,
+    pub client: WrappedClient,
     pub event_loop: EventLoop,
 }
 
@@ -47,7 +47,7 @@ impl Handle {
         let synchronizer = GameSynchronizer::new(transport.clone(), game_account.clone());
         let broadcaster = Broadcaster::new(&game_account);
         let event_loop = EventLoop::new(handler, game_context);
-        let client = Client::new(account, &game_account, transport.clone());
+        let client = WrappedClient::new(account, &game_account, transport.clone());
 
         Ok(Self {
             addr: addr.into(),

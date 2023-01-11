@@ -164,7 +164,7 @@ mod tests {
 
     fn make_wrapped_handler() -> WrappedHandler {
         WrappedHandler::load_by_path(
-            "../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into(),
+            "../target/wasm32-unknown-unknown/release/race_example_counter.wasm".into(),
         )
         .unwrap()
     }

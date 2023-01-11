@@ -3320,7 +3320,24 @@ dependencies = [
  "getrandom 0.2.8",
  "js-sys",
  "race-core",
- "race-crypto",
+ "race-transport",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "race-client-wasm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "getrandom 0.2.8",
+ "js-sys",
+ "race-core",
  "race-transport",
  "serde",
  "serde_json",
@@ -3334,28 +3351,20 @@ dependencies = [
 name = "race-core"
 version = "0.1.0"
 dependencies = [
+ "arrayref",
  "async-trait",
  "borsh",
  "bytes",
- "log",
- "serde",
- "serde_json",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "race-crypto"
-version = "0.1.0"
-dependencies = [
- "arrayref",
  "chacha20",
  "hex",
- "race-core",
+ "log",
  "rand 0.8.5",
  "rsa",
+ "serde",
+ "serde_json",
  "sha1",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -3431,7 +3440,6 @@ dependencies = [
  "async-trait",
  "borsh",
  "race-core",
- "race-crypto",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -3451,7 +3459,6 @@ dependencies = [
  "jsonrpsee",
  "log",
  "race-core",
- "race-crypto",
  "race-env",
  "race-test",
  "race-transport",

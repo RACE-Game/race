@@ -81,9 +81,11 @@ async fn game_info(config: Config, chain: &str, addr: &str) {
             println!("Data size: {:?}", game_account.data.len());
             println!("Players:");
             for p in game_account.players.iter() {
-                if let Some(p) = p {
-                    println!("{:?} {:?}", p.addr, p.balance);
-                }
+                println!("Player[{:?}] position: {:?}", p.addr, p.position);
+            }
+            println!("Deposits:");
+            for d in game_account.deposits.iter() {
+                println!("Deposit: from[{:?}], amount: {:?}", d.addr, d.amount);
             }
         }
         None => {

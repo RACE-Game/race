@@ -1,60 +1,41 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
-use race_core::{
-    client::Client,
-    context::GameContext,
-    crypto::SecretState,
-    error::{Error, Result},
-    event::{CustomEvent, Event, SecretIdent},
-    random::{RandomMode, RandomStatus},
-    types::{Ciphertext, ClientMode, GameAccount, SecretKey},
-};
 use rand::seq::SliceRandom;
 
-use crate::TEST_TRANSACTOR_ACCOUNT_ADDR;
+use crate::{
+    context::GameContext,
+    crypto::{apply_multi, SecretState},
+    error::{Error, Result},
+    event::{Event, SecretIdent},
+    random::{RandomMode, RandomStatus},
+    transport::TransportT,
+    types::{Ciphertext, ClientMode, SecretKey},
+};
 
-pub struct TestClient {
+pub struct Client {
+    pub transport: Arc<dyn TransportT>,
+    // The address of current node, the player address or server address.
+    pub addr: String,
+    // The client mode, could be player, validator or transactor.
+    // Only the player can send custom event.
+    // Only the transactor can send system event.
     pub mode: ClientMode,
-    pub transactor_addr: String,
-    pub server_addr: String,
+    // The state of secrets, should match the state of randomness.
     pub secret_states: Vec<SecretState>,
 }
 
-fn decrypt_with_secrets(
-    ciphertext_map: HashMap<usize, Ciphertext>,
-    mut secret_map: HashMap<usize, Vec<SecretKey>>,
-    options: &Vec<String>,
-) -> Result<HashMap<usize, String>> {
-    let mut ret = HashMap::new();
-    for (i, mut buf) in ciphertext_map.into_iter() {
-        if let Some(secrets) = secret_map.remove(&i) {
-            race_core::crypto::apply_multi(secrets, &mut buf);
-            let value = String::from_utf8(buf).or(Err(Error::DecryptionFailed))?;
-            if !options.contains(&value) {
-                return Err(Error::InvalidDecryptedValue(value))?;
-            }
-            ret.insert(i, value);
-        } else {
-            return Err(Error::MissingSecret);
-        }
-    }
-    Ok(ret)
-}
-
-impl TestClient {
-    pub fn new(mode: ClientMode, init_account: &GameAccount) -> Self {
-        let transactor_addr = init_account
-            .transactor_addr
-            .as_ref()
-            .expect("Game is not served")
-            .clone();
-
-        Self {
+impl Client {
+    pub fn new(
+        addr: String,
+        mode: ClientMode,
+        transport: Arc<dyn TransportT>,
+    ) -> Result<Self> {
+        Ok(Self {
+            addr,
             mode,
-            transactor_addr,
-            server_addr: TEST_TRANSACTOR_ACCOUNT_ADDR.into(),
-            secret_states: vec![],
-        }
+            secret_states: Vec::new(),
+            transport,
+        })
     }
 
     fn update_secret_state(&mut self, game_context: &GameContext) -> Result<()> {
@@ -78,7 +59,7 @@ impl TestClient {
                 RandomStatus::WaitingSecrets => {
                     // check if our secret is required
                     let required_idents =
-                        random_state.list_required_secrets_by_from_addr(&self.server_addr);
+                        random_state.list_required_secrets_by_from_addr(&self.addr);
 
                     let shares = required_idents
                         .into_iter()
@@ -92,14 +73,14 @@ impl TestClient {
                         })
                         .collect::<Result<HashMap<SecretIdent, SecretKey>>>()?;
                     let event = Event::ShareSecrets {
-                        sender: self.server_addr.clone(),
+                        sender: self.addr.clone(),
                         secrets: shares,
                     };
                     events.push(event);
                 }
                 RandomStatus::Locking(ref addr) => {
                     // check if our operation is being requested
-                    if self.server_addr.eq(addr) {
+                    if self.addr.eq(addr) {
                         let secret_state = self
                             .secret_states
                             .get_mut(random_state.id)
@@ -120,7 +101,7 @@ impl TestClient {
                             .map_err(|e| Error::RandomizationError(e.to_string()))?;
 
                         let event = Event::Lock {
-                            sender: self.server_addr.clone(),
+                            sender: self.addr.clone(),
                             random_id: random_state.id,
                             ciphertexts_and_digests: locked,
                         };
@@ -130,7 +111,7 @@ impl TestClient {
                 }
                 RandomStatus::Masking(ref addr) => {
                     // check if our operation is being requested
-                    if self.server_addr.eq(addr) {
+                    if self.addr.eq(addr) {
                         let secret_state = self
                             .secret_states
                             .get_mut(random_state.id)
@@ -150,7 +131,7 @@ impl TestClient {
                         masked.shuffle(&mut rng);
 
                         let event = Event::Mask {
-                            sender: self.server_addr.clone(),
+                            sender: self.addr.clone(),
                             random_id: random_state.id,
                             ciphertexts: masked,
                         };
@@ -165,9 +146,14 @@ impl TestClient {
     }
 
     pub fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<Vec<Event>> {
-        self.update_secret_state(ctx)?;
-        let events = self.randomize_and_share(ctx)?;
-
+        let events = match self.mode {
+            ClientMode::Player => {vec![]}
+            ClientMode::Transactor => {
+                self.update_secret_state(ctx)?;
+                self.randomize_and_share(ctx)?
+            }
+            ClientMode::Validator => todo!(),
+        };
         Ok(events)
     }
 
@@ -191,51 +177,23 @@ impl TestClient {
     }
 }
 
-pub struct TestPlayerClient {
-    player_addr: String,
-}
-
-impl TestPlayerClient {
-    pub fn new<S: Into<String>>(player_addr: S) -> Self {
-        Self {
-            player_addr: player_addr.into(),
+fn decrypt_with_secrets(
+    ciphertext_map: HashMap<usize, Ciphertext>,
+    mut secret_map: HashMap<usize, Vec<SecretKey>>,
+    options: &Vec<String>,
+) -> Result<HashMap<usize, String>> {
+    let mut ret = HashMap::new();
+    for (i, mut buf) in ciphertext_map.into_iter() {
+        if let Some(secrets) = secret_map.remove(&i) {
+            apply_multi(secrets, &mut buf);
+            let value = String::from_utf8(buf).or(Err(Error::DecryptionFailed))?;
+            if !options.contains(&value) {
+                return Err(Error::InvalidDecryptedValue(value))?;
+            }
+            ret.insert(i, value);
+        } else {
+            return Err(Error::MissingSecret);
         }
     }
-
-    /// Decrypt the ciphertexts with shared secrets.
-    /// Return a mapping from mapping from indexes to decrypted value.
-    pub fn decrypt(
-        &mut self,
-        ctx: &GameContext,
-        random_id: usize,
-    ) -> Result<HashMap<usize, String>> {
-        let mut ret = HashMap::new();
-        let random_state = ctx.get_random_state(random_id)?;
-        let options = &random_state.options;
-
-        let assigned = decrypt_with_secrets(
-            random_state.list_assigned_ciphertexts(&self.player_addr),
-            random_state.list_shared_secrets(&self.player_addr)?,
-            options,
-        )?;
-
-        let revealed = decrypt_with_secrets(
-            random_state.list_revealed_ciphertexts(),
-            random_state.list_revealed_secrets()?,
-            options,
-        )?;
-
-        ret.extend(assigned);
-        ret.extend(revealed);
-
-        Ok(ret)
-    }
-
-    /// Create a custom event, with signature.
-    pub fn create_custom_event<E: CustomEvent>(&self, custom_event: E) -> Event {
-        Event::Custom {
-            sender: self.player_addr.to_owned(),
-            raw: serde_json::to_string(&custom_event).expect("Failed to serialize custom event"),
-        }
-    }
+    Ok(ret)
 }

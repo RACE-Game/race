@@ -6,15 +6,15 @@
 
 use std::collections::HashMap;
 
-use arrayref::{array_refs, mut_array_refs, array_ref};
+use arrayref::{array_ref, array_refs, mut_array_refs};
 use chacha20::cipher::{KeyIvInit, StreamCipher};
 use chacha20::ChaCha20;
 use rsa::pkcs1::ToRsaPublicKey;
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha1::{Digest, Sha1};
 
-use race_core::random::{RandomMode, RandomSpec, RandomState};
-use race_core::types::{Ciphertext, SecretDigest, SecretKey};
+use crate::random::{RandomMode, RandomSpec, RandomState};
+use crate::types::{Ciphertext, SecretDigest, SecretKey};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -50,9 +50,9 @@ pub enum Error {
     InvalidKeyIndex,
 }
 
-impl From<Error> for race_core::error::Error {
+impl From<Error> for crate::error::Error {
     fn from(e: Error) -> Self {
-        race_core::error::Error::RandomizationError(e.to_string())
+        crate::error::Error::RandomizationError(e.to_string())
     }
 }
 
@@ -245,7 +245,7 @@ pub struct SecretContext {
 
 #[cfg(test)]
 mod tests {
-    use race_core::random::{ShuffledList, deck_of_cards};
+    use crate::random::ShuffledList;
 
     use super::*;
 
@@ -309,28 +309,5 @@ mod tests {
         let ciphertexts_and_tests = state.lock(original_ciphertexts)?;
         assert_eq!(3, ciphertexts_and_tests.len());
         Ok(())
-    }
-
-    // This test case is for simulating the real case in texas holdem
-    // With 3 players, first 6 cards are dealt as hole cards
-    // The next 5 cards are dealt as board
-    #[test]
-    fn test_poker_case() {
-        // Initialize a secret ciphers
-        let random = deck_of_cards();
-        let random_state = RandomState::new(0, &random, &["Foo".into(), "Bar".into()]);
-        let secret_state = SecretState::from_random_state(&random_state, RandomMode::Shuffler);
-
-        // Realize first 6 items
-
-        // Assign cards for players
-
-        // Realize next 3 cards as flop street
-
-        // Realize next 1 cards as turn street
-
-        // Realize next 1 cards as river street
-
-        // Reveal hole cards
     }
 }

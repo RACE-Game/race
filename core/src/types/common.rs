@@ -19,6 +19,7 @@ pub fn empty_secret_key() -> SecretKey {
 }
 
 pub enum ClientMode {
+    Player,
     Transactor,
     Validator,
 }

@@ -1,3 +1,5 @@
+//! A simple counter, countes how many players sad "Hey!".
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
 use race_core::engine::GameHandler;
@@ -11,7 +13,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub enum GameEvent {
     Increase(u64),
-    Dispatch,
 }
 
 impl CustomEvent for GameEvent {}
@@ -29,13 +30,10 @@ pub struct CounterAccountData {
 }
 
 impl Counter {
-    fn handle_custom_event(&mut self, context: &mut GameContext, event: GameEvent) -> Result<()> {
+    fn handle_custom_event(&mut self, _context: &mut GameContext, event: GameEvent) -> Result<()> {
         match event {
             GameEvent::Increase(n) => {
                 self.counter_value += n;
-            }
-            GameEvent::Dispatch => {
-                context.dispatch_custom(&GameEvent::Increase(1), 0);
             }
         }
         Ok(())
@@ -77,8 +75,6 @@ impl GameHandler for Counter {
 
 #[cfg(test)]
 mod tests {
-    use race_core::context::DispatchEvent;
-
     use super::*;
 
     #[test]
@@ -92,21 +88,6 @@ mod tests {
         let mut hdlr = Counter::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
         assert_eq!(1, hdlr.counter_players);
-    }
-
-    #[test]
-    fn test_dispatch() {
-        let mut ctx = GameContext::default();
-        let evt = Event::custom(ctx.get_transactor_addr().to_owned(), &GameEvent::Dispatch);
-        let mut hdlr = Counter::default();
-        hdlr.handle_event(&mut ctx, evt).unwrap();
-        assert_eq!(
-            Some(DispatchEvent::new(
-                Event::custom(ctx.get_transactor_addr().to_owned(), &GameEvent::Increase(1)),
-                0
-            )),
-            *ctx.get_dispatch()
-        );
     }
 
     #[test]
