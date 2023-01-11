@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use std::collections::HashMap;
 use race_core::error::{Error, Result};
 use race_core::event::{Event, CustomEvent};
 use race_core::{context::{GameContext, GameStatus as GeneralStatus}, engine::GameHandler, types::GameAccount};
@@ -234,8 +235,7 @@ impl Holdem {
     }
 
     fn next_street(&mut self) -> Street {
-        let street = self.street.clone();
-        match street {
+        match self.street {
             Street::Init => {
                 Street::Preflop
             },
@@ -255,17 +255,28 @@ impl Holdem {
         }
     }
 
+    pub fn calc_prize(&mut self) -> HashMap<String, u64> {
+        let pots = &self.pots;
+        let mut prize_map: HashMap<String, u64> = HashMap::new();
+
+        for pot in pots {
+            let cnt: u64 = pot.winners().len() as u64;
+            let prize: u64 = pot.amount() / cnt;
+            for wnr in pot.winners() {
+                prize_map.entry(wnr.clone()).and_modify(|p| *p += prize).or_insert(prize);
+            }
+        }
+        prize_map
+    }
+
     pub fn assign_winners(&mut self, winner_sets: &Vec<Vec<String>>) -> Vec<Pot> {
         let mut pots = self.pots.clone();
 
-        for pot in &mut pots {
-            let mut real_wnrs: Vec<String> = vec![];
-            for wnr_set in winner_sets {
-                real_wnrs = pot.owners().iter()
-                    .filter(|w| wnr_set.contains(w))
+        for (idx, pot) in pots.iter_mut().enumerate() {
+            let real_wnrs: Vec<String> = pot.owners().iter()
+                    .filter(|w| winner_sets[idx].contains(w))
                     .map(|w| (*w).clone())
                     .collect();
-            }
             pot.update_winners(real_wnrs);
         }
         pots

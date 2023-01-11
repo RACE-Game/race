@@ -1,3 +1,4 @@
+use borsh::BorshSerialize;
 use race_core::{
     context::{GameContext, GameStatus as GeneralStatus},
     engine::GameHandler,
@@ -7,7 +8,7 @@ use race_core::{
 };
 
 use holdem::*;
-use race_core_test::*;
+use race_test::*;
 
 fn create_holdem(ctx: &mut GameContext) -> Holdem {
 
@@ -22,7 +23,21 @@ fn create_holdem(ctx: &mut GameContext) -> Holdem {
         token: String::from("USDC1234567890"),
     };
 
-    let init_acct = game_account_with_account_data(holdem_acct);
+    let v: Vec<u8> = holdem_acct.try_to_vec().unwrap();
+
+    let init_acct = GameAccount {
+        addr: String::from("FAKE"),
+        bundle_addr: String::from("FAKE"),
+        settle_version: 0,
+        access_version: 0,
+        players: vec![],
+        deposits: vec![],
+        server_addrs: vec![],
+        transactor_addr: Some(String::from("FAKE")),
+        max_players: 8,
+        data_len: v.len() as _,
+        data: v,
+    };
 
     // init_acct (GameAccount + HoldemAccount) + GameContext = Holdem
     Holdem::init_state(ctx, init_acct).unwrap()
@@ -45,7 +60,7 @@ pub fn test_init_state() {
 #[ignore]
 pub fn test_handle_join() {
     let mut ctx = GameContext::default();
-    let event = Event::Join { player_addr: "Alice".into(), balance: 1000 };
+    let event = Event::Join { player_addr: "Alice".into(), balance: 1000, position: 3usize };
     let mut holdem = create_holdem(&mut ctx);
     holdem.handle_event(&mut ctx, event).unwrap();
     // assert_eq!(100, holdem.sb;)
@@ -53,8 +68,8 @@ pub fn test_handle_join() {
 
 #[test]
 pub fn test_fns() {
-    // Scenario One:
-    // 4 players in the flop, Bob goes all in and other three build a side pot
+    // Bob goes all in with 45 and Gentoo goes all in with 50
+    // The other two call 100 and build side pots
     let mut holdem = Holdem {
         sb: 10,
         bb: 20,
@@ -68,7 +83,7 @@ pub fn test_fns() {
         bet_map: vec![
             Bet::new("Alice", 100),
             Bet::new("Bob", 45),
-            Bet::new("Charlie", 100),
+            Bet::new("Carol", 100),
             Bet::new("Gentoo", 50),
         ],
         players: vec![
@@ -81,7 +96,7 @@ pub fn test_fns() {
                      chips: 0,
                      position: 1,
                      status: PlayerStatus::Allin },
-            Player { addr: String::from("Charlie"),
+            Player { addr: String::from("Carol"),
                      chips: 1200,
                      position: 2,
                      status: PlayerStatus::Fold },
@@ -90,25 +105,62 @@ pub fn test_fns() {
                      position: 3,
                      status: PlayerStatus::Wait },
         ],
-        act_idx: usize::from(2u8),
+        act_idx: 2usize,
         pots: vec![],
     };
 
-    // test collecting bets to each pot
+    // Test the bets collected in each pot
     let unsettled_pots = holdem.collect_bets();
-    assert_eq!(180, unsettled_pots[0].amount());
+    assert_eq!(3, unsettled_pots.len());         // passed
+    assert_eq!(180, unsettled_pots[0].amount()); // passed
+    assert_eq!(15, unsettled_pots[1].amount());  // passed
+    assert_eq!(100, unsettled_pots[2].amount()); // passed
+
+    // Test owners of each pot
+    assert_eq!(4, unsettled_pots[0].owners().len());
+    assert_eq!(
+        vec!["Alice".to_string(), "Bob".to_string(), "Carol".to_string(), "Gentoo".to_string()],
+        unsettled_pots[0].owners()
+    ); // passed
+
+    assert_eq!(3, unsettled_pots[1].owners().len());
+    assert_eq!(
+        vec!["Alice".to_string(), "Carol".to_string(), "Gentoo".to_string()],
+        unsettled_pots[1].owners()
+    ); // passed
+
+    assert_eq!(2, unsettled_pots[2].owners().len());
+    assert_eq!(
+        vec!["Alice".to_string(), "Carol".to_string()],
+        unsettled_pots[2].owners()
+    ); // passed
 
 
-    // test assigning winner(s) to each pot
+    // Test assigned winner(s) of each pot
     holdem.pots = unsettled_pots;
     let settled_pots = holdem.assign_winners(
         &vec![
             vec![String::from("Gentoo"), String::from("Bob")],
-            vec![String::from("Gentoo"), String::new()]
+            vec![String::from("Gentoo"), String::new()],
+            vec![String::from("Alice"), String::new()],
         ]);
 
-    assert_eq!(vec![String::from("Gentoo")], settled_pots[1].winners());
-    //
+    // Test num of pots and num of winners in each pot
+    assert_eq!(2, settled_pots[0].winners().len()); // passed
+    assert_eq!(1, settled_pots[1].winners().len()); // passed
+    assert_eq!(1, settled_pots[2].winners().len()); // passed
+
+    // Test winner(s) of each pot
+    assert_eq!(vec![String::from("Bob"), String::from("Gentoo")], settled_pots[0].winners()); // passed
+    assert_eq!(vec![String::from("Gentoo")], settled_pots[1].winners()); // passed
+    assert_eq!(vec![String::from("Alice") ], settled_pots[2].winners()); // passed
+
+    // Test prize map of each player
+    holdem.pots = settled_pots;
+    let prize_map = holdem.calc_prize();
+    assert_eq!(90u64, prize_map.get(&"Bob".to_string()).copied().unwrap());     // passed
+    assert_eq!(105u64, prize_map.get(&"Gentoo".to_string()).copied().unwrap()); // passed
+    assert_eq!(100u64, prize_map.get(&"Alice".to_string()).copied().unwrap());  // passed
 }
 
 #[test]
@@ -129,37 +181,4 @@ pub fn test_next_state() {
 
 #[test]
 #[ignore]
-pub fn test_player_event() {
-    // Set up the game context
-    let mut ctx = GameContext::default();
-    ctx.set_game_status(GeneralStatus::Running);
-    ctx.add_player("Alice", 10000).unwrap();
-    ctx.add_player("Bob", 10000).unwrap();
-    ctx.add_player("Charlie", 10000).unwrap();
-    ctx.add_player("Gentoo", 10000).unwrap();
-
-    // Set up the holdem game state
-    let mut holdem = create_holdem(&mut ctx);
-
-    let mut players_list: Vec<Player> = vec![]; // player list
-    let mut pos: u8 = 0;                        // player position
-    for p in ctx.players() {
-        players_list.push(
-            Player::new(p.addr.clone(), holdem.bb, pos)
-        );
-        pos += 1;
-    }
-    // holdem.init_players(players_list);
-    // holdem.set_act_idx(pos);
-
-
-    // Custom Event - fold
-    let evt = Event::custom("Gentoo", &GameEvent::Fold);
-    let can_fold = holdem.handle_event(&mut ctx, evt).unwrap();
-    assert_eq!((), can_fold);
-
-    // Custom Event - bet
-    // Custom Event - call
-    // Custom Event - check
-    // Custom Event - raise
-}
+pub fn test_player_event() {}
