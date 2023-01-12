@@ -7,8 +7,8 @@ use race_core::{
     random::RandomStatus,
     types::ClientMode,
 };
-use race_example_minimal::{MinimalHandler, GameEvent};
-use race_test::{TestClient, TestGameAccountBuilder, TestHandler, TestPlayerClient};
+use race_example_minimal::{GameEvent, MinimalHandler};
+use race_test::{TestClient, TestGameAccountBuilder, TestHandler};
 
 #[macro_use]
 extern crate log;
@@ -26,11 +26,11 @@ fn test() -> Result<()> {
     let transactor_addr = game_account.transactor_addr.as_ref().unwrap().clone();
 
     // Initialize player client, which simulates the behavior of player.
-    let mut alice = TestPlayerClient::new("Alice");
-    let mut bob = TestPlayerClient::new("Bob");
+    let mut alice = TestClient::new("Alice".into(), ClientMode::Player);
+    let mut bob = TestClient::new("Bob".into(), ClientMode::Player);
 
     // Initialize the client, which simulates the behavior of transactor.
-    let mut client = TestClient::new(ClientMode::Transactor, &game_account);
+    let mut transactor = TestClient::new(transactor_addr.clone(), ClientMode::Transactor);
 
     // Create game context and test handler.
     // Initalize the handler state with game account.
@@ -87,9 +87,9 @@ fn test() -> Result<()> {
     // Now, Let the client handle the updated context.
     // The corresponding secert state will be initialized, which contains all the secrets.
     // Additionally, one `Mask` event will be created.
-    let events = client.handle_updated_context(&ctx)?;
+    let events = transactor.handle_updated_context(&ctx)?;
     {
-        assert_eq!(1, client.secret_states.len());
+        assert_eq!(1, transactor.secret_states().len());
         assert_eq!(1, events.len());
     }
 
@@ -105,7 +105,7 @@ fn test() -> Result<()> {
 
     // Now, Let the client handle the updated context.
     // One `Lock` event will be created.
-    let events = client.handle_updated_context(&ctx)?;
+    let events = transactor.handle_updated_context(&ctx)?;
     {
         assert_eq!(1, events.len());
     }
@@ -139,7 +139,7 @@ fn test() -> Result<()> {
 
     // Let client handle the updated context.
     // `ShareSecret` event should be created.
-    let events = client.handle_updated_context(&ctx)?;
+    let events = transactor.handle_updated_context(&ctx)?;
     {
         let event = &events[0];
         assert!(
@@ -172,7 +172,7 @@ fn test() -> Result<()> {
 
     // Now, Alice should be the dealer.
     // So, she can send a bet event and we expect the bet amount of Alice to be updated to 500.
-    let event = alice.create_custom_event(GameEvent::Bet(500));
+    let event = alice.custom_event(GameEvent::Bet(500));
     handler.handle_event(&mut ctx, &event)?;
     {
         let state = handler.get_state();
@@ -181,7 +181,7 @@ fn test() -> Result<()> {
 
     // Bob call this.
     // Now, it's time to reveal the cards, so two secrets for hands are required.
-    let event = bob.create_custom_event(GameEvent::Call);
+    let event = bob.custom_event(GameEvent::Call);
     handler.handle_event(&mut ctx, &event)?;
     {
         let random_state = ctx.get_random_state_unchecked(0);
@@ -195,7 +195,7 @@ fn test() -> Result<()> {
 
     // Let the client handle this update.
     // We expect two secrets to be shared.
-    let events = client.handle_updated_context(&ctx)?;
+    let events = transactor.handle_updated_context(&ctx)?;
     {
         let event = &events[0];
         info!(
@@ -236,7 +236,7 @@ fn test() -> Result<()> {
     }
 
     // Now, the transactor should be able to reveal all hole cards.
-    let decryption = client.decrypt(&ctx, 0)?;
+    let decryption = transactor.decrypt(&ctx, 0)?;
     info!("Decryption: {:?}", decryption);
     assert_eq!(2, decryption.len());
     ctx.add_revealed(0, decryption)?;

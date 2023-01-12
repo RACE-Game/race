@@ -1,10 +1,10 @@
 [workspace]
-
 members = [
   "core",
   "proc-macro",
   "transactor",
   "cli",
+  "encryptor",
   "transport",
   "facade",
   "env",
@@ -13,8 +13,8 @@ members = [
   "test",
   "examples/counter/core",
   "examples/minimal/core",
+  "examples/console",
   "examples/holdem",
-
 ]
 
 [profile.dev.package.num-bigint-dig]

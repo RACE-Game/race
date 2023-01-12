@@ -6,6 +6,7 @@
 //! Following events will be handled by this component:
 //! - ContextUpdated
 
+use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::frame::EventFrame;
@@ -14,6 +15,7 @@ use race_core::client::Client;
 use race_core::error::Error;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, TransactorAccount};
+use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::component::traits::{Attachable, Component, Named};
@@ -114,7 +116,8 @@ impl Component<ClientContext> for WrappedClient {
                 closed_tx,
                 output_tx,
             } = ctx;
-            let mut client = Client::new(addr, mode, transport).expect("Failed to create client");
+            let encryptor =  Rc::new(Encryptor::default());
+            let mut client = Client::new(addr, mode, transport, encryptor).expect("Failed to create client");
             let mut res = Ok(());
             'outer: while let Some(event_frame) = input_rx.recv().await {
                 match event_frame {

@@ -18,6 +18,7 @@ pub fn empty_secret_key() -> SecretKey {
     vec![0u8; 44]
 }
 
+#[derive(PartialEq, Eq)]
 pub enum ClientMode {
     Player,
     Transactor,

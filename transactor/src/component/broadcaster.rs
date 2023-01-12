@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use race_core::types::GameAccount;
+use race_core::types::{GameAccount, BroadcastFrame};
 use tokio::sync::{broadcast, mpsc, oneshot, watch, Mutex};
 
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
-use crate::frame::{BroadcastFrame, EventFrame};
+use crate::frame::EventFrame;
 
 pub struct BroadcasterContext {
     game_addr: String,
@@ -46,10 +46,7 @@ impl Component<BroadcasterContext> for Broadcaster {
             loop {
                 if let Some(event) = ctx.input_rx.recv().await {
                     match event {
-                        EventFrame::Broadcast {
-                            event,
-                            state_json,
-                        } => {
+                        EventFrame::Broadcast { event, state_json } => {
                             let mut snapshot = snapshot.lock().await;
                             *snapshot = state_json.clone();
                             ctx.broadcast_tx

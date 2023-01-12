@@ -6,7 +6,7 @@ use jsonrpsee::core::Error;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
-use race_core::types::{AttachGameParams, GetStateParams, SendEventParams, SubscribeEventParams};
+use race_core::types::{AttachGameParams, GetStateParams, SubmitEventParams, SubscribeEventParams};
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -24,7 +24,7 @@ async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>
 }
 
 async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
-    let params: SendEventParams = params.one()?;
+    let params: SubmitEventParams = params.one()?;
     let context = context.lock().await;
     context
         .send_event(&params.addr, params.event)
@@ -44,7 +44,7 @@ async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) 
     Ok(snapshot)
 }
 
-fn subscribe_state(
+fn subscribe_event(
     params: Params<'_>,
     mut sink: SubscriptionSink,
     context: Arc<Mutex<ApplicationContext>>,
@@ -89,7 +89,7 @@ pub async fn run_server(
         "subscribe_event",
         "s_event",
         "unsubscribe_event",
-        subscribe_state,
+        subscribe_event,
     )?;
 
     let handle = server.start(module)?;

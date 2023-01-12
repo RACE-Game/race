@@ -14,7 +14,7 @@ use crate::{
     types::{Ciphertext, GameAccount},
 };
 
-#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Serialize)]
 pub enum PlayerStatus {
     #[default]
     Absent,
@@ -418,7 +418,7 @@ impl GameContext {
         let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st
             .add_revealed(revealed)
-            .or(Err(Error::InvalidDecryptedValue("Invalid index".into())))
+            .map_err(|e| Error::InvalidDecryptedValue(e.to_string()))
     }
 
     pub fn get_revealed(&self, random_id: usize) -> Result<&HashMap<usize, String>> {

@@ -1,10 +1,23 @@
+use std::path::PathBuf;
+
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_env::Config;
+use signer::Signer;
 
 pub mod evm;
 pub mod facade;
+pub mod signer;
 pub mod solana;
+
+pub fn create_transport_for_app(chain: &str, rpc: &str) -> Result<Box<dyn TransportT>> {
+    match chain {
+        "facade" => Ok(Box::new(facade::FacadeTransport::new(rpc))),
+        "solana" => Ok(Box::new(solana::SolanaTransport::new(rpc))),
+        "bnb" => Ok(Box::new(evm::EvmTransport::new(rpc))),
+        _ => Err(Error::InvalidChainName),
+    }
+}
 
 pub fn create_transport(config: &Config, chain: &str) -> Result<Box<dyn TransportT>> {
     match chain {

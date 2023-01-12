@@ -1,18 +1,17 @@
 use std::{collections::HashMap, sync::Arc};
 
-use rand::seq::SliceRandom;
-
 use crate::{
     context::GameContext,
-    crypto::{apply_multi, SecretState},
+    secret::SecretState,
     error::{Error, Result},
     event::{Event, SecretIdent},
     random::{RandomMode, RandomStatus},
     transport::TransportT,
-    types::{Ciphertext, ClientMode, SecretKey},
+    types::{Ciphertext, ClientMode, SecretKey}, encryptor::EncryptorT,
 };
 
 pub struct Client {
+    pub encryptor: Arc<dyn EncryptorT>,
     pub transport: Arc<dyn TransportT>,
     // The address of current node, the player address or server address.
     pub addr: String,
@@ -25,16 +24,13 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(
-        addr: String,
-        mode: ClientMode,
-        transport: Arc<dyn TransportT>,
-    ) -> Result<Self> {
+    pub fn new(addr: String, mode: ClientMode, transport: Arc<dyn TransportT>, encryptor: Arc<dyn EncryptorT>) -> Result<Self> {
         Ok(Self {
             addr,
             mode,
             secret_states: Vec::new(),
             transport,
+            encryptor,
         })
     }
 
@@ -44,7 +40,7 @@ impl Client {
         if random_states.len() > secret_states.len() {
             for random_state in random_states.iter().skip(secret_states.len()) {
                 let secret_state =
-                    SecretState::from_random_state(random_state, RandomMode::Shuffler);
+                    SecretState::from_random_state(self.encryptor.clone(), random_state, RandomMode::Shuffler);
                 secret_states.push(secret_state);
             }
         }
@@ -127,8 +123,7 @@ impl Client {
                             .mask(origin)
                             .map_err(|e| Error::RandomizationError(e.to_string()))?;
 
-                        let mut rng = rand::thread_rng();
-                        masked.shuffle(&mut rng);
+                        self.encryptor.shuffle(&mut masked);
 
                         let event = Event::Mask {
                             sender: self.addr.clone(),
@@ -147,7 +142,10 @@ impl Client {
 
     pub fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<Vec<Event>> {
         let events = match self.mode {
-            ClientMode::Player => {vec![]}
+            ClientMode::Player => {
+                self.update_secret_state(ctx)?;
+                vec![]
+            }
             ClientMode::Transactor => {
                 self.update_secret_state(ctx)?;
                 self.randomize_and_share(ctx)?
@@ -167,25 +165,37 @@ impl Client {
         let random_state = ctx.get_random_state(random_id)?;
         let options = &random_state.options;
 
-        let revealed = decrypt_with_secrets(
+        let mut revealed = decrypt_with_secrets(
+            &*self.encryptor,
             random_state.list_revealed_ciphertexts(),
             random_state.list_revealed_secrets()?,
             options,
         )?;
+
+        if self.mode == ClientMode::Player {
+            let assigned = decrypt_with_secrets(
+                &*self.encryptor,
+                random_state.list_assigned_ciphertexts(&self.addr),
+                random_state.list_shared_secrets(&self.addr)?,
+                options,
+            )?;
+            revealed.extend(assigned);
+        }
 
         Ok(revealed)
     }
 }
 
 fn decrypt_with_secrets(
+    encryptor: &dyn EncryptorT,
     ciphertext_map: HashMap<usize, Ciphertext>,
     mut secret_map: HashMap<usize, Vec<SecretKey>>,
-    options: &Vec<String>,
+    options: &[String],
 ) -> Result<HashMap<usize, String>> {
     let mut ret = HashMap::new();
     for (i, mut buf) in ciphertext_map.into_iter() {
         if let Some(secrets) = secret_map.remove(&i) {
-            apply_multi(secrets, &mut buf);
+            encryptor.apply_multi(secrets, &mut buf);
             let value = String::from_utf8(buf).or(Err(Error::DecryptionFailed))?;
             if !options.contains(&value) {
                 return Err(Error::InvalidDecryptedValue(value))?;

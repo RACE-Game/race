@@ -21,10 +21,3 @@ pub enum EventFrame {
     ContextUpdated { context: GameContext },
     Shutdown,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BroadcastFrame {
-    pub game_addr: String,
-    pub state_json: String,
-    pub event: Event,
-}

@@ -25,7 +25,14 @@ pub struct SubscribeEventParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SendEventParams {
+pub struct SubmitEventParams {
     pub addr: String,
+    pub event: Event,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BroadcastFrame {
+    pub game_addr: String,
+    pub state_json: String,
     pub event: Event,
 }

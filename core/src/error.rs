@@ -70,6 +70,9 @@ pub enum Error {
     #[error("randomization error")]
     RandomizationError(String),
 
+    #[error("crypto error")]
+    CryptoError(String),
+
     #[error("duplicated event dispatching")]
     DuplicatedEventDispatching,
 
@@ -105,6 +108,12 @@ pub enum Error {
 
     #[error("decryption failed")]
     DecryptionFailed,
+
+    #[error("invalid key index")]
+    InvalidKeyIndex,
+
+    #[error("invalid ciphertexts size")]
+    InvalidCiphertextsSize
 }
 
 impl From<serde_json::Error> for Error {
