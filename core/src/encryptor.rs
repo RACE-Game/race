@@ -45,7 +45,7 @@ impl From<Error> for crate::error::Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub trait EncryptorT: std::fmt::Debug {
+pub trait EncryptorT: std::fmt::Debug + Send + Sync {
 
     fn add_public_key(&mut self, addr: String, raw: &str) -> Result<()>;
 

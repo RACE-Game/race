@@ -6,7 +6,6 @@
 //! Following events will be handled by this component:
 //! - ContextUpdated
 
-use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::frame::EventFrame;
@@ -116,7 +115,7 @@ impl Component<ClientContext> for WrappedClient {
                 closed_tx,
                 output_tx,
             } = ctx;
-            let encryptor =  Rc::new(Encryptor::default());
+            let encryptor =  Arc::new(Encryptor::default());
             let mut client = Client::new(addr, mode, transport, encryptor).expect("Failed to create client");
             let mut res = Ok(());
             'outer: while let Some(event_frame) = input_rx.recv().await {
