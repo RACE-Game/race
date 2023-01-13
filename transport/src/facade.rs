@@ -2,14 +2,20 @@ use async_trait::async_trait;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
 
+#[cfg(target_arch = "wasm32")]
+use jsonrpsee::core::client::Client;
+#[cfg(not(target_arch = "wasm32"))]
 use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBuilder};
+#[cfg(target_arch = "wasm32")]
+use jsonrpsee::wasm_client::WasmClientBuilder as ClientBuilder;
 
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{
-    CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount, GameBundle,
-    GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams, JoinParams, PlayerProfile, RegisterGameParams,
-    RegisterTransactorParams, RegistrationAccount, SettleParams, TransactorAccount, UnregisterGameParams,
+    CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
+    GameBundle, GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams, JoinParams,
+    PlayerProfile, RegisterGameParams, RegisterTransactorParams, RegistrationAccount, SettleParams,
+    TransactorAccount, UnregisterGameParams,
 };
 
 pub struct FacadeTransport {
@@ -17,10 +23,12 @@ pub struct FacadeTransport {
 }
 
 impl FacadeTransport {
-    pub fn new(url: &str) -> Self {
-        Self {
-            client: ClientBuilder::default().build(url).unwrap(),
-        }
+    pub async fn new(url: &str) -> Self {
+        #[cfg(not(target_arch = "wasm32"))]
+        let client = ClientBuilder::default().build(url).unwrap();
+        #[cfg(target_arch = "wasm32")]
+        let client = ClientBuilder::default().build(url).await.unwrap();
+        Self { client }
     }
 }
 
@@ -43,12 +51,18 @@ impl TransportT for FacadeTransport {
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let params = GetAccountInfoParams { addr: addr.into() };
-        self.client.request("get_account_info", rpc_params![params]).await.ok()
+        self.client
+            .request("get_account_info", rpc_params![params])
+            .await
+            .ok()
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
         let params = GetGameBundleParams { addr: addr.into() };
-        self.client.request("get_game_bundle", rpc_params![params]).await.ok()
+        self.client
+            .request("get_game_bundle", rpc_params![params])
+            .await
+            .ok()
     }
 
     async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount> {

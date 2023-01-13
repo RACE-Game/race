@@ -9,7 +9,6 @@
 use std::sync::Arc;
 
 use crate::frame::EventFrame;
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use race_core::client::Client;
 use race_core::error::Error;
 use race_core::transport::TransportT;
@@ -35,18 +34,6 @@ pub struct ClientContext {
     pub addr: String,
     pub transport: Arc<dyn TransportT>,
     pub mode: ClientMode, // client running mode
-}
-
-/// Create RPC client for the transactor of given address.
-async fn create_rpc_client_for_transactor(transport: &dyn TransportT, addr: &str) -> HttpClient {
-    let transactor_account = transport
-        .get_transactor_account(addr)
-        .await
-        .expect("Failed to fetch transactor account");
-
-    HttpClientBuilder::default()
-        .build(&transactor_account.endpoint)
-        .expect("Failed to create RPC client")
 }
 
 impl WrappedClient {

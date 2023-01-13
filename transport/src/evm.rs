@@ -1,18 +1,20 @@
-use web3::{transports::Http, Web3};
+// use web3::{transports::Http, Web3};
 
 use race_core::{
     error::Result,
     transport::TransportT,
     types::{
-        CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-        RegisterTransactorParams, SettleParams, TransactorAccount, CreateRegistrationParams, RegisterGameParams, UnregisterGameParams, GetRegistrationParams, RegistrationAccount,
+        CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
+        GameBundle, GetRegistrationParams, JoinParams, PlayerProfile, RegisterGameParams,
+        RegisterTransactorParams, RegistrationAccount, SettleParams, TransactorAccount,
+        UnregisterGameParams,
     },
 };
 
 use async_trait::async_trait;
 
 pub struct EvmTransport {
-    pub web3: Web3<Http>,
+    // pub web3: Web3<Http>,
 }
 
 #[async_trait]
@@ -75,10 +77,16 @@ impl TransportT for EvmTransport {
     }
 }
 
+// impl EvmTransport {
+//     pub fn new(rpc: &str) -> Self {
+//         let transport = Http::new(rpc).unwrap();
+//         let web3 = Web3::new(transport);
+//         Self { web3 }
+//     }
+// }
+
 impl EvmTransport {
     pub fn new(rpc: &str) -> Self {
-        let transport = Http::new(rpc).unwrap();
-        let web3 = Web3::new(transport);
-        Self { web3 }
+        Self {}
     }
 }

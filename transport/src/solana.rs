@@ -15,7 +15,7 @@ use race_core::{
     },
 };
 
-use solana_client::rpc_client::RpcClient;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 
@@ -40,7 +40,8 @@ impl TransportT for SolanaTransport {
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let pubkey = Pubkey::from_str(addr).unwrap();
-        let data = self.client.get_account_data(&pubkey).unwrap();
+        let data = self.client.get_account_data(&pubkey).await;
+        // println!("data: {:?}", data);
         None
     }
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
@@ -86,7 +87,7 @@ impl TransportT for SolanaTransport {
 
 impl SolanaTransport {
     pub fn new(rpc: &str) -> Self {
-        let client = RpcClient::new_with_commitment(rpc, CommitmentConfig::finalized());
+        let client = RpcClient::new_with_commitment(rpc.into(), CommitmentConfig::finalized());
         Self { client }
     }
 }

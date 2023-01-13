@@ -13,21 +13,23 @@ use race_core::{
     transport::TransportT,
     types::{ClientMode, SubmitEventParams, AttachGameParams, SubscribeEventParams},
 };
+use race_encryptor::Encryptor;
 use race_transport::create_transport_for_app;
 
 pub struct AppClient {
-    addr: String,
-    chain: String,
-    client: Client,
-    handler: Handler,
-    transport: Arc<dyn TransportT>,
-    connection: Connection<HttpClient>,
+    pub addr: String,
+    pub chain: String,
+    pub client: Client,
+    pub handler: Handler,
+    pub transport: Arc<dyn TransportT>,
+    pub connection: Connection<HttpClient>,
 }
 
 impl AppClient {
     pub async fn new(chain: &str, rpc: &str, game_addr: &str) -> Self {
         let transport: Arc<dyn TransportT> =
             Arc::from(create_transport_for_app(chain, rpc).expect("Failed to create transport"));
+        let encryptor = Arc::new(Encryptor::default());
         let game_account = transport
             .get_game_account(game_addr)
             .await
@@ -46,7 +48,7 @@ impl AppClient {
                 .build(&endpoint)
                 .expect("Failed to build Rpc client for transactor");
             let connection = Connection::new(endpoint, rpc_client);
-            let client = Client::new(game_addr.into(), ClientMode::Player, transport.clone())
+            let client = Client::new(game_addr.into(), ClientMode::Player, transport.clone(), encryptor)
                 .expect("Failed to create client");
             let handler = Handler::new(game_bundle);
             Self {

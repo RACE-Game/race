@@ -8,15 +8,16 @@ edition = "2021"
 [dependencies]
 race-core = { path = "../core" }
 race-env = { path = "../env" }
-jsonrpsee = { version = "0.16.1", features = ["full"] }
-getrandom = { version = "0.2" }
 async-trait = "0.1.58"
 thiserror = "1.0.35"
 serde_json = "1.0.85"
 serde = "1.0.144"
-solana-sdk = "1.14.10"
-solana-client = "1.14.10"
-web3 = "0.18.0"
+# web3 = "0.18.0"
+solana-client = { version = "1.14.10"}
+solana-sdk = { version = "1.14.10"}
 
-[dev-dependencies]
-tokio = { version = "1.21.0", features = ["full"] }
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+jsonrpsee = { version = "0.16.1", features = ["wasm-client"]}
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+jsonrpsee = { version = "0.16.1", features = ["http-client"]}

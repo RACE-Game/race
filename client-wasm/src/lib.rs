@@ -1,3 +1,7 @@
+#![cfg(target_arch="wasm32")]
+mod handler;
+mod util;
+
 // use borsh::{BorshDeserialize, BorshSerialize};
 // use js_sys::WebAssembly::{Instance, Memory};
 // use js_sys::{Function, Object, Reflect, Uint8Array, WebAssembly, JSON};

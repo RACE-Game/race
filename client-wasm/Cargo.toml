@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 race-core = { path = "../core" }
+race-encryptor = { path = "../encryptor" }
 race-transport = { path = "../transport" }
 anyhow = "1.0.64"
 serde_json = "1.0.85"

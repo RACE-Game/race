@@ -141,9 +141,12 @@ impl EncryptorT for Encryptor {
 }
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
+    use std::sync::Arc;
 
-    use race_core::{random::{ShuffledList, RandomMode}, secret::SecretState};
+    use race_core::{
+        random::{RandomMode, ShuffledList},
+        secret::SecretState,
+    };
 
     use super::*;
     use race_core::error::Result;
@@ -183,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_secret_state() {
-        let e = Rc::new(Encryptor::default());
+        let e = Arc::new(Encryptor::default());
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
         let state = SecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
         assert_eq!(3, state.received.len());
@@ -192,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_mask_and_unmask() -> Result<()> {
-        let e = Rc::new(Encryptor::default());
+        let e = Arc::new(Encryptor::default());
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
         let mut state = SecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
         let original_ciphertexts = vec![vec![41; 16], vec![42; 16], vec![43; 16]];
@@ -205,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_lock() -> Result<()> {
-        let e = Rc::new(Encryptor::default());
+        let e = Arc::new(Encryptor::default());
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
         let mut state = SecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
         let original_ciphertexts = vec![vec![41; 16], vec![42; 16], vec![43; 16]];

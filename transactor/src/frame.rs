@@ -1,6 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::{context::GameContext, event::Event, types::SettleParams};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct NewPlayer {
