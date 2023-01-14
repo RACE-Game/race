@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use borsh::BorshSerialize;
 use race_core::{
     context::{GameContext, GameStatus as GeneralStatus},
@@ -16,7 +18,6 @@ fn create_holdem(ctx: &mut GameContext) -> Holdem {
         sb: 50,
         bb: 100,
         buyin: 2000,
-        btn: 0,
         rake: 0.02,
         size: 6,
         mode: String::from("cash"),
@@ -74,11 +75,11 @@ pub fn test_fns() {
         sb: 10,
         bb: 20,
         buyin: 400,
-        btn: 0,
+        btn: 3,
         rake: 0.02,
         size: 4,
         status: HoldemStatus::Play,
-        street: Street::Flop,
+        street: Street::Preflop,
         street_bet: 20,
         bet_map: vec![
             Bet::new("Alice", 100),
@@ -86,6 +87,7 @@ pub fn test_fns() {
             Bet::new("Carol", 100),
             Bet::new("Gentoo", 50),
         ],
+        prize_map: HashMap::new(),
         players: vec![
             Player { addr: String::from("Alice"),
                      chips: 1500,
@@ -93,7 +95,7 @@ pub fn test_fns() {
                      status: PlayerStatus::Fold },
             // suppose Bob goes all in
             Player { addr: String::from("Bob"),
-                     chips: 0,
+                     chips: 45,
                      position: 1,
                      status: PlayerStatus::Allin },
             Player { addr: String::from("Carol"),
@@ -101,11 +103,12 @@ pub fn test_fns() {
                      position: 2,
                      status: PlayerStatus::Fold },
             Player { addr: String::from("Gentoo"),
-                     chips: 1000,
+                     chips: 50,
                      position: 3,
                      status: PlayerStatus::Wait },
         ],
-        act_idx: 2usize,
+        acting_player: None,
+        act_idx: 2,
         pots: vec![],
     };
 
@@ -116,7 +119,7 @@ pub fn test_fns() {
     assert_eq!(15, unsettled_pots[1].amount());  // passed
     assert_eq!(100, unsettled_pots[2].amount()); // passed
 
-    // Test owners of each pot
+    // Test num of pots and owners of each pot
     assert_eq!(4, unsettled_pots[0].owners().len());
     assert_eq!(
         vec!["Alice".to_string(), "Bob".to_string(), "Carol".to_string(), "Gentoo".to_string()],
@@ -145,7 +148,7 @@ pub fn test_fns() {
             vec![String::from("Alice"), String::new()],
         ]);
 
-    // Test num of pots and num of winners in each pot
+    // Test num of winners in each pot
     assert_eq!(2, settled_pots[0].winners().len()); // passed
     assert_eq!(1, settled_pots[1].winners().len()); // passed
     assert_eq!(1, settled_pots[2].winners().len()); // passed
@@ -161,6 +164,73 @@ pub fn test_fns() {
     assert_eq!(90u64, prize_map.get(&"Bob".to_string()).copied().unwrap());     // passed
     assert_eq!(105u64, prize_map.get(&"Gentoo".to_string()).copied().unwrap()); // passed
     assert_eq!(100u64, prize_map.get(&"Alice".to_string()).copied().unwrap());  // passed
+
+
+    // Test chips after applying the prize map
+    holdem.prize_map = prize_map;
+    holdem.apply_prize();
+    assert_eq!(1500, holdem.players[0].chips); // passed
+    assert_eq!(90, holdem.players[1].chips);   // passed
+    assert_eq!(1100, holdem.players[2].chips); // passed
+    assert_eq!(105, holdem.players[3].chips);  // passed
+}
+
+#[test]
+pub fn test_blind_bets() {
+    let mut holdem = Holdem {
+        sb: 10,
+        bb: 20,
+        buyin: 400,
+        btn: 3,
+        rake: 0.02,
+        size: 4,
+        status: HoldemStatus::Play,
+        street: Street::Preflop,
+        street_bet: 0,
+        bet_map: vec![],
+        prize_map: HashMap::new(),
+        players: vec![
+            Player { addr: String::from("Alice"),
+                     chips: 400,
+                     position: 0,
+                     status: PlayerStatus::Wait },
+            // suppose Bob goes all in
+            Player { addr: String::from("Bob"),
+                     chips: 400,
+                     position: 1,
+                     status: PlayerStatus::Wait },
+            Player { addr: String::from("Carol"),
+                     chips: 400,
+                     position: 2,
+                     status: PlayerStatus::Wait },
+            Player { addr: String::from("Gentoo"),
+                     chips: 400,
+                     position: 3,
+                     status: PlayerStatus::Wait },
+        ],
+        acting_player: None,
+        act_idx: 0,
+        pots: vec![],
+    };
+
+    // Test blind bets
+    // Before blind bets:
+    assert_eq!(0, holdem.street_bet);
+    // assert_eq!(None, holdem.acting_player.unwrap());
+    let init_bet_map: Vec<Bet> = vec![];
+    assert_eq!(init_bet_map, holdem.bet_map);
+
+    // After blind bets
+    assert_eq!((), holdem.blind_bets().unwrap()); // passed
+    assert_eq!(0, holdem.street_bet);             // passed
+    assert_eq!(
+        vec![Bet::new("Alice", 10), Bet::new("Bob", 20)],
+        holdem.bet_map
+    );                                            // passed
+    assert_eq!(
+        String::from("Carol") ,
+        holdem.acting_player.unwrap().addr
+    );                                            // passed
 }
 
 #[test]
