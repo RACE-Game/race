@@ -1,7 +1,7 @@
 //! Parameters for interacting with transactor
 
-use serde::{Deserialize, Serialize};
 use crate::event::Event;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttachGameParams {

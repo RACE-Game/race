@@ -239,7 +239,7 @@ impl RandomState {
 
     pub fn get_ciphertext_unchecked(&self, index: usize) -> &LockedCiphertext {
         &self.ciphertexts[index]
-    }
+
 
     fn get_ciphertext_mut(&mut self, index: usize) -> Option<&mut LockedCiphertext> {
         self.ciphertexts.get_mut(index)
@@ -279,13 +279,13 @@ impl RandomState {
                     if !mask.is_required() {
                         return Err(Error::DuplicatedMask);
                     } else {
-                        mask.status = MaskStatus::Applied;
                         if ciphertexts.len() != self.ciphertexts.len() {
                             return Err(Error::InvalidCiphertexts);
                         }
                         for c in self.ciphertexts.iter_mut() {
                             c.ciphertext = ciphertexts.remove(0);
                         }
+                        mask.status = MaskStatus::Applied;
                         if let Some(m) = self.masks.iter().find(|m| m.is_required()) {
                             self.status = RandomStatus::Masking(m.owner.clone());
                         } else {
@@ -305,7 +305,7 @@ impl RandomState {
     pub fn lock<S>(
         &mut self,
         addr: S,
-        mut ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
+        mut ciphertexts_and_digests: Vec<(Ciphertext, SecretDigest)>,
     ) -> Result<()>
     where
         S: Into<String> + AsRef<str> + Clone,
@@ -321,14 +321,14 @@ impl RandomState {
                     if mask.status.eq(&MaskStatus::Removed) {
                         return Err(Error::DuplicatedLock);
                     }
-                    mask.status = MaskStatus::Removed;
-                    if ciphertexts_and_tests.len() != self.ciphertexts.len() {
+                    if ciphertexts_and_digests.len() != self.ciphertexts.len() {
                         return Err(Error::InvalidCiphertexts);
                     }
+                    mask.status = MaskStatus::Removed;
                     for c in self.ciphertexts.iter_mut() {
-                        let (new_text, test) = ciphertexts_and_tests.remove(0);
+                        let (new_text, digest) = ciphertexts_and_digests.remove(0);
                         c.ciphertext = new_text;
-                        c.locks.push(Lock::new(addr.to_owned(), test));
+                        c.locks.push(Lock::new(addr.to_owned(), digest));
                     }
                     if let Some(m) = self.masks.iter().find(|m| !m.is_removed()) {
                         self.status = RandomStatus::Locking(m.owner.clone());
@@ -418,7 +418,7 @@ impl RandomState {
         Ok(())
     }
 
-    pub fn list_required_secrets_by_from_addr(&self, from_addr: &str) -> Vec<SecretIdent> {
+    pub fn list_required_secrets_by_from(&self, from_addr: &str) -> Vec<SecretIdent> {
         self.secret_shares
             .iter()
             .filter(|ss| ss.secret.is_none() && ss.from_addr.eq(from_addr))

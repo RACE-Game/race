@@ -188,7 +188,7 @@ fn test() -> Result<()> {
         assert_eq!(
             2,
             random_state
-                .list_required_secrets_by_from_addr(&transactor_addr)
+                .list_required_secrets_by_from(&transactor_addr)
                 .len()
         );
     }
@@ -201,12 +201,12 @@ fn test() -> Result<()> {
         info!(
             "Required ident: {:?}",
             ctx.get_random_state_unchecked(0)
-                .list_required_secrets_by_from_addr(&transactor_addr)
+                .list_required_secrets_by_from(&transactor_addr)
         );
         assert_eq!(
             2,
             ctx.get_random_state_unchecked(0)
-                .list_required_secrets_by_from_addr(&transactor_addr)
+                .list_required_secrets_by_from(&transactor_addr)
                 .len()
         );
         assert!(
@@ -221,12 +221,12 @@ fn test() -> Result<()> {
         info!(
             "Required ident: {:?}",
             ctx.get_random_state_unchecked(0)
-                .list_required_secrets_by_from_addr(&transactor_addr)
+                .list_required_secrets_by_from(&transactor_addr)
         );
         assert_eq!(
             0,
             ctx.get_random_state_unchecked(0)
-                .list_required_secrets_by_from_addr(&transactor_addr)
+                .list_required_secrets_by_from(&transactor_addr)
                 .len()
         );
         assert_eq!(
