@@ -239,7 +239,7 @@ impl RandomState {
 
     pub fn get_ciphertext_unchecked(&self, index: usize) -> &LockedCiphertext {
         &self.ciphertexts[index]
-
+    }
 
     fn get_ciphertext_mut(&mut self, index: usize) -> Option<&mut LockedCiphertext> {
         self.ciphertexts.get_mut(index)
@@ -418,7 +418,7 @@ impl RandomState {
         Ok(())
     }
 
-    pub fn list_required_secrets_by_from(&self, from_addr: &str) -> Vec<SecretIdent> {
+    pub fn list_required_secrets_by_from_addr(&self, from_addr: &str) -> Vec<SecretIdent> {
         self.secret_shares
             .iter()
             .filter(|ss| ss.secret.is_none() && ss.from_addr.eq(from_addr))

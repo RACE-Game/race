@@ -16,7 +16,7 @@ pub struct Handler {
 }
 
 impl Handler {
-    pub fn new(game_bundle: GameBundle) -> Self {
+    pub async fn from_bundle(game_bundle: GameBundle) -> Self {
         let mut store = Store::default();
         let module = Module::from_binary(&store, &game_bundle.data).expect("Failed to load bundle");
         let import_object = imports![];

@@ -4,24 +4,21 @@ use async_trait::async_trait;
 use race_core::error::Result;
 
 use race_core::types::{
-    CreateRegistrationParams, GetRegistrationParams, RegisterGameParams, RegisterTransactorParams, RegistrationAccount,
-    TransactorAccount, UnregisterGameParams,
+    CreateRegistrationParams, GetRegistrationParams, RegisterGameParams, RegisterTransactorParams,
+    RegistrationAccount, TransactorAccount, UnregisterGameParams,
 };
 use race_core::{
     transport::TransportT,
     types::{
-        CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-        SettleParams,
+        CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, JoinParams,
+        PlayerProfile, SettleParams,
     },
 };
 
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 
-pub struct SolanaTransport {
-    client: RpcClient,
-}
+pub struct SolanaTransport {}
 
 #[async_trait]
 #[allow(unused_variables)]
@@ -39,10 +36,7 @@ impl TransportT for SolanaTransport {
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
-        let pubkey = Pubkey::from_str(addr).unwrap();
-        let data = self.client.get_account_data(&pubkey).await;
-        // println!("data: {:?}", data);
-        None
+        todo!()
     }
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
         todo!()
@@ -87,7 +81,6 @@ impl TransportT for SolanaTransport {
 
 impl SolanaTransport {
     pub fn new(rpc: &str) -> Self {
-        let client = RpcClient::new_with_commitment(rpc.into(), CommitmentConfig::finalized());
-        Self { client }
+        Self {}
     }
 }

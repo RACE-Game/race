@@ -1,26 +1,26 @@
-import { Address, Chain } from "./common";
-import { Event } from "./event";
+import { Address, Chain } from './common'
+import { Event } from './event'
 
-export type AttachGameParams = {
-    addr: Address,
-    chain: Chain,
-};
-
-export type GetStateParams = {
-    addr: Address,
-};
-
-export type SubscribeEventParams = {
-    addr: Address,
+export interface AttachGameParams {
+  addr: Address
+  chain: Chain
 }
 
-export type SubmitEventParams = {
-    addr: Address,
-    event: Event
-};
+export interface GetStateParams {
+  addr: Address
+}
 
-export type BroadcastFrame = {
-    gameAddr: Address,
-    state: any,
-    event: Event,
+export interface SubscribeEventParams {
+  addr: Address
+}
+
+export interface SubmitEventParams {
+  addr: Address
+  event: Event
+}
+
+export interface BroadcastFrame {
+  gameAddr: Address
+  state: any
+  event: Event
 }

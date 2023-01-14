@@ -42,30 +42,6 @@ pub enum GameStatus {
     Closed,
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, Default, PartialEq, Eq)]
-pub enum SecretType {
-    #[default]
-    Mask,
-    Encrypt,
-}
-
-#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
-pub struct Secret<'a> {
-    pub from_addr: &'a str,
-    pub to_addr: Option<&'a str>, // None means for public
-    pub key: &'a str,
-    pub required: bool,
-    pub data: String,
-    pub secret_type: SecretType,
-}
-
-pub struct SecretTest<'a> {
-    pub from_addr: &'a str,
-    pub to_addr: Option<&'a str>,
-    pub test_result: String,
-    pub secret_type: SecretType,
-}
-
 #[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub struct Player {
     pub addr: String,
@@ -100,20 +76,6 @@ impl Server {
     }
 }
 
-pub struct EncryptionKeyContainer {
-    pub keys: Vec<String>,
-}
-
-/// A structure represents the assignment of a random item. If an
-/// item is assigned to a specific player, then every nodes will share
-/// their secrets to this player.
-#[derive(BorshDeserialize, BorshSerialize)]
-pub struct RandomAssign {
-    pub random_id: usize,
-    pub player_addr: String,
-    pub indexes: Vec<usize>,
-}
-
 #[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub struct DispatchEvent {
     pub timeout: u64,
@@ -144,8 +106,6 @@ pub struct GameContext {
     pub(crate) allow_leave: bool,
     // All runtime random state, each stores the ciphers and assignments.
     pub(crate) random_states: Vec<RandomState>,
-    // Shared secrets
-    pub(crate) shared_secrets: HashMap<SecretIdent, String>,
     // Settles, if is not None, will be handled by event loop.
     pub(crate) settles: Option<Vec<Settle>>,
     // /// The encrption keys from every nodes.
@@ -175,7 +135,6 @@ impl GameContext {
             timestamp: 0,
             allow_leave: false,
             random_states: vec![],
-            shared_secrets: Default::default(),
             settles: None,
         })
     }
@@ -238,7 +197,7 @@ impl GameContext {
             sender: self.transactor_addr.to_owned(),
             raw: serde_json::to_string(e).unwrap(),
         };
-        self.dispatch = Some(DispatchEvent::new(event, timeout));
+        self.dispatch(event, timeout);
     }
 
     pub fn get_players(&self) -> &Vec<Player> {
@@ -301,7 +260,7 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn random_ready(&self) -> bool {
+    pub fn is_all_random_ready(&self) -> bool {
         self.random_states
             .iter()
             .all(|st| st.status == RandomStatus::Ready)
@@ -396,7 +355,7 @@ impl GameContext {
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.lock(addr, ciphertexts_and_tests)?;
-        if self.random_ready() {
+        if self.is_all_random_ready() {
             self.dispatch(Event::RandomnessReady, 0);
         }
         Ok(())

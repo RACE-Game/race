@@ -146,44 +146,44 @@ mod util;
 //     }
 
 //     async fn dispatch_event(&mut self, event: Event) {
-//         console_log!("Dispatch event: {:?}", event);
-//         let exports = self.instance.exports();
-//         let mem = Reflect::get(exports.as_ref(), &"memory".into())
-//             .unwrap()
-//             .dyn_into::<Memory>()
-//             .expect("Can't get memory");
-//         let buf = Uint8Array::new(&mem.buffer());
-//         let context_vec = self.context.try_to_vec().unwrap();
-//         let context_size = context_vec.len();
-//         let context_arr = Uint8Array::new_with_length(context_size as _);
-//         context_arr.copy_from(&context_vec);
-//         console_log!("context size: {:?}", context_size);
-//         let event_vec = event.try_to_vec().unwrap();
-//         let event_size = event_vec.len();
-//         let event_arr = Uint8Array::new_with_length(event_size as _);
-//         console_log!("event size: {:?}", event_size);
-//         event_arr.copy_from(&event_vec);
-//         let mut offset = 1u32;
-//         buf.set(&context_arr, offset);
-//         offset += context_size as u32;
-//         buf.set(&event_arr, offset);
-//         let handle_event = Reflect::get(exports.as_ref(), &"handle_event".into())
-//             .unwrap()
-//             .dyn_into::<Function>()
-//             .expect("Can't get handle_event");
-//         let new_context_size = handle_event
-//             .call2(
-//                 &JsValue::undefined(),
-//                 &context_size.into(),
-//                 &event_size.into(),
-//             )
-//             .unwrap()
-//             .as_f64()
-//             .unwrap() as usize;
-//         console_log!("new context size: {:?}", new_context_size);
-//         let new_context_vec = Uint8Array::new(&mem.buffer()).to_vec();
-//         let new_context_slice = &new_context_vec[1..(1 + new_context_size)];
-//         self.context = GameContext::try_from_slice(&new_context_slice).unwrap();
+        console_log!("Dispatch event: {:?}", event);
+        let exports = self.instance.exports();
+        let mem = Reflect::get(exports.as_ref(), &"memory".into())
+            .unwrap()
+            .dyn_into::<Memory>()
+            .expect("Can't get memory");
+        let buf = Uint8Array::new(&mem.buffer());
+        let context_vec = self.context.try_to_vec().unwrap();
+        let context_size = context_vec.len();
+        let context_arr = Uint8Array::new_with_length(context_size as _);
+        context_arr.copy_from(&context_vec);
+        console_log!("context size: {:?}", context_size);
+        let event_vec = event.try_to_vec().unwrap();
+        let event_size = event_vec.len();
+        let event_arr = Uint8Array::new_with_length(event_size as _);
+        console_log!("event size: {:?}", event_size);
+        event_arr.copy_from(&event_vec);
+        let mut offset = 1u32;
+        buf.set(&context_arr, offset);
+        offset += context_size as u32;
+        buf.set(&event_arr, offset);
+        let handle_event = Reflect::get(exports.as_ref(), &"handle_event".into())
+            .unwrap()
+            .dyn_into::<Function>()
+            .expect("Can't get handle_event");
+        let new_context_size = handle_event
+            .call2(
+                &JsValue::undefined(),
+                &context_size.into(),
+                &event_size.into(),
+            )
+            .unwrap()
+            .as_f64()
+            .unwrap() as usize;
+        console_log!("new context size: {:?}", new_context_size);
+        let new_context_vec = Uint8Array::new(&mem.buffer()).to_vec();
+        let new_context_slice = &new_context_vec[1..(1 + new_context_size)];
+        self.context = GameContext::try_from_slice(&new_context_slice).unwrap();
 //     }
 // }
 

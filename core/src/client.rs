@@ -55,7 +55,7 @@ impl Client {
                 RandomStatus::WaitingSecrets => {
                     // check if our secret is required
                     let required_idents =
-                        random_state.list_required_secrets_by_from(&self.addr);
+                        random_state.list_required_secrets_by_from_addr(&self.addr);
 
                     let shares = required_idents
                         .into_iter()

@@ -3,11 +3,25 @@
   "version": "0.0.1",
   "description": "The app client of RACE Protocol",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "TS_NODE_COMPILER_OPTIONS='{ \"module\": \"commonjs\", \"target\": \"es2021\" }' ts-mocha ./tests/**/*.spec.ts",
+    "test:watch": "TS_NODE_COMPILER_OPTIONS='{ \"module\": \"commonjs\", \"target\": \"es2021\" }' ts-mocha ./tests/**/*.spec.ts --watch --watch-files ./src, ./tests",
+    "build": "tsc"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/chai": "^4.3.4",
+    "@types/mocha": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^5.48.1",
+    "chai": "^4.3.7",
+    "eslint": "^8.31.0",
+    "eslint-config-standard-with-typescript": "^27.0.1",
+    "eslint-plugin-import": "^2.27.4",
+    "eslint-plugin-n": "^15.6.1",
+    "eslint-plugin-promise": "^6.1.1",
+    "mocha": "^10.2.0",
+    "ts-mocha": "^10.0.0",
+    "ts-node": "^10.9.1",
     "typescript": "^4.9.4"
   }
 }
