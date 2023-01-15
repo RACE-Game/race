@@ -25,7 +25,7 @@ fn cli() -> Command {
 pub async fn main() {
     let matches = cli().get_matches();
     let config = Config::from_path(&matches.get_one::<String>("config").unwrap().into()).await;
-    let context = Mutex::new(ApplicationContext::new(config).await);
+    let context = Mutex::new(ApplicationContext::try_new(config).await.expect("Failed to initalize"));
     match matches.subcommand() {
         Some(("run", _)) => {
             run_server(context).await.expect("Unexpected error occured");

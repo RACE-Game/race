@@ -103,7 +103,7 @@ impl Component<ClientContext> for WrappedClient {
                 output_tx,
             } = ctx;
             let encryptor =  Arc::new(Encryptor::default());
-            let mut client = Client::new(addr, mode, transport, encryptor).expect("Failed to create client");
+            let mut client = Client::try_new(addr, mode, transport, encryptor).expect("Failed to create client");
             let mut res = Ok(());
             'outer: while let Some(event_frame) = input_rx.recv().await {
                 match event_frame {

@@ -1,27 +1,22 @@
 //! A common client to use in dapp(native version).
 
+mod connection;
 mod handler;
 
 use std::sync::Arc;
 
+use connection::Connection;
 use handler::Handler;
-use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
-
-#[cfg(not(target_arch = "wasm32"))]
-use jsonrpsee::{http_client::client::HttpClient, http_client::HttpClientBuilder};
-
-#[cfg(target_arch = "wasm32")]
-use jsonrpsee::{core::client::Client as RpcClient, wasm_client::WasmClientBuilder};
 
 use race_core::{
     client::Client,
-    connection::Connection,
+    connection::ConnectionT,
+    error::{Error, Result},
     event::{CustomEvent, Event},
     transport::TransportT,
     types::{AttachGameParams, ClientMode, SubmitEventParams, SubscribeEventParams},
 };
 use race_encryptor::Encryptor;
-use race_transport::create_transport_for_app;
 
 pub struct AppClient {
     pub addr: String,
@@ -29,64 +24,53 @@ pub struct AppClient {
     pub client: Client,
     pub handler: Handler,
     pub transport: Arc<dyn TransportT>,
-    pub connection: Connection<RpcClient>,
-}
-
-async fn make_connection(endpoint: String) -> Connection<RpcClient> {
-    #[cfg(target_arch = "wasm32")]
-    let rpc_client = WasmClientBuilder::default()
-        .build(&endpoint)
-        .await
-        .expect("Failed to build RPC client for Connection");
-    #[cfg(not(target_arch = "wasm32"))]
-    let rpc_client = HttpClientBuilder::default()
-        .build(&endpoint)
-        .expect("Failed to build RPC client for Connection");
-    Connection::new(endpoint, rpc_client)
+    pub connection: Connection,
 }
 
 impl AppClient {
-    pub async fn new(chain: &str, rpc: &str, game_addr: &str) -> Self {
-        let transport: Arc<dyn TransportT> = Arc::from(
-            create_transport_for_app(chain, rpc)
-                .await
-                .expect("Failed to create transport"),
-        );
+    pub async fn try_new(transport: Arc<dyn TransportT>, game_addr: &str) -> Result<Self> {
+
         let encryptor = Arc::new(Encryptor::default());
+
         let game_account = transport
             .get_game_account(game_addr)
             .await
-            .expect("Failed to load game account");
+            .ok_or(Error::GameAccountNotFound)?;
+
         let game_bundle = transport
             .get_game_bundle(&game_account.bundle_addr)
             .await
-            .expect("Failed to load game bundle");
-        if let Some(ref transactor_addr) = game_account.transactor_addr {
-            let transactor_account = transport
-                .get_transactor_account(transactor_addr)
-                .await
-                .expect("Failed to load transactor account");
-            let endpoint = transactor_account.endpoint.clone();
-            let connection = make_connection(endpoint).await;
-            let client = Client::new(
-                game_addr.into(),
-                ClientMode::Player,
-                transport.clone(),
-                encryptor,
-            )
-            .expect("Failed to create client");
-            let handler = Handler::from_bundle(game_bundle).await;
-            Self {
-                addr: game_addr.to_owned(),
-                chain: chain.to_owned(),
-                client,
-                transport,
-                connection,
-                handler,
-            }
-        } else {
-            panic!("Game not served");
-        }
+            .ok_or(Error::GameBundleNotFound)?;
+
+        let transactor_addr = game_account
+            .transactor_addr
+            .as_ref()
+            .ok_or(Error::GameNotServed)?;
+
+        let transactor_account = transport
+            .get_transactor_account(transactor_addr)
+            .await
+            .ok_or(Error::CantFindTransactor)?;
+
+        let connection = Connection::new(&transactor_account.endpoint).await;
+
+        let client = Client::try_new(
+            game_addr.into(),
+            ClientMode::Player,
+            transport.clone(),
+            encryptor,
+        )?;
+
+        let handler = Handler::from_bundle(game_bundle).await;
+
+        Ok(Self {
+            addr: game_addr.to_owned(),
+            chain: "",into(),
+            client,
+            transport,
+            connection,
+            handler,
+        })
     }
 
     /// Start subscription and attach to game.
@@ -127,5 +111,21 @@ impl AppClient {
             })
             .await
             .expect("Failed to send event");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use race_transport::TransportBuilder;
+    use race_test::{DummyTransport, game_account_addr};
+
+    const BIN_PATH: &str = "../target/wasm32-unknown-unknown/release/race_example_counter.wasm";
+
+    #[test]
+    fn test_init() {
+        let transport: Arc<dyn TransportT> = Arc::from(DummyTransport::default());
+        let app_client = AppClient::try_new(transport, &game_account_addr());
     }
 }

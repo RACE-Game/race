@@ -26,3 +26,6 @@ jsonrpsee = { version = "0.16.1", features = ["wasm-client"] }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 wasmer = "3.0.2"
 jsonrpsee = { version = "0.16.1", features = ["full"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+race-test = { path = "../test" }

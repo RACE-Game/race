@@ -21,7 +21,7 @@ impl TestClient {
         let transport = Arc::new(DummyTransport::default());
         let encryptor = Arc::new(Encryptor::default());
         Self {
-            client: Client::new(addr, mode, transport, encryptor).expect("Failed to test client"),
+            client: Client::try_new(addr, mode, transport, encryptor).expect("Failed to test client"),
         }
     }
 

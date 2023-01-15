@@ -80,7 +80,7 @@ impl TransportT for SolanaTransport {
 }
 
 impl SolanaTransport {
-    pub fn new(rpc: &str) -> Self {
+    pub fn new(rpc: String) -> Self {
         Self {}
     }
 }

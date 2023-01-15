@@ -1,48 +1,160 @@
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_env::Config;
-// use signer::Signer;
+use signer::Signer;
+use thiserror::Error;
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ChainType {
+    Solana,
+    Bnb,
+    Facade,
+}
+
+impl TryFrom<&str> for ChainType {
+    type Error = TransportError;
+
+    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+        match value {
+            "bnb" => Ok(Self::Bnb),
+            "facade" => Ok(Self::Facade),
+            "solana" => Ok(Self::Solana),
+            _ => Err(TransportError::InvalidChainName),
+        }
+    }
+}
 
 pub mod evm;
 pub mod facade;
 pub mod signer;
 pub mod solana;
 
-pub async fn create_transport_for_app(chain: &str, rpc: &str) -> Result<Box<dyn TransportT>> {
-    match chain {
-        "facade" => Ok(Box::new(facade::FacadeTransport::new(rpc).await)),
-        "solana" => Ok(Box::new(solana::SolanaTransport::new(rpc))),
-        "bnb" => Ok(Box::new(evm::EvmTransport::new(rpc))),
-        _ => Err(Error::InvalidChainName),
+#[derive(Error, Debug)]
+pub enum TransportError {
+    #[error("unspecified chain")]
+    UnspecifiedChain,
+
+    #[error("unspecified signer")]
+    UnspecifiedSigner,
+
+    #[error("unspecified rpc")]
+    UnspecifiedRpc,
+
+    #[error("invalid config")]
+    InvalidConfig,
+
+    #[error("invalid chain name")]
+    InvalidChainName,
+}
+
+pub type TransportResult<T> = std::result::Result<T, TransportError>;
+
+impl From<TransportError> for race_core::error::Error {
+    fn from(value: TransportError) -> Self {
+        Self::InitializeTransportFailed(value.to_string())
     }
 }
 
-pub async fn create_transport(config: &Config, chain: &str) -> Result<Box<dyn TransportT>> {
-    match chain {
-        "facade" => {
-            if let Some(ref params) = config.facade {
-                let transport = facade::FacadeTransport::new(&params.host).await;
-                Ok(Box::new(transport))
-            } else {
-                Err(Error::ConfigMissing)
-            }
+pub struct TransportBuilder {
+    chain: Option<ChainType>,
+    rpc: Option<String>,
+    signer: Option<Box<dyn Signer>>,
+}
+
+impl Default for TransportBuilder {
+    fn default() -> Self {
+        Self {
+            chain: None,
+            rpc: None,
+            signer: None,
         }
-        "solana" => {
-            if let Some(ref params) = config.solana {
-                let transport = solana::SolanaTransport::new(&params.rpc);
-                Ok(Box::new(transport))
-            } else {
-                Err(Error::ConfigMissing)
+    }
+}
+
+impl TransportBuilder {
+    pub fn with_chain(mut self, chain: ChainType) -> Self {
+        self.chain = Some(chain);
+        self
+    }
+
+    pub fn try_with_chain<T>(mut self, chain: T) -> TransportResult<Self>
+    where
+        T: TryInto<ChainType, Error = TransportError>,
+    {
+        self.chain = Some(chain.try_into()?);
+        Ok(self)
+    }
+
+    pub fn with_rpc<S: Into<String>>(mut self, rpc: S) -> Self {
+        self.rpc = Some(rpc.into());
+        self
+    }
+
+    pub fn with_signer(mut self, signer: Box<dyn Signer>) -> Self {
+        self.signer = Some(signer);
+        self
+    }
+
+    pub fn try_with_config(mut self, config: &Config) -> TransportResult<Self> {
+        if let Some(ref chain) = self.chain {
+            match chain {
+                ChainType::Solana => {
+                    self.rpc = Some(
+                        config
+                            .solana
+                            .as_ref()
+                            .ok_or(TransportError::InvalidConfig)?
+                            .rpc
+                            .clone(),
+                    );
+                }
+                ChainType::Bnb => {
+                    self.rpc = Some(
+                        config
+                            .bnb
+                            .as_ref()
+                            .ok_or(TransportError::InvalidConfig)?
+                            .rpc
+                            .clone(),
+                    );
+                }
+                ChainType::Facade => {
+                    self.rpc = Some(
+                        config
+                            .facade
+                            .as_ref()
+                            .ok_or(TransportError::InvalidConfig)?
+                            .host
+                            .clone(),
+                    );
+                }
             }
+            Ok(self)
+        } else {
+            Err(TransportError::UnspecifiedChain)
         }
-        "bnb" => {
-            if let Some(ref params) = config.bnb {
-                let transport = evm::EvmTransport::new(&params.rpc);
-                Ok(Box::new(transport))
-            } else {
-                Err(Error::ConfigMissing)
+    }
+
+    pub async fn build(self) -> TransportResult<Box<dyn TransportT>> {
+        if let Some(chain) = self.chain {
+            match chain {
+                ChainType::Solana => {
+                    let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
+                    // let signer = self.signer.ok_or(TransportError::UnspecifiedSigner)?;
+                    Ok(Box::new(solana::SolanaTransport::new(rpc)))
+                }
+                ChainType::Bnb => {
+                    let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
+                    // let signer = self.signer.ok_or(TransportError::UnspecifiedSigner)?;
+                    Ok(Box::new(evm::EvmTransport::new(rpc)))
+                }
+                ChainType::Facade => {
+                    let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
+                    Ok(Box::new(facade::FacadeTransport::new(&rpc).await))
+                }
             }
+        } else {
+            Err(TransportError::UnspecifiedChain)
         }
-        _ => Err(Error::InvalidChainName),
     }
 }

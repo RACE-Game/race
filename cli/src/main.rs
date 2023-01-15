@@ -1,7 +1,10 @@
 use clap::{arg, Command};
-use race_core::types::{CreateRegistrationParams, GameBundle, GetRegistrationParams};
+use race_core::{
+    transport::TransportT,
+    types::{CreateRegistrationParams, GameBundle, GetRegistrationParams},
+};
 use race_env::Config;
-use race_transport::create_transport;
+use race_transport::{TransportBuilder, TransportError};
 use std::{fs::File, io::Read};
 
 fn cli() -> Command {
@@ -46,8 +49,21 @@ fn cli() -> Command {
         )
 }
 
+async fn create_transport(
+    config: &Config,
+    chain: &str,
+) -> Result<Box<dyn TransportT>, TransportError> {
+    TransportBuilder::default()
+        .try_with_chain(chain)?
+        .try_with_config(config)?
+        .build()
+        .await
+}
+
 async fn publish(config: Config, chain: &str, bundle: &str) {
-    let transport = create_transport(&config, chain).expect("Failed to create transport");
+    let transport = create_transport(&config, chain)
+        .await
+        .expect("Failed to create transport");
     let mut file = File::open(bundle).unwrap();
     let mut buf = Vec::with_capacity(0x4000);
     file.read_to_end(&mut buf).unwrap();
@@ -58,7 +74,9 @@ async fn publish(config: Config, chain: &str, bundle: &str) {
 }
 
 async fn bundle_info(config: Config, chain: &str, addr: &str) {
-    let transport = create_transport(&config, chain).expect("Failed to create transport");
+    let transport = create_transport(&config, chain)
+        .await
+        .expect("Failed to create transport");
     match transport.get_game_bundle(addr).await {
         Some(game_bundle) => {
             println!("Game bundle: {:?}", game_bundle.addr);
@@ -71,7 +89,9 @@ async fn bundle_info(config: Config, chain: &str, addr: &str) {
 }
 
 async fn game_info(config: Config, chain: &str, addr: &str) {
-    let transport = create_transport(&config, chain).expect("Failed to create transport");
+    let transport = create_transport(&config, chain)
+        .await
+        .expect("Failed to create transport");
     match transport.get_game_account(addr).await {
         Some(game_account) => {
             println!("Game account: {:?}", game_account.addr);
@@ -95,9 +115,13 @@ async fn game_info(config: Config, chain: &str, addr: &str) {
 }
 
 async fn reg_info(config: Config, chain: &str, addr: &str) {
-    let transport = create_transport(&config, chain).expect("Failed to create transport");
+    let transport = create_transport(&config, chain)
+        .await
+        .expect("Failed to create transport");
     match transport
-        .get_registration(GetRegistrationParams { addr: addr.to_owned() })
+        .get_registration(GetRegistrationParams {
+            addr: addr.to_owned(),
+        })
         .await
     {
         Some(reg) => {
@@ -106,7 +130,10 @@ async fn reg_info(config: Config, chain: &str, addr: &str) {
             println!("Owner: {:?}", reg.owner.unwrap_or("None".into()));
             println!("Games:");
             for g in reg.games.iter() {
-                println!("Game account: {:?}, Game bundle: {:?}", g.addr, g.bundle_addr);
+                println!(
+                    "Game account: {:?}, Game bundle: {:?}",
+                    g.addr, g.bundle_addr
+                );
             }
         }
         None => {
@@ -116,7 +143,9 @@ async fn reg_info(config: Config, chain: &str, addr: &str) {
 }
 
 async fn create_reg(config: Config, chain: &str) {
-    let transport = create_transport(&config, chain).expect("Failed to create transport");
+    let transport = create_transport(&config, chain)
+        .await
+        .expect("Failed to create transport");
     let params = CreateRegistrationParams {
         is_private: false,
         size: 100,

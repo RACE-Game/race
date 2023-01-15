@@ -24,7 +24,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(addr: String, mode: ClientMode, transport: Arc<dyn TransportT>, encryptor: Arc<dyn EncryptorT>) -> Result<Self> {
+    pub fn try_new(addr: String, mode: ClientMode, transport: Arc<dyn TransportT>, encryptor: Arc<dyn EncryptorT>) -> Result<Self> {
         Ok(Self {
             addr,
             mode,

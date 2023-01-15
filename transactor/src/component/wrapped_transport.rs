@@ -6,26 +6,33 @@ use race_core::types::{CreateRegistrationParams, RegisterGameParams, UnregisterG
 use race_core::{
     transport::TransportT,
     types::{
-        CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, GetRegistrationParams, JoinParams,
-        PlayerProfile, RegisterTransactorParams, RegistrationAccount, SettleParams, TransactorAccount,
+        CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle,
+        GetRegistrationParams, JoinParams, PlayerProfile, RegisterTransactorParams,
+        RegistrationAccount, SettleParams, TransactorAccount,
     },
 };
 use race_env::Config;
-use race_transport::create_transport;
+use race_transport::TransportBuilder;
 
 pub struct WrappedTransport {
     internal: Box<dyn TransportT>,
 }
 
 impl WrappedTransport {
-    pub fn new(config: &Config) -> Self {
+    pub async fn try_new(config: &Config) -> Result<Self> {
         let chain: &str = &config
             .transactor
             .as_ref()
             .expect("Missing transactor configuration")
             .chain;
-        let transport = create_transport(config, chain).expect("Failed to create transport");
-        Self { internal: transport }
+        let transport = TransportBuilder::default()
+            .try_with_chain(chain)?
+            .try_with_config(config)?
+            .build()
+            .await?;
+        Ok(Self {
+            internal: transport,
+        })
     }
 }
 

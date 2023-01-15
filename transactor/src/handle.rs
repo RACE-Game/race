@@ -21,7 +21,7 @@ pub struct Handle {
 
 impl Handle {
     pub async fn new(config: &Config, account: &TransactorAccount, addr: &str, chain: &str) -> Result<Self> {
-        let transport = Arc::new(WrappedTransport::new(config));
+        let transport = Arc::new(WrappedTransport::try_new(config).await?);
         println!("Transport for {:?} created", chain);
 
         let game_account = transport

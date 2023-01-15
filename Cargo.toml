@@ -10,7 +10,6 @@ members = [
   "facade",
   "env",
   "client",
-  "client-wasm",
   "test",
   "examples/counter/core",
   "examples/minimal/core",

@@ -86,7 +86,7 @@ impl TransportT for EvmTransport {
 // }
 
 impl EvmTransport {
-    pub fn new(rpc: &str) -> Self {
+    pub fn new(rpc: String) -> Self {
         Self {}
     }
 }
