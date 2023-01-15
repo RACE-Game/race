@@ -1,4 +1,3 @@
-use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_env::Config;
 use signer::Signer;
@@ -55,20 +54,11 @@ impl From<TransportError> for race_core::error::Error {
     }
 }
 
+#[derive(Default)]
 pub struct TransportBuilder {
     chain: Option<ChainType>,
     rpc: Option<String>,
     signer: Option<Box<dyn Signer>>,
-}
-
-impl Default for TransportBuilder {
-    fn default() -> Self {
-        Self {
-            chain: None,
-            rpc: None,
-            signer: None,
-        }
-    }
 }
 
 impl TransportBuilder {

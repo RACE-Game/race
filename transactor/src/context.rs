@@ -49,7 +49,7 @@ impl ApplicationContext {
             Entry::Occupied(_) => Ok(()),
             Entry::Vacant(e) => {
                 let mut handle =
-                    Handle::new(&self.config, &self.account, e.key(), &params.chain).await?;
+                    Handle::try_new(&self.config, &self.account, e.key()).await?;
                 handle.start().await;
                 e.insert(handle);
                 Ok(())

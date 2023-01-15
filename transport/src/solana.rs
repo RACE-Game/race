@@ -1,4 +1,3 @@
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use race_core::error::Result;
@@ -15,8 +14,8 @@ use race_core::{
     },
 };
 
-use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::pubkey::Pubkey;
+// use solana_sdk::commitment_config::CommitmentConfig;
+// use solana_sdk::pubkey::Pubkey;
 
 pub struct SolanaTransport {}
 
@@ -80,7 +79,7 @@ impl TransportT for SolanaTransport {
 }
 
 impl SolanaTransport {
-    pub fn new(rpc: String) -> Self {
+    pub fn new(_rpc: String) -> Self {
         Self {}
     }
 }

@@ -20,7 +20,6 @@ use race_encryptor::Encryptor;
 
 pub struct AppClient {
     pub addr: String,
-    pub chain: String,
     pub client: Client,
     pub handler: Handler,
     pub transport: Arc<dyn TransportT>,
@@ -65,7 +64,6 @@ impl AppClient {
 
         Ok(Self {
             addr: game_addr.to_owned(),
-            chain: "",into(),
             client,
             transport,
             connection,
@@ -79,7 +77,6 @@ impl AppClient {
         self.connection
             .attach_game(AttachGameParams {
                 addr: self.addr.clone(),
-                chain: self.chain.clone(),
             })
             .await
             .expect("Failed to attach to game");
@@ -119,13 +116,13 @@ mod tests {
 
     use super::*;
     use race_transport::TransportBuilder;
-    use race_test::{DummyTransport, game_account_addr};
+    use race_test::{DummyTransport, TEST_GAME_ACCOUNT_ADDR};
 
     const BIN_PATH: &str = "../target/wasm32-unknown-unknown/release/race_example_counter.wasm";
 
     #[test]
     fn test_init() {
         let transport: Arc<dyn TransportT> = Arc::from(DummyTransport::default());
-        let app_client = AppClient::try_new(transport, &game_account_addr());
+        let app_client = AppClient::try_new(transport, TEST_GAME_ACCOUNT_ADDR);
     }
 }
