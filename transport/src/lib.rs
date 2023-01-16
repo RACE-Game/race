@@ -1,7 +1,13 @@
+pub mod evm;
+pub mod facade;
+pub mod signer;
+pub mod solana;
+pub mod error;
+
 use race_core::transport::TransportT;
 use race_env::Config;
 use signer::Signer;
-use thiserror::Error;
+use error::{TransportError, TransportResult};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ChainType {
@@ -18,41 +24,11 @@ impl TryFrom<&str> for ChainType {
             "bnb" => Ok(Self::Bnb),
             "facade" => Ok(Self::Facade),
             "solana" => Ok(Self::Solana),
-            _ => Err(TransportError::InvalidChainName),
+            _ => Err(TransportError::InvalidChainName(value.into())),
         }
     }
 }
 
-pub mod evm;
-pub mod facade;
-pub mod signer;
-pub mod solana;
-
-#[derive(Error, Debug)]
-pub enum TransportError {
-    #[error("unspecified chain")]
-    UnspecifiedChain,
-
-    #[error("unspecified signer")]
-    UnspecifiedSigner,
-
-    #[error("unspecified rpc")]
-    UnspecifiedRpc,
-
-    #[error("invalid config")]
-    InvalidConfig,
-
-    #[error("invalid chain name")]
-    InvalidChainName,
-}
-
-pub type TransportResult<T> = std::result::Result<T, TransportError>;
-
-impl From<TransportError> for race_core::error::Error {
-    fn from(value: TransportError) -> Self {
-        Self::InitializeTransportFailed(value.to_string())
-    }
-}
 
 #[derive(Default)]
 pub struct TransportBuilder {
@@ -140,7 +116,7 @@ impl TransportBuilder {
                 }
                 ChainType::Facade => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
-                    Ok(Box::new(facade::FacadeTransport::new(&rpc).await))
+                    Ok(Box::new(facade::FacadeTransport::try_new(&rpc).await?))
                 }
             }
         } else {

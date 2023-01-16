@@ -9,7 +9,7 @@ use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBu
 #[cfg(target_arch = "wasm32")]
 use jsonrpsee::wasm_client::WasmClientBuilder as ClientBuilder;
 
-use race_core::error::{Error, Result};
+use race_core::error::{Result, Error};
 use race_core::transport::TransportT;
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
@@ -18,17 +18,24 @@ use race_core::types::{
     TransactorAccount, UnregisterGameParams,
 };
 
+use crate::error::{TransportResult, TransportError};
+
 pub struct FacadeTransport {
     client: Client,
 }
 
 impl FacadeTransport {
-    pub async fn new(url: &str) -> Self {
+    pub async fn try_new(url: &str) -> TransportResult<Self> {
         #[cfg(not(target_arch = "wasm32"))]
-        let client = ClientBuilder::default().build(url).unwrap();
+        let client = ClientBuilder::default()
+            .build(url)
+            .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
         #[cfg(target_arch = "wasm32")]
-        let client = ClientBuilder::default().build(url).await.unwrap();
-        Self { client }
+        let client = ClientBuilder::default()
+            .build(url)
+            .await
+            .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
+        Ok(Self { client })
     }
 }
 

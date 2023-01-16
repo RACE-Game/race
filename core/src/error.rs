@@ -91,8 +91,8 @@ pub enum Error {
     #[error("invalid transactor address")]
     InvalidTransactorAddress,
 
-    #[error("initialize transport failed")]
-    InitializeTransportFailed(String),
+    #[error("initialization transport failed")]
+    InitializationTransportFailed(String),
 
     #[error("initialize rpc client error")]
     InitializeRpcClientError,
