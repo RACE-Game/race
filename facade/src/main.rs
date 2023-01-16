@@ -1,3 +1,10 @@
+//! This server is the replacement for blockchains in testing and development
+//!
+//! A list of default accounts will be created during the start:
+//! COUNTER_GAME_ADDRESS - A game account of counter example
+//! COUNTER_BUNDLE_ADDRESS - The game bundle of counter example
+//! DEFAULT_REGISTRATION_ADDRESS - The default registration account which contains all games above
+
 use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error, RpcModule};
@@ -8,6 +15,8 @@ use race_core::types::{
     RegistrationAccount, ServeParams, TransactorAccount, UnregisterGameParams,
 };
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Read;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
@@ -17,6 +26,9 @@ use uuid::Uuid;
 type Result<T> = std::result::Result<T, Error>;
 
 const HTTP_HOST: &str = "127.0.0.1:12002";
+const DEFAULT_REGISTRATION_ADDRESS: &str = "DEFAULT_REGISTRATION_ADDRESS";
+const COUNTER_GAME_ADDRESS: &str = "COUNTER_GAME_ADDRESS";
+const COUNTER_BUNDLE_ADDRESS: &str = "COUNTER_BUNDLE_ADDRESS";
 
 #[derive(Default)]
 pub struct Context {
@@ -29,15 +41,47 @@ pub struct Context {
 impl Context {
     fn new() -> Self {
         let def_reg = RegistrationAccount {
-            addr: "DEFAULT".into(),
+            addr: DEFAULT_REGISTRATION_ADDRESS.into(),
             is_private: false,
             size: 10,
             owner: None,
             games: Vec::with_capacity(10),
         };
+        println!(
+            "Default registration created at {:?}",
+            DEFAULT_REGISTRATION_ADDRESS
+        );
+
+        let mut f =
+            File::open("../target/wasm32-unknown-unknown/release/race_example_counter.wasm")
+                .expect("race_example_counter.wasm not found");
+        let mut data = vec![];
+        f.read_to_end(&mut data).unwrap();
+        let counter_bundle = GameBundle {
+            addr: COUNTER_BUNDLE_ADDRESS.into(),
+            data,
+        };
+        println!("Counter bundle created at {:?}", COUNTER_BUNDLE_ADDRESS);
+
+        let counter_game = GameAccount {
+            addr: COUNTER_GAME_ADDRESS.into(),
+            bundle_addr: COUNTER_BUNDLE_ADDRESS.into(),
+            settle_version: 0,
+            access_version: 0,
+            players: vec![],
+            deposits: vec![],
+            server_addrs: vec![],
+            transactor_addr: None,
+            max_players: 10,
+            data_len: 8,
+            data: vec![0u8; 8],
+        };
+        println!("Counter game created at {:?}", COUNTER_GAME_ADDRESS);
 
         Context {
-            registrations: HashMap::from([("DEFAULT".into(), def_reg)]),
+            registrations: HashMap::from([(DEFAULT_REGISTRATION_ADDRESS.into(), def_reg)]),
+            accounts: HashMap::from([(COUNTER_GAME_ADDRESS.into(), counter_game)]),
+            bundles: HashMap::from([(COUNTER_BUNDLE_ADDRESS.into(), counter_bundle)]),
             ..Default::default()
         }
     }
@@ -59,7 +103,6 @@ async fn get_game_bundle(params: Params<'_>, context: Arc<Mutex<Context>>) -> Re
     let GetGameBundleParams { addr } = params.one()?;
     println!("Get game bundle: {:?}", addr);
     let context = context.lock().await;
-    println!("Existing bundles: {:?}", context.bundles);
     if let Some(bundle) = context.bundles.get(&addr) {
         Ok(bundle.to_owned())
     } else {

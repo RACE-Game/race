@@ -58,10 +58,14 @@ impl TransportT for FacadeTransport {
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let params = GetAccountInfoParams { addr: addr.into() };
-        self.client
+        let rs = self.client
             .request("get_account_info", rpc_params![params])
-            .await
-            .ok()
+            .await;
+        if let Ok(rs) = rs {
+            Some(rs)
+        } else {
+            None
+        }
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {

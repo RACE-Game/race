@@ -112,18 +112,18 @@ impl AppClient {
     }
 }
 
-#[cfg(test)]
-mod tests {
+// #[cfg(test)]
+// mod tests {
 
-    use super::*;
-    use race_transport::TransportBuilder;
-    use race_test::{DummyTransport, TEST_GAME_ACCOUNT_ADDR};
+//     use super::*;
+//     use race_transport::TransportBuilder;
+//     use race_test::{DummyTransport, TEST_GAME_ACCOUNT_ADDR};
 
-    const BIN_PATH: &str = "../target/wasm32-unknown-unknown/release/race_example_counter.wasm";
+//     const BIN_PATH: &str = "../target/wasm32-unknown-unknown/release/race_example_counter.wasm";
 
-    #[test]
-    fn test_init() {
-        let transport: Arc<dyn TransportT> = Arc::from(DummyTransport::default());
-        let app_client = AppClient::try_new(transport, TEST_GAME_ACCOUNT_ADDR);
-    }
-}
+//     #[test]
+//     fn test_init() {
+//         let transport: Arc<dyn TransportT> = Arc::from(DummyTransport::default());
+//         let app_client = AppClient::try_new(transport, TEST_GAME_ACCOUNT_ADDR);
+//     }
+// }

@@ -29,7 +29,6 @@ impl TryFrom<&str> for ChainType {
     }
 }
 
-
 #[derive(Default)]
 pub struct TransportBuilder {
     chain: Option<ChainType>,
