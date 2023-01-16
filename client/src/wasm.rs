@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::app_client::AppClient;
-use race_core::{types::CreateGameAccountParams, transport::TransportT};
+use race_core::{transport::TransportT, types::CreateGameAccountParams};
 use race_transport::{ChainType, TransportBuilder};
 use wasm_bindgen::prelude::*;
 
@@ -13,6 +13,8 @@ extern "C" {
     fn info(s: &str);
     #[wasm_bindgen(js_namespace = console)]
     fn error(s: &str);
+    #[wasm_bindgen(js_namespace = JSON, js_name = parse)]
+    fn json_parse(s: &str) -> JsValue;
 }
 
 macro_rules! console_info {
@@ -42,6 +44,13 @@ impl WasmAppClient {
         }
     }
 
+    fn get_client_unchecked(&self) -> &AppClient {
+        match self.app_client {
+            None => panic!("Client is not initialized"),
+            Some(ref client) => client,
+        }
+    }
+
     #[wasm_bindgen]
     pub async fn initialize(&mut self) {
         let chain_type: ChainType = match self.chain.as_str().try_into() {
@@ -68,6 +77,18 @@ impl WasmAppClient {
             .unwrap();
         info("App client initialized");
         self.app_client = Some(app_client);
+    }
+
+    #[wasm_bindgen]
+    pub async fn attach_game(&self) {
+        self.get_client_unchecked().attach_game().await;
+    }
+
+    #[wasm_bindgen]
+    pub async fn get_state(&self) -> JsValue {
+        let state = self.get_client_unchecked().get_state().await;
+        console_info!("State: {:?}", state);
+        json_parse(&state)
     }
 }
 
@@ -117,13 +138,14 @@ impl AppHelper {
     fn get_transport_unchecked(&self) -> &Box<dyn TransportT> {
         match self.transport {
             None => panic!("Not initialized"),
-            Some(ref t) => t
+            Some(ref t) => t,
         }
     }
 
     #[wasm_bindgen]
     pub async fn get_game_account(&self, game_addr: &str) {
-        let game_account = self.get_transport_unchecked()
+        let game_account = self
+            .get_transport_unchecked()
             .get_game_account(game_addr)
             .await;
         console_info!("Game account: {:?}", game_account);
@@ -133,8 +155,10 @@ impl AppHelper {
 #[cfg(test)]
 mod tests {
 
-    use wasm_bindgen_test::*;
     use super::*;
+    use serde_json::json;
+    use wasm_bindgen_test::*;
+    use web_sys::console::{log, log_1};
 
     wasm_bindgen_test_configure!(run_in_browser);
 
@@ -143,10 +167,15 @@ mod tests {
         let mut app_helper = AppHelper::new("facade", "ws://localhost:12002");
         app_helper.initialize().await;
         app_helper.get_game_account("COUNTER_GAME_ADDRESS").await;
+
     }
     #[wasm_bindgen_test]
     async fn test_init_client() {
-        let mut client = WasmAppClient::new("facade", "ws://localhost:12002", "COUNTER_GAME_ADDRESS");
+        let mut client =
+            WasmAppClient::new("facade", "ws://localhost:12002", "COUNTER_GAME_ADDRESS");
         client.initialize().await;
+        client.attach_game().await;
+        let state = client.get_state().await;
+        log_1(&state);
     }
 }

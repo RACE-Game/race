@@ -12,7 +12,7 @@ use tokio_stream::wrappers::BroadcastStream;
 
 type Result<T> = std::result::Result<T, Error>;
 
-const HTTP_HOST: &str = "127.0.0.1:12000";
+const HTTP_HOST: &str = "127.0.0.1:12003";
 
 async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
     let params: AttachGameParams = params.one()?;
@@ -93,7 +93,7 @@ pub async fn run_server(
     )?;
 
     let handle = server.start(module)?;
-    println!("Server started");
+    println!("Transactor started at {:?}", HTTP_HOST);
     handle.stopped().await;
     Ok(())
 }

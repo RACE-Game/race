@@ -115,6 +115,7 @@ impl TransportBuilder {
                 }
                 ChainType::Facade => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
+                    println!("Build FacadeTransport to {:?}", rpc);
                     Ok(Box::new(facade::FacadeTransport::try_new(&rpc).await?))
                 }
             }

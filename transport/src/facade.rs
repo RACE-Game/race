@@ -9,16 +9,17 @@ use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBu
 #[cfg(target_arch = "wasm32")]
 use jsonrpsee::wasm_client::WasmClientBuilder as ClientBuilder;
 
-use race_core::error::{Result, Error};
+use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
-    GameBundle, GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams, JoinParams,
-    PlayerProfile, RegisterGameParams, RegisterTransactorParams, RegistrationAccount, SettleParams,
-    TransactorAccount, UnregisterGameParams,
+    GameBundle, GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams,
+    GetTransactorInfoParams, JoinParams, PlayerProfile, RegisterGameParams,
+    RegisterTransactorParams, RegistrationAccount, SettleParams, TransactorAccount,
+    UnregisterGameParams,
 };
 
-use crate::error::{TransportResult, TransportError};
+use crate::error::{TransportError, TransportResult};
 
 pub struct FacadeTransport {
     client: Client,
@@ -56,9 +57,24 @@ impl TransportT for FacadeTransport {
             .map_err(|e| Error::RpcError(e.to_string()))
     }
 
+    async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()> {
+        self.client
+            .request("register_transactor", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
+    async fn join(&self, params: JoinParams) -> Result<()> {
+        self.client
+            .request("join", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let params = GetAccountInfoParams { addr: addr.into() };
-        let rs = self.client
+        let rs = self
+            .client
             .request("get_account_info", rpc_params![params])
             .await;
         if let Ok(rs) = rs {
@@ -76,19 +92,28 @@ impl TransportT for FacadeTransport {
             .ok()
     }
 
-    async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount> {
-        todo!()
-    }
-
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
         None
     }
 
-    async fn join(&self, params: JoinParams) -> Result<()> {
+    async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount> {
+        let params = GetTransactorInfoParams { addr: addr.into() };
         self.client
-            .request("join", rpc_params![params])
+            .request("get_transactor_info", rpc_params![params])
             .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+            .ok()
+    }
+
+    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {
+        println!("Get registration: {:?}", params);
+        self.client
+            .request("get_registration_info", rpc_params![params])
+            .await
+            .map_err(|e| {
+                println!("error: {:?}", e);
+                e
+            })
+            .ok()
     }
 
     async fn publish_game(&self, bundle: GameBundle) -> Result<String> {
@@ -101,13 +126,6 @@ impl TransportT for FacadeTransport {
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
         self.client
             .request("settle", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
-    }
-
-    async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()> {
-        self.client
-            .request("register_transactor", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
     }
@@ -131,17 +149,5 @@ impl TransportT for FacadeTransport {
             .request("unregister_game", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
-    }
-
-    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {
-        println!("Get registration: {:?}", params);
-        self.client
-            .request("get_registration_info", rpc_params![params])
-            .await
-            .map_err(|e| {
-                println!("error: {:?}", e);
-                e
-            })
-            .ok()
     }
 }

@@ -45,6 +45,7 @@ impl ApplicationContext {
     }
 
     pub async fn start_game(&mut self, params: AttachGameParams) -> Result<()> {
+        println!("Start game from address: {:?}", params.addr);
         match self.games.entry(params.addr) {
             Entry::Occupied(_) => Ok(()),
             Entry::Vacant(e) => {

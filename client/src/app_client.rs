@@ -1,6 +1,5 @@
 //! A common client to use in dapp(native version).
 
-
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -15,7 +14,9 @@ use race_core::{
     error::{Error, Result},
     event::{CustomEvent, Event},
     transport::TransportT,
-    types::{AttachGameParams, ClientMode, SubmitEventParams, SubscribeEventParams},
+    types::{
+        AttachGameParams, ClientMode, GetStateParams, SubmitEventParams, SubscribeEventParams,
+    },
 };
 use race_encryptor::Encryptor;
 
@@ -29,7 +30,6 @@ pub struct AppClient {
 
 impl AppClient {
     pub async fn try_new(transport: Arc<dyn TransportT>, game_addr: &str) -> Result<Self> {
-
         let encryptor = Arc::new(Encryptor::default());
 
         let game_account = transport
@@ -98,6 +98,25 @@ impl AppClient {
                 panic!("Err in broadcast");
             }
         }
+    }
+
+    pub async fn attach_game(&self) {
+        self.connection
+            .attach_game(AttachGameParams {
+                addr: self.addr.clone(),
+            })
+            .await
+            .expect("Failed to attach game");
+    }
+
+    /// Get current game state.
+    pub async fn get_state(&self) -> String {
+        self.connection
+            .get_state(GetStateParams {
+                addr: self.addr.clone(),
+            })
+            .await
+            .expect("Failed to get state")
     }
 
     /// Send custom event to transactor.

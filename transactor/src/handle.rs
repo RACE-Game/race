@@ -21,6 +21,8 @@ pub struct Handle {
 
 impl Handle {
     pub async fn try_new(config: &Config, account: &TransactorAccount, addr: &str) -> Result<Self> {
+        println!("Try create game handle for {:?}", addr);
+
         let transport = Arc::new(WrappedTransport::try_new(config).await?);
 
         let game_account = transport

@@ -4,6 +4,8 @@
 //! COUNTER_GAME_ADDRESS - A game account of counter example
 //! COUNTER_BUNDLE_ADDRESS - The game bundle of counter example
 //! DEFAULT_REGISTRATION_ADDRESS - The default registration account which contains all games above
+//! DEFAULT_TRANSACTOR_ADDRESS - The address for a transactor
+//! DEFAULT_OWNER_ADDRESS - The address of the owner
 
 use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
@@ -29,6 +31,8 @@ const HTTP_HOST: &str = "127.0.0.1:12002";
 const DEFAULT_REGISTRATION_ADDRESS: &str = "DEFAULT_REGISTRATION_ADDRESS";
 const COUNTER_GAME_ADDRESS: &str = "COUNTER_GAME_ADDRESS";
 const COUNTER_BUNDLE_ADDRESS: &str = "COUNTER_BUNDLE_ADDRESS";
+const DEFAULT_TRANSACTOR_ADDRESS: &str = "DEFAULT_TRANSACTOR_ADDRESS";
+const DEFAULT_OWNER_ADDRESS: &str = "DEFAULT_OWNER_ADDRESS";
 
 #[derive(Default)]
 pub struct Context {
@@ -36,55 +40,6 @@ pub struct Context {
     registrations: HashMap<String, RegistrationAccount>,
     transactors: HashMap<String, TransactorAccount>,
     bundles: HashMap<String, GameBundle>,
-}
-
-impl Context {
-    fn new() -> Self {
-        let def_reg = RegistrationAccount {
-            addr: DEFAULT_REGISTRATION_ADDRESS.into(),
-            is_private: false,
-            size: 10,
-            owner: None,
-            games: Vec::with_capacity(10),
-        };
-        println!(
-            "Default registration created at {:?}",
-            DEFAULT_REGISTRATION_ADDRESS
-        );
-
-        let mut f =
-            File::open("../target/wasm32-unknown-unknown/release/race_example_counter.wasm")
-                .expect("race_example_counter.wasm not found");
-        let mut data = vec![];
-        f.read_to_end(&mut data).unwrap();
-        let counter_bundle = GameBundle {
-            addr: COUNTER_BUNDLE_ADDRESS.into(),
-            data,
-        };
-        println!("Counter bundle created at {:?}", COUNTER_BUNDLE_ADDRESS);
-
-        let counter_game = GameAccount {
-            addr: COUNTER_GAME_ADDRESS.into(),
-            bundle_addr: COUNTER_BUNDLE_ADDRESS.into(),
-            settle_version: 0,
-            access_version: 0,
-            players: vec![],
-            deposits: vec![],
-            server_addrs: vec![],
-            transactor_addr: None,
-            max_players: 10,
-            data_len: 8,
-            data: vec![0u8; 8],
-        };
-        println!("Counter game created at {:?}", COUNTER_GAME_ADDRESS);
-
-        Context {
-            registrations: HashMap::from([(DEFAULT_REGISTRATION_ADDRESS.into(), def_reg)]),
-            accounts: HashMap::from([(COUNTER_GAME_ADDRESS.into(), counter_game)]),
-            bundles: HashMap::from([(COUNTER_BUNDLE_ADDRESS.into(), counter_bundle)]),
-            ..Default::default()
-        }
-    }
 }
 
 fn random_addr() -> String {
@@ -322,7 +277,9 @@ async fn run_server() -> anyhow::Result<ServerHandle> {
     let http_server = ServerBuilder::default()
         .build(HTTP_HOST.parse::<SocketAddr>()?)
         .await?;
-    let context = Mutex::new(Context::new());
+    let mut context = Context::default();
+    setup(&mut context);
+    let context = Mutex::new(context);
     let mut module = RpcModule::new(context);
     module.register_async_method("create_game", create_game)?;
     module.register_async_method("get_account_info", get_account_info)?;
@@ -347,4 +304,55 @@ async fn main() -> anyhow::Result<()> {
     let server_handle = run_server().await?;
     server_handle.stopped().await;
     Ok(())
+}
+
+pub fn setup(context: &mut Context) {
+    let def_reg = RegistrationAccount {
+        addr: DEFAULT_REGISTRATION_ADDRESS.into(),
+        is_private: false,
+        size: 10,
+        owner: None,
+        games: Vec::with_capacity(10),
+    };
+    println!(
+        "Default registration created at {:?}",
+        DEFAULT_REGISTRATION_ADDRESS
+    );
+
+    let mut f = File::open("../target/wasm32-unknown-unknown/release/race_example_counter.wasm")
+        .expect("race_example_counter.wasm not found");
+    let mut data = vec![];
+    f.read_to_end(&mut data).unwrap();
+    let counter_bundle = GameBundle {
+        addr: COUNTER_BUNDLE_ADDRESS.into(),
+        data,
+    };
+    println!("Counter bundle created at {:?}", COUNTER_BUNDLE_ADDRESS);
+
+    let transactor = TransactorAccount {
+        addr: DEFAULT_TRANSACTOR_ADDRESS.into(),
+        owner_addr: DEFAULT_OWNER_ADDRESS.into(),
+        endpoint: "ws://localhost:12003".into(),
+    };
+    println!("Transactor account created at {:?}", DEFAULT_TRANSACTOR_ADDRESS);
+
+    let counter_game = GameAccount {
+        addr: COUNTER_GAME_ADDRESS.into(),
+        bundle_addr: COUNTER_BUNDLE_ADDRESS.into(),
+        settle_version: 0,
+        access_version: 0,
+        players: vec![],
+        deposits: vec![],
+        server_addrs: vec![DEFAULT_TRANSACTOR_ADDRESS.into()],
+        transactor_addr: Some(DEFAULT_TRANSACTOR_ADDRESS.into()),
+        max_players: 10,
+        data_len: 8,
+        data: vec![0u8; 8],
+    };
+    println!("Counter game created at {:?}", COUNTER_GAME_ADDRESS);
+
+    context.registrations = HashMap::from([(DEFAULT_REGISTRATION_ADDRESS.into(), def_reg)]);
+    context.accounts = HashMap::from([(COUNTER_GAME_ADDRESS.into(), counter_game)]);
+    context.bundles = HashMap::from([(COUNTER_BUNDLE_ADDRESS.into(), counter_bundle)]);
+    context.transactors = HashMap::from([(DEFAULT_TRANSACTOR_ADDRESS.into(), transactor)]);
 }
