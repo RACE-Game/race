@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::app_client::AppClient;
+use js_sys::Uint8Array;
 use race_core::{transport::TransportT, types::CreateGameAccountParams};
 use race_transport::{ChainType, TransportBuilder};
 use wasm_bindgen::prelude::*;
@@ -25,7 +26,8 @@ macro_rules! console_error {
 }
 
 #[wasm_bindgen]
-pub struct WasmAppClient {    chain: String,
+pub struct WasmAppClient {
+    chain: String,
     rpc: String,
     game_addr: String,
     app_client: Option<AppClient>,
@@ -149,6 +151,26 @@ impl AppHelper {
             .await;
         console_info!("Game account: {:?}", game_account);
     }
+
+    #[wasm_bindgen]
+    pub async fn create_game_account(
+        &self,
+        bundle_addr: String,
+        max_players: u8,
+        data: Uint8Array,
+    ) -> String {
+        let addr = self
+            .get_transport_unchecked()
+            .create_game_account(CreateGameAccountParams {
+                bundle_addr,
+                max_players,
+                data: data.to_vec(),
+            })
+            .await
+            .expect("Failed to create account");
+        console_info!("Game account created at {:?}", addr);
+        addr
+    }
 }
 
 #[cfg(test)]
@@ -162,12 +184,24 @@ mod tests {
     wasm_bindgen_test_configure!(run_in_browser);
 
     #[wasm_bindgen_test]
-    async fn test_helper() {
+    async fn test_helper_get_game() {
         let mut app_helper = AppHelper::new("facade", "ws://localhost:12002");
         app_helper.initialize().await;
         app_helper.get_game_account("COUNTER_GAME_ADDRESS").await;
-
     }
+
+    #[wasm_bindgen_test]
+    async fn test_helper_create_game() {
+        let mut app_helper = AppHelper::new("facade", "ws://localhost:12002");
+        app_helper.initialize().await;
+        let data = Uint8Array::new_with_length(8);
+        data.copy_from(&[1u8; 8]);
+        let addr = app_helper
+            .create_game_account("COUNTER_BUNDLE_ADDRESS".into(), 10, data)
+            .await;
+        console_log!("test_helper_create_game: address {:?}", addr);
+    }
+
     #[wasm_bindgen_test]
     async fn test_init_client() {
         let mut client =

@@ -56,8 +56,8 @@ impl TransportT for EvmTransport {
         todo!()
     }
 
-    async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
-        Ok(())
+    async fn register_server(&self, params: RegisterServerParams) -> Result<String> {
+        Ok("".into())
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {

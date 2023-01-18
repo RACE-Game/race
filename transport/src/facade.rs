@@ -57,7 +57,7 @@ impl TransportT for FacadeTransport {
             .map_err(|e| Error::RpcError(e.to_string()))
     }
 
-    async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
+    async fn register_server(&self, params: RegisterServerParams) -> Result<String> {
         self.client
             .request("register_server", rpc_params![params])
             .await

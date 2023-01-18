@@ -8,6 +8,7 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
+use tracing::info;
 
 /// Register current server.
 pub async fn register_server(config: &Config) -> Result<()> {
@@ -20,11 +21,12 @@ pub async fn register_server(config: &Config) -> Result<()> {
         .try_with_config(config)?
         .build()
         .await?;
-    transport
+    let addr = transport
         .register_server(RegisterServerParams {
             endpoint: transactor_conf.endpoint.to_owned(),
         })
         .await?;
+    info!("Server account created at {:?}", addr);
     Ok(())
 }
 

@@ -74,7 +74,7 @@ impl TransportT for WrappedTransport {
         self.internal.settle_game(params).await
     }
 
-    async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
+    async fn register_server(&self, params: RegisterServerParams) -> Result<String> {
         self.internal.register_server(params).await
     }
 

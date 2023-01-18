@@ -4,6 +4,6 @@ endpoint = "localhost:12003"
 chain = "facade"
 address = "SERVER_ADDRESS_1"
 
-[facade]ws
+[facade]
 host = "http://localhost:12002"
 registration_address = "DEFAULT_REGISTRATION_ADDRESS"

@@ -4,6 +4,8 @@ use crate::types::{Ciphertext, SecretDigest};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+use wasm_bindgen::prelude::*;
+
 #[derive(
     Hash,
     Debug,

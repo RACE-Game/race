@@ -59,7 +59,7 @@ pub trait TransportT: Send + Sync {
     /// * [`Error::ServerAccountExists`] when the account has been created already.
     /// * [`Error::MalformedEndpoint`] when the `endpoint` is invalid.
     /// * [`Error::RpcError`] when the RPC invocation failed.
-    async fn register_server(&self, params: RegisterServerParams) -> Result<()>;
+    async fn register_server(&self, params: RegisterServerParams) -> Result<String>;
 
     /// Join the game.
     ///

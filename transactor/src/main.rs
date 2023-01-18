@@ -18,12 +18,14 @@ fn cli() -> Command {
         .subcommand_required(true)
         .arg_required_else_help(true)
         .arg(arg!(-c <config> "The path to config file").default_value("config.toml"))
-        .subcommand(Command::new("run"))
-        .subcommand(Command::new("reg"))
+        .subcommand(Command::new("run").about("Run server"))
+        .subcommand(Command::new("reg").about("Register server account"))
 }
 
 #[tokio::main]
 pub async fn main() {
+    tracing_subscriber::fmt::init();
+
     let matches = cli().get_matches();
     let config = Config::from_path(&matches.get_one::<String>("config").unwrap().into()).await;
     match matches.subcommand() {
