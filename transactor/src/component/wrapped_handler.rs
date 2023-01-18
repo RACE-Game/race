@@ -18,6 +18,7 @@ pub struct WrappedHandler {
 impl WrappedHandler {
     /// Load WASM bundle by game address
     pub async fn load_by_addr(addr: &str, transport: &dyn TransportT) -> Result<Self> {
+        println!("Fetch game bundle from: {:?}", addr);
         let mut store = Store::default();
         let game_bundle = transport
             .get_game_bundle(addr)
@@ -75,10 +76,7 @@ impl WrappedHandler {
                 init_account_bs.len() as _,
             )
             .expect("Handle event error");
-        println!("Len: {:?}", len);
         let mut buf = vec![0; len as _];
-        println!("buf: {:?}", buf);
-        println!("buf len: {:?}", buf.len());
         mem_view.read(1u64, &mut buf).unwrap();
         *context = GameContext::try_from_slice(&buf).unwrap();
         Ok(())
@@ -109,10 +107,7 @@ impl WrappedHandler {
         let len = handle_event
             .call(&mut self.store, context_bs.len() as _, event_bs.len() as _)
             .expect("Handle event error");
-        println!("Len: {:?}", len);
         let mut buf = vec![0; len as _];
-        println!("buf: {:?}", buf);
-        println!("buf len: {:?}", buf.len());
         mem_view.read(1u64, &mut buf).unwrap();
         *context = GameContext::try_from_slice(&buf).unwrap();
         Ok(())

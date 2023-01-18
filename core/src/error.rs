@@ -4,119 +4,131 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(Error, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize, Clone)]
 pub enum Error {
-    #[error("player already joined")]
+    #[error("Player already joined")]
     PlayerAlreadyJoined,
 
-    #[error("player not in game")]
+    #[error("Player not in game")]
     PlayerNotInGame,
 
-    #[error("malformed game event")]
+    #[error("Malformed game event")]
     MalformedData(String),
 
-    #[error("malformed address")]
+    #[error("Malformed address")]
     MalformedAddress,
 
-    #[error("invalid randomness assignment")]
+    #[error("Invalid randomness assignment")]
     InvalidRandomnessAssignment,
 
-    #[error("invalid randomness revealing")]
+    #[error("Invalid randomness revealing")]
     InvalidRandomnessRevealing,
 
-    #[error("invalid random id")]
+    #[error("Invalid random id")]
     InvalidRandomId,
 
-    #[error("custom error")]
+    #[error("Custom error")]
     Custom(String),
 
-    #[error("game account not found")]
+    #[error("Game account not found")]
     GameAccountNotFound,
 
-    #[error("game bundle not found")]
+    #[error("Game bundle not found")]
     GameBundleNotFound,
 
-    #[error("rpc error")]
+    #[error("Server account exists")]
+    ServerAccountExists,
+
+    #[error("Rpc error")]
     RpcError(String),
 
-    #[error("invalid chain name")]
+    #[error("Invalid chain name")]
     InvalidChainName,
 
-    #[error("invalid player address")]
+    #[error("Invalid player address")]
     InvalidPlayerAddress,
 
-    #[error("invalid player status")]
+    #[error("Invalid player status")]
     InvalidPlayerStatus,
 
-    #[error("game not loaded")]
+    #[error("Game not loaded")]
     GameNotLoaded,
 
-    #[error("malformed game bundle")]
+    #[error("Malformed endpoint")]
+    MalformedEndpoint,
+
+    #[error("Malformed game bundle")]
     MalformedGameBundle,
 
-    #[error("malformed game account")]
+    #[error("Malformed game account")]
     MalformedGameAccount,
 
-    #[error("deserialize error")]
+    #[error("Deserialize error")]
     DeserializeError,
 
-    #[error("config missing")]
+    #[error("Config missing")]
     ConfigMissing,
 
-    #[error("transactor config missing")]
+    #[error("Transactor config missing")]
     TransactorConfigMissing,
 
-    #[error("can't leave")]
+    #[error("Can't leave")]
     CantLeave,
 
-    #[error("randomization error")]
+    #[error("Randomization error")]
     RandomizationError(String),
 
-    #[error("crypto error")]
+    #[error("Crypto error")]
     CryptoError(String),
 
-    #[error("duplicated event dispatching")]
+    #[error("Duplicated event dispatching")]
     DuplicatedEventDispatching,
 
-    #[error("invalid amount")]
+    #[error("Invalid amount")]
     InvalidAmount,
 
-    #[error("not allowed in custom handler")]
+    #[error("Not allowed in custom handler")]
     NotAllowedInCustomHandler,
 
-    #[error("game not served")]
+    #[error("Game not served")]
     GameNotServed,
 
-    #[error("can't find transactor")]
+    #[error("Game is not empty")]
+    GameIsNotEmpty,
+
+    #[error("Can't find transactor")]
     CantFindTransactor,
 
-    #[error("invalid transactor address")]
+    #[error("Invalid transactor address")]
     InvalidTransactorAddress,
 
-    #[error("initialization transport failed")]
+    #[error("Initialization transport failed")]
     InitializationTransportFailed(String),
 
-    #[error("initialize rpc client error")]
+    #[error("Initialize rpc client error")]
     InitializeRpcClientError,
 
-    #[error("internal error")]
+    #[error("Internal error")]
     InternalError(String),
 
-    #[error("missing secret")]
+    #[error("Missing secret")]
     MissingSecret,
 
-    #[error("invalid secret")]
+    #[error("Invalid secret")]
     InvalidSecret,
 
-    #[error("invalid decrypted value")]
+    #[error("Invalid decrypted value")]
     InvalidDecryptedValue(String),
 
-    #[error("decryption failed")]
+    #[error("Decryption failed")]
     DecryptionFailed,
 
-    #[error("invalid key index")]
+    #[error("Invalid key index")]
     InvalidKeyIndex,
 
-    #[error("invalid ciphertexts size")]
-    InvalidCiphertextsSize
+    #[error("Invalid ciphertexts size")]
+    InvalidCiphertextsSize,
+
+    #[error("Invalid max players")]
+    InvalidMaxPlayers,
 }
 
 impl From<serde_json::Error> for Error {

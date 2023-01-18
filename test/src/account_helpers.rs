@@ -1,5 +1,5 @@
 use borsh::BorshSerialize;
-use race_core::types::{GameAccount, PlayerDeposit, PlayerJoin, TransactorAccount};
+use race_core::types::{GameAccount, PlayerDeposit, PlayerJoin, ServerAccount};
 use crate::constants::*;
 
 pub fn game_account_addr() -> String {
@@ -130,8 +130,8 @@ impl TestGameAccountBuilder {
     }
 }
 
-pub fn transactor_account() -> TransactorAccount {
-    TransactorAccount {
+pub fn transactor_account() -> ServerAccount {
+    ServerAccount {
         addr: transactor_account_addr(),
         owner_addr: transactor_owner_addr(),
         endpoint: transactor_endpoint(),

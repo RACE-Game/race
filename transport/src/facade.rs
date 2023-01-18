@@ -15,7 +15,7 @@ use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
     GameBundle, GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams,
     GetTransactorInfoParams, JoinParams, PlayerProfile, RegisterGameParams,
-    RegisterTransactorParams, RegistrationAccount, SettleParams, TransactorAccount,
+    RegisterServerParams, RegistrationAccount, SettleParams, ServerAccount,
     UnregisterGameParams,
 };
 
@@ -57,9 +57,9 @@ impl TransportT for FacadeTransport {
             .map_err(|e| Error::RpcError(e.to_string()))
     }
 
-    async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()> {
+    async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
         self.client
-            .request("register_transactor", rpc_params![params])
+            .request("register_server", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
     }
@@ -96,7 +96,7 @@ impl TransportT for FacadeTransport {
         None
     }
 
-    async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount> {
+    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
         let params = GetTransactorInfoParams { addr: addr.into() };
         self.client
             .request("get_transactor_info", rpc_params![params])

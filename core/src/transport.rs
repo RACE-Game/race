@@ -1,10 +1,12 @@
+#[allow(unused_imports)]
+use crate::error::Error;
 use crate::{
     error::Result,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
-        GameBundle, GetRegistrationParams, PlayerProfile, RegisterGameParams,
-        RegisterTransactorParams, RegistrationAccount, SettleParams, TransactorAccount,
-        UnregisterGameParams, JoinParams,
+        GameBundle, GetRegistrationParams, JoinParams, PlayerProfile, RegisterGameParams,
+        RegisterServerParams, RegistrationAccount, SettleParams, ServerAccount,
+        UnregisterGameParams,
     },
 };
 use async_trait::async_trait;
@@ -12,23 +14,67 @@ use std::marker::Send;
 
 #[async_trait]
 pub trait TransportT: Send + Sync {
+    /// Create an on-chain game account which represents a game room
+    /// and holds basic game properties.  Check [`GameAccount`] for
+    /// description of the layout. The implementation should contain
+    /// the check for transaction signature, make sure that Ok is
+    /// returned only when the transaction is succeed and finalized.
+    ///
+    /// # Arguments
+    /// * `max_players` - The maximum number of players in this game. Please note,
+    ///   not all games require a full room to start.
+    /// * `bundle_addr` - The address of game bundle NFT.
+    /// * `data` - The borsh serialization of game specific data. The layout should be
+    ///   game independent. It is used to describe the basic game properties,
+    ///   and is considered to be immutable.
+    ///
+    /// # Returns
+    /// * [`Error::InvalidMaxPlayers`] when invalid `max_players` is provided.
+    /// * [`Error::GameBundleNotFound`] when invalid `bundle_addr` is provided.
+    /// * [`Error::RpcError`] when the RPC invocation failed.
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String>;
 
+    /// Close the game account.  A game can be closed when it's empty
+    /// (no players).  To close the game, the signer must be the owner
+    /// of the account.
+    ///
+    /// # Arguments
+    /// * `addr` - The address of game to be closed.
+    ///
+    /// # Returns
+    /// * [`Error::GameAccountNotFound`] when invalid `addr` is provided.
+    /// * [`Error::RpcError`] when the RPC invocation failed.
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()>;
 
-    async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()>;
+    /// Create an on-chain account for server which can serve game
+    /// accounts.  Check [`ServerAccount`] for the description of the
+    /// layout. The owner is limited to have only one server.
+    ///
+    /// # Arguments
+    /// * `owner_addr` - The account of the server owner, should be the same to the signer.
+    /// * `endpoint` - The accessible endpoint to public.  The format shouldn't contain the protocol.
+    ///   e.g. 127.0.0.1:8000, example.org
+    ///
+    /// # Returns
+    /// * [`Error::ServerAccountExists`] when the account has been created already.
+    /// * [`Error::MalformedEndpoint`] when the `endpoint` is invalid.
+    /// * [`Error::RpcError`] when the RPC invocation failed.
+    async fn register_server(&self, params: RegisterServerParams) -> Result<()>;
 
+    /// Join the game.
+    ///
+    /// # Arguments
+    /// * `player_addr` - The address of player, should the same with signer.
+    /// * `game_addr` - The game to join.
+    /// * `amount` - The amount of token to bring to the game.
+    /// * `access_version` - The current access version.
+    /// * `position` - The position to be at in the game, should be an index,
+    ///   must be less than the `max_players` of the game account.
+    ///
+    /// # Returns
+    /// * [`Error::GameAccountNotFound`] when invalid `game_addr` is provided.
+    /// * [`Error::RpcError`] when the RPC invocation failed.
     async fn join(&self, params: JoinParams) -> Result<()>;
-
-    async fn get_game_account(&self, addr: &str) -> Option<GameAccount>;
-
-    async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle>;
-
-    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile>;
-
-    async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount>;
-
-    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount>;
 
     async fn publish_game(&self, bundle: GameBundle) -> Result<String>;
 
@@ -39,4 +85,19 @@ pub trait TransportT: Send + Sync {
     async fn register_game(&self, params: RegisterGameParams) -> Result<()>;
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()>;
+
+    /// Get game account by its address.
+    async fn get_game_account(&self, addr: &str) -> Option<GameAccount>;
+
+    /// Get game bundle account by its address.
+    async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle>;
+
+    /// Get player profile account by its address.
+    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile>;
+
+    /// Get server account by its address.
+    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount>;
+
+    /// Get registration account by its address.
+    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount>;
 }

@@ -25,8 +25,7 @@ macro_rules! console_error {
 }
 
 #[wasm_bindgen]
-pub struct WasmAppClient {
-    chain: String,
+pub struct WasmAppClient {    chain: String,
     rpc: String,
     game_addr: String,
     app_client: Option<AppClient>,

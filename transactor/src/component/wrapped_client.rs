@@ -12,7 +12,7 @@ use crate::frame::EventFrame;
 use race_core::client::Client;
 use race_core::error::Error;
 use race_core::transport::TransportT;
-use race_core::types::{ClientMode, GameAccount, TransactorAccount};
+use race_core::types::{ClientMode, GameAccount, ServerAccount};
 use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -38,7 +38,7 @@ pub struct ClientContext {
 
 impl WrappedClient {
     pub fn new(
-        server_account: &TransactorAccount,
+        server_account: &ServerAccount,
         init_account: &GameAccount,
         transport: Arc<dyn TransportT>,
     ) -> Self {

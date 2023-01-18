@@ -13,8 +13,8 @@ use jsonrpsee::{core::Error, RpcModule};
 use race_core::types::{
     CreateGameAccountParams, CreateRegistrationParams, GameAccount, GameBundle, GameRegistration,
     GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams, GetTransactorInfoParams,
-    JoinParams, PlayerDeposit, PlayerJoin, RegisterGameParams, RegisterTransactorParams,
-    RegistrationAccount, ServeParams, TransactorAccount, UnregisterGameParams,
+    JoinParams, PlayerDeposit, PlayerJoin, RegisterGameParams, RegisterServerParams,
+    RegistrationAccount, ServeParams, ServerAccount, UnregisterGameParams,
 };
 use std::collections::HashMap;
 use std::fs::File;
@@ -31,14 +31,15 @@ const HTTP_HOST: &str = "127.0.0.1:12002";
 const DEFAULT_REGISTRATION_ADDRESS: &str = "DEFAULT_REGISTRATION_ADDRESS";
 const COUNTER_GAME_ADDRESS: &str = "COUNTER_GAME_ADDRESS";
 const COUNTER_BUNDLE_ADDRESS: &str = "COUNTER_BUNDLE_ADDRESS";
-const DEFAULT_TRANSACTOR_ADDRESS: &str = "DEFAULT_TRANSACTOR_ADDRESS";
+const SERVER_ADDRESS_1: &str = "SERVER_ADDRESS_1";
+const SERVER_ADDRESS_2: &str = "SERVER_ADDRESS_2";
 const DEFAULT_OWNER_ADDRESS: &str = "DEFAULT_OWNER_ADDRESS";
 
 #[derive(Default)]
 pub struct Context {
     accounts: HashMap<String, GameAccount>,
     registrations: HashMap<String, RegistrationAccount>,
-    transactors: HashMap<String, TransactorAccount>,
+    transactors: HashMap<String, ServerAccount>,
     bundles: HashMap<String, GameBundle>,
 }
 
@@ -158,7 +159,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
 async fn get_transactor_info(
     params: Params<'_>,
     context: Arc<Mutex<Context>>,
-) -> Result<TransactorAccount> {
+) -> Result<ServerAccount> {
     let GetTransactorInfoParams { addr } = params.one()?;
     let context = context.lock().await;
     if let Some(transactor) = context.transactors.get(&addr) {
@@ -168,15 +169,12 @@ async fn get_transactor_info(
     }
 }
 
-async fn register_transactor(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<String> {
-    let RegisterTransactorParams {
-        owner_addr,
-        endpoint,
-    } = params.one()?;
+async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<String> {
+    let RegisterServerParams { endpoint } = params.one()?;
     let addr = random_addr();
-    let transactor = TransactorAccount {
+    let transactor = ServerAccount {
         addr: addr.clone(),
-        owner_addr,
+        owner_addr: DEFAULT_OWNER_ADDRESS.into(),
         endpoint,
     };
     let mut context = context.lock().await;
@@ -287,7 +285,7 @@ async fn run_server() -> anyhow::Result<ServerHandle> {
     module.register_async_method("get_game_bundle", get_game_bundle)?;
     module.register_async_method("get_registration_info", get_registration_info)?;
     module.register_async_method("publish_game_bundle", publish_game_bundle)?;
-    module.register_async_method("register_transactor", register_transactor)?;
+    module.register_async_method("register_server", register_server)?;
     module.register_async_method("create_registration", create_registration)?;
     module.register_async_method("register_game", register_game)?;
     module.register_async_method("unregister_game", unregister_game)?;
@@ -329,12 +327,18 @@ pub fn setup(context: &mut Context) {
     };
     println!("Counter bundle created at {:?}", COUNTER_BUNDLE_ADDRESS);
 
-    let transactor = TransactorAccount {
-        addr: DEFAULT_TRANSACTOR_ADDRESS.into(),
+    let server1 = ServerAccount {
+        addr: SERVER_ADDRESS_1.into(),
         owner_addr: DEFAULT_OWNER_ADDRESS.into(),
-        endpoint: "ws://localhost:12003".into(),
+        endpoint: "localhost:12003".into(),
     };
-    println!("Transactor account created at {:?}", DEFAULT_TRANSACTOR_ADDRESS);
+    println!("Transactor account created at {:?}", SERVER_ADDRESS_1);
+    let server2 = ServerAccount {
+        addr: SERVER_ADDRESS_2.into(),
+        owner_addr: DEFAULT_OWNER_ADDRESS.into(),
+        endpoint: "localhost:12004".into(),
+    };
+    println!("Transactor account created at {:?}", SERVER_ADDRESS_2);
 
     let counter_game = GameAccount {
         addr: COUNTER_GAME_ADDRESS.into(),
@@ -343,16 +347,19 @@ pub fn setup(context: &mut Context) {
         access_version: 0,
         players: vec![],
         deposits: vec![],
-        server_addrs: vec![DEFAULT_TRANSACTOR_ADDRESS.into()],
-        transactor_addr: Some(DEFAULT_TRANSACTOR_ADDRESS.into()),
+        server_addrs: vec![],
+        transactor_addr: None,
         max_players: 10,
         data_len: 8,
-        data: vec![0u8; 8],
+        data: vec![1u8; 8],
     };
     println!("Counter game created at {:?}", COUNTER_GAME_ADDRESS);
 
     context.registrations = HashMap::from([(DEFAULT_REGISTRATION_ADDRESS.into(), def_reg)]);
     context.accounts = HashMap::from([(COUNTER_GAME_ADDRESS.into(), counter_game)]);
     context.bundles = HashMap::from([(COUNTER_BUNDLE_ADDRESS.into(), counter_bundle)]);
-    context.transactors = HashMap::from([(DEFAULT_TRANSACTOR_ADDRESS.into(), transactor)]);
+    context.transactors = HashMap::from([
+        (SERVER_ADDRESS_1.into(), server1),
+        (SERVER_ADDRESS_2.into(), server2),
+    ]);
 }

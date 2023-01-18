@@ -79,8 +79,8 @@ impl Component<BroadcasterContext> for Broadcaster {
 }
 
 impl Broadcaster {
-    pub fn new(init_state: &GameAccount) -> Self {
-        let snapshot = Arc::new(Mutex::new("".into()));
+    pub fn new(init_state: &GameAccount, init_snapshot: String) -> Self {
+        let snapshot = Arc::new(Mutex::new(init_snapshot));
         let (input_tx, input_rx) = mpsc::channel(3);
         let (closed_tx, closed_rx) = oneshot::channel();
         let (broadcast_tx, broadcast_rx) = broadcast::channel(3);
@@ -119,7 +119,7 @@ mod tests {
     #[tokio::test]
     async fn test_broadcast_event() {
         let game_account = TestGameAccountBuilder::default().add_players(2).build();
-        let mut broadcaster = Broadcaster::new(&game_account);
+        let mut broadcaster = Broadcaster::new(&game_account, "{}".into());
         let mut rx = broadcaster.get_broadcast_rx();
         let event_frame = EventFrame::Broadcast {
             state_json: "STATE JSON".into(),

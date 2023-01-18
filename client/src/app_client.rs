@@ -48,7 +48,7 @@ impl AppClient {
             .ok_or(Error::GameNotServed)?;
 
         let transactor_account = transport
-            .get_transactor_account(transactor_addr)
+            .get_server_account(transactor_addr)
             .await
             .ok_or(Error::CantFindTransactor)?;
 

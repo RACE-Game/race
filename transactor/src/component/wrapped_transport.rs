@@ -7,8 +7,8 @@ use race_core::{
     transport::TransportT,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle,
-        GetRegistrationParams, JoinParams, PlayerProfile, RegisterTransactorParams,
-        RegistrationAccount, SettleParams, TransactorAccount,
+        GetRegistrationParams, JoinParams, PlayerProfile, RegisterServerParams,
+        RegistrationAccount, SettleParams, ServerAccount,
     },
 };
 use race_env::Config;
@@ -58,8 +58,8 @@ impl TransportT for WrappedTransport {
         self.internal.get_game_bundle(addr).await
     }
 
-    async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount> {
-        self.internal.get_transactor_account(addr).await
+    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
+        self.internal.get_server_account(addr).await
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
@@ -74,8 +74,8 @@ impl TransportT for WrappedTransport {
         self.internal.settle_game(params).await
     }
 
-    async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()> {
-        self.internal.register_transactor(params).await
+    async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
+        self.internal.register_server(params).await
     }
 
     async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {

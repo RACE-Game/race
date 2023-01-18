@@ -20,20 +20,21 @@ impl CustomEvent for GameEvent {}
 #[game_handler]
 #[derive(Default, Deserialize, Serialize)]
 pub struct Counter {
-    counter_value: u64,
-    counter_players: u64,
+    value: u64,
+    num_of_players: u64,
+    num_of_servers: u64,
 }
 
 #[derive(Default, BorshSerialize, BorshDeserialize)]
 pub struct CounterAccountData {
-    pub counter_value_default: u64,
+    pub init_value: u64,
 }
 
 impl Counter {
     fn handle_custom_event(&mut self, _context: &mut GameContext, event: GameEvent) -> Result<()> {
         match event {
             GameEvent::Increase(n) => {
-                self.counter_value += n;
+                self.value += n;
             }
         }
         Ok(())
@@ -46,8 +47,9 @@ impl GameHandler for Counter {
         let account_data =
             CounterAccountData::try_from_slice(&data).or(Err(Error::DeserializeError))?;
         Ok(Self {
-            counter_value: account_data.counter_value_default,
-            counter_players: init_account.players.len() as _,
+            value: account_data.init_value,
+            num_of_players: init_account.players.len() as _,
+            num_of_servers: init_account.server_addrs.len() as _,
         })
     }
 
@@ -61,11 +63,11 @@ impl GameHandler for Counter {
                 balance: _,
                 position: _,
             } => {
-                self.counter_players += 1;
+                self.num_of_players += 1;
                 Ok(())
             }
             Event::Leave { player_addr: _ } => {
-                self.counter_players -= 1;
+                self.num_of_players -= 1;
                 Ok(())
             }
             _ => Ok(()),
@@ -87,7 +89,7 @@ mod tests {
         };
         let mut hdlr = Counter::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
-        assert_eq!(1, hdlr.counter_players);
+        assert_eq!(1, hdlr.num_of_players);
     }
 
     #[test]
@@ -96,6 +98,6 @@ mod tests {
         let evt = Event::custom(ctx.get_transactor_addr().to_owned(), &GameEvent::Increase(1));
         let mut hdlr = Counter::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
-        assert_eq!(1, hdlr.counter_value);
+        assert_eq!(1, hdlr.value);
     }
 }

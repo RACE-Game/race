@@ -41,7 +41,7 @@ impl PlayerDeposit {
 
 /// The data represent the state of on-chain transactor registration.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
-pub struct TransactorAccount {
+pub struct ServerAccount {
     pub addr: String,
     // The public key of transactor owner
     pub owner_addr: String,

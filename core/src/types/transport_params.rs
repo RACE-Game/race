@@ -17,8 +17,7 @@ pub struct ServeParams {
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
-pub struct RegisterTransactorParams {
-    pub owner_addr: String,
+pub struct RegisterServerParams {
     pub endpoint: String,
 }
 

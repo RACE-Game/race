@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use race_core::error::Result;
 
 use race_core::types::{
-    CreateRegistrationParams, GetRegistrationParams, RegisterGameParams, RegisterTransactorParams,
-    RegistrationAccount, TransactorAccount, UnregisterGameParams,
+    CreateRegistrationParams, GetRegistrationParams, RegisterGameParams, RegisterServerParams,
+    RegistrationAccount, ServerAccount, UnregisterGameParams,
 };
 use race_core::{
     transport::TransportT,
@@ -41,7 +41,7 @@ impl TransportT for SolanaTransport {
         todo!()
     }
 
-    async fn get_transactor_account(&self, addr: &str) -> Option<TransactorAccount> {
+    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
         todo!()
     }
 
@@ -57,7 +57,7 @@ impl TransportT for SolanaTransport {
         todo!()
     }
 
-    async fn register_transactor(&self, params: RegisterTransactorParams) -> Result<()> {
+    async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
         Ok(())
     }
 

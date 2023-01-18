@@ -1,0 +1,9 @@
+[transactor]
+port = "12003"
+endpoint = "localhost:12003"
+chain = "facade"
+address = "SERVER_ADDRESS_1"
+
+[facade]ws
+host = "http://localhost:12002"
+registration_address = "DEFAULT_REGISTRATION_ADDRESS"

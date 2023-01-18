@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use crate::component::{
-    Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedHandler, WrappedTransport, WrappedClient,
+    Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, Submitter, WrappedClient,
+    WrappedHandler,
 };
 use race_core::context::GameContext;
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
-use race_core::types::TransactorAccount;
-use race_env::Config;
+use race_core::types::ServerAccount;
 
 pub struct Handle {
     pub addr: String,
@@ -20,10 +20,12 @@ pub struct Handle {
 }
 
 impl Handle {
-    pub async fn try_new(config: &Config, account: &TransactorAccount, addr: &str) -> Result<Self> {
+    pub async fn try_new(
+        transport: Arc<dyn TransportT>,
+        account: &ServerAccount,
+        addr: &str,
+    ) -> Result<Self> {
         println!("Try create game handle for {:?}", addr);
-
-        let transport = Arc::new(WrappedTransport::try_new(config).await?);
 
         let game_account = transport
             .get_game_account(addr)
@@ -37,7 +39,8 @@ impl Handle {
             return Err(Error::GameNotServed);
         }
 
-        let mut handler = WrappedHandler::load_by_addr(addr, transport.as_ref()).await?;
+        let mut handler =
+            WrappedHandler::load_by_addr(&game_account.bundle_addr, transport.as_ref()).await?;
         let mut game_context = GameContext::new(&game_account)?;
 
         // We should initialize the game state if we are the main transactor
@@ -46,7 +49,8 @@ impl Handle {
         let event_bus = EventBus::default();
         let submitter = Submitter::new(transport.clone(), game_account.clone());
         let synchronizer = GameSynchronizer::new(transport.clone(), game_account.clone());
-        let broadcaster = Broadcaster::new(&game_account);
+        let broadcaster =
+            Broadcaster::new(&game_account, game_context.get_handler_state_json().into());
         let event_loop = EventLoop::new(handler, game_context);
         let client = WrappedClient::new(account, &game_account, transport.clone());
 

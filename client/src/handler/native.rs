@@ -49,10 +49,7 @@ impl Handler {
         let len = handle_event
             .call(&mut self.store, context_bs.len() as _, event_bs.len() as _)
             .expect("Handle event error");
-        println!("Len: {:?}", len);
         let mut buf = vec![0; len as _];
-        println!("buf: {:?}", buf);
-        println!("buf len: {:?}", buf.len());
         mem_view.read(1u64, &mut buf).unwrap();
         *context = GameContext::try_from_slice(&buf).unwrap();
         Ok(())

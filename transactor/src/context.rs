@@ -1,18 +1,22 @@
+use crate::component::WrappedTransport;
 use crate::frame::EventFrame;
 use crate::handle::Handle;
 use race_core::error::{Error, Result};
 use race_core::event::Event;
-use race_core::types::{AttachGameParams, TransactorAccount};
+use race_core::transport::TransportT;
+use race_core::types::{AttachGameParams, ServerAccount};
 use race_env::Config;
-use race_transport::{ChainType, TransportBuilder};
+use race_transport::ChainType;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Transactor runtime context
 pub struct ApplicationContext {
     pub config: Config,
     pub chain: ChainType,
-    pub account: TransactorAccount,
+    pub account: ServerAccount,
+    pub transport: Arc<dyn TransportT>,
     pub games: HashMap<String, Handle>,
 }
 
@@ -25,14 +29,10 @@ impl ApplicationContext {
 
         let chain: ChainType = transactor_config.chain.as_str().try_into()?;
 
-        let transport = TransportBuilder::default()
-            .try_with_chain(transactor_config.chain.as_ref())?
-            .try_with_config(&config)?
-            .build()
-            .await?;
+        let transport = Arc::new(WrappedTransport::try_new(&config).await?);
 
         let account = transport
-            .get_transactor_account(&transactor_config.address)
+            .get_server_account(&transactor_config.address)
             .await
             .ok_or(Error::InvalidTransactorAddress)?;
 
@@ -40,6 +40,7 @@ impl ApplicationContext {
             config,
             chain,
             account,
+            transport,
             games: HashMap::default(),
         })
     }
@@ -50,7 +51,7 @@ impl ApplicationContext {
             Entry::Occupied(_) => Ok(()),
             Entry::Vacant(e) => {
                 let mut handle =
-                    Handle::try_new(&self.config, &self.account, e.key()).await?;
+                    Handle::try_new(self.transport.clone(), &self.account, e.key()).await?;
                 handle.start().await;
                 e.insert(handle);
                 Ok(())
