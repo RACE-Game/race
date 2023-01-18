@@ -89,7 +89,7 @@ async fn create_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result
         data,
     } = params.one()?;
 
-    if context.bundles.contains_key(&bundle_addr) {
+    if !context.bundles.contains_key(&bundle_addr) {
         return Err(Error::Custom("Game bundle not exist!".into()));
     }
 

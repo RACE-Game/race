@@ -3,8 +3,9 @@
 use std::sync::Arc;
 
 use crate::app_client::AppClient;
+use gloo::utils::format::JsValueSerdeExt;
 use js_sys::Uint8Array;
-use race_core::{transport::TransportT, types::CreateGameAccountParams};
+use race_core::{transport::TransportT, types::{CreateGameAccountParams, GameAccount}};
 use race_transport::{ChainType, TransportBuilder};
 use wasm_bindgen::prelude::*;
 
@@ -144,12 +145,14 @@ impl AppHelper {
     }
 
     #[wasm_bindgen]
-    pub async fn get_game_account(&self, game_addr: &str) {
-        let game_account = self
+    pub async fn get_game_account(&self, game_addr: &str) -> JsValue {
+        let game_account: GameAccount = self
             .get_transport_unchecked()
             .get_game_account(game_addr)
-            .await;
+            .await
+            .unwrap();
         console_info!("Game account: {:?}", game_account);
+        JsValue::from_serde(&game_account).unwrap()
     }
 
     #[wasm_bindgen]
@@ -179,7 +182,7 @@ mod tests {
     use super::*;
     use serde_json::json;
     use wasm_bindgen_test::*;
-    use web_sys::console::{log, log_1};
+    use web_sys::console::log_1;
 
     wasm_bindgen_test_configure!(run_in_browser);
 
@@ -200,6 +203,8 @@ mod tests {
             .create_game_account("COUNTER_BUNDLE_ADDRESS".into(), 10, data)
             .await;
         console_log!("test_helper_create_game: address {:?}", addr);
+        let game_account = app_helper.get_game_account(&addr).await;
+        log_1(&game_account);
     }
 
     #[wasm_bindgen_test]

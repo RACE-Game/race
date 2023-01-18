@@ -40,7 +40,9 @@ impl PlayerDeposit {
 }
 
 /// The data represent the state of on-chain transactor registration.
-#[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(
+    Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
+)]
 pub struct ServerAccount {
     pub addr: String,
     // The public key of transactor owner
@@ -52,7 +54,9 @@ pub struct ServerAccount {
 /// The data represent the state of on-chain game account.
 /// A larger `access_serial` means the account has been updated by players.
 /// The length of `players` is `max_players`.
-#[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(
+    Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
+)]
 pub struct GameAccount {
     pub addr: String,
     pub bundle_addr: String,
@@ -67,14 +71,18 @@ pub struct GameAccount {
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(
+    Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
+)]
 pub struct GameRegistration {
     pub addr: String,
     pub reg_time: u64,
     pub bundle_addr: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(
+    Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
+)]
 pub struct RegistrationAccount {
     pub addr: String,
     pub is_private: bool,
