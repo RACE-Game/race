@@ -6,6 +6,7 @@ use race_core::{context::{GameContext, GameStatus as GeneralStatus}, engine::Gam
 use serde::{Deserialize, Serialize};
 use race_proc_macro::game_handler;
 
+mod evaluator;
 // HoldemAccount offers necessary (static) data (serialized in vec) to GameAccount for Holdem games
 // This HoldemAccount data go to the (Raw) data field and
 // Holdem (the WASM), the actual game, go to the bundle_addr field
@@ -457,6 +458,7 @@ impl Holdem {
             self.ask_for_action(&mut next_action_player)?;
             Ok(())
         } else if self.status != HoldemStatus::Runner && remain_players.len() == allin_players.len() + 1 {
+            // Runner
             println!("Entering runner state");
             todo!()
         } else if new_street != Street::Done {
