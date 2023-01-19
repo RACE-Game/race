@@ -5,7 +5,7 @@ use race_core::error::{Error, Result};
 use race_core::event::Event;
 use race_core::transport::TransportT;
 use race_core::types::{AttachGameParams, ServerAccount};
-use race_env::Config;
+use race_env::{Config, TransactorConfig};
 use race_transport::ChainType;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 /// Transactor runtime context
 pub struct ApplicationContext {
-    pub config: Config,
+    pub config: TransactorConfig,
     pub chain: ChainType,
     pub account: ServerAccount,
     pub transport: Arc<dyn TransportT>,
@@ -22,14 +22,13 @@ pub struct ApplicationContext {
 
 impl ApplicationContext {
     pub async fn try_new(config: Config) -> Result<Self> {
+        let transport = Arc::new(WrappedTransport::try_new(&config).await?);
+
         let transactor_config = config
             .transactor
-            .as_ref()
             .ok_or(Error::TransactorConfigMissing)?;
 
         let chain: ChainType = transactor_config.chain.as_str().try_into()?;
-
-        let transport = Arc::new(WrappedTransport::try_new(&config).await?);
 
         let account = transport
             .get_server_account(&transactor_config.address)
@@ -37,7 +36,7 @@ impl ApplicationContext {
             .ok_or(Error::InvalidTransactorAddress)?;
 
         Ok(Self {
-            config,
+            config: transactor_config,
             chain,
             account,
             transport,

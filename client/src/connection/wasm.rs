@@ -17,7 +17,10 @@ impl ConnectionT for Connection {
 impl Connection {
     pub async fn new(endpoint: &str) -> Self {
         Self {
-            rpc_client: WasmClientBuilder::default().build(endpoint).await.unwrap(),
+            rpc_client: WasmClientBuilder::default()
+                .build(format!("ws://{}", endpoint))
+                .await
+                .unwrap(),
         }
     }
 }

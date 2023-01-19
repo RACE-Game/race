@@ -5,7 +5,10 @@ use std::sync::Arc;
 use crate::app_client::AppClient;
 use gloo::utils::format::JsValueSerdeExt;
 use js_sys::Uint8Array;
-use race_core::{transport::TransportT, types::{CreateGameAccountParams, GameAccount}};
+use race_core::{
+    transport::TransportT,
+    types::{CreateGameAccountParams, GameAccount, RegisterGameParams},
+};
 use race_transport::{ChainType, TransportBuilder};
 use wasm_bindgen::prelude::*;
 
@@ -174,6 +177,19 @@ impl AppHelper {
         console_info!("Game account created at {:?}", addr);
         addr
     }
+
+    #[wasm_bindgen]
+    pub async fn register_game(&self, game_addr: &str, reg_addr: &str) {
+        let transport = self.get_transport_unchecked();
+        let game_account = transport
+            .get_game_account(game_addr)
+            .await
+            .expect("Failed to get game account");
+        transport.register_game(RegisterGameParams {
+            game_addr: game_addr.to_owned(),
+            reg_addr: reg_addr.to_owned(),
+        }).await.expect("Failed to register game");
+    }
 }
 
 #[cfg(test)]
@@ -205,6 +221,7 @@ mod tests {
         console_log!("test_helper_create_game: address {:?}", addr);
         let game_account = app_helper.get_game_account(&addr).await;
         log_1(&game_account);
+        app_helper.register_game(&addr, "DEFAULT_REGISTRATION_ADDRESS").await;
     }
 
     #[wasm_bindgen_test]

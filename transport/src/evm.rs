@@ -5,9 +5,9 @@ use race_core::{
     transport::TransportT,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
-        GameBundle, GetRegistrationParams, JoinParams, PlayerProfile, RegisterGameParams,
+        GameBundle, JoinParams, PlayerProfile, RegisterGameParams,
         RegisterServerParams, RegistrationAccount, SettleParams, ServerAccount,
-        UnregisterGameParams,
+        UnregisterGameParams, ServeParams,
     },
 };
 
@@ -29,6 +29,10 @@ impl TransportT for EvmTransport {
     }
 
     async fn join(&self, params: JoinParams) -> Result<()> {
+        todo!()
+    }
+
+    async fn serve(&self, params: ServeParams) -> Result<()> {
         todo!()
     }
 
@@ -72,7 +76,7 @@ impl TransportT for EvmTransport {
         Ok(())
     }
 
-    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {
+    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
         None
     }
 }

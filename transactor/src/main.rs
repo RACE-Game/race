@@ -9,7 +9,7 @@ use crate::server::run_server;
 use clap::{arg, Command};
 use context::ApplicationContext;
 use race_env::Config;
-use reg::register_server;
+use reg::{start_reg_task, register_server};
 use tokio::sync::Mutex;
 
 fn cli() -> Command {
@@ -31,6 +31,7 @@ pub async fn main() {
     match matches.subcommand() {
         Some(("run", _)) => {
             let context = Mutex::new(ApplicationContext::try_new(config).await.expect("Failed to initalize"));
+            start_reg_task(&context).await;
             run_server(context).await.expect("Unexpected error occured");
         }
         Some(("reg", _)) => {

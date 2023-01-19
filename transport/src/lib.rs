@@ -6,6 +6,7 @@ pub mod error;
 
 use race_core::transport::TransportT;
 use race_env::Config;
+use tracing::info;
 use signer::Signer;
 use error::{TransportError, TransportResult};
 
@@ -115,7 +116,7 @@ impl TransportBuilder {
                 }
                 ChainType::Facade => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
-                    println!("Build FacadeTransport to {:?}", rpc);
+                    info!("Build FacadeTransport for {:?}", rpc);
                     Ok(Box::new(facade::FacadeTransport::try_new(&rpc).await?))
                 }
             }

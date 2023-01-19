@@ -12,8 +12,8 @@ pub struct CreateGameAccountParams {
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct ServeParams {
-    pub account_addr: String,
-    pub transactor_addr: String,
+    pub game_addr: String,
+    pub server_addr: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]

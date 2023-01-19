@@ -9,10 +9,9 @@ use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
 use race_core::types::{AttachGameParams, GetStateParams, SubmitEventParams, SubscribeEventParams};
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
+use tracing::info;
 
 type Result<T> = std::result::Result<T, Error>;
-
-const HTTP_HOST: &str = "127.0.0.1:12003";
 
 async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
     let params: AttachGameParams = params.one()?;
@@ -74,11 +73,14 @@ fn subscribe_event(
     }
 }
 
-pub async fn run_server(
-    context: Mutex<ApplicationContext>,
-) -> anyhow::Result<()> {
+pub async fn run_server(context: Mutex<ApplicationContext>) -> anyhow::Result<()> {
+    let host = {
+        let context = context.lock().await;
+        let port = context.config.port;
+        format!("0.0.0.0:{}", port)
+    };
     let server = ServerBuilder::default()
-        .build(HTTP_HOST.parse::<SocketAddr>()?)
+        .build(host.parse::<SocketAddr>()?)
         .await?;
     let mut module = RpcModule::new(context);
 
@@ -93,7 +95,7 @@ pub async fn run_server(
     )?;
 
     let handle = server.start(module)?;
-    println!("Transactor started at {:?}", HTTP_HOST);
+    info!("Server started at {:?}", host);
     handle.stopped().await;
     Ok(())
 }

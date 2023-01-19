@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
+use tracing::debug;
 
 #[cfg(target_arch = "wasm32")]
 use jsonrpsee::core::client::Client;
@@ -14,9 +15,8 @@ use race_core::transport::TransportT;
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
     GameBundle, GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams,
-    GetTransactorInfoParams, JoinParams, PlayerProfile, RegisterGameParams,
-    RegisterServerParams, RegistrationAccount, SettleParams, ServerAccount,
-    UnregisterGameParams,
+    GetTransactorInfoParams, JoinParams, PlayerProfile, RegisterGameParams, RegisterServerParams,
+    RegistrationAccount, ServerAccount, SettleParams, UnregisterGameParams, ServeParams,
 };
 
 use crate::error::{TransportError, TransportResult};
@@ -71,7 +71,15 @@ impl TransportT for FacadeTransport {
             .map_err(|e| Error::RpcError(e.to_string()))
     }
 
+    async fn serve(&self, params: ServeParams) -> Result<()> {
+        self.client
+            .request("serve", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
+        debug!("Fetch game account: {:?}", addr);
         let params = GetAccountInfoParams { addr: addr.into() };
         let rs = self
             .client
@@ -97,6 +105,7 @@ impl TransportT for FacadeTransport {
     }
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
+        debug!("Fetch server account: {:?}", addr);
         let params = GetTransactorInfoParams { addr: addr.into() };
         self.client
             .request("get_transactor_info", rpc_params![params])
@@ -104,8 +113,9 @@ impl TransportT for FacadeTransport {
             .ok()
     }
 
-    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {
-        println!("Get registration: {:?}", params);
+    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
+        debug!("Fetch registration account: {:?}", addr);
+        let params = GetRegistrationParams { addr: addr.into() };
         self.client
             .request("get_registration_info", rpc_params![params])
             .await

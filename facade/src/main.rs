@@ -184,27 +184,33 @@ async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Re
 
 async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
     let ServeParams {
-        account_addr,
-        transactor_addr,
+        game_addr,
+        server_addr,
     } = params.one()?;
     let mut context = context.lock().await;
     context
         .transactors
-        .get(&transactor_addr)
-        .ok_or(Error::Custom("Transactor not found".into()))?;
+        .get(&server_addr)
+        .ok_or(Error::Custom("Server not found".into()))?;
     let account = context
         .accounts
-        .get_mut(&account_addr)
+        .get_mut(&game_addr)
         .ok_or(Error::Custom("Account not found".into()))?;
-    if account.server_addrs.contains(&transactor_addr) {
-        return Err(Error::Custom(
-            "Game is already served by this transactor".into(),
-        ));
+
+    if account.transactor_addr.is_none() {
+        println!("Set game transactor, game: {:?}, transactor: {:?}", game_addr, server_addr);
+        account.transactor_addr = Some(server_addr.clone());
+    }
+
+    if account.server_addrs.contains(&server_addr) {
+        // return Err(Error::Custom(
+        //     "Game is already served by this server".into(),
+        // ));
     } else {
         if account.server_addrs.len() >= 3 {
-            return Err(Error::Custom("Transactor queue is full".into()));
+            return Err(Error::Custom("Server queue is full".into()));
         } else {
-            account.server_addrs.push(transactor_addr);
+            account.server_addrs.push(server_addr);
         }
     }
     Ok(())
@@ -310,7 +316,11 @@ pub fn setup(context: &mut Context) {
         is_private: false,
         size: 10,
         owner: None,
-        games: Vec::with_capacity(10),
+        games: vec![GameRegistration {
+            addr: "COUNTER_GAME_ADDRESS".into(),
+            reg_time: 0,
+            bundle_addr: "COUNTER_BUNDLE_ADDRESS".into(),
+        }],
     };
     println!(
         "Default registration created at {:?}",

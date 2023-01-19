@@ -2,12 +2,12 @@
 
 use jsonrpsee::core::async_trait;
 use race_core::error::Result;
-use race_core::types::{CreateRegistrationParams, RegisterGameParams, UnregisterGameParams};
+use race_core::types::{CreateRegistrationParams, RegisterGameParams, UnregisterGameParams, ServeParams};
 use race_core::{
     transport::TransportT,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle,
-        GetRegistrationParams, JoinParams, PlayerProfile, RegisterServerParams,
+        JoinParams, PlayerProfile, RegisterServerParams,
         RegistrationAccount, SettleParams, ServerAccount,
     },
 };
@@ -50,6 +50,10 @@ impl TransportT for WrappedTransport {
         self.internal.join(params).await
     }
 
+    async fn serve(&self, params: ServeParams) -> Result<()> {
+        self.internal.serve(params).await
+    }
+
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         self.internal.get_game_account(addr).await
     }
@@ -78,8 +82,8 @@ impl TransportT for WrappedTransport {
         self.internal.register_server(params).await
     }
 
-    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {
-        self.internal.get_registration(params).await
+    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
+        self.internal.get_registration(addr).await
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {

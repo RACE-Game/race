@@ -108,6 +108,11 @@ async fn game_info(config: Config, chain: &str, addr: &str) {
             for d in game_account.deposits.iter() {
                 println!("Deposit: from[{:?}], amount: {:?}", d.addr, d.amount);
             }
+            println!("Servers:");
+            for s in game_account.server_addrs.iter() {
+                println!("Server: {:?}", s);
+            }
+            println!("Current transactor: {:?}", game_account.transactor_addr);
         }
         None => {
             println!("Game bundle not found");
@@ -136,12 +141,7 @@ async fn server_info(config: Config, chain: &str, addr: &str) {
 
 async fn reg_info(config: Config, chain: &str, addr: &str) {
     let transport = create_transport(&config, chain).await;
-    match transport
-        .get_registration(GetRegistrationParams {
-            addr: addr.to_owned(),
-        })
-        .await
-    {
+    match transport.get_registration(addr).await {
         Some(reg) => {
             println!("Registration account: {:?}", reg.addr);
             println!("Size(Registered): {:?}({:?})", reg.size, reg.games.len());

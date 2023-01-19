@@ -4,9 +4,8 @@ use crate::{
     error::Result,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
-        GameBundle, GetRegistrationParams, JoinParams, PlayerProfile, RegisterGameParams,
-        RegisterServerParams, RegistrationAccount, SettleParams, ServerAccount,
-        UnregisterGameParams,
+        GameBundle, JoinParams, PlayerProfile, RegisterGameParams, RegisterServerParams,
+        RegistrationAccount, ServerAccount, SettleParams, UnregisterGameParams, ServeParams,
     },
 };
 use async_trait::async_trait;
@@ -76,6 +75,14 @@ pub trait TransportT: Send + Sync {
     /// * [`Error::RpcError`] when the RPC invocation failed.
     async fn join(&self, params: JoinParams) -> Result<()>;
 
+    /// Serve a game.  To serve a game, server will write its address into game account.
+    ///
+    /// # Arguments
+    /// * `game_addr` - The address of game to serve.
+    /// * `server_addr` - The address of server, should be the same with signer.
+    /// * [`Error::RpcError`] when the RPC invocation failed.
+    async fn serve(&self, params: ServeParams) -> Result<()>;
+
     async fn publish_game(&self, bundle: GameBundle) -> Result<String>;
 
     async fn settle_game(&self, params: SettleParams) -> Result<()>;
@@ -99,5 +106,5 @@ pub trait TransportT: Send + Sync {
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount>;
 
     /// Get registration account by its address.
-    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount>;
+    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount>;
 }
