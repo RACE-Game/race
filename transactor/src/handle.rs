@@ -73,10 +73,10 @@ impl Handle {
         self.client.start();
         self.event_loop.start();
 
-        self.event_bus.attach(&self.submitter).await;
-        self.event_bus.attach(&self.synchronizer).await;
-        self.event_bus.attach(&self.event_loop).await;
-        self.event_bus.attach(&self.client).await;
-        self.event_bus.attach(&self.broadcaster).await;
+        self.event_bus.attach(&mut self.submitter).await;
+        self.event_bus.attach(&mut self.synchronizer).await;
+        self.event_bus.attach(&mut self.event_loop).await;
+        self.event_bus.attach(&mut self.client).await;
+        self.event_bus.attach(&mut self.broadcaster).await;
     }
 }

@@ -100,8 +100,8 @@ pub fn after_handle_event(old_context: &GameContext, new_context: &mut GameConte
     // Find all leaving player, submit during the settlement.
     // Or create a settlement for just player leaving.
     let mut left_players = vec![];
-    for p in new_context.players.iter() {
-        if old_context.get_player_by_address(&p.addr).is_none() {
+    for p in old_context.players.iter() {
+        if new_context.get_player_by_address(&p.addr).is_none() {
             left_players.push(p.addr.to_owned());
         }
     }

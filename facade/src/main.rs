@@ -14,7 +14,8 @@ use race_core::types::{
     CreateGameAccountParams, CreateRegistrationParams, GameAccount, GameBundle, GameRegistration,
     GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams, GetTransactorInfoParams,
     JoinParams, PlayerDeposit, PlayerJoin, RegisterGameParams, RegisterServerParams,
-    RegistrationAccount, ServeParams, ServerAccount, UnregisterGameParams,
+    RegistrationAccount, ServeParams, ServerAccount, SettleOp, SettleParams,
+    UnregisterGameParams,
 };
 use std::collections::HashMap;
 use std::fs::File;
@@ -200,7 +201,10 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         .ok_or(Error::Custom("Account not found".into()))?;
 
     if account.transactor_addr.is_none() {
-        println!("Set game transactor, game: {:?}, transactor: {:?}", game_addr, server_addr);
+        println!(
+            "Set game transactor, game: {:?}, transactor: {:?}",
+            game_addr, server_addr
+        );
         account.transactor_addr = Some(server_addr.clone());
     }
 
@@ -274,8 +278,25 @@ async fn get_account_info(params: Params<'_>, context: Arc<Mutex<Context>>) -> R
     }
 }
 
-#[allow(unused_variables)]
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
+    // TODO, no amount handling at the moment
+    let SettleParams { addr, settles } = params.one()?;
+    println!("Handle settlements {}, with {:?} ", addr, settles);
+    let mut context = context.lock().await;
+    for s in settles.into_iter() {
+        match s.op {
+            SettleOp::Eject => {
+                if let Some(game) = context.accounts.get_mut(&addr) {
+                    game.players.retain(|p| p.addr.ne(&s.addr));
+                    game.deposits.retain(|d| d.addr.ne(&s.addr));
+                } else {
+                    return Err(Error::Custom("Not found".into()));
+                }
+            }
+            SettleOp::Add(_) => (),
+            SettleOp::Sub(_) => (),
+        }
+    }
     Ok(())
 }
 

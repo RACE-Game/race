@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use race_core::types::{GameAccount, BroadcastFrame};
-use tokio::sync::{broadcast, mpsc, oneshot, watch, Mutex};
+use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tracing::info;
 
 use crate::component::event_bus::CloseReason;
@@ -35,7 +35,7 @@ impl Attachable for Broadcaster {
         Some(self.input_tx.clone())
     }
 
-    fn output(&self) -> Option<watch::Receiver<EventFrame>> {
+    fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
         None
     }
 }

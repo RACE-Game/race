@@ -14,12 +14,11 @@ pub struct EventBus {
 }
 
 impl EventBus {
-    pub async fn attach<T: Attachable>(&self, attachable: &T) {
+    pub async fn attach<T: Attachable>(&self, attachable: &mut T) {
         if let Some(mut rx) = attachable.output() {
             let tx = self.tx.clone();
             tokio::spawn(async move {
-                while rx.changed().await.is_ok() {
-                    let msg = rx.borrow().clone();
+                while let Some(msg) = rx.recv().await {
                     tx.send(msg).await.unwrap();
                 }
             });

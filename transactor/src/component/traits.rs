@@ -1,6 +1,6 @@
 use std::mem::swap;
 
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::component::event_bus::CloseReason;
 use crate::frame::EventFrame;
@@ -19,7 +19,7 @@ pub trait Attachable {
     /// Return the output channel of this component.
     /// A component must return an output channel, even though it doesn't produce an output.
     /// A closed output channel means that this component has stopped.
-    fn output(&self) -> Option<watch::Receiver<EventFrame>>;
+    fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>>;
 }
 
 /// An interface for a component.

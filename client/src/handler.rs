@@ -4,7 +4,7 @@ use std::mem::swap;
 
 use borsh::{BorshSerialize, BorshDeserialize};
 use race_core::context::GameContext;
-use race_core::engine::general_handle_event;
+use race_core::engine::{general_handle_event, after_handle_event};
 use race_core::error::Result;
 
 use js_sys::WebAssembly::{Instance, Memory};
@@ -90,6 +90,7 @@ impl Handler {
         let mut new_context = context.clone();
         general_handle_event(&mut new_context, event)?;
         self.custom_handle_event(&mut new_context, event)?;
+        after_handle_event(context, &mut new_context)?;
         swap(context, &mut new_context);
         Ok(())
     }

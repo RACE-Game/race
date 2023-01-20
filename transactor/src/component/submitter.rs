@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use race_core::types::{GameAccount, SettleParams};
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
@@ -34,7 +34,7 @@ impl Attachable for Submitter {
         Some(self.input_tx.clone())
     }
 
-    fn output(&self) -> Option<watch::Receiver<EventFrame>> {
+    fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
         None
     }
 }

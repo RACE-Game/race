@@ -21,7 +21,7 @@ function onStateUpdated(_gameAddr, event, state) {
 
 (async function() {
   const { AppClient } = await import("../../../../client/pkg");
-  client = await AppClient.try_init('facade', 'ws://localhost:12002', 'COUNTER_GAME_ADDRESS');
+  client = await AppClient.try_init('facade', 'ws://localhost:12002', 'Alice', 'COUNTER_GAME_ADDRESS');
   document.getElementById("join-btn").addEventListener("click", onClickJoinButton);
   document.getElementById("incr-btn").addEventListener("click", onClickIncreamentButton);
   document.getElementById("exit-btn").addEventListener("click", onClickExitButton);

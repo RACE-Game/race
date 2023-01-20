@@ -40,16 +40,16 @@ pub struct AppClient {
 #[wasm_bindgen]
 impl AppClient {
     #[wasm_bindgen]
-    pub async fn try_init(chain: &str, rpc: &str, game_addr: &str) -> Result<AppClient> {
+    pub async fn try_init(chain: &str, rpc: &str, player_addr: &str, game_addr: &str) -> Result<AppClient> {
         let transport = TransportBuilder::default()
             .try_with_chain(chain)?
             .with_rpc(rpc)
             .build()
             .await?;
-        AppClient::try_new(Arc::from(transport), game_addr).await
+        AppClient::try_new(Arc::from(transport), player_addr, game_addr).await
     }
 
-    async fn try_new(transport: Arc<dyn TransportT>, game_addr: &str) -> Result<Self> {
+    async fn try_new(transport: Arc<dyn TransportT>, player_addr: &str, game_addr: &str) -> Result<Self> {
         let encryptor = Arc::new(Encryptor::default());
 
         let game_account = transport
@@ -75,7 +75,7 @@ impl AppClient {
         let connection = Connection::try_new(&transactor_account.endpoint).await?;
 
         let client = Client::try_new(
-            game_addr.into(),
+            player_addr.to_owned(),
             ClientMode::Player,
             transport.clone(),
             encryptor,

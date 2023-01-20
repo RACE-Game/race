@@ -1,7 +1,7 @@
 use race_core::context::GameContext;
 use race_core::error::Error;
 use race_core::event::Event;
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 
 use crate::component::event_bus::CloseReason;
@@ -12,7 +12,7 @@ use race_core::types::GameAccount;
 
 pub struct EventLoopContext {
     input_rx: mpsc::Receiver<EventFrame>,
-    output_tx: watch::Sender<EventFrame>,
+    output_tx: mpsc::Sender<EventFrame>,
     closed_tx: oneshot::Sender<CloseReason>,
     handler: WrappedHandler,
     game_context: GameContext,
@@ -26,7 +26,7 @@ pub trait WrappedGameHandler: Send {
 
 pub struct EventLoop {
     input_tx: mpsc::Sender<EventFrame>,
-    output_rx: watch::Receiver<EventFrame>,
+    output_rx: Option<mpsc::Receiver<EventFrame>>,
     closed_rx: oneshot::Receiver<CloseReason>,
     ctx: Option<EventLoopContext>,
 }
@@ -42,16 +42,18 @@ impl Attachable for EventLoop {
         Some(self.input_tx.clone())
     }
 
-    fn output(&self) -> Option<watch::Receiver<EventFrame>> {
-        Some(self.output_rx.clone())
+    fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
+        let mut ret = None;
+        std::mem::swap(&mut ret, &mut self.output_rx);
+        ret
     }
 }
 
-fn handle(
+async fn handle(
     handler: &mut WrappedHandler,
     game_context: &mut GameContext,
     event: Event,
-    out: &watch::Sender<EventFrame>,
+    out: &mpsc::Sender<EventFrame>,
 ) {
     match handler.handle_event(game_context, &event) {
         Ok(_) => {
@@ -59,9 +61,10 @@ fn handle(
                 state_json: game_context.get_handler_state_json().to_owned(),
                 event,
             })
+            .await
             .unwrap();
             if let Some(settles) = game_context.extract_settles() {
-                out.send(EventFrame::Settle { settles }).unwrap();
+                out.send(EventFrame::Settle { settles }).await.unwrap();
             }
         }
         Err(e) => warn!("Handle event error: {}", e.to_string()),
@@ -84,16 +87,16 @@ impl Component<EventLoopContext> for EventLoop {
                                 balance: p.amount,
                                 position: p.position,
                             };
-                            handle(&mut handler, &mut game_context, event, &output_tx);
+                            handle(&mut handler, &mut game_context, event, &output_tx).await;
                         }
                     }
                     EventFrame::PlayerLeaving { player_addr } => {
                         info!("Event loop handle player leaving");
                         let event = Event::Leave { player_addr };
-                        handle(&mut handler, &mut game_context, event, &output_tx);
+                        handle(&mut handler, &mut game_context, event, &output_tx).await;
                     }
                     EventFrame::SendEvent { event } => {
-                        handle(&mut handler, &mut game_context, event, &output_tx);
+                        handle(&mut handler, &mut game_context, event, &output_tx).await;
                     }
                     EventFrame::Shutdown => {
                         ctx.closed_tx.send(CloseReason::Complete).unwrap();
@@ -117,7 +120,7 @@ impl Component<EventLoopContext> for EventLoop {
 impl EventLoop {
     pub fn new(handler: WrappedHandler, game_context: GameContext) -> Self {
         let (input_tx, input_rx) = mpsc::channel(3);
-        let (output_tx, output_rx) = watch::channel(EventFrame::Empty);
+        let (output_tx, output_rx) = mpsc::channel(3);
         let (closed_tx, closed_rx) = oneshot::channel();
         let ctx = Some(EventLoopContext {
             input_rx,
@@ -128,7 +131,7 @@ impl EventLoop {
         });
         Self {
             input_tx,
-            output_rx,
+            output_rx: Some(output_rx),
             closed_rx,
             ctx,
         }

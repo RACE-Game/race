@@ -319,7 +319,7 @@ impl GameContext {
     pub fn remove_player(&mut self, addr: &str) -> Result<()> {
         let orig_len = self.players.len();
         if self.allow_leave {
-            self.players.retain(|p| p.addr.eq(&addr));
+            self.players.retain(|p| p.addr.ne(&addr));
             if orig_len == self.players.len() {
                 Err(Error::PlayerNotInGame)
             } else {

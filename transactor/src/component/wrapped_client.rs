@@ -14,7 +14,7 @@ use race_core::error::Error;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, ServerAccount};
 use race_encryptor::Encryptor;
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::component::traits::{Attachable, Component, Named};
 
@@ -22,14 +22,14 @@ use super::event_bus::CloseReason;
 
 pub struct WrappedClient {
     pub input_tx: mpsc::Sender<EventFrame>,
-    pub output_rx: watch::Receiver<EventFrame>,
+    pub output_rx: Option<mpsc::Receiver<EventFrame>>,
     pub closed_rx: oneshot::Receiver<CloseReason>,
     pub ctx: Option<ClientContext>,
 }
 
 pub struct ClientContext {
     pub input_rx: mpsc::Receiver<EventFrame>,
-    pub output_tx: watch::Sender<EventFrame>,
+    pub output_tx: mpsc::Sender<EventFrame>,
     pub closed_tx: oneshot::Sender<CloseReason>,
     pub addr: String,
     pub transport: Arc<dyn TransportT>,
@@ -43,7 +43,7 @@ impl WrappedClient {
         transport: Arc<dyn TransportT>,
     ) -> Self {
         let (input_tx, input_rx) = mpsc::channel(3);
-        let (output_tx, output_rx) = watch::channel(EventFrame::Empty);
+        let (output_tx, output_rx) = mpsc::channel(3);
         let (closed_tx, closed_rx) = oneshot::channel();
 
         // Detect our client mode by check if our address is the transactor address
@@ -68,7 +68,7 @@ impl WrappedClient {
         });
         Self {
             input_tx,
-            output_rx,
+            output_rx: Some(output_rx),
             closed_rx,
             ctx,
         }
@@ -86,8 +86,10 @@ impl Attachable for WrappedClient {
         Some(self.input_tx.clone())
     }
 
-    fn output(&self) -> Option<watch::Receiver<EventFrame>> {
-        Some(self.output_rx.clone())
+    fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
+        let mut ret = None;
+        std::mem::swap(&mut ret, &mut self.output_rx);
+        ret
     }
 }
 
@@ -102,8 +104,9 @@ impl Component<ClientContext> for WrappedClient {
                 closed_tx,
                 output_tx,
             } = ctx;
-            let encryptor =  Arc::new(Encryptor::default());
-            let mut client = Client::try_new(addr, mode, transport, encryptor).expect("Failed to create client");
+            let encryptor = Arc::new(Encryptor::default());
+            let mut client =
+                Client::try_new(addr, mode, transport, encryptor).expect("Failed to create client");
             let mut res = Ok(());
             'outer: while let Some(event_frame) = input_rx.recv().await {
                 match event_frame {
@@ -112,7 +115,7 @@ impl Component<ClientContext> for WrappedClient {
                             Ok(events) => {
                                 for event in events.into_iter() {
                                     if let Err(e) =
-                                        output_tx.send(EventFrame::SendServerEvent { event })
+                                        output_tx.send(EventFrame::SendServerEvent { event }).await
                                     {
                                         res = Err(Error::InternalError(e.to_string()));
                                         break 'outer;
@@ -153,7 +156,7 @@ impl Component<ClientContext> for WrappedClient {
 #[cfg(test)]
 mod tests {
 
-    use race_core::{event::Event, random::ShuffledList, context::GameContext};
+    use race_core::{context::GameContext, event::Event, random::ShuffledList};
     use race_test::*;
 
     use super::*;

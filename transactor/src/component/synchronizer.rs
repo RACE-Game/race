@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use tokio::{
-    sync::{oneshot, watch},
+    sync::{mpsc, oneshot},
     time::sleep,
 };
 
@@ -16,7 +16,7 @@ use crate::component::{
 };
 
 pub(crate) struct GameSynchronizerContext {
-    output_tx: watch::Sender<EventFrame>,
+    output_tx: mpsc::Sender<EventFrame>,
     closed_tx: oneshot::Sender<CloseReason>,
     transport: Arc<dyn TransportT>,
     init_state: GameAccount,
@@ -25,7 +25,7 @@ pub(crate) struct GameSynchronizerContext {
 /// A component that reads the on-chain states and feed the system.
 /// To construct a synchronizer, a chain adapter is required.
 pub struct GameSynchronizer {
-    output_rx: watch::Receiver<EventFrame>,
+    output_rx: Option<mpsc::Receiver<EventFrame>>,
     closed_rx: oneshot::Receiver<CloseReason>,
     ctx: Option<GameSynchronizerContext>,
 }
@@ -37,12 +37,14 @@ impl Named for GameSynchronizer {
 }
 
 impl Attachable for GameSynchronizer {
-    fn input(&self) -> Option<tokio::sync::mpsc::Sender<EventFrame>> {
+    fn input(&self) -> Option<mpsc::Sender<EventFrame>> {
         None
     }
 
-    fn output(&self) -> Option<watch::Receiver<EventFrame>> {
-        Some(self.output_rx.clone())
+    fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
+        let mut ret = None;
+        std::mem::swap(&mut ret, &mut self.output_rx);
+        ret
     }
 }
 
@@ -74,7 +76,7 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                             }
                         }
                         let event = EventFrame::PlayerJoined { new_players };
-                        if ctx.output_tx.send(event).is_err() {
+                        if ctx.output_tx.send(event).await.is_err() {
                             ctx.closed_tx.send(CloseReason::Complete).unwrap();
                             break;
                         }
@@ -100,7 +102,7 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
 
 impl GameSynchronizer {
     pub fn new(transport: Arc<dyn TransportT>, init_state: GameAccount) -> Self {
-        let (output_tx, output_rx) = watch::channel(EventFrame::Empty);
+        let (output_tx, output_rx) = mpsc::channel(3);
         let (closed_tx, closed_rx) = oneshot::channel();
         let ctx = Some(GameSynchronizerContext {
             output_tx,
@@ -109,7 +111,7 @@ impl GameSynchronizer {
             init_state,
         });
         Self {
-            output_rx,
+            output_rx: Some(output_rx),
             closed_rx,
             ctx,
         }
