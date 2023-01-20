@@ -194,10 +194,9 @@ mod tests {
         client.input_tx.send(event_frame).await.unwrap();
 
         println!("before read event");
-        client.output_rx.changed().await.unwrap();
-        let event_frame = client.output_rx.borrow();
+        let event_frame = client.output_rx.unwrap().recv().await.unwrap();
 
-        match &*event_frame {
+        match event_frame {
             EventFrame::SendServerEvent { ref event } => match event {
                 Event::Lock {
                     sender,
@@ -229,10 +228,9 @@ mod tests {
         client.input_tx.send(event_frame).await.unwrap();
 
         println!("before read event");
-        client.output_rx.changed().await.unwrap();
-        let event_frame = client.output_rx.borrow();
+        let event_frame = client.output_rx.unwrap().recv().await.unwrap();
 
-        match &*event_frame {
+        match event_frame {
             EventFrame::SendServerEvent { ref event } => match event {
                 Event::Mask {
                     sender,

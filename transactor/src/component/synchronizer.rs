@@ -136,10 +136,9 @@ mod tests {
         transport.simulate_states(vec![ga_1]);
         let mut synchronizer = GameSynchronizer::new(transport.clone(), ga_0);
         synchronizer.start();
-        let output = &mut synchronizer.output_rx;
-        output.changed().await.unwrap();
+
         assert_eq!(
-            *output.borrow(),
+            synchronizer.output_rx.unwrap().recv().await.unwrap(),
             EventFrame::PlayerJoined {
                 new_players: vec![NewPlayer {
                     addr: PLAYER_ADDRS[1].to_owned(),

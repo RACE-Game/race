@@ -72,17 +72,17 @@ mod tests {
     use super::*;
     use crate::component::traits::{Attachable, Component, Named};
     use tokio::{
-        sync::{oneshot, watch},
+        sync::{oneshot, mpsc},
         time::{sleep, Duration},
     };
 
     struct TestProducerCtx {
-        output_tx: watch::Sender<EventFrame>,
+        output_tx: mpsc::Sender<EventFrame>,
         closed_tx: oneshot::Sender<CloseReason>,
     }
 
     struct TestProducer {
-        output_rx: watch::Receiver<EventFrame>,
+        output_rx: Option<mpsc::Receiver<EventFrame>>,
         closed_rx: oneshot::Receiver<CloseReason>,
         ctx: Option<TestProducerCtx>,
     }
@@ -98,8 +98,10 @@ mod tests {
             None
         }
 
-        fn output(&self) -> Option<watch::Receiver<EventFrame>> {
-            Some(self.output_rx.clone())
+        fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
+            let mut ret = None;
+            std::mem::swap(&mut ret, &mut self.output_rx);
+            ret
         }
     }
 
@@ -115,7 +117,7 @@ mod tests {
                     let event = EventFrame::PlayerJoined {
                         new_players: vec![],
                     };
-                    match ctx.output_tx.send(event.clone()) {
+                    match ctx.output_tx.send(event.clone()).await {
                         Ok(_) => sleep(Duration::from_secs(5)).await,
                         Err(_) => {
                             break;
@@ -133,14 +135,14 @@ mod tests {
 
     impl TestProducer {
         fn new() -> Self {
-            let (output_tx, output_rx) = watch::channel(EventFrame::Empty);
+            let (output_tx, output_rx) = mpsc::channel(3);
             let (closed_tx, closed_rx) = oneshot::channel();
             let ctx = TestProducerCtx {
                 output_tx,
                 closed_tx,
             };
             Self {
-                output_rx,
+                output_rx: Some(output_rx),
                 closed_rx,
                 ctx: Some(ctx),
             }
@@ -149,14 +151,14 @@ mod tests {
 
     struct TestConsumerCtx {
         input_rx: mpsc::Receiver<EventFrame>,
-        output_tx: watch::Sender<EventFrame>,
+        output_tx: mpsc::Sender<EventFrame>,
         closed_tx: oneshot::Sender<CloseReason>,
         n: Arc<Mutex<u8>>,
     }
 
     struct TestConsumer {
         input_tx: mpsc::Sender<EventFrame>,
-        output_rx: watch::Receiver<EventFrame>,
+        output_rx: Option<mpsc::Receiver<EventFrame>>,
         closed_rx: oneshot::Receiver<CloseReason>,
         ctx: Option<TestConsumerCtx>,
         n: Arc<Mutex<u8>>,
@@ -176,7 +178,7 @@ mod tests {
                             if *n == 2 {
                                 break;
                             } else {
-                                ctx.output_tx.send(EventFrame::Empty).unwrap();
+                                ctx.output_tx.send(EventFrame::Empty).await.unwrap();
                             }
                         }
                         None => {
@@ -209,15 +211,17 @@ mod tests {
             Some(self.input_tx.clone())
         }
 
-        fn output(&self) -> Option<watch::Receiver<EventFrame>> {
-            Some(self.output_rx.clone())
+        fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
+            let mut ret = None;
+            std::mem::swap(&mut ret, &mut self.output_rx);
+            ret
         }
     }
 
     impl TestConsumer {
         fn new() -> Self {
             let (input_tx, input_rx) = mpsc::channel(1);
-            let (output_tx, output_rx) = watch::channel(EventFrame::Empty);
+            let (output_tx, output_rx) = mpsc::channel(3);
             let (closed_tx, closed_rx) = oneshot::channel();
             let n = Arc::new(Mutex::new(0));
 
@@ -230,7 +234,7 @@ mod tests {
 
             Self {
                 input_tx,
-                output_rx,
+                output_rx: Some(output_rx),
                 closed_rx,
                 ctx: Some(ctx),
                 n,
@@ -249,8 +253,8 @@ mod tests {
         let mut c = TestConsumer::new();
         let eb = EventBus::default();
 
-        eb.attach(&c).await;
-        eb.attach(&p).await;
+        eb.attach(&mut c).await;
+        eb.attach(&mut p).await;
 
         c.start();
         p.start();
