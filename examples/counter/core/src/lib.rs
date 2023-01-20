@@ -42,10 +42,11 @@ impl Counter {
 }
 
 impl GameHandler for Counter {
-    fn init_state(_context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
+    fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
         let data = init_account.data;
         let account_data =
             CounterAccountData::try_from_slice(&data).or(Err(Error::DeserializeError))?;
+        context.set_allow_leave(true);
         Ok(Self {
             value: account_data.init_value,
             num_of_players: init_account.players.len() as _,

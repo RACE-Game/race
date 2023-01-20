@@ -13,7 +13,7 @@ use race_core::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams,
         GameAccount, GameBundle, GetRegistrationParams, JoinParams, PlayerProfile,
         RegisterGameParams, RegisterServerParams, Settle, SettleParams,
-        ServerAccount, UnregisterGameParams, RegistrationAccount,
+        ServerAccount, UnregisterGameParams, RegistrationAccount, ServeParams,
     },
 };
 
@@ -55,6 +55,10 @@ impl TransportT for DummyTransport {
     }
 
     async fn join(&self, params: JoinParams) -> Result<()> {
+        Ok(())
+    }
+
+    async fn serve(&self, params: ServeParams) -> Result<()> {
         Ok(())
     }
 
@@ -121,7 +125,7 @@ impl TransportT for DummyTransport {
         Ok(())
     }
 
-    async fn get_registration(&self, params: GetRegistrationParams) -> Option<RegistrationAccount> {
+    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
         None
     }
 }

@@ -84,27 +84,37 @@ pub enum AssetChange {
     NoChange,
 }
 
-/// The data represents how a player's asset changed.
+/// The data represents how a player's asset & status changed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub enum SettleOp {
+    Eject,
+    Add(u64),
+    Sub(u64),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct Settle {
     pub addr: String,
-    pub status: PlayerStatus,
-    pub change: AssetChange,
-    pub amount: u64,
+    pub op: SettleOp,
 }
 
 impl Settle {
-    pub fn new<S: Into<String>>(
-        addr: S,
-        status: PlayerStatus,
-        change: AssetChange,
-        amount: u64,
-    ) -> Self {
+    pub fn add<S: Into<String>>(addr: S, amount: u64) -> Self {
         Self {
             addr: addr.into(),
-            status,
-            change,
-            amount,
+            op: SettleOp::Add(amount),
+        }
+    }
+    pub fn sub<S: Into<String>>(addr: S, amount: u64) -> Self {
+        Self {
+            addr: addr.into(),
+            op: SettleOp::Sub(amount),
+        }
+    }
+    pub fn eject<S: Into<String>>(addr: S) -> Self {
+        Self {
+            addr: addr.into(),
+            op: SettleOp::Eject,
         }
     }
 }

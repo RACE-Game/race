@@ -117,7 +117,7 @@ impl WrappedHandler {
         let mut new_context = context.clone();
         general_handle_event(&mut new_context, event)?;
         self.custom_handle_event(&mut new_context, event)?;
-        after_handle_event(&mut new_context)?;
+        after_handle_event(context, &mut new_context)?;
         swap(context, &mut new_context);
         Ok(())
     }
@@ -171,7 +171,7 @@ mod tests {
         let mut ctx = GameContext::new(&game_account).unwrap();
         hdlr.init_state(&mut ctx, &game_account).unwrap();
         assert_eq!(
-            "{\"counter_value\":42,\"counter_players\":0}",
+            "{\"value\":42,\"num_of_players\":0,\"num_of_servers\":1}",
             ctx.get_handler_state_json()
         );
     }
@@ -190,7 +190,7 @@ mod tests {
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
         assert_eq!(
-            "{\"counter_value\":42,\"counter_players\":1}",
+            "{\"value\":42,\"num_of_players\":1,\"num_of_servers\":1}",
             ctx.get_handler_state_json()
         );
     }

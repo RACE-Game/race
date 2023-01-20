@@ -47,6 +47,27 @@ impl Attachable for EventLoop {
     }
 }
 
+fn handle(
+    handler: &mut WrappedHandler,
+    game_context: &mut GameContext,
+    event: Event,
+    out: &watch::Sender<EventFrame>,
+) {
+    match handler.handle_event(game_context, &event) {
+        Ok(_) => {
+            out.send(EventFrame::Broadcast {
+                state_json: game_context.get_handler_state_json().to_owned(),
+                event,
+            })
+            .unwrap();
+            if let Some(settles) = game_context.extract_settles() {
+                out.send(EventFrame::Settle { settles }).unwrap();
+            }
+        }
+        Err(e) => warn!("Handle event error: {}", e.to_string()),
+    }
+}
+
 impl Component<EventLoopContext> for EventLoop {
     fn run(&mut self, mut ctx: EventLoopContext) {
         tokio::spawn(async move {
@@ -63,30 +84,16 @@ impl Component<EventLoopContext> for EventLoop {
                                 balance: p.amount,
                                 position: p.position,
                             };
-                            match handler.handle_event(&mut game_context, &event) {
-                                Ok(_) => {
-                                    output_tx
-                                        .send(EventFrame::Broadcast {
-                                            state_json: game_context
-                                                .get_handler_state_json()
-                                                .to_owned(),
-                                            event,
-                                        })
-                                        .unwrap();
-                                }
-                                Err(e) => warn!("Handle event error: {:?}", e.to_string()),
-                            }
+                            handle(&mut handler, &mut game_context, event, &output_tx);
                         }
                     }
+                    EventFrame::PlayerLeaving { player_addr } => {
+                        info!("Event loop handle player leaving");
+                        let event = Event::Leave { player_addr };
+                        handle(&mut handler, &mut game_context, event, &output_tx);
+                    }
                     EventFrame::SendEvent { event } => {
-                        if handler.handle_event(&mut game_context, &event).is_ok() {
-                            output_tx
-                                .send(EventFrame::Broadcast {
-                                    state_json: game_context.get_handler_state_json().to_owned(),
-                                    event,
-                                })
-                                .unwrap();
-                        }
+                        handle(&mut handler, &mut game_context, event, &output_tx);
                     }
                     EventFrame::Shutdown => {
                         ctx.closed_tx.send(CloseReason::Complete).unwrap();
@@ -139,7 +146,7 @@ mod tests {
     #[tokio::test]
     async fn test_player_join() {
         let hdlr = WrappedHandler::load_by_path(
-            "../target/wasm32-unknown-unknown/release/race_example_minimal.wasm".into(),
+            "../target/wasm32-unknown-unknown/release/race_example_counter.wasm".into(),
         )
         .unwrap();
 
@@ -168,7 +175,7 @@ mod tests {
             assert_eq!(
                 *ef,
                 EventFrame::Broadcast {
-                    state_json: "{\"counter_value\":42,\"counter_player\":1}".into(),
+                    state_json: "{\"value\":42,\"num_of_players\":1,\"num_of_servers\":1}".into(),
                     event: Event::Join {
                         player_addr: new_player.addr,
                         balance: new_player.amount,

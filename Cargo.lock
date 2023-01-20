@@ -1338,7 +1338,7 @@ dependencies = [
 [[package]]
 name = "gloo-timers"
 version = "0.2.5"
-source = "git+https://github.com/flisky/gloo#74a5769b5e6def8fdcc11179378a1afcd1bacb7a"
+source = "git+https://github.com/rustwasm/gloo#01c127c38103182eff344a552ecac2424efb5891"
 dependencies = [
  "futures-channel",
  "futures-core",

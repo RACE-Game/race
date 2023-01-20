@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
-use race_core::types::GameAccount;
+use race_core::types::{GameAccount, SettleParams};
 use tokio::sync::{mpsc, oneshot, watch};
 
-use crate::frame::EventFrame;
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
+use crate::frame::EventFrame;
 use race_core::transport::TransportT;
 
 pub(crate) struct SubmitterContext {
+    addr: String,
     input_rx: mpsc::Receiver<EventFrame>,
     close_tx: oneshot::Sender<CloseReason>,
     transport: Arc<dyn TransportT>,
@@ -43,8 +44,14 @@ impl Component<SubmitterContext> for Submitter {
         tokio::spawn(async move {
             while let Some(event) = ctx.input_rx.recv().await {
                 match event {
-                    EventFrame::Settle { params } => {
-                        ctx.transport.settle_game(params).await.unwrap();
+                    EventFrame::Settle { settles } => {
+                        ctx.transport
+                            .settle_game(SettleParams {
+                                addr: ctx.addr.clone(),
+                                settles,
+                            })
+                            .await
+                            .unwrap();
                     }
                     EventFrame::Shutdown => {
                         break;
@@ -66,10 +73,11 @@ impl Component<SubmitterContext> for Submitter {
 }
 
 impl Submitter {
-    pub fn new(transport: Arc<dyn TransportT>, _init_state: GameAccount) -> Self {
+    pub fn new(transport: Arc<dyn TransportT>, game_account: GameAccount) -> Self {
         let (input_tx, input_rx) = mpsc::channel(32);
         let (close_tx, close_rx) = oneshot::channel();
         let ctx = Some(SubmitterContext {
+            addr: game_account.addr.clone(),
             input_rx,
             close_tx,
             transport,
@@ -86,7 +94,7 @@ impl Submitter {
 mod tests {
 
     use super::*;
-    use race_core::types::{AssetChange, PlayerStatus, Settle, SettleParams};
+    use race_core::types::{Settle, SettleParams};
     use race_test::*;
 
     #[tokio::test]
@@ -94,19 +102,12 @@ mod tests {
         let game_account = TestGameAccountBuilder::default().add_players(2).build();
         let transport = Arc::new(DummyTransport::default());
         let mut submitter = Submitter::new(transport.clone(), game_account);
-        let settles = vec![Settle::new(
-            "Alice",
-            PlayerStatus::Normal,
-            AssetChange::Add,
-            100,
-        )];
+        let settles = vec![Settle::add("Alice", 100)];
         let params = SettleParams {
             addr: game_account_addr(),
             settles: settles.clone(),
         };
-        let event_frame = EventFrame::Settle {
-            params,
-        };
+        let event_frame = EventFrame::Settle { settles: settles.clone() };
         submitter.start();
         submitter.input_tx.send(event_frame).await.unwrap();
         submitter.input_tx.send(EventFrame::Shutdown).await.unwrap();

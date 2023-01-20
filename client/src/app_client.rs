@@ -1,9 +1,9 @@
 //! A common client to use in dapp(native version).
 
 use gloo::utils::format::JsValueSerdeExt;
-use js_sys::JSON::{parse, stringify};
 use js_sys::Function;
-use race_core::types::BroadcastFrame;
+use js_sys::JSON::{parse, stringify};
+use race_core::types::{BroadcastFrame, ExitGameParams};
 use race_transport::TransportBuilder;
 use wasm_bindgen::prelude::*;
 
@@ -115,11 +115,21 @@ impl AppClient {
         pin_mut!(sub);
         debug!("Event stream connected");
         while let Some(frame) = sub.next().await {
-            let BroadcastFrame { game_addr, event, state_json } = frame;
+            let BroadcastFrame {
+                game_addr,
+                event,
+                state_json,
+            } = frame;
             let event_js = JsValue::from_serde(&event).map_err(|_| Error::JsonParseError)?;
             let state_js = parse(&state_json).map_err(|_| Error::JsonParseError)?;
             let this = JsValue::null();
-            let r = Function::call3(&callback, &this, &JsValue::from_str(&game_addr), &event_js, &state_js);
+            let r = Function::call3(
+                &callback,
+                &this,
+                &JsValue::from_str(&game_addr),
+                &event_js,
+                &state_js,
+            );
             if let Err(e) = r {
                 error!("Callback error, {}", e);
             }
@@ -194,14 +204,25 @@ impl AppClient {
             .await
             .ok_or(Error::GameAccountNotFound)?;
 
-        self.transport.join(JoinParams {
-            player_addr: self.client.addr.clone(),
-            game_addr: self.addr.clone(),
-            amount,
-            access_version: game_account.access_version,
-            position: position as _,
-        }).await?;
+        self.transport
+            .join(JoinParams {
+                player_addr: self.client.addr.clone(),
+                game_addr: self.addr.clone(),
+                amount,
+                access_version: game_account.access_version,
+                position: position as _,
+            })
+            .await?;
 
+        Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub async fn exit(&self) -> Result<()> {
+        self.connection.exit_game(ExitGameParams {
+            game_addr: self.addr.clone(),
+            player_addr: self.client.addr.clone(),
+        }).await?;
         Ok(())
     }
 }

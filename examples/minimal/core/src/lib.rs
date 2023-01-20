@@ -141,8 +141,7 @@ impl GameHandler for MinimalHandler {
             }
 
             Event::SecretsReady => match self.stage {
-                GameStage::Dealing => {
-                }
+                GameStage::Dealing => {}
                 GameStage::Revealing => {
                     let decryption = context.get_revealed(self.deck_random_id)?;
                     let player_idx: usize = if self.dealer_idx == 0 { 1 } else { 0 };
@@ -164,22 +163,12 @@ impl GameHandler for MinimalHandler {
                         (player_addr, dealer_addr)
                     };
                     context.settle(vec![
-                        Settle::new(
-                            winner,
-                            PlayerStatus::Normal,
-                            race_core::types::AssetChange::Add,
-                            self.bet,
-                        ),
-                        Settle::new(
-                            loser,
-                            PlayerStatus::Normal,
-                            race_core::types::AssetChange::Sub,
-                            self.bet,
-                        ),
+                        Settle::add(winner, self.bet),
+                        Settle::sub(loser, self.bet),
                     ]);
                 }
             },
-            _ => ()
+            _ => (),
         }
 
         Ok(())

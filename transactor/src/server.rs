@@ -6,7 +6,9 @@ use jsonrpsee::core::Error;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
-use race_core::types::{AttachGameParams, GetStateParams, SubmitEventParams, SubscribeEventParams};
+use race_core::types::{
+    AttachGameParams, ExitGameParams, GetStateParams, SubmitEventParams, SubscribeEventParams,
+};
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::info;
@@ -43,6 +45,18 @@ async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) 
 
     let snapshot = game_handle.broadcaster.get_snapshot().await;
     Ok(snapshot)
+}
+
+async fn exit_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
+    let ExitGameParams {
+        player_addr,
+        game_addr,
+    } = params.one()?;
+    let context = context.lock().await;
+    context
+        .eject_player(&game_addr, &player_addr)
+        .await
+        .map_err(|e| Error::Custom(e.to_string()))
 }
 
 fn subscribe_event(
@@ -94,6 +108,7 @@ pub async fn run_server(context: Mutex<ApplicationContext>) -> anyhow::Result<()
     module.register_async_method("attach_game", attach_game)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("get_state", get_state)?;
+    module.register_async_method("exit_game", exit_game)?;
     module.register_subscription(
         "subscribe_event",
         "s_event",

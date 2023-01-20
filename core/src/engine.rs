@@ -4,7 +4,7 @@ use crate::{
     context::{GameContext, GameStatus, Player, PlayerStatus},
     error::Result,
     event::Event,
-    types::GameAccount,
+    types::{GameAccount, Settle},
 };
 
 pub trait GameHandler: Sized + Serialize + DeserializeOwned {
@@ -36,7 +36,6 @@ pub fn general_init_state(context: &mut GameContext, init_account: &GameAccount)
 
 /// A general function for system events handling.
 pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<()> {
-
     // Remove current event disptaching
     context.dispatch = None;
 
@@ -97,6 +96,19 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
 }
 
 /// Context maintaining after event handling.
-pub fn after_handle_event(_context: &mut GameContext) -> Result<()> {
+pub fn after_handle_event(old_context: &GameContext, new_context: &mut GameContext) -> Result<()> {
+    // Find all leaving player, submit during the settlement.
+    // Or create a settlement for just player leaving.
+    let mut left_players = vec![];
+    for p in new_context.players.iter() {
+        if old_context.get_player_by_address(&p.addr).is_none() {
+            left_players.push(p.addr.to_owned());
+        }
+    }
+
+    for p in left_players.into_iter() {
+        new_context.add_settle(Settle::eject(p));
+    }
+
     Ok(())
 }

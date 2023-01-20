@@ -10,7 +10,8 @@ use jsonrpsee::{
 use race_core::{
     error::{Error, Result},
     types::{
-        AttachGameParams, BroadcastFrame, GetStateParams, SubmitEventParams, SubscribeEventParams,
+        AttachGameParams, BroadcastFrame, ExitGameParams, GetStateParams, SubmitEventParams,
+        SubscribeEventParams,
     },
 };
 use serde::de::DeserializeOwned;
@@ -38,6 +39,13 @@ impl Connection {
     pub async fn submit_event(&self, params: SubmitEventParams) -> Result<()> {
         self.rpc_client
             .request("submit_event", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
+    pub async fn exit_game(&self, params: ExitGameParams) -> Result<()> {
+        self.rpc_client
+            .request("exit_game", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
     }

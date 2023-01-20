@@ -8,6 +8,10 @@ async function onClickIncreamentButton() {
   await client.submit_event({ "Increase": 42 });
 }
 
+async function onClickExitButton() {
+  await client.exit();
+}
+
 function onStateUpdated(_gameAddr, event, state) {
   console.log(event);
   console.log(state);
@@ -20,6 +24,7 @@ function onStateUpdated(_gameAddr, event, state) {
   client = await AppClient.try_init('facade', 'ws://localhost:12002', 'COUNTER_GAME_ADDRESS');
   document.getElementById("join-btn").addEventListener("click", onClickJoinButton);
   document.getElementById("incr-btn").addEventListener("click", onClickIncreamentButton);
+  document.getElementById("exit-btn").addEventListener("click", onClickExitButton);
   client.attach_game_with_callback(onStateUpdated);
   console.log("Game attached");
 })();

@@ -124,11 +124,23 @@ impl GameContext {
             .transactor_addr
             .as_ref()
             .ok_or(Error::GameNotServed)?;
+
+        // build initial players
+        let mut player_map = HashMap::with_capacity(game_account.max_players as _);
+        for p in game_account.players.iter() {
+            player_map.insert(p.addr.as_str(), Player::new(p.addr.clone(), 0, p.position));
+        }
+        for d in game_account.deposits.iter() {
+            if let Some(p) = player_map.get_mut(d.addr.as_str()) {
+                p.balance += d.amount;
+            }
+        }
+
         Ok(Self {
             game_addr: game_account.addr.clone(),
             transactor_addr: transactor_addr.to_owned(),
             status: GameStatus::Uninit,
-            players: Default::default(),
+            players: player_map.into_values().collect(),
             servers: game_account.server_addrs.iter().map(Server::new).collect(),
             dispatch: None,
             state_json: "".into(),
@@ -299,11 +311,20 @@ impl GameContext {
         Ok(())
     }
 
+    pub fn set_allow_leave(&mut self, allow_leave: bool) {
+        self.allow_leave = allow_leave;
+    }
+
     /// Remove player from the game.
     pub fn remove_player(&mut self, addr: &str) -> Result<()> {
+        let orig_len = self.players.len();
         if self.allow_leave {
             self.players.retain(|p| p.addr.eq(&addr));
-            Ok(())
+            if orig_len == self.players.len() {
+                Err(Error::PlayerNotInGame)
+            } else {
+                Ok(())
+            }
         } else {
             Err(Error::CantLeave)
         }
@@ -370,6 +391,24 @@ impl GameContext {
 
     pub fn get_settles(&self) -> &Option<Vec<Settle>> {
         &self.settles
+    }
+
+    pub fn extract_settles(&mut self) -> Option<Vec<Settle>> {
+        if self.settles.is_some() {
+            let mut settles = None;
+            std::mem::swap(&mut settles, &mut self.settles);
+            settles
+        } else {
+            None
+        }
+    }
+
+    pub fn add_settle(&mut self, settle: Settle) {
+        if let Some(ref mut settles) = self.settles {
+            settles.push(settle);
+        } else {
+            self.settles = Some(vec![settle]);
+        }
     }
 
     pub fn add_revealed(

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use race_core::error::Error;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{debug, info};
+use tracing::{error, info};
 
 use crate::component::traits::Attachable;
 use crate::frame::EventFrame;
@@ -32,7 +32,9 @@ impl EventBus {
 
     pub async fn send(&self, event: EventFrame) {
         info!("Event bus receive event frame: {:?}", event);
-        self.tx.send(event).await.unwrap();
+        if let Err(e) = self.tx.send(event).await {
+            error!("An error occurred when sending event, {}", e.to_string());
+        }
     }
 }
 
@@ -112,7 +114,7 @@ mod tests {
                 loop {
                     println!("Producer started");
                     let event = EventFrame::PlayerJoined {
-                        new_players: vec![]
+                        new_players: vec![],
                     };
                     match ctx.output_tx.send(event.clone()) {
                         Ok(_) => sleep(Duration::from_secs(5)).await,
