@@ -301,9 +301,12 @@ impl GameContext {
 
     /// Remove player from the game.
     pub fn remove_player(&mut self, addr: &str) -> Result<()> {
-        self.players.retain(|p| p.addr.eq(&addr));
-
-        Ok(())
+        if self.allow_leave {
+            self.players.retain(|p| p.addr.eq(&addr));
+            Ok(())
+        } else {
+            Err(Error::CantLeave)
+        }
     }
 
     /// Dispatch event after timeout.

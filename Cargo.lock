@@ -107,10 +107,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-trait"
-version = "0.1.61"
+name = "async-stream"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "705339e0e4a9690e2908d2b3d049d85682cf19fbd5782494498fbf7003a6a282"
+checksum = "dad5c83079eae9969be7fadefe640a1c566901f05ff91ab221de4b6f68d9507e"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10f203db73a71dfa2fb6dd22763990fa26f3d2625a6da2da900d23b87d26be27"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "async-trait"
+version = "0.1.62"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "689894c2db1ea643a50834b999abf1c110887402542955ff5451dab8f861f9ed"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -375,18 +396,18 @@ dependencies = [
 
 [[package]]
 name = "bytemuck"
-version = "1.12.3"
+version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aaa3a8d9a1ca92e282c96a32d6511b695d7d994d1d102ba85d279f9b2756947f"
+checksum = "c041d3eab048880cb0b86b256447da3f18859a163c3b8d8893f4e6368abe6393"
 dependencies = [
  "bytemuck_derive",
 ]
 
 [[package]]
 name = "bytemuck_derive"
-version = "1.3.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fe233b960f12f8007e3db2d136e3cb1c291bfd7396e384ee76025fc1a3932b4"
+checksum = "1aca418a974d83d40a0c1f0c5cba6ff4bc28d8df099109ca459a2118d40b6322"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1091,7 +1112,7 @@ version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e64b03909df88034c26dc1547e8970b91f98bdb65165d6a4e9110d94263dbb2c"
 dependencies = [
- "gloo-timers 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gloo-timers",
  "send_wrapper",
 ]
 
@@ -1192,27 +1213,29 @@ dependencies = [
 [[package]]
 name = "gloo"
 version = "0.8.0"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a4bef6b277b3ab073253d4bca60761240cf8d6998f4bd142211957b69a61b20"
 dependencies = [
  "gloo-console",
  "gloo-dialogs",
  "gloo-events",
  "gloo-file",
  "gloo-history",
- "gloo-net 0.2.5 (git+https://github.com/flisky/gloo)",
+ "gloo-net",
  "gloo-render",
  "gloo-storage",
- "gloo-timers 0.2.5 (git+https://github.com/flisky/gloo)",
- "gloo-utils 0.1.6 (git+https://github.com/flisky/gloo)",
+ "gloo-timers",
+ "gloo-utils",
  "gloo-worker",
 ]
 
 [[package]]
 name = "gloo-console"
 version = "0.2.3"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82b7ce3c05debe147233596904981848862b068862e9ec3e34be446077190d3f"
 dependencies = [
- "gloo-utils 0.1.6 (git+https://github.com/flisky/gloo)",
+ "gloo-utils",
  "js-sys",
  "serde",
  "wasm-bindgen",
@@ -1222,7 +1245,8 @@ dependencies = [
 [[package]]
 name = "gloo-dialogs"
 version = "0.1.1"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67062364ac72d27f08445a46cab428188e2e224ec9e37efdba48ae8c289002e6"
 dependencies = [
  "wasm-bindgen",
  "web-sys",
@@ -1231,7 +1255,8 @@ dependencies = [
 [[package]]
 name = "gloo-events"
 version = "0.1.2"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68b107f8abed8105e4182de63845afcc7b69c098b7852a813ea7462a320992fc"
 dependencies = [
  "wasm-bindgen",
  "web-sys",
@@ -1240,7 +1265,8 @@ dependencies = [
 [[package]]
 name = "gloo-file"
 version = "0.2.3"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8d5564e570a38b43d78bdc063374a0c3098c4f0d64005b12f9bbe87e869b6d7"
 dependencies = [
  "gloo-events",
  "js-sys",
@@ -1251,12 +1277,13 @@ dependencies = [
 [[package]]
 name = "gloo-history"
 version = "0.1.2"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ce5ae65c5d76e2bbd9f274d7dcc00a306a79964305efa275a0ac728caaeb792"
 dependencies = [
  "gloo-events",
- "gloo-utils 0.1.6 (git+https://github.com/flisky/gloo)",
+ "gloo-utils",
  "serde",
- "serde-wasm-bindgen",
+ "serde-wasm-bindgen 0.3.1",
  "serde_urlencoded",
  "thiserror",
  "wasm-bindgen",
@@ -1272,26 +1299,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-sink",
- "gloo-utils 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "js-sys",
- "pin-project",
- "serde",
- "serde_json",
- "thiserror",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "gloo-net"
-version = "0.2.5"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-sink",
- "gloo-utils 0.1.6 (git+https://github.com/flisky/gloo)",
+ "gloo-utils",
  "js-sys",
  "pin-project",
  "serde",
@@ -1305,7 +1313,8 @@ dependencies = [
 [[package]]
 name = "gloo-render"
 version = "0.1.1"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2fd9306aef67cfd4449823aadcd14e3958e0800aa2183955a309112a84ec7764"
 dependencies = [
  "wasm-bindgen",
  "web-sys",
@@ -1314,9 +1323,10 @@ dependencies = [
 [[package]]
 name = "gloo-storage"
 version = "0.2.2"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d6ab60bf5dbfd6f0ed1f7843da31b41010515c745735c970e821945ca91e480"
 dependencies = [
- "gloo-utils 0.1.6 (git+https://github.com/flisky/gloo)",
+ "gloo-utils",
  "js-sys",
  "serde",
  "serde_json",
@@ -1328,20 +1338,10 @@ dependencies = [
 [[package]]
 name = "gloo-timers"
 version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98c4a8d6391675c6b2ee1a6c8d06e8e2d03605c44cec1270675985a4c2a5500b"
+source = "git+https://github.com/flisky/gloo#74a5769b5e6def8fdcc11179378a1afcd1bacb7a"
 dependencies = [
  "futures-channel",
  "futures-core",
- "js-sys",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "gloo-timers"
-version = "0.2.5"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
-dependencies = [
  "js-sys",
  "wasm-bindgen",
 ]
@@ -1360,26 +1360,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "gloo-utils"
-version = "0.1.6"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
-dependencies = [
- "js-sys",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "gloo-worker"
 version = "0.2.1"
-source = "git+https://github.com/flisky/gloo#8b242b897ac948284b4ca7faa9208210fce9e2df"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13471584da78061a28306d1359dd0178d8d6fc1c7c80e5e35d27260346e0516a"
 dependencies = [
  "anymap2",
  "bincode",
  "gloo-console",
- "gloo-utils 0.1.6 (git+https://github.com/flisky/gloo)",
+ "gloo-utils",
  "js-sys",
  "serde",
  "wasm-bindgen",
@@ -1733,7 +1722,7 @@ dependencies = [
  "futures-channel",
  "futures-timer",
  "futures-util",
- "gloo-net 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gloo-net",
  "http",
  "jsonrpsee-core",
  "jsonrpsee-types",
@@ -2426,22 +2415,22 @@ name = "race-client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-stream",
  "borsh",
+ "futures",
  "getrandom 0.2.8",
  "gloo",
  "js-sys",
  "jsonrpsee",
  "race-core",
  "race-encryptor",
- "race-test",
  "race-transport",
  "serde",
  "serde_json",
- "tracing",
+ "thiserror",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
- "wasmer",
  "web-sys",
 ]
 
@@ -2452,8 +2441,6 @@ dependencies = [
  "async-trait",
  "borsh",
  "bytes",
- "jsonrpsee",
- "log",
  "serde",
  "serde_json",
  "thiserror",
@@ -3004,6 +2991,18 @@ dependencies = [
 
 [[package]]
 name = "serde-wasm-bindgen"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "618365e8e586c22123d692b72a7d791d5ee697817b65a218cdf12a98870af0f7"
+dependencies = [
+ "fnv",
+ "js-sys",
+ "serde",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "serde-wasm-bindgen"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3b4c031cd0d9014307d82b8abf653c0290fbdaeb4c02d00c63cf52f728628bf"
@@ -3197,9 +3196,9 @@ dependencies = [
 
 [[package]]
 name = "solana-frozen-abi"
-version = "1.14.12"
+version = "1.14.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c39813ee5b249cb8ccb325d3639323eb3616e7bb9a2b1502936d7ea20530097"
+checksum = "f44a019070a6cec4d3ad8605c5caa65bdaa13f00b5f1849340f44ffea63b625b"
 dependencies = [
  "ahash",
  "blake3",
@@ -3231,9 +3230,9 @@ dependencies = [
 
 [[package]]
 name = "solana-frozen-abi-macro"
-version = "1.14.12"
+version = "1.14.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dad43ac27c4b8d7a3ce0e2cb8642a7e3b8ea5e3c29ecea38045a8518519adccf"
+checksum = "be23cc7a382f54dfe1348edb94610e5cc146b8eb21563cdd04062a403c75ba62"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3243,9 +3242,9 @@ dependencies = [
 
 [[package]]
 name = "solana-logger"
-version = "1.14.12"
+version = "1.14.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13a18f8d7490f712a4340998fca2b0d35afcdef671320a0e51f40b537363d592"
+checksum = "447d16a70a1b5383736ef44801050c0e1affd022303b22ed899352f958c2de4b"
 dependencies = [
  "env_logger 0.9.3",
  "lazy_static",
@@ -3254,9 +3253,9 @@ dependencies = [
 
 [[package]]
 name = "solana-program"
-version = "1.14.12"
+version = "1.14.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0dafff676128fe508ab83147b6fb19534fc33f43ec14789da1f1867e9ea06887"
+checksum = "d0937481f080f5dd495fae456c94718a7bacf30fb5fdabb02dcb8a9622e446d5"
 dependencies = [
  "base64 0.13.1",
  "bincode",
@@ -3303,9 +3302,9 @@ dependencies = [
 
 [[package]]
 name = "solana-sdk"
-version = "1.14.12"
+version = "1.14.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c702cc57432bc16eab54ad7b5668c2a3cdc72b0f820175972b4857e26ac4f49"
+checksum = "390e7481c56dda2ceab2652beeda30a533e9667b34861a2eb4eec92fa1d826d7"
 dependencies = [
  "assert_matches",
  "base64 0.13.1",
@@ -3354,9 +3353,9 @@ dependencies = [
 
 [[package]]
 name = "solana-sdk-macro"
-version = "1.14.12"
+version = "1.14.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f89a14a8f1e7708fe19ee3140125e9d8279945ead74cb09e65c94dd5cf0640c3"
+checksum = "33d0acbad862093ea123f3a27364336dcb0c8373522cd6810496a34e932c56c1"
 dependencies = [
  "bs58",
  "proc-macro2",
@@ -3570,9 +3569,9 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.5.10"
+version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1333c76748e868a4d9d1017b5ab53171dfd095f70c712fdb4653a406547f598f"
+checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
 dependencies = [
  "serde",
 ]
@@ -3951,7 +3950,7 @@ dependencies = [
  "js-sys",
  "more-asserts",
  "serde",
- "serde-wasm-bindgen",
+ "serde-wasm-bindgen 0.4.5",
  "target-lexicon",
  "thiserror",
  "wasm-bindgen",

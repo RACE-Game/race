@@ -3,8 +3,29 @@
   <head>
     <meta charset="UTF-8">
     <title>My Rust + Webpack project!</title>
+    <style>
+      body {
+        font-size: 1.5rem;
+        width: 100vw;
+        height: 100vw;
+        display: grid;
+        place-items: center;
+      }
+      button {
+        padding: 1rem 2rem 1rem 2rem;
+        font-size: 2rem;
+        margin: 1rem;
+      }
+    </style>
   </head>
   <body>
+    <div id="app">
+      <div>
+        <div>Value: <span id="value">N/A</span></div>
+        <button id="join-btn"> Join </button>
+        <button id="incr-btn"> Increment </button>
+      </div>
+    </div>
     <script src="index.js"></script>
   </body>
 </html>

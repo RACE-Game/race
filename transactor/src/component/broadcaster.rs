@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use race_core::types::{GameAccount, BroadcastFrame};
 use tokio::sync::{broadcast, mpsc, oneshot, watch, Mutex};
+use tracing::info;
 
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
@@ -47,6 +48,7 @@ impl Component<BroadcasterContext> for Broadcaster {
                 if let Some(event) = ctx.input_rx.recv().await {
                     match event {
                         EventFrame::Broadcast { event, state_json } => {
+                            info!("Broadcaster broadcast event: {:?}", event);
                             let mut snapshot = snapshot.lock().await;
                             *snapshot = state_json.clone();
                             ctx.broadcast_tx
@@ -57,9 +59,7 @@ impl Component<BroadcasterContext> for Broadcaster {
                                 })
                                 .unwrap();
                         }
-                        _ => {
-                            println!("Input closed");
-                        }
+                        _ => ()
                     }
                 } else {
                     ctx.closed_tx.send(CloseReason::Complete).unwrap();

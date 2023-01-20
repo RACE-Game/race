@@ -24,7 +24,9 @@ async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>
 
 async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
     let params: SubmitEventParams = params.one()?;
+    info!("2Receive client event: {:?}", params.event);
     let context = context.lock().await;
+    info!("3Receive client event: {:?}", params.event);
     context
         .send_event(&params.addr, params.event)
         .await
@@ -37,7 +39,7 @@ async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) 
 
     let game_handle = context
         .get_game(&params.addr)
-        .ok_or_else(|| Error::Custom("Game not found".into()))?;
+        .ok_or_else(|| Error::Custom(format!("Game: {} not found", params.addr)))?;
 
     let snapshot = game_handle.broadcaster.get_snapshot().await;
     Ok(snapshot)
@@ -50,15 +52,20 @@ fn subscribe_event(
 ) -> std::result::Result<(), SubscriptionEmptyError> {
     {
         let params: SubscribeEventParams = params.one()?;
-        let context = context.blocking_lock();
-
-        let handle = context
-            .get_game(&params.addr)
-            .ok_or(SubscriptionEmptyError)?;
-
-        let rx = BroadcastStream::new(handle.broadcaster.get_broadcast_rx());
-
+        let addr = params.addr.clone();
         tokio::spawn(async move {
+            println!("Subscribe event stream: {:?}", addr);
+            let context = context.lock().await;
+
+            let handle = context
+                .get_game(&addr)
+                .ok_or(SubscriptionEmptyError)
+                .expect("Failed to get game");
+
+            let rx = BroadcastStream::new(handle.broadcaster.get_broadcast_rx());
+
+            drop(context);
+
             match sink.pipe_from_try_stream(rx).await {
                 SubscriptionClosed::Success => {
                     sink.close(SubscriptionClosed::Success);

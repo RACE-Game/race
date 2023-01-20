@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use race_core::error::Error;
 use tokio::sync::{mpsc, Mutex};
+use tracing::{debug, info};
 
 use crate::component::traits::Attachable;
 use crate::frame::EventFrame;
@@ -30,6 +31,7 @@ impl EventBus {
     }
 
     pub async fn send(&self, event: EventFrame) {
+        info!("Event bus receive event frame: {:?}", event);
         self.tx.send(event).await.unwrap();
     }
 }
@@ -42,6 +44,7 @@ impl Default for EventBus {
 
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
+                info!("Dispatching message: {:?}", msg);
                 let txs = attached_txs.lock().await;
                 for t in txs.iter() {
                     t.send(msg.clone()).await.unwrap();

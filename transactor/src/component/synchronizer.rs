@@ -8,6 +8,7 @@ use tokio::{
 use crate::frame::{EventFrame, NewPlayer};
 use race_core::transport::TransportT;
 use race_core::types::GameAccount;
+use tracing::info;
 
 use crate::component::{
     event_bus::CloseReason,
@@ -56,6 +57,7 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                 let state = ctx.transport.get_game_account(&init_state.addr).await;
                 if let Some(state) = state {
                     if access_version < state.access_version {
+                        info!("Synchronizer get new state: {:?}", state);
                         let mut new_players = vec![];
                         for p in state.players.iter() {
                             if p.access_version > access_version {

@@ -37,7 +37,7 @@ pub enum Error {
     #[error("Server account exists")]
     ServerAccountExists,
 
-    #[error("Rpc error")]
+    #[error("Rpc error: {0}")]
     RpcError(String),
 
     #[error("Invalid chain name")]
@@ -73,7 +73,7 @@ pub enum Error {
     #[error("Can't leave")]
     CantLeave,
 
-    #[error("Randomization error")]
+    #[error("Randomization error: {0}")]
     RandomizationError(String),
 
     #[error("Crypto error")]
@@ -100,13 +100,13 @@ pub enum Error {
     #[error("Invalid transactor address")]
     InvalidTransactorAddress,
 
-    #[error("Initialization transport failed")]
+    #[error("Initialization transport failed: {0}")]
     InitializationTransportFailed(String),
 
     #[error("Initialize rpc client error")]
     InitializeRpcClientError,
 
-    #[error("Internal error")]
+    #[error("Internal error: {0}")]
     InternalError(String),
 
     #[error("Missing secret")]
@@ -115,7 +115,7 @@ pub enum Error {
     #[error("Invalid secret")]
     InvalidSecret,
 
-    #[error("Invalid decrypted value")]
+    #[error("Invalid decrypted value: {0}")]
     InvalidDecryptedValue(String),
 
     #[error("Decryption failed")]
@@ -129,6 +129,9 @@ pub enum Error {
 
     #[error("Invalid max players")]
     InvalidMaxPlayers,
+
+    #[error("JSON parse error")]
+    JsonParseError,
 }
 
 impl From<serde_json::Error> for Error {

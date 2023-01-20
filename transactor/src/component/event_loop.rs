@@ -2,6 +2,7 @@ use race_core::context::GameContext;
 use race_core::error::Error;
 use race_core::event::Event;
 use tokio::sync::{mpsc, oneshot, watch};
+use tracing::{info, warn};
 
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
@@ -55,21 +56,25 @@ impl Component<EventLoopContext> for EventLoop {
             while let Some(event_frame) = ctx.input_rx.recv().await {
                 match event_frame {
                     EventFrame::PlayerJoined { new_players } => {
+                        info!("Event loop handle player joined");
                         for p in new_players.into_iter() {
                             let event = Event::Join {
                                 player_addr: p.addr,
                                 balance: p.amount,
                                 position: p.position,
                             };
-                            if handler.handle_event(&mut game_context, &event).is_ok() {
-                                output_tx
-                                    .send(EventFrame::Broadcast {
-                                        state_json: game_context
-                                            .get_handler_state_json()
-                                            .to_owned(),
-                                        event,
-                                    })
-                                    .unwrap();
+                            match handler.handle_event(&mut game_context, &event) {
+                                Ok(_) => {
+                                    output_tx
+                                        .send(EventFrame::Broadcast {
+                                            state_json: game_context
+                                                .get_handler_state_json()
+                                                .to_owned(),
+                                            event,
+                                        })
+                                        .unwrap();
+                                }
+                                Err(e) => warn!("Handle event error: {:?}", e.to_string()),
                             }
                         }
                     }

@@ -25,4 +25,4 @@ opt-level = "z"
 opt-level = 3
 
 [patch.crates-io]
-gloo = { git = "https://github.com/flisky/gloo" }
+gloo-timers = { git = "https://github.com/flisky/gloo" }

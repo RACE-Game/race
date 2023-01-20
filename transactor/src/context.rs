@@ -7,9 +7,11 @@ use race_core::transport::TransportT;
 use race_core::types::{AttachGameParams, ServerAccount};
 use race_env::{Config, TransactorConfig};
 use race_transport::ChainType;
+use tracing::log::warn;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::info;
 
 /// Transactor runtime context
 pub struct ApplicationContext {
@@ -24,9 +26,7 @@ impl ApplicationContext {
     pub async fn try_new(config: Config) -> Result<Self> {
         let transport = Arc::new(WrappedTransport::try_new(&config).await?);
 
-        let transactor_config = config
-            .transactor
-            .ok_or(Error::TransactorConfigMissing)?;
+        let transactor_config = config.transactor.ok_or(Error::TransactorConfigMissing)?;
 
         let chain: ChainType = transactor_config.chain.as_str().try_into()?;
 
@@ -64,10 +64,12 @@ impl ApplicationContext {
 
     pub async fn send_event(&self, addr: &str, event: Event) -> Result<()> {
         if let Some(handle) = self.games.get(addr) {
+            info!("Receive client event: {:?}", event);
             let event_frame = EventFrame::SendEvent { event };
             handle.event_bus.send(event_frame).await;
             Ok(())
         } else {
+            warn!("Game not loaded, discard event: {:?}", event);
             Err(Error::GameNotLoaded)
         }
     }

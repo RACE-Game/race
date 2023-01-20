@@ -132,6 +132,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         "Join game: player: {:?}, game: {:?}, amount: {:?}",
         player_addr, game_addr, amount
     );
+    let access_version = access_version + 1;
     let mut context = context.lock().await;
     let player_join = PlayerJoin {
         addr: player_addr.clone(),
@@ -147,6 +148,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         if game_account.players.len() >= game_account.max_players as _ {
             Err(Error::Custom("Game is full".into()))
         } else {
+            game_account.access_version = access_version;
             game_account.players.push(player_join);
             game_account.deposits.push(player_deposit);
             Ok(())
