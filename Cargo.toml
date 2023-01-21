@@ -15,6 +15,7 @@ members = [
   "examples/minimal/core",
   "examples/console",
   "examples/holdem",
+  "contracts/solana/contract",
 ]
 
 [profile.release]
