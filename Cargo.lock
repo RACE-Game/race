@@ -2663,19 +2663,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7843ec2de400bcbc6a6328c958dc38e5359da6e93e72e37bc5246bf1ae776389"
 
 [[package]]
-name = "mpl-program-test"
-version = "0.1.0"
-dependencies = [
- "race-core",
- "race-env",
- "race-transport",
- "solana-program",
- "solana-program-test",
- "solana-sdk",
- "spl-token",
-]
-
-[[package]]
 name = "nix"
 version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3263,6 +3250,19 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
+]
+
+[[package]]
+name = "race-contract"
+version = "0.1.0"
+dependencies = [
+ "race-core",
+ "race-env",
+ "race-transport",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spl-token",
 ]
 
 [[package]]

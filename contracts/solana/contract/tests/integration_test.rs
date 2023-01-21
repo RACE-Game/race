@@ -67,11 +67,11 @@ pub async fn create_and_send_tx(
 #[cfg(feature = "test-bpf")]
 #[tokio::test]
 async fn test_create_master_edition() -> Result<(), Box<dyn Error>> {
-    let program_id = mpl_program_test::id();
+    let program_id = race_contract::id();
     let pt = solana_program_test::ProgramTest::new(
         "mpl_program_test",
         program_id,
-        solana_program_test::processor!(mpl_program_test::entrypoint::process_instruction),
+        solana_program_test::processor!(race_contract::entrypoint::process_instruction),
     );
     let (client, mint, _) = pt.start().await;
 
