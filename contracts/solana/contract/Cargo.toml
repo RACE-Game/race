@@ -11,6 +11,8 @@ race-transport = { path = "../../../transport" }
 race-env = { path = "../../../env" }
 solana-program = ">1.6.0"
 spl-token = {version = "3.3.0", features = ["no-entrypoint"]}
+borsh = "0.9.3"
+borsh-derive = "0.9.3"
 
 [dev-dependencies]
 solana-program-test = ">1.10.0"

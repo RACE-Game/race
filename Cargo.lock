@@ -3256,6 +3256,8 @@ dependencies = [
 name = "race-contract"
 version = "0.1.0"
 dependencies = [
+ "borsh",
+ "borsh-derive",
  "race-core",
  "race-env",
  "race-transport",

@@ -1,5 +1,6 @@
-use std::error::Error;
-
+use borsh::BorshSerialize;
+use race_contract;
+use race_core::types::{CloseGameAccountParams, CreateGameAccountParams};
 use solana_program::native_token::LAMPORTS_PER_SOL;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -7,18 +8,74 @@ use solana_program::{
     pubkey::Pubkey,
     system_instruction, system_program,
 };
+use solana_program_test::tokio;
 use solana_program_test::BanksClient;
-use solana_program_test::{processor, tokio, ProgramTest};
 use solana_sdk::{
-    program_pack::Pack,
     signer::{keypair::Keypair, Signer},
     transaction::Transaction,
 };
+use std::error::Error;
+
+pub async fn send_instruction(
+    client: BanksClient,
+    program_id: Pubkey,
+    instantiater: &Keypair,
+    data: Vec<u8>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let instantiate_instruction = Instruction {
+        program_id,
+        accounts: vec![AccountMeta::new(instantiater.pubkey(), true)],
+        data: data,
+    };
+
+    create_and_send_tx(
+        client.clone(),
+        vec![instantiate_instruction],
+        vec![instantiater],
+        Some(&instantiater.pubkey()),
+    )
+    .await?;
+
+    Ok(())
+}
+pub async fn send_create_game_instruction(
+    client: BanksClient,
+    program_id: Pubkey,
+    instantiater: &Keypair,
+    params: CreateGameAccountParams,
+) -> Result<(), Box<dyn std::error::Error>> {
+    send_instruction(
+        client,
+        program_id,
+        instantiater,
+        race_contract::entrypoint::Instruction::CreateGame(params).try_to_vec()?,
+    )
+    .await?;
+
+    Ok(())
+}
+
+pub async fn send_close_game_instruction(
+    client: BanksClient,
+    program_id: Pubkey,
+    instantiater: &Keypair,
+    params: CloseGameAccountParams,
+) -> Result<(), Box<dyn std::error::Error>> {
+    send_instruction(
+        client,
+        program_id,
+        instantiater,
+        race_contract::entrypoint::Instruction::CloseGame(params).try_to_vec()?,
+    )
+    .await?;
+
+    Ok(())
+}
 
 // Copied from
 // https://github.com/shravanshetty1/blawgd-solana/blob/908f80a69050feec7b6cd53631813b316f54e1cc/blawgd-solana-sc/tests/helper/mod.rs
 pub async fn instantiate_program(
-    mut client: BanksClient,
+    client: BanksClient,
     program_id: Pubkey,
     instantiater: &Keypair,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -28,7 +85,12 @@ pub async fn instantiate_program(
             AccountMeta::new(system_program::id(), false),
             AccountMeta::new(instantiater.pubkey(), true),
         ],
-        data: [].into(),
+        data: race_contract::entrypoint::Instruction::CreateGame(CreateGameAccountParams {
+            bundle_addr: "addr".to_string(),
+            max_players: 5,
+            data: vec![1, 2, 3],
+        })
+        .try_to_vec()?,
     };
 
     create_and_send_tx(
@@ -66,7 +128,7 @@ pub async fn create_and_send_tx(
 
 #[cfg(feature = "test-bpf")]
 #[tokio::test]
-async fn test_create_master_edition() -> Result<(), Box<dyn Error>> {
+async fn test() -> Result<(), Box<dyn Error>> {
     let program_id = race_contract::id();
     let pt = solana_program_test::ProgramTest::new(
         "mpl_program_test",
@@ -78,16 +140,26 @@ async fn test_create_master_edition() -> Result<(), Box<dyn Error>> {
     let user = Keypair::new();
     request_airdrop(client.clone(), &mint, &user, LAMPORTS_PER_SOL * 10).await?;
 
-    instantiate_program(client.clone(), program_id, &user).await?;
-    println!("instantiated smart contract");
+    send_create_game_instruction(
+        client.clone(),
+        program_id,
+        &user,
+        CreateGameAccountParams {
+            bundle_addr: "addr".to_string(),
+            max_players: 5,
+            data: vec![1, 2, 3],
+        },
+    )
+    .await?;
 
-    if instantiate_program(client.clone(), program_id, &user)
-        .await
-        .is_err()
-    {
-        println!("success - failed to instantiate smart contract twice");
-    } else {
-        println!("failed - instantiated smart contract twice");
-    }
+    send_close_game_instruction(
+        client.clone(),
+        program_id,
+        &user,
+        CloseGameAccountParams {
+            addr: "addr".to_string(),
+        },
+    )
+    .await?;
     Ok(())
 }
