@@ -21,7 +21,7 @@ pub struct ApplicationContext {
     pub chain: ChainType,
     pub account: ServerAccount,
     pub transport: Arc<dyn TransportT>,
-    pub encryptor: Encryptor,
+    pub encryptor: Arc<dyn EncryptorT>,
     pub games: HashMap<String, Handle>,
 }
 
@@ -29,7 +29,7 @@ impl ApplicationContext {
     pub async fn try_new(config: Config) -> Result<Self> {
         let transport = Arc::new(WrappedTransport::try_new(&config).await?);
 
-        let encryptor = Encryptor::default();
+        let encryptor = Arc::new(Encryptor::default());
 
         let transactor_config = config.transactor.ok_or(Error::TransactorConfigMissing)?;
 
@@ -50,23 +50,20 @@ impl ApplicationContext {
         })
     }
 
-    pub fn register_key(&mut self, player_addr: String, key: String) -> Result<()> {
+    pub async fn register_key(&mut self, player_addr: String, key: String) -> Result<()> {
         info!("Client {:?} register public key, {}", player_addr, key);
         self.encryptor.add_public_key(player_addr, &key)?;
         Ok(())
     }
 
-    pub fn verify_raw<S: ToString>(
+    pub async fn verify<S: ToString>(
         &self,
         game_addr: &str,
         arg: &S,
-        signature: Signature,
+        signature: &Signature,
     ) -> Result<()> {
-        Ok(self.encryptor.verify_raw(
-            Some(&signature.signer),
-            format!("{}{}", game_addr, arg.to_string()).as_bytes(),
-            &hex::decode(&signature.signature).map_err(|_| Error::SignatureVerificationFailed)?,
-        )?)
+        let message = format!("{}{}", game_addr, arg.to_string());
+        Ok(self.encryptor.verify(&message.as_bytes(), signature)?)
     }
 
     pub async fn start_game(&mut self, game_addr: String) -> Result<()> {
@@ -74,8 +71,13 @@ impl ApplicationContext {
         match self.games.entry(game_addr) {
             Entry::Occupied(_) => Ok(()),
             Entry::Vacant(e) => {
-                let mut handle =
-                    Handle::try_new(self.transport.clone(), &self.account, e.key()).await?;
+                let mut handle = Handle::try_new(
+                    self.transport.clone(),
+                    self.encryptor.clone(),
+                    &self.account,
+                    e.key(),
+                )
+                .await?;
                 handle.start().await;
                 e.insert(handle);
                 Ok(())

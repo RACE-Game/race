@@ -9,7 +9,7 @@ use race_core::{
     error::{Error, Result},
     event::{CustomEvent, Event},
     random::deck_of_cards,
-    types::{GameAccount, PlayerStatus, Settle},
+    types::{GameAccount, Settle},
 };
 use race_proc_macro::game_handler;
 use serde::{Deserialize, Serialize};

@@ -26,11 +26,15 @@ fn test() -> Result<()> {
     let transactor_addr = game_account.transactor_addr.as_ref().unwrap().clone();
 
     // Initialize player client, which simulates the behavior of player.
-    let mut alice = TestClient::new("Alice".into(), ClientMode::Player);
-    let mut bob = TestClient::new("Bob".into(), ClientMode::Player);
+    let mut alice = TestClient::new("Alice".into(), game_account.addr.clone(), ClientMode::Player);
+    let mut bob = TestClient::new("Bob".into(), game_account.addr.clone(), ClientMode::Player);
 
     // Initialize the client, which simulates the behavior of transactor.
-    let mut transactor = TestClient::new(transactor_addr.clone(), ClientMode::Transactor);
+    let mut transactor = TestClient::new(
+        transactor_addr.clone(),
+        game_account.addr.clone(),
+        ClientMode::Transactor,
+    );
 
     // Create game context and test handler.
     // Initalize the handler state with game account.
@@ -188,7 +192,7 @@ fn test() -> Result<()> {
         assert_eq!(
             2,
             random_state
-                .list_required_secrets_by_from(&transactor_addr)
+                .list_required_secrets_by_from_addr(&transactor_addr)
                 .len()
         );
     }
@@ -201,12 +205,12 @@ fn test() -> Result<()> {
         info!(
             "Required ident: {:?}",
             ctx.get_random_state_unchecked(0)
-                .list_required_secrets_by_from(&transactor_addr)
+                .list_required_secrets_by_from_addr(&transactor_addr)
         );
         assert_eq!(
             2,
             ctx.get_random_state_unchecked(0)
-                .list_required_secrets_by_from(&transactor_addr)
+                .list_required_secrets_by_from_addr(&transactor_addr)
                 .len()
         );
         assert!(
@@ -221,12 +225,12 @@ fn test() -> Result<()> {
         info!(
             "Required ident: {:?}",
             ctx.get_random_state_unchecked(0)
-                .list_required_secrets_by_from(&transactor_addr)
+                .list_required_secrets_by_from_addr(&transactor_addr)
         );
         assert_eq!(
             0,
             ctx.get_random_state_unchecked(0)
-                .list_required_secrets_by_from(&transactor_addr)
+                .list_required_secrets_by_from_addr(&transactor_addr)
                 .len()
         );
         assert_eq!(

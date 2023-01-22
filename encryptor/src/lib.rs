@@ -5,7 +5,7 @@
 //! 2. Drawer: pick the random item by index
 
 use std::collections::HashMap;
-use std::io::Read;
+use std::sync::Mutex;
 
 use arrayref::{array_ref, array_refs, mut_array_refs};
 use chacha20::cipher::{KeyIvInit, StreamCipher};
@@ -25,7 +25,7 @@ use race_core::{
 #[derive(Debug)]
 pub struct Encryptor {
     private_key: RsaPrivateKey,
-    public_keys: HashMap<String, RsaPublicKey>,
+    public_keys: Mutex<HashMap<String, RsaPublicKey>>,
     default_public_key: RsaPublicKey,
 }
 
@@ -35,7 +35,7 @@ impl Encryptor {
         Self {
             private_key,
             default_public_key,
-            public_keys: HashMap::new(),
+            public_keys: Mutex::new(HashMap::new()),
         }
     }
 
@@ -66,8 +66,12 @@ impl EncryptorT for Encryptor {
 
     /// Encrypt the message use RSA public key
     fn encrypt(&self, addr: Option<&str>, text: &[u8]) -> Result<Vec<u8>> {
+        let public_keys = self
+            .public_keys
+            .lock()
+            .map_err(|_| Error::ReadPublicKeyError)?;
         let pubkey = match addr {
-            Some(addr) => self.public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
+            Some(addr) => public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
             None => &self.default_public_key,
         };
         let mut rng = rand::thread_rng();
@@ -92,7 +96,8 @@ impl EncryptorT for Encryptor {
     }
 
     fn sign(&self, message: &[u8], signer: String) -> Result<Signature> {
-        let timestamp = std::time::Instant::now().elapsed().as_secs();
+        // let timestamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+        let timestamp = chrono::Utc::now().timestamp_millis() as _;
         let nonce: [u8; 8] = rand::random();
         let message = [message, &nonce, &u64::to_le_bytes(timestamp)].concat();
         let sig = self.sign_raw(&message)?;
@@ -105,8 +110,12 @@ impl EncryptorT for Encryptor {
     }
 
     fn verify_raw(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> Result<()> {
+        let public_keys = self
+            .public_keys
+            .lock()
+            .map_err(|_| Error::ReadPublicKeyError)?;
         let pubkey = match addr {
-            Some(addr) => self.public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
+            Some(addr) => public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
             None => &self.default_public_key,
         };
         let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
@@ -117,11 +126,16 @@ impl EncryptorT for Encryptor {
     }
 
     fn verify(&self, message: &[u8], signature: &Signature) -> Result<()> {
-        let Signature { signer, nonce, timestamp, signature } = signature;
+        let Signature {
+            signer,
+            nonce,
+            timestamp,
+            signature,
+        } = signature;
         // TODO: We should check timestamp here.
         let nonce = hex::decode(nonce).or(Err(Error::InvalidNonce))?;
         let signature = hex::decode(signature).or(Err(Error::InvalidNonce))?;
-        let message = [message, &nonce , &u64::to_le_bytes(*timestamp)].concat();
+        let message = [message, &nonce, &u64::to_le_bytes(*timestamp)].concat();
         self.verify_raw(Some(&signer), &message, &signature)
     }
 
@@ -143,11 +157,16 @@ impl EncryptorT for Encryptor {
         items.shuffle(&mut rng);
     }
 
-    fn add_public_key(&mut self, addr: String, raw: &str) -> Result<()> {
-        self.public_keys.insert(
-            addr,
-            RsaPublicKey::from_pkcs1_pem(raw).or(Err(Error::ImportPublicKeyError))?,
-        );
+    fn add_public_key(&self, addr: String, raw: &str) -> Result<()> {
+        let mut public_keys = self
+            .public_keys
+            .lock()
+            .map_err(|_| Error::AddPublicKeyError)?;
+
+        let pubkey = RsaPublicKey::from_pkcs1_der(&hex::decode(raw).or(Err(Error::ImportPublicKeyError))?)
+        .or(Err(Error::ImportPrivateKeyError))?;
+
+        public_keys.insert(addr, pubkey);
         Ok(())
     }
 
@@ -156,11 +175,17 @@ impl EncryptorT for Encryptor {
     }
 
     fn export_public_key(&self, addr: Option<&str>) -> Result<String> {
+        let public_keys = self
+            .public_keys
+            .lock()
+            .map_err(|_| Error::ReadPublicKeyError)?;
         let pubkey = match addr {
-            Some(addr) => self.public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
+            Some(addr) => public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
             None => &self.default_public_key,
         };
-        pubkey.to_pkcs1_pem().or(Err(Error::EncodeFailed))
+        Ok(hex::encode(
+            pubkey.to_pkcs1_der().or(Err(Error::EncodeFailed))?.as_der(),
+        ))
     }
 }
 

@@ -1,12 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
+use async_trait::async_trait;
 use race_core::{
     client::Client,
+    connection::ConnectionT,
     context::GameContext,
     error::Result,
     event::{CustomEvent, Event},
     secret::SecretState,
-    types::ClientMode,
+    types::{AttachGameParams, ClientMode, ExitGameParams, SubmitEventParams},
 };
 use race_encryptor::Encryptor;
 
@@ -16,12 +18,29 @@ pub struct TestClient {
     client: Client,
 }
 
+#[derive(Default)]
+pub struct DummyConnection {}
+#[async_trait]
+impl ConnectionT for DummyConnection {
+    async fn attach_game(&self, _game_addr: &str, _params: AttachGameParams) -> Result<()> {
+        Ok(())
+    }
+    async fn submit_event(&self, _game_addr: &str, _params: SubmitEventParams) -> Result<()> {
+        Ok(())
+    }
+    async fn exit_game(&self, _game_addr: &str, _params: ExitGameParams) -> Result<()> {
+        Ok(())
+    }
+}
+
 impl TestClient {
-    pub fn new(addr: String, mode: ClientMode) -> Self {
+    pub fn new(addr: String, game_addr: String, mode: ClientMode) -> Self {
         let transport = Arc::new(DummyTransport::default());
         let encryptor = Arc::new(Encryptor::default());
+        let connection = Arc::new(DummyConnection::default());
         Self {
-            client: Client::try_new(addr, mode, transport, encryptor).expect("Failed to test client"),
+            client: Client::try_new(addr, game_addr, mode, transport, encryptor, connection)
+                .expect("Failed to test client"),
         }
     }
 

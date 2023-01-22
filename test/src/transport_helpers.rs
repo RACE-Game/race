@@ -11,7 +11,7 @@ use race_core::{
     transport::TransportT,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams,
-        GameAccount, GameBundle, GetRegistrationParams, JoinParams, PlayerProfile,
+        GameAccount, GameBundle, JoinParams, PlayerProfile,
         RegisterGameParams, RegisterServerParams, Settle, SettleParams,
         ServerAccount, UnregisterGameParams, RegistrationAccount, ServeParams,
     },
@@ -76,7 +76,7 @@ impl TransportT for DummyTransport {
         let addr = game_bundle_addr();
         if addr.eq(addr_q) {
             let mut f = std::fs::File::open(
-                "../target/wasm32-unknown-unknown/release/race_example_minimal.wasm",
+                "../target/wasm32-unknown-unknown/release/race_example_counter.wasm",
             )
             .unwrap();
             let mut data = vec![];
@@ -133,7 +133,7 @@ impl TransportT for DummyTransport {
 #[cfg(test)]
 mod tests {
 
-    use race_core::types::{PlayerStatus, AssetChange};
+    use race_core::types::Settle;
 
     use super::*;
 
@@ -170,8 +170,8 @@ mod tests {
     async fn test_settle() {
         let transport = DummyTransport::default();
         let settles = vec![
-            Settle::new("Alice", PlayerStatus::Normal, AssetChange::Add, 100),
-            Settle::new("Bob", PlayerStatus::Normal, AssetChange::Add, 100),
+            Settle::add("Alice", 100),
+            Settle::add("Bob", 100),
         ];
         let params = SettleParams {
             addr: game_account_addr(),

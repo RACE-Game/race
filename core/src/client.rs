@@ -1,19 +1,22 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
+    connection::ConnectionT,
     context::GameContext,
-    secret::SecretState,
+    encryptor::EncryptorT,
     error::{Error, Result},
-    event::{Event, SecretIdent},
+    event::{CustomEvent, Event, SecretIdent},
     random::{RandomMode, RandomStatus},
+    secret::SecretState,
     transport::TransportT,
-    types::{Ciphertext, ClientMode, SecretKey}, encryptor::EncryptorT, connection::ConnectionT,
+    types::{AttachGameParams, Ciphertext, ClientMode, SecretKey, SubmitEventParams},
 };
 
 pub struct Client {
     pub encryptor: Arc<dyn EncryptorT>,
     pub transport: Arc<dyn TransportT>,
     pub connection: Arc<dyn ConnectionT>,
+    pub game_addr: String,
     // The address of current node, the player address or server address.
     pub addr: String,
     // The client mode, could be player, validator or transactor.
@@ -25,9 +28,17 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn try_new(addr: String, mode: ClientMode, transport: Arc<dyn TransportT>, encryptor: Arc<dyn EncryptorT>, connection: Arc<dyn ConnectionT>) -> Result<Self> {
+    pub fn try_new(
+        addr: String,
+        game_addr: String,
+        mode: ClientMode,
+        transport: Arc<dyn TransportT>,
+        encryptor: Arc<dyn EncryptorT>,
+        connection: Arc<dyn ConnectionT>,
+    ) -> Result<Self> {
         Ok(Self {
             addr,
+            game_addr,
             mode,
             secret_states: Vec::new(),
             transport,
@@ -36,13 +47,30 @@ impl Client {
         })
     }
 
+    pub async fn attach_game(&self) -> Result<()> {
+        let key = self.encryptor.export_public_key(None)?;
+        self.connection
+            .attach_game(&self.game_addr, AttachGameParams { key })
+            .await
+    }
+
+    pub async fn submit_custom_event<S: CustomEvent>(&self, custom_event: S) -> Result<()> {
+        let event = Event::custom(&self.game_addr, &custom_event);
+        self.connection
+            .submit_event(&self.addr, SubmitEventParams { event })
+            .await
+    }
+
     fn update_secret_state(&mut self, game_context: &GameContext) -> Result<()> {
         let random_states = game_context.list_random_states();
         let secret_states = &mut self.secret_states;
         if random_states.len() > secret_states.len() {
             for random_state in random_states.iter().skip(secret_states.len()) {
-                let secret_state =
-                    SecretState::from_random_state(self.encryptor.clone(), random_state, RandomMode::Shuffler);
+                let secret_state = SecretState::from_random_state(
+                    self.encryptor.clone(),
+                    random_state,
+                    RandomMode::Shuffler,
+                );
                 secret_states.push(secret_state);
             }
         }

@@ -10,6 +10,12 @@ pub struct AttachGameParams {
     pub key: String,
 }
 
+impl Display for AttachGameParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AttachGameParams")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubmitEventParams {
     pub event: Event,
@@ -17,15 +23,12 @@ pub struct SubmitEventParams {
 
 impl Display for SubmitEventParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SubmitEventParams {:?}", self.event)
+        write!(f, "SubmitEventParams")
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ExitGameParams {
-
-}
+pub struct ExitGameParams {}
 
 impl Display for ExitGameParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -34,9 +37,7 @@ impl Display for ExitGameParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GetStateParams {
-
-}
+pub struct GetStateParams {}
 
 impl Display for GetStateParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -45,9 +46,7 @@ impl Display for GetStateParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SubscribeEventParams {
-
-}
+pub struct SubscribeEventParams {}
 
 impl Display for SubscribeEventParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

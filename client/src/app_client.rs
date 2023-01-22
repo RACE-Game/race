@@ -18,13 +18,11 @@ use gloo::console::{debug, error};
 use crate::error::Result;
 use race_core::{
     client::Client,
+    connection::ConnectionT,
     error::Error,
     event::Event,
     transport::TransportT,
-    types::{
-        AttachGameParams, ClientMode, GetStateParams, JoinParams, SubmitEventParams,
-        SubscribeEventParams,
-    },
+    types::{ClientMode, GetStateParams, JoinParams, SubmitEventParams, SubscribeEventParams},
 };
 use race_encryptor::Encryptor;
 
@@ -34,7 +32,7 @@ pub struct AppClient {
     client: Client,
     handler: Handler,
     transport: Arc<dyn TransportT>,
-    connection: Connection,
+    connection: Arc<Connection>,
 }
 
 #[wasm_bindgen]
@@ -81,14 +79,18 @@ impl AppClient {
             .await
             .ok_or(Error::CantFindTransactor)?;
 
-        let connection =
-            Connection::try_new(&transactor_account.endpoint, encryptor.clone()).await?;
+        let connection = Arc::new(
+            Connection::try_new(player_addr, &transactor_account.endpoint, encryptor.clone())
+                .await?,
+        );
 
         let client = Client::try_new(
             player_addr.to_owned(),
+            game_addr.to_owned(),
             ClientMode::Player,
             transport.clone(),
             encryptor,
+            connection.clone(),
         )?;
 
         let handler = Handler::from_bundle(game_bundle).await;
@@ -107,20 +109,13 @@ impl AppClient {
     /// The callback function will receive ()
     pub async fn attach_game_with_callback(&self, callback: Function) -> Result<()> {
         debug!("Attach to game");
-        self.connection
-            .attach_game(AttachGameParams {
-                addr: self.addr.clone(),
-            })
-            .await
-            .expect("Failed to attach to game");
+        self.client.attach_game().await?;
         debug!("Subscribe event stream");
         let sub = self
             .connection
-            .subscribe_events(SubscribeEventParams {
-                addr: self.addr.clone(),
-            })
+            .subscribe_events(&self.addr, SubscribeEventParams {})
             .await
-            .expect("Failed to subscribe to event stream");
+            .map_err(|e| Error::RpcError(e.to_string()))?;
 
         pin_mut!(sub);
         debug!("Event stream connected");
@@ -148,34 +143,6 @@ impl AppClient {
     }
 
     #[wasm_bindgen]
-    pub async fn attach_game(&self) {
-        debug!("Attach to game");
-        self.connection
-            .attach_game(AttachGameParams {
-                addr: self.addr.clone(),
-            })
-            .await
-            .expect("Failed to attach to game");
-        debug!("Subscribe event stream");
-        let sub = self
-            .connection
-            .subscribe_events(SubscribeEventParams {
-                addr: self.addr.clone(),
-            })
-            .await
-            .expect("Failed to subscribe to event stream");
-
-        pin_mut!(sub);
-        debug!("Event stream connected");
-        while let Some(frame) = sub.next().await {
-            match JsValue::from_serde(&frame) {
-                Ok(v) => debug!(v),
-                Err(e) => error!(e.to_string()),
-            }
-        }
-    }
-
-    #[wasm_bindgen]
     pub async fn submit_event(&self, val: JsValue) -> Result<()> {
         let raw = stringify(&val)
             .or(Err(Error::JsonParseError))?
@@ -186,10 +153,7 @@ impl AppClient {
             raw,
         };
         self.connection
-            .submit_event(SubmitEventParams {
-                addr: self.addr.clone(),
-                event,
-            })
+            .submit_event(&self.addr, SubmitEventParams { event })
             .await?;
         Ok(())
     }
@@ -198,9 +162,7 @@ impl AppClient {
     pub async fn get_state(&self) -> Result<JsValue> {
         let state: String = self
             .connection
-            .get_state(GetStateParams {
-                addr: self.addr.clone(),
-            })
+            .get_state(&self.addr, GetStateParams {})
             .await?;
         Ok(parse(&state).map_err(|_| Error::JsonParseError)?)
     }
@@ -230,10 +192,7 @@ impl AppClient {
     #[wasm_bindgen]
     pub async fn exit(&self) -> Result<()> {
         self.connection
-            .exit_game(ExitGameParams {
-                game_addr: self.addr.clone(),
-                player_addr: self.client.addr.clone(),
-            })
+            .exit_game(&self.addr, ExitGameParams {})
             .await?;
         Ok(())
     }
@@ -251,7 +210,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_client() {
-        let client = AppClient::try_init("facade", "ws://localhost:12002", "COUNTER_GAME_ADDRESS")
+        let client = AppClient::try_init("facade", "ws://localhost:12002", "Alice", "COUNTER_GAME_ADDRESS")
             .await
             .map_err(JsValue::from)
             .expect("Failed to create client");

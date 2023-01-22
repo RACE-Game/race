@@ -9,6 +9,7 @@ pub enum Error {
     #[error("Encode failed")]
     EncodeFailed,
 
+
     #[error("Rsa encrypt failed")]
     RsaEncryptFailed(String),
 
@@ -33,11 +34,20 @@ pub enum Error {
     #[error("Failed to import public key")]
     ImportPublicKeyError,
 
+    #[error("Failed to export public key")]
+    ExportPublicKeyError,
+
     #[error("Failed to import private key")]
     ImportPrivateKeyError,
 
     #[error("Invalid nonce")]
     InvalidNonce,
+
+    #[error("Add public key error")]
+    AddPublicKeyError,
+
+    #[error("Read public key error")]
+    ReadPublicKeyError,
 }
 
 impl From<Error> for crate::error::Error {
@@ -49,7 +59,7 @@ impl From<Error> for crate::error::Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub trait EncryptorT: std::fmt::Debug + Send + Sync {
-    fn add_public_key(&mut self, addr: String, raw: &str) -> Result<()>;
+    fn add_public_key(&self, addr: String, raw: &str) -> Result<()>;
 
     fn export_public_key(&self, addr: Option<&str>) -> Result<String>;
 

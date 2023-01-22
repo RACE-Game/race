@@ -14,3 +14,7 @@ rsa = "0.5.0"
 rand = "0.8.5"
 hex = "0.4.3"
 arrayref = "0.3.6"
+chrono = "0.4.23"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }

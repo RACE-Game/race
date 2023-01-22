@@ -1,11 +1,11 @@
 //! The connection to transactor.
 
-use std::{borrow::Borrow, cell::RefCell};
+use std::sync::Arc;
 
 use async_stream::stream;
 use async_trait::async_trait;
-use futures::stream::Stream;
-use gloo::console::warn;
+use futures::{lock::Mutex, stream::Stream};
+use gloo::console::{info, warn};
 use jsonrpsee::{
     core::client::{Client, ClientT, SubscriptionClientT},
     rpc_params,
@@ -13,19 +13,21 @@ use jsonrpsee::{
 };
 use race_core::{
     connection::ConnectionT,
+    encryptor::EncryptorT,
     error::{Error, Result},
     types::{
         AttachGameParams, BroadcastFrame, ExitGameParams, GetStateParams, SubmitEventParams,
         SubscribeEventParams,
-    }, encryptor,
+    },
 };
 use race_encryptor::Encryptor;
 use serde::{de::DeserializeOwned, Serialize};
 
 pub struct Connection {
+    player_addr: String,
     endpoint: String,
     encryptor: Arc<Encryptor>,
-    rpc_client: RefCell<Client>,
+    rpc_client: Arc<Mutex<Client>>,
     max_retries: u32,
 }
 
@@ -42,20 +44,25 @@ impl ConnectionT for Connection {
         self.request("attach_game", game_addr, params).await
     }
 
-    async fn submit_event(&self, params: SubmitEventParams) -> Result<()> {
-        self.request("submit_event", params).await
+    async fn submit_event(&self, game_addr: &str, params: SubmitEventParams) -> Result<()> {
+        self.request("submit_event", game_addr, params).await
     }
 
-    async fn exit_game(&self, params: ExitGameParams) -> Result<()> {
-        self.request("exit_game", params).await
+    async fn exit_game(&self, game_addr: &str, params: ExitGameParams) -> Result<()> {
+        self.request("exit_game", game_addr, params).await
     }
 }
 
 impl Connection {
-    pub async fn try_new(endpoint: &str, encryptor: Arc<Encryptor>) -> Result<Self> {
-        let rpc_client = RefCell::new(build_rpc_client(endpoint).await?);
+    pub async fn try_new(
+        player_addr: &str,
+        endpoint: &str,
+        encryptor: Arc<Encryptor>,
+    ) -> Result<Self> {
+        let rpc_client = Arc::new(Mutex::new(build_rpc_client(endpoint).await?));
         let max_retries = 3;
         Ok(Self {
+            player_addr: player_addr.into(),
             endpoint: endpoint.into(),
             encryptor,
             rpc_client,
@@ -63,26 +70,28 @@ impl Connection {
         })
     }
 
-    pub async fn request<P, R>(&self, method: &str, game_addr: &str, params: P) -> Result<R>
+    async fn request<P, R>(&self, method: &str, game_addr: &str, params: P) -> Result<R>
     where
         P: Serialize + ToString,
         R: DeserializeOwned,
     {
         let mut retried = 0;
         let message = format!("{}{}", game_addr, params.to_string());
+        info!("Message to encrypt: {}", &message);
+        let mut rpc_client = self.rpc_client.lock().await;
         loop {
-            let result = self
-                .rpc_client
-                .borrow()
-                .request(method, rpc_params![&params])
+            let signature = self
+                .encryptor
+                .sign(message.as_bytes(), self.player_addr.clone())?;
+            let result = rpc_client
+                .request(method, rpc_params![game_addr, &params, signature])
                 .await;
             use jsonrpsee::core::error::Error::*;
             match result {
                 Ok(ret) => return Ok(ret),
                 Err(RestartNeeded(_)) => {
                     warn!("Disconnected with transactor, will reconnect.");
-                    self.rpc_client
-                        .replace(build_rpc_client(&self.endpoint).await?);
+                    *rpc_client = build_rpc_client(&self.endpoint).await?;
                     continue;
                 }
                 Err(RequestTimeout) => {
@@ -94,36 +103,51 @@ impl Connection {
                     }
                 }
                 Err(Call(jsonrpsee::types::error::CallError::Failed(e))) => {
+                    warn!("RPC Call failed due to", e.to_string());
                     match e.downcast_ref::<Error>() {
                         Some(Error::GameNotLoaded) => {}
                         Some(e) => {
-                            return e;
+                            return Err(e.to_owned());
                         }
                         None => {
                             unreachable!();
                         }
                     }
                 }
-                Err(e) => return Err(Error::RpcError(e.to_string())),
+                Err(e) => {
+                    warn!("2RPC Call failed due to", e.to_string());
+                    return Err(Error::RpcError(e.to_string()));
+                }
             }
         }
     }
 
-    async fn get_state<R>(&self, params: GetStateParams) -> Result<R>
+    pub async fn get_state<R>(&self, game_addr: &str, params: GetStateParams) -> Result<R>
     where
         R: DeserializeOwned,
     {
-        self.request("get_state", params).await
+        self.request("get_state", game_addr, params).await
     }
 
     pub async fn subscribe_events(
         &self,
+        game_addr: &str,
         params: SubscribeEventParams,
     ) -> Result<impl Stream<Item = BroadcastFrame>> {
+        let message = format!("{}{}", game_addr, params.to_string());
+        let signature = self
+            .encryptor
+            .sign(message.as_bytes(), self.player_addr.clone())?;
+
         let sub = self
             .rpc_client
-            .borrow()
-            .subscribe("subscribe_event", rpc_params![params], "unsubscribe_event")
+            .lock()
+            .await
+            .subscribe(
+                "subscribe_event",
+                rpc_params![game_addr, params, signature],
+                "unsubscribe_event",
+            )
             .await
             .map_err(|e| Error::RpcError(e.to_string()))?;
 

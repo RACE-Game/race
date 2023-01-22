@@ -11,7 +11,6 @@ use race_core::types::{
     AttachGameParams, ExitGameParams, GetStateParams, Signature, SubmitEventParams,
     SubscribeEventParams,
 };
-use race_transport::signer;
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::info;
@@ -20,27 +19,30 @@ type Result<T> = std::result::Result<T, Error>;
 
 /// Ask transactor to load game and provide client's public key for further encryption.
 async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
-    let game_addr: String = params.one()?;
-    let AttachGameParams { key } = params.one()?;
-    let Signature { signer, .. } = params.one()?;
+    info!("Attach to game");
+
+    let (game_addr, AttachGameParams { key }, Signature { signer, .. }) =
+        params.parse::<(String, AttachGameParams, Signature)>()?;
     // TODO: check signature
     let context = &mut *(context.lock().await);
     context
         .start_game(game_addr)
         .await
         .map_err(|e| Error::Call(CallError::InvalidParams(e.into())))?;
+    info!("Register the key provided by client {}", signer);
     context
         .register_key(signer, key)
+        .await
         .map_err(|e| Error::Call(CallError::InvalidParams(e.into())))
 }
 
 async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
-    let game_addr: String = params.one()?;
-    let arg: SubmitEventParams = params.one()?;
-    let sig: Signature = params.one()?;
+    let (game_addr, arg, sig) = params.parse::<(String, SubmitEventParams, Signature)>()?;
+
     let context = context.lock().await;
     context
-        .verify(&game_addr, &arg, sig)
+        .verify(&game_addr, &arg, &sig)
+        .await
         .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
     context
         .send_event(&game_addr, arg.event)
@@ -49,12 +51,12 @@ async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>
 }
 
 async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<String> {
-    let game_addr: String = params.one()?;
-    let arg: GetStateParams = params.one()?;
-    let sig: Signature = params.one()?;
+    let (game_addr, arg, sig) = params.parse::<(String, GetStateParams, Signature)>()?;
+
     let context = context.lock().await;
     context
-        .verify(&game_addr, &arg, sig)
+        .verify(&game_addr, &arg, &sig)
+        .await
         .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
     let game_handle = context.get_game(&game_addr).ok_or_else(|| {
         Error::Call(CallError::Failed(
@@ -67,15 +69,15 @@ async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) 
 }
 
 async fn exit_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
-    let game_addr: String = params.one()?;
-    let arg: ExitGameParams = params.one()?;
-    let sig: Signature = params.one()?;
+    let (game_addr, arg, sig) = params.parse::<(String, ExitGameParams, Signature)>()?;
+
     let context = context.lock().await;
     context
-        .verify(&game_addr, &arg, sig)
+        .verify(&game_addr, &arg, &sig)
+        .await
         .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
     context
-        .eject_player(&game_addr, "")
+        .eject_player(&game_addr, &sig.signer)
         .await
         .map_err(|e| Error::Call(CallError::Failed(e.into())))
 }
@@ -86,14 +88,13 @@ fn subscribe_event(
     context: Arc<Mutex<ApplicationContext>>,
 ) -> std::result::Result<(), SubscriptionEmptyError> {
     {
-        let game_addr: String = params.one()?;
-        let arg: SubscribeEventParams = params.one()?;
-        let sig: Signature = params.one()?;
+        info!("Subscribe event stream");
+        let (game_addr, arg, sig) = params.parse::<(String, SubscribeEventParams, Signature)>()?;
+        info!("Subscribe event stream: {:?}", game_addr);
 
         tokio::spawn(async move {
-            println!("Subscribe event stream: {:?}", game_addr);
             let context = context.lock().await;
-            if let Err(e) = context.verify(&game_addr, &arg, sig) {
+            if let Err(e) = context.verify(&game_addr, &arg, &sig).await {
                 sink.close(SubscriptionClosed::Failed(
                     CallError::Failed(e.into()).into(),
                 ));
@@ -130,6 +131,7 @@ pub async fn run_server(context: Mutex<ApplicationContext>) -> anyhow::Result<()
         format!("0.0.0.0:{}", port)
     };
     let server = ServerBuilder::default()
+        .max_request_body_size(100_1000)
         .build(host.parse::<SocketAddr>()?)
         .await?;
     let mut module = RpcModule::new(context);

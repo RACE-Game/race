@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use crate::frame::EventFrame;
 use race_core::client::Client;
+use race_core::connection::ConnectionT;
 use race_core::error::Error;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, ServerAccount};
@@ -32,7 +33,9 @@ pub struct ClientContext {
     pub output_tx: mpsc::Sender<EventFrame>,
     pub closed_tx: oneshot::Sender<CloseReason>,
     pub addr: String,
+    pub game_addr: String,
     pub transport: Arc<dyn TransportT>,
+    pub connection: Arc<dyn ConnectionT>,
     pub mode: ClientMode, // client running mode
 }
 
@@ -41,6 +44,7 @@ impl WrappedClient {
         server_account: &ServerAccount,
         init_account: &GameAccount,
         transport: Arc<dyn TransportT>,
+        connection: Arc<dyn ConnectionT>,
     ) -> Self {
         let (input_tx, input_rx) = mpsc::channel(3);
         let (output_tx, output_rx) = mpsc::channel(3);
@@ -63,8 +67,10 @@ impl WrappedClient {
             output_tx,
             closed_tx,
             transport,
+            connection,
             mode,
             addr: server_addr,
+            game_addr: init_account.addr.to_owned(),
         });
         Self {
             input_tx,
@@ -99,14 +105,17 @@ impl Component<ClientContext> for WrappedClient {
             let ClientContext {
                 mut input_rx,
                 addr,
+                game_addr,
                 mode,
                 transport,
+                connection,
                 closed_tx,
                 output_tx,
             } = ctx;
             let encryptor = Arc::new(Encryptor::default());
             let mut client =
-                Client::try_new(addr, mode, transport, encryptor).expect("Failed to create client");
+                Client::try_new(addr, game_addr, mode, transport, encryptor, connection)
+                    .expect("Failed to create client");
             let mut res = Ok(());
             'outer: while let Some(event_frame) = input_rx.recv().await {
                 match event_frame {
@@ -168,8 +177,12 @@ mod tests {
             .build();
         let transactor_account = transactor_account();
         let transport = DummyTransport::default();
-        let mut client =
-            WrappedClient::new(&transactor_account, &game_account, Arc::new(transport));
+        let mut client = WrappedClient::new(
+            &transactor_account,
+            &game_account,
+            Arc::new(transport),
+            Arc::new(DummyConnection::default()),
+        );
         client.start();
         let context = GameContext::new(&game_account).unwrap();
         (client, context)
