@@ -1,3 +1,3 @@
 pub trait Signer: Sync + Send {
-    fn sign(&self, raw: &[u8]) -> Vec<u8>;
+    fn sign_raw(&self, raw: &[u8]) -> Vec<u8>;
 }

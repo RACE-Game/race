@@ -1,17 +1,19 @@
 use crate::component::WrappedTransport;
 use crate::frame::EventFrame;
 use crate::handle::Handle;
+use race_core::encryptor::EncryptorT;
 use race_core::error::{Error, Result};
 use race_core::event::Event;
 use race_core::transport::TransportT;
-use race_core::types::{AttachGameParams, ServerAccount};
+use race_core::types::{ServerAccount, Signature};
+use race_encryptor::Encryptor;
 use race_env::{Config, TransactorConfig};
 use race_transport::ChainType;
-use tracing::log::warn;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
+use tracing::log::warn;
 
 /// Transactor runtime context
 pub struct ApplicationContext {
@@ -19,12 +21,15 @@ pub struct ApplicationContext {
     pub chain: ChainType,
     pub account: ServerAccount,
     pub transport: Arc<dyn TransportT>,
+    pub encryptor: Encryptor,
     pub games: HashMap<String, Handle>,
 }
 
 impl ApplicationContext {
     pub async fn try_new(config: Config) -> Result<Self> {
         let transport = Arc::new(WrappedTransport::try_new(&config).await?);
+
+        let encryptor = Encryptor::default();
 
         let transactor_config = config.transactor.ok_or(Error::TransactorConfigMissing)?;
 
@@ -41,12 +46,32 @@ impl ApplicationContext {
             account,
             transport,
             games: HashMap::default(),
+            encryptor,
         })
     }
 
-    pub async fn start_game(&mut self, params: AttachGameParams) -> Result<()> {
-        info!("Start game from address: {:?}", params.addr);
-        match self.games.entry(params.addr) {
+    pub fn register_key(&mut self, player_addr: String, key: String) -> Result<()> {
+        info!("Client {:?} register public key, {}", player_addr, key);
+        self.encryptor.add_public_key(player_addr, &key)?;
+        Ok(())
+    }
+
+    pub fn verify_raw<S: ToString>(
+        &self,
+        game_addr: &str,
+        arg: &S,
+        signature: Signature,
+    ) -> Result<()> {
+        Ok(self.encryptor.verify_raw(
+            Some(&signature.signer),
+            format!("{}{}", game_addr, arg.to_string()).as_bytes(),
+            &hex::decode(&signature.signature).map_err(|_| Error::SignatureVerificationFailed)?,
+        )?)
+    }
+
+    pub async fn start_game(&mut self, game_addr: String) -> Result<()> {
+        info!("Start game from address: {:?}", game_addr);
+        match self.games.entry(game_addr) {
             Entry::Occupied(_) => Ok(()),
             Entry::Vacant(e) => {
                 let mut handle =
@@ -64,9 +89,12 @@ impl ApplicationContext {
 
     pub async fn eject_player(&self, game_addr: &str, player_addr: &str) -> Result<()> {
         if let Some(handle) = self.games.get(game_addr) {
-            info!("Receive leaving request from {:?} for game {:?}", player_addr, game_addr);
+            info!(
+                "Receive leaving request from {:?} for game {:?}",
+                player_addr, game_addr
+            );
             let event_frame = EventFrame::PlayerLeaving {
-                player_addr: player_addr.to_owned()
+                player_addr: player_addr.to_owned(),
             };
             handle.event_bus.send(event_frame).await;
             Ok(())

@@ -40,7 +40,12 @@ pub struct AppClient {
 #[wasm_bindgen]
 impl AppClient {
     #[wasm_bindgen]
-    pub async fn try_init(chain: &str, rpc: &str, player_addr: &str, game_addr: &str) -> Result<AppClient> {
+    pub async fn try_init(
+        chain: &str,
+        rpc: &str,
+        player_addr: &str,
+        game_addr: &str,
+    ) -> Result<AppClient> {
         let transport = TransportBuilder::default()
             .try_with_chain(chain)?
             .with_rpc(rpc)
@@ -49,7 +54,11 @@ impl AppClient {
         AppClient::try_new(Arc::from(transport), player_addr, game_addr).await
     }
 
-    async fn try_new(transport: Arc<dyn TransportT>, player_addr: &str, game_addr: &str) -> Result<Self> {
+    async fn try_new(
+        transport: Arc<dyn TransportT>,
+        player_addr: &str,
+        game_addr: &str,
+    ) -> Result<Self> {
         let encryptor = Arc::new(Encryptor::default());
 
         let game_account = transport
@@ -72,7 +81,8 @@ impl AppClient {
             .await
             .ok_or(Error::CantFindTransactor)?;
 
-        let connection = Connection::try_new(&transactor_account.endpoint).await?;
+        let connection =
+            Connection::try_new(&transactor_account.endpoint, encryptor.clone()).await?;
 
         let client = Client::try_new(
             player_addr.to_owned(),
@@ -219,10 +229,12 @@ impl AppClient {
 
     #[wasm_bindgen]
     pub async fn exit(&self) -> Result<()> {
-        self.connection.exit_game(ExitGameParams {
-            game_addr: self.addr.clone(),
-            player_addr: self.client.addr.clone(),
-        }).await?;
+        self.connection
+            .exit_game(ExitGameParams {
+                game_addr: self.addr.clone(),
+                player_addr: self.client.addr.clone(),
+            })
+            .await?;
         Ok(())
     }
 }

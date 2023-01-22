@@ -1,40 +1,43 @@
-use crate::types::{SecretKey, Ciphertext, SecretDigest};
+use crate::types::{Ciphertext, SecretDigest, SecretKey, Signature};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
-    #[error("key gen failed")]
+    #[error("Key gen failed")]
     KeyGenFailed,
 
-    #[error("encode failed")]
+    #[error("Encode failed")]
     EncodeFailed,
 
-    #[error("rsa encrypt failed")]
+    #[error("Rsa encrypt failed")]
     RsaEncryptFailed(String),
 
-    #[error("rsa decrypt failed")]
+    #[error("Rsa decrypt failed")]
     RsaDecryptFailed(String),
 
-    #[error("sign failed")]
+    #[error("Sign failed")]
     SignFailed(String),
 
-    #[error("verify failed")]
+    #[error("Verify failed")]
     VerifyFailed(String),
 
-    #[error("aes encrypt failed")]
+    #[error("Aes encrypt failed")]
     AesEncryptFailed,
 
-    #[error("aes decrypt failed")]
+    #[error("Aes decrypt failed")]
     AesDecryptFailed,
 
-    #[error("public key not found")]
+    #[error("Public key not found")]
     PublicKeyNotfound,
 
-    #[error("failed to import public key")]
+    #[error("Failed to import public key")]
     ImportPublicKeyError,
 
-    #[error("failed to import private key")]
+    #[error("Failed to import private key")]
     ImportPrivateKeyError,
+
+    #[error("Invalid nonce")]
+    InvalidNonce,
 }
 
 impl From<Error> for crate::error::Error {
@@ -46,7 +49,6 @@ impl From<Error> for crate::error::Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub trait EncryptorT: std::fmt::Debug + Send + Sync {
-
     fn add_public_key(&mut self, addr: String, raw: &str) -> Result<()>;
 
     fn export_public_key(&self, addr: Option<&str>) -> Result<String>;
@@ -57,15 +59,23 @@ pub trait EncryptorT: std::fmt::Debug + Send + Sync {
 
     fn decrypt(&self, text: &[u8]) -> Result<Vec<u8>>;
 
-    fn sign(&self, message: &[u8]) -> Result<Vec<u8>>;
-
     fn apply(&self, secret: &SecretKey, buf: &mut [u8]);
 
     fn apply_multi(&self, secret: Vec<SecretKey>, buf: &mut [u8]);
 
-    fn verify(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) ->  Result<()>;
+    fn sign_raw(&self, message: &[u8]) -> Result<Vec<u8>>;
+
+    fn verify_raw(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> Result<()>;
+
+    fn sign(&self, message: &[u8], signer: String) -> Result<Signature>;
+
+    fn verify(&self, message: &[u8], signature: &Signature) -> Result<()>;
 
     fn shuffle(&self, items: &mut Vec<Ciphertext>);
 
     fn digest(&self, text: &[u8]) -> SecretDigest;
+}
+
+pub trait Digestable {
+    fn digest(&self) -> String;
 }

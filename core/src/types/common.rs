@@ -1,3 +1,5 @@
+use serde::{Serialize, Deserialize};
+
 #[allow(unused)]
 pub type Addr = String;
 #[allow(unused)]
@@ -23,4 +25,12 @@ pub enum ClientMode {
     Player,
     Transactor,
     Validator,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Signature {
+    pub signer: String,
+    pub nonce: String,
+    pub timestamp: u64,
+    pub signature: String,
 }

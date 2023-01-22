@@ -5,11 +5,13 @@
 //! 2. Drawer: pick the random item by index
 
 use std::collections::HashMap;
+use std::io::Read;
 
 use arrayref::{array_ref, array_refs, mut_array_refs};
 use chacha20::cipher::{KeyIvInit, StreamCipher};
 use chacha20::ChaCha20;
 use race_core::encryptor::EncryptorT;
+use race_core::types::Signature;
 use rand::seq::SliceRandom;
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
@@ -81,7 +83,7 @@ impl EncryptorT for Encryptor {
             .map_err(|e| Error::RsaDecryptFailed(e.to_string()))
     }
 
-    fn sign(&self, message: &[u8]) -> Result<Vec<u8>> {
+    fn sign_raw(&self, message: &[u8]) -> Result<Vec<u8>> {
         let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
         let hashed = Sha1::digest(message);
         self.private_key
@@ -89,7 +91,20 @@ impl EncryptorT for Encryptor {
             .map_err(|e| Error::SignFailed(e.to_string()))
     }
 
-    fn verify(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> Result<()> {
+    fn sign(&self, message: &[u8], signer: String) -> Result<Signature> {
+        let timestamp = std::time::Instant::now().elapsed().as_secs();
+        let nonce: [u8; 8] = rand::random();
+        let message = [message, &nonce, &u64::to_le_bytes(timestamp)].concat();
+        let sig = self.sign_raw(&message)?;
+        Ok(Signature {
+            signer,
+            nonce: hex::encode(nonce),
+            timestamp: timestamp as _,
+            signature: hex::encode(sig),
+        })
+    }
+
+    fn verify_raw(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> Result<()> {
         let pubkey = match addr {
             Some(addr) => self.public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
             None => &self.default_public_key,
@@ -99,6 +114,15 @@ impl EncryptorT for Encryptor {
         pubkey
             .verify(padding, &hashed, signature)
             .map_err(|e| Error::VerifyFailed(e.to_string()))
+    }
+
+    fn verify(&self, message: &[u8], signature: &Signature) -> Result<()> {
+        let Signature { signer, nonce, timestamp, signature } = signature;
+        // TODO: We should check timestamp here.
+        let nonce = hex::decode(nonce).or(Err(Error::InvalidNonce))?;
+        let signature = hex::decode(signature).or(Err(Error::InvalidNonce))?;
+        let message = [message, &nonce , &u64::to_le_bytes(*timestamp)].concat();
+        self.verify_raw(Some(&signer), &message, &signature)
     }
 
     fn apply(&self, secret: &SecretKey, buffer: &mut [u8]) {
@@ -139,6 +163,17 @@ impl EncryptorT for Encryptor {
         pubkey.to_pkcs1_pem().or(Err(Error::EncodeFailed))
     }
 }
+
+/// Verify a public key.
+pub fn verify_address_signed(public_key: String, message: &[u8], signature: &[u8]) -> Result<()> {
+    let pubkey = RsaPublicKey::from_pkcs1_pem(&public_key).or(Err(Error::ImportPublicKeyError))?;
+    let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
+    let hashed = Sha1::digest(message).to_vec();
+    pubkey
+        .verify(padding, &hashed, signature)
+        .map_err(|e| Error::VerifyFailed(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -155,8 +190,8 @@ mod tests {
     fn test_sign_verify() {
         let e = Encryptor::default();
         let text = b"hello";
-        let sig = e.sign(text).expect("Failed to sign");
-        e.verify(None, text, &sig).expect("Failed to verify");
+        let sig = e.sign_raw(text).expect("Failed to sign");
+        e.verify_raw(None, text, &sig).expect("Failed to verify");
     }
 
     #[test]

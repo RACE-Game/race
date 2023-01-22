@@ -132,6 +132,9 @@ pub enum Error {
 
     #[error("JSON parse error")]
     JsonParseError,
+
+    #[error("Signature verification failed")]
+    SignatureVerificationFailed,
 }
 
 impl From<serde_json::Error> for Error {

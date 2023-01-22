@@ -384,7 +384,7 @@ pub fn setup(context: &mut Context) {
         transactor_addr: None,
         max_players: 10,
         data_len: 8,
-        data: vec![1u8; 8],
+        data: vec![0u8; 8],
     };
     println!("Counter game created at {:?}", COUNTER_GAME_ADDRESS);
 

@@ -3,60 +3,81 @@ use std::{net::SocketAddr, sync::Arc};
 use crate::context::ApplicationContext;
 use jsonrpsee::core::error::SubscriptionClosed;
 use jsonrpsee::core::Error;
+use jsonrpsee::types::error::CallError;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
 use race_core::types::{
-    AttachGameParams, ExitGameParams, GetStateParams, SubmitEventParams, SubscribeEventParams,
+    AttachGameParams, ExitGameParams, GetStateParams, Signature, SubmitEventParams,
+    SubscribeEventParams,
 };
+use race_transport::signer;
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::info;
 
 type Result<T> = std::result::Result<T, Error>;
 
+/// Ask transactor to load game and provide client's public key for further encryption.
 async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
-    let params: AttachGameParams = params.one()?;
+    let game_addr: String = params.one()?;
+    let AttachGameParams { key } = params.one()?;
+    let Signature { signer, .. } = params.one()?;
+    // TODO: check signature
     let context = &mut *(context.lock().await);
     context
-        .start_game(params)
+        .start_game(game_addr)
         .await
-        .map_err(|e| Error::Custom(e.to_string()))
+        .map_err(|e| Error::Call(CallError::InvalidParams(e.into())))?;
+    context
+        .register_key(signer, key)
+        .map_err(|e| Error::Call(CallError::InvalidParams(e.into())))
 }
 
 async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
-    let params: SubmitEventParams = params.one()?;
-    info!("2Receive client event: {:?}", params.event);
+    let game_addr: String = params.one()?;
+    let arg: SubmitEventParams = params.one()?;
+    let sig: Signature = params.one()?;
     let context = context.lock().await;
-    info!("3Receive client event: {:?}", params.event);
     context
-        .send_event(&params.addr, params.event)
+        .verify(&game_addr, &arg, sig)
+        .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
+    context
+        .send_event(&game_addr, arg.event)
         .await
-        .map_err(|e| Error::Custom(e.to_string()))
+        .map_err(|e| Error::Call(CallError::Failed(e.into())))
 }
 
 async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<String> {
-    let params: GetStateParams = params.one()?;
+    let game_addr: String = params.one()?;
+    let arg: GetStateParams = params.one()?;
+    let sig: Signature = params.one()?;
     let context = context.lock().await;
-
-    let game_handle = context
-        .get_game(&params.addr)
-        .ok_or_else(|| Error::Custom(format!("Game: {} not found", params.addr)))?;
+    context
+        .verify(&game_addr, &arg, sig)
+        .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
+    let game_handle = context.get_game(&game_addr).ok_or_else(|| {
+        Error::Call(CallError::Failed(
+            race_core::error::Error::GameNotLoaded.into(),
+        ))
+    })?;
 
     let snapshot = game_handle.broadcaster.get_snapshot().await;
     Ok(snapshot)
 }
 
 async fn exit_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
-    let ExitGameParams {
-        player_addr,
-        game_addr,
-    } = params.one()?;
+    let game_addr: String = params.one()?;
+    let arg: ExitGameParams = params.one()?;
+    let sig: Signature = params.one()?;
     let context = context.lock().await;
     context
-        .eject_player(&game_addr, &player_addr)
+        .verify(&game_addr, &arg, sig)
+        .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
+    context
+        .eject_player(&game_addr, "")
         .await
-        .map_err(|e| Error::Custom(e.to_string()))
+        .map_err(|e| Error::Call(CallError::Failed(e.into())))
 }
 
 fn subscribe_event(
@@ -65,14 +86,22 @@ fn subscribe_event(
     context: Arc<Mutex<ApplicationContext>>,
 ) -> std::result::Result<(), SubscriptionEmptyError> {
     {
-        let params: SubscribeEventParams = params.one()?;
-        let addr = params.addr.clone();
+        let game_addr: String = params.one()?;
+        let arg: SubscribeEventParams = params.one()?;
+        let sig: Signature = params.one()?;
+
         tokio::spawn(async move {
-            println!("Subscribe event stream: {:?}", addr);
+            println!("Subscribe event stream: {:?}", game_addr);
             let context = context.lock().await;
+            if let Err(e) = context.verify(&game_addr, &arg, sig) {
+                sink.close(SubscriptionClosed::Failed(
+                    CallError::Failed(e.into()).into(),
+                ));
+                return;
+            }
 
             let handle = context
-                .get_game(&addr)
+                .get_game(&game_addr)
                 .ok_or(SubscriptionEmptyError)
                 .expect("Failed to get game");
 

@@ -7,12 +7,13 @@ use crate::{
     event::{Event, SecretIdent},
     random::{RandomMode, RandomStatus},
     transport::TransportT,
-    types::{Ciphertext, ClientMode, SecretKey}, encryptor::EncryptorT,
+    types::{Ciphertext, ClientMode, SecretKey}, encryptor::EncryptorT, connection::ConnectionT,
 };
 
 pub struct Client {
     pub encryptor: Arc<dyn EncryptorT>,
     pub transport: Arc<dyn TransportT>,
+    pub connection: Arc<dyn ConnectionT>,
     // The address of current node, the player address or server address.
     pub addr: String,
     // The client mode, could be player, validator or transactor.
@@ -24,13 +25,14 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn try_new(addr: String, mode: ClientMode, transport: Arc<dyn TransportT>, encryptor: Arc<dyn EncryptorT>) -> Result<Self> {
+    pub fn try_new(addr: String, mode: ClientMode, transport: Arc<dyn TransportT>, encryptor: Arc<dyn EncryptorT>, connection: Arc<dyn ConnectionT>) -> Result<Self> {
         Ok(Self {
             addr,
             mode,
             secret_states: Vec::new(),
             transport,
             encryptor,
+            connection,
         })
     }
 

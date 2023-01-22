@@ -5,7 +5,7 @@ async function onClickJoinButton() {
 }
 
 async function onClickIncreamentButton() {
-  await client.submit_event({ "Increase": 42 });
+  await client.submit_event({ "Increase": 1 });
 }
 
 async function onClickExitButton() {
