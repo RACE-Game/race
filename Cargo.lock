@@ -3261,6 +3261,7 @@ dependencies = [
  "race-core",
  "race-env",
  "race-transport",
+ "solana-client",
  "solana-program",
  "solana-program-test",
  "solana-sdk",

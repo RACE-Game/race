@@ -17,6 +17,7 @@ borsh-derive = "0.9.3"
 [dev-dependencies]
 solana-program-test = ">1.10.0"
 solana-sdk = { version = ">1.10.0"}
+solana-client = ">1.10.0"
 
 [features]
 default = ["test-bpf"]

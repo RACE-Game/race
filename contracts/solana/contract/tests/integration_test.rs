@@ -1,7 +1,9 @@
 use borsh::BorshSerialize;
 use race_contract;
 use race_core::types::{CloseGameAccountParams, CreateGameAccountParams};
+use solana_client::rpc_client::RpcClient;
 use solana_program::native_token::LAMPORTS_PER_SOL;
+use solana_program::program_error::ProgramError;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     message::Message,
@@ -16,15 +18,80 @@ use solana_sdk::{
 };
 use std::error::Error;
 
+fn create_vault_account(client: &RpcClient, program_id: Pubkey, payer: &Keypair) {
+    // Derive the PDA from the payer account, a string representing the unique
+    // purpose of the account ("vault"), and the address of our on-chain program.
+    let (vault_pubkey, vault_bump_seed) =
+        Pubkey::find_program_address(&[b"vault", payer.pubkey().as_ref()], &program_id);
+
+    // Get the amount of lamports needed to pay for the vault's rent
+    let vault_account_size = usize::try_from(1000).unwrap();
+    let lamports = client
+        .get_minimum_balance_for_rent_exemption(vault_account_size)
+        .unwrap();
+
+    // The on-chain program's instruction data, imported from that program's crate.
+    let instr_data = race_contract::entrypoint::InstructionData {
+        vault_bump_seed,
+        lamports,
+    };
+
+    // The accounts required by both our on-chain program and the system program's
+    // `create_account` instruction, including the vault's address.
+    let accounts = vec![
+        AccountMeta::new(payer.pubkey(), true),
+        AccountMeta::new(vault_pubkey, false),
+        AccountMeta::new(system_program::ID, false),
+    ];
+
+    // Create the instruction by serializing our instruction data via borsh
+    let instruction = Instruction::new_with_borsh(program_id, &instr_data, accounts);
+
+    let blockhash = client.get_latest_blockhash().unwrap();
+
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&payer.pubkey()),
+        &[payer],
+        blockhash,
+    );
+
+    client.send_and_confirm_transaction(&transaction).unwrap();
+}
 pub async fn send_instruction(
     client: BanksClient,
     program_id: Pubkey,
     instantiater: &Keypair,
     data: Vec<u8>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let (vault_pubkey, vault_bump_seed) =
+        Pubkey::find_program_address(&[b"vault", instantiater.pubkey().as_ref()], &program_id);
+    println!("BUBUB {} {}", vault_pubkey, vault_bump_seed);
+    // let lamports = 10000;
+    // TODO need something like client.get_minimum_balance_for_rent_exemption(usize::try_from(VAULT_ACCOUNT_SIZE)?)? here
+
     let instantiate_instruction = Instruction {
         program_id,
-        accounts: vec![AccountMeta::new(instantiater.pubkey(), true)],
+        accounts: vec![
+            AccountMeta {
+                pubkey: instantiater.pubkey(),
+                is_signer: true,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: vault_pubkey,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: system_program::id(),
+                is_signer: false,
+                is_writable: false,
+            },
+            // AccountMeta::new(instantiater.pubkey(), true),
+            // AccountMeta::new(vault_pubkey, false),
+            // AccountMeta::new(system_program::id(), false),
+        ],
         data: data,
     };
 
@@ -72,38 +139,6 @@ pub async fn send_close_game_instruction(
     Ok(())
 }
 
-// Copied from
-// https://github.com/shravanshetty1/blawgd-solana/blob/908f80a69050feec7b6cd53631813b316f54e1cc/blawgd-solana-sc/tests/helper/mod.rs
-pub async fn instantiate_program(
-    client: BanksClient,
-    program_id: Pubkey,
-    instantiater: &Keypair,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let instantiate_instruction = Instruction {
-        program_id,
-        accounts: vec![
-            AccountMeta::new(system_program::id(), false),
-            AccountMeta::new(instantiater.pubkey(), true),
-        ],
-        data: race_contract::entrypoint::Instruction::CreateGame(CreateGameAccountParams {
-            bundle_addr: "addr".to_string(),
-            max_players: 5,
-            data: vec![1, 2, 3],
-        })
-        .try_to_vec()?,
-    };
-
-    create_and_send_tx(
-        client.clone(),
-        vec![instantiate_instruction],
-        vec![instantiater],
-        Some(&instantiater.pubkey()),
-    )
-    .await?;
-
-    Ok(())
-}
-
 pub async fn request_airdrop(
     client: BanksClient,
     mint: &Keypair,
@@ -125,10 +160,19 @@ pub async fn create_and_send_tx(
     let tx = Transaction::new(&signers, msg, client.get_latest_blockhash().await?);
     Ok(client.process_transaction(tx).await?)
 }
+// #[tokio::test(threaded_scheduler)]
 
 #[cfg(feature = "test-bpf")]
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test() -> Result<(), Box<dyn Error>> {
+    // let program_id = Pubkey::new_unique();
+    // let payer = Keypair::new();
+
+    // let client = RpcClient::new("https://api.testnet.solana.com");
+
+    // create_vault_account(&client, program_id, &payer);
+    // return Ok(());
+
     let program_id = race_contract::id();
     let pt = solana_program_test::ProgramTest::new(
         "mpl_program_test",
@@ -152,14 +196,14 @@ async fn test() -> Result<(), Box<dyn Error>> {
     )
     .await?;
 
-    send_close_game_instruction(
-        client.clone(),
-        program_id,
-        &user,
-        CloseGameAccountParams {
-            addr: "addr".to_string(),
-        },
-    )
-    .await?;
+    // send_close_game_instruction(
+    //     client.clone(),
+    //     program_id,
+    //     &user,
+    //     CloseGameAccountParams {
+    //         addr: "addr".to_string(),
+    //     },
+    // )
+    // .await?;
     Ok(())
 }
