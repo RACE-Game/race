@@ -1,5 +1,7 @@
+use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
 use race_contract;
+use race_contract::entrypoint::UserAccount;
 use race_core::types::{CloseGameAccountParams, CreateGameAccountParams};
 use solana_client::rpc_client::RpcClient;
 use solana_program::native_token::LAMPORTS_PER_SOL;
@@ -17,7 +19,6 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use std::error::Error;
-
 fn create_vault_account(client: &RpcClient, program_id: Pubkey, payer: &Keypair) {
     // Derive the PDA from the payer account, a string representing the unique
     // purpose of the account ("vault"), and the address of our on-chain program.
@@ -160,11 +161,56 @@ pub async fn create_and_send_tx(
     let tx = Transaction::new(&signers, msg, client.get_latest_blockhash().await?);
     Ok(client.process_transaction(tx).await?)
 }
+
+pub async fn update_profile(
+    mut client: BanksClient,
+    program_id: Pubkey,
+    user: &Keypair,
+    // profile: Profile,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (account_addr, _) =
+        Pubkey::find_program_address(&[UserAccount::seed(user.pubkey()).as_slice()], &program_id);
+
+    let acc = UserAccount {
+        post_count: 1,
+        follower_count: 2,
+        following_count: 3,
+    };
+    let update_profile_instruction = Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(account_addr, false),
+            AccountMeta::new(system_program::id(), false),
+            AccountMeta::new(user.pubkey(), true),
+        ],
+        data: acc.try_to_vec()?,
+    };
+
+    create_and_send_tx(
+        client.clone(),
+        vec![update_profile_instruction],
+        vec![user],
+        Some(&user.pubkey()),
+    )
+    .await?;
+
+    let account_acc = client
+        .get_account(account_addr)
+        .await?
+        .ok_or("could not find program state account")?;
+
+    let updated_profile = UserAccount::deserialize(&mut account_acc.data.as_slice())?;
+    assert_eq!(updated_profile.follower_count, acc.follower_count);
+    assert_eq!(updated_profile.post_count, acc.post_count);
+    assert_eq!(updated_profile.following_count, acc.following_count);
+
+    Ok(())
+}
+
 // #[tokio::test(threaded_scheduler)]
 
-#[cfg(feature = "test-bpf")]
-#[tokio::test(flavor = "multi_thread")]
-async fn test() -> Result<(), Box<dyn Error>> {
+#[tokio::test]
+async fn tesfdft() -> Result<(), Box<dyn Error>> {
     // let program_id = Pubkey::new_unique();
     // let payer = Keypair::new();
 
@@ -183,18 +229,18 @@ async fn test() -> Result<(), Box<dyn Error>> {
 
     let user = Keypair::new();
     request_airdrop(client.clone(), &mint, &user, LAMPORTS_PER_SOL * 10).await?;
-
-    send_create_game_instruction(
-        client.clone(),
-        program_id,
-        &user,
-        CreateGameAccountParams {
-            bundle_addr: "addr".to_string(),
-            max_players: 5,
-            data: vec![1, 2, 3],
-        },
-    )
-    .await?;
+    update_profile(client, program_id, &user).await?;
+    // send_create_game_instruction(
+    //     client.clone(),
+    //     program_id,
+    //     &user,
+    //     CreateGameAccountParams {
+    //         bundle_addr: "addr".to_string(),
+    //         max_players: 5,
+    //         data: vec![1, 2, 3],
+    //     },
+    // )
+    // .await?;
 
     // send_close_game_instruction(
     //     client.clone(),

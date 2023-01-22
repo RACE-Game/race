@@ -1,12 +1,14 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::types::{CloseGameAccountParams, CreateGameAccountParams};
 use solana_program::program::invoke_signed;
+use solana_program::sysvar::Sysvar;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
     pubkey::Pubkey,
 };
+use std::mem;
 #[derive(BorshSerialize, BorshDeserialize)]
 pub enum Instruction {
     CreateGame(CreateGameAccountParams),
@@ -19,6 +21,83 @@ pub struct InstructionData {
     pub lamports: u64,
 }
 
+#[derive(Default, BorshSerialize, BorshDeserialize, Clone)]
+pub struct UserAccount {
+    pub post_count: u128,
+    pub follower_count: u128,
+    pub following_count: u128,
+}
+
+impl UserAccount {
+    pub fn space() -> usize {
+        mem::size_of::<UserAccount>()
+    }
+    pub fn seed(address: Pubkey) -> Vec<u8> {
+        let res = format!("account-{address}");
+        solana_program::hash::hash(res.as_bytes())
+            .to_bytes()
+            .to_vec()
+    }
+}
+
+// https://github.com/shravanshetty1/blawgd-solana/blob/908f80a69050feec7b6cd53631813b316f54e1cc/blawgd-solana-sc/src/util.rs
+pub fn create_pda<'a>(
+    program_id: &Pubkey,
+    space: usize,
+    creator: &AccountInfo<'a>,
+    pda: &AccountInfo<'a>,
+    system_program: &AccountInfo<'a>,
+    seed: &[u8],
+) -> ProgramResult {
+    let rent = solana_program::sysvar::rent::Rent::get()?.minimum_balance(space);
+
+    let ix = solana_program::system_instruction::create_account(
+        creator.key,
+        pda.key,
+        rent,
+        space as u64,
+        program_id,
+    );
+
+    // TODO get nonce from args?
+
+    let (_, nonce) = Pubkey::find_program_address(&[seed], program_id);
+    let result = invoke_signed(
+        &ix,
+        &[creator.clone(), pda.clone(), system_program.clone()],
+        &[&[seed, &[nonce]]],
+    );
+    result
+}
+
+pub fn execute_instruction<'a>(
+    program_id: &Pubkey,
+    creator: &AccountInfo<'a>,
+    pda: &AccountInfo<'a>,
+    system_program: &AccountInfo<'a>,
+    data: &[u8],
+) -> ProgramResult {
+    // let mut user_account_state = if self.accounts.account_state.data.borrow().len() > 0 {
+    //     UserAccount::deserialize(&mut &**self.accounts.account_state.data.borrow())?
+    // } else {
+
+    create_pda(
+        program_id,
+        UserAccount::space(),
+        creator,
+        pda,
+        system_program,
+        UserAccount::seed(*creator.key).as_slice(),
+    )?;
+
+    let user_account_state = UserAccount::try_from_slice(&data)?;
+    // let user_account_state = UserAccount::default();
+    // };
+    // user_account_state.profile = self.args.profile.clone();
+    user_account_state.serialize(&mut &mut pda.data.borrow_mut()[..])?;
+
+    Ok(())
+}
 fn create_game(program_id: &Pubkey, args: CreateGameAccountParams) {
     msg!(
         "Processing create_game {} {}",
@@ -42,7 +121,29 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    msg!("HERE1");
     let account_info_iter = &mut accounts.iter();
+
+    let account_state = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+    let signer = next_account_info(account_info_iter)?;
+
+    // let user = UserAccount {
+    //     post_count: 0,
+    //     follower_count: 0,
+    //     following_count: 0,
+    // };
+    // user.serialize(&mut *account_state.try_borrow_mut_data()?)?;
+    execute_instruction(
+        program_id,
+        signer,
+        account_state,
+        system_program,
+        instruction_data,
+    );
+    msg!("HERE2");
+    return Ok(());
+    msg!("HERE3");
     let payer = next_account_info(account_info_iter)?;
     // The vault PDA, derived from the payer's address
     let vault = next_account_info(account_info_iter)?;

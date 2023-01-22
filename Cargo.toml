@@ -3,18 +3,8 @@ resolver = "2"
 members = [
   "core",
   "proc-macro",
-  "transactor",
-  "cli",
   "encryptor",
-  "transport",
-  "facade",
   "env",
-  "client",
-  "test",
-  "examples/counter/core",
-  "examples/minimal/core",
-  "examples/console",
-  "examples/holdem",
   "contracts/solana/contract",
 ]
 

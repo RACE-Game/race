@@ -7,17 +7,17 @@ edition = "2021"
 
 [dependencies]
 race-core = { path = "../../../core" }
-race-transport = { path = "../../../transport" }
-race-env = { path = "../../../env" }
-solana-program = ">1.6.0"
-spl-token = {version = "3.3.0", features = ["no-entrypoint"]}
+#race-transport = { path = "../../../transport" }
+#race-env = { path = "../../../env" }
+solana-program = ">1.6.1"
+spl-token = {version = ">3.3.0", features = ["no-entrypoint"]}
 borsh = "0.9.3"
 borsh-derive = "0.9.3"
 
 [dev-dependencies]
-solana-program-test = ">1.10.0"
-solana-sdk = { version = ">1.10.0"}
-solana-client = ">1.10.0"
+solana-program-test = ">1.6.1"
+solana-sdk = { version = ">1.6.1"}
+solana-client = ">1.6.1"
 
 [features]
 default = ["test-bpf"]
