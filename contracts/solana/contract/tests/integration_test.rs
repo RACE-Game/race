@@ -52,7 +52,7 @@ pub async fn create_game(
         data: std::iter::repeat(1).take(1000).collect::<Vec<u8>>(),
     };
     let (account_addr, _) = Pubkey::find_program_address(
-        &[race_contract::entrypoint::game_account_seed(user.pubkey()).as_slice()],
+        &[race_contract::instruction::game_account_seed(user.pubkey()).as_slice()],
         &program_id,
     );
 
@@ -63,7 +63,8 @@ pub async fn create_game(
             AccountMeta::new(system_program::id(), false),
             AccountMeta::new(user.pubkey(), true),
         ],
-        data: race_contract::entrypoint::Instruction::CreateGame(params).try_to_vec()?,
+        data: race_contract::instruction::RaceContractInstruction::CreateGame(params)
+            .try_to_vec()?,
     };
 
     create_and_send_tx(
