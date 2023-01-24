@@ -7,7 +7,7 @@ use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
 use crate::random::RandomStatus;
-use crate::types::{SecretKey, Settle};
+use crate::types::{SecretKey, Settle, SettleOp};
 use crate::{
     event::{Event, SecretIdent},
     random::{RandomSpec, RandomState},
@@ -92,6 +92,9 @@ impl DispatchEvent {
 #[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GameContext {
     pub(crate) game_addr: String,
+    // Version numbers for player/transactor interaction.
+    pub(crate) access_version: u64,
+    pub(crate) settle_version: u64,
     // Current transactor's address
     pub(crate) transactor_addr: String,
     pub(crate) status: GameStatus,
@@ -138,6 +141,8 @@ impl GameContext {
 
         Ok(Self {
             game_addr: game_account.addr.clone(),
+            access_version: game_account.access_version,
+            settle_version: game_account.settle_version,
             transactor_addr: transactor_addr.to_owned(),
             status: GameStatus::Uninit,
             players: player_map.into_values().collect(),
@@ -230,6 +235,14 @@ impl GameContext {
 
     pub fn get_dispatch(&self) -> &Option<DispatchEvent> {
         &self.dispatch
+    }
+
+    pub fn get_access_version(&self) -> u64 {
+        self.access_version
+    }
+
+    pub fn get_settle_version(&self) -> u64 {
+        self.settle_version
     }
 
     /// Get the random state by its id.
@@ -393,13 +406,32 @@ impl GameContext {
         &self.settles
     }
 
-    pub fn extract_settles(&mut self) -> Option<Vec<Settle>> {
+    pub fn apply_and_take_settles(&mut self) -> Result<Option<Vec<Settle>>> {
         if self.settles.is_some() {
             let mut settles = None;
             std::mem::swap(&mut settles, &mut self.settles);
-            settles
+            for s in settles.as_ref().unwrap().iter() {
+                match s.op {
+                    SettleOp::Eject => {
+                        self.remove_player(&s.addr)?;
+                    }
+                    SettleOp::Add(amount) => {
+                        let p = self
+                            .get_player_mut_by_address(&s.addr)
+                            .ok_or(Error::InvalidSettle)?;
+                        p.balance = p.balance.checked_add(amount).ok_or(Error::InvalidSettle)?;
+                    }
+                    SettleOp::Sub(amount) => {
+                        let p = self
+                            .get_player_mut_by_address(&s.addr)
+                            .ok_or(Error::InvalidSettle)?;
+                        p.balance = p.balance.checked_sub(amount).ok_or(Error::InvalidSettle)?;
+                    }
+                }
+            }
+            Ok(settles)
         } else {
-            None
+            Ok(None)
         }
     }
 

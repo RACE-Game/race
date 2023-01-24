@@ -7,9 +7,10 @@ use jsonrpsee::types::error::CallError;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
+use race_core::event::Event;
 use race_core::types::{
-    AttachGameParams, ExitGameParams, GetStateParams, Signature, SubmitEventParams,
-    SubscribeEventParams,
+    AttachGameParams, BroadcastFrame, ExitGameParams, GetStateParams, RetrieveEventsParams,
+    Signature, SubmitEventParams, SubscribeEventParams,
 };
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
@@ -38,6 +39,7 @@ async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>
 
 async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
     let (game_addr, arg, sig) = params.parse::<(String, SubmitEventParams, Signature)>()?;
+    info!("Submit event: {:?}", arg);
 
     let context = context.lock().await;
     context
@@ -49,6 +51,23 @@ async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>
         .await
         .map_err(|e| Error::Call(CallError::Failed(e.into())))
 }
+
+// async fn retrieve_events(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<Vec<Event>> {
+//     let (game_addr, arg, sig) = params.parse::<(String, RetrieveEventsParams, Signature)>()?;
+
+//     let context = context.lock().await;
+//     context
+//         .verify(&game_addr, &arg, &sig)
+//         .await
+//         .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
+//     let game_handle = context.get_game(&game_addr).ok_or_else(|| {
+//         Error::Call(CallError::Failed(
+//             race_core::error::Error::GameNotLoaded.into(),
+//         ))
+//     })?;
+
+//     Ok(game_handle.broadcaster.retrieve_events(arg.settle_version).await)
+// }
 
 async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<String> {
     let (game_addr, arg, sig) = params.parse::<(String, GetStateParams, Signature)>()?;
@@ -88,7 +107,6 @@ fn subscribe_event(
     context: Arc<Mutex<ApplicationContext>>,
 ) -> std::result::Result<(), SubscriptionEmptyError> {
     {
-        info!("Subscribe event stream");
         let (game_addr, arg, sig) = params.parse::<(String, SubscribeEventParams, Signature)>()?;
         info!("Subscribe event stream: {:?}", game_addr);
 
@@ -107,6 +125,16 @@ fn subscribe_event(
                 .expect("Failed to get game");
 
             let rx = BroadcastStream::new(handle.broadcaster.get_broadcast_rx());
+
+            let events = handle.broadcaster.retrieve_events(arg.settle_version).await;
+
+            events.into_iter().for_each(|e| {
+                sink.send(&BroadcastFrame {
+                    game_addr: game_addr.clone(),
+                    event: e,
+                })
+                .unwrap();
+            });
 
             drop(context);
 

@@ -7,12 +7,16 @@ use race_core::engine::{after_handle_event, general_handle_event, general_init_s
 use race_core::error::{Error, Result};
 use race_core::event::Event;
 use race_core::transport::TransportT;
-use race_core::types::GameAccount;
+use race_core::types::{GameAccount, Settle};
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
 
 pub struct WrappedHandler {
     store: Store,
     instance: Instance,
+}
+
+pub struct Effects {
+    pub settles: Option<Vec<Settle>>,
 }
 
 impl WrappedHandler {
@@ -113,13 +117,14 @@ impl WrappedHandler {
         Ok(())
     }
 
-    pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
+    pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<Effects> {
         let mut new_context = context.clone();
         general_handle_event(&mut new_context, event)?;
         self.custom_handle_event(&mut new_context, event)?;
         after_handle_event(context, &mut new_context)?;
+        let settles = new_context.apply_and_take_settles()?;
         swap(context, &mut new_context);
-        Ok(())
+        Ok(Effects { settles })
     }
 
     pub fn init_state(

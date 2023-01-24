@@ -56,14 +56,18 @@ async fn handle(
     out: &mpsc::Sender<EventFrame>,
 ) {
     match handler.handle_event(game_context, &event) {
-        Ok(_) => {
+        Ok(effects) => {
             out.send(EventFrame::Broadcast {
                 state_json: game_context.get_handler_state_json().to_owned(),
                 event,
+                access_version: game_context.get_access_version(),
+                settle_version: game_context.get_settle_version(),
             })
             .await
             .unwrap();
-            if let Some(settles) = game_context.extract_settles() {
+
+            // We do optimistic updates here
+            if let Some(settles) = effects.settles {
                 out.send(EventFrame::Settle { settles }).await.unwrap();
             }
         }

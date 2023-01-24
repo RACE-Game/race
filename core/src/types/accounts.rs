@@ -101,5 +101,4 @@ pub struct GameBundle {
 pub struct PlayerProfile {
     pub addr: String,
     pub pfp: String,
-    pub data: Vec<u8>,
 }

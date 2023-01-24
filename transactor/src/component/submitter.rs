@@ -45,13 +45,27 @@ impl Component<SubmitterContext> for Submitter {
             while let Some(event) = ctx.input_rx.recv().await {
                 match event {
                     EventFrame::Settle { settles } => {
-                        ctx.transport
+
+                        // The wrapped transport will only return when the transaction is succeed.
+                        // So here we assume the settle version is updated.
+                        // The new settle_version equals to the old plus 1;
+                        let res = ctx
+                            .transport
                             .settle_game(SettleParams {
                                 addr: ctx.addr.clone(),
                                 settles,
                             })
-                            .await
-                            .unwrap();
+                            .await;
+
+                        match res {
+                            Ok(_) => {
+
+                            },
+                            Err(e) => {
+                                ctx.close_tx.send(CloseReason::Fault(e)).unwrap();
+                                return;
+                            }
+                        }
                     }
                     EventFrame::Shutdown => {
                         break;
@@ -107,7 +121,9 @@ mod tests {
             addr: game_account_addr(),
             settles: settles.clone(),
         };
-        let event_frame = EventFrame::Settle { settles: settles.clone() };
+        let event_frame = EventFrame::Settle {
+            settles: settles.clone(),
+        };
         submitter.start();
         submitter.input_tx.send(event_frame).await.unwrap();
         submitter.input_tx.send(EventFrame::Shutdown).await.unwrap();

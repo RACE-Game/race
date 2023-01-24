@@ -7,12 +7,21 @@
       * {
         box-sizing: border-box;
       }
-      body {
+      .app {
         font-size: 1.5rem;
         width: 100vw;
         height: 100vh;
-        display: grid;
-        place-items: center;
+        display: flex;
+        flex-direction: row;
+      }
+      .main {
+        width: 60%;
+      }
+      .events {
+        font-size: 1rem;
+        flex: 1;
+        overflow-y: scroll;
+        background: #33333330;
       }
       button {
         padding: 1rem 2rem 1rem 2rem;
@@ -22,13 +31,17 @@
     </style>
   </head>
   <body>
-    <div id="app">
-      <div>
-        <div>Value: <span id="value">N/A</span></div>
+
+    <div id="app" class="app">
+      <div class="main">
+        <div>Value: <span id="value">?</span></div>
+        <div>Players: <span id="num_of_players">?</span></div>
+        <div>Servers: <span id="num_of_servers">?</span></div>
         <button id="join-btn"> Join </button>
         <button id="exit-btn"> Exit </button>
         <button id="incr-btn"> Increment </button>
       </div>
+      <div id="events" class="events"></div>
     </div>
     <script src="index.js"></script>
   </body>

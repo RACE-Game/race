@@ -15,7 +15,7 @@ use race_core::types::{
     GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams, GetTransactorInfoParams,
     JoinParams, PlayerDeposit, PlayerJoin, RegisterGameParams, RegisterServerParams,
     RegistrationAccount, ServeParams, ServerAccount, SettleOp, SettleParams,
-    UnregisterGameParams,
+    UnregisterGameParams, CreatePlayerProfileParams, PlayerProfile,
 };
 use std::collections::HashMap;
 use std::fs::File;
@@ -38,6 +38,7 @@ const DEFAULT_OWNER_ADDRESS: &str = "DEFAULT_OWNER_ADDRESS";
 
 #[derive(Default)]
 pub struct Context {
+    players: HashMap<String, PlayerProfile>,
     accounts: HashMap<String, GameAccount>,
     registrations: HashMap<String, RegistrationAccount>,
     transactors: HashMap<String, ServerAccount>,
@@ -185,6 +186,17 @@ async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Re
     Ok(addr)
 }
 
+async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<String> {
+    let CreatePlayerProfileParams { addr, pfp } = params.one()?;
+
+    Ok("".into())
+}
+
+async fn get_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<String> {
+    Ok("".into())
+}
+
+
 async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
     let ServeParams {
         game_addr,
@@ -318,6 +330,8 @@ async fn run_server() -> anyhow::Result<ServerHandle> {
     module.register_async_method("create_registration", create_registration)?;
     module.register_async_method("register_game", register_game)?;
     module.register_async_method("unregister_game", unregister_game)?;
+    module.register_async_method("create_profile", create_profile)?;
+    module.register_async_method("get_profile", get_profile)?;
     module.register_async_method("serve", serve)?;
     module.register_async_method("join", join)?;
     module.register_async_method("settle", settle)?;

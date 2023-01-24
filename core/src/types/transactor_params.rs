@@ -46,7 +46,20 @@ impl Display for GetStateParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SubscribeEventParams {}
+pub struct RetrieveEventsParams {
+    pub settle_version: u64,
+}
+
+impl Display for RetrieveEventsParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "GetStateParams")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubscribeEventParams {
+    pub settle_version: u64
+}
 
 impl Display for SubscribeEventParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -57,6 +70,5 @@ impl Display for SubscribeEventParams {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BroadcastFrame {
     pub game_addr: String,
-    pub state_json: String,
     pub event: Event,
 }

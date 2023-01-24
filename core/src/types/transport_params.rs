@@ -69,6 +69,17 @@ pub struct GetRegistrationParams {
     pub addr: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct CreatePlayerProfileParams {
+    pub addr: String,
+    pub pfp: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct GetPlayerProfileParams {
+    pub addr: String,
+}
+
 /// The player status in settlement.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub enum PlayerStatus {

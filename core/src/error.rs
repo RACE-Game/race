@@ -135,6 +135,9 @@ pub enum Error {
 
     #[error("Signature verification failed")]
     SignatureVerificationFailed,
+
+    #[error("Invalid Settle")]
+    InvalidSettle,
 }
 
 impl From<serde_json::Error> for Error {

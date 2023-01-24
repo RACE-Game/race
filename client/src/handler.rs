@@ -2,15 +2,16 @@
 
 use std::mem::swap;
 
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::{BorshDeserialize, BorshSerialize};
+use gloo::console::info;
 use race_core::context::GameContext;
-use race_core::engine::{general_handle_event, after_handle_event};
+use race_core::engine::{after_handle_event, general_handle_event, general_init_state};
 use race_core::error::Result;
 
 use js_sys::WebAssembly::{Instance, Memory};
 use js_sys::{Function, Object, Reflect, Uint8Array, WebAssembly};
 use race_core::event::Event;
-use race_core::types::GameBundle;
+use race_core::types::{GameBundle, GameAccount};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
@@ -38,7 +39,57 @@ impl Handler {
         Self { instance }
     }
 
-    fn custom_handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
+    fn custom_init_state(&self, context: &mut GameContext, init_account: &GameAccount) -> Result<()> {
+        let exports = self.instance.exports();
+        let mem = Reflect::get(exports.as_ref(), &"memory".into())
+            .unwrap()
+            .dyn_into::<Memory>()
+            .expect("Can't get memory");
+        mem.grow(10);
+        let buf = Uint8Array::new(&mem.buffer());
+
+        // serialize context
+        let context_vec = context.try_to_vec().unwrap();
+        let context_size = context_vec.len();
+        let context_arr = Uint8Array::new_with_length(context_size as _);
+        context_arr.copy_from(&context_vec);
+
+        // serialize init_account
+        let init_account_vec = init_account.try_to_vec().unwrap();
+        let init_account_size = init_account_vec.len();
+        let init_account_arr = Uint8Array::new_with_length(init_account_size as _);
+        init_account_arr.copy_from(&init_account_vec);
+
+        // copy context and init_account into wasm memory
+        let mut offset = 1u32;
+        buf.set(&context_arr, offset);
+        offset += context_size as u32;
+        buf.set(&init_account_arr, offset);
+
+        // call event handler
+        let init_state = Reflect::get(exports.as_ref(), &"init_state".into())
+            .unwrap()
+            .dyn_into::<Function>()
+            .expect("Can't get init_state");
+
+        let new_context_size = init_state
+            .call2(
+                &JsValue::undefined(),
+                &context_size.into(),
+                &init_account_size.into(),
+            )
+            .expect("failed to call")
+            .as_f64()
+            .expect("failed to parse return") as usize;
+
+        let new_context_vec = Uint8Array::new(&mem.buffer()).to_vec();
+        let new_context_slice = &new_context_vec[1..(1 + new_context_size)];
+        *context = GameContext::try_from_slice(&new_context_slice).unwrap();
+
+        Ok(())
+    }
+
+    fn custom_handle_event(&self, context: &mut GameContext, event: &Event) -> Result<()> {
         let exports = self.instance.exports();
         let mem = Reflect::get(exports.as_ref(), &"memory".into())
             .unwrap()
@@ -75,9 +126,9 @@ impl Handler {
                 &context_size.into(),
                 &event_size.into(),
             )
-            .unwrap()
+            .expect("failed to call")
             .as_f64()
-            .unwrap() as usize;
+            .expect("failed to parse return") as usize;
 
         let new_context_vec = Uint8Array::new(&mem.buffer()).to_vec();
         let new_context_slice = &new_context_vec[1..(1 + new_context_size)];
@@ -86,11 +137,23 @@ impl Handler {
         Ok(())
     }
 
-    pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
+    pub fn handle_event(&self, context: &mut GameContext, event: &Event) -> Result<()> {
         let mut new_context = context.clone();
         general_handle_event(&mut new_context, event)?;
         self.custom_handle_event(&mut new_context, event)?;
         after_handle_event(context, &mut new_context)?;
+        swap(context, &mut new_context);
+        Ok(())
+    }
+
+    pub fn init_state(
+        &self,
+        context: &mut GameContext,
+        init_account: &GameAccount,
+    ) -> Result<()> {
+        let mut new_context = context.clone();
+        general_init_state(&mut new_context, init_account)?;
+        self.custom_init_state(&mut new_context, init_account)?;
         swap(context, &mut new_context);
         Ok(())
     }

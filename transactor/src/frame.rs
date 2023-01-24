@@ -30,9 +30,14 @@ pub enum EventFrame {
     Broadcast {
         state_json: String,
         event: Event,
+        access_version: u64,
+        settle_version: u64,
     },
     Settle {
         settles: Vec<Settle>,
+    },
+    SettleFinalized {
+        settle_version: u64,
     },
     ContextUpdated {
         context: GameContext,
