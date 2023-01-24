@@ -63,16 +63,11 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                         let mut new_players = vec![];
                         for p in state.players.iter() {
                             if p.access_version > access_version {
-                                // Only when we can find player's deposit record
-                                if let Some(deposit) = state.deposits.iter().find(|d| {
-                                    d.addr.eq(&p.addr) && d.access_version == p.access_version
-                                }) {
-                                    new_players.push(NewPlayer {
-                                        addr: p.addr.clone(),
-                                        position: p.position,
-                                        amount: deposit.amount,
-                                    });
-                                }
+                                new_players.push(NewPlayer {
+                                    addr: p.addr.clone(),
+                                    position: p.position,
+                                    amount: p.balance,
+                                });
                             }
                         }
                         let event = EventFrame::PlayerJoined { new_players };

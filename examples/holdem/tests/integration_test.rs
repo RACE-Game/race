@@ -33,7 +33,7 @@ fn create_holdem(ctx: &mut GameContext) -> Holdem {
         access_version: 0,
         players: vec![],
         deposits: vec![],
-        server_addrs: vec![],
+        servers: vec![],
         transactor_addr: Some(String::from("FAKE")),
         max_players: 8,
         data_len: v.len() as _,

@@ -187,7 +187,6 @@ mod tests {
         };
         let broadcast_frame = BroadcastFrame {
             game_addr: game_account.addr,
-            state_json: "STATE JSON".into(),
             event: Event::Custom {
                 sender: "Alice".into(),
                 raw: "CUSTOM EVENT".into(),

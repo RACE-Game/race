@@ -50,7 +50,7 @@ impl GameHandler for Counter {
         Ok(Self {
             value: account_data.init_value,
             num_of_players: init_account.players.len() as _,
-            num_of_servers: init_account.server_addrs.len() as _,
+            num_of_servers: init_account.servers.len() as _,
         })
     }
 

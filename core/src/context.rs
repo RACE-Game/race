@@ -133,17 +133,17 @@ impl GameContext {
         // build initial players
         let mut player_map = HashMap::with_capacity(game_account.max_players as _);
         for p in game_account.players.iter() {
-            player_map.insert(p.addr.as_str(), Player::new(p.addr.clone(), 0, p.position));
-        }
-        for d in game_account.deposits.iter() {
-            if let Some(p) = player_map.get_mut(d.addr.as_str()) {
-                p.balance += d.amount;
-            }
+            player_map.insert(
+                p.addr.as_str(),
+                Player::new(p.addr.clone(), p.balance, p.position),
+            );
         }
 
-        let servers = game_account.servers.iter().map(|s| {
-            Server::new(s.addr.clone(), s.endpoint.clone())
-        }).collect();
+        let servers = game_account
+            .servers
+            .iter()
+            .map(|s| Server::new(s.addr.clone(), s.endpoint.clone()))
+            .collect();
 
         Ok(Self {
             game_addr: game_account.addr.clone(),
@@ -231,9 +231,9 @@ impl GameContext {
         self.status
     }
 
-    pub(crate) fn set_players(&mut self, players: Vec<Player>) {
-        self.players = players;
-    }
+    // pub(crate) fn set_players(&mut self, players: Vec<Player>) {
+    //     self.players = players;
+    // }
 
     pub fn list_random_states(&self) -> &Vec<RandomState> {
         &self.random_states

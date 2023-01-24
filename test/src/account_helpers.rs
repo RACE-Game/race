@@ -1,6 +1,6 @@
-use borsh::BorshSerialize;
-use race_core::types::{GameAccount, PlayerDeposit, PlayerJoin, ServerAccount};
 use crate::constants::*;
+use borsh::BorshSerialize;
+use race_core::types::{GameAccount, PlayerJoin, ServerAccount, ServerJoin};
 
 pub fn game_account_addr() -> String {
     TEST_GAME_ACCOUNT_ADDR.into()
@@ -37,7 +37,7 @@ impl Default for TestGameAccountBuilder {
             data_len: 0,
             data: vec![],
             transactor_addr: None,
-            server_addrs: vec![],
+            servers: vec![],
             max_players: 6,
             deposits: vec![],
         };
@@ -49,34 +49,41 @@ impl Default for TestGameAccountBuilder {
 type TestPlayerInfo = (String, u64, usize, u64);
 
 impl TestGameAccountBuilder {
-
-
     pub fn new() -> Self {
         TestGameAccountBuilder::default()
     }
 
     pub fn from_account(account: &GameAccount) -> Self {
-        TestGameAccountBuilder { account: account.clone() }
+        TestGameAccountBuilder {
+            account: account.clone(),
+        }
     }
 
     pub fn build(self) -> GameAccount {
         self.account
     }
 
-    pub fn default_players() {
-
-    }
+    pub fn default_players() {}
 
     pub fn add_servers(mut self, num_of_servers: usize) -> Self {
         if num_of_servers > 3 {
             panic!("num_of_servers must less equal than 3");
         }
 
-        for addr in SERVER_ADDRS.iter().skip(self.account.server_addrs.len()).take(num_of_servers) {
+        for addr in SERVER_ADDRS
+            .iter()
+            .skip(self.account.servers.len())
+            .take(num_of_servers)
+        {
             if self.account.transactor_addr.is_none() {
                 self.account.transactor_addr = Some(addr.to_string());
             }
-            self.account.server_addrs.push(addr.to_string());
+            self.account.access_version += 1;
+            self.account.servers.push(ServerJoin::new(
+                addr.clone(),
+                "".into(),
+                self.account.access_version,
+            ));
         }
         self
     }
@@ -86,17 +93,18 @@ impl TestGameAccountBuilder {
             panic!("num_of_players must less equal than 6");
         }
 
-        for (i, addr) in PLAYER_ADDRS.iter().enumerate().skip(self.account.players.len()).take(num_of_players) {
+        for (i, addr) in PLAYER_ADDRS
+            .iter()
+            .enumerate()
+            .skip(self.account.players.len())
+            .take(num_of_players)
+        {
             self.account.access_version += 1;
             self.account.players.push(PlayerJoin {
                 addr: addr.to_string(),
                 position: i,
                 access_version: self.account.access_version,
-            });
-            self.account.deposits.push(PlayerDeposit {
-                addr: addr.to_string(),
-                amount: DEFAULT_DEPOSIT_AMOUNT,
-                access_version: self.account.access_version,
+                balance: DEFAULT_DEPOSIT_AMOUNT,
             });
         }
         self
@@ -108,11 +116,7 @@ impl TestGameAccountBuilder {
                 addr: addr.to_owned(),
                 position: *position,
                 access_version: *access_version,
-            });
-            self.account.deposits.push(PlayerDeposit {
-                addr: addr.to_owned(),
-                amount: *amount,
-                access_version: *access_version,
+                balance: *amount,
             });
         }
         self

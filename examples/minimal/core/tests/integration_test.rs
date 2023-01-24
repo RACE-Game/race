@@ -42,6 +42,7 @@ fn test() -> Result<()> {
     let mut ctx = GameContext::new(&game_account)?;
     let mut handler = TestHandler::init_state(&mut ctx, &game_account)?;
 
+    info!("context: {:?}", ctx);
     {
         assert_eq!(1, ctx.get_players().len());
         let state: &MinimalHandler = handler.get_state();

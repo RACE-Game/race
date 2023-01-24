@@ -2,20 +2,21 @@
 
 use jsonrpsee::core::async_trait;
 use race_core::error::Result;
-use race_core::types::{CreateRegistrationParams, RegisterGameParams, UnregisterGameParams, ServeParams};
+use race_core::types::{
+    CreateRegistrationParams, RegisterGameParams, ServeParams, UnregisterGameParams, DepositParams, CreatePlayerProfileParams,
+};
 use race_core::{
     transport::TransportT,
     types::{
-        CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle,
-        JoinParams, PlayerProfile, RegisterServerParams,
-        RegistrationAccount, SettleParams, ServerAccount,
+        CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, JoinParams,
+        PlayerProfile, RegisterServerParams, RegistrationAccount, ServerAccount, SettleParams,
     },
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
 
 pub struct WrappedTransport {
-    internal: Box<dyn TransportT>,
+    inner: Box<dyn TransportT>,
 }
 
 impl WrappedTransport {
@@ -30,71 +31,77 @@ impl WrappedTransport {
             .try_with_config(config)?
             .build()
             .await?;
-        Ok(Self {
-            internal: transport,
-        })
+        Ok(Self { inner: transport })
     }
 }
 
 #[async_trait]
 impl TransportT for WrappedTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
-        self.internal.create_game_account(params).await
+        self.inner.create_game_account(params).await
+    }
+
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()> {
+        self.inner.create_player_profile(params).await
     }
 
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
-        self.internal.close_game_account(params).await
+        self.inner.close_game_account(params).await
     }
 
     async fn join(&self, params: JoinParams) -> Result<()> {
-        self.internal.join(params).await
+        self.inner.join(params).await
     }
 
     async fn serve(&self, params: ServeParams) -> Result<()> {
-        self.internal.serve(params).await
+        self.inner.serve(params).await
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
-        self.internal.get_game_account(addr).await
+        self.inner.get_game_account(addr).await
+    }
+
+    async fn deposit(&self, params: DepositParams) -> Result<()> {
+        self.inner.deposit(params).await
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
-        self.internal.get_game_bundle(addr).await
+        self.inner.get_game_bundle(addr).await
     }
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
-        self.internal.get_server_account(addr).await
+        self.inner.get_server_account(addr).await
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
-        self.internal.get_player_profile(addr).await
+        self.inner.get_player_profile(addr).await
     }
 
     async fn publish_game(&self, bundle: GameBundle) -> Result<String> {
-        self.internal.publish_game(bundle).await
+        self.inner.publish_game(bundle).await
     }
 
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
-        self.internal.settle_game(params).await
+        self.inner.settle_game(params).await
     }
 
     async fn register_server(&self, params: RegisterServerParams) -> Result<String> {
-        self.internal.register_server(params).await
+        self.inner.register_server(params).await
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
-        self.internal.get_registration(addr).await
+        self.inner.get_registration(addr).await
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
-        self.internal.create_registration(params).await
+        self.inner.create_registration(params).await
     }
 
     async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
-        self.internal.register_game(params).await
+        self.inner.register_game(params).await
     }
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
-        self.internal.unregister_game(params).await
+        self.inner.unregister_game(params).await
     }
 }

@@ -1,7 +1,7 @@
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
-    context::{GameContext, GameStatus, Player, PlayerStatus},
+    context::{GameContext, GameStatus, PlayerStatus},
     error::Result,
     event::Event,
     types::{GameAccount, Settle},
@@ -15,22 +15,7 @@ pub trait GameHandler: Sized + Serialize + DeserializeOwned {
     fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()>;
 }
 
-pub fn general_init_state(context: &mut GameContext, init_account: &GameAccount) -> Result<()> {
-    let players = init_account
-        .players
-        .iter()
-        .map(|p| Player::new(p.addr.to_owned(), 0, p.position))
-        .collect();
-
-    context.set_players(players);
-
-    // Accumulate deposits
-    for deposit in init_account.deposits.iter() {
-        if let Some(p) = context.get_player_mut_by_address(&deposit.addr) {
-            p.balance += deposit.amount;
-        }
-    }
-
+pub fn general_init_state(_context: &mut GameContext, _init_account: &GameAccount) -> Result<()> {
     Ok(())
 }
 
