@@ -14,9 +14,9 @@ use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
-    CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GetTransactorInfoParams,
-    JoinParams, PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount,
-    ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
+    CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
+    RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount,
+    SettleParams, UnregisterGameParams,
 };
 
 use crate::error::{TransportError, TransportResult};
@@ -114,9 +114,8 @@ impl TransportT for FacadeTransport {
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
         debug!("Fetch server account: {:?}", addr);
-        let params = GetTransactorInfoParams { addr: addr.into() };
         self.client
-            .request("get_server_info", rpc_params![params])
+            .request("get_server_info", rpc_params![addr])
             .await
             .ok()
     }

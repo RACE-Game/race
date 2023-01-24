@@ -27,6 +27,8 @@ pub struct ApplicationContext {
 
 impl ApplicationContext {
     pub async fn try_new(config: Config) -> Result<Self> {
+        info!("Initialize application context");
+
         let transport = Arc::new(WrappedTransport::try_new(&config).await?);
 
         let encryptor = Arc::new(Encryptor::default());
@@ -34,6 +36,8 @@ impl ApplicationContext {
         let transactor_config = config.transactor.ok_or(Error::TransactorConfigMissing)?;
 
         let chain: ChainType = transactor_config.chain.as_str().try_into()?;
+
+        info!("Transactor wallet address: {}", transactor_config.address);
 
         let account = transport
             .get_server_account(&transactor_config.address)

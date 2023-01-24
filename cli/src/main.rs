@@ -129,12 +129,12 @@ async fn server_info(config: Config, chain: &str, addr: &str) {
                 owner_addr,
                 endpoint,
             } = server_account;
-            println!("Server account: {:?}", addr);
-            println!("Server owner: {:?}", owner_addr);
-            println!("Server owner: {:?}", endpoint);
+            println!("Server account: {}", addr);
+            println!("Server owner: {}", owner_addr);
+            println!("Server owner: {}", endpoint);
         }
         None => {
-            println!("Game bundle not found");
+            println!("Server not found");
         }
     }
 }
@@ -143,13 +143,13 @@ async fn reg_info(config: Config, chain: &str, addr: &str) {
     let transport = create_transport(&config, chain).await;
     match transport.get_registration(addr).await {
         Some(reg) => {
-            println!("Registration account: {:?}", reg.addr);
-            println!("Size(Registered): {:?}({:?})", reg.size, reg.games.len());
-            println!("Owner: {:?}", reg.owner.unwrap_or("None".into()));
+            println!("Registration account: {}", reg.addr);
+            println!("Size(Registered): {}({})", reg.size, reg.games.len());
+            println!("Owner: {}", reg.owner.unwrap_or("None".into()));
             println!("Games:");
             for g in reg.games.iter() {
                 println!(
-                    "Game account: {:?}, Game bundle: {:?}",
+                    "Game account: {}, Game bundle: {}",
                     g.addr, g.bundle_addr
                 );
             }

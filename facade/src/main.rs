@@ -11,10 +11,10 @@ use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error, RpcModule};
 use race_core::types::{
-    CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, GameAccount,
-    GameBundle, GameRegistration, JoinParams, PlayerDeposit, PlayerJoin, PlayerProfile,
-    RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount,
-    ServerJoin, SettleOp, SettleParams, UnregisterGameParams, DepositParams,
+    CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams,
+    GameAccount, GameBundle, GameRegistration, JoinParams, PlayerDeposit, PlayerJoin,
+    PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
+    ServerAccount, ServerJoin, SettleOp, SettleParams, UnregisterGameParams,
 };
 use std::collections::HashMap;
 use std::fs::File;
@@ -141,12 +141,6 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         player_addr, game_addr, amount
     );
     let mut context = context.lock().await;
-    let player_join = PlayerJoin {
-        addr: player_addr.clone(),
-        position,
-        balance: amount,
-        access_version,
-    };
     if let Some(game_account) = context.accounts.get_mut(&game_addr) {
         if access_version != game_account.access_version {
             return Err(Error::Custom("Expired transaction".into()));
@@ -154,9 +148,16 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         if game_account.players.len() >= game_account.max_players as _ {
             Err(Error::Custom("Game is full".into()))
         } else {
-            game_account.access_version = access_version;
+            let access_version = game_account.access_version + 1;
+            let player_join = PlayerJoin {
+                addr: player_addr.clone(),
+                position,
+                balance: amount,
+                access_version,
+            };
             game_account.players.push(player_join);
-            game_account.access_version += 1;
+            game_account.access_version = access_version;
+            println!("Player joined!");
             Ok(())
         }
     } else {
@@ -180,11 +181,11 @@ async fn deposit(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()>
         addr: player_addr.clone(),
         amount,
         // Use a larger settle_version to indicate this deposit is not handled.
-        settle_version: settle_version + 1
+        settle_version: settle_version + 1,
     };
     if let Some(game_account) = context.accounts.get_mut(&game_addr) {
         if settle_version != game_account.settle_version {
-            return Err(Error::Custom("Expired transaction".into()))
+            return Err(Error::Custom("Expired transaction".into()));
         }
         if game_account.players.len() >= game_account.max_players as _ {
             Err(Error::Custom("Game is full".into()))
@@ -206,6 +207,7 @@ async fn get_server_info(
     if let Some(transactor) = context.transactors.get(&addr) {
         Ok(transactor.to_owned())
     } else {
+        println!("Fetch server failed");
         Err(Error::Custom("Not found".into()))
     }
 }
