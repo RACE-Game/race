@@ -65,12 +65,14 @@ impl Player {
 pub struct Server {
     pub addr: String,
     pub status: ServerStatus,
+    pub endpoint: String,
 }
 
 impl Server {
-    pub fn new<S: Into<String>>(addr: S) -> Self {
+    pub fn new<S: Into<String>>(addr: S, endpoint: String) -> Self {
         Server {
             addr: addr.into(),
+            endpoint,
             status: ServerStatus::Absent,
         }
     }
@@ -139,6 +141,10 @@ impl GameContext {
             }
         }
 
+        let servers = game_account.servers.iter().map(|s| {
+            Server::new(s.addr.clone(), s.endpoint.clone())
+        }).collect();
+
         Ok(Self {
             game_addr: game_account.addr.clone(),
             access_version: game_account.access_version,
@@ -146,7 +152,7 @@ impl GameContext {
             transactor_addr: transactor_addr.to_owned(),
             status: GameStatus::Uninit,
             players: player_map.into_values().collect(),
-            servers: game_account.server_addrs.iter().map(Server::new).collect(),
+            servers,
             dispatch: None,
             state_json: "".into(),
             timestamp: 0,

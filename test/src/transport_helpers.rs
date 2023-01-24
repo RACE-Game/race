@@ -13,7 +13,7 @@ use race_core::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams,
         GameAccount, GameBundle, JoinParams, PlayerProfile,
         RegisterGameParams, RegisterServerParams, Settle, SettleParams,
-        ServerAccount, UnregisterGameParams, RegistrationAccount, ServeParams,
+        ServerAccount, UnregisterGameParams, RegistrationAccount, ServeParams, CreatePlayerProfileParams, DepositParams,
     },
 };
 
@@ -107,6 +107,14 @@ impl TransportT for DummyTransport {
         } else {
             Err(Error::GameAccountNotFound)
         }
+    }
+
+    async fn deposit(&self, params: DepositParams) -> Result<()>{
+        todo!()
+    }
+
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()> {
+        Ok(())
     }
 
     async fn register_server(&self, params: RegisterServerParams) -> Result<String> {

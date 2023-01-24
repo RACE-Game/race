@@ -1,7 +1,7 @@
 use clap::{arg, Command};
 use race_core::{
     transport::TransportT,
-    types::{CreateRegistrationParams, GameBundle, GetRegistrationParams, ServerAccount},
+    types::{CreateRegistrationParams, GameBundle, ServerAccount},
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
@@ -95,22 +95,22 @@ async fn game_info(config: Config, chain: &str, addr: &str) {
     let transport = create_transport(&config, chain).await;
     match transport.get_game_account(addr).await {
         Some(game_account) => {
-            println!("Game account: {:?}", game_account.addr);
-            println!("Game bundle: {:?}", game_account.bundle_addr);
-            println!("Access version: {:?}", game_account.access_version);
-            println!("Settle version: {:?}", game_account.settle_version);
-            println!("Data size: {:?}", game_account.data.len());
+            println!("Game account: {}", game_account.addr);
+            println!("Game bundle: {}", game_account.bundle_addr);
+            println!("Access version: {}", game_account.access_version);
+            println!("Settle version: {}", game_account.settle_version);
+            println!("Data size: {}", game_account.data.len());
             println!("Players:");
             for p in game_account.players.iter() {
-                println!("Player[{:?}] position: {:?}", p.addr, p.position);
+                println!("Player[{}] position: {}", p.addr, p.position);
             }
             println!("Deposits:");
             for d in game_account.deposits.iter() {
-                println!("Deposit: from[{:?}], amount: {:?}", d.addr, d.amount);
+                println!("Deposit: from[{}], amount: {}", d.addr, d.amount);
             }
             println!("Servers:");
-            for s in game_account.server_addrs.iter() {
-                println!("Server: {:?}", s);
+            for s in game_account.servers.iter() {
+                println!("Server[{}]: {}", s.endpoint, s.addr);
             }
             println!("Current transactor: {:?}", game_account.transactor_addr);
         }

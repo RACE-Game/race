@@ -7,7 +7,7 @@ use race_core::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
         GameBundle, JoinParams, PlayerProfile, RegisterGameParams,
         RegisterServerParams, RegistrationAccount, SettleParams, ServerAccount,
-        UnregisterGameParams, ServeParams,
+        UnregisterGameParams, ServeParams, CreatePlayerProfileParams, DepositParams,
     },
 };
 
@@ -48,6 +48,10 @@ impl TransportT for EvmTransport {
         todo!()
     }
 
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()> {
+        todo!()
+    }
+
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
         todo!()
     }
@@ -57,6 +61,10 @@ impl TransportT for EvmTransport {
     }
 
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
+        todo!()
+    }
+
+    async fn deposit(&self, params: DepositParams) -> Result<()>{
         todo!()
     }
 

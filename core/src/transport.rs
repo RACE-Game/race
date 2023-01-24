@@ -5,7 +5,7 @@ use crate::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
         GameBundle, JoinParams, PlayerProfile, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServerAccount, SettleParams, UnregisterGameParams, ServeParams, CreatePlayerProfileParams,
+        RegistrationAccount, ServerAccount, SettleParams, UnregisterGameParams, ServeParams, CreatePlayerProfileParams, DepositParams,
     },
 };
 use async_trait::async_trait;
@@ -75,6 +75,15 @@ pub trait TransportT: Send + Sync {
     /// * [`Error::RpcError`] when the RPC invocation failed.
     async fn join(&self, params: JoinParams) -> Result<()>;
 
+    /// Deposit tokens into game.
+    ///
+    /// # Arguments
+    /// * `player_addr` - The address of player, should be the same with signer.
+    /// * `game_addr` - The game to deposit.
+    /// * `amount` - The amount of token to deposit.
+    /// * `access_version` - The current access version.
+    async fn deposit(&self, params: DepositParams) -> Result<()>;
+
     /// Serve a game.  To serve a game, server will write its address into game account.
     ///
     /// # Arguments
@@ -93,7 +102,7 @@ pub trait TransportT: Send + Sync {
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()>;
 
-    // async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()>;
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()>;
 
     /// Get game account by its address.
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount>;

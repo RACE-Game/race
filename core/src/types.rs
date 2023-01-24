@@ -10,17 +10,17 @@ pub use common::{
 
 pub use accounts::{
     GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin, PlayerProfile,
-    RegistrationAccount, ServerAccount,
+    RegistrationAccount, ServerAccount, ServerJoin
 };
 
 pub use transport_params::{
     AssetChange, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
-    CreateRegistrationParams, GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams,
-    GetTransactorInfoParams, JoinParams, PlayerStatus, RegisterGameParams, RegisterServerParams,
-    ServeParams, Settle, SettleOp, SettleParams, UnregisterGameParams,
+    CreateRegistrationParams, GetTransactorInfoParams, JoinParams, PlayerStatus,
+    RegisterGameParams, RegisterServerParams, ServeParams, Settle, SettleOp, SettleParams,
+    UnregisterGameParams, DepositParams
 };
 
 pub use transactor_params::{
-    AttachGameParams, BroadcastFrame, ExitGameParams, GetStateParams, SubmitEventParams,
-    SubscribeEventParams, RetrieveEventsParams
+    AttachGameParams, BroadcastFrame, ExitGameParams, GetStateParams, RetrieveEventsParams,
+    SubmitEventParams, SubscribeEventParams,
 };

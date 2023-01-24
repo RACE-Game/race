@@ -8,14 +8,16 @@ use serde::{Deserialize, Serialize};
 pub struct PlayerJoin {
     pub addr: String,
     pub position: usize,
+    pub balance: u64,
     pub access_version: u64,
 }
 
 impl PlayerJoin {
-    pub fn new<S: Into<String>>(addr: S, position: usize, access_version: u64) -> Self {
+    pub fn new<S: Into<String>>(addr: S, position: usize, balance: u64, access_version: u64) -> Self {
         Self {
             addr: addr.into(),
             position,
+            balance,
             access_version,
         }
     }
@@ -26,15 +28,32 @@ impl PlayerJoin {
 pub struct PlayerDeposit {
     pub addr: String,
     pub amount: u64,
-    pub access_version: u64,
+    pub settle_version: u64,
 }
 
 impl PlayerDeposit {
-    pub fn new<S: Into<String>>(addr: S, balance: u64, access_version: u64) -> Self {
+    pub fn new<S: Into<String>>(addr: S, balance: u64, settle_version: u64) -> Self {
         Self {
             addr: addr.into(),
             amount: balance,
-            access_version,
+            settle_version,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+pub struct ServerJoin {
+    pub addr: String,
+    pub endpoint: String,
+    pub access_version: u64
+}
+
+impl ServerJoin {
+    pub fn new<S: Into<String>>(addr: S, endpoint: String, access_version: u64) -> Self {
+        Self {
+            addr: addr.into(),
+            endpoint,
+            access_version
         }
     }
 }
@@ -52,8 +71,49 @@ pub struct ServerAccount {
 }
 
 /// The data represent the state of on-chain game account.
-/// A larger `access_serial` means the account has been updated by players.
-/// The length of `players` is `max_players`.
+///
+/// # Access Version and Settle Version
+///
+/// Since the blockchain and transactor is not synchronized, and the
+/// RPC services usually can't provide a sanitized response, we need
+/// two serial number to reflect when the account is updated. We also
+/// rely on these versions to filter out latest events.
+///
+/// * After a player joined, the `access_version` will be increased by 1.
+/// * After a settlement processed, the `settle_version` will be increased by 1.
+/// * After a server attached, the `access_version` will be increased by 1.
+/// * A deposit will use current `settle_version` + 1 to represent an unhandled operation.
+///
+/// # Players and Servers
+///
+/// Non-transactor nodes can only add themselves to the `players` list
+/// or `servers` list.  Only tranactor node can remove a player with
+/// settlement transaction.
+///
+/// If on-chain account requires a fixed length array to represent these lists:
+/// * The max length of `players` is `max_players`.
+/// * The max length of `servers` is 10.
+///
+/// # Deposits
+///
+/// The `deposits` represents a deposit from a player during the game.
+/// The initial join will not produce a deposit record. The timing of
+/// deposit is identified by its `settle_version`. A newly generated
+/// deposit must have a higher `settle_version` which is the one in
+/// game account.  Then, in the settlement, the contract will increase
+/// the `settle_version` by 1, then all deposits under the version
+/// will be handled as well.
+///
+/// Expired deposit records can be safely deleted during the
+/// settlement.
+///
+/// # Data and Data Len
+///
+/// Data is custom-formatted data that depends on the game logic. The
+/// data is used to represent the properties of a game, thus they
+/// should be immutable. If a mutable state is required, it must
+/// always have the same length, which is specified by `data_len`.
+///
 #[derive(
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
@@ -64,7 +124,7 @@ pub struct GameAccount {
     pub access_version: u64,
     pub players: Vec<PlayerJoin>,
     pub deposits: Vec<PlayerDeposit>,
-    pub server_addrs: Vec<String>,
+    pub servers: Vec<ServerJoin>,
     pub transactor_addr: Option<String>,
     pub max_players: u8,
     pub data_len: u32,

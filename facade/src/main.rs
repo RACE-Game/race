@@ -11,11 +11,10 @@ use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error, RpcModule};
 use race_core::types::{
-    CreateGameAccountParams, CreateRegistrationParams, GameAccount, GameBundle, GameRegistration,
-    GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams, GetTransactorInfoParams,
-    JoinParams, PlayerDeposit, PlayerJoin, RegisterGameParams, RegisterServerParams,
-    RegistrationAccount, ServeParams, ServerAccount, SettleOp, SettleParams,
-    UnregisterGameParams, CreatePlayerProfileParams, PlayerProfile,
+    CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, GameAccount,
+    GameBundle, GameRegistration, JoinParams, PlayerDeposit, PlayerJoin, PlayerProfile,
+    RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount,
+    ServerJoin, SettleOp, SettleParams, UnregisterGameParams, DepositParams,
 };
 use std::collections::HashMap;
 use std::fs::File;
@@ -28,6 +27,7 @@ use uuid::Uuid;
 
 type Result<T> = std::result::Result<T, Error>;
 
+const DEFAULT_BALANCE: u64 = 10000;
 const HTTP_HOST: &str = "127.0.0.1:12002";
 const DEFAULT_REGISTRATION_ADDRESS: &str = "DEFAULT_REGISTRATION_ADDRESS";
 const COUNTER_GAME_ADDRESS: &str = "COUNTER_GAME_ADDRESS";
@@ -36,9 +36,15 @@ const SERVER_ADDRESS_1: &str = "SERVER_ADDRESS_1";
 const SERVER_ADDRESS_2: &str = "SERVER_ADDRESS_2";
 const DEFAULT_OWNER_ADDRESS: &str = "DEFAULT_OWNER_ADDRESS";
 
+#[derive(Clone)]
+pub struct PlayerInfo {
+    profile: PlayerProfile,
+    balance: u64,
+}
+
 #[derive(Default)]
 pub struct Context {
-    players: HashMap<String, PlayerProfile>,
+    players: HashMap<String, PlayerInfo>,
     accounts: HashMap<String, GameAccount>,
     registrations: HashMap<String, RegistrationAccount>,
     transactors: HashMap<String, ServerAccount>,
@@ -58,7 +64,7 @@ async fn publish_game_bundle(params: Params<'_>, context: Arc<Mutex<Context>>) -
 }
 
 async fn get_game_bundle(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<GameBundle> {
-    let GetGameBundleParams { addr } = params.one()?;
+    let addr: String = params.one()?;
     println!("Get game bundle: {:?}", addr);
     let context = context.lock().await;
     if let Some(bundle) = context.bundles.get(&addr) {
@@ -72,7 +78,7 @@ async fn get_registration_info(
     params: Params<'_>,
     context: Arc<Mutex<Context>>,
 ) -> Result<RegistrationAccount> {
-    let GetRegistrationParams { addr } = params.one()?;
+    let addr: String = params.one()?;
     println!("Get registration account: {:?}", addr);
     let context = context.lock().await;
     if let Some(registration) = context.registrations.get(&addr) {
@@ -134,25 +140,23 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         "Join game: player: {:?}, game: {:?}, amount: {:?}",
         player_addr, game_addr, amount
     );
-    let access_version = access_version + 1;
     let mut context = context.lock().await;
     let player_join = PlayerJoin {
         addr: player_addr.clone(),
         position,
-        access_version,
-    };
-    let player_deposit = PlayerDeposit {
-        addr: player_addr,
-        amount,
+        balance: amount,
         access_version,
     };
     if let Some(game_account) = context.accounts.get_mut(&game_addr) {
+        if access_version != game_account.access_version {
+            return Err(Error::Custom("Expired transaction".into()));
+        }
         if game_account.players.len() >= game_account.max_players as _ {
             Err(Error::Custom("Game is full".into()))
         } else {
             game_account.access_version = access_version;
             game_account.players.push(player_join);
-            game_account.deposits.push(player_deposit);
+            game_account.access_version += 1;
             Ok(())
         }
     } else {
@@ -160,11 +164,44 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
     }
 }
 
-async fn get_transactor_info(
+async fn deposit(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
+    let DepositParams {
+        player_addr,
+        game_addr,
+        amount,
+        settle_version,
+    } = params.one()?;
+    println!(
+        "Join game: player: {:?}, game: {:?}, amount: {:?}",
+        player_addr, game_addr, amount
+    );
+    let mut context = context.lock().await;
+    let deposit = PlayerDeposit {
+        addr: player_addr.clone(),
+        amount,
+        // Use a larger settle_version to indicate this deposit is not handled.
+        settle_version: settle_version + 1
+    };
+    if let Some(game_account) = context.accounts.get_mut(&game_addr) {
+        if settle_version != game_account.settle_version {
+            return Err(Error::Custom("Expired transaction".into()))
+        }
+        if game_account.players.len() >= game_account.max_players as _ {
+            Err(Error::Custom("Game is full".into()))
+        } else {
+            game_account.deposits.push(deposit);
+            Ok(())
+        }
+    } else {
+        Err(Error::Custom("Game not found".into()))
+    }
+}
+
+async fn get_server_info(
     params: Params<'_>,
     context: Arc<Mutex<Context>>,
 ) -> Result<ServerAccount> {
-    let GetTransactorInfoParams { addr } = params.one()?;
+    let addr: String = params.one()?;
     let context = context.lock().await;
     if let Some(transactor) = context.transactors.get(&addr) {
         Ok(transactor.to_owned())
@@ -186,16 +223,27 @@ async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Re
     Ok(addr)
 }
 
-async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<String> {
+async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
     let CreatePlayerProfileParams { addr, pfp } = params.one()?;
-
-    Ok("".into())
+    let mut context = context.lock().await;
+    context.players.insert(
+        addr.clone(),
+        PlayerInfo {
+            balance: DEFAULT_BALANCE,
+            profile: PlayerProfile { addr, pfp },
+        },
+    );
+    Ok(())
 }
 
-async fn get_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<String> {
-    Ok("".into())
+async fn get_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<PlayerProfile> {
+    let addr: String = params.one()?;
+    let context = context.lock().await;
+    match context.players.get(&addr) {
+        Some(player_info) => Ok(player_info.profile.clone()),
+        None => Err(Error::Custom("Player profile not found".into())),
+    }
 }
-
 
 async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
     let ServeParams {
@@ -207,8 +255,13 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         .transactors
         .get(&server_addr)
         .ok_or(Error::Custom("Server not found".into()))?;
-    let account = context
-        .accounts
+    let Context {
+        transactors,
+        ref mut accounts,
+        ..
+    } = &mut *context;
+
+    let account = accounts
         .get_mut(&game_addr)
         .ok_or(Error::Custom("Account not found".into()))?;
 
@@ -220,15 +273,30 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         account.transactor_addr = Some(server_addr.clone());
     }
 
-    if account.server_addrs.contains(&server_addr) {
-        // return Err(Error::Custom(
-        //     "Game is already served by this server".into(),
-        // ));
+    let server_account = transactors
+        .get(&server_addr)
+        .ok_or(Error::Custom("Server not found".into()))?;
+
+    if account
+        .servers
+        .iter()
+        .find(|s| s.addr.eq(&server_addr))
+        .is_some()
+    {
+        // Game is already served.
+        // We just ignore
+        // However, this transaction should be avoid.
     } else {
-        if account.server_addrs.len() >= 3 {
+        // Should be larger in real case
+        //
+        if account.servers.len() >= 3 {
             return Err(Error::Custom("Server queue is full".into()));
         } else {
-            account.server_addrs.push(server_addr);
+            account.servers.push(ServerJoin::new(
+                server_addr,
+                server_account.endpoint.clone(),
+                account.settle_version,
+            ))
         }
     }
     Ok(())
@@ -281,7 +349,7 @@ async fn unregister_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Re
 }
 
 async fn get_account_info(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<GameAccount> {
-    let GetAccountInfoParams { addr } = params.one()?;
+    let addr: String = params.one()?;
     let context = context.lock().await;
     if let Some(account) = context.accounts.get(&addr) {
         Ok(account.to_owned())
@@ -291,24 +359,72 @@ async fn get_account_info(params: Params<'_>, context: Arc<Mutex<Context>>) -> R
 }
 
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
-    // TODO, no amount handling at the moment
     let SettleParams { addr, settles } = params.one()?;
     println!("Handle settlements {}, with {:?} ", addr, settles);
     let mut context = context.lock().await;
+    let Context {
+        ref mut accounts,
+        ref mut players,
+        ..
+    } = &mut *context;
+
+    // The manipulation should be atomic.
+    let mut accounts = accounts.clone();
+    let mut players = players.clone();
+
+    let game = accounts
+        .get_mut(&addr)
+        .ok_or(Error::Custom("Game not found".into()))?;
+
+    // Expire old deposits
+    game.deposits
+        .retain(|d| d.settle_version < game.settle_version);
+
+    // Increase the `settle_version`
+    game.settle_version += 1;
+
+    // Handle settles
     for s in settles.into_iter() {
         match s.op {
             SettleOp::Eject => {
-                if let Some(game) = context.accounts.get_mut(&addr) {
-                    game.players.retain(|p| p.addr.ne(&s.addr));
-                    game.deposits.retain(|d| d.addr.ne(&s.addr));
+                // Remove player
+                if let Some(index) = game.players.iter().position(|p| p.addr.ne(&s.addr)) {
+                    let p = game.players.remove(index);
+                    let player = players
+                        .get_mut(&p.addr)
+                        .ok_or(Error::Custom("Invalid settle".into()))?;
+                    player.balance += p.balance;
                 } else {
-                    return Err(Error::Custom("Not found".into()));
+                    return Err(Error::Custom("Invalid settle".into()));
                 }
             }
-            SettleOp::Add(_) => (),
-            SettleOp::Sub(_) => (),
+            SettleOp::Add(amount) => {
+                let p = game
+                    .players
+                    .iter_mut()
+                    .find(|p| p.addr.eq(&s.addr))
+                    .ok_or(Error::Custom("Invalid settle".into()))?;
+                p.balance = p
+                    .balance
+                    .checked_add(amount)
+                    .ok_or(Error::Custom("Invalid settle".into()))?;
+            }
+            SettleOp::Sub(amount) => {
+                let p = game
+                    .players
+                    .iter_mut()
+                    .find(|p| p.addr.eq(&s.addr))
+                    .ok_or(Error::Custom("Invalid settle".into()))?;
+                p.balance = p
+                    .balance
+                    .checked_sub(amount)
+                    .ok_or(Error::Custom("Invalid settle".into()))?;
+            }
         }
     }
+
+    context.players = players;
+    context.accounts = accounts;
     Ok(())
 }
 
@@ -322,7 +438,7 @@ async fn run_server() -> anyhow::Result<ServerHandle> {
     let mut module = RpcModule::new(context);
     module.register_async_method("create_game", create_game)?;
     module.register_async_method("get_account_info", get_account_info)?;
-    module.register_async_method("get_transactor_info", get_transactor_info)?;
+    module.register_async_method("get_server_info", get_server_info)?;
     module.register_async_method("get_game_bundle", get_game_bundle)?;
     module.register_async_method("get_registration_info", get_registration_info)?;
     module.register_async_method("publish_game_bundle", publish_game_bundle)?;
@@ -334,6 +450,7 @@ async fn run_server() -> anyhow::Result<ServerHandle> {
     module.register_async_method("get_profile", get_profile)?;
     module.register_async_method("serve", serve)?;
     module.register_async_method("join", join)?;
+    module.register_async_method("deposit", deposit)?;
     module.register_async_method("settle", settle)?;
     let handle = http_server.start(module)?;
     Ok(handle)
@@ -394,7 +511,7 @@ pub fn setup(context: &mut Context) {
         access_version: 0,
         players: vec![],
         deposits: vec![],
-        server_addrs: vec![],
+        servers: vec![],
         transactor_addr: None,
         max_players: 10,
         data_len: 8,

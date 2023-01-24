@@ -13,10 +13,10 @@ use jsonrpsee::wasm_client::WasmClientBuilder as ClientBuilder;
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{
-    CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
-    GameBundle, GetAccountInfoParams, GetGameBundleParams, GetRegistrationParams,
-    GetTransactorInfoParams, JoinParams, PlayerProfile, RegisterGameParams, RegisterServerParams,
-    RegistrationAccount, ServerAccount, SettleParams, UnregisterGameParams, ServeParams,
+    CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
+    CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GetTransactorInfoParams,
+    JoinParams, PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount,
+    ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
 };
 
 use crate::error::{TransportError, TransportResult};
@@ -80,10 +80,9 @@ impl TransportT for FacadeTransport {
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         debug!("Fetch game account: {:?}", addr);
-        let params = GetAccountInfoParams { addr: addr.into() };
         let rs = self
             .client
-            .request("get_account_info", rpc_params![params])
+            .request("get_account_info", rpc_params![addr])
             .await;
         if let Ok(rs) = rs {
             Some(rs)
@@ -93,36 +92,40 @@ impl TransportT for FacadeTransport {
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
-        let params = GetGameBundleParams { addr: addr.into() };
         self.client
-            .request("get_game_bundle", rpc_params![params])
+            .request("get_game_bundle", rpc_params![addr])
             .await
             .ok()
     }
 
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()> {
+        self.client
+            .request("create_profile", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
-        None
+        self.client
+            .request("get_profile", rpc_params![addr])
+            .await
+            .ok()
     }
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
         debug!("Fetch server account: {:?}", addr);
         let params = GetTransactorInfoParams { addr: addr.into() };
         self.client
-            .request("get_transactor_info", rpc_params![params])
+            .request("get_server_info", rpc_params![params])
             .await
             .ok()
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
         debug!("Fetch registration account: {:?}", addr);
-        let params = GetRegistrationParams { addr: addr.into() };
         self.client
-            .request("get_registration_info", rpc_params![params])
+            .request("get_registration_info", rpc_params![addr])
             .await
-            .map_err(|e| {
-                println!("error: {:?}", e);
-                e
-            })
             .ok()
     }
 
@@ -136,6 +139,13 @@ impl TransportT for FacadeTransport {
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
         self.client
             .request("settle", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
+    async fn deposit(&self, params: DepositParams) -> Result<()> {
+        self.client
+            .request("deposit", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
     }

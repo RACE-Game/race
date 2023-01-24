@@ -141,8 +141,11 @@ impl AppClient {
     }
 
     #[wasm_bindgen]
-    /// Attach to game with a callback function.
-    /// The callback function will receive ()
+    /// Attach to game account on chain and connect to the event
+    /// streams.  The event stream will start from a
+    /// checkpoint(settle_version).  We will receive event hhistories
+    /// once the connection is established.
+    ///
     pub async fn attach_game(&self) -> Result<()> {
         info!("Attach to game");
         self.client.attach_game().await?;

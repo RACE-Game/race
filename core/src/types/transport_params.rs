@@ -45,11 +45,6 @@ pub struct UnregisterGameParams {
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-pub struct GetAccountInfoParams {
-    pub addr: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct GetTransactorInfoParams {
     pub addr: String,
 }
@@ -60,24 +55,9 @@ pub struct CloseGameAccountParams {
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-pub struct GetGameBundleParams {
-    pub addr: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-pub struct GetRegistrationParams {
-    pub addr: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct CreatePlayerProfileParams {
     pub addr: String,
     pub pfp: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-pub struct GetPlayerProfileParams {
-    pub addr: String,
 }
 
 /// The player status in settlement.
@@ -143,4 +123,12 @@ pub struct JoinParams {
     pub amount: u64,
     pub access_version: u64,
     pub position: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DepositParams {
+    pub player_addr: String,
+    pub game_addr: String,
+    pub amount: u64,
+    pub settle_version: u64,
 }
