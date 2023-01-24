@@ -2,7 +2,7 @@ use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
 use race_contract;
 use race_contract::entrypoint::UserAccount;
-use race_core::types::{CloseGameAccountParams, CreateGameAccountParams};
+use race_core::types::{CloseGameAccountParams, CreateGameAccountParams, GameAccount};
 use solana_client::rpc_client::RpcClient;
 use solana_program::native_token::LAMPORTS_PER_SOL;
 use solana_program::program_error::ProgramError;
@@ -162,20 +162,22 @@ pub async fn create_and_send_tx(
     Ok(client.process_transaction(tx).await?)
 }
 
-pub async fn update_profile(
+pub async fn create_game(
     mut client: BanksClient,
     program_id: Pubkey,
     user: &Keypair,
     // profile: Profile,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let bundle_addr = std::iter::repeat("X").take(10).collect::<String>();
+    let params = CreateGameAccountParams {
+        bundle_addr: bundle_addr.clone(),
+        max_players: 5,
+        // TODO: if make 10000 or higher - test will fail. FIXME
+        data: std::iter::repeat(1).take(1000).collect::<Vec<u8>>(),
+    };
     let (account_addr, _) =
         Pubkey::find_program_address(&[UserAccount::seed(user.pubkey()).as_slice()], &program_id);
 
-    let acc = UserAccount {
-        post_count: 1,
-        follower_count: 2,
-        following_count: 3,
-    };
     let update_profile_instruction = Instruction {
         program_id,
         accounts: vec![
@@ -183,7 +185,7 @@ pub async fn update_profile(
             AccountMeta::new(system_program::id(), false),
             AccountMeta::new(user.pubkey(), true),
         ],
-        data: acc.try_to_vec()?,
+        data: race_contract::entrypoint::Instruction::CreateGame(params).try_to_vec()?,
     };
 
     create_and_send_tx(
@@ -199,11 +201,10 @@ pub async fn update_profile(
         .await?
         .ok_or("could not find program state account")?;
 
-    let updated_profile = UserAccount::deserialize(&mut account_acc.data.as_slice())?;
-    assert_eq!(updated_profile.follower_count, acc.follower_count);
-    assert_eq!(updated_profile.post_count, acc.post_count);
-    assert_eq!(updated_profile.following_count, acc.following_count);
-
+    let account = GameAccount::deserialize(&mut account_acc.data.as_slice())?;
+    // println!("Got game account {:?} ", updated_profile);
+    assert_eq!(account.bundle_addr, bundle_addr);
+    assert_eq!(account.addr, account_addr.to_string());
     Ok(())
 }
 
@@ -229,7 +230,7 @@ async fn tesfdft() -> Result<(), Box<dyn Error>> {
 
     let user = Keypair::new();
     request_airdrop(client.clone(), &mint, &user, LAMPORTS_PER_SOL * 10).await?;
-    update_profile(client, program_id, &user).await?;
+    create_game(client, program_id, &user).await?;
     // send_create_game_instruction(
     //     client.clone(),
     //     program_id,
