@@ -2,13 +2,13 @@
 //! The broadcast should also save
 //
 
-use std::sync::Arc;
 use std::collections::LinkedList;
+use std::sync::Arc;
 
 use race_core::event::Event;
 use race_core::types::{BroadcastFrame, GameAccount};
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
-use tracing::info;
+use tracing::{error, info};
 
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
@@ -92,12 +92,22 @@ impl Component<BroadcasterContext> for Broadcaster {
                                     game_addr: ctx.game_addr.clone(),
                                     event,
                                 })
-                                .unwrap();
+                                .map_err(|e| {
+                                    error!("Broadcaster failed to send: {:?}", e);
+                                    e
+                                })
+                                .ok();
                         }
                         _ => (),
                     }
                 } else {
-                    ctx.closed_tx.send(CloseReason::Complete).unwrap();
+                    ctx.closed_tx
+                        .send(CloseReason::Complete)
+                        .map_err(|e| {
+                            error!("Broadcaster failed to close: {:?}", e);
+                            e
+                        })
+                        .unwrap();
                     break;
                 }
             }

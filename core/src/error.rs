@@ -2,7 +2,7 @@ use thiserror::Error;
 use serde::{Serialize, Deserialize};
 use borsh::{BorshDeserialize, BorshSerialize};
 
-#[derive(Error, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize, Clone)]
+#[derive(Error, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq)]
 pub enum Error {
     #[error("Player already joined")]
     PlayerAlreadyJoined,
@@ -100,6 +100,9 @@ pub enum Error {
     #[error("Invalid transactor address")]
     InvalidTransactorAddress,
 
+    #[error("Failed to load on-chain server account, please register first")]
+    ServerAccountMissing,
+
     #[error("Initialization transport failed: {0}")]
     InitializationTransportFailed(String),
 
@@ -138,11 +141,20 @@ pub enum Error {
 
     #[error("Invalid Settle")]
     InvalidSettle,
+
+    #[error("IO Error: {0}")]
+    IoError(String),
 }
 
 impl From<serde_json::Error> for Error {
     fn from(e: serde_json::Error) -> Self {
         Error::MalformedData(e.to_string())
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Error::IoError(e.to_string())
     }
 }
 

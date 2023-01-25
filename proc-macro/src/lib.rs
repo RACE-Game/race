@@ -34,8 +34,10 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
             let mut context: race_core::context::GameContext = read_ptr(&mut ptr, context_size);
             let event: race_core::event::Event = read_ptr(&mut ptr, event_size);
             let mut handler: #s_idt = context.get_handler_state();
-            handler.handle_event(&mut context, event).unwrap();
-            context.set_handler_state(&handler);
+            match handler.handle_event(&mut context, event) {
+                Ok(_) => context.set_handler_state(&handler),
+                Err(e) => context.set_error(e),
+            }
             let mut ptr = 1 as *mut u8;
             write_ptr(&mut ptr, context)
         }
@@ -45,8 +47,10 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
             let mut ptr = 1 as *mut u8;
             let mut context: race_core::context::GameContext = read_ptr(&mut ptr, context_size);
             let init_account: race_core::types::GameAccount = read_ptr(&mut ptr, init_account_size);
-            let handler = #s_idt::init_state(&mut context, init_account).unwrap();
-            context.set_handler_state(&handler);
+            match #s_idt::init_state(&mut context, init_account) {
+                Ok(handler) => context.set_handler_state(&handler),
+                Err(e) => context.set_error(e),
+            }
             let mut ptr = 1 as *mut u8;
             write_ptr(&mut ptr, context)
         }

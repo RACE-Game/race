@@ -5,7 +5,7 @@ mod transport_params;
 
 pub use common::{
     empty_secret_key, empty_secret_key_raw, Ciphertext, ClientMode, SecretDigest, SecretKey,
-    SecretKeyRaw, Signature,
+    SecretKeyRaw, Signature, RandomId, Addr, SecretIdent, SecretShare
 };
 
 pub use accounts::{

@@ -1,6 +1,9 @@
-use race_core::context::GameContext;
+use std::time::Duration;
+
+use race_core::context::{DispatchEvent, GameContext};
 use race_core::error::Error;
 use race_core::event::Event;
+use tokio::select;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 
@@ -66,6 +69,12 @@ async fn handle(
             .await
             .unwrap();
 
+            out.send(EventFrame::ContextUpdated {
+                context: game_context.clone(),
+            })
+            .await
+            .unwrap();
+
             // We do optimistic updates here
             if let Some(settles) = effects.settles {
                 out.send(EventFrame::Settle { settles }).await.unwrap();
@@ -75,13 +84,39 @@ async fn handle(
     }
 }
 
+async fn retrieve_event(
+    input_rx: &mut mpsc::Receiver<EventFrame>,
+    dispatch: &Option<DispatchEvent>,
+) -> Option<EventFrame> {
+    if let Some(dispatch) = dispatch {
+        if dispatch.timeout == 0 {
+            return Some(EventFrame::SendServerEvent {
+                event: dispatch.event.clone(),
+            });
+        }
+        let to = tokio::time::sleep(Duration::from_millis(dispatch.timeout));
+        select! {
+            ef = input_rx.recv() => {
+                ef
+            }
+            _ = to => {
+                Some(EventFrame::SendServerEvent {event: dispatch.event.clone()})
+            }
+        }
+    } else {
+        input_rx.recv().await
+    }
+}
+
 impl Component<EventLoopContext> for EventLoop {
     fn run(&mut self, mut ctx: EventLoopContext) {
         tokio::spawn(async move {
             let mut handler = ctx.handler;
             let mut game_context = ctx.game_context;
             let output_tx = ctx.output_tx;
-            while let Some(event_frame) = ctx.input_rx.recv().await {
+            while let Some(event_frame) =
+                retrieve_event(&mut ctx.input_rx, game_context.get_dispatch()).await
+            {
                 match event_frame {
                     EventFrame::PlayerJoined { new_players } => {
                         info!("Event loop handle player joined");
@@ -100,6 +135,9 @@ impl Component<EventLoopContext> for EventLoop {
                         handle(&mut handler, &mut game_context, event, &output_tx).await;
                     }
                     EventFrame::SendEvent { event } => {
+                        handle(&mut handler, &mut game_context, event, &output_tx).await;
+                    }
+                    EventFrame::SendServerEvent { event } => {
                         handle(&mut handler, &mut game_context, event, &output_tx).await;
                     }
                     EventFrame::Shutdown => {

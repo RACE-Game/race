@@ -124,7 +124,7 @@ impl TestGameAccountBuilder {
     }
 
     pub fn with_data<T: BorshSerialize>(self, account_data: T) -> Self {
-        let data = account_data.try_to_vec().unwrap();
+        let data = account_data.try_to_vec().expect("Serialize data failed");
         self.with_data_vec(data)
     }
 

@@ -13,7 +13,7 @@ use race_core::types::{
 };
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
-use tracing::info;
+use tracing::{error, info, warn};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -50,23 +50,6 @@ async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>
         .await
         .map_err(|e| Error::Call(CallError::Failed(e.into())))
 }
-
-// async fn retrieve_events(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<Vec<Event>> {
-//     let (game_addr, arg, sig) = params.parse::<(String, RetrieveEventsParams, Signature)>()?;
-
-//     let context = context.lock().await;
-//     context
-//         .verify(&game_addr, &arg, &sig)
-//         .await
-//         .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
-//     let game_handle = context.get_game(&game_addr).ok_or_else(|| {
-//         Error::Call(CallError::Failed(
-//             race_core::error::Error::GameNotLoaded.into(),
-//         ))
-//     })?;
-
-//     Ok(game_handle.broadcaster.retrieve_events(arg.settle_version).await)
-// }
 
 async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<String> {
     let (game_addr, arg, sig) = params.parse::<(String, GetStateParams, Signature)>()?;
@@ -132,17 +115,24 @@ fn subscribe_event(
                     game_addr: game_addr.clone(),
                     event: e,
                 })
-                .unwrap();
+                .map_err(|e| {
+                    error!("Error occurred when broadcasting event histories: {:?}", e);
+                    e
+                }).unwrap();
             });
 
             drop(context);
 
             match sink.pipe_from_try_stream(rx).await {
                 SubscriptionClosed::Success => {
+                    info!("Subscription closed successfully");
                     sink.close(SubscriptionClosed::Success);
                 }
-                SubscriptionClosed::RemotePeerAborted => (),
+                SubscriptionClosed::RemotePeerAborted => {
+                    warn!("Remote peer aborted");
+                },
                 SubscriptionClosed::Failed(err) => {
+                    warn!("Subscription error: {:?}", err);
                     sink.close(err);
                 }
             };

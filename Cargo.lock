@@ -2590,11 +2590,15 @@ dependencies = [
 name = "race-example-counter"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "borsh",
  "race-core",
  "race-proc-macro",
+ "race-test",
  "serde",
  "serde_json",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

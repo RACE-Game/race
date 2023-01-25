@@ -1,25 +1,28 @@
 #![cfg(target_arch = "wasm32")]
 
 use std::mem::swap;
+use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
+use race_core::encryptor::EncryptorT;
 use race_core::engine::{after_handle_event, general_handle_event, general_init_state};
 use race_core::error::Result;
 
 use js_sys::WebAssembly::{Instance, Memory};
 use js_sys::{Function, Object, Reflect, Uint8Array, WebAssembly};
 use race_core::event::Event;
-use race_core::types::{GameBundle, GameAccount};
+use race_core::types::{GameAccount, GameBundle};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
 pub struct Handler {
     pub instance: Instance,
+    pub encryptor: Arc<dyn EncryptorT>,
 }
 
 impl Handler {
-    pub async fn from_bundle(mut game_bundle: GameBundle) -> Self {
+    pub async fn from_bundle(mut game_bundle: GameBundle, encryptor: Arc<dyn EncryptorT>) -> Self {
         let bin = game_bundle.data.as_mut_slice();
         let mem_descriptor = Object::new();
         Reflect::set(&mem_descriptor, &"shared".into(), &true.into()).unwrap();
@@ -35,10 +38,14 @@ impl Handler {
             .unwrap()
             .dyn_into()
             .unwrap();
-        Self { instance }
+        Self { instance, encryptor }
     }
 
-    fn custom_init_state(&self, context: &mut GameContext, init_account: &GameAccount) -> Result<()> {
+    fn custom_init_state(
+        &self,
+        context: &mut GameContext,
+        init_account: &GameAccount,
+    ) -> Result<()> {
         let exports = self.instance.exports();
         let mem = Reflect::get(exports.as_ref(), &"memory".into())
             .unwrap()
@@ -138,18 +145,14 @@ impl Handler {
 
     pub fn handle_event(&self, context: &mut GameContext, event: &Event) -> Result<()> {
         let mut new_context = context.clone();
-        general_handle_event(&mut new_context, event)?;
+        general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
         self.custom_handle_event(&mut new_context, event)?;
         after_handle_event(context, &mut new_context)?;
         swap(context, &mut new_context);
         Ok(())
     }
 
-    pub fn init_state(
-        &self,
-        context: &mut GameContext,
-        init_account: &GameAccount,
-    ) -> Result<()> {
+    pub fn init_state(&self, context: &mut GameContext, init_account: &GameAccount) -> Result<()> {
         let mut new_context = context.clone();
         general_init_state(&mut new_context, init_account)?;
         self.custom_init_state(&mut new_context, init_account)?;

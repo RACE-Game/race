@@ -9,8 +9,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    event::SecretIdent,
-    types::{Ciphertext, SecretDigest, SecretKey},
+    types::{Ciphertext, SecretDigest, SecretKey, SecretIdent},
 };
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -59,6 +58,9 @@ pub enum Error {
 
     #[error("secrets are not ready")]
     SecretsNotReady,
+
+    #[error("No enough owners")]
+    NoEnoughOwners,
 }
 
 impl From<Error> for crate::error::Error {
@@ -192,7 +194,7 @@ impl LockedCiphertext {
 }
 
 #[derive(Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
-pub struct SecretShare {
+pub struct Share {
     from_addr: String,
     // None means public revealed
     to_addr: Option<String>,
@@ -220,7 +222,7 @@ pub struct RandomState {
     pub status: RandomStatus,
     pub masks: Vec<Mask>,
     pub ciphertexts: Vec<LockedCiphertext>,
-    pub secret_shares: Vec<SecretShare>,
+    pub secret_shares: Vec<Share>,
     pub revealed: HashMap<usize, String>,
 }
 
@@ -245,7 +247,7 @@ impl RandomState {
         self.ciphertexts.get_mut(index)
     }
 
-    pub fn new(id: usize, rnd: &dyn RandomSpec, owners: &[String]) -> Self {
+    pub fn try_new(id: usize, rnd: &dyn RandomSpec, owners: &[String]) -> Result<Self> {
         let options = rnd.options();
         let ciphertexts = options
             .iter()
@@ -255,17 +257,18 @@ impl RandomState {
             })
             .collect();
         let masks = owners.iter().map(Mask::new).collect();
-        Self {
+        let status = RandomStatus::Masking(owners.first().ok_or(Error::NoEnoughOwners)?.to_owned());
+        Ok(Self {
             id,
             size: rnd.size(),
             masks,
             owners: owners.to_owned(),
             options: options.clone(),
-            status: RandomStatus::Masking(owners.first().unwrap().to_owned()),
+            status,
             ciphertexts,
             revealed: HashMap::new(),
             secret_shares: Vec::new(),
-        }
+        })
     }
 
     pub fn mask<S: AsRef<str>>(&mut self, addr: S, mut ciphertexts: Vec<Ciphertext>) -> Result<()> {
@@ -369,7 +372,7 @@ impl RandomState {
             }
             let secrets = &mut self.secret_shares;
             for o in self.owners.iter() {
-                secrets.push(SecretShare {
+                secrets.push(Share {
                     from_addr: o.to_owned(),
                     to_addr: Some(addr.to_owned()),
                     index: i,
@@ -405,7 +408,7 @@ impl RandomState {
             }
             let secrets = &mut self.secret_shares;
             for o in self.owners.iter() {
-                secrets.push(SecretShare {
+                secrets.push(Share {
                     from_addr: o.to_owned(),
                     to_addr: None,
                     index: i,
@@ -574,10 +577,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_new_random_spec() {
+    fn test_new_random_spec() -> Result<()> {
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let state = RandomState::new(0, &rnd, &["alice".into(), "bob".into(), "charlie".into()]);
+        let state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into(), "charlie".into()])?;
         assert_eq!(3, state.masks.len());
+        Ok(())
     }
 
     #[test]
@@ -589,9 +593,9 @@ mod tests {
     }
 
     #[test]
-    fn test_mask() {
+    fn test_mask() -> Result<()>{
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::new(0, &rnd, &["alice".into(), "bob".into()]);
+        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
         assert_eq!(RandomStatus::Masking("alice".into()), state.status);
         state
             .mask("alice", vec![vec![1], vec![2], vec![3]])
@@ -604,12 +608,13 @@ mod tests {
             .expect("failed to mask");
         assert_eq!(RandomStatus::Locking("alice".into()), state.status);
         assert_eq!(true, state.is_fully_masked());
+        Ok(())
     }
 
     #[test]
-    fn test_lock() {
+    fn test_lock() -> Result<()> {
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::new(0, &rnd, &["alice".into(), "bob".into()]);
+        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
         state
             .mask("alice", vec![vec![1], vec![2], vec![3]])
             .expect("failed to mask");
@@ -639,5 +644,6 @@ mod tests {
             .expect("failed to lock");
         assert_eq!(RandomStatus::Ready, state.status);
         assert_eq!(true, state.is_fully_locked());
+        Ok(())
     }
 }

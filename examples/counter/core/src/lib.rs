@@ -3,10 +3,11 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
 use race_core::engine::GameHandler;
-use race_core::error::{Error, Result};
+use race_core::error::Result;
 use race_core::event::CustomEvent;
 use race_core::event::Event;
-use race_core::types::GameAccount;
+use race_core::random::deck_of_cards;
+use race_core::types::{GameAccount, RandomId};
 use race_proc_macro::game_handler;
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +22,8 @@ impl CustomEvent for GameEvent {}
 #[derive(Default, Deserialize, Serialize)]
 pub struct Counter {
     value: u64,
+    poker_random_id: RandomId,
+    poker_card: String,
     num_of_players: u64,
     num_of_servers: u64,
 }
@@ -44,11 +47,12 @@ impl Counter {
 impl GameHandler for Counter {
     fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
         let data = init_account.data;
-        let account_data =
-            CounterAccountData::try_from_slice(&data).or(Err(Error::DeserializeError))?;
+        let account_data = CounterAccountData::try_from_slice(&data)?;
         context.set_allow_leave(true);
         Ok(Self {
             value: account_data.init_value,
+            poker_random_id: 0,
+            poker_card: "??".into(),
             num_of_players: init_account.players.len() as _,
             num_of_servers: init_account.servers.len() as _,
         })
@@ -65,6 +69,20 @@ impl GameHandler for Counter {
                 position: _,
             } => {
                 self.num_of_players += 1;
+                // Create some randomness
+                let poker_spec = deck_of_cards();
+                self.poker_random_id = context.init_random_state(&poker_spec)?;
+                Ok(())
+            }
+            Event::RandomnessReady => {
+                context.reveal(self.poker_random_id, vec![0])?;
+                Ok(())
+            }
+            Event::SecretsReady => {
+                let revealed = context.get_revealed(self.poker_random_id)?;
+                println!("Revealed: {:?}", revealed);
+                let card = revealed.get(&0).unwrap();
+                self.poker_card = card.to_owned();
                 Ok(())
             }
             Event::Leave { player_addr: _ } => {
@@ -78,25 +96,36 @@ impl GameHandler for Counter {
 
 #[cfg(test)]
 mod tests {
+    use race_test::TestGameAccountBuilder;
+
     use super::*;
+
+    fn init_context() -> GameContext {
+        let game_account = TestGameAccountBuilder::default().add_servers(1).build();
+        GameContext::new(&game_account).unwrap()
+    }
 
     #[test]
     fn test_player_join() {
-        let mut ctx = GameContext::default();
+        let mut ctx = init_context();
         let evt = Event::Join {
             player_addr: "Alice".into(),
             balance: 1000,
             position: 0,
         };
         let mut hdlr = Counter::default();
-        hdlr.handle_event(&mut ctx, evt).unwrap();
+        hdlr.handle_event(&mut ctx, evt)
+            .expect("handle event error");
         assert_eq!(1, hdlr.num_of_players);
     }
 
     #[test]
     fn test_increase() {
-        let mut ctx = GameContext::default();
-        let evt = Event::custom(ctx.get_transactor_addr().to_owned(), &GameEvent::Increase(1));
+        let mut ctx = init_context();
+        let evt = Event::custom(
+            ctx.get_transactor_addr().to_owned(),
+            &GameEvent::Increase(1),
+        );
         let mut hdlr = Counter::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
         assert_eq!(1, hdlr.value);

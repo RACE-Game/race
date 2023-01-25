@@ -116,7 +116,7 @@ impl GameHandler for MinimalHandler {
             // Reset current game state.  Set up randomness
             Event::GameStart => {
                 let rnd_spec = deck_of_cards();
-                self.deck_random_id = context.init_random_state(&rnd_spec);
+                self.deck_random_id = context.init_random_state(&rnd_spec)?;
                 self.stage = GameStage::Dealing;
             }
 

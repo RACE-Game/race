@@ -2,14 +2,15 @@ use std::collections::HashMap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::Serialize;
+use tracing::info;
 
 use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
 use crate::random::RandomStatus;
-use crate::types::{SecretKey, Settle, SettleOp};
+use crate::types::{SecretShare, Settle, SettleOp};
 use crate::{
-    event::{Event, SecretIdent},
+    event::Event,
     random::{RandomSpec, RandomState},
     types::{Ciphertext, GameAccount},
 };
@@ -113,14 +114,7 @@ pub struct GameContext {
     pub(crate) random_states: Vec<RandomState>,
     // Settles, if is not None, will be handled by event loop.
     pub(crate) settles: Option<Vec<Settle>>,
-    // /// The encrption keys from every nodes.
-    // /// Keys are node address.
-    // pub encrypt_keys: HashMap<&'a str, Vec<u8>>,
-
-    // /// The verification keys from every nodes.
-    // /// Both players and validators have their verify keys.
-    // /// Keys are node address.
-    // pub verify_keys: HashMap<&'a str, String>,
+    pub(crate) error: Option<Error>,
 }
 
 impl GameContext {
@@ -159,6 +153,7 @@ impl GameContext {
             allow_leave: false,
             random_states: vec![],
             settles: None,
+            error: None,
         })
     }
 
@@ -243,6 +238,10 @@ impl GameContext {
         &self.dispatch
     }
 
+    pub fn cancel_dispatch(&mut self) {
+        self.dispatch = None;
+    }
+
     pub fn get_access_version(&self) -> u64 {
         self.access_version
     }
@@ -303,6 +302,14 @@ impl GameContext {
             .all(|st| st.status == RandomStatus::Ready)
     }
 
+    pub fn set_error(&mut self, error: Error) {
+        self.error = Some(error)
+    }
+
+    pub fn get_error(&self) -> &Option<Error> {
+        &self.error
+    }
+
     /// Set game status
     pub fn set_game_status(&mut self, status: GameStatus) {
         self.status = status;
@@ -337,6 +344,13 @@ impl GameContext {
     /// Remove player from the game.
     pub fn remove_player(&mut self, addr: &str) -> Result<()> {
         let orig_len = self.players.len();
+        info!(
+            "Current players: {:?}",
+            self.players
+                .iter()
+                .map(|p| p.addr.as_str())
+                .collect::<Vec<&str>>()
+        );
         if self.allow_leave {
             self.players.retain(|p| p.addr.ne(&addr));
             if orig_len == self.players.len() {
@@ -358,20 +372,18 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn init_random_state(&mut self, rnd: &dyn RandomSpec) -> usize {
+    pub fn init_random_state(&mut self, rnd: &dyn RandomSpec) -> Result<usize> {
         let random_id = self.random_states.len();
         let owners: Vec<String> = self.servers.iter().map(|v| v.addr.clone()).collect();
-        let random_state = RandomState::new(random_id, rnd, &owners);
+        let random_state = RandomState::try_new(random_id, rnd, &owners)?;
         self.random_states.push(random_state);
-        random_id
+        Ok(random_id)
     }
 
-    pub fn add_shared_secrets(
-        &mut self,
-        _addr: &str,
-        shares: HashMap<SecretIdent, SecretKey>,
-    ) -> Result<()> {
-        for (idt, secret) in shares.into_iter() {
+    pub fn add_shared_secrets(&mut self, _addr: &str, shares: Vec<SecretShare>) -> Result<()> {
+        for ss in shares.into_iter() {
+            let (idt, secret) = ss.into();
+            println!("random_id {:?}", idt.random_id);
             let random_state = self.get_random_state_mut(idt.random_id)?;
             random_state.add_secret(idt.from_addr, idt.to_addr, idt.index, secret)?;
         }
@@ -418,9 +430,7 @@ impl GameContext {
             std::mem::swap(&mut settles, &mut self.settles);
             for s in settles.as_ref().unwrap().iter() {
                 match s.op {
-                    SettleOp::Eject => {
-                        self.remove_player(&s.addr)?;
-                    }
+                    SettleOp::Eject => {}
                     SettleOp::Add(amount) => {
                         let p = self
                             .get_player_mut_by_address(&s.addr)

@@ -29,6 +29,7 @@ function render(event, state) {
   document.getElementById("value").innerText = "" + state.value;
   document.getElementById("num_of_players").innerText = "" + state.num_of_players;
   document.getElementById("num_of_servers").innerText = "" + state.num_of_servers;
+  console.log("New state =>", state);
   if (event !== null) {
     events.push(event);
     let innerHTML = "";

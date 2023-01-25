@@ -1,18 +1,22 @@
 use std::mem::swap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
+use race_core::encryptor::EncryptorT;
 use race_core::engine::{after_handle_event, general_handle_event, general_init_state};
 use race_core::error::{Error, Result};
 use race_core::event::Event;
-use race_core::transport::TransportT;
-use race_core::types::{GameAccount, Settle};
+use race_core::types::{GameAccount, GameBundle, Settle};
+use race_encryptor::Encryptor;
+use tracing::{error, info};
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
 
 pub struct WrappedHandler {
     store: Store,
     instance: Instance,
+    encryptor: Arc<dyn EncryptorT>,
 }
 
 pub struct Effects {
@@ -21,18 +25,16 @@ pub struct Effects {
 
 impl WrappedHandler {
     /// Load WASM bundle by game address
-    pub async fn load_by_addr(addr: &str, transport: &dyn TransportT) -> Result<Self> {
-        println!("Fetch game bundle from: {:?}", addr);
+    pub async fn load_by_bundle(
+        bundle: &GameBundle,
+        encryptor: Arc<dyn EncryptorT>,
+    ) -> Result<Self> {
         let mut store = Store::default();
-        let game_bundle = transport
-            .get_game_bundle(addr)
-            .await
-            .ok_or(Error::GameBundleNotFound)?;
         let module =
-            Module::from_binary(&store, &game_bundle.data).or(Err(Error::MalformedGameBundle))?;
+            Module::from_binary(&store, &bundle.data).or(Err(Error::MalformedGameBundle))?;
         let import_object = imports![];
         let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
-        Ok(Self { store, instance })
+        Ok(Self { store, instance, encryptor })
     }
 
     /// Load WASM bundle by relative path
@@ -40,10 +42,15 @@ impl WrappedHandler {
     #[allow(dead_code)]
     pub fn load_by_path(path: PathBuf) -> Result<Self> {
         let mut store = Store::default();
+        let encryptor = Arc::new(Encryptor::default());
         let module = Module::from_file(&store, path).expect("Fail to load module");
         let import_object = imports![];
         let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
-        Ok(Self { store, instance })
+        Ok(Self {
+            store,
+            instance,
+            encryptor,
+        })
     }
 
     pub fn custom_init_state(
@@ -56,7 +63,7 @@ impl WrappedHandler {
             .exports
             .get_memory("memory")
             .expect("Get memory failed");
-        memory.grow(&mut self.store, 1).expect("Failed to grow");
+        memory.grow(&mut self.store, 20).expect("Failed to grow");
         let init_state: TypedFunction<(u32, u32), u32> = self
             .instance
             .exports
@@ -83,7 +90,11 @@ impl WrappedHandler {
         let mut buf = vec![0; len as _];
         mem_view.read(1u64, &mut buf).unwrap();
         *context = GameContext::try_from_slice(&buf).unwrap();
-        Ok(())
+        if let Some(e) = context.get_error() {
+            Err(e.clone())
+        } else {
+            Ok(())
+        }
     }
 
     fn custom_handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
@@ -108,18 +119,29 @@ impl WrappedHandler {
         mem_view
             .write(offset as _, &event_bs)
             .expect("Failed to write event");
+        offset += event_bs.len() as u64;
+        info!("Game handler memory size: {}", mem_view.data_size());
+        info!("Used: {}", offset);
         let len = handle_event
             .call(&mut self.store, context_bs.len() as _, event_bs.len() as _)
+            .map_err(|e| {
+                error!("An error occurred in game handler: {:?}", e);
+                e
+            })
             .expect("Handle event error");
         let mut buf = vec![0; len as _];
         mem_view.read(1u64, &mut buf).unwrap();
         *context = GameContext::try_from_slice(&buf).unwrap();
-        Ok(())
+        if let Some(e) = context.get_error() {
+            Err(e.clone())
+        } else {
+            Ok(())
+        }
     }
 
     pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<Effects> {
         let mut new_context = context.clone();
-        general_handle_event(&mut new_context, event)?;
+        general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
         self.custom_handle_event(&mut new_context, event)?;
         after_handle_event(context, &mut new_context)?;
         let settles = new_context.apply_and_take_settles()?;

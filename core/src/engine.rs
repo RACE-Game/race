@@ -2,7 +2,8 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
     context::{GameContext, GameStatus, PlayerStatus},
-    error::Result,
+    encryptor::EncryptorT,
+    error::{Error, Result},
     event::Event,
     types::{GameAccount, Settle},
 };
@@ -20,7 +21,11 @@ pub fn general_init_state(_context: &mut GameContext, _init_account: &GameAccoun
 }
 
 /// A general function for system events handling.
-pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<()> {
+pub fn general_handle_event(
+    context: &mut GameContext,
+    event: &Event,
+    encryptor: &dyn EncryptorT,
+) -> Result<()> {
     // Remove current event disptaching
     context.dispatch = None;
 
@@ -60,7 +65,18 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
             position,
         } => context.add_player(player_addr, *balance, *position),
 
-        Event::Leave { player_addr } => context.remove_player(player_addr),
+        Event::Leave { player_addr } => {
+            if context
+                .players
+                .iter()
+                .find(|p| p.addr.eq(player_addr))
+                .is_none()
+            {
+                Err(Error::InvalidPlayerAddress)
+            } else {
+                context.remove_player(player_addr)
+            }
+        }
 
         Event::GameStart => {
             context.set_game_status(GameStatus::Initializing);
@@ -74,7 +90,23 @@ pub fn general_handle_event(context: &mut GameContext, event: &Event) -> Result<
             Ok(())
         }
 
-        Event::SecretsReady => Ok(()),
+        Event::SecretsReady => {
+            // let decryption = transactor.decrypt(&ctx, 0)?;
+            let mut res = vec![];
+            for random_state in context.list_random_states() {
+                let options = &random_state.options;
+                let revealed = encryptor.decrypt_with_secrets(
+                    random_state.list_revealed_ciphertexts(),
+                    random_state.list_revealed_secrets()?,
+                    options,
+                )?;
+                res.push((random_state.id, revealed));
+            }
+            for (random_id, revealed) in res.into_iter() {
+                context.add_revealed(random_id, revealed)?;
+            }
+            Ok(())
+        }
 
         _ => Ok(()),
     }

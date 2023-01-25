@@ -1,71 +1,6 @@
-use std::collections::HashMap;
-
-use crate::types::{Ciphertext, SecretDigest};
+use crate::types::{Ciphertext, SecretDigest, SecretShare};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-
-#[derive(
-    Hash,
-    Debug,
-    BorshDeserialize,
-    BorshSerialize,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    Clone,
-    PartialOrd,
-    Ord,
-)]
-pub struct SecretIdent {
-    pub from_addr: String,
-    pub to_addr: Option<String>,
-    pub random_id: usize,
-    pub index: usize,
-}
-
-#[derive(
-    Hash,
-    Debug,
-    BorshDeserialize,
-    BorshSerialize,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    Clone,
-    PartialOrd,
-    Ord,
-)]
-pub struct ItemIdent {
-    pub random_id: usize,
-    pub index: usize,
-}
-
-impl SecretIdent {
-    pub fn new_for_assigned<S: Into<String>>(
-        random_id: usize,
-        index: usize,
-        from_addr: S,
-        to_addr: S,
-    ) -> Self {
-        SecretIdent {
-            from_addr: from_addr.into(),
-            to_addr: Some(to_addr.into()),
-            random_id,
-            index,
-        }
-    }
-
-    pub fn new_for_revealed<S: Into<String>>(random_id: usize, index: usize, from_addr: S) -> Self {
-        SecretIdent {
-            from_addr: from_addr.into(),
-            to_addr: None,
-            random_id,
-            index,
-        }
-    }
-}
 
 #[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum Event {
@@ -80,7 +15,7 @@ pub enum Event {
     /// The `secret_data` is encrypted with the receiver's public key.
     ShareSecrets {
         sender: String,
-        secrets: HashMap<SecretIdent, Vec<u8>>,
+        secrets: Vec<SecretShare>,
     },
 
     /// Randomize items.
@@ -105,7 +40,11 @@ pub enum Event {
 
     /// Client joined game.
     /// This event is sent by transactor based on client's connection status.
-    Join { player_addr: String, balance: u64, position: usize },
+    Join {
+        player_addr: String,
+        balance: u64,
+        position: usize,
+    },
 
     /// Client left game
     /// This event is sent by transactor based on client's connection status.

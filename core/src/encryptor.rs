@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::types::{Ciphertext, SecretDigest, SecretKey, Signature};
 use thiserror::Error;
 
@@ -9,6 +11,8 @@ pub enum Error {
     #[error("Encode failed")]
     EncodeFailed,
 
+    #[error("Decode failed")]
+    DecodeFailed,
 
     #[error("Rsa encrypt failed")]
     RsaEncryptFailed(String),
@@ -16,10 +20,13 @@ pub enum Error {
     #[error("Rsa decrypt failed")]
     RsaDecryptFailed(String),
 
-    #[error("Sign failed")]
+    #[error("Sign failed: {0}")]
     SignFailed(String),
 
-    #[error("Verify failed")]
+    #[error("Invalid result: {0}")]
+    InvalidResult(String),
+
+    #[error("Verify failed: {0}")]
     VerifyFailed(String),
 
     #[error("Aes encrypt failed")]
@@ -48,6 +55,9 @@ pub enum Error {
 
     #[error("Read public key error")]
     ReadPublicKeyError,
+
+    #[error("Missing secrets")]
+    MissingSecret,
 }
 
 impl From<Error> for crate::error::Error {
@@ -84,6 +94,28 @@ pub trait EncryptorT: std::fmt::Debug + Send + Sync {
     fn shuffle(&self, items: &mut Vec<Ciphertext>);
 
     fn digest(&self, text: &[u8]) -> SecretDigest;
+
+    fn decrypt_with_secrets(
+        &self,
+        ciphertext_map: HashMap<usize, Ciphertext>,
+        mut secret_map: HashMap<usize, Vec<SecretKey>>,
+        valid_options: &[String],
+    ) -> Result<HashMap<usize, String>> {
+        let mut ret = HashMap::new();
+        for (i, mut buf) in ciphertext_map.into_iter() {
+            if let Some(secrets) = secret_map.remove(&i) {
+                self.apply_multi(secrets, &mut buf);
+                let value = String::from_utf8(buf).or(Err(Error::DecodeFailed))?;
+                if !valid_options.contains(&value) {
+                    return Err(Error::InvalidResult(value))?;
+                }
+                ret.insert(i, value);
+            } else {
+                return Err(Error::MissingSecret);
+            }
+        }
+        Ok(ret)
+    }
 }
 
 pub trait Digestable {

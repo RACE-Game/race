@@ -5,6 +5,7 @@ use race_core::engine::{general_handle_event, general_init_state, GameHandler};
 use race_core::error::Result;
 use race_core::event::Event;
 use race_core::types::GameAccount;
+use race_encryptor::Encryptor;
 
 /// A wrapped handler for testing
 /// This handler includes the general event handling, which is necessary for integration test.
@@ -26,7 +27,8 @@ impl<H: GameHandler> TestHandler<H> {
 
     pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
         let mut new_context = context.clone();
-        general_handle_event(&mut new_context, event)?;
+        let encryptor = Encryptor::default();
+        general_handle_event(&mut new_context, event, &encryptor)?;
         self.handler.handle_event(&mut new_context, event.to_owned())?;
         swap(context, &mut new_context);
         Ok(())

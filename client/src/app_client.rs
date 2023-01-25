@@ -113,11 +113,11 @@ impl AppClient {
             game_addr.to_owned(),
             ClientMode::Player,
             transport.clone(),
-            encryptor,
+            encryptor.clone(),
             connection.clone(),
         )?;
 
-        let handler = Handler::from_bundle(game_bundle).await;
+        let handler = Handler::from_bundle(game_bundle, encryptor).await;
 
         let mut game_context = GameContext::new(&game_account)?;
 
@@ -146,7 +146,6 @@ impl AppClient {
     /// streams.  The event stream will start from a
     /// checkpoint(settle_version).  We will receive event hhistories
     /// once the connection is established.
-    ///
     pub async fn attach_game(&self) -> Result<()> {
         info!("Attach to game");
         self.client.attach_game().await?;

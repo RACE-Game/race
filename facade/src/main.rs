@@ -394,7 +394,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> 
         match s.op {
             SettleOp::Eject => {
                 // Remove player
-                if let Some(index) = game.players.iter().position(|p| p.addr.ne(&s.addr)) {
+                if let Some(index) = game.players.iter().position(|p| p.addr.eq(&s.addr)) {
                     let p = game.players.remove(index);
                     let player = players
                         .get_mut(&p.addr)

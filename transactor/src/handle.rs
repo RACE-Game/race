@@ -48,8 +48,13 @@ impl Handle {
             return Err(Error::GameNotServed);
         };
 
-        let mut handler =
-            WrappedHandler::load_by_addr(&game_account.bundle_addr, transport.as_ref()).await?;
+        // Query the game bundle
+        let game_bundle = transport
+            .get_game_bundle(&game_account.bundle_addr)
+            .await
+            .ok_or(Error::GameBundleNotFound)?;
+
+        let mut handler = WrappedHandler::load_by_bundle(&game_bundle, encryptor.clone()).await?;
         let mut game_context = GameContext::new(&game_account)?;
 
         // Create event bus
@@ -78,7 +83,12 @@ impl Handle {
         let broadcaster =
             Broadcaster::new(&game_account, game_context.get_handler_state_json().into());
         let event_loop = EventLoop::new(handler, game_context);
-        let client = WrappedClient::new(account, &game_account, transport.clone(), connection.clone());
+        let client = WrappedClient::new(
+            account,
+            &game_account,
+            transport.clone(),
+            connection.clone(),
+        );
 
         Ok(Self {
             addr: addr.into(),

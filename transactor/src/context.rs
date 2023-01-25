@@ -42,7 +42,7 @@ impl ApplicationContext {
         let account = transport
             .get_server_account(&transactor_config.address)
             .await
-            .ok_or(Error::InvalidTransactorAddress)?;
+            .ok_or(Error::ServerAccountMissing)?;
 
         Ok(Self {
             config: transactor_config,

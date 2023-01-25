@@ -1,15 +1,17 @@
 use std::{collections::HashMap, sync::Arc};
 
+use tracing::info;
+
 use crate::{
     connection::ConnectionT,
     context::GameContext,
     encryptor::EncryptorT,
     error::{Error, Result},
-    event::{CustomEvent, Event, SecretIdent},
+    event::{CustomEvent, Event},
     random::{RandomMode, RandomStatus},
     secret::SecretState,
     transport::TransportT,
-    types::{AttachGameParams, Ciphertext, ClientMode, SecretKey, SubmitEventParams},
+    types::{AttachGameParams, Ciphertext, ClientMode, SecretKey, SecretShare, SubmitEventParams},
 };
 
 pub struct Client {
@@ -71,6 +73,11 @@ impl Client {
                     random_state,
                     RandomMode::Shuffler,
                 );
+                info!(
+                    "Create secret state for random id: {}, with mode: {:?}",
+                    random_state.id,
+                    RandomMode::Shuffler
+                );
                 secret_states.push(secret_state);
             }
         }
@@ -92,12 +99,12 @@ impl Client {
                         .map(|idt| {
                             if let Some(secret_state) = self.secret_states.get(idt.random_id) {
                                 let secret = secret_state.get_key(idt.index)?;
-                                Ok((idt, secret))
+                                Ok(SecretShare::new(idt, secret))
                             } else {
                                 Err(Error::MissingSecret)
                             }
                         })
-                        .collect::<Result<HashMap<SecretIdent, SecretKey>>>()?;
+                        .collect::<Result<Vec<SecretShare>>>()?;
                     let event = Event::ShareSecrets {
                         sender: self.addr.clone(),
                         secrets: shares,
@@ -171,6 +178,7 @@ impl Client {
     }
 
     pub fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<Vec<Event>> {
+        info!("Client handle updated context in mode: {:?}", self.mode);
         let events = match self.mode {
             ClientMode::Player => {
                 self.update_secret_state(ctx)?;
