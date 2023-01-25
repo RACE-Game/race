@@ -30,6 +30,7 @@ impl Default for TestGameAccountBuilder {
     fn default() -> Self {
         let account = GameAccount {
             addr: game_account_addr(),
+            title: "Unnamed".into(),
             bundle_addr: game_bundle_addr(),
             settle_version: 0,
             access_version: 0,

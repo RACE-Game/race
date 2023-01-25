@@ -42,6 +42,7 @@ pub struct AppClient {
 #[wasm_bindgen]
 impl AppClient {
     /// Try initialize an app client, which will connect to transactor and blockchain RPC.
+    ///
     /// # Arguments
     /// * `chain`, The name of blockchain, currently only `"facade"` is supported.
     /// * `rpc`, The endpoint of blockchain RPC.

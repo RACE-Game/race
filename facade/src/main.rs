@@ -92,6 +92,7 @@ async fn create_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result
     let addr: String = random_addr();
     let mut context = context.lock().await;
     let CreateGameAccountParams {
+        title,
         max_players,
         bundle_addr,
         data,
@@ -103,6 +104,7 @@ async fn create_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result
 
     let account = GameAccount {
         addr: addr.clone(),
+        title,
         bundle_addr,
         data_len: data.len() as u32,
         data,
@@ -226,13 +228,13 @@ async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Re
 }
 
 async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
-    let CreatePlayerProfileParams { addr, pfp } = params.one()?;
+    let CreatePlayerProfileParams { addr, nick, pfp } = params.one()?;
     let mut context = context.lock().await;
     context.players.insert(
         addr.clone(),
         PlayerInfo {
             balance: DEFAULT_BALANCE,
-            profile: PlayerProfile { addr, pfp },
+            profile: PlayerProfile { addr, nick, pfp },
         },
     );
     Ok(())
@@ -316,6 +318,7 @@ async fn register_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Resu
         .get(&game_addr)
         .ok_or(Error::Custom("Game not found".into()))?;
     let bundle_addr = game_acc.bundle_addr.clone();
+    let title = game_acc.title.clone();
 
     let reg_acc = context
         .registrations
@@ -324,6 +327,7 @@ async fn register_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> Resu
 
     let game_reg = GameRegistration {
         addr: game_addr.clone(),
+        title,
         reg_time: Instant::now().elapsed().as_secs(),
         bundle_addr,
     };
@@ -474,6 +478,7 @@ pub fn setup(context: &mut Context) {
         owner: None,
         games: vec![GameRegistration {
             addr: "COUNTER_GAME_ADDRESS".into(),
+            title: "Counter Example".into(),
             reg_time: 0,
             bundle_addr: "COUNTER_BUNDLE_ADDRESS".into(),
         }],
@@ -508,6 +513,7 @@ pub fn setup(context: &mut Context) {
 
     let counter_game = GameAccount {
         addr: COUNTER_GAME_ADDRESS.into(),
+        title: "Counter Example".into(),
         bundle_addr: COUNTER_BUNDLE_ADDRESS.into(),
         settle_version: 0,
         access_version: 0,

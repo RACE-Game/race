@@ -89,8 +89,18 @@ pub trait TransportT: Send + Sync {
     /// # Arguments
     /// * `game_addr` - The address of game to serve.
     /// * `server_addr` - The address of server, should be the same with signer.
+    ///
+    /// # Returns
     /// * [`Error::RpcError`] when the RPC invocation failed.
     async fn serve(&self, params: ServeParams) -> Result<()>;
+
+    /// Create a player profile on chain.  A profile is required to join any games.
+    /// The player profile address is derived from the player wallet address.
+    ///
+    /// # Arguments
+    /// * `addr` - The address of the wallet, should be the same with signer.
+    /// * `pfp` - The address of the NFT token to be used.  `None` means using default pfp.
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()>;
 
     async fn publish_game(&self, bundle: GameBundle) -> Result<String>;
 
@@ -102,7 +112,6 @@ pub trait TransportT: Send + Sync {
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()>;
 
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()>;
 
     /// Get game account by its address.
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount>;

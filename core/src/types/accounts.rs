@@ -119,6 +119,7 @@ pub struct ServerAccount {
 )]
 pub struct GameAccount {
     pub addr: String,
+    pub title: String,
     pub bundle_addr: String,
     pub settle_version: u64,
     pub access_version: u64,
@@ -135,6 +136,7 @@ pub struct GameAccount {
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
 pub struct GameRegistration {
+    pub title: String,
     pub addr: String,
     pub reg_time: u64,
     pub bundle_addr: String,
@@ -160,5 +162,6 @@ pub struct GameBundle {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PlayerProfile {
     pub addr: String,
-    pub pfp: String,
+    pub nick: String,
+    pub pfp: Option<String>,
 }

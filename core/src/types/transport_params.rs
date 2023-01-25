@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct CreateGameAccountParams {
+    pub title: String,
     pub bundle_addr: String,
     pub max_players: u8,
     pub data: Vec<u8>,
@@ -57,7 +58,8 @@ pub struct CloseGameAccountParams {
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct CreatePlayerProfileParams {
     pub addr: String,
-    pub pfp: String,
+    pub nick: String,
+    pub pfp: Option<String>,
 }
 
 /// The player status in settlement.

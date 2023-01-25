@@ -1,6 +1,7 @@
 //! A common client to use in dapp(native version).
 
-use gloo::utils::format::JsValueSerdeExt;
+use gloo::{console::warn, utils::format::JsValueSerdeExt};
+use js_sys::Array;
 use js_sys::Uint8Array;
 use race_transport::TransportBuilder;
 use wasm_bindgen::prelude::*;
@@ -15,18 +16,28 @@ use race_core::{
 #[wasm_bindgen]
 pub struct AppHelper {
     transport: Box<dyn TransportT>,
+    player_addr: String,
 }
 
 #[wasm_bindgen]
 impl AppHelper {
+    /// Try initialize an app helper which provides out game functionalities.
+    ///
+    /// # Arguments
+    /// * `chain`, The name of blockchain, currently only `facade` is supported.
+    /// * `rpc`, The endpoint of blockchain RPC.
+    /// * `player_addr`, The address of current player.
     #[wasm_bindgen]
-    pub async fn try_init(chain: &str, rpc: &str) -> Result<AppHelper> {
+    pub async fn try_init(chain: &str, rpc: &str, player_addr: &str) -> Result<AppHelper> {
         let transport = TransportBuilder::default()
             .try_with_chain(chain)?
             .with_rpc(rpc)
             .build()
             .await?;
-        Ok(AppHelper { transport })
+        Ok(AppHelper {
+            transport,
+            player_addr: player_addr.to_owned(),
+        })
     }
 
     #[wasm_bindgen]
@@ -38,6 +49,7 @@ impl AppHelper {
     #[wasm_bindgen]
     pub async fn create_game_account(
         &self,
+        title: &str,
         bundle_addr: &str,
         max_players: u8,
         data: Uint8Array,
@@ -45,6 +57,7 @@ impl AppHelper {
         let addr = self
             .transport
             .create_game_account(CreateGameAccountParams {
+                title: title.to_owned(),
                 bundle_addr: bundle_addr.to_owned(),
                 max_players,
                 data: data.to_vec(),
@@ -62,6 +75,32 @@ impl AppHelper {
             })
             .await?;
         Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub async fn get_profile(&self) -> Option<JsValue> {
+        if let Some(p) = self.transport.get_player_profile(&self.player_addr).await {
+            Some(JsValue::from_serde(&p).unwrap())
+        } else {
+            None
+        }
+    }
+
+    #[wasm_bindgen]
+    pub async fn list_games(&self, registration_addrs: Box<[JsValue]>) -> Array {
+        let games = Array::new();
+        for reg_addr in registration_addrs.into_iter() {
+            if let Some(reg_addr) = JsValue::as_string(reg_addr) {
+                if let Some(reg) = self.transport.get_registration(&reg_addr).await {
+                    for game in reg.games {
+                        games.push(&JsValue::from_serde(&game).unwrap());
+                    }
+                } else {
+                    warn!(format!("Registration account {} not found!", reg_addr));
+                }
+            }
+        }
+        games
     }
 }
 

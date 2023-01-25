@@ -2,26 +2,35 @@
 <html>
   <head>
     <meta charset="UTF-8">
-    <title>My Rust + Webpack project!</title>
+    <title>Race Example Counter</title>
     <style>
       * {
         box-sizing: border-box;
       }
       .app {
-        font-size: 1.5rem;
         width: 100vw;
         height: 100vh;
         display: flex;
         flex-direction: row;
       }
+      .sidemenu {
+        font-size: 1rem;
+        width: 20rem;
+        overflow-y: scorll;
+        padding: 1rem;
+        background: #CCCCCC;
+      }
       .main {
-        width: 60%;
+        font-size: 1.5rem;
+        padding: 1rem;
+        flex: 1;
       }
       .events {
         font-size: 1rem;
-        flex: 1;
+        width: 20rem;
         overflow-y: scroll;
-        background: #33333330;
+        padding: 1rem;
+        background: #CCCCCC;
       }
       button {
         padding: 1rem 2rem 1rem 2rem;
@@ -33,6 +42,10 @@
   <body>
 
     <div id="app" class="app">
+      <div class="sidemenu">
+        <h3>Games:</h3>
+        <div id="games"></div>
+      </div>
       <div class="main">
         <div>Value: <span id="value">?</span></div>
         <div>Players: <span id="num_of_players">?</span></div>
@@ -41,7 +54,10 @@
         <button id="exit-btn"> Exit </button>
         <button id="incr-btn"> Increment </button>
       </div>
-      <div id="events" class="events"></div>
+      <div class="events">
+        <h3>Events:</h3>
+        <div id="events"></div>
+      </div>
     </div>
     <script src="index.js"></script>
   </body>

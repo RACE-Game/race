@@ -19,7 +19,7 @@ function render(event, state) {
   document.getElementById("num_of_servers").innerText = "" + state.num_of_servers;
   if (event !== null) {
     events.push(event);
-    let innerHTML = '';
+    let innerHTML = "";
     for (let e of events) {
       innerHTML += "<p>" + JSON.stringify(e) + "</p>";
     }
@@ -35,12 +35,33 @@ function onStateUpdated(_gameAddr, event, state) {
   render(event, state);
 }
 
-(async function() {
+async function connect(addr) {
+  console.log("Connect to game: %s", addr);
   const { AppClient } = await import("../../../../client/pkg");
-  client = await AppClient.try_init('facade', 'ws://localhost:12002', 'Alice', 'COUNTER_GAME_ADDRESS', onInited, onStateUpdated);
+  client = await AppClient.try_init("facade", "ws://localhost:12002", "Alice", addr, onInited, onStateUpdated);
   document.getElementById("join-btn").addEventListener("click", onClickJoinButton);
   document.getElementById("incr-btn").addEventListener("click", onClickIncreamentButton);
   document.getElementById("exit-btn").addEventListener("click", onClickExitButton);
   client.attach_game();
   console.log("Game attached");
+}
+
+(async function() {
+  const { AppHelper } = await import("../../../../client/pkg");
+  let helper = await AppHelper.try_init("facade", "ws://localhost:12002", "Alice");
+  let games = await helper.list_games(["DEFAULT_REGISTRATION_ADDRESS"]);
+  console.log("Fetch games from registrations =>", games);
+  let container = document.getElementById("games");
+  container.innerHTML = "";
+  for (let game of games) {
+    let item = document.createElement("div");
+    item.style.padding = "1rem";
+    let title = document.createElement("button");
+    title.innerText = game.title;
+    title.addEventListener("click", () => {
+      connect(game.addr);
+    });
+    item.appendChild(title);
+    container.appendChild(item);
+  }
 })();
