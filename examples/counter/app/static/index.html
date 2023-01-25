@@ -25,14 +25,27 @@
         padding: 1rem;
         flex: 1;
       }
-      .events {
-        font-size: 1rem;
+      .sidemenu-right {
         width: 20rem;
-        overflow-y: scroll;
         padding: 1rem;
+        display: flex;
+        flex-direction: column;
+      }
+      .player-info {
+        font-size: 1rem;
+        height: 10rem;
+      }
+      .events {
+        flex: 1;
+        font-size: 1rem;
+        overflow-y: scroll;
         background: #CCCCCC;
       }
-      button {
+      .btn-sm {
+        font-size: 1.25rem;
+        margin: 1rem;
+      }
+      .btn-lg {
         padding: 1rem 2rem 1rem 2rem;
         font-size: 2rem;
         margin: 1rem;
@@ -50,13 +63,27 @@
         <div>Value: <span id="value">?</span></div>
         <div>Players: <span id="num_of_players">?</span></div>
         <div>Servers: <span id="num_of_servers">?</span></div>
-        <button id="join-btn"> Join </button>
-        <button id="exit-btn"> Exit </button>
-        <button id="incr-btn"> Increment </button>
+        <button class="btn-lg" id="join-btn"> Join </button>
+        <button class="btn-lg" id="exit-btn"> Exit </button>
+        <button class="btn-lg" id="incr-btn"> Increment </button>
       </div>
-      <div class="events">
-        <h3>Events:</h3>
-        <div id="events"></div>
+
+      <div class="sidemenu-right">
+        <div class="player-info">
+          <div> Player name: <span id="player-nick"></span></div>
+          <div>
+            <label for="nick">Nick</label>
+            <input id="input-nick" name="nick" type="text" value=""/>
+          </div>
+          <div>
+            <button id="btn-create-profile" class="btn-sm"> Create Profile </button>
+          </div>
+
+        </div>
+        <div class="events">
+          <h3>Events:</h3>
+          <div id="events"></div>
+        </div>
       </div>
     </div>
     <script src="index.js"></script>

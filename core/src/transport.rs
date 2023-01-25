@@ -99,6 +99,7 @@ pub trait TransportT: Send + Sync {
     ///
     /// # Arguments
     /// * `addr` - The address of the wallet, should be the same with signer.
+    /// * `nick` - The display name in the game, can't be empty.
     /// * `pfp` - The address of the NFT token to be used.  `None` means using default pfp.
     async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()>;
 

@@ -1,5 +1,7 @@
 let client = undefined;
+let helper = undefined;
 let events = [];
+let profile = undefined;
 
 async function onClickJoinButton() {
   await client.join(0, 100n);
@@ -11,6 +13,16 @@ async function onClickIncreamentButton() {
 
 async function onClickExitButton() {
   await client.exit();
+}
+
+async function onClickCreateProfile() {
+  let nick = document.getElementById("input-nick").value;
+  if (!nick || nick === "") {
+    alert("Enter the nick name");
+  }
+  await helper.create_profile(nick, nick, "");
+  profile = await helper.get_profile(nick);
+  document.getElementById("player-nick").innerText = profile.nick;
 }
 
 function render(event, state) {
@@ -38,7 +50,7 @@ function onStateUpdated(_gameAddr, event, state) {
 async function connect(addr) {
   console.log("Connect to game: %s", addr);
   const { AppClient } = await import("../../../../client/pkg");
-  client = await AppClient.try_init("facade", "ws://localhost:12002", "Alice", addr, onInited, onStateUpdated);
+  client = await AppClient.try_init("facade", "ws://localhost:12002", profile.addr, addr, onInited, onStateUpdated);
   document.getElementById("join-btn").addEventListener("click", onClickJoinButton);
   document.getElementById("incr-btn").addEventListener("click", onClickIncreamentButton);
   document.getElementById("exit-btn").addEventListener("click", onClickExitButton);
@@ -46,9 +58,11 @@ async function connect(addr) {
   console.log("Game attached");
 }
 
+
 (async function() {
   const { AppHelper } = await import("../../../../client/pkg");
-  let helper = await AppHelper.try_init("facade", "ws://localhost:12002", "Alice");
+  helper = await AppHelper.try_init("facade", "ws://localhost:12002");
+  document.getElementById("btn-create-profile").addEventListener("click", onClickCreateProfile);
   let games = await helper.list_games(["DEFAULT_REGISTRATION_ADDRESS"]);
   console.log("Fetch games from registrations =>", games);
   let container = document.getElementById("games");
@@ -58,7 +72,12 @@ async function connect(addr) {
     item.style.padding = "1rem";
     let title = document.createElement("button");
     title.innerText = game.title;
+    title.classList.add("btn-sm");
     title.addEventListener("click", () => {
+      if (!profile) {
+        alert("Create profile first");
+        return;
+      }
       connect(game.addr);
     });
     item.appendChild(title);

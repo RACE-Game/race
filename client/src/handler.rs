@@ -3,7 +3,6 @@
 use std::mem::swap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use gloo::console::info;
 use race_core::context::GameContext;
 use race_core::engine::{after_handle_event, general_handle_event, general_init_state};
 use race_core::error::Result;

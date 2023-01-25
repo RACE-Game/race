@@ -1,8 +1,10 @@
 //! A common client to use in dapp(native version).
 
+use gloo::console::info;
 use gloo::{console::warn, utils::format::JsValueSerdeExt};
 use js_sys::Array;
 use js_sys::Uint8Array;
+use race_core::types::CreatePlayerProfileParams;
 use race_transport::TransportBuilder;
 use wasm_bindgen::prelude::*;
 
@@ -16,7 +18,6 @@ use race_core::{
 #[wasm_bindgen]
 pub struct AppHelper {
     transport: Box<dyn TransportT>,
-    player_addr: String,
 }
 
 #[wasm_bindgen]
@@ -28,16 +29,13 @@ impl AppHelper {
     /// * `rpc`, The endpoint of blockchain RPC.
     /// * `player_addr`, The address of current player.
     #[wasm_bindgen]
-    pub async fn try_init(chain: &str, rpc: &str, player_addr: &str) -> Result<AppHelper> {
+    pub async fn try_init(chain: &str, rpc: &str) -> Result<AppHelper> {
         let transport = TransportBuilder::default()
             .try_with_chain(chain)?
             .with_rpc(rpc)
             .build()
             .await?;
-        Ok(AppHelper {
-            transport,
-            player_addr: player_addr.to_owned(),
-        })
+        Ok(AppHelper { transport })
     }
 
     #[wasm_bindgen]
@@ -78,8 +76,24 @@ impl AppHelper {
     }
 
     #[wasm_bindgen]
-    pub async fn get_profile(&self) -> Option<JsValue> {
-        if let Some(p) = self.transport.get_player_profile(&self.player_addr).await {
+    pub async fn create_profile(&self, addr: &str, nick: &str, pfp: &str) -> Result<()> {
+        info!(format!(
+            "Create profile, address: {}, nick: {}, pfp: {}",
+            addr, nick, pfp
+        ));
+        self.transport
+            .create_player_profile(CreatePlayerProfileParams {
+                addr: addr.to_owned(),
+                nick: nick.to_owned(),
+                pfp: Some(pfp.to_owned()),
+            })
+            .await?;
+        Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub async fn get_profile(&self, addr: &str) -> Option<JsValue> {
+        if let Some(p) = self.transport.get_player_profile(addr).await {
             Some(JsValue::from_serde(&p).unwrap())
         } else {
             None
