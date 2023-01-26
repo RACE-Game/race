@@ -1,19 +1,107 @@
 use crate::component::WrappedTransport;
-use crate::frame::EventFrame;
+use crate::frame::{EventFrame, SignalFrame};
 use crate::handle::Handle;
 use race_core::encryptor::EncryptorT;
 use race_core::error::{Error, Result};
 use race_core::event::Event;
 use race_core::transport::TransportT;
-use race_core::types::{ServerAccount, Signature};
+use race_core::types::{BroadcastFrame, ServerAccount, Signature};
 use race_encryptor::Encryptor;
 use race_env::{Config, TransactorConfig};
 use race_transport::ChainType;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::info;
 use tracing::log::warn;
+
+pub struct GameManager {
+    games: Mutex<HashMap<String, Handle>>,
+}
+
+impl Default for GameManager {
+    fn default() -> Self {
+        Self {
+            games: Mutex::new(HashMap::default()),
+        }
+    }
+}
+
+impl GameManager {
+    /// Load game by its address.  This operation is idempotent.
+    pub async fn load_game(
+        &self,
+        game_addr: String,
+        transport: Arc<dyn TransportT>,
+        encryptor: Arc<dyn EncryptorT>,
+        server_account: &ServerAccount,
+    ) {
+        let mut games = self.games.lock().await;
+        if let Entry::Vacant(e) = games.entry(game_addr) {
+            if let Ok(handle) = Handle::try_new(transport, encryptor, server_account, e.key()).await
+            {
+                e.insert(handle);
+                info!("Game started!");
+            }
+        }
+    }
+
+    pub async fn is_game_loaded(&self, game_addr: &str) -> bool {
+        let games = self.games.lock().await;
+        games.get(game_addr).is_some()
+    }
+
+    pub async fn send_event(&self, game_addr: &str, event: Event) -> Result<()> {
+        let games = self.games.lock().await;
+        if let Some(handle) = games.get(game_addr) {
+            info!("Receive client event: {:?}", event);
+            let event_frame = EventFrame::SendEvent { event };
+            handle.event_bus().send(event_frame).await;
+            Ok(())
+        } else {
+            warn!("Game not loaded, discard event: {:?}", event);
+            Err(Error::GameNotLoaded)
+        }
+    }
+
+    pub async fn eject_player(&self, game_addr: &str, player_addr: &str) -> Result<()> {
+        let games = self.games.lock().await;
+        if let Some(handle) = games.get(game_addr) {
+            info!(
+                "Receive leaving request from {:?} for game {:?}",
+                player_addr, game_addr
+            );
+            let event_frame = EventFrame::PlayerLeaving {
+                player_addr: player_addr.to_owned(),
+            };
+            handle.event_bus().send(event_frame).await;
+            Ok(())
+        } else {
+            warn!("Game not loaded, discard leaving request");
+            Err(Error::GameNotLoaded)
+        }
+    }
+
+    /// Get the broadcast channel of game, and its event histories
+    pub async fn get_broadcast(
+        &self,
+        game_addr: &str,
+        settle_version: u64,
+    ) -> Result<(broadcast::Receiver<BroadcastFrame>, Vec<Event>)> {
+        let games = self.games.lock().await;
+        let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
+        let receiver = handle.broadcaster()?.get_broadcast_rx();
+        let events = handle.broadcaster()?.retrieve_events(settle_version).await;
+        Ok((receiver, events))
+    }
+
+    pub async fn get_snapshot(&self, game_addr: &str) -> Result<String> {
+        let games = self.games.lock().await;
+        let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
+        Ok(handle.broadcaster()?.get_snapshot().await)
+    }
+}
 
 /// Transactor runtime context
 pub struct ApplicationContext {
@@ -22,7 +110,8 @@ pub struct ApplicationContext {
     pub account: ServerAccount,
     pub transport: Arc<dyn TransportT>,
     pub encryptor: Arc<dyn EncryptorT>,
-    pub games: HashMap<String, Handle>,
+    pub game_manager: Arc<GameManager>,
+    pub signal_tx: mpsc::Sender<SignalFrame>,
 }
 
 impl ApplicationContext {
@@ -44,17 +133,44 @@ impl ApplicationContext {
             .await
             .ok_or(Error::ServerAccountMissing)?;
 
+        let game_manager = Arc::new(GameManager::default());
+        let game_manager_1 = game_manager.clone();
+
+        let (signal_tx, mut signal_rx) = mpsc::channel(3);
+
+        let transport_1 = transport.clone();
+        let encryptor_1 = encryptor.clone();
+        let account_1 = account.clone();
+
+        tokio::spawn(async move {
+            while let Some(signal) = signal_rx.recv().await {
+                match signal {
+                    SignalFrame::StartGame { game_addr } => {
+                        game_manager_1
+                            .load_game(
+                                game_addr,
+                                transport_1.clone(),
+                                encryptor_1.clone(),
+                                &account_1,
+                            )
+                            .await;
+                    }
+                }
+            }
+        });
+
         Ok(Self {
             config: transactor_config,
             chain,
             account,
             transport,
-            games: HashMap::default(),
             encryptor,
+            game_manager,
+            signal_tx,
         })
     }
 
-    pub async fn register_key(&mut self, player_addr: String, key: String) -> Result<()> {
+    pub async fn register_key(&self, player_addr: String, key: String) -> Result<()> {
         info!("Client {:?} register public key, {}", player_addr, key);
         self.encryptor.add_public_key(player_addr, &key)?;
         Ok(())
@@ -70,55 +186,35 @@ impl ApplicationContext {
         Ok(self.encryptor.verify(&message.as_bytes(), signature)?)
     }
 
-    pub async fn start_game(&mut self, game_addr: String) -> Result<()> {
-        info!("Start game from address: {:?}", game_addr);
-        match self.games.entry(game_addr) {
-            Entry::Occupied(_) => Ok(()),
-            Entry::Vacant(e) => {
-                let mut handle = Handle::try_new(
-                    self.transport.clone(),
-                    self.encryptor.clone(),
-                    &self.account,
-                    e.key(),
-                )
-                .await?;
-                handle.start().await;
-                e.insert(handle);
-                Ok(())
-            }
-        }
-    }
-
-    pub fn get_game(&self, addr: &str) -> Option<&Handle> {
-        self.games.get(addr)
+    /// Return if the game is loaded.
+    #[allow(unused)]
+    pub async fn is_game_loaded(&self, game_addr: &str) -> bool {
+        self.game_manager.is_game_loaded(game_addr).await
     }
 
     pub async fn eject_player(&self, game_addr: &str, player_addr: &str) -> Result<()> {
-        if let Some(handle) = self.games.get(game_addr) {
-            info!(
-                "Receive leaving request from {:?} for game {:?}",
-                player_addr, game_addr
-            );
-            let event_frame = EventFrame::PlayerLeaving {
-                player_addr: player_addr.to_owned(),
-            };
-            handle.event_bus.send(event_frame).await;
-            Ok(())
-        } else {
-            warn!("Game not loaded, discard leaving request");
-            Err(Error::GameNotLoaded)
-        }
+        self.game_manager.eject_player(game_addr, player_addr).await
     }
 
-    pub async fn send_event(&self, addr: &str, event: Event) -> Result<()> {
-        if let Some(handle) = self.games.get(addr) {
-            info!("Receive client event: {:?}", event);
-            let event_frame = EventFrame::SendEvent { event };
-            handle.event_bus.send(event_frame).await;
-            Ok(())
-        } else {
-            warn!("Game not loaded, discard event: {:?}", event);
-            Err(Error::GameNotLoaded)
-        }
+    pub async fn send_event(&self, game_addr: &str, event: Event) -> Result<()> {
+        self.game_manager.send_event(game_addr, event).await
+    }
+
+    pub async fn get_broadcast(
+        &self,
+        game_addr: &str,
+        settle_version: u64,
+    ) -> Result<(broadcast::Receiver<BroadcastFrame>, Vec<Event>)> {
+        self.game_manager
+            .get_broadcast(game_addr, settle_version)
+            .await
+    }
+
+    pub async fn get_snapshot(&self, game_addr: &str) -> Result<String> {
+        self.game_manager.get_snapshot(game_addr).await
+    }
+
+    pub fn get_signal_sender(&self) -> mpsc::Sender<SignalFrame> {
+        self.signal_tx.clone()
     }
 }

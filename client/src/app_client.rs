@@ -3,9 +3,10 @@
 use gloo::utils::format::JsValueSerdeExt;
 use js_sys::Function;
 use js_sys::JSON::{parse, stringify};
-use race_core::context::GameContext;
+use race_core::context::{GameContext, GameStatus, Server};
 use race_core::types::{BroadcastFrame, ExitGameParams};
 use race_transport::TransportBuilder;
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 use futures::pin_mut;
@@ -24,9 +25,30 @@ use race_core::{
     error::Error,
     event::Event,
     transport::TransportT,
-    types::{ClientMode, GetStateParams, JoinParams, SubmitEventParams, SubscribeEventParams},
+    types::{ClientMode, GetStateParams, JoinParams, SubmitEventParams},
 };
 use race_encryptor::Encryptor;
+
+#[derive(Default, Serialize)]
+pub struct PartialGameContext<'a> {
+    game_addr: &'a str,
+    status: GameStatus,
+    allow_exit: bool,
+    servers: Vec<&'a Server>,
+    event: Option<&'a Event>,
+}
+
+impl<'a> PartialGameContext<'a> {
+    pub fn from_game_context(context: &'a GameContext, event: Option<&'a Event>) -> Self {
+        Self {
+            game_addr: context.get_game_addr(),
+            status: context.get_status(),
+            allow_exit: context.is_allow_exit(),
+            servers: context.get_servers().iter().collect(),
+            event,
+        }
+    }
+}
 
 #[wasm_bindgen]
 pub struct AppClient {
@@ -36,7 +58,7 @@ pub struct AppClient {
     transport: Arc<dyn TransportT>,
     connection: Arc<Connection>,
     game_context: RefCell<GameContext>,
-    on_event: Function,
+    callback: Function,
 }
 
 #[wasm_bindgen]
@@ -48,38 +70,30 @@ impl AppClient {
     /// * `rpc`, The endpoint of blockchain RPC.
     /// * `player_addr`, The address of current player.
     /// * `game_addr`, The address of game to attach.
-    /// * `on_init`, A JS function: function(gameAddr: String, state: GameState). This function will be called only once when the connection is established.
-    /// * `on_event`, A JS function: function(gameAddr: String, event: GameEvent, state: GameState). This function will be called when receiving the new event from transactor.
+    /// * `callback`, A JS function: function(addr: String, context: PartialGameContext, state: GameState).
+    ///   This function will be called when either game context or game state is updated.
+    ///   The `addr` can be one of either the game or its sub game.
     #[wasm_bindgen]
     pub async fn try_init(
         chain: &str,
         rpc: &str,
         player_addr: &str,
         game_addr: &str,
-        on_init: Function,
-        on_event: Function,
+        callback: Function,
     ) -> Result<AppClient> {
         let transport = TransportBuilder::default()
             .try_with_chain(chain)?
             .with_rpc(rpc)
             .build()
             .await?;
-        AppClient::try_new(
-            Arc::from(transport),
-            player_addr,
-            game_addr,
-            on_init,
-            on_event,
-        )
-        .await
+        AppClient::try_new(Arc::from(transport), player_addr, game_addr, callback).await
     }
 
     async fn try_new(
         transport: Arc<dyn TransportT>,
         player_addr: &str,
         game_addr: &str,
-        on_init: Function,
-        on_event: Function,
+        callback: Function,
     ) -> Result<Self> {
         let encryptor = Arc::new(Encryptor::default());
 
@@ -119,16 +133,23 @@ impl AppClient {
 
         let handler = Handler::from_bundle(game_bundle, encryptor).await;
 
-        let mut game_context = GameContext::new(&game_account)?;
+        let mut game_context = GameContext::try_new(&game_account)?;
 
         handler.init_state(&mut game_context, &game_account)?;
 
         let state_js =
             parse(game_context.get_handler_state_json()).map_err(|_| Error::JsonParseError)?;
+        let partial_context = PartialGameContext::from_game_context(&game_context, None);
 
         let this = JsValue::null();
-        Function::call2(&on_init, &this, &JsValue::from_str(&game_addr), &state_js)
-            .expect("Init callback error");
+        Function::call3(
+            &callback,
+            &this,
+            &JsValue::from_str(&game_addr),
+            &JsValue::from_serde(&partial_context).unwrap(),
+            &state_js,
+        )
+        .expect("Init callback error");
 
         Ok(Self {
             addr: game_addr.to_owned(),
@@ -137,7 +158,7 @@ impl AppClient {
             connection,
             handler,
             game_context: RefCell::new(game_context),
-            on_event,
+            callback,
         })
     }
 
@@ -154,27 +175,25 @@ impl AppClient {
             "Subscribe event stream, use settle_version = {} as check point",
             settle_version
         ));
-        let sub = self
-            .connection
-            .subscribe_events(&self.addr, SubscribeEventParams { settle_version })
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))?;
 
+        let sub = self.connection.subscribe_events(&self.addr, settle_version).await?;
         pin_mut!(sub);
         debug!("Event stream connected");
+
         while let Some(frame) = sub.next().await {
             let BroadcastFrame { game_addr, event } = frame;
             let mut game_context = self.game_context.borrow_mut();
             self.handler.handle_event(&mut game_context, &event)?;
-            let event_js = JsValue::from_serde(&event).map_err(|_| Error::JsonParseError)?;
             let state_js =
                 parse(game_context.get_handler_state_json()).map_err(|_| Error::JsonParseError)?;
+            let partial_context =
+                PartialGameContext::from_game_context(&game_context, Some(&event));
             let this = JsValue::null();
             let r = Function::call3(
-                &self.on_event,
+                &self.callback,
                 &this,
                 &JsValue::from_str(&game_addr),
-                &event_js,
+                &JsValue::from_serde(&partial_context).unwrap(),
                 &state_js,
             );
             if let Err(e) = r {
@@ -260,6 +279,7 @@ mod tests {
             "ws://localhost:12002",
             "Alice",
             "COUNTER_GAME_ADDRESS",
+            Function::default(),
         )
         .await
         .map_err(JsValue::from)

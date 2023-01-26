@@ -195,7 +195,7 @@ mod tests {
     fn test_init_state() {
         let mut hdlr = make_wrapped_handler();
         let game_account = make_game_account();
-        let mut ctx = GameContext::new(&game_account).unwrap();
+        let mut ctx = GameContext::try_new(&game_account).unwrap();
         hdlr.init_state(&mut ctx, &game_account).unwrap();
         assert_eq!(
             "{\"value\":42,\"num_of_players\":0,\"num_of_servers\":1}",
@@ -207,7 +207,7 @@ mod tests {
     fn test_handle_event() {
         let mut hdlr = make_wrapped_handler();
         let game_account = make_game_account();
-        let mut ctx = GameContext::new(&game_account).unwrap();
+        let mut ctx = GameContext::try_new(&game_account).unwrap();
         let event = Event::Join {
             player_addr: "FAKE_ADDR".into(),
             balance: 1000,

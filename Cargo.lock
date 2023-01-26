@@ -2667,9 +2667,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arrayref",
+ "async-stream",
  "async-trait",
  "borsh",
  "clap",
+ "futures",
  "hex",
  "hyper",
  "jsonrpsee",

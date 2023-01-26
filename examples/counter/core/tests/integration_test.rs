@@ -25,7 +25,7 @@ fn test() -> anyhow::Result<()> {
         ClientMode::Transactor,
     );
 
-    let mut ctx = GameContext::new(&game_account)?;
+    let mut ctx = GameContext::try_new(&game_account)?;
     let mut handler = TestHandler::<Counter>::init_state(&mut ctx, &game_account)?;
 
     let join_event = Event::Join {

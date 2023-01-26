@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub enum GameEvent {
     Increase(u64),
+    RandomPoker,
+    RandomDice,
 }
 
 impl CustomEvent for GameEvent {}
@@ -39,6 +41,12 @@ impl Counter {
             GameEvent::Increase(n) => {
                 self.value += n;
             }
+            GameEvent::RandomPoker => {
+
+            }
+            GameEvent::RandomDice => {
+
+            }
         }
         Ok(())
     }
@@ -48,7 +56,7 @@ impl GameHandler for Counter {
     fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
         let data = init_account.data;
         let account_data = CounterAccountData::try_from_slice(&data)?;
-        context.set_allow_leave(true);
+        context.set_allow_exit(true);
         Ok(Self {
             value: account_data.init_value,
             poker_random_id: 0,
@@ -102,7 +110,7 @@ mod tests {
 
     fn init_context() -> GameContext {
         let game_account = TestGameAccountBuilder::default().add_servers(1).build();
-        GameContext::new(&game_account).unwrap()
+        GameContext::try_new(&game_account).unwrap()
     }
 
     #[test]

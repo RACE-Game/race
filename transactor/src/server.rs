@@ -11,24 +11,17 @@ use race_core::types::{
     AttachGameParams, BroadcastFrame, ExitGameParams, GetStateParams, Signature, SubmitEventParams,
     SubscribeEventParams,
 };
-use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::{error, info, warn};
 
 type Result<T> = std::result::Result<T, Error>;
 
 /// Ask transactor to load game and provide client's public key for further encryption.
-async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
+async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<()> {
     info!("Attach to game");
-
-    let (game_addr, AttachGameParams { key }, Signature { signer, .. }) =
+    let (_game_addr, AttachGameParams { key }, Signature { signer, .. }) =
         params.parse::<(String, AttachGameParams, Signature)>()?;
     // TODO: check signature
-    let context = &mut *(context.lock().await);
-    context
-        .start_game(game_addr)
-        .await
-        .map_err(|e| Error::Call(CallError::InvalidParams(e.into())))?;
     info!("Register the key provided by client {}", signer);
     context
         .register_key(signer, key)
@@ -36,11 +29,9 @@ async fn attach_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>
         .map_err(|e| Error::Call(CallError::InvalidParams(e.into())))
 }
 
-async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
+async fn submit_event(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<()> {
     let (game_addr, arg, sig) = params.parse::<(String, SubmitEventParams, Signature)>()?;
     info!("Submit event: {:?}", arg);
-
-    let context = context.lock().await;
     context
         .verify(&game_addr, &arg, &sig)
         .await
@@ -51,28 +42,24 @@ async fn submit_event(params: Params<'_>, context: Arc<Mutex<ApplicationContext>
         .map_err(|e| Error::Call(CallError::Failed(e.into())))
 }
 
-async fn get_state(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<String> {
+async fn get_state(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<String> {
     let (game_addr, arg, sig) = params.parse::<(String, GetStateParams, Signature)>()?;
 
-    let context = context.lock().await;
     context
         .verify(&game_addr, &arg, &sig)
         .await
         .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
-    let game_handle = context.get_game(&game_addr).ok_or_else(|| {
-        Error::Call(CallError::Failed(
-            race_core::error::Error::GameNotLoaded.into(),
-        ))
-    })?;
 
-    let snapshot = game_handle.broadcaster.get_snapshot().await;
+    let snapshot = context
+        .get_snapshot(&game_addr)
+        .await
+        .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
     Ok(snapshot)
 }
 
-async fn exit_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) -> Result<()> {
+async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<()> {
     let (game_addr, arg, sig) = params.parse::<(String, ExitGameParams, Signature)>()?;
 
-    let context = context.lock().await;
     context
         .verify(&game_addr, &arg, &sig)
         .await
@@ -86,29 +73,34 @@ async fn exit_game(params: Params<'_>, context: Arc<Mutex<ApplicationContext>>) 
 fn subscribe_event(
     params: Params<'_>,
     mut sink: SubscriptionSink,
-    context: Arc<Mutex<ApplicationContext>>,
+    context: Arc<ApplicationContext>,
 ) -> std::result::Result<(), SubscriptionEmptyError> {
     {
-        let (game_addr, arg, sig) = params.parse::<(String, SubscribeEventParams, Signature)>()?;
-        info!("Subscribe event stream: {:?}", game_addr);
+        let (game_addr, arg, _sig) = params.parse::<(String, SubscribeEventParams, Signature)>()?;
 
         tokio::spawn(async move {
-            let context = context.lock().await;
-            if let Err(e) = context.verify(&game_addr, &arg, &sig).await {
-                sink.close(SubscriptionClosed::Failed(
-                    CallError::Failed(e.into()).into(),
-                ));
-                return;
-            }
+            // We don't need verification.
+            // if let Err(e) = context.verify(&game_addr, &arg, &sig).await {
+            //     error!("Subscription verification failed: {:?}", e);
+            //     sink.close(SubscriptionClosed::Failed(
+            //         CallError::Failed(e.into()).into(),
+            //     ));
+            //     return;
+            // }
 
-            let handle = context
-                .get_game(&game_addr)
-                .ok_or(SubscriptionEmptyError)
-                .expect("Failed to get game");
+            let (receiver, events) =
+                match context.get_broadcast(&game_addr, arg.settle_version).await {
+                    Ok(x) => x,
+                    Err(e) => {
+                        sink.close(SubscriptionClosed::Failed(
+                            CallError::Failed(e.into()).into(),
+                        ));
+                        return;
+                    }
+                };
 
-            let rx = BroadcastStream::new(handle.broadcaster.get_broadcast_rx());
-
-            let events = handle.broadcaster.retrieve_events(arg.settle_version).await;
+            let rx = BroadcastStream::new(receiver);
+            info!("Subscribe event stream: {:?}", game_addr);
 
             events.into_iter().for_each(|e| {
                 sink.send(&BroadcastFrame {
@@ -118,7 +110,8 @@ fn subscribe_event(
                 .map_err(|e| {
                     error!("Error occurred when broadcasting event histories: {:?}", e);
                     e
-                }).unwrap();
+                })
+                .unwrap();
             });
 
             drop(context);
@@ -130,7 +123,7 @@ fn subscribe_event(
                 }
                 SubscriptionClosed::RemotePeerAborted => {
                     warn!("Remote peer aborted");
-                },
+                }
                 SubscriptionClosed::Failed(err) => {
                     warn!("Subscription error: {:?}", err);
                     sink.close(err);
@@ -141,9 +134,8 @@ fn subscribe_event(
     }
 }
 
-pub async fn run_server(context: Mutex<ApplicationContext>) -> anyhow::Result<()> {
+pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
     let host = {
-        let context = context.lock().await;
         let port = context.config.port;
         format!("0.0.0.0:{}", port)
     };
@@ -163,7 +155,6 @@ pub async fn run_server(context: Mutex<ApplicationContext>) -> anyhow::Result<()
         "unsubscribe_event",
         subscribe_event,
     )?;
-
     let handle = server.start(module)?;
     info!("Server started at {:?}", host);
     handle.stopped().await;

@@ -149,6 +149,13 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         }
         if game_account.players.len() >= game_account.max_players as _ {
             Err(Error::Custom("Game is full".into()))
+        } else if game_account
+            .players
+            .iter()
+            .find(|p| p.addr.eq(&player_addr))
+            .is_some()
+        {
+            Err(Error::Custom("Player already joined".into()))
         } else {
             let access_version = game_account.access_version + 1;
             let player_join = PlayerJoin {
@@ -501,13 +508,13 @@ pub fn setup(context: &mut Context) {
     let server1 = ServerAccount {
         addr: SERVER_ADDRESS_1.into(),
         owner_addr: DEFAULT_OWNER_ADDRESS.into(),
-        endpoint: "localhost:12003".into(),
+        endpoint: "ws://localhost:12003".into(),
     };
     println!("Transactor account created at {:?}", SERVER_ADDRESS_1);
     let server2 = ServerAccount {
         addr: SERVER_ADDRESS_2.into(),
         owner_addr: DEFAULT_OWNER_ADDRESS.into(),
-        endpoint: "localhost:12004".into(),
+        endpoint: "ws://localhost:12004".into(),
     };
     println!("Transactor account created at {:?}", SERVER_ADDRESS_2);
 

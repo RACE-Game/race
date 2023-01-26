@@ -3,22 +3,30 @@
 //! - [`LocalConnection`], used to send event to local event bus.
 //! - [`RemoteConnection`], used to send event to remote transactor server.
 
+use async_stream::stream;
 use async_trait::async_trait;
+use futures::Stream;
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tracing::warn;
 
 use jsonrpsee::{
-    core::{client::ClientT, DeserializeOwned},
-    http_client::{HttpClient, HttpClientBuilder},
+    core::{
+        client::{ClientT, SubscriptionClientT},
+        DeserializeOwned,
+    },
     rpc_params,
+    ws_client::{WsClient, WsClientBuilder},
 };
-use race_core::error::{Error, Result};
 use race_core::{
     connection::ConnectionT,
     encryptor::EncryptorT,
     types::{AttachGameParams, ExitGameParams, SubmitEventParams},
+};
+use race_core::{
+    error::{Error, Result},
+    types::{BroadcastFrame, SubscribeEventParams},
 };
 
 use crate::component::traits::Attachable;
@@ -78,7 +86,7 @@ impl Attachable for LocalConnection {
 pub struct RemoteConnection {
     endpoint: String,
     encryptor: Arc<dyn EncryptorT>,
-    rpc_client: Mutex<HttpClient>,
+    rpc_client: Mutex<WsClient>,
     max_retries: u32,
 }
 
@@ -97,19 +105,23 @@ impl ConnectionT for RemoteConnection {
     }
 }
 
-fn build_rpc_client(endpoint: &str) -> Result<HttpClient> {
-    HttpClientBuilder::default()
-        .build(format!("ws://{}", endpoint))
-        .map_err(|e| Error::RpcError(e.to_string()))
+async fn build_rpc_client(endpoint: &str) -> Result<WsClient> {
+    let client = WsClientBuilder::default()
+        .build(endpoint)
+        .await
+        .expect("Failed to connect to transactor");
+    Ok(client)
 }
 
 impl RemoteConnection {
-    pub fn try_new(endpoint: &str, encryptor: Arc<dyn EncryptorT>) -> Result<Self> {
+    pub async fn try_new(endpoint: &str, encryptor: Arc<dyn EncryptorT>) -> Result<Self> {
         let max_retries = 3;
+        let rpc_client = build_rpc_client(endpoint).await?;
+        println!("Build RPC client to {}", endpoint);
         Ok(Self {
             endpoint: endpoint.into(),
             encryptor,
-            rpc_client: Mutex::new(build_rpc_client(endpoint)?),
+            rpc_client: Mutex::new(rpc_client),
             max_retries,
         })
     }
@@ -140,7 +152,10 @@ impl RemoteConnection {
                             "Restart RPC client for the connection to transactor, due to error: {}",
                             e
                         );
-                        let old = std::mem::replace(&mut *rpc_client, build_rpc_client(&self.endpoint)?);
+                        let old = std::mem::replace(
+                            &mut *rpc_client,
+                            build_rpc_client(&self.endpoint).await?,
+                        );
                         drop(old);
                         continue;
                     }
@@ -148,5 +163,37 @@ impl RemoteConnection {
                 Err(e) => return Err(Error::RpcError(e.to_string())),
             }
         }
+    }
+
+    pub async fn subscribe_events(
+        &self,
+        game_addr: &str,
+        signer: &str,
+        settle_version: u64,
+    ) -> Result<impl Stream<Item = BroadcastFrame>> {
+        let params = SubscribeEventParams { settle_version };
+        let message = format!("{}{}", game_addr, params.to_string());
+        let signature = self.encryptor.sign(message.as_bytes(), signer.to_owned())?;
+
+        let rpc_client = self.rpc_client.lock().await;
+
+        let sub = rpc_client
+            .subscribe(
+                "subscribe_event",
+                rpc_params![game_addr, params, signature],
+                "unsubscribe_event",
+            )
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))?;
+
+        Ok(stream! {
+            for await frame in sub {
+                if let Ok(frame) = frame {
+                    yield frame;
+                } else {
+                    break;
+                }
+            }
+        })
     }
 }

@@ -24,7 +24,7 @@ pub enum PlayerStatus {
     DropOff,
 }
 
-#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, Serialize, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub enum ServerStatus {
     #[default]
     Absent,
@@ -32,7 +32,9 @@ pub enum ServerStatus {
     DropOff,
 }
 
-#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone)]
+#[derive(
+    Debug, Default, Serialize, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone,
+)]
 pub enum GameStatus {
     #[default]
     Uninit,
@@ -62,7 +64,7 @@ impl Player {
     }
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub struct Server {
     pub addr: String,
     pub status: ServerStatus,
@@ -109,7 +111,7 @@ pub struct GameContext {
     pub(crate) state_json: String,
     pub(crate) timestamp: u64,
     // Whether a player can leave or not
-    pub(crate) allow_leave: bool,
+    pub(crate) allow_exit: bool,
     // All runtime random state, each stores the ciphers and assignments.
     pub(crate) random_states: Vec<RandomState>,
     // Settles, if is not None, will be handled by event loop.
@@ -118,7 +120,7 @@ pub struct GameContext {
 }
 
 impl GameContext {
-    pub fn new(game_account: &GameAccount) -> Result<Self> {
+    pub fn try_new(game_account: &GameAccount) -> Result<Self> {
         let transactor_addr = game_account
             .transactor_addr
             .as_ref()
@@ -150,7 +152,7 @@ impl GameContext {
             dispatch: None,
             state_json: "".into(),
             timestamp: 0,
-            allow_leave: false,
+            allow_exit: false,
             random_states: vec![],
             settles: None,
             error: None,
@@ -165,6 +167,10 @@ impl GameContext {
         &self.state_json
     }
 
+    pub fn is_allow_exit(&self) -> bool {
+        self.allow_exit
+    }
+
     pub fn get_handler_state<H>(&self) -> H
     where
         H: GameHandler,
@@ -177,6 +183,10 @@ impl GameContext {
         H: Serialize,
     {
         self.state_json = serde_json::to_string(&handler).unwrap();
+    }
+
+    pub fn get_servers(&self) -> &Vec<Server> {
+        &self.servers
     }
 
     pub fn get_game_addr(&self) -> &str {
@@ -337,8 +347,8 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn set_allow_leave(&mut self, allow_leave: bool) {
-        self.allow_leave = allow_leave;
+    pub fn set_allow_exit(&mut self, allow_exit: bool) {
+        self.allow_exit = allow_exit;
     }
 
     /// Remove player from the game.
@@ -351,7 +361,7 @@ impl GameContext {
                 .map(|p| p.addr.as_str())
                 .collect::<Vec<&str>>()
         );
-        if self.allow_leave {
+        if self.allow_exit {
             self.players.retain(|p| p.addr.ne(&addr));
             if orig_len == self.players.len() {
                 Err(Error::PlayerNotInGame)

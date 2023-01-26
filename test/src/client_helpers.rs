@@ -8,7 +8,7 @@ use race_core::{
     error::Result,
     event::{CustomEvent, Event},
     secret::SecretState,
-    types::{AttachGameParams, ClientMode, ExitGameParams, SubmitEventParams},
+    types::{AttachGameParams, ClientMode, ExitGameParams, SubmitEventParams, SubscribeEventParams},
 };
 use race_encryptor::Encryptor;
 

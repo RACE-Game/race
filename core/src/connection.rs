@@ -1,8 +1,8 @@
 use crate::error::Result;
-use crate::types::{AttachGameParams, ExitGameParams, SubmitEventParams};
-use async_trait::async_trait;
-
-#[async_trait]
+use crate::types::{
+    AttachGameParams, ExitGameParams, SubmitEventParams,
+};
+use async_trait::async_trait; #[async_trait]
 pub trait ConnectionT: Send + Sync {
     /// Attach to game. While processing this request, transactor will load
     /// the game into memory if it hasn't already been loaded.

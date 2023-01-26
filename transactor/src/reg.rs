@@ -10,10 +10,9 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
-use tokio::sync::Mutex;
 use tracing::info;
 
-use crate::context::ApplicationContext;
+use crate::{context::ApplicationContext, frame::SignalFrame};
 
 /// Register current server.
 pub async fn register_server(config: &Config) -> Result<()> {
@@ -37,13 +36,13 @@ pub async fn register_server(config: &Config) -> Result<()> {
 
 /// Start the registration task.
 /// This task will scan the games in registration account, find unserved games and join.
-pub async fn start_reg_task(context: &Mutex<ApplicationContext>) {
-    let (reg_addresses, transport, server_addr) = {
-        let context = context.lock().await;
+pub async fn start_reg_task(context: &ApplicationContext) {
+    let (reg_addresses, transport, server_addr, signal_tx) = {
         (
             context.config.reg_addresses.clone(),
             context.transport.clone(),
             context.account.addr.clone(),
+            context.get_signal_sender(),
         )
     };
     info!("Registraion addresses: {:?}", reg_addresses);
@@ -56,8 +55,12 @@ pub async fn start_reg_task(context: &Mutex<ApplicationContext>) {
                     for game_reg in reg.games.into_iter() {
                         if let Some(game_account) = transport.get_game_account(&game_reg.addr).await
                         {
-                            if game_account.transactor_addr.is_none()
-                                || matches!(game_account.transactor_addr, Some(x) if x.ne(&server_addr))
+                            // We will keep registering until we become the transactor.
+                            if game_account
+                                .servers
+                                .iter()
+                                .find(|s| s.addr.eq(&server_addr))
+                                .is_none()
                             {
                                 info!("Serve game at {:?}", game_account.addr);
                                 if let Ok(_) = transport
@@ -70,6 +73,13 @@ pub async fn start_reg_task(context: &Mutex<ApplicationContext>) {
                                     info!("Game account at {:?}, updated", game_account.addr);
                                 }
                             }
+
+                            signal_tx
+                                .send(SignalFrame::StartGame {
+                                    game_addr: game_account.addr.clone(),
+                                })
+                                .await
+                                .ok();
                         }
                     }
                 }

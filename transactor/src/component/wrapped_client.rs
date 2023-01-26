@@ -11,7 +11,6 @@ use std::sync::Arc;
 use crate::frame::EventFrame;
 use race_core::client::Client;
 use race_core::connection::ConnectionT;
-use race_core::error::Error;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, ServerAccount};
 use race_encryptor::Encryptor;
@@ -23,14 +22,12 @@ use super::event_bus::CloseReason;
 
 pub struct WrappedClient {
     pub input_tx: mpsc::Sender<EventFrame>,
-    pub output_rx: Option<mpsc::Receiver<EventFrame>>,
     pub closed_rx: oneshot::Receiver<CloseReason>,
     pub ctx: Option<ClientContext>,
 }
 
 pub struct ClientContext {
     pub input_rx: mpsc::Receiver<EventFrame>,
-    pub output_tx: mpsc::Sender<EventFrame>,
     pub closed_tx: oneshot::Sender<CloseReason>,
     pub addr: String,
     pub game_addr: String,
@@ -47,7 +44,6 @@ impl WrappedClient {
         connection: Arc<dyn ConnectionT>,
     ) -> Self {
         let (input_tx, input_rx) = mpsc::channel(3);
-        let (output_tx, output_rx) = mpsc::channel(3);
         let (closed_tx, closed_rx) = oneshot::channel();
 
         // Detect our client mode by check if our address is the transactor address
@@ -64,7 +60,6 @@ impl WrappedClient {
 
         let ctx = Some(ClientContext {
             input_rx,
-            output_tx,
             closed_tx,
             transport,
             connection,
@@ -74,7 +69,6 @@ impl WrappedClient {
         });
         Self {
             input_tx,
-            output_rx: Some(output_rx),
             closed_rx,
             ctx,
         }
@@ -93,9 +87,10 @@ impl Attachable for WrappedClient {
     }
 
     fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
-        let mut ret = None;
-        std::mem::swap(&mut ret, &mut self.output_rx);
-        ret
+        // let mut ret = None;
+        // std::mem::swap(&mut ret, &mut self.output_rx);
+        // ret
+        None
     }
 }
 
@@ -110,27 +105,25 @@ impl Component<ClientContext> for WrappedClient {
                 transport,
                 connection,
                 closed_tx,
-                output_tx,
+                // output_tx,
             } = ctx;
+
             let encryptor = Arc::new(Encryptor::default());
             let mut client =
                 Client::try_new(addr, game_addr, mode, transport, encryptor, connection)
                     .expect("Failed to create client");
+
+            client
+                .attach_game()
+                .await
+                .expect("Failed to attach to game");
+
             let mut res = Ok(());
             'outer: while let Some(event_frame) = input_rx.recv().await {
                 match event_frame {
                     EventFrame::ContextUpdated { ref context } => {
-                        match client.handle_updated_context(context) {
-                            Ok(events) => {
-                                for event in events.into_iter() {
-                                    if let Err(e) =
-                                        output_tx.send(EventFrame::SendServerEvent { event }).await
-                                    {
-                                        res = Err(Error::InternalError(e.to_string()));
-                                        break 'outer;
-                                    }
-                                }
-                            }
+                        match client.handle_updated_context(context).await {
+                            Ok(_) => {}
                             Err(e) => {
                                 res = Err(e);
                                 break 'outer;
@@ -184,7 +177,7 @@ mod tests {
             Arc::new(DummyConnection::default()),
         );
         client.start();
-        let context = GameContext::new(&game_account).unwrap();
+        let context = GameContext::try_new(&game_account).unwrap();
         (client, context)
     }
 

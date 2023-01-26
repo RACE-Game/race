@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use async_stream::stream;
 use async_trait::async_trait;
-use futures::{lock::Mutex, stream::Stream};
+use futures::{lock::Mutex, Stream};
 use gloo::console::{info, warn};
 use jsonrpsee::{
     core::client::{Client, ClientT, SubscriptionClientT},
@@ -33,7 +33,7 @@ pub struct Connection {
 
 async fn build_rpc_client(endpoint: &str) -> Result<Client> {
     WasmClientBuilder::default()
-        .build(format!("ws://{}", endpoint))
+        .build(endpoint)
         .await
         .map_err(|e| Error::RpcError(e.to_string()))
 }
@@ -59,6 +59,10 @@ impl Connection {
         endpoint: &str,
         encryptor: Arc<Encryptor>,
     ) -> Result<Self> {
+        info!(format!(
+            "Establish connection to transactor at {}",
+            endpoint
+        ));
         let rpc_client = Arc::new(Mutex::new(build_rpc_client(endpoint).await?));
         let max_retries = 3;
         Ok(Self {
@@ -132,8 +136,9 @@ impl Connection {
     pub async fn subscribe_events(
         &self,
         game_addr: &str,
-        params: SubscribeEventParams,
+        settle_version: u64,
     ) -> Result<impl Stream<Item = BroadcastFrame>> {
+        let params = SubscribeEventParams { settle_version };
         let message = format!("{}{}", game_addr, params.to_string());
         let signature = self
             .encryptor

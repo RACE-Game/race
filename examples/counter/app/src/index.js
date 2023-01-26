@@ -40,18 +40,17 @@ function render(event, state) {
   }
 }
 
-function onInited(_gameAddr, state) {
-  render(null, state);
-}
-
-function onStateUpdated(_gameAddr, event, state) {
-  render(event, state);
+function onStateUpdated(addr, context, state) {
+  console.log("Updated context =>", context);
+  render(context.event, state);
 }
 
 async function connect(addr) {
   console.log("Connect to game: %s", addr);
   const { AppClient } = await import("../../../../client/pkg");
-  client = await AppClient.try_init("facade", "ws://localhost:12002", profile.addr, addr, onInited, onStateUpdated);
+  client = await AppClient.try_init(
+    "facade", "ws://localhost:12002", profile.addr, addr, onStateUpdated
+  );
   document.getElementById("join-btn").addEventListener("click", onClickJoinButton);
   document.getElementById("incr-btn").addEventListener("click", onClickIncreamentButton);
   document.getElementById("exit-btn").addEventListener("click", onClickExitButton);

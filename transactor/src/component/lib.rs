@@ -6,6 +6,7 @@ pub mod chain_adapter;
 pub mod event_bus;
 pub mod submitter;
 pub mod synchronizer;
+pub mod subscriber;
 pub mod traits;
 
 pub use event_bus::CloseReason;
@@ -16,3 +17,4 @@ pub use event_loop::EventLoop;
 pub use broadcaster::Broadcaster;
 pub use submitter::Submitter;
 pub use synchronizer::GameSynchronizer;
+pub use subscriber::Subscriber;

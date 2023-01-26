@@ -8,12 +8,14 @@ mod wrapped_handler;
 mod wrapped_transport;
 mod wrapped_client;
 mod connection;
+mod subscriber;
 
 pub use broadcaster::Broadcaster;
 pub use event_loop::EventLoop;
 pub use submitter::Submitter;
 pub use event_bus::EventBus;
 pub use synchronizer::GameSynchronizer;
+pub use subscriber::Subscriber;
 pub use traits::Component;
 pub use traits::Named;
 pub use traits::Attachable;

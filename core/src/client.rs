@@ -177,20 +177,24 @@ impl Client {
         Ok(events)
     }
 
-    pub fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<Vec<Event>> {
+    pub async fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<()> {
         info!("Client handle updated context in mode: {:?}", self.mode);
         let events = match self.mode {
             ClientMode::Player => {
                 self.update_secret_state(ctx)?;
                 vec![]
             }
-            ClientMode::Transactor => {
+            ClientMode::Transactor | ClientMode::Validator => {
                 self.update_secret_state(ctx)?;
                 self.randomize_and_share(ctx)?
             }
-            ClientMode::Validator => todo!(),
         };
-        Ok(events)
+        for event in events.into_iter() {
+            self.connection
+                .submit_event(&self.game_addr, SubmitEventParams { event })
+                .await?;
+        }
+        Ok(())
     }
 
     /// Decrypt the ciphertexts with shared secrets.

@@ -39,7 +39,7 @@ fn test() -> Result<()> {
     // Create game context and test handler.
     // Initalize the handler state with game account.
     // The game will not start since two players are required.
-    let mut ctx = GameContext::new(&game_account)?;
+    let mut ctx = GameContext::try_new(&game_account)?;
     let mut handler = TestHandler::init_state(&mut ctx, &game_account)?;
 
     info!("context: {:?}", ctx);

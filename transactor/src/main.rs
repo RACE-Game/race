@@ -1,16 +1,15 @@
 mod component;
-mod handle;
 mod context;
-mod server;
-mod reg;
 mod frame;
+mod handle;
+mod reg;
+mod server;
 
 use crate::server::run_server;
 use clap::{arg, Command};
 use context::ApplicationContext;
 use race_env::Config;
-use reg::{start_reg_task, register_server};
-use tokio::sync::Mutex;
+use reg::{register_server, start_reg_task};
 
 fn cli() -> Command {
     Command::new("transactor")
@@ -30,13 +29,17 @@ pub async fn main() {
     let config = Config::from_path(&matches.get_one::<String>("config").unwrap().into()).await;
     match matches.subcommand() {
         Some(("run", _)) => {
-            let context = Mutex::new(ApplicationContext::try_new(config).await.expect("Failed to initalize"));
+            let context = ApplicationContext::try_new(config)
+                .await
+                .expect("Failed to initalize");
             start_reg_task(&context).await;
             run_server(context).await.expect("Unexpected error occured");
         }
         Some(("reg", _)) => {
-            register_server(&config).await.expect("Unexpected error occured");
+            register_server(&config)
+                .await
+                .expect("Unexpected error occured");
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }

@@ -144,6 +144,9 @@ pub enum Error {
 
     #[error("IO Error: {0}")]
     IoError(String),
+
+    #[error("Not supported in validator mode")]
+    NotSupportedInValidatorMode,
 }
 
 impl From<serde_json::Error> for Error {
