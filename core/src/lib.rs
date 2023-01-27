@@ -12,5 +12,4 @@ pub mod secret;
 pub mod transport;
 pub mod encryptor;
 pub mod types;
-pub mod client;
 pub mod connection;

@@ -2515,25 +2515,13 @@ dependencies = [
 name = "race-client"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "async-stream",
- "async-trait",
- "borsh",
- "futures",
- "getrandom 0.2.8",
- "gloo",
- "js-sys",
- "jsonrpsee",
  "race-core",
  "race-encryptor",
- "race-transport",
+ "race-test",
  "serde",
  "serde_json",
- "thiserror",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-bindgen-test",
- "web-sys",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2542,11 +2530,9 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "borsh",
- "bytes",
  "serde",
  "serde_json",
  "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -2580,8 +2566,8 @@ name = "race-example-console"
 version = "0.1.0"
 dependencies = [
  "borsh",
- "race-client",
  "race-core",
+ "race-sdk",
  "race-transport",
  "serde",
  "serde_json",
@@ -2649,11 +2635,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "race-sdk"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "borsh",
+ "futures",
+ "getrandom 0.2.8",
+ "gloo",
+ "js-sys",
+ "jsonrpsee",
+ "race-client",
+ "race-core",
+ "race-encryptor",
+ "race-transport",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
 name = "race-test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "borsh",
+ "race-client",
  "race-core",
  "race-encryptor",
  "rand 0.8.5",
@@ -2676,6 +2689,7 @@ dependencies = [
  "hex",
  "hyper",
  "jsonrpsee",
+ "race-client",
  "race-core",
  "race-encryptor",
  "race-env",

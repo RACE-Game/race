@@ -19,8 +19,8 @@ use crate::handler::Handler;
 use gloo::console::{debug, error, info, warn};
 
 use crate::error::Result;
+use race_client::Client;
 use race_core::{
-    client::Client,
     connection::ConnectionT,
     error::Error,
     event::Event,

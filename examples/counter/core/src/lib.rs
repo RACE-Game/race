@@ -25,8 +25,8 @@ impl CustomEvent for GameEvent {}
 #[derive(Default, Deserialize, Serialize)]
 pub struct Counter {
     value: u64,
-    poker_random_id: RandomId,
-    dice_random_id: RandomId,
+    pub poker_random_id: RandomId,
+    pub dice_random_id: RandomId,
     poker_card: String,
     dice_number: String,
     num_of_players: u64,

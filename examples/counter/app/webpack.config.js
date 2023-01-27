@@ -22,7 +22,7 @@ module.exports = {
     ]),
 
     new WasmPackPlugin({
-      crateDirectory: '../../../client/',
+      crateDirectory: '../../../sdk/',
     }),
   ]
 };

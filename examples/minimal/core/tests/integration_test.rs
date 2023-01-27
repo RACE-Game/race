@@ -79,10 +79,10 @@ fn test() -> Result<()> {
     handler.handle_dispatch_event(&mut ctx)?;
     {
         let state: &MinimalHandler = handler.get_state();
-        assert_eq!(0, state.deck_random_id);
+        assert_eq!(1, state.deck_random_id);
         assert_eq!(
             RandomStatus::Masking(transactor_addr.clone()),
-            ctx.get_random_state_unchecked(0).status
+            ctx.get_random_state_unchecked(1).status
         );
     }
 
@@ -104,7 +104,7 @@ fn test() -> Result<()> {
     {
         assert_eq!(
             RandomStatus::Locking(transactor_addr.clone()),
-            ctx.get_random_state_unchecked(0).status
+            ctx.get_random_state_unchecked(1).status
         );
     }
 
@@ -122,7 +122,7 @@ fn test() -> Result<()> {
     {
         assert_eq!(
             RandomStatus::Ready,
-            ctx.get_random_state_unchecked(0).status
+            ctx.get_random_state_unchecked(1).status
         );
         assert_eq!(
             Some(DispatchEvent::new(Event::RandomnessReady, 0)),
@@ -134,7 +134,7 @@ fn test() -> Result<()> {
     // We expect each player got one card assigned.
     handler.handle_dispatch_event(&mut ctx)?;
     {
-        let random_state = ctx.get_random_state_unchecked(0);
+        let random_state = ctx.get_random_state_unchecked(1);
         let ciphertexts_for_alice = random_state.list_assigned_ciphertexts("Alice");
         let ciphertexts_for_bob = random_state.list_assigned_ciphertexts("Bob");
         assert_eq!(RandomStatus::WaitingSecrets, random_state.status);
@@ -158,16 +158,16 @@ fn test() -> Result<()> {
     {
         assert_eq!(
             RandomStatus::Ready,
-            ctx.get_random_state_unchecked(0).status
+            ctx.get_random_state_unchecked(1).status
         );
-        let random_state = ctx.get_random_state_unchecked(0);
+        let random_state = ctx.get_random_state_unchecked(1);
         assert_eq!(1, random_state.list_shared_secrets("Alice").unwrap().len());
         assert_eq!(1, random_state.list_shared_secrets("Bob").unwrap().len());
     }
 
     // Now, client should be able to see their cards.
-    let alice_decryption = alice.decrypt(&ctx, 0)?;
-    let bob_decryption = bob.decrypt(&ctx, 0)?;
+    let alice_decryption = alice.decrypt(&ctx, 1)?;
+    let bob_decryption = bob.decrypt(&ctx, 1)?;
     {
         info!("Alice decryption: {:?}", alice_decryption);
         info!("Bob decryption: {:?}", bob_decryption);
@@ -189,7 +189,7 @@ fn test() -> Result<()> {
     let event = bob.custom_event(GameEvent::Call);
     handler.handle_event(&mut ctx, &event)?;
     {
-        let random_state = ctx.get_random_state_unchecked(0);
+        let random_state = ctx.get_random_state_unchecked(1);
         assert_eq!(
             2,
             random_state
@@ -205,12 +205,12 @@ fn test() -> Result<()> {
         let event = &events[0];
         info!(
             "Required ident: {:?}",
-            ctx.get_random_state_unchecked(0)
+            ctx.get_random_state_unchecked(1)
                 .list_required_secrets_by_from_addr(&transactor_addr)
         );
         assert_eq!(
             2,
-            ctx.get_random_state_unchecked(0)
+            ctx.get_random_state_unchecked(1)
                 .list_required_secrets_by_from_addr(&transactor_addr)
                 .len()
         );
@@ -225,12 +225,12 @@ fn test() -> Result<()> {
     {
         info!(
             "Required ident: {:?}",
-            ctx.get_random_state_unchecked(0)
+            ctx.get_random_state_unchecked(1)
                 .list_required_secrets_by_from_addr(&transactor_addr)
         );
         assert_eq!(
             0,
-            ctx.get_random_state_unchecked(0)
+            ctx.get_random_state_unchecked(1)
                 .list_required_secrets_by_from_addr(&transactor_addr)
                 .len()
         );
@@ -241,7 +241,7 @@ fn test() -> Result<()> {
     }
 
     // Now, the transactor should be able to reveal all hole cards.
-    let decryption = transactor.decrypt(&ctx, 0)?;
+    let decryption = transactor.decrypt(&ctx, 1)?;
     info!("Decryption: {:?}", decryption);
     assert_eq!(2, decryption.len());
     // ctx.add_revealed(0, decryption)?;

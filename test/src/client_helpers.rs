@@ -1,8 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use race_client::Client;
 use race_core::{
-    client::Client,
     connection::ConnectionT,
     context::GameContext,
     error::Result,

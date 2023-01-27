@@ -45,7 +45,6 @@ impl Component<SubmitterContext> for Submitter {
             while let Some(event) = ctx.input_rx.recv().await {
                 match event {
                     EventFrame::Settle { settles } => {
-
                         // The wrapped transport will only return when the transaction is succeed.
                         // So here we assume the settle version is updated.
                         // The new settle_version equals to the old plus 1;
@@ -58,9 +57,7 @@ impl Component<SubmitterContext> for Submitter {
                             .await;
 
                         match res {
-                            Ok(_) => {
-
-                            },
+                            Ok(_) => {}
                             Err(e) => {
                                 ctx.close_tx.send(CloseReason::Fault(e)).unwrap();
                                 return;
@@ -108,7 +105,7 @@ impl Submitter {
 mod tests {
 
     use super::*;
-    use race_core::types::{Settle, SettleParams};
+    use race_core::types::Settle;
     use race_test::*;
 
     #[tokio::test]
@@ -117,10 +114,6 @@ mod tests {
         let transport = Arc::new(DummyTransport::default());
         let mut submitter = Submitter::new(transport.clone(), game_account);
         let settles = vec![Settle::add("Alice", 100)];
-        let params = SettleParams {
-            addr: game_account_addr(),
-            settles: settles.clone(),
-        };
         let event_frame = EventFrame::Settle {
             settles: settles.clone(),
         };

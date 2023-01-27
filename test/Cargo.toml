@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 race-core = { path = "../core" }
+race-client = { path = "../client" }
 race-encryptor = { path = "../encryptor" }
 borsh = "0.9.3"
 async-trait = "0.1.58"

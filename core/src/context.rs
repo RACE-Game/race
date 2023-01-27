@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::Serialize;
-use tracing::info;
 
 use crate::engine::GameHandler;
 use crate::error::{Error, Result};
@@ -385,13 +384,6 @@ impl GameContext {
     /// Remove player from the game.
     pub fn remove_player(&mut self, addr: &str) -> Result<()> {
         let orig_len = self.players.len();
-        info!(
-            "Current players: {:?}",
-            self.players
-                .iter()
-                .map(|p| p.addr.as_str())
-                .collect::<Vec<&str>>()
-        );
         if self.allow_exit {
             self.players.retain(|p| p.addr.ne(&addr));
             if orig_len == self.players.len() {

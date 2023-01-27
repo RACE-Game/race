@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use crate::frame::EventFrame;
-use race_core::client::Client;
+use race_client::Client;
 use race_core::connection::ConnectionT;
 use race_core::encryptor::EncryptorT;
 use race_core::transport::TransportT;

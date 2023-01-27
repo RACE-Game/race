@@ -52,7 +52,7 @@ function onStateUpdated(addr, context, state) {
 
 async function connect(addr) {
   console.log("Connect to game: %s", addr);
-  const { AppClient } = await import("../../../../client/pkg");
+  const { AppClient } = await import("../../../../sdk/pkg");
   client = await AppClient.try_init(
     "facade", "ws://localhost:12002", profile.addr, addr, onStateUpdated
   );
@@ -66,7 +66,7 @@ async function connect(addr) {
 
 
 (async function() {
-  const { AppHelper } = await import("../../../../client/pkg");
+  const { AppHelper } = await import("../../../../sdk/pkg");
   helper = await AppHelper.try_init("facade", "ws://localhost:12002");
   document.getElementById("btn-create-profile").addEventListener("click", onClickCreateProfile);
   let games = await helper.list_games(["DEFAULT_REGISTRATION_ADDRESS"]);

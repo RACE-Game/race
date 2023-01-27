@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 race-core = { path = "../../core" }
-race-client = { path = "../../client" }
+race-sdk = { path = "../../sdk" }
 race-transport = { path = "../../transport" }
 borsh = "0.9.3"
 serde_json = "1.0.85"

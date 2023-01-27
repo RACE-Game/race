@@ -28,12 +28,7 @@ fn test() -> anyhow::Result<()> {
     let mut ctx = GameContext::try_new(&game_account)?;
     let mut handler = TestHandler::<Counter>::init_state(&mut ctx, &game_account)?;
 
-    let join_event = Event::Join {
-        player_addr: "Alice".into(),
-        balance: 10000,
-        position: 0,
-    };
-    handler.handle_event(&mut ctx, &join_event)?;
+    handler.handle_event(&mut ctx, &Event::custom(player_account_addr(0), &GameEvent::RandomPoker))?;
 
     // Mask
     let events = transactor.handle_updated_context(&ctx)?;
@@ -58,7 +53,7 @@ fn test() -> anyhow::Result<()> {
 
     handler.handle_event(&mut ctx, &events[0])?;
 
-    let decryption = alice.decrypt(&ctx, 0)?;
+    let decryption = alice.decrypt(&ctx, handler.get_state().poker_random_id)?;
 
     info!("Random card: {:?}", decryption.get(&0));
 

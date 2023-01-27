@@ -1,7 +1,7 @@
 {
-  "name": "race-client",
+  "name": "race-sdk",
   "version": "0.0.1",
-  "description": "The app client of RACE Protocol",
+  "description": "The app sdk of RACE Protocol",
   "scripts": {
     "test": "TS_NODE_COMPILER_OPTIONS='{ \"module\": \"commonjs\", \"target\": \"es2021\" }' ts-mocha ./tests/**/*.spec.ts",
     "test:watch": "TS_NODE_COMPILER_OPTIONS='{ \"module\": \"commonjs\", \"target\": \"es2021\" }' ts-mocha ./tests/**/*.spec.ts --watch --watch-files ./src, ./tests",
