@@ -101,9 +101,35 @@ async fn test_race_contract() -> Result<(), Box<dyn Error>> {
     let (client, mint, _) = pt.start().await;
 
     let user = Keypair::new();
+    println!("USER {}", user.pubkey().to_string());
     request_airdrop(client.clone(), &mint, &user, LAMPORTS_PER_SOL * 10).await?;
 
-    create_game(client, program_id, &user).await?;
+    create_game(client.clone(), program_id, &user).await?;
 
+    let temp_user_account = Keypair::new();
+    println!("TEMP_USER {}", temp_user_account.pubkey().to_string());
+
+    let instruction = solana_sdk::system_instruction::create_account(
+        &user.pubkey(),
+        &temp_user_account.pubkey(),
+        1000000,
+        100 as u64,
+        &user.pubkey(),
+    );
+
+    let transfer = solana_sdk::system_instruction::transfer(
+        &user.pubkey(),
+        &temp_user_account.pubkey(),
+        100000000,
+    );
+
+    create_and_send_tx(
+        client.clone(),
+        vec![instruction, transfer],
+        vec![&user, &temp_user_account],
+        Some(&user.pubkey()),
+    )
+    .await?;
+    println!(":K:LK:LK:LK:LK:L ");
     Ok(())
 }
