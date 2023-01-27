@@ -105,8 +105,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-=======
 name = "ansi_term"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -116,7 +114,6 @@ dependencies = [
 ]
 
 [[package]]
->>>>>>> dfc3506 (someones code builds and tests are starting)
 name = "anyhow"
 version = "1.0.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -519,11 +516,6 @@ dependencies = [
  "js-sys",
  "num-integer",
  "num-traits",
-<<<<<<< HEAD
- "time",
- "wasm-bindgen",
- "winapi",
-=======
  "serde",
  "time 0.1.45",
  "wasm-bindgen",
@@ -546,7 +538,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ee52072ec15386f770805afd189a01c8841be8696bed250fa2f13c4c0d6dfb7"
 dependencies = [
  "generic-array",
->>>>>>> dfc3506 (someones code builds and tests are starting)
 ]
 
 [[package]]
@@ -600,30 +591,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-name = "codespan-reporting"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3538270d33cc669650c4b093848450d380def10c331d38c768e34cac80576e6e"
-dependencies = [
-<<<<<<< HEAD
- "termcolor",
- "unicode-width",
-=======
- "anyhow",
- "clap 4.1.1",
- "jsonrpsee",
- "race-core",
- "race-env",
- "race-transport",
- "tokio",
- "uuid",
->>>>>>> dfc3506 (someones code builds and tests are starting)
-]
-
-[[package]]
-=======
->>>>>>> 4cfa26f (first pda and cpi worked in solana test)
 name = "codespan-reporting"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -861,17 +828,10 @@ dependencies = [
  "cc",
  "codespan-reporting",
  "once_cell",
-<<<<<<< HEAD
- "proc-macro2",
- "quote",
- "scratch",
- "syn",
-=======
  "proc-macro2 1.0.50",
  "quote 1.0.23",
  "scratch",
  "syn 1.0.107",
->>>>>>> dfc3506 (someones code builds and tests are starting)
 ]
 
 [[package]]
@@ -886,15 +846,9 @@ version = "1.0.87"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65e07508b90551e610910fa648a1878991d367064997a596135b86df30daf07e"
 dependencies = [
-<<<<<<< HEAD
- "proc-macro2",
- "quote",
- "syn",
-=======
  "proc-macro2 1.0.50",
  "quote 1.0.23",
  "syn 1.0.107",
->>>>>>> dfc3506 (someones code builds and tests are starting)
 ]
 
 [[package]]
@@ -1834,24 +1788,12 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-=======
 name = "linked-hash-map"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
-<<<<<<< HEAD
->>>>>>> dfc3506 (someones code builds and tests are starting)
-name = "linux-raw-sys"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f051f77a7c8e6957c0696eac88f26b0117e54f52d3fc682ab19397a8812846a4"
-
-[[package]]
-=======
->>>>>>> 4cfa26f (first pda and cpi worked in solana test)
 name = "lock_api"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2169,18 +2111,18 @@ dependencies = [
 
 [[package]]
 name = "num_enum"
-version = "0.5.7"
+version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf5395665662ef45796a4ff5486c5d41d29e0c09640af4c5f17fd94ee2c119c9"
+checksum = "8d829733185c1ca374f17e52b762f24f535ec625d2cc1f070e34c8a9068f341b"
 dependencies = [
  "num_enum_derive",
 ]
 
 [[package]]
 name = "num_enum_derive"
-version = "0.5.7"
+version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b0498641e53dd6ac1a4f22547548caa6864cc4933784319cd1775271c5a46ce"
+checksum = "2be1598bf1c313dcdd12092e3f1920f463462525a21b7b4e11b4168353d0123e"
 dependencies = [
  "proc-macro-crate 1.2.1",
  "proc-macro2 1.0.50",
@@ -2608,48 +2550,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-name = "race-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "jsonrpsee",
- "race-core",
- "race-env",
- "race-transport",
- "tokio",
- "uuid",
-]
-
-[[package]]
-name = "race-client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-stream",
- "async-trait",
- "borsh",
- "futures",
- "getrandom 0.2.8",
- "gloo",
- "js-sys",
- "jsonrpsee",
- "race-core",
- "race-encryptor",
- "race-transport",
- "serde",
- "serde_json",
- "thiserror",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-bindgen-test",
- "web-sys",
-]
-
-[[package]]
-=======
->>>>>>> 4cfa26f (first pda and cpi worked in solana test)
 name = "race-contract"
 version = "0.1.0"
 dependencies = [
@@ -2702,70 +2602,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-name = "race-example-console"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "race-client",
- "race-core",
- "race-transport",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "race-example-counter"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "borsh",
- "race-core",
- "race-proc-macro",
- "race-test",
- "serde",
- "serde_json",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "race-example-minimal"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "env_logger 0.10.0",
- "log",
- "race-core",
- "race-proc-macro",
- "race-test",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "race-facade"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "futures",
- "getrandom 0.2.8",
- "hyper",
- "jsonrpsee",
- "race-core",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tower",
- "tower-http",
- "uuid",
-]
-
-[[package]]
-=======
->>>>>>> 4cfa26f (first pda and cpi worked in solana test)
 name = "race-proc-macro"
 version = "0.1.0"
 dependencies = [
@@ -2778,74 +2614,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-name = "race-test"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "borsh",
- "race-core",
- "race-encryptor",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "race-transactor"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arrayref",
- "async-stream",
- "async-trait",
- "borsh",
-<<<<<<< HEAD
- "clap",
- "futures",
-=======
- "clap 4.1.1",
->>>>>>> dfc3506 (someones code builds and tests are starting)
- "hex",
- "hyper",
- "jsonrpsee",
- "race-core",
- "race-encryptor",
- "race-env",
- "race-test",
- "race-transport",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber 0.3.16",
- "uuid",
- "wasmer",
-]
-
-[[package]]
-name = "race-transport"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "jsonrpsee",
- "race-core",
- "race-env",
- "serde",
- "serde_json",
- "solana-sdk",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-=======
->>>>>>> 4cfa26f (first pda and cpi worked in solana test)
 name = "rand"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3208,8 +2976,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddccb15bcce173023b3fedd9436f882a0739b8dfb45e4f6b6002bee5929f61b2"
 
 [[package]]
-<<<<<<< HEAD
-=======
 name = "scroll"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3230,7 +2996,6 @@ dependencies = [
 ]
 
 [[package]]
->>>>>>> dfc3506 (someones code builds and tests are starting)
 name = "sct"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4606,8 +4371,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-=======
 name = "time"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4626,9 +4389,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e153e1f1acaef8acc537e68b44906d2db6436e2b35ac2c6b42640fff91f00fd"
 
 [[package]]
-<<<<<<< HEAD
->>>>>>> dfc3506 (someones code builds and tests are starting)
-=======
 name = "time-macros"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4638,7 +4398,6 @@ dependencies = [
 ]
 
 [[package]]
->>>>>>> 4cfa26f (first pda and cpi worked in solana test)
 name = "tiny-bip39"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

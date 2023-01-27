@@ -46,6 +46,7 @@ pub async fn create_game(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let bundle_addr = std::iter::repeat("X").take(10).collect::<String>();
     let params = CreateGameAccountParams {
+        title: "SOME_TITTLE".to_string(),
         bundle_addr: bundle_addr.clone(),
         max_players: 5,
         // TODO: if make 10000 or higher - test will fail. FIXME
