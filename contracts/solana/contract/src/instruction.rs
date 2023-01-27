@@ -5,6 +5,12 @@ use solana_program::pubkey::Pubkey;
 pub enum RaceContractInstruction {
     CreateGame(CreateGameAccountParams),
     CloseGame(CloseGameAccountParams),
+    JoinGame(JoinGameParams),
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+pub struct JoinGameParams {
+    pub amount: u64,
 }
 
 pub fn game_account_seed(address: Pubkey) -> Vec<u8> {

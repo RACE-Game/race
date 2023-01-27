@@ -1,5 +1,5 @@
 use solana_program::{
-    account_info::AccountInfo, entrypoint::ProgramResult, log::sol_log_compute_units,
+    account_info::AccountInfo, entrypoint::ProgramResult, log::sol_log_compute_units, msg,
     pubkey::Pubkey,
 };
 
@@ -11,6 +11,7 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+    msg!("KS:LDKSA");
     let ret = Processor::process(program_id, accounts, instruction_data);
     sol_log_compute_units();
     ret

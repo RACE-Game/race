@@ -89,23 +89,10 @@ pub async fn create_game(
 }
 
 // #[tokio::test(threaded_scheduler)]
-
-#[tokio::test]
-async fn test_race_contract() -> Result<(), Box<dyn Error>> {
-    let program_id = race_contract::id();
-    let pt = solana_program_test::ProgramTest::new(
-        "mpl_program_test",
-        program_id,
-        solana_program_test::processor!(race_contract::entrypoint::process_instruction),
-    );
-    let (client, mint, _) = pt.start().await;
-
-    let user = Keypair::new();
-    println!("USER {}", user.pubkey().to_string());
-    request_airdrop(client.clone(), &mint, &user, LAMPORTS_PER_SOL * 10).await?;
-
-    create_game(client.clone(), program_id, &user).await?;
-
+async fn create_account(
+    mut client: BanksClient,
+    user: &Keypair,
+) -> Result<Keypair, Box<dyn Error>> {
     let temp_user_account = Keypair::new();
     println!("TEMP_USER {}", temp_user_account.pubkey().to_string());
 
@@ -126,10 +113,49 @@ async fn test_race_contract() -> Result<(), Box<dyn Error>> {
     create_and_send_tx(
         client.clone(),
         vec![instruction, transfer],
-        vec![&user, &temp_user_account],
+        vec![user, &temp_user_account],
         Some(&user.pubkey()),
     )
     .await?;
-    println!(":K:LK:LK:LK:LK:L ");
+    Ok(temp_user_account)
+}
+#[tokio::test]
+async fn test_race_contract() -> Result<(), Box<dyn Error>> {
+    let program_id = race_contract::id();
+    let pt = solana_program_test::ProgramTest::new(
+        "mpl_program_test",
+        program_id,
+        solana_program_test::processor!(race_contract::entrypoint::process_instruction),
+    );
+    let (client, mint, _) = pt.start().await;
+    let user = Keypair::new();
+    println!("USER {}", user.pubkey().to_string());
+    request_airdrop(client.clone(), &mint, &user, LAMPORTS_PER_SOL * 10).await?;
+
+    create_game(client.clone(), program_id, &user).await?;
+
+    let temp_user_account1 = create_account(client.clone(), &user).await?;
+    let temp_user_account2 = create_account(client.clone(), &user).await?;
+    let params = race_contract::instruction::JoinGameParams { amount: 10 };
+    let id = spl_token::id();
+    println!("TOKEND ID {}", id);
+    let update_profile_instruction = Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(user.pubkey(), true),
+            AccountMeta::new(temp_user_account1.pubkey(), false),
+            AccountMeta::new(temp_user_account2.pubkey(), false),
+            AccountMeta::new(id, false),
+        ],
+        data: race_contract::instruction::RaceContractInstruction::JoinGame(params).try_to_vec()?,
+    };
+    // {:pubkey     spl-token/token-program-id,
+    create_and_send_tx(
+        client.clone(),
+        vec![update_profile_instruction],
+        vec![&user],
+        Some(&user.pubkey()),
+    )
+    .await?;
     Ok(())
 }
