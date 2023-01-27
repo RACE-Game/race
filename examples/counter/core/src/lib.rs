@@ -7,6 +7,7 @@ use race_core::error::Result;
 use race_core::event::CustomEvent;
 use race_core::event::Event;
 use race_core::random::deck_of_cards;
+use race_core::random::ShuffledList;
 use race_core::types::{GameAccount, RandomId};
 use race_proc_macro::game_handler;
 use serde::{Deserialize, Serialize};
@@ -25,7 +26,9 @@ impl CustomEvent for GameEvent {}
 pub struct Counter {
     value: u64,
     poker_random_id: RandomId,
+    dice_random_id: RandomId,
     poker_card: String,
+    dice_number: String,
     num_of_players: u64,
     num_of_servers: u64,
 }
@@ -36,16 +39,19 @@ pub struct CounterAccountData {
 }
 
 impl Counter {
-    fn handle_custom_event(&mut self, _context: &mut GameContext, event: GameEvent) -> Result<()> {
+    fn handle_custom_event(&mut self, context: &mut GameContext, event: GameEvent) -> Result<()> {
         match event {
             GameEvent::Increase(n) => {
                 self.value += n;
             }
             GameEvent::RandomPoker => {
-
+                // Create some randomness
+                let poker_spec = deck_of_cards();
+                self.poker_random_id = context.init_random_state(&poker_spec);
             }
             GameEvent::RandomDice => {
-
+                let dice_spec = ShuffledList::new(vec!["1", "2", "3", "4", "5", "6"]);
+                self.dice_random_id = context.init_random_state(&dice_spec);
             }
         }
         Ok(())
@@ -59,8 +65,10 @@ impl GameHandler for Counter {
         context.set_allow_exit(true);
         Ok(Self {
             value: account_data.init_value,
-            poker_random_id: 0,
+            poker_random_id: 9,
+            dice_random_id: 9,
             poker_card: "??".into(),
+            dice_number: "?".into(),
             num_of_players: init_account.players.len() as _,
             num_of_servers: init_account.servers.len() as _,
         })
@@ -77,20 +85,28 @@ impl GameHandler for Counter {
                 position: _,
             } => {
                 self.num_of_players += 1;
-                // Create some randomness
-                let poker_spec = deck_of_cards();
-                self.poker_random_id = context.init_random_state(&poker_spec)?;
                 Ok(())
             }
             Event::RandomnessReady => {
-                context.reveal(self.poker_random_id, vec![0])?;
+                if self.poker_random_id != 9 {
+                    context.reveal(self.poker_random_id, vec![0])?;
+                }
+                if self.dice_random_id != 9 {
+                    context.reveal(self.dice_random_id, vec![0])?;
+                }
                 Ok(())
             }
             Event::SecretsReady => {
-                let revealed = context.get_revealed(self.poker_random_id)?;
-                println!("Revealed: {:?}", revealed);
-                let card = revealed.get(&0).unwrap();
-                self.poker_card = card.to_owned();
+                if context.is_random_ready(self.poker_random_id) {
+                    let revealed = context.get_revealed(self.poker_random_id)?;
+                    let card = revealed.get(&0).unwrap();
+                    self.poker_card = card.to_owned();
+                }
+                if context.is_random_ready(self.dice_random_id) {
+                    let revealed = context.get_revealed(self.dice_random_id)?;
+                    let number = revealed.get(&0).unwrap();
+                    self.dice_number = number.to_owned();
+                }
                 Ok(())
             }
             Event::Leave { player_addr: _ } => {

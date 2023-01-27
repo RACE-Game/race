@@ -8,7 +8,7 @@ use std::sync::Arc;
 use race_core::event::Event;
 use race_core::types::{BroadcastFrame, GameAccount};
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
-use tracing::{error, info};
+use tracing::error;
 
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
@@ -72,7 +72,7 @@ impl Component<BroadcasterContext> for Broadcaster {
                             access_version,
                             settle_version,
                         } => {
-                            info!("Broadcaster broadcast event: {:?}", event);
+                            // info!("Broadcaster broadcast event: {:?}", event);
                             let mut snapshot = snapshot.lock().await;
                             let mut event_backups = event_backups.lock().await;
                             ctx.latest_access_version = access_version;

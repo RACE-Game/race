@@ -55,6 +55,7 @@ impl TransactorHandle {
             server_account,
             game_account,
             transport.clone(),
+            encryptor,
             Arc::new(connection),
         );
 
@@ -118,13 +119,22 @@ impl ValidatorHandle {
         info!("Creating components");
         let event_bus = EventBus::default();
         let mut event_loop = EventLoop::new(handler, game_context);
-        let connection = Arc::new(RemoteConnection::try_new(
-            &transactor_account.endpoint,
-            encryptor.clone(),
-        ).await?);
+        let connection = Arc::new(
+            RemoteConnection::try_new(
+                &server_account.addr,
+                &transactor_account.endpoint,
+                encryptor.clone(),
+            )
+            .await?,
+        );
         let mut subscriber = Subscriber::new(game_account, server_account, connection.clone());
-        let mut client =
-            WrappedClient::new(server_account, game_account, transport.clone(), connection);
+        let mut client = WrappedClient::new(
+            server_account,
+            game_account,
+            transport.clone(),
+            encryptor,
+            connection,
+        );
 
         info!("Attaching components");
         event_bus.attach(&mut event_loop).await;

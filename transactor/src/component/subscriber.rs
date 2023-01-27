@@ -61,7 +61,7 @@ impl Component<SubscriberContext> for Subscriber {
             let sub = connection
                 .subscribe_events(&game_addr, &server_addr, start_settle_version)
                 .await
-                .expect("Failed to subscribe event");
+                .expect("Subscriber: Failed to subscribe event");
 
             pin_mut!(sub);
 
@@ -71,7 +71,7 @@ impl Component<SubscriberContext> for Subscriber {
             }
 
             if let Err(e) = closed_tx.send(CloseReason::Complete) {
-                error!("Failed to close: {:?}", e);
+                error!("Subscriber: Failed to close: {:?}", e);
             }
         });
     }

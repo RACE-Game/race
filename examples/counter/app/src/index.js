@@ -11,6 +11,10 @@ async function onClickIncreamentButton() {
   await client.submit_event({ "Increase": 1 });
 }
 
+async function onClickRandomPokerButton() {
+  await client.submit_event("RandomPoker");
+}
+
 async function onClickExitButton() {
   await client.exit();
 }
@@ -29,6 +33,7 @@ function render(event, state) {
   document.getElementById("value").innerText = "" + state.value;
   document.getElementById("num_of_players").innerText = "" + state.num_of_players;
   document.getElementById("num_of_servers").innerText = "" + state.num_of_servers;
+  document.getElementById("poker").innerText = "" + state.poker_card;
   console.log("New state =>", state);
   if (event !== null) {
     events.push(event);
@@ -54,6 +59,7 @@ async function connect(addr) {
   document.getElementById("join-btn").addEventListener("click", onClickJoinButton);
   document.getElementById("incr-btn").addEventListener("click", onClickIncreamentButton);
   document.getElementById("exit-btn").addEventListener("click", onClickExitButton);
+  document.getElementById("poker-btn").addEventListener("click", onClickRandomPokerButton);
   client.attach_game();
   console.log("Game attached");
 }

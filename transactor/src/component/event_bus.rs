@@ -50,7 +50,6 @@ impl Default for EventBus {
 
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
-                info!("Dispatching message: {:?}", msg);
                 let txs = attached_txs.lock().await;
                 for t in txs.iter() {
                     t.send(msg.clone()).await.unwrap();

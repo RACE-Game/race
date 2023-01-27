@@ -11,7 +11,10 @@ use crate::{
     random::{RandomMode, RandomStatus},
     secret::SecretState,
     transport::TransportT,
-    types::{AttachGameParams, Ciphertext, ClientMode, SecretKey, SecretShare, SubmitEventParams},
+    types::{
+        AttachGameParams, Ciphertext, ClientMode, RandomId, SecretKey, SecretShare,
+        SubmitEventParams,
+    },
 };
 
 pub struct Client {
@@ -49,10 +52,38 @@ impl Client {
         })
     }
 
+    fn get_secret_state(&self, random_id: RandomId) -> Result<&SecretState> {
+        if random_id == 0 {
+            return Err(Error::InvalidRandomId);
+        }
+        if let Some(ret) = self.secret_states.get(random_id - 1) {
+            Ok(ret)
+        } else {
+            return Err(Error::InvalidRandomId);
+        }
+    }
+
+    fn get_secret_state_mut(&mut self, random_id: RandomId) -> Result<&mut SecretState> {
+        if random_id == 0 {
+            return Err(Error::InvalidRandomId);
+        }
+        if let Some(ret) = self.secret_states.get_mut(random_id - 1) {
+            Ok(ret)
+        } else {
+            return Err(Error::InvalidRandomId);
+        }
+    }
+
     pub async fn attach_game(&self) -> Result<()> {
         let key = self.encryptor.export_public_key(None)?;
         self.connection
             .attach_game(&self.game_addr, AttachGameParams { key })
+            .await
+    }
+
+    pub async fn submit_event(&self, event: Event) -> Result<()> {
+        self.connection
+            .submit_event(&self.addr, SubmitEventParams { event })
             .await
     }
 
@@ -63,7 +94,7 @@ impl Client {
             .await
     }
 
-    fn update_secret_state(&mut self, game_context: &GameContext) -> Result<()> {
+    pub fn update_secret_state(&mut self, game_context: &GameContext) -> Result<()> {
         let random_states = game_context.list_random_states();
         let secret_states = &mut self.secret_states;
         if random_states.len() > secret_states.len() {
@@ -84,7 +115,7 @@ impl Client {
         Ok(())
     }
 
-    fn randomize_and_share(&mut self, game_context: &GameContext) -> Result<Vec<Event>> {
+    pub fn randomize_and_share(&mut self, game_context: &GameContext) -> Result<Vec<Event>> {
         let mut events = vec![];
         for random_state in game_context.list_random_states().iter() {
             match random_state.status {
@@ -94,30 +125,27 @@ impl Client {
                     let required_idents =
                         random_state.list_required_secrets_by_from_addr(&self.addr);
 
-                    let shares = required_idents
-                        .into_iter()
-                        .map(|idt| {
-                            if let Some(secret_state) = self.secret_states.get(idt.random_id) {
+                    if !required_idents.is_empty() {
+                        let shares = required_idents
+                            .into_iter()
+                            .map(|idt| {
+                                let secret_state = self.get_secret_state(idt.random_id)?;
                                 let secret = secret_state.get_key(idt.index)?;
                                 Ok(SecretShare::new(idt, secret))
-                            } else {
-                                Err(Error::MissingSecret)
-                            }
-                        })
-                        .collect::<Result<Vec<SecretShare>>>()?;
-                    let event = Event::ShareSecrets {
-                        sender: self.addr.clone(),
-                        secrets: shares,
-                    };
-                    events.push(event);
+                            })
+                            .collect::<Result<Vec<SecretShare>>>()?;
+
+                        let event = Event::ShareSecrets {
+                            sender: self.addr.clone(),
+                            secrets: shares,
+                        };
+                        events.push(event);
+                    }
                 }
                 RandomStatus::Locking(ref addr) => {
                     // check if our operation is being requested
                     if self.addr.eq(addr) {
-                        let secret_state = self
-                            .secret_states
-                            .get_mut(random_state.id)
-                            .expect("Failed to get secret state");
+                        let secret_state = self.get_secret_state_mut(random_state.id)?;
 
                         let origin = random_state
                             .ciphertexts
@@ -145,10 +173,7 @@ impl Client {
                 RandomStatus::Masking(ref addr) => {
                     // check if our operation is being requested
                     if self.addr.eq(addr) {
-                        let secret_state = self
-                            .secret_states
-                            .get_mut(random_state.id)
-                            .expect("Failed to get secret state");
+                        let secret_state = self.get_secret_state_mut(random_state.id)?;
 
                         let origin = random_state
                             .ciphertexts
@@ -177,7 +202,7 @@ impl Client {
         Ok(events)
     }
 
-    pub async fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<()> {
+    pub fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<Vec<Event>> {
         info!("Client handle updated context in mode: {:?}", self.mode);
         let events = match self.mode {
             ClientMode::Player => {
@@ -189,12 +214,8 @@ impl Client {
                 self.randomize_and_share(ctx)?
             }
         };
-        for event in events.into_iter() {
-            self.connection
-                .submit_event(&self.game_addr, SubmitEventParams { event })
-                .await?;
-        }
-        Ok(())
+        info!("Generated {} events", events.len());
+        Ok(events)
     }
 
     /// Decrypt the ciphertexts with shared secrets.
@@ -202,7 +223,7 @@ impl Client {
     pub fn decrypt(
         &mut self,
         ctx: &GameContext,
-        random_id: usize,
+        random_id: RandomId,
     ) -> Result<HashMap<usize, String>> {
         let random_state = ctx.get_random_state(random_id)?;
         let options = &random_state.options;

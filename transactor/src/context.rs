@@ -183,6 +183,7 @@ impl ApplicationContext {
         signature: &Signature,
     ) -> Result<()> {
         let message = format!("{}{}", game_addr, arg.to_string());
+        info!("Verify, message: \"{}\", signature: {}", message, signature);
         Ok(self.encryptor.verify(&message.as_bytes(), signature)?)
     }
 

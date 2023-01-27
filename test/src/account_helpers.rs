@@ -2,6 +2,14 @@ use crate::constants::*;
 use borsh::BorshSerialize;
 use race_core::types::{GameAccount, PlayerJoin, ServerAccount, ServerJoin};
 
+pub fn player_account_addr(idx: usize) -> String {
+    PLAYER_ADDRS[idx].to_owned()
+}
+
+pub fn server_account_addr(idx: usize) -> String {
+    SERVER_ADDRS[idx].to_owned()
+}
+
 pub fn game_account_addr() -> String {
     TEST_GAME_ACCOUNT_ADDR.into()
 }

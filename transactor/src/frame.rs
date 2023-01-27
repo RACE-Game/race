@@ -8,11 +8,15 @@ pub struct NewPlayer {
     pub amount: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct NewServer {
+    pub addr: String,
+    pub endpoint: String,
+}
+
 #[derive(Debug, Clone)]
 pub enum SignalFrame {
-    StartGame {
-        game_addr: String
-    }
+    StartGame { game_addr: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -20,6 +24,10 @@ pub enum EventFrame {
     Empty,
     PlayerJoined {
         new_players: Vec<NewPlayer>,
+    },
+    ServerJoined {
+        new_servers: Vec<NewServer>,
+        transactor_addr: String,
     },
     PlayerDeposited {
         player_addr: String,

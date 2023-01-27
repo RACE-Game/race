@@ -9,7 +9,7 @@ use futures::Stream;
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
-use tracing::warn;
+use tracing::{warn, info};
 
 use jsonrpsee::{
     core::{
@@ -84,6 +84,7 @@ impl Attachable for LocalConnection {
 }
 
 pub struct RemoteConnection {
+    server_addr: String,
     endpoint: String,
     encryptor: Arc<dyn EncryptorT>,
     rpc_client: Mutex<WsClient>,
@@ -114,11 +115,11 @@ async fn build_rpc_client(endpoint: &str) -> Result<WsClient> {
 }
 
 impl RemoteConnection {
-    pub async fn try_new(endpoint: &str, encryptor: Arc<dyn EncryptorT>) -> Result<Self> {
+    pub async fn try_new(server_addr: &str, endpoint: &str, encryptor: Arc<dyn EncryptorT>) -> Result<Self> {
         let max_retries = 3;
         let rpc_client = build_rpc_client(endpoint).await?;
-        println!("Build RPC client to {}", endpoint);
         Ok(Self {
+            server_addr: server_addr.to_owned(),
             endpoint: endpoint.into(),
             encryptor,
             rpc_client: Mutex::new(rpc_client),
@@ -136,7 +137,8 @@ impl RemoteConnection {
             let message = format!("{}{}", game_addr, params.to_string());
             let signature = self
                 .encryptor
-                .sign(message.as_bytes(), self.encryptor.export_public_key(None)?)?;
+                .sign(message.as_bytes(), self.server_addr.clone())?;
+            info!("RPC signed, message: \"{}\", signature: {}", message, signature);
             let mut rpc_client = self.rpc_client.lock().await;
             let res = rpc_client
                 .request(method, rpc_params![game_addr, params, signature])

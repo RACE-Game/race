@@ -5,7 +5,7 @@ use tokio::{
     time::sleep,
 };
 
-use crate::frame::{EventFrame, NewPlayer};
+use crate::frame::{EventFrame, NewPlayer, NewServer};
 use race_core::transport::TransportT;
 use race_core::types::GameAccount;
 use tracing::info;
@@ -60,7 +60,10 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                 if let Some(state) = state {
                     if access_version < state.access_version {
                         info!("Synchronizer get new state: {:?}", state);
+
                         let mut new_players = vec![];
+                        let mut new_servers = vec![];
+
                         for p in state.players.iter() {
                             if p.access_version > access_version {
                                 new_players.push(NewPlayer {
@@ -70,11 +73,38 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                                 });
                             }
                         }
-                        let event = EventFrame::PlayerJoined { new_players };
-                        if ctx.output_tx.send(event).await.is_err() {
-                            ctx.closed_tx.send(CloseReason::Complete).unwrap();
-                            break;
+
+                        if !new_players.is_empty() {
+                            let frame = EventFrame::PlayerJoined { new_players };
+                            if ctx.output_tx.send(frame).await.is_err() {
+                                ctx.closed_tx.send(CloseReason::Complete).unwrap();
+                                break;
+                            }
                         }
+
+                        for s in state.servers.iter() {
+                            if s.access_version > access_version {
+                                new_servers.push(NewServer {
+                                    addr: s.addr.clone(),
+                                    endpoint: s.endpoint.clone(),
+                                });
+                            }
+                        }
+
+                        if !new_servers.is_empty() {
+                            let frame = EventFrame::ServerJoined {
+                                new_servers,
+                                // We assume the transactor address is available
+                                // If the contract set it to None,
+                                // we should shutdown the game instance.
+                                transactor_addr: state.transactor_addr.as_ref().unwrap().clone(),
+                            };
+                            if ctx.output_tx.send(frame).await.is_err() {
+                                ctx.closed_tx.send(CloseReason::Complete).unwrap();
+                                break;
+                            }
+                        }
+
                         access_version = state.access_version;
                     } else {
                         sleep(Duration::from_secs(5)).await;

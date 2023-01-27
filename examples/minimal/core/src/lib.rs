@@ -9,7 +9,7 @@ use race_core::{
     error::{Error, Result},
     event::{CustomEvent, Event},
     random::deck_of_cards,
-    types::{GameAccount, Settle},
+    types::{GameAccount, Settle, RandomId},
 };
 use race_proc_macro::game_handler;
 use serde::{Deserialize, Serialize};
@@ -36,7 +36,7 @@ pub enum GameStage {
 #[game_handler]
 #[derive(Default, Serialize, Deserialize)]
 pub struct MinimalHandler {
-    pub deck_random_id: usize,
+    pub deck_random_id: RandomId,
 
     // Current dealer position
     pub dealer_idx: usize,
@@ -116,7 +116,7 @@ impl GameHandler for MinimalHandler {
             // Reset current game state.  Set up randomness
             Event::GameStart => {
                 let rnd_spec = deck_of_cards();
-                self.deck_random_id = context.init_random_state(&rnd_spec)?;
+                self.deck_random_id = context.init_random_state(&rnd_spec);
                 self.stage = GameStage::Dealing;
             }
 

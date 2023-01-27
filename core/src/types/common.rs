@@ -20,7 +20,7 @@ pub fn empty_secret_key() -> SecretKey {
     vec![0u8; 44]
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ClientMode {
     Player,
     Transactor,
@@ -33,6 +33,19 @@ pub struct Signature {
     pub nonce: String,
     pub timestamp: u64,
     pub signature: String,
+}
+
+impl std::fmt::Display for Signature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}](signer: {}, timestamp: {}, nonce: {})",
+            self.signature,
+            self.signer,
+            self.timestamp,
+            self.nonce
+        )
+    }
 }
 
 #[derive(
@@ -51,13 +64,13 @@ pub struct Signature {
 pub struct SecretIdent {
     pub from_addr: String,
     pub to_addr: Option<String>,
-    pub random_id: usize,
+    pub random_id: RandomId,
     pub index: usize,
 }
 
 impl SecretIdent {
     pub fn new_for_assigned<S: Into<String>>(
-        random_id: usize,
+        random_id: RandomId,
         index: usize,
         from_addr: S,
         to_addr: S,
@@ -70,7 +83,7 @@ impl SecretIdent {
         }
     }
 
-    pub fn new_for_revealed<S: Into<String>>(random_id: usize, index: usize, from_addr: S) -> Self {
+    pub fn new_for_revealed<S: Into<String>>(random_id: RandomId, index: usize, from_addr: S) -> Self {
         SecretIdent {
             from_addr: from_addr.into(),
             to_addr: None,

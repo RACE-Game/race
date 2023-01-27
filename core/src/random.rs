@@ -9,13 +9,13 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    types::{Ciphertext, SecretDigest, SecretKey, SecretIdent},
+    types::{Ciphertext, SecretDigest, SecretKey, SecretIdent, RandomId},
 };
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
-    #[error("invalid cipher status")]
-    InvalidCipherStatus,
+    #[error("invalid random status: {0:?}")]
+    InvalidRandomStatus(RandomStatus),
 
     #[error("invalid operator")]
     InvalidOperator,
@@ -247,7 +247,7 @@ impl RandomState {
         self.ciphertexts.get_mut(index)
     }
 
-    pub fn try_new(id: usize, rnd: &dyn RandomSpec, owners: &[String]) -> Result<Self> {
+    pub fn try_new(id: RandomId, rnd: &dyn RandomSpec, owners: &[String]) -> Result<Self> {
         let options = rnd.options();
         let ciphertexts = options
             .iter()
@@ -301,7 +301,7 @@ impl RandomState {
                 }
                 Ok(())
             }
-            _ => Err(Error::InvalidCipherStatus),
+            _ => Err(Error::InvalidRandomStatus(self.status.clone())),
         }
     }
 
@@ -343,7 +343,7 @@ impl RandomState {
                 }
                 Ok(())
             }
-            _ => Err(Error::InvalidCipherStatus),
+            _ => Err(Error::InvalidRandomStatus(self.status.clone())),
         }
     }
 
@@ -355,7 +355,7 @@ impl RandomState {
             self.status,
             RandomStatus::Ready | RandomStatus::WaitingSecrets
         ) {
-            return Err(Error::InvalidCipherStatus);
+            return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
 
         if indexes
@@ -391,7 +391,7 @@ impl RandomState {
             self.status,
             RandomStatus::Ready | RandomStatus::WaitingSecrets
         ) {
-            return Err(Error::InvalidCipherStatus);
+            return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
 
         if indexes

@@ -8,7 +8,7 @@ use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
 use crate::random::RandomStatus;
-use crate::types::{SecretShare, Settle, SettleOp};
+use crate::types::{RandomId, SecretShare, Settle, SettleOp};
 use crate::{
     event::Event,
     random::{RandomSpec, RandomState},
@@ -76,7 +76,7 @@ impl Server {
         Server {
             addr: addr.into(),
             endpoint,
-            status: ServerStatus::Absent,
+            status: ServerStatus::Ready,
         }
     }
 }
@@ -213,6 +213,14 @@ impl GameContext {
         self.players.iter_mut().find(|p| p.addr.eq(addr))
     }
 
+    pub fn get_server_by_address(&self, addr: &str) -> Option<&Server> {
+        self.servers.iter().find(|s| s.addr.eq(addr))
+    }
+
+    pub fn get_transactor_server(&self) -> &Server {
+        self.get_server_by_address(&self.transactor_addr).unwrap()
+    }
+
     pub fn dispatch(&mut self, event: Event, timeout: u64) {
         self.dispatch = Some(DispatchEvent::new(event, timeout));
     }
@@ -261,21 +269,27 @@ impl GameContext {
     }
 
     /// Get the random state by its id.
-    pub fn get_random_state(&self, id: usize) -> Result<&RandomState> {
-        if let Some(rnd_st) = self.random_states.get(id) {
+    pub fn get_random_state(&self, id: RandomId) -> Result<&RandomState> {
+        if id == 0 {
+            return Err(Error::InvalidRandomId);
+        }
+        if let Some(rnd_st) = self.random_states.get(id - 1) {
             Ok(rnd_st)
         } else {
             Err(Error::InvalidRandomId)
         }
     }
 
-    pub fn get_random_state_unchecked(&self, id: usize) -> &RandomState {
-        &self.random_states[id]
+    pub fn get_random_state_unchecked(&self, id: RandomId) -> &RandomState {
+        &self.random_states[id - 1]
     }
 
     /// Get the mutable random state by its id.
-    pub fn get_random_state_mut(&mut self, id: usize) -> Result<&mut RandomState> {
-        if let Some(rnd_st) = self.random_states.get_mut(id) {
+    pub fn get_random_state_mut(&mut self, id: RandomId) -> Result<&mut RandomState> {
+        if id == 0 {
+            return Err(Error::InvalidRandomId);
+        }
+        if let Some(rnd_st) = self.random_states.get_mut(id - 1) {
             Ok(rnd_st)
         } else {
             Err(Error::InvalidRandomId)
@@ -285,7 +299,7 @@ impl GameContext {
     /// Assign random item to a player
     pub fn assign(
         &mut self,
-        random_id: usize,
+        random_id: RandomId,
         player_addr: String,
         indexes: Vec<usize>,
     ) -> Result<()> {
@@ -294,10 +308,17 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn reveal(&mut self, random_id: usize, indexes: Vec<usize>) -> Result<()> {
+    pub fn reveal(&mut self, random_id: RandomId, indexes: Vec<usize>) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.reveal(indexes)?;
         Ok(())
+    }
+
+    pub fn is_random_ready(&self, random_id: RandomId) -> bool {
+        match self.get_random_state(random_id) {
+            Ok(rnd) => rnd.status == RandomStatus::Ready,
+            Err(_) => false,
+        }
     }
 
     pub fn is_all_random_ready(&self) -> bool {
@@ -347,6 +368,16 @@ impl GameContext {
         Ok(())
     }
 
+    /// Add server to the game.
+    /// Using in custom event handler is not allowed.
+    pub fn add_server(&mut self, addr: String, endpoint: String) -> Result<()> {
+        if self.get_server_by_address(&addr).is_some() {
+            return Err(Error::ServerAccountExists);
+        }
+        self.servers.push(Server::new(addr, endpoint));
+        Ok(())
+    }
+
     pub fn set_allow_exit(&mut self, allow_exit: bool) {
         self.allow_exit = allow_exit;
     }
@@ -382,12 +413,16 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn init_random_state(&mut self, rnd: &dyn RandomSpec) -> Result<usize> {
-        let random_id = self.random_states.len();
+    pub fn init_random_state(&mut self, rnd: &dyn RandomSpec) -> RandomId {
+        let random_id = self.random_states.len() + 1;
         let owners: Vec<String> = self.servers.iter().map(|v| v.addr.clone()).collect();
-        let random_state = RandomState::try_new(random_id, rnd, &owners)?;
+
+        // The only failure case is no enough owners.
+        // Here we know the game is served, so the servers must not be empty.
+        let random_state = RandomState::try_new(random_id, rnd, &owners).unwrap();
+
         self.random_states.push(random_state);
-        Ok(random_id)
+        random_id
     }
 
     pub fn add_shared_secrets(&mut self, _addr: &str, shares: Vec<SecretShare>) -> Result<()> {
@@ -471,7 +506,7 @@ impl GameContext {
 
     pub fn add_revealed(
         &mut self,
-        random_id: usize,
+        random_id: RandomId,
         revealed: HashMap<usize, String>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;

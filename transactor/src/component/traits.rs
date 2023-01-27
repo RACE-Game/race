@@ -1,6 +1,7 @@
 use std::mem::swap;
 
 use tokio::sync::{mpsc, oneshot};
+use tracing::info;
 
 use crate::component::event_bus::CloseReason;
 use crate::frame::EventFrame;
@@ -38,6 +39,7 @@ pub trait Component<C>: Named {
         let mut ctx = None;
         swap(self.borrow_mut_ctx(), &mut ctx);
         if let Some(ctx) = ctx {
+            info!("Start component {}", self.name());
             self.run(ctx);
         }
     }

@@ -11,10 +11,11 @@ use std::sync::Arc;
 use crate::frame::EventFrame;
 use race_core::client::Client;
 use race_core::connection::ConnectionT;
+use race_core::encryptor::EncryptorT;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, ServerAccount};
-use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, oneshot};
+use tracing::info;
 
 use crate::component::traits::{Attachable, Component, Named};
 
@@ -32,6 +33,7 @@ pub struct ClientContext {
     pub addr: String,
     pub game_addr: String,
     pub transport: Arc<dyn TransportT>,
+    pub encryptor: Arc<dyn EncryptorT>,
     pub connection: Arc<dyn ConnectionT>,
     pub mode: ClientMode, // client running mode
 }
@@ -41,6 +43,7 @@ impl WrappedClient {
         server_account: &ServerAccount,
         init_account: &GameAccount,
         transport: Arc<dyn TransportT>,
+        encryptor: Arc<dyn EncryptorT>,
         connection: Arc<dyn ConnectionT>,
     ) -> Self {
         let (input_tx, input_rx) = mpsc::channel(3);
@@ -62,6 +65,7 @@ impl WrappedClient {
             input_rx,
             closed_tx,
             transport,
+            encryptor,
             connection,
             mode,
             addr: server_addr,
@@ -103,12 +107,11 @@ impl Component<ClientContext> for WrappedClient {
                 game_addr,
                 mode,
                 transport,
+                encryptor,
                 connection,
                 closed_tx,
-                // output_tx,
             } = ctx;
 
-            let encryptor = Arc::new(Encryptor::default());
             let mut client =
                 Client::try_new(addr, game_addr, mode, transport, encryptor, connection)
                     .expect("Failed to create client");
@@ -122,8 +125,15 @@ impl Component<ClientContext> for WrappedClient {
             'outer: while let Some(event_frame) = input_rx.recv().await {
                 match event_frame {
                     EventFrame::ContextUpdated { ref context } => {
-                        match client.handle_updated_context(context).await {
-                            Ok(_) => {}
+                        match client.handle_updated_context(context) {
+                            Ok(events) => {
+                                for event in events.into_iter() {
+                                    info!("Connection send event: {}", event);
+                                    if let Err(_e) = client.submit_event(event).await {
+                                        // TODO: Should vote for another transactor.
+                                    }
+                                }
+                            }
                             Err(e) => {
                                 res = Err(e);
                                 break 'outer;
@@ -159,31 +169,35 @@ impl Component<ClientContext> for WrappedClient {
 mod tests {
 
     use race_core::{context::GameContext, event::Event, random::ShuffledList};
+    use race_encryptor::Encryptor;
     use race_test::*;
 
     use super::*;
 
-    fn setup() -> (WrappedClient, GameContext) {
+    fn setup() -> (WrappedClient, GameContext, Arc<DummyConnection>) {
         let game_account = TestGameAccountBuilder::default()
             .add_players(2)
             .add_servers(1)
             .build();
+        let encryptor = Arc::new(Encryptor::default());
         let transactor_account = transactor_account();
-        let transport = DummyTransport::default();
+        let connection = Arc::new(DummyConnection::default());
+        let transport = Arc::new(DummyTransport::default());
         let mut client = WrappedClient::new(
             &transactor_account,
             &game_account,
-            Arc::new(transport),
-            Arc::new(DummyConnection::default()),
+            transport,
+            encryptor,
+            connection.clone(),
         );
         client.start();
         let context = GameContext::try_new(&game_account).unwrap();
-        (client, context)
+        (client, context, connection)
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_lock() {
-        let (mut client, mut ctx) = setup();
+        let (mut client, mut ctx, connection) = setup();
 
         // Mask the random_state
         let random = ShuffledList::new(vec!["a", "b", "c"]);
@@ -200,28 +214,24 @@ mod tests {
         client.input_tx.send(event_frame).await.unwrap();
 
         println!("before read event");
-        let event_frame = client.output_rx.unwrap().recv().await.unwrap();
-
-        match event_frame {
-            EventFrame::SendServerEvent { ref event } => match event {
-                Event::Lock {
-                    sender,
-                    random_id,
-                    ciphertexts_and_digests,
-                } => {
-                    assert_eq!(rid, *random_id);
-                    assert_eq!(sender, &transactor_account_addr());
-                    assert_eq!(3, ciphertexts_and_digests.len());
-                }
-                _ => panic!("invalid event type"),
-            },
-            _ => panic!("invalid event frame"),
+        let event = connection.take().await.unwrap();
+        match event {
+            Event::Lock {
+                sender,
+                random_id,
+                ciphertexts_and_digests,
+            } => {
+                assert_eq!(rid, random_id);
+                assert_eq!(sender, transactor_account_addr());
+                assert_eq!(3, ciphertexts_and_digests.len());
+            }
+            _ => panic!("Invalid event type"),
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_mask() {
-        let (mut client, mut ctx) = setup();
+        let (mut client, mut ctx, connection) = setup();
 
         let random = ShuffledList::new(vec!["a", "b", "c"]);
         let rid = ctx.init_random_state(&random);
@@ -234,22 +244,19 @@ mod tests {
         client.input_tx.send(event_frame).await.unwrap();
 
         println!("before read event");
-        let event_frame = client.output_rx.unwrap().recv().await.unwrap();
+        let event = connection.take().await.unwrap();
 
-        match event_frame {
-            EventFrame::SendServerEvent { ref event } => match event {
-                Event::Mask {
-                    sender,
-                    random_id,
-                    ciphertexts,
-                } => {
-                    assert_eq!(rid, *random_id);
-                    assert_eq!(sender, &transactor_account_addr());
-                    assert_eq!(3, ciphertexts.len());
-                }
-                _ => panic!("invalid event type"),
-            },
-            _ => panic!("invalid event frame"),
+        match event {
+            Event::Mask {
+                sender,
+                random_id,
+                ciphertexts,
+            } => {
+                assert_eq!(rid, random_id);
+                assert_eq!(sender, transactor_account_addr());
+                assert_eq!(3, ciphertexts.len());
+            }
+            _ => panic!("Invalid event type"),
         }
     }
 }

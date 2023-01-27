@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use crate::connection::Connection;
 use crate::handler::Handler;
-use gloo::console::{debug, error, info};
+use gloo::console::{debug, error, info, warn};
 
 use crate::error::Result;
 use race_core::{
@@ -176,28 +176,37 @@ impl AppClient {
             settle_version
         ));
 
-        let sub = self.connection.subscribe_events(&self.addr, settle_version).await?;
+        let sub = self
+            .connection
+            .subscribe_events(&self.addr, settle_version)
+            .await?;
         pin_mut!(sub);
         debug!("Event stream connected");
 
         while let Some(frame) = sub.next().await {
             let BroadcastFrame { game_addr, event } = frame;
             let mut game_context = self.game_context.borrow_mut();
-            self.handler.handle_event(&mut game_context, &event)?;
-            let state_js =
-                parse(game_context.get_handler_state_json()).map_err(|_| Error::JsonParseError)?;
-            let partial_context =
-                PartialGameContext::from_game_context(&game_context, Some(&event));
-            let this = JsValue::null();
-            let r = Function::call3(
-                &self.callback,
-                &this,
-                &JsValue::from_str(&game_addr),
-                &JsValue::from_serde(&partial_context).unwrap(),
-                &state_js,
-            );
-            if let Err(e) = r {
-                error!("Callback error, {}", e);
+            match self.handler.handle_event(&mut game_context, &event) {
+                Ok(_) => {
+                    let state_js = parse(game_context.get_handler_state_json())
+                        .map_err(|_| Error::JsonParseError)?;
+                    let partial_context =
+                        PartialGameContext::from_game_context(&game_context, Some(&event));
+                    let this = JsValue::null();
+                    let r = Function::call3(
+                        &self.callback,
+                        &this,
+                        &JsValue::from_str(&game_addr),
+                        &JsValue::from_serde(&partial_context).unwrap(),
+                        &state_js,
+                    );
+                    if let Err(e) = r {
+                        error!("Callback error, {}", e);
+                    }
+                }
+                Err(e) => {
+                    warn!(format!("Discard event [{}] due to: [{:?}]", event, e));
+                }
             }
         }
         Ok(())

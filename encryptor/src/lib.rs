@@ -21,6 +21,7 @@ use race_core::{
     encryptor::{Error, Result},
     types::{Ciphertext, SecretDigest, SecretKey},
 };
+use tracing::info;
 
 #[derive(Debug)]
 pub struct Encryptor {
@@ -32,6 +33,10 @@ pub struct Encryptor {
 impl Encryptor {
     pub fn new(private_key: RsaPrivateKey) -> Self {
         let default_public_key = RsaPublicKey::from(&private_key);
+        info!(
+            "Encryptor created, public key: {}",
+            hex::encode(default_public_key.to_pkcs1_der().unwrap().as_der(),)
+        );
         Self {
             private_key,
             default_public_key,
@@ -90,6 +95,10 @@ impl EncryptorT for Encryptor {
     fn sign_raw(&self, message: &[u8]) -> Result<Vec<u8>> {
         let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
         let hashed = Sha1::digest(message);
+        info!(
+            "Verify signature, key: {:?}, message: {:?}",
+            self.default_public_key, message
+        );
         self.private_key
             .sign(padding, &hashed)
             .map_err(|e| Error::SignFailed(e.to_string()))
@@ -114,10 +123,18 @@ impl EncryptorT for Encryptor {
             .public_keys
             .lock()
             .map_err(|_| Error::ReadPublicKeyError)?;
+
         let pubkey = match addr {
             Some(addr) => public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
             None => &self.default_public_key,
         };
+        info!(
+            "Verify signature, key: {:?}, message: {:?}, signature: {:?}",
+            hex::encode(pubkey.to_pkcs1_der().unwrap().as_der(),),
+            message,
+            signature
+        );
+
         let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
         let hashed = Sha1::digest(message).to_vec();
         pubkey
@@ -163,8 +180,9 @@ impl EncryptorT for Encryptor {
             .lock()
             .map_err(|_| Error::AddPublicKeyError)?;
 
-        let pubkey = RsaPublicKey::from_pkcs1_der(&hex::decode(raw).or(Err(Error::ImportPublicKeyError))?)
-        .or(Err(Error::ImportPrivateKeyError))?;
+        let pubkey =
+            RsaPublicKey::from_pkcs1_der(&hex::decode(raw).or(Err(Error::ImportPublicKeyError))?)
+                .or(Err(Error::ImportPrivateKeyError))?;
 
         public_keys.insert(addr, pubkey);
         Ok(())
@@ -190,14 +208,14 @@ impl EncryptorT for Encryptor {
 }
 
 /// Verify a public key.
-pub fn verify_address_signed(public_key: String, message: &[u8], signature: &[u8]) -> Result<()> {
-    let pubkey = RsaPublicKey::from_pkcs1_pem(&public_key).or(Err(Error::ImportPublicKeyError))?;
-    let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
-    let hashed = Sha1::digest(message).to_vec();
-    pubkey
-        .verify(padding, &hashed, signature)
-        .map_err(|e| Error::VerifyFailed(e.to_string()))
-}
+// pub fn verify_address_signed(public_key: String, message: &[u8], signature: &[u8]) -> Result<()> {
+//     let pubkey = RsaPublicKey::from_pkcs1_pem(&public_key).or(Err(Error::ImportPublicKeyError))?;
+//     let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
+//     let hashed = Sha1::digest(message).to_vec();
+//     pubkey
+//         .verify(padding, &hashed, signature)
+//         .map_err(|e| Error::VerifyFailed(e.to_string()))
+// }
 
 #[cfg(test)]
 mod tests {

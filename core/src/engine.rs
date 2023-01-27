@@ -108,6 +108,15 @@ pub fn general_handle_event(
             Ok(())
         }
 
+        Event::ServerJoin {
+            server_addr,
+            endpoint,
+            transactor_addr: _,
+        } => {
+            context.add_server(server_addr.to_owned(), endpoint.to_owned())?;
+            Ok(())
+        }
+
         _ => Ok(()),
     }
 }

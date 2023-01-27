@@ -2563,6 +2563,7 @@ dependencies = [
  "rsa",
  "sha1",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

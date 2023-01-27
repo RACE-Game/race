@@ -76,7 +76,7 @@ pub enum Error {
     #[error("Randomization error: {0}")]
     RandomizationError(String),
 
-    #[error("Crypto error")]
+    #[error("Crypto error: {0}")]
     CryptoError(String),
 
     #[error("Duplicated event dispatching")]

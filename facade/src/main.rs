@@ -303,11 +303,12 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> Result<()> {
         if account.servers.len() >= 3 {
             return Err(Error::Custom("Server queue is full".into()));
         } else {
+            account.access_version += 1;
             account.servers.push(ServerJoin::new(
                 server_addr,
                 server_account.endpoint.clone(),
-                account.settle_version,
-            ))
+                account.access_version,
+            ));
         }
     }
     Ok(())

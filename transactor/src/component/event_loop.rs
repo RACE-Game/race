@@ -58,8 +58,10 @@ async fn handle(
     event: Event,
     out: &mpsc::Sender<EventFrame>,
 ) {
+    info!("Handle event: {}", event);
     match handler.handle_event(game_context, &event) {
         Ok(effects) => {
+            info!("Send broadcast");
             out.send(EventFrame::Broadcast {
                 state_json: game_context.get_handler_state_json().to_owned(),
                 event,
@@ -69,6 +71,7 @@ async fn handle(
             .await
             .unwrap();
 
+            info!("Send context updated");
             out.send(EventFrame::ContextUpdated {
                 context: game_context.clone(),
             })
@@ -77,10 +80,14 @@ async fn handle(
 
             // We do optimistic updates here
             if let Some(settles) = effects.settles {
+                info!("Send settlements: {:?}", settles);
                 out.send(EventFrame::Settle { settles }).await.unwrap();
             }
         }
-        Err(e) => warn!("Handle event error: {}", e.to_string()),
+        Err(e) => {
+            warn!("Handle event error: {}", e.to_string());
+            info!("Current context: {:?}", game_context);
+        }
     }
 }
 
@@ -119,18 +126,33 @@ impl Component<EventLoopContext> for EventLoop {
             {
                 match event_frame {
                     EventFrame::PlayerJoined { new_players } => {
-                        info!("Event loop handle player joined");
                         for p in new_players.into_iter() {
-                            let event = Event::Join {
-                                player_addr: p.addr,
-                                balance: p.amount,
-                                position: p.position,
-                            };
-                            handle(&mut handler, &mut game_context, event, &output_tx).await;
+                            if game_context.get_player_by_address(&p.addr).is_none() {
+                                let event = Event::Join {
+                                    player_addr: p.addr,
+                                    balance: p.amount,
+                                    position: p.position,
+                                };
+                                handle(&mut handler, &mut game_context, event, &output_tx).await;
+                            }
+                        }
+                    }
+                    EventFrame::ServerJoined {
+                        new_servers,
+                        transactor_addr,
+                    } => {
+                        for s in new_servers.into_iter() {
+                            if game_context.get_server_by_address(&s.addr).is_none() {
+                                let event = Event::ServerJoin {
+                                    server_addr: s.addr,
+                                    endpoint: s.endpoint,
+                                    transactor_addr: transactor_addr.clone(),
+                                };
+                                handle(&mut handler, &mut game_context, event, &output_tx).await;
+                            }
                         }
                     }
                     EventFrame::PlayerLeaving { player_addr } => {
-                        info!("Event loop handle player leaving");
                         let event = Event::Leave { player_addr };
                         handle(&mut handler, &mut game_context, event, &output_tx).await;
                     }

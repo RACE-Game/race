@@ -8,9 +8,10 @@ use race_core::{
     error::Result,
     event::{CustomEvent, Event},
     secret::SecretState,
-    types::{AttachGameParams, ClientMode, ExitGameParams, SubmitEventParams, SubscribeEventParams},
+    types::{AttachGameParams, ClientMode, ExitGameParams, SubmitEventParams},
 };
 use race_encryptor::Encryptor;
+use tokio::sync::{mpsc, Mutex};
 
 use crate::DummyTransport;
 
@@ -18,14 +19,42 @@ pub struct TestClient {
     client: Client,
 }
 
-#[derive(Default)]
-pub struct DummyConnection {}
+pub struct DummyConnection {
+    rx: Mutex<mpsc::Receiver<Event>>,
+    tx: mpsc::Sender<Event>,
+    pub attached: Mutex<bool>,
+}
+
+impl Default for DummyConnection {
+    fn default() -> Self {
+        let (tx, rx) = mpsc::channel(1);
+        Self {
+            tx,
+            rx: Mutex::new(rx),
+            attached: Mutex::new(false),
+        }
+    }
+}
+
+impl DummyConnection {
+    pub async fn take(&self) -> Option<Event> {
+        self.rx.lock().await.recv().await
+    }
+
+    pub async fn is_attached(&self) -> bool {
+        *self.attached.lock().await
+    }
+}
+
 #[async_trait]
 impl ConnectionT for DummyConnection {
     async fn attach_game(&self, _game_addr: &str, _params: AttachGameParams) -> Result<()> {
+        let mut attached = self.attached.lock().await;
+        *attached = true;
         Ok(())
     }
-    async fn submit_event(&self, _game_addr: &str, _params: SubmitEventParams) -> Result<()> {
+    async fn submit_event(&self, _game_addr: &str, params: SubmitEventParams) -> Result<()> {
+        self.tx.send(params.event).await.unwrap();
         Ok(())
     }
     async fn exit_game(&self, _game_addr: &str, _params: ExitGameParams) -> Result<()> {
@@ -65,5 +94,25 @@ impl TestClient {
             sender: self.client.addr.to_owned(),
             raw: serde_json::to_string(&custom_event).expect("Failed to serialize custom event"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_dummy_connection() -> Result<()> {
+        let conn = DummyConnection::default();
+        conn.submit_event(
+            "",
+            SubmitEventParams {
+                event: Event::GameStart,
+            },
+        )
+        .await?;
+        let event = conn.take().await.unwrap();
+        assert_eq!(Event::GameStart, event);
+        Ok(())
     }
 }
