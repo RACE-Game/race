@@ -83,7 +83,7 @@ impl Client {
 
     pub async fn submit_event(&self, event: Event) -> Result<()> {
         self.connection
-            .submit_event(&self.addr, SubmitEventParams { event })
+            .submit_event(&self.game_addr, SubmitEventParams { event })
             .await
     }
 

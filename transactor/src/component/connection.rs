@@ -9,7 +9,7 @@ use futures::Stream;
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{warn, info};
+use tracing::{info, warn};
 
 use jsonrpsee::{
     core::{
@@ -110,12 +110,16 @@ async fn build_rpc_client(endpoint: &str) -> Result<WsClient> {
     let client = WsClientBuilder::default()
         .build(endpoint)
         .await
-        .expect("Failed to connect to transactor");
+        .map_err(|e| Error::InitializeRpcClientError(e.to_string()))?;
     Ok(client)
 }
 
 impl RemoteConnection {
-    pub async fn try_new(server_addr: &str, endpoint: &str, encryptor: Arc<dyn EncryptorT>) -> Result<Self> {
+    pub async fn try_new(
+        server_addr: &str,
+        endpoint: &str,
+        encryptor: Arc<dyn EncryptorT>,
+    ) -> Result<Self> {
         let max_retries = 3;
         let rpc_client = build_rpc_client(endpoint).await?;
         Ok(Self {
@@ -138,7 +142,10 @@ impl RemoteConnection {
             let signature = self
                 .encryptor
                 .sign(message.as_bytes(), self.server_addr.clone())?;
-            info!("RPC signed, message: \"{}\", signature: {}", message, signature);
+            info!(
+                "RPC signed, message: \"{}\", signature: {}",
+                message, signature
+            );
             let mut rpc_client = self.rpc_client.lock().await;
             let res = rpc_client
                 .request(method, rpc_params![game_addr, params, signature])

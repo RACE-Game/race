@@ -95,10 +95,10 @@ impl EncryptorT for Encryptor {
     fn sign_raw(&self, message: &[u8]) -> Result<Vec<u8>> {
         let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
         let hashed = Sha1::digest(message);
-        info!(
-            "Verify signature, key: {:?}, message: {:?}",
-            self.default_public_key, message
-        );
+        // info!(
+        //     "Verify signature, key: {:?}, message: {:?}",
+        //     self.default_public_key, message
+        // );
         self.private_key
             .sign(padding, &hashed)
             .map_err(|e| Error::SignFailed(e.to_string()))
@@ -128,12 +128,12 @@ impl EncryptorT for Encryptor {
             Some(addr) => public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
             None => &self.default_public_key,
         };
-        info!(
-            "Verify signature, key: {:?}, message: {:?}, signature: {:?}",
-            hex::encode(pubkey.to_pkcs1_der().unwrap().as_der(),),
-            message,
-            signature
-        );
+        // info!(
+        //     "Verify signature, key: {:?}, message: {:?}, signature: {:?}",
+        //     hex::encode(pubkey.to_pkcs1_der().unwrap().as_der(),),
+        //     message,
+        //     signature
+        // );
 
         let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
         let hashed = Sha1::digest(message).to_vec();

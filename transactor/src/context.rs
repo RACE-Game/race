@@ -60,7 +60,7 @@ impl GameManager {
             handle.event_bus().send(event_frame).await;
             Ok(())
         } else {
-            warn!("Game not loaded, discard event: {:?}", event);
+            warn!("Game {} not loaded, discard event: {:?}", game_addr, event);
             Err(Error::GameNotLoaded)
         }
     }

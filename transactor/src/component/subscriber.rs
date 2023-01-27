@@ -58,16 +58,31 @@ impl Component<SubscriberContext> for Subscriber {
                 connection,
             } = ctx;
 
-            let sub = connection
-                .subscribe_events(&game_addr, &server_addr, start_settle_version)
-                .await
-                .expect("Subscriber: Failed to subscribe event");
+            let sub = loop {
+                match connection
+                    .subscribe_events(&game_addr, &server_addr, start_settle_version)
+                    .await
+                {
+                    Ok(sub) => break sub,
+                    Err(e) => {
+                        error!(
+                            "Failed to subscribe events from transactor: {}, will retry",
+                            e
+                        );
+                        // TODO: should vote for downgrading transactor
+                        continue;
+                    }
+                }
+            };
 
             pin_mut!(sub);
 
             while let Some(frame) = sub.next().await {
                 let BroadcastFrame { event, .. } = frame;
-                output_tx.send(EventFrame::SendServerEvent { event }).await.ok();
+                let r = output_tx.send(EventFrame::SendServerEvent { event }).await;
+                if let Err(e) = r {
+                    error!("Failed to send event, error: {:?}", e);
+                }
             }
 
             if let Err(e) = closed_tx.send(CloseReason::Complete) {

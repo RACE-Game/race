@@ -10,7 +10,7 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::{context::ApplicationContext, frame::SignalFrame};
 
@@ -74,12 +74,17 @@ pub async fn start_reg_task(context: &ApplicationContext) {
                                 }
                             }
 
-                            signal_tx
+                            let r = signal_tx
                                 .send(SignalFrame::StartGame {
                                     game_addr: game_account.addr.clone(),
                                 })
-                                .await
-                                .ok();
+                                .await;
+                            if let Err(e) = r {
+                                error!(
+                                    "Failed to send signal to start game {}: {:?}",
+                                    game_account.addr, e
+                                );
+                            }
                         }
                     }
                 }

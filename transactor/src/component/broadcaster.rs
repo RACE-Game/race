@@ -87,16 +87,14 @@ impl Component<BroadcasterContext> for Broadcaster {
                             if event_backups.len() > 100 {
                                 event_backups.pop_front();
                             }
-                            ctx.broadcast_tx
+                            let r = ctx.broadcast_tx
                                 .send(BroadcastFrame {
                                     game_addr: ctx.game_addr.clone(),
                                     event,
-                                })
-                                .map_err(|e| {
-                                    error!("Broadcaster failed to send: {:?}", e);
-                                    e
-                                })
-                                .ok();
+                                });
+                            if let Err(e) = r {
+                                error!("Failed to broadcast event: {:?}", e);
+                            }
                         }
                         _ => (),
                     }

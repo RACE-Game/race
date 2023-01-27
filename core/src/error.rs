@@ -106,8 +106,8 @@ pub enum Error {
     #[error("Initialization transport failed: {0}")]
     InitializationTransportFailed(String),
 
-    #[error("Initialize rpc client error")]
-    InitializeRpcClientError,
+    #[error("Initialize rpc client error: {0}")]
+    InitializeRpcClientError(String),
 
     #[error("Internal error: {0}")]
     InternalError(String),
