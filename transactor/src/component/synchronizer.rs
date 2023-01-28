@@ -5,9 +5,12 @@ use tokio::{
     time::sleep,
 };
 
-use crate::frame::{EventFrame, NewPlayer, NewServer};
-use race_core::transport::TransportT;
+use crate::frame::EventFrame;
 use race_core::types::GameAccount;
+use race_core::{
+    transport::TransportT,
+    types::{NewPlayer, NewServer},
+};
 use tracing::info;
 
 use crate::component::{
@@ -63,7 +66,6 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
 
                         let mut new_players = vec![];
                         let mut new_servers = vec![];
-
                         for p in state.players.iter() {
                             if p.access_version > access_version {
                                 new_players.push(NewPlayer {
@@ -73,15 +75,6 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                                 });
                             }
                         }
-
-                        if !new_players.is_empty() {
-                            let frame = EventFrame::PlayerJoined { new_players };
-                            if ctx.output_tx.send(frame).await.is_err() {
-                                ctx.closed_tx.send(CloseReason::Complete).unwrap();
-                                break;
-                            }
-                        }
-
                         for s in state.servers.iter() {
                             if s.access_version > access_version {
                                 new_servers.push(NewServer {
@@ -91,20 +84,19 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                             }
                         }
 
-                        if !new_servers.is_empty() {
-                            let frame = EventFrame::ServerJoined {
+                        if !new_players.is_empty() || !new_servers.is_empty() {
+                            let frame = EventFrame::Sync {
+                                new_players,
                                 new_servers,
-                                // We assume the transactor address is available
-                                // If the contract set it to None,
-                                // we should shutdown the game instance.
+                                // TODO: Handle transactor addr change
                                 transactor_addr: state.transactor_addr.as_ref().unwrap().clone(),
+                                access_version: state.access_version,
                             };
-                            if ctx.output_tx.send(frame).await.is_err() {
+                            if let Err(_e) = ctx.output_tx.send(frame).await {
                                 ctx.closed_tx.send(CloseReason::Complete).unwrap();
                                 break;
                             }
                         }
-
                         access_version = state.access_version;
                     } else {
                         sleep(Duration::from_secs(5)).await;
@@ -151,25 +143,36 @@ mod tests {
     #[tokio::test]
     async fn test_sync_state() {
         let transport = Arc::new(DummyTransport::default());
-        let ga_0 = TestGameAccountBuilder::default().add_players(1).build();
+        let ga_0 = TestGameAccountBuilder::default()
+            .add_players(1)
+            .add_servers(1)
+            .build();
         let ga_1 = TestGameAccountBuilder::from_account(&ga_0)
             .add_players(1)
+            .add_servers(1)
             .build();
         println!("ga_0: {:?}", ga_0);
         println!("ga_1: {:?}", ga_1);
 
+        let access_version = ga_1.access_version;
         transport.simulate_states(vec![ga_1]);
         let mut synchronizer = GameSynchronizer::new(transport.clone(), ga_0);
         synchronizer.start();
 
         assert_eq!(
             synchronizer.output_rx.unwrap().recv().await.unwrap(),
-            EventFrame::PlayerJoined {
+            EventFrame::Sync {
                 new_players: vec![NewPlayer {
                     addr: PLAYER_ADDRS[1].to_owned(),
                     position: 1,
                     amount: DEFAULT_DEPOSIT_AMOUNT,
-                }]
+                }],
+                new_servers: vec![NewServer {
+                    addr: SERVER_ADDRS[1].to_owned(),
+                    endpoint: "".into(),
+                }],
+                access_version,
+                transactor_addr: transactor_account_addr(),
             }
         );
     }

@@ -125,32 +125,19 @@ impl Component<EventLoopContext> for EventLoop {
                 retrieve_event(&mut ctx.input_rx, game_context.get_dispatch()).await
             {
                 match event_frame {
-                    EventFrame::PlayerJoined { new_players } => {
-                        for p in new_players.into_iter() {
-                            if game_context.get_player_by_address(&p.addr).is_none() {
-                                let event = Event::Join {
-                                    player_addr: p.addr,
-                                    balance: p.amount,
-                                    position: p.position,
-                                };
-                                handle(&mut handler, &mut game_context, event, &output_tx).await;
-                            }
-                        }
-                    }
-                    EventFrame::ServerJoined {
+                    EventFrame::Sync {
+                        new_players,
                         new_servers,
+                        access_version,
                         transactor_addr,
                     } => {
-                        for s in new_servers.into_iter() {
-                            if game_context.get_server_by_address(&s.addr).is_none() {
-                                let event = Event::ServerJoin {
-                                    server_addr: s.addr,
-                                    endpoint: s.endpoint,
-                                    transactor_addr: transactor_addr.clone(),
-                                };
-                                handle(&mut handler, &mut game_context, event, &output_tx).await;
-                            }
-                        }
+                        let event = Event::Sync {
+                            new_players,
+                            new_servers,
+                            access_version,
+                            transactor_addr,
+                        };
+                        handle(&mut handler, &mut game_context, event, &output_tx).await;
                     }
                     EventFrame::PlayerLeaving { player_addr } => {
                         let event = Event::Leave { player_addr };

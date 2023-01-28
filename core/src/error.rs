@@ -147,6 +147,9 @@ pub enum Error {
 
     #[error("Not supported in validator mode")]
     NotSupportedInValidatorMode,
+
+    #[error("Event ignored")]
+    EventIgnored,
 }
 
 impl From<serde_json::Error> for Error {

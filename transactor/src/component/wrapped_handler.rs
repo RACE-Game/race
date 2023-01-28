@@ -5,7 +5,7 @@ use std::sync::Arc;
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
 use race_core::encryptor::EncryptorT;
-use race_core::engine::{after_handle_event, general_handle_event, general_init_state};
+use race_core::engine::{general_handle_event, general_init_state, post_handle_event};
 use race_core::error::{Error, Result};
 use race_core::event::Event;
 use race_core::types::{GameAccount, GameBundle, Settle};
@@ -34,7 +34,11 @@ impl WrappedHandler {
             Module::from_binary(&store, &bundle.data).or(Err(Error::MalformedGameBundle))?;
         let import_object = imports![];
         let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
-        Ok(Self { store, instance, encryptor })
+        Ok(Self {
+            store,
+            instance,
+            encryptor,
+        })
     }
 
     /// Load WASM bundle by relative path
@@ -143,7 +147,7 @@ impl WrappedHandler {
         let mut new_context = context.clone();
         general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
         self.custom_handle_event(&mut new_context, event)?;
-        after_handle_event(context, &mut new_context)?;
+        post_handle_event(context, &mut new_context)?;
         let settles = new_context.apply_and_take_settles()?;
         swap(context, &mut new_context);
         Ok(Effects { settles })
@@ -164,7 +168,7 @@ impl WrappedHandler {
 
 #[cfg(test)]
 mod tests {
-    use race_core::types::GameAccount;
+    use race_core::types::{GameAccount, NewPlayer};
     use race_test::*;
 
     use super::*;
@@ -205,10 +209,15 @@ mod tests {
         let mut hdlr = make_wrapped_handler();
         let game_account = make_game_account();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
-        let event = Event::Join {
-            player_addr: "FAKE_ADDR".into(),
-            balance: 1000,
-            position: 0,
+        let event = Event::Sync {
+            new_players: vec![NewPlayer {
+                addr: "FAKE_ADDR".into(),
+                amount: 1000,
+                position: 0,
+            }],
+            new_servers: vec![],
+            transactor_addr: transactor_account_addr(),
+            access_version: ctx.get_access_version() + 1,
         };
         hdlr.init_state(&mut ctx, &game_account).unwrap();
         println!("ctx: {:?}", ctx);

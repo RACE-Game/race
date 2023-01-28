@@ -59,11 +59,25 @@ pub fn general_handle_event(
 
         Event::RandomnessReady => Ok(()),
 
-        Event::Join {
-            player_addr,
-            balance,
-            position,
-        } => context.add_player(player_addr, *balance, *position),
+        Event::Sync {
+            new_players,
+            new_servers,
+            transactor_addr: _,
+            access_version,
+        } => {
+            if *access_version <= context.access_version {
+                return Err(Error::EventIgnored);
+            }
+            for p in new_players.iter() {
+                context.add_player(&p.addr, p.amount, p.position)?;
+            }
+            for s in new_servers.iter() {
+                context.add_server(s.addr.clone(), s.endpoint.clone())?;
+            }
+            context.access_version = *access_version;
+
+            Ok(())
+        }
 
         Event::Leave { player_addr } => {
             if context
@@ -108,21 +122,12 @@ pub fn general_handle_event(
             Ok(())
         }
 
-        Event::ServerJoin {
-            server_addr,
-            endpoint,
-            transactor_addr: _,
-        } => {
-            context.add_server(server_addr.to_owned(), endpoint.to_owned())?;
-            Ok(())
-        }
-
         _ => Ok(()),
     }
 }
 
 /// Context maintaining after event handling.
-pub fn after_handle_event(old_context: &GameContext, new_context: &mut GameContext) -> Result<()> {
+pub fn post_handle_event(old_context: &GameContext, new_context: &mut GameContext) -> Result<()> {
     // Find all leaving player, submit during the settlement.
     // Or create a settlement for just player leaving.
     let mut left_players = vec![];

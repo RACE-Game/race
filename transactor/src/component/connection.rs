@@ -142,10 +142,6 @@ impl RemoteConnection {
             let signature = self
                 .encryptor
                 .sign(message.as_bytes(), self.server_addr.clone())?;
-            info!(
-                "RPC signed, message: \"{}\", signature: {}",
-                message, signature
-            );
             let mut rpc_client = self.rpc_client.lock().await;
             let res = rpc_client
                 .request(method, rpc_params![game_addr, params, signature])

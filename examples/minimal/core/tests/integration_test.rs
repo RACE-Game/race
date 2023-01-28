@@ -5,10 +5,10 @@ use race_core::{
     error::Result,
     event::Event,
     random::RandomStatus,
-    types::ClientMode,
+    types::{ClientMode, NewPlayer},
 };
 use race_example_minimal::{GameEvent, MinimalHandler};
-use race_test::{TestClient, TestGameAccountBuilder, TestHandler};
+use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
 
 #[macro_use]
 extern crate log;
@@ -26,7 +26,11 @@ fn test() -> Result<()> {
     let transactor_addr = game_account.transactor_addr.as_ref().unwrap().clone();
 
     // Initialize player client, which simulates the behavior of player.
-    let mut alice = TestClient::new("Alice".into(), game_account.addr.clone(), ClientMode::Player);
+    let mut alice = TestClient::new(
+        "Alice".into(),
+        game_account.addr.clone(),
+        ClientMode::Player,
+    );
     let mut bob = TestClient::new("Bob".into(), game_account.addr.clone(), ClientMode::Player);
 
     // Initialize the client, which simulates the behavior of transactor.
@@ -53,12 +57,18 @@ fn test() -> Result<()> {
 
     // Another player joined the game.
     // Now we have enough players, an event of `GameStart` should be dispatched.
-    let join_event = Event::Join {
-        player_addr: "Bob".into(),
-        balance: 10000,
-        position: 0,
+    let sync_event = Event::Sync {
+        new_players: vec![NewPlayer {
+            addr: "Bob".into(),
+            amount: 10000,
+            position: 0,
+        }],
+        new_servers: vec![],
+        transactor_addr: transactor_account_addr(),
+        access_version: ctx.get_access_version() + 1,
     };
-    handler.handle_event(&mut ctx, &join_event)?;
+
+    handler.handle_event(&mut ctx, &sync_event)?;
 
     {
         let state: &MinimalHandler = handler.get_state();

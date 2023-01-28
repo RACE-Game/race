@@ -6,7 +6,7 @@ use std::sync::Arc;
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
 use race_core::encryptor::EncryptorT;
-use race_core::engine::{after_handle_event, general_handle_event, general_init_state};
+use race_core::engine::{general_handle_event, general_init_state, post_handle_event};
 use race_core::error::Result;
 
 use js_sys::WebAssembly::{Instance, Memory};
@@ -38,7 +38,10 @@ impl Handler {
             .unwrap()
             .dyn_into()
             .unwrap();
-        Self { instance, encryptor }
+        Self {
+            instance,
+            encryptor,
+        }
     }
 
     fn custom_init_state(
@@ -147,7 +150,11 @@ impl Handler {
         let mut new_context = context.clone();
         general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
         self.custom_handle_event(&mut new_context, event)?;
-        after_handle_event(context, &mut new_context)?;
+        post_handle_event(context, &mut new_context)?;
+        // TODO, the settlement is ignored
+        // We should start a independent task to verify the settlements on-chain
+        // Here we should send a verification job to the task
+        new_context.apply_and_take_settles()?;
         swap(context, &mut new_context);
         Ok(())
     }

@@ -9,7 +9,7 @@ use race_core::{
     error::{Error, Result},
     event::{CustomEvent, Event},
     random::deck_of_cards,
-    types::{GameAccount, Settle, RandomId},
+    types::{GameAccount, RandomId, Settle},
 };
 use race_proc_macro::game_handler;
 use serde::{Deserialize, Serialize};
@@ -128,16 +128,14 @@ impl GameHandler for MinimalHandler {
             }
 
             // Start game when there are two players.
-            Event::Join {
-                player_addr,
-                balance,
-                position: _,
-            } => {
+            Event::Sync { new_players, .. } => {
                 if context.get_players().len() == 2 {
                     context.set_game_status(GameStatus::Initializing);
                     context.dispatch(Event::GameStart, 0);
                 }
-                self.chips.insert(player_addr.to_owned(), balance);
+                for p in new_players.into_iter() {
+                    self.chips.insert(p.addr, p.amount);
+                }
             }
 
             Event::SecretsReady => match self.stage {

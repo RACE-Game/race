@@ -1,4 +1,4 @@
-use crate::types::{Ciphertext, SecretDigest, SecretShare, RandomId};
+use crate::types::{Ciphertext, NewPlayer, NewServer, RandomId, SecretDigest, SecretShare};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -38,24 +38,13 @@ pub enum Event {
     /// This event is sent by transactor.
     RandomnessReady,
 
-    /// Client joined game.
-    /// This event is sent by transactor based on client's connection status.
-    ///
-    /// NOTE: This event must be handled idempotently.
-    Join {
-        player_addr: String,
-        balance: u64,
-        position: usize,
-    },
-
-    /// New server attached to the game.  `transactor_addr` is the new
-    /// current transactor address.
-    ///
-    /// NOTE: This event must be handled idempotently.
-    ServerJoin {
-        server_addr: String,
-        endpoint: String,
+    /// Sync with on-chain account.
+    /// This event is sent by transactor based on the diff of the account states.
+    Sync {
+        new_players: Vec<NewPlayer>,
+        new_servers: Vec<NewServer>,
         transactor_addr: String,
+        access_version: u64,
     },
 
     /// A server left the game.
@@ -108,14 +97,15 @@ impl std::fmt::Display for Event {
                 sender, random_id, ..
             } => write!(f, "Lock from {} for random: {}", sender, random_id),
             Event::RandomnessReady => write!(f, "RandomnessReady"),
-            Event::Join {
-                player_addr,
-                balance,
-                position,
+            Event::Sync {
+                new_players,
+                new_servers,
+                transactor_addr,
+                access_version,
             } => write!(
                 f,
-                "Join from {}, with balance: {}, position: {}",
-                player_addr, balance, position
+                "Sync, new_players: {:?}, new_servers: {:?}, transactor: {}, access_version = {}",
+                new_players, new_servers, transactor_addr, access_version
             ),
             Event::Leave { player_addr } => write!(f, "Leave from {}", player_addr),
             Event::GameStart => write!(f, "GameStart"),
@@ -132,15 +122,6 @@ impl std::fmt::Display for Event {
             Event::DrawTimeout => write!(f, "DrawTimeout"),
             Event::ActionTimeout { player_addr } => write!(f, "ActionTimeout from {}", player_addr),
             Event::SecretsReady => write!(f, "SecretsReady"),
-            Event::ServerJoin {
-                server_addr,
-                endpoint,
-                transactor_addr,
-            } => write!(
-                f,
-                "ServerJoin from {}, endpoint: {}, current transactor: {}",
-                server_addr, endpoint, transactor_addr
-            ),
             Event::ServerLeave {
                 server_addr,
                 transactor_addr,

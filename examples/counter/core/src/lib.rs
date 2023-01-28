@@ -79,12 +79,13 @@ impl GameHandler for Counter {
             Event::Custom { sender: _, ref raw } => {
                 self.handle_custom_event(context, serde_json::from_str(raw).unwrap())
             }
-            Event::Join {
-                player_addr: _,
-                balance: _,
-                position: _,
+            Event::Sync {
+                new_players,
+                new_servers,
+                ..
             } => {
-                self.num_of_players += 1;
+                self.num_of_players += new_players.len() as u64;
+                self.num_of_servers += new_servers.len() as u64;
                 Ok(())
             }
             Event::RandomnessReady => {
@@ -120,7 +121,8 @@ impl GameHandler for Counter {
 
 #[cfg(test)]
 mod tests {
-    use race_test::TestGameAccountBuilder;
+    use race_core::types::NewPlayer;
+    use race_test::{transactor_account_addr, TestGameAccountBuilder};
 
     use super::*;
 
@@ -132,10 +134,15 @@ mod tests {
     #[test]
     fn test_player_join() {
         let mut ctx = init_context();
-        let evt = Event::Join {
-            player_addr: "Alice".into(),
-            balance: 1000,
-            position: 0,
+        let evt = Event::Sync {
+            new_players: vec![NewPlayer {
+                addr: "Alice".into(),
+                amount: 1000,
+                position: 0,
+            }],
+            new_servers: vec![],
+            transactor_addr: transactor_account_addr(),
+            access_version: ctx.get_access_version() + 1,
         };
         let mut hdlr = Counter::default();
         hdlr.handle_event(&mut ctx, evt)

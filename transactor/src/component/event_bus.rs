@@ -118,8 +118,11 @@ mod tests {
             tokio::spawn(async move {
                 loop {
                     println!("Producer started");
-                    let event = EventFrame::PlayerJoined {
+                    let event = EventFrame::Sync {
                         new_players: vec![],
+                        new_servers: vec![],
+                        transactor_addr: "".into(),
+                        access_version: 1,
                     };
                     match ctx.output_tx.send(event.clone()).await {
                         Ok(_) => sleep(Duration::from_secs(5)).await,

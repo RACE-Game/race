@@ -40,10 +40,7 @@ impl std::fmt::Display for Signature {
         write!(
             f,
             "[{}](signer: {}, timestamp: {}, nonce: {})",
-            self.signature,
-            self.signer,
-            self.timestamp,
-            self.nonce
+            self.signature, self.signer, self.timestamp, self.nonce
         )
     }
 }
@@ -83,7 +80,11 @@ impl SecretIdent {
         }
     }
 
-    pub fn new_for_revealed<S: Into<String>>(random_id: RandomId, index: usize, from_addr: S) -> Self {
+    pub fn new_for_revealed<S: Into<String>>(
+        random_id: RandomId,
+        index: usize,
+        from_addr: S,
+    ) -> Self {
         SecretIdent {
             from_addr: from_addr.into(),
             to_addr: None,
@@ -138,4 +139,17 @@ impl Into<(SecretIdent, SecretKey)> for SecretShare {
             self.secret,
         )
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+pub struct NewPlayer {
+    pub addr: String,
+    pub position: usize,
+    pub amount: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+pub struct NewServer {
+    pub addr: String,
+    pub endpoint: String,
 }

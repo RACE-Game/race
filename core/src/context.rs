@@ -358,23 +358,35 @@ impl GameContext {
 
     /// Add player to the game.
     /// Using in custom event handler is not allowed.
-    pub fn add_player(&mut self, addr: &str, balance: u64, position: usize) -> Result<()> {
+    pub fn add_player(
+        &mut self,
+        addr: &str,
+        balance: u64,
+        position: usize,
+    ) -> Result<()> {
         if self.get_player_by_address(addr).is_some() {
             return Err(Error::PlayerAlreadyJoined);
         }
         self.players.push(Player::new(addr, balance, position));
-
         Ok(())
     }
 
     /// Add server to the game.
     /// Using in custom event handler is not allowed.
-    pub fn add_server(&mut self, addr: String, endpoint: String) -> Result<()> {
+    pub fn add_server(
+        &mut self,
+        addr: String,
+        endpoint: String,
+    ) -> Result<()> {
         if self.get_server_by_address(&addr).is_some() {
             return Err(Error::ServerAccountExists);
         }
         self.servers.push(Server::new(addr, endpoint));
         Ok(())
+    }
+
+    pub fn set_access_version(&mut self, access_version: u64) {
+        self.access_version = access_version;
     }
 
     pub fn set_allow_exit(&mut self, allow_exit: bool) {
@@ -482,6 +494,9 @@ impl GameContext {
                     }
                 }
             }
+            // Bump the settle version
+            // We assume these settlements returned will be proceed
+            self.settle_version += 1;
             Ok(settles)
         } else {
             Ok(None)
