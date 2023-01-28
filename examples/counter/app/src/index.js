@@ -33,6 +33,7 @@ function render(event, state) {
   document.getElementById("value").innerText = "" + state.value;
   document.getElementById("num_of_players").innerText = "" + state.num_of_players;
   document.getElementById("num_of_servers").innerText = "" + state.num_of_servers;
+  document.getElementById("target-value").innerText = "" + state.dice_number;
   document.getElementById("poker").innerText = "" + state.poker_card;
   console.log("New state =>", state);
   if (event !== null) {
@@ -46,6 +47,7 @@ function render(event, state) {
 }
 
 function onStateUpdated(addr, context, state) {
+  console.log("Event => ", context.event);
   console.log("Updated context =>", context);
   render(context.event, state);
 }

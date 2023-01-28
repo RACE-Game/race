@@ -11,7 +11,7 @@ use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
 use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
-use race_core::types::GameAccount;
+use race_core::types::{ClientMode, GameAccount};
 
 pub struct EventLoopContext {
     input_rx: mpsc::Receiver<EventFrame>,
@@ -19,6 +19,7 @@ pub struct EventLoopContext {
     closed_tx: oneshot::Sender<CloseReason>,
     handler: WrappedHandler,
     game_context: GameContext,
+    mode: ClientMode,
 }
 
 pub trait WrappedGameHandler: Send {
@@ -57,11 +58,16 @@ async fn handle(
     game_context: &mut GameContext,
     event: Event,
     out: &mpsc::Sender<EventFrame>,
+    mode: ClientMode,
 ) {
     info!("Handle event: {}", event);
+
+    // if matches!(event, Event::RandomnessReady) {
+    //     info!("random: {:?}", game_context.list_random_states())
+    // }
+
     match handler.handle_event(game_context, &event) {
         Ok(effects) => {
-            info!("Send broadcast");
             out.send(EventFrame::Broadcast {
                 state_json: game_context.get_handler_state_json().to_owned(),
                 event,
@@ -71,22 +77,32 @@ async fn handle(
             .await
             .unwrap();
 
-            info!("Send context updated");
             out.send(EventFrame::ContextUpdated {
                 context: game_context.clone(),
             })
             .await
             .unwrap();
 
-            // We do optimistic updates here
-            if let Some(settles) = effects.settles {
-                info!("Send settlements: {:?}", settles);
-                out.send(EventFrame::Settle { settles }).await.unwrap();
+            if mode == ClientMode::Transactor {
+                // We do optimistic updates here
+                if let Some(settles) = effects.settles {
+                    info!("Send settlements: {:?}", settles);
+                    out.send(EventFrame::Settle { settles }).await.unwrap();
+
+                    // The game should be restarted for next round.
+                    out.send(EventFrame::SendServerEvent {
+                        event: Event::GameStart {
+                            access_version: game_context.get_access_version(),
+                        },
+                    })
+                    .await
+                    .unwrap();
+                }
             }
         }
         Err(e) => {
             warn!("Handle event error: {}", e.to_string());
-            info!("Current context: {:?}", game_context);
+            // info!("Current context: {:?}", game_context);
         }
     }
 }
@@ -94,8 +110,11 @@ async fn handle(
 async fn retrieve_event(
     input_rx: &mut mpsc::Receiver<EventFrame>,
     dispatch: &Option<DispatchEvent>,
+    mode: ClientMode,
 ) -> Option<EventFrame> {
-    if let Some(dispatch) = dispatch {
+    if mode != ClientMode::Transactor {
+        input_rx.recv().await
+    } else if let Some(dispatch) = dispatch {
         if dispatch.timeout == 0 {
             return Some(EventFrame::SendServerEvent {
                 event: dispatch.event.clone(),
@@ -121,8 +140,26 @@ impl Component<EventLoopContext> for EventLoop {
             let mut handler = ctx.handler;
             let mut game_context = ctx.game_context;
             let output_tx = ctx.output_tx;
+
+            if ctx.mode == ClientMode::Transactor {
+                // Send the very first event to game handler
+                // This event doesn't have to be succeed.
+                let first_event = Event::GameStart {
+                    access_version: game_context.get_access_version(),
+                };
+                handle(
+                    &mut handler,
+                    &mut game_context,
+                    first_event,
+                    &output_tx,
+                    ctx.mode,
+                )
+                .await;
+            }
+
+            // Read games from event bus
             while let Some(event_frame) =
-                retrieve_event(&mut ctx.input_rx, game_context.get_dispatch()).await
+                retrieve_event(&mut ctx.input_rx, game_context.get_dispatch(), ctx.mode).await
             {
                 match event_frame {
                     EventFrame::Sync {
@@ -137,17 +174,17 @@ impl Component<EventLoopContext> for EventLoop {
                             access_version,
                             transactor_addr,
                         };
-                        handle(&mut handler, &mut game_context, event, &output_tx).await;
+                        handle(&mut handler, &mut game_context, event, &output_tx, ctx.mode).await;
                     }
                     EventFrame::PlayerLeaving { player_addr } => {
                         let event = Event::Leave { player_addr };
-                        handle(&mut handler, &mut game_context, event, &output_tx).await;
+                        handle(&mut handler, &mut game_context, event, &output_tx, ctx.mode).await;
                     }
                     EventFrame::SendEvent { event } => {
-                        handle(&mut handler, &mut game_context, event, &output_tx).await;
+                        handle(&mut handler, &mut game_context, event, &output_tx, ctx.mode).await;
                     }
                     EventFrame::SendServerEvent { event } => {
-                        handle(&mut handler, &mut game_context, event, &output_tx).await;
+                        handle(&mut handler, &mut game_context, event, &output_tx, ctx.mode).await;
                     }
                     EventFrame::Shutdown => {
                         ctx.closed_tx.send(CloseReason::Complete).unwrap();
@@ -169,7 +206,7 @@ impl Component<EventLoopContext> for EventLoop {
 }
 
 impl EventLoop {
-    pub fn new(handler: WrappedHandler, game_context: GameContext) -> Self {
+    pub fn new(handler: WrappedHandler, game_context: GameContext, mode: ClientMode) -> Self {
         let (input_tx, input_rx) = mpsc::channel(3);
         let (output_tx, output_rx) = mpsc::channel(3);
         let (closed_tx, closed_rx) = oneshot::channel();
@@ -179,6 +216,7 @@ impl EventLoop {
             closed_tx,
             handler,
             game_context,
+            mode,
         });
         Self {
             input_tx,

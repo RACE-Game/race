@@ -4,6 +4,7 @@ use std::mem::swap;
 use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use gloo::console::info;
 use race_core::context::GameContext;
 use race_core::encryptor::EncryptorT;
 use race_core::engine::{general_handle_event, general_init_state, post_handle_event};
@@ -155,6 +156,7 @@ impl Handler {
         // We should start a independent task to verify the settlements on-chain
         // Here we should send a verification job to the task
         new_context.apply_and_take_settles()?;
+        info!(format!("context: {:?}", new_context));
         swap(context, &mut new_context);
         Ok(())
     }

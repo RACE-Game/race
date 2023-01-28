@@ -10,7 +10,7 @@ use race_core::error::{Error, Result};
 use race_core::event::Event;
 use race_core::types::{GameAccount, GameBundle, Settle};
 use race_encryptor::Encryptor;
-use tracing::{error, info};
+use tracing::error;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
 
 pub struct WrappedHandler {
@@ -67,7 +67,7 @@ impl WrappedHandler {
             .exports
             .get_memory("memory")
             .expect("Get memory failed");
-        memory.grow(&mut self.store, 20).expect("Failed to grow");
+        memory.grow(&mut self.store, 4).expect("Failed to grow");
         let init_state: TypedFunction<(u32, u32), u32> = self
             .instance
             .exports
@@ -123,9 +123,6 @@ impl WrappedHandler {
         mem_view
             .write(offset as _, &event_bs)
             .expect("Failed to write event");
-        offset += event_bs.len() as u64;
-        info!("Game handler memory size: {}", mem_view.data_size());
-        info!("Used: {}", offset);
         let len = handle_event
             .call(&mut self.store, context_bs.len() as _, event_bs.len() as _)
             .map_err(|e| {
@@ -168,7 +165,7 @@ impl WrappedHandler {
 
 #[cfg(test)]
 mod tests {
-    use race_core::types::{GameAccount, NewPlayer};
+    use race_core::types::{GameAccount, PlayerJoin};
     use race_test::*;
 
     use super::*;
@@ -210,10 +207,11 @@ mod tests {
         let game_account = make_game_account();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         let event = Event::Sync {
-            new_players: vec![NewPlayer {
+            new_players: vec![PlayerJoin {
                 addr: "FAKE_ADDR".into(),
-                amount: 1000,
+                balance: 1000,
                 position: 0,
+                access_version: ctx.get_access_version() + 1
             }],
             new_servers: vec![],
             transactor_addr: transactor_account_addr(),

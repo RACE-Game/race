@@ -3,8 +3,8 @@
 use gloo::utils::format::JsValueSerdeExt;
 use js_sys::Function;
 use js_sys::JSON::{parse, stringify};
-use race_core::context::{GameContext, GameStatus, Server};
-use race_core::types::{BroadcastFrame, ExitGameParams};
+use race_core::context::{GameContext, GameStatus, Server, Player};
+use race_core::types::{BroadcastFrame, ExitGameParams, PlayerJoin};
 use race_transport::TransportBuilder;
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -32,8 +32,12 @@ use race_encryptor::Encryptor;
 #[derive(Default, Serialize)]
 pub struct PartialGameContext<'a> {
     game_addr: &'a str,
+    access_version: u64,
+    settle_version: u64,
     status: GameStatus,
     allow_exit: bool,
+    players: Vec<&'a Player>,
+    pending_players: Vec<&'a PlayerJoin>,
     servers: Vec<&'a Server>,
     event: Option<&'a Event>,
 }
@@ -42,9 +46,13 @@ impl<'a> PartialGameContext<'a> {
     pub fn from_game_context(context: &'a GameContext, event: Option<&'a Event>) -> Self {
         Self {
             game_addr: context.get_game_addr(),
+            access_version: context.get_access_version(),
+            settle_version: context.get_settle_version(),
             status: context.get_status(),
             allow_exit: context.is_allow_exit(),
             servers: context.get_servers().iter().collect(),
+            players: context.get_players().iter().collect(),
+            pending_players: context.get_pending_players().iter().collect(),
             event,
         }
     }

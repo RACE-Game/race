@@ -4,8 +4,14 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(Error, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq)]
 pub enum Error {
-    #[error("Player already joined")]
-    PlayerAlreadyJoined,
+    #[error("Player already joined: {0}")]
+    PlayerAlreadyJoined(String),
+
+    #[error("No enough players")]
+    NoEnoughPlayers,
+
+    #[error("Server already joined: {0}")]
+    ServerAlreadyJoined(String),
 
     #[error("Player not in game")]
     PlayerNotInGame,

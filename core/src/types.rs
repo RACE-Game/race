@@ -4,8 +4,8 @@ mod transactor_params;
 mod transport_params;
 
 pub use common::{
-    empty_secret_key, empty_secret_key_raw, Addr, Ciphertext, ClientMode, NewPlayer, NewServer,
-    RandomId, SecretDigest, SecretIdent, SecretKey, SecretKeyRaw, SecretShare, Signature,
+    empty_secret_key, empty_secret_key_raw, Addr, Ciphertext, ClientMode, RandomId, SecretDigest,
+    SecretIdent, SecretKey, SecretKeyRaw, SecretShare, Signature,
 };
 
 pub use accounts::{

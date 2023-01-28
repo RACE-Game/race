@@ -124,6 +124,9 @@ impl Component<ClientContext> for WrappedClient {
             let mut res = Ok(());
             'outer: while let Some(event_frame) = input_rx.recv().await {
                 match event_frame {
+                    EventFrame::Settle { .. } => {
+                        client.flush_secret_states();
+                    }
                     EventFrame::ContextUpdated { ref context } => {
                         match client.handle_updated_context(context) {
                             Ok(events) => {
@@ -191,7 +194,10 @@ mod tests {
             connection.clone(),
         );
         client.start();
-        let context = GameContext::try_new(&game_account).unwrap();
+        let mut context = GameContext::try_new(&game_account).unwrap();
+        context.add_player(1).unwrap();
+        context.add_player(0).unwrap();
+        context.add_server(0).unwrap();
         (client, context, connection)
     }
 
@@ -201,7 +207,7 @@ mod tests {
 
         // Mask the random_state
         let random = ShuffledList::new(vec!["a", "b", "c"]);
-        let rid = ctx.init_random_state(&random);
+        let rid = ctx.init_random_state(&random).unwrap();
         let random_state = ctx.get_random_state_mut(rid).unwrap();
         random_state
             .mask(transactor_account_addr(), vec![vec![0], vec![0], vec![0]])
@@ -234,7 +240,7 @@ mod tests {
         let (mut client, mut ctx, connection) = setup();
 
         let random = ShuffledList::new(vec!["a", "b", "c"]);
-        let rid = ctx.init_random_state(&random);
+        let rid = ctx.init_random_state(&random).unwrap();
         println!("random inited");
 
         println!("client created");

@@ -1,5 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::{context::GameContext, event::Event, types::{Settle, NewPlayer, NewServer}};
+use race_core::{context::GameContext, event::Event, types::{Settle, PlayerJoin, ServerJoin}};
 
 #[derive(Debug, Clone)]
 pub enum SignalFrame {
@@ -10,8 +10,8 @@ pub enum SignalFrame {
 pub enum EventFrame {
     Empty,
     Sync {
-        new_players: Vec<NewPlayer>,
-        new_servers: Vec<NewServer>,
+        new_players: Vec<PlayerJoin>,
+        new_servers: Vec<ServerJoin>,
         transactor_addr: String,
         access_version: u64,
     },

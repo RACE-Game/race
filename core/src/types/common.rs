@@ -140,16 +140,3 @@ impl Into<(SecretIdent, SecretKey)> for SecretShare {
         )
     }
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-pub struct NewPlayer {
-    pub addr: String,
-    pub position: usize,
-    pub amount: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-pub struct NewServer {
-    pub addr: String,
-    pub endpoint: String,
-}

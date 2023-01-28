@@ -74,14 +74,14 @@ pub struct ServerAccount {
 ///
 /// # Access Version and Settle Version
 ///
-/// Since the blockchain and transactor is not synchronized, and the
-/// RPC services usually can't provide a sanitized response, we need
-/// two serial number to reflect when the account is updated. We also
+/// Since the blockchain and transactor are not synchronized, and the
+/// RPC services usually can't provide sanitized responses, we need
+/// two serial numbers to reflect when the account is updated. We also
 /// rely on these versions to filter out latest events.
 ///
 /// * After a player joined, the `access_version` will be increased by 1.
-/// * After a settlement processed, the `settle_version` will be increased by 1.
 /// * After a server attached, the `access_version` will be increased by 1.
+/// * After a settlement processed, the `settle_version` will be increased by 1.
 /// * A deposit will use current `settle_version` + 1 to represent an unhandled operation.
 ///
 /// # Players and Servers

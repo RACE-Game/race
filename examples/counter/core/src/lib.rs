@@ -2,12 +2,15 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
+use race_core::context::GameStatus;
 use race_core::engine::GameHandler;
+use race_core::error::Error;
 use race_core::error::Result;
 use race_core::event::CustomEvent;
 use race_core::event::Event;
 use race_core::random::deck_of_cards;
 use race_core::random::ShuffledList;
+use race_core::types::Settle;
 use race_core::types::{GameAccount, RandomId};
 use race_proc_macro::game_handler;
 use serde::{Deserialize, Serialize};
@@ -16,7 +19,6 @@ use serde::{Deserialize, Serialize};
 pub enum GameEvent {
     Increase(u64),
     RandomPoker,
-    RandomDice,
 }
 
 impl CustomEvent for GameEvent {}
@@ -27,8 +29,8 @@ pub struct Counter {
     value: u64,
     pub poker_random_id: RandomId,
     pub dice_random_id: RandomId,
-    poker_card: String,
-    dice_number: String,
+    pub poker_card: String,
+    pub dice_number: String,
     num_of_players: u64,
     num_of_servers: u64,
 }
@@ -39,19 +41,39 @@ pub struct CounterAccountData {
 }
 
 impl Counter {
-    fn handle_custom_event(&mut self, context: &mut GameContext, event: GameEvent) -> Result<()> {
+    fn reset(&mut self) {
+        self.value = 0;
+        self.poker_random_id = 0;
+        self.dice_random_id = 0;
+        self.poker_card = "??".into();
+        self.dice_number = "?".into();
+    }
+
+    fn handle_custom_event(
+        &mut self,
+        context: &mut GameContext,
+        sender: String,
+        event: GameEvent,
+    ) -> Result<()> {
         match event {
             GameEvent::Increase(n) => {
-                self.value += n;
+                if self.dice_random_id != 0 {
+                    self.value += n;
+                    if let Ok(target_value) = self.dice_number.parse::<u64>() {
+                        if self.value == target_value {
+                            context.add_settle(Settle::eject(sender));
+                            self.num_of_players -= 1;
+                            self.reset();
+                        }
+                    }
+                }
             }
             GameEvent::RandomPoker => {
-                // Create some randomness
-                let poker_spec = deck_of_cards();
-                self.poker_random_id = context.init_random_state(&poker_spec);
-            }
-            GameEvent::RandomDice => {
-                let dice_spec = ShuffledList::new(vec!["1", "2", "3", "4", "5", "6"]);
-                self.dice_random_id = context.init_random_state(&dice_spec);
+                if context.get_status() == GameStatus::Running {
+                    // Create some randomness
+                    let poker_spec = deck_of_cards();
+                    self.poker_random_id = context.init_random_state(&poker_spec)?;
+                }
             }
         }
         Ok(())
@@ -65,8 +87,8 @@ impl GameHandler for Counter {
         context.set_allow_exit(true);
         Ok(Self {
             value: account_data.init_value,
-            poker_random_id: 9,
-            dice_random_id: 9,
+            poker_random_id: 0,
+            dice_random_id: 0,
             poker_card: "??".into(),
             dice_number: "?".into(),
             num_of_players: init_account.players.len() as _,
@@ -76,8 +98,21 @@ impl GameHandler for Counter {
 
     fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
         match event {
-            Event::Custom { sender: _, ref raw } => {
-                self.handle_custom_event(context, serde_json::from_str(raw).unwrap())
+            Event::Custom { sender, ref raw } => {
+                self.handle_custom_event(context, sender, serde_json::from_str(raw).unwrap())
+            }
+            Event::GameStart { .. } => {
+                if context.count_players() < 2 {
+                    return Err(Error::NoEnoughPlayers);
+                }
+                self.value = 0;
+                self.dice_random_id = 0;
+                self.dice_number = "?".into();
+                self.poker_random_id = 0;
+                self.poker_card = "??".into();
+                let dice_spec = ShuffledList::new(vec!["1", "2", "3", "4", "5", "6"]);
+                self.dice_random_id = context.init_random_state(&dice_spec)?;
+                Ok(())
             }
             Event::Sync {
                 new_players,
@@ -86,13 +121,16 @@ impl GameHandler for Counter {
             } => {
                 self.num_of_players += new_players.len() as u64;
                 self.num_of_servers += new_servers.len() as u64;
+                if self.num_of_players > 1 {
+                    context.start_game();
+                }
                 Ok(())
             }
             Event::RandomnessReady => {
-                if self.poker_random_id != 9 {
+                if self.poker_random_id != 0 {
                     context.reveal(self.poker_random_id, vec![0])?;
                 }
-                if self.dice_random_id != 9 {
+                if self.dice_random_id != 0 {
                     context.reveal(self.dice_random_id, vec![0])?;
                 }
                 Ok(())
@@ -121,7 +159,7 @@ impl GameHandler for Counter {
 
 #[cfg(test)]
 mod tests {
-    use race_core::types::NewPlayer;
+    use race_core::types::PlayerJoin;
     use race_test::{transactor_account_addr, TestGameAccountBuilder};
 
     use super::*;
@@ -134,15 +172,17 @@ mod tests {
     #[test]
     fn test_player_join() {
         let mut ctx = init_context();
+        let av = ctx.get_access_version() + 1;
         let evt = Event::Sync {
-            new_players: vec![NewPlayer {
+            new_players: vec![PlayerJoin {
                 addr: "Alice".into(),
-                amount: 1000,
+                balance: 1000,
                 position: 0,
+                access_version: av,
             }],
             new_servers: vec![],
             transactor_addr: transactor_account_addr(),
-            access_version: ctx.get_access_version() + 1,
+            access_version: av,
         };
         let mut hdlr = Counter::default();
         hdlr.handle_event(&mut ctx, evt)
@@ -159,6 +199,18 @@ mod tests {
         );
         let mut hdlr = Counter::default();
         hdlr.handle_event(&mut ctx, evt).unwrap();
-        assert_eq!(1, hdlr.value);
+        assert_eq!(0, hdlr.value);
+    }
+
+    #[test]
+    fn test_random_poker() {
+        let mut ctx = init_context();
+        let e = Event::custom(
+            ctx.get_transactor_addr().to_owned(),
+            &GameEvent::RandomPoker,
+        );
+        let mut h = Counter::default();
+        h.handle_event(&mut ctx, e).unwrap();
+        assert_eq!(0, h.poker_random_id);
     }
 }

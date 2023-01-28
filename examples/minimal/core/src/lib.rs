@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::{
-    context::{GameContext, GameStatus},
+    context::GameContext,
     engine::GameHandler,
     error::{Error, Result},
     event::{CustomEvent, Event},
@@ -114,9 +114,15 @@ impl GameHandler for MinimalHandler {
             }
 
             // Reset current game state.  Set up randomness
-            Event::GameStart => {
+            Event::GameStart { .. } => {
+                if context.count_players() < 2 {
+                    return Err(Error::NoEnoughPlayers);
+                }
+                for p in context.get_players().iter() {
+                    self.chips.insert(p.addr.clone(), p.balance);
+                }
                 let rnd_spec = deck_of_cards();
-                self.deck_random_id = context.init_random_state(&rnd_spec);
+                self.deck_random_id = context.init_random_state(&rnd_spec)?;
                 self.stage = GameStage::Dealing;
             }
 
@@ -128,13 +134,9 @@ impl GameHandler for MinimalHandler {
             }
 
             // Start game when there are two players.
-            Event::Sync { new_players, .. } => {
-                if context.get_players().len() == 2 {
-                    context.set_game_status(GameStatus::Initializing);
-                    context.dispatch(Event::GameStart, 0);
-                }
-                for p in new_players.into_iter() {
-                    self.chips.insert(p.addr, p.amount);
+            Event::Sync { .. } => {
+                if context.count_players() == 2 {
+                    context.start_game();
                 }
             }
 

@@ -55,7 +55,6 @@ impl GameManager {
     pub async fn send_event(&self, game_addr: &str, event: Event) -> Result<()> {
         let games = self.games.lock().await;
         if let Some(handle) = games.get(game_addr) {
-            info!("Receive client event: {:?}", event);
             let event_frame = EventFrame::SendEvent { event };
             handle.event_bus().send(event_frame).await;
             Ok(())
@@ -183,7 +182,7 @@ impl ApplicationContext {
         signature: &Signature,
     ) -> Result<()> {
         let message = format!("{}{}", game_addr, arg.to_string());
-        info!("Verify, message: \"{}\", signature: {}", message, signature);
+        // info!("Verify, message: \"{}\", signature: {}", message, signature);
         Ok(self.encryptor.verify(&message.as_bytes(), signature)?)
     }
 

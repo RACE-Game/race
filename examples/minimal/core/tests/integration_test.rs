@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use race_core::{
     context::{DispatchEvent, GameContext, GameStatus},
-    error::Result,
+    error::{Error, Result},
     event::Event,
     random::RandomStatus,
-    types::{ClientMode, NewPlayer},
+    types::{ClientMode, PlayerJoin},
 };
 use race_example_minimal::{GameEvent, MinimalHandler};
 use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
@@ -45,42 +45,49 @@ fn test() -> Result<()> {
     // The game will not start since two players are required.
     let mut ctx = GameContext::try_new(&game_account)?;
     let mut handler = TestHandler::init_state(&mut ctx, &game_account)?;
+    assert_eq!(1, ctx.count_players());
+
+    // Start game
+    let first_event = ctx.gen_first_event();
+    let ret = handler.handle_event(&mut ctx, &first_event);
+    assert_eq!(ret, Err(Error::NoEnoughPlayers));
 
     info!("context: {:?}", ctx);
     {
-        assert_eq!(1, ctx.get_players().len());
         let state: &MinimalHandler = handler.get_state();
         assert_eq!(0, state.dealer_idx);
-        assert_eq!(HashMap::from([("Alice".into(), 10000)]), state.chips);
         assert_eq!(0, state.bet);
     }
 
     // Another player joined the game.
     // Now we have enough players, an event of `GameStart` should be dispatched.
+    let av = ctx.get_access_version() + 1;
     let sync_event = Event::Sync {
-        new_players: vec![NewPlayer {
+        new_players: vec![PlayerJoin {
             addr: "Bob".into(),
-            amount: 10000,
+            balance: 10000,
             position: 0,
+            access_version: av,
         }],
         new_servers: vec![],
         transactor_addr: transactor_account_addr(),
-        access_version: ctx.get_access_version() + 1,
+        access_version: av,
     };
 
     handler.handle_event(&mut ctx, &sync_event)?;
 
     {
-        let state: &MinimalHandler = handler.get_state();
-        assert_eq!(2, ctx.get_players().len());
+        // let state: &MinimalHandler = handler.get_state();
+        assert_eq!(2, ctx.count_players());
+        assert_eq!(GameStatus::Uninit, ctx.get_status());
         assert_eq!(
-            Some(DispatchEvent::new(Event::GameStart, 0)),
+            Some(DispatchEvent::new(
+                Event::GameStart {
+                    access_version: ctx.get_access_version()
+                },
+                0
+            )),
             *ctx.get_dispatch()
-        );
-        assert_eq!(GameStatus::Initializing, ctx.get_status());
-        assert_eq!(
-            HashMap::from([("Alice".into(), 10000), ("Bob".into(), 10000)]),
-            state.chips
         );
     }
 
@@ -89,7 +96,12 @@ fn test() -> Result<()> {
     handler.handle_dispatch_event(&mut ctx)?;
     {
         let state: &MinimalHandler = handler.get_state();
+        assert_eq!(GameStatus::Running, ctx.get_status());
         assert_eq!(1, state.deck_random_id);
+        assert_eq!(
+            HashMap::from([("Alice".into(), 10000), ("Bob".into(), 10000)]),
+            state.chips
+        );
         assert_eq!(
             RandomStatus::Masking(transactor_addr.clone()),
             ctx.get_random_state_unchecked(1).status
@@ -147,7 +159,10 @@ fn test() -> Result<()> {
         let random_state = ctx.get_random_state_unchecked(1);
         let ciphertexts_for_alice = random_state.list_assigned_ciphertexts("Alice");
         let ciphertexts_for_bob = random_state.list_assigned_ciphertexts("Bob");
-        assert_eq!(RandomStatus::WaitingSecrets, random_state.status);
+        assert_eq!(
+            RandomStatus::WaitingSecrets(transactor_account_addr()),
+            random_state.status
+        );
         assert_eq!(1, ciphertexts_for_alice.len());
         assert_eq!(1, ciphertexts_for_bob.len());
     }

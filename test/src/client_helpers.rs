@@ -104,15 +104,16 @@ mod tests {
     #[tokio::test]
     async fn test_dummy_connection() -> Result<()> {
         let conn = DummyConnection::default();
+        let event = Event::GameStart { access_version: 1 };
         conn.submit_event(
             "",
             SubmitEventParams {
-                event: Event::GameStart,
+                event: event.clone(),
             },
         )
         .await?;
-        let event = conn.take().await.unwrap();
-        assert_eq!(Event::GameStart, event);
+        let event_1 = conn.take().await.unwrap();
+        assert_eq!(event, event_1);
         Ok(())
     }
 }

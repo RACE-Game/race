@@ -162,7 +162,7 @@ impl Broadcaster {
             .await
             .iter()
             .filter_map(|event_backup| {
-                if event_backup.settle_version <= settle_version {
+                if event_backup.settle_version >= settle_version {
                     Some(event_backup.event.clone())
                 } else {
                     None

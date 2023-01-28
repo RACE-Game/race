@@ -1,4 +1,4 @@
-use crate::types::{Ciphertext, NewPlayer, NewServer, RandomId, SecretDigest, SecretShare};
+use crate::types::{Ciphertext, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -41,8 +41,8 @@ pub enum Event {
     /// Sync with on-chain account.
     /// This event is sent by transactor based on the diff of the account states.
     Sync {
-        new_players: Vec<NewPlayer>,
-        new_servers: Vec<NewServer>,
+        new_players: Vec<PlayerJoin>,
+        new_servers: Vec<ServerJoin>,
         transactor_addr: String,
         access_version: u64,
     },
@@ -61,7 +61,8 @@ pub enum Event {
     Leave { player_addr: String },
 
     /// Transactor uses this game as the start for each game.
-    GameStart,
+    /// The `access_version` can be used to filter out which players are included.
+    GameStart { access_version: u64 },
 
     /// Timeout when waiting for start
     WaitTimeout,
@@ -92,7 +93,7 @@ impl std::fmt::Display for Event {
             Event::ShareSecrets { sender, .. } => write!(f, "ShareSecrets from {}", sender),
             Event::Mask {
                 sender, random_id, ..
-            } => write!(f, "Mask from {} for random {}", sender, random_id),
+            } => write!(f, "Mask from {} for random: {}", sender, random_id),
             Event::Lock {
                 sender, random_id, ..
             } => write!(f, "Lock from {} for random: {}", sender, random_id),
@@ -108,7 +109,9 @@ impl std::fmt::Display for Event {
                 new_players, new_servers, transactor_addr, access_version
             ),
             Event::Leave { player_addr } => write!(f, "Leave from {}", player_addr),
-            Event::GameStart => write!(f, "GameStart"),
+            Event::GameStart { access_version } => {
+                write!(f, "GameStart, access_version = {}", access_version)
+            }
             Event::WaitTimeout => write!(f, "WaitTimeout"),
             Event::DrawRandomItems {
                 sender,

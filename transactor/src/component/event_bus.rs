@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use race_core::error::Error;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{error, info};
+use tracing::error;
 
 use crate::component::traits::Attachable;
 use crate::frame::EventFrame;
@@ -35,7 +35,7 @@ impl EventBus {
     }
 
     pub async fn send(&self, event: EventFrame) {
-        info!("Event bus receive event frame: {:?}", event);
+        // info!("Event bus receive event frame: {:?}", event);
         if let Err(e) = self.tx.send(event).await {
             error!("An error occurred when sending event, {}", e.to_string());
         }
@@ -76,7 +76,7 @@ mod tests {
     use super::*;
     use crate::component::traits::{Attachable, Component, Named};
     use tokio::{
-        sync::{oneshot, mpsc},
+        sync::{mpsc, oneshot},
         time::{sleep, Duration},
     };
 

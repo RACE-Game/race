@@ -8,7 +8,7 @@ use race_core::context::GameContext;
 use race_core::encryptor::EncryptorT;
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
-use race_core::types::{GameAccount, GameBundle, ServerAccount};
+use race_core::types::{GameAccount, GameBundle, ServerAccount, ClientMode};
 use tracing::info;
 
 pub enum Handle {
@@ -44,7 +44,7 @@ impl TransactorHandle {
         let event_bus = EventBus::default();
         let mut broadcaster =
             Broadcaster::new(&game_account, game_context.get_handler_state_json().into());
-        let mut event_loop = EventLoop::new(handler, game_context);
+        let mut event_loop = EventLoop::new(handler, game_context, ClientMode::Transactor);
         let mut submitter = Submitter::new(transport.clone(), game_account.clone());
         let mut synchronizer = GameSynchronizer::new(transport.clone(), game_account.clone());
         let mut connection = LocalConnection::new(encryptor.clone());
@@ -118,7 +118,7 @@ impl ValidatorHandle {
 
         info!("Creating components");
         let event_bus = EventBus::default();
-        let mut event_loop = EventLoop::new(handler, game_context);
+        let mut event_loop = EventLoop::new(handler, game_context, ClientMode::Validator);
         let connection = Arc::new(
             RemoteConnection::try_new(
                 &server_account.addr,

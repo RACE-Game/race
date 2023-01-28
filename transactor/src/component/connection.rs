@@ -9,7 +9,7 @@ use futures::Stream;
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{info, warn};
+use tracing::warn;
 
 use jsonrpsee::{
     core::{

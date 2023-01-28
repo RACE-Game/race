@@ -8,9 +8,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{
-    types::{Ciphertext, SecretDigest, SecretKey, SecretIdent, RandomId},
-};
+use crate::types::{Ciphertext, RandomId, SecretDigest, SecretIdent, SecretKey};
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -59,8 +57,8 @@ pub enum Error {
     #[error("secrets are not ready")]
     SecretsNotReady,
 
-    #[error("No enough owners")]
-    NoEnoughOwners,
+    #[error("No enough servers")]
+    NoEnoughServer,
 }
 
 impl From<Error> for crate::error::Error {
@@ -207,9 +205,9 @@ pub struct Share {
 pub enum RandomStatus {
     #[default]
     Ready,
-    Locking(String), // The address to mask the ciphertexts
-    Masking(String), // The address to lock the ciphertexts
-    WaitingSecrets,  // Waiting for the secrets to be shared
+    Locking(String),        // The address to mask the ciphertexts
+    Masking(String),        // The address to lock the ciphertexts
+    WaitingSecrets(String), // Waiting for the secrets to be shared
 }
 
 /// RandomState represents the public information for a single randomness.
@@ -257,7 +255,7 @@ impl RandomState {
             })
             .collect();
         let masks = owners.iter().map(Mask::new).collect();
-        let status = RandomStatus::Masking(owners.first().ok_or(Error::NoEnoughOwners)?.to_owned());
+        let status = RandomStatus::Masking(owners.first().ok_or(Error::NoEnoughServer)?.to_owned());
         Ok(Self {
             id,
             size: rnd.size(),
@@ -353,7 +351,7 @@ impl RandomState {
     {
         if !matches!(
             self.status,
-            RandomStatus::Ready | RandomStatus::WaitingSecrets
+            RandomStatus::Ready | RandomStatus::WaitingSecrets(_)
         ) {
             return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
@@ -381,7 +379,14 @@ impl RandomState {
             }
         }
 
-        self.status = RandomStatus::WaitingSecrets;
+        let wait_addr = self
+            .secret_shares
+            .iter()
+            .find(|ss| ss.secret.is_none())
+            .unwrap()
+            .from_addr
+            .clone();
+        self.status = RandomStatus::WaitingSecrets(wait_addr);
 
         Ok(())
     }
@@ -389,18 +394,18 @@ impl RandomState {
     pub fn reveal(&mut self, indexes: Vec<usize>) -> Result<()> {
         if !matches!(
             self.status,
-            RandomStatus::Ready | RandomStatus::WaitingSecrets
+            RandomStatus::Ready | RandomStatus::WaitingSecrets(_)
         ) {
             return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
 
-        if indexes
-            .iter()
-            .filter_map(|i| self.get_ciphertext(*i))
-            .any(|c| c.owner == CipherOwner::Revealed)
-        {
-            return Err(Error::CiphertextAlreadyAssigned);
-        }
+        // if indexes
+        //     .iter()
+        //     .filter_map(|i| self.get_ciphertext(*i))
+        //     .any(|c| c.owner == CipherOwner::Revealed)
+        // {
+        //     return Err(Error::CiphertextAlreadyAssigned);
+        // }
 
         for i in indexes.into_iter() {
             if let Some(c) = self.get_ciphertext_mut(i) {
@@ -417,7 +422,14 @@ impl RandomState {
             }
         }
 
-        self.status = RandomStatus::WaitingSecrets;
+        let wait_addr = self
+            .secret_shares
+            .iter()
+            .find(|ss| ss.secret.is_none())
+            .unwrap()
+            .from_addr
+            .clone();
+        self.status = RandomStatus::WaitingSecrets(wait_addr);
         Ok(())
     }
 
@@ -548,12 +560,18 @@ impl RandomState {
                 Some(_) => return Err(Error::DuplicatedSecret),
             }
         }
+        self.update_status();
+        Ok(())
+    }
 
-        if self.secret_shares.iter().all(|ss| ss.secret.is_some()) {
+    // TODO: make it general purpose
+    pub fn update_status(&mut self) {
+        if let Some(secret_share) = self.secret_shares.iter().find(|ss| ss.secret.is_none()) {
+            self.status = RandomStatus::WaitingSecrets(secret_share.from_addr.clone());
+        } else {
             self.status = RandomStatus::Ready;
         }
 
-        Ok(())
     }
 }
 
@@ -579,7 +597,8 @@ mod tests {
     #[test]
     fn test_new_random_spec() -> Result<()> {
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into(), "charlie".into()])?;
+        let state =
+            RandomState::try_new(0, &rnd, &["alice".into(), "bob".into(), "charlie".into()])?;
         assert_eq!(3, state.masks.len());
         Ok(())
     }
@@ -593,7 +612,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mask() -> Result<()>{
+    fn test_mask() -> Result<()> {
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
         let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
         assert_eq!(RandomStatus::Masking("alice".into()), state.status);

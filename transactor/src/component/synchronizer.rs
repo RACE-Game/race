@@ -9,7 +9,7 @@ use crate::frame::EventFrame;
 use race_core::types::GameAccount;
 use race_core::{
     transport::TransportT,
-    types::{NewPlayer, NewServer},
+    types::{PlayerJoin, ServerJoin},
 };
 use tracing::info;
 
@@ -63,33 +63,16 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                 if let Some(state) = state {
                     if access_version < state.access_version {
                         info!("Synchronizer get new state: {:?}", state);
-
-                        let mut new_players = vec![];
-                        let mut new_servers = vec![];
-                        for p in state.players.iter() {
-                            if p.access_version > access_version {
-                                new_players.push(NewPlayer {
-                                    addr: p.addr.clone(),
-                                    position: p.position,
-                                    amount: p.balance,
-                                });
-                            }
-                        }
-                        for s in state.servers.iter() {
-                            if s.access_version > access_version {
-                                new_servers.push(NewServer {
-                                    addr: s.addr.clone(),
-                                    endpoint: s.endpoint.clone(),
-                                });
-                            }
-                        }
+                        let GameAccount { access_version: av, players, deposits: _, servers, transactor_addr, .. } = state;
+                        let new_players: Vec<PlayerJoin> = players.into_iter().filter(|p| p.access_version > access_version).collect();
+                        let new_servers: Vec<ServerJoin> = servers.into_iter().filter(|s| s.access_version > access_version).collect();
 
                         if !new_players.is_empty() || !new_servers.is_empty() {
                             let frame = EventFrame::Sync {
                                 new_players,
                                 new_servers,
                                 // TODO: Handle transactor addr change
-                                transactor_addr: state.transactor_addr.as_ref().unwrap().clone(),
+                                transactor_addr: transactor_addr.unwrap().clone(),
                                 access_version: state.access_version,
                             };
                             if let Err(_e) = ctx.output_tx.send(frame).await {
@@ -97,7 +80,7 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                                 break;
                             }
                         }
-                        access_version = state.access_version;
+                        access_version = av;
                     } else {
                         sleep(Duration::from_secs(5)).await;
                     }
@@ -162,14 +145,16 @@ mod tests {
         assert_eq!(
             synchronizer.output_rx.unwrap().recv().await.unwrap(),
             EventFrame::Sync {
-                new_players: vec![NewPlayer {
+                new_players: vec![PlayerJoin {
                     addr: PLAYER_ADDRS[1].to_owned(),
                     position: 1,
-                    amount: DEFAULT_DEPOSIT_AMOUNT,
+                    balance: DEFAULT_DEPOSIT_AMOUNT,
+                    access_version: 3,
                 }],
-                new_servers: vec![NewServer {
+                new_servers: vec![ServerJoin {
                     addr: SERVER_ADDRS[1].to_owned(),
                     endpoint: "".into(),
+                    access_version: 4,
                 }],
                 access_version,
                 transactor_addr: transactor_account_addr(),

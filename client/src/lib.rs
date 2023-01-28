@@ -120,26 +120,28 @@ impl Client {
         for random_state in game_context.list_random_states().iter() {
             match random_state.status {
                 RandomStatus::Ready => (),
-                RandomStatus::WaitingSecrets => {
-                    // check if our secret is required
-                    let required_idents =
-                        random_state.list_required_secrets_by_from_addr(&self.addr);
+                RandomStatus::WaitingSecrets(ref addr) => {
+                    if self.addr.eq(addr) {
+                        // check if our secret is required
+                        let required_idents =
+                            random_state.list_required_secrets_by_from_addr(&self.addr);
 
-                    if !required_idents.is_empty() {
-                        let shares = required_idents
-                            .into_iter()
-                            .map(|idt| {
-                                let secret_state = self.get_secret_state(idt.random_id)?;
-                                let secret = secret_state.get_key(idt.index)?;
-                                Ok(SecretShare::new(idt, secret))
-                            })
-                            .collect::<Result<Vec<SecretShare>>>()?;
+                        if !required_idents.is_empty() {
+                            let shares = required_idents
+                                .into_iter()
+                                .map(|idt| {
+                                    let secret_state = self.get_secret_state(idt.random_id)?;
+                                    let secret = secret_state.get_key(idt.index)?;
+                                    Ok(SecretShare::new(idt, secret))
+                                })
+                                .collect::<Result<Vec<SecretShare>>>()?;
 
-                        let event = Event::ShareSecrets {
-                            sender: self.addr.clone(),
-                            secrets: shares,
-                        };
-                        events.push(event);
+                            let event = Event::ShareSecrets {
+                                sender: self.addr.clone(),
+                                secrets: shares,
+                            };
+                            events.push(event);
+                        }
                     }
                 }
                 RandomStatus::Locking(ref addr) => {
@@ -216,6 +218,10 @@ impl Client {
         };
         info!("Generated {} events", events.len());
         Ok(events)
+    }
+
+    pub fn flush_secret_states(&mut self) {
+        self.secret_states.clear();
     }
 
     /// Decrypt the ciphertexts with shared secrets.

@@ -40,7 +40,6 @@ pub fn general_handle_event(
             context.add_shared_secrets(sender, shares.clone())?;
             if context.secrets_ready() {
                 context.disptach(Event::SecretsReady, 0)?;
-                context.set_game_status(GameStatus::Running);
             }
             Ok(())
         }
@@ -69,10 +68,10 @@ pub fn general_handle_event(
                 return Err(Error::EventIgnored);
             }
             for p in new_players.iter() {
-                context.add_player(&p.addr, p.amount, p.position)?;
+                context.add_pending_player(p.clone())?;
             }
             for s in new_servers.iter() {
-                context.add_server(s.addr.clone(), s.endpoint.clone())?;
+                context.add_pending_server(s.clone())?;
             }
             context.access_version = *access_version;
 
@@ -92,8 +91,26 @@ pub fn general_handle_event(
             }
         }
 
-        Event::GameStart => {
-            context.set_game_status(GameStatus::Initializing);
+        Event::GameStart { access_version } => {
+            let mut p_idxs = vec![];
+            let mut s_idxs = vec![];
+            for (p_idx, p) in context.pending_players.iter().enumerate() {
+                if p.access_version <= *access_version {
+                    p_idxs.push(p_idx);
+                }
+            }
+            for (s_idx, s) in context.pending_servers.iter().enumerate() {
+                if s.access_version <= *access_version {
+                    s_idxs.push(s_idx);
+                }
+            }
+            for p_idx in p_idxs.into_iter().rev() {
+                context.add_player(p_idx)?;
+            }
+            for s_idx in s_idxs.into_iter().rev() {
+                context.add_server(s_idx)?;
+            }
+            context.set_game_status(GameStatus::Running);
             Ok(())
         }
 
