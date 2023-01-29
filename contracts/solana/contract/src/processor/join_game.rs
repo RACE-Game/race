@@ -30,7 +30,6 @@ pub fn process_join_game(
 
     let pda_account = next_account_info(account_iter)?;
     let token_program = next_account_info(account_iter)?;
-
     // if mint is native
     // TODO: needs something like this
     // https://github.com/RACE-Game/racepoker-dealer/blob/cfd4a25ab606b385d9b950fe7acc4cc4ef76a8b1/src/processor/buyin.rs
@@ -48,6 +47,7 @@ pub fn process_join_game(
                 temp_account.clone(),
                 pda_account.clone(),
                 player_account.clone(),
+                // token_program.clone(),
             ],
         )?;
     }
