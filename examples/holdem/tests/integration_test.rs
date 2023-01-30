@@ -81,7 +81,7 @@ pub fn test_fns() {
         status: HoldemStatus::Play,
         street: Street::Preflop,
         street_bet: 20,
-        bet_map: vec![
+        bets: vec![
             Bet::new("Alice", 100),
             Bet::new("Bob", 45),
             Bet::new("Carol", 100),
@@ -183,7 +183,7 @@ pub fn test_blind_bets() {
         status: HoldemStatus::Play,
         street: Street::Preflop,
         street_bet: 0,
-        bet_map: vec![],
+        bets: vec![],
         prize_map: HashMap::new(),
         players: vec![
             Player { addr: String::from("Alice"),
@@ -213,14 +213,14 @@ pub fn test_blind_bets() {
     assert_eq!(0, holdem.street_bet);
     // assert_eq!(None, holdem.acting_player.unwrap());
     let init_bet_map: Vec<Bet> = vec![];
-    assert_eq!(init_bet_map, holdem.bet_map);
+    assert_eq!(init_bet_map, holdem.bets);
 
     // After blind bets
     assert_eq!((), holdem.blind_bets().unwrap()); // passed
     assert_eq!(20, holdem.street_bet);            // passed
     assert_eq!(
         vec![Bet::new("Alice", 10), Bet::new("Bob", 20)],
-        holdem.bet_map
+        holdem.bets
     );                                            // passed
     assert_eq!(
         String::from("Carol") ,
@@ -240,7 +240,7 @@ pub fn test_single_player_wins() {
         status: HoldemStatus::Play,
         street: Street::Preflop,
         street_bet: 0,
-        bet_map: vec![
+        bets: vec![
             Bet::new("Alice", 40),
             Bet::new("Bob", 40),
             Bet::new("Carol", 40),
@@ -290,7 +290,7 @@ pub fn test_change_street() {
         status: HoldemStatus::Play,
         street: Street::Preflop,
         street_bet: 20,
-        bet_map: vec![
+        bets: vec![
             // Bet::new("Alice", 40),
             Bet::new("Bob", 40),
             Bet::new("Carol", 40),
@@ -349,7 +349,7 @@ pub fn test_next_state() {
         status: HoldemStatus::Play,
         street: Street::Preflop,
         street_bet: 0,
-        bet_map: vec![
+        bets: vec![
             // Bet::new("Alice", 40),
             // Bet::new("Bob", 40),
             // Bet::new("Carol", 40),

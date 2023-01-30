@@ -1,15 +1,21 @@
-use borsh::{BorshDeserialize, BorshSerialize};
 use std::collections::HashMap;
+
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::de::value::I8Deserializer;
+use serde::{Deserialize, Serialize};
+
+use race_proc_macro::game_handler;
 use race_core::error::{Error, Result};
 use race_core::event::{Event, CustomEvent};
-use race_core::{context::{GameContext, GameStatus as GeneralStatus}, engine::GameHandler, types::GameAccount};
-use serde::{Deserialize, Serialize};
-use race_proc_macro::game_handler;
+use race_core::{context::{GameContext, GameStatus as GeneralStatus},
+                engine::GameHandler,
+                types::GameAccount};
 
-mod evaluator;
+pub mod evaluator;
+
 // HoldemAccount offers necessary (static) data (serialized in vec) to GameAccount for Holdem games
 // This HoldemAccount data go to the (Raw) data field and
-// Holdem (the WASM), the actual game, go to the bundle_addr field
+// Holdem (the WASM), the actual game, goes to the bundle_addr field
 #[derive(Default, BorshSerialize, BorshDeserialize, PartialEq, Debug)]
 pub struct HoldemAccount {
     pub sb: u64,
@@ -21,22 +27,23 @@ pub struct HoldemAccount {
     pub token: String,          // token should be a struct of its own?
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
+
+#[derive(Deserialize, Serialize, Default, PartialEq, Clone, Debug)]
 pub enum PlayerStatus {
     #[default]
     Wait,                       // or Idle?
     Acted,
-    Acting,                     // or In_Action?
+    Acting,                     // or InAction?
     Allin,
     Fold,
 }
 
-#[derive(Default, Serialize, Deserialize, Clone)]
-pub struct Player {             // or <'p>
+#[derive(Deserialize, Serialize, Default, Clone)]
+pub struct Player {
     pub addr: String,
     pub chips: u64,
-    pub position: usize,           // zero indexed
-    pub status: PlayerStatus,   // or &'p str?
+    pub position: usize,        // zero indexed
+    pub status: PlayerStatus,
     // pub online_status
     // pub drop_count
     // pub timebank
@@ -93,7 +100,8 @@ impl Player {
     }
 }
 
-#[derive(Default, Serialize, Deserialize, Clone)]
+
+#[derive(Deserialize, Serialize, Default, Clone)]
 pub struct Pot {
     owners: Vec<String>,
     winners: Vec<String>,
@@ -159,7 +167,6 @@ impl Bet {
     }
 }
 
-// Game status for holdem
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub enum HoldemStatus {
     Init,
@@ -170,7 +177,6 @@ pub enum HoldemStatus {
     Settle,
     Showdown,
     Shuffle,
-
 }
 
 #[derive(Serialize, Deserialize)]
@@ -199,17 +205,15 @@ pub struct Holdem {// must have random cards id
     // token: String,          // token should be a struct of its own?
     pub street: Street,
     pub street_bet: u64,
-    pub bet_map: Vec<Bet>,     // each bet's index maps to player's pos (index) in the below player list
+    // pub community_cards: &'a str,
+    pub bets: Vec<Bet>,     // each bet's index maps to player's pos (index) in the below player list
     pub prize_map: HashMap<String, u64>,
     pub players: Vec<Player>,
     pub acting_player: Option<Player>,
     pub pots: Vec<Pot>,        // 1st main pot + rest side pot(s)
 }
 
-// TODO:
-// handle game start event
 
-// Associated fns
 impl Holdem {
     fn next_action_player(street_bet: u64, bet_map: Vec<Bet>, players_toact: Vec<&Player>) -> Player {
         for p in players_toact {
@@ -221,6 +225,7 @@ impl Holdem {
         }
         return Player::default();
     }
+
 }
 
 // Methods
@@ -230,7 +235,7 @@ impl Holdem {
     }
 
     fn update_betmap(&mut self, new_bmap: Vec<Bet>) {
-        self.bet_map.extend_from_slice(&new_bmap);
+        self.bets.extend_from_slice(&new_bmap);
     }
 
     pub fn change_street(&mut self, street: Street) -> Result<()> {
@@ -281,12 +286,12 @@ impl Holdem {
                 // If player in the prize map, chips increase by the amt in the map
                 Some(prize) => {
                     println!("Found the player and applying prize to their chips ... ");
-                    ply.chips += *prize - &self.bet_map[ply.position].amount();
+                    ply.chips += *prize - &self.bets[ply.position].amount();
                 },
                 // else chips decrease by the amt in the bet map?
                 None => {
                     println!("Lost chips");
-                    ply.chips = ply.chips - &self.bet_map[ply.position].amount();
+                    ply.chips = ply.chips - &self.bets[ply.position].amount();
                 }
             }
         }
@@ -324,7 +329,7 @@ impl Holdem {
 
     pub fn collect_bets(&mut self) -> Result<()> {
         // filter bets: arrange from small to big and remove duplicates
-        let mut bets: Vec<u64> = self.bet_map.iter().map(|b| b.amount()).collect();
+        let mut bets: Vec<u64> = self.bets.iter().map(|b| b.amount()).collect();
         bets.sort_by(|b1,b2| b1.cmp(b2));
         bets.dedup();
 
@@ -334,7 +339,7 @@ impl Holdem {
         for bet in bets {
             let mut owners: Vec<String> = vec![];
             let mut amount: u64 = 0;
-            for ply in self.bet_map.clone() {
+            for ply in self.bets.clone() {
                 if ply.amount() >= bet {
                     owners.push(ply.addr());
                     amount += bet - prev_bet;
@@ -419,6 +424,11 @@ impl Holdem {
         Ok(())
     }
 
+    pub fn settle(&mut self) -> Result<()> {
+
+        Ok(())
+    }
+
     pub fn next_state(&mut self, _context: &mut GameContext) -> Result<()> {
         // 4. go to next game state, which is one of the following:
         // 4.1 detect current street: preflop + no bets => blind bets
@@ -436,11 +446,11 @@ impl Holdem {
             .map(|p| *p)
             .collect();
 
-        let bet_map = self.bet_map.clone();
+        let bet_map = self.bets.clone();
         let mut next_action_player = Holdem::next_action_player(self.street_bet, bet_map, players_toact);
         let new_street = self.next_street();
 
-        if self.street == Street::Preflop && self.bet_map.is_empty() {
+        if self.street == Street::Preflop && self.bets.is_empty() {
             self.blind_bets()?;
             Ok(())
         } else if all_players.len() == 1 {
@@ -509,7 +519,6 @@ impl Holdem {
     }
 }
 
-// implementing traits GameHandler
 impl GameHandler for Holdem {
     fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
         let account = HoldemAccount::try_from_slice(&init_account.data).unwrap();
@@ -524,7 +533,8 @@ impl GameHandler for Holdem {
             status: HoldemStatus::Init,
             street: Street::Init,
             street_bet: account.bb,
-            bet_map: vec![],    // last p[0] is sb, p[0] at bb, p[3] is the first to act, p[n-1] (last) btn
+            // community_cards: vec![],
+            bets: vec![],    // last p[0] is sb, p[0] at bb, p[3] is the first to act, p[n-1] (last) btn
             prize_map: HashMap::new(),
             players: vec![],
             pots: vec![

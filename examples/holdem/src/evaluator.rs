@@ -31,9 +31,10 @@ fn kind_to_order(card: &str) -> u8 {
     else { kind.parse::<u8>().unwrap() } // 2-9
 }
 
-/// After sorting, higher card (kind) will come first
-/// Input:  ["ca", "h7", "sa", "c2", "c4", "h6", "d5"]
-/// Output: ["ca", "sa", "h7", "h6", "d5", "c4", "c2"]
+/// Used as the fn required by the built-in sort_by method on Vec.
+/// After sorting, higher card (kind) will come first in the vec.
+/// Input:  "ck" "ha"
+/// Output: Ordering::Less
 pub fn compare_kinds(card1: &str, card2: &str) -> Ordering {
     let order1 = kind_to_order(card1);
     let order2 = kind_to_order(card2);
@@ -93,46 +94,69 @@ pub fn sort_grouped_cards<'a>(cards: &Vec<&'a str>) -> Vec<&'a str> {
 // ============================================================
 
 /// Used to detect the type of SameKinds: One Pair, Two Pairs, FullHouse, etc.
-pub enum SameKind {
-    Pair,
-    TwoPairs,
-    ThreeOfAKind,
-    FullHouse,
+#[derive(Debug, PartialEq)]
+pub enum Category {
+    RoyalFlush,
+    StraightFlush,
     FourOfAKind,
+    FullHouse,
+    Flush,
+    Straight,
+    ThreeOfAKind,
+    TwoPairs,
+    Pair,
+    HighCard,
 }
 
-/// Use the enum SameKinds to check if there is indeed one
+pub struct PlayerHand<'a> {
+    pub category: Category,         // ranking
+    pub picks: Vec<&'a str>,        // Best 5 of 7
+    pub value: Vec<u8>,             // Values of Best 5 Kinds + category value
+}
+
+
+/// Given the vec of kind orders, tag the category order value in the first place
+fn tag_value(picked: &Vec<&str>, catetogry_orderv: u8) -> Vec<u8> {
+    let kind_values: Vec<u8> = picked.iter().map(|&c| kind_to_order(c)).collect();
+    let mut value: Vec<u8> = vec![catetogry_orderv];
+    value.extend_from_slice(&kind_values);
+    value
+}
+
+/// Use the enum Category to check if there is indeed one
 pub fn check_same_kinds(
     sorted_kinds: &Vec<&str>,
-    kinds_type: SameKind
+    category: Category
 ) -> bool {
-    match kinds_type {
-        SameKind::FourOfAKind => {
+    match category {
+        Category::FourOfAKind => {
             if sorted_kinds[0..4].iter().all(|&c| c == sorted_kinds[0])
-            { return true; }
-            else { return false; }
+            { true }
+            else { false }
         },
-        SameKind::FullHouse => {
+        Category::FullHouse => {
             if sorted_kinds[0..3].iter().all(|&c| c == sorted_kinds[0])
                && sorted_kinds[3..=4].iter().all(|&c| c == sorted_kinds[3])
-            {return true; }
-            else { return false; }
+            { true }
+            else { false }
         },
-        SameKind::ThreeOfAKind => {
+        Category::ThreeOfAKind => {
             if sorted_kinds[0..3].iter().all(|&c| c == sorted_kinds[0])
-            { return true; }
-            else { return false; }
+            { true }
+            else { false }
         },
-        SameKind::TwoPairs => {
+        Category::TwoPairs => {
             if sorted_kinds[0] == sorted_kinds[1]
                && sorted_kinds[2] == sorted_kinds[3]
-            { return true; }
-            else { return false; }
+            { true }
+            else { false }
         },
-        SameKind::Pair => {
-            if sorted_kinds[0] == sorted_kinds[1] { return true; }
-            else { return false; }
+        Category::Pair => {
+            if sorted_kinds[0] == sorted_kinds[1]
+            { true }
+            else { false }
         },
+        _ => false
     }
 }
 
@@ -187,7 +211,7 @@ fn match_straight<'a>(cards: Vec<&'a str>, result: &mut Vec<Vec<&'a str>>) {
 
 /// This fn accpets only sorted-by-kind cards
 pub fn find_straights<'a>(cards: &Vec<&'a str>) -> (bool, Vec<Vec<&'a str>>) {
-    let mut sorted_by_kinds: Vec<&str> = cards.iter().copied().collect();
+    let sorted_by_kinds: Vec<&str> = cards.iter().copied().collect();
     // In theory, 7 cards can yeild at most 4 straights?
     let mut result: Vec<Vec<&str>> = vec![];
     let cards_to_kinds: Vec<u8> = sorted_by_kinds.iter()
@@ -287,7 +311,6 @@ pub fn find_straights<'a>(cards: &Vec<&'a str>) -> (bool, Vec<Vec<&'a str>>) {
 /// This fn accepts either sorted-by-kind or unsorted cards (preferable).
 /// It returns sorted-by-kind cards anyway.
 pub fn find_royal_flush<'a>(cards: &Vec<&'a str>) -> (bool, Vec<&'a str>) {
-
     let royal_flush: [[&str; 5]; 4] = [
         ["ca", "ck", "cq", "cj", "ct"],
         ["da", "dk", "dq", "dj", "dt"],
@@ -341,56 +364,133 @@ pub fn find_straight_flush<'a>(
     result
 }
 
+/// Compare values of two hands
+pub fn compare_hands(handv1: &Vec<u8>, handv2: &Vec<u8>) -> Ordering {
+    let result: Vec<i8> = handv1.iter()
+        .zip(handv2.iter())
+        .map(|(v1, v2)| -> i8 {
+            if v1 > v2 { 1 }
+            else if v1 < v2 { -1 }
+            else { 0 }
+        })
+        .filter(|&r| r != 0)
+        .collect();
+
+    if result[0] == 1 { Ordering::Greater }
+    else { Ordering::Less }
+
+}
+
 /// This fn accpets unsorted cards.
-pub fn evaluate_cards(cards: Vec<&str>) -> u8 {
+pub fn evaluate_cards(cards: Vec<&str>) -> PlayerHand {
     let sorted_by_group: Vec<&str> = sort_grouped_cards(&cards);
     let sorted_kinds: Vec<&str> = sorted_by_group.iter()
-        .map(|&c| -> &str { let (_, k) = c.split_at(1); k})
+        .map(|&c| -> &str { let (_, k) = c.split_at(1); k })
         .collect();
     let (has_royal, rflush) = find_royal_flush(&cards);
     let (has_flush, flush_cards) = find_flush(&cards);
     let (has_straights, straights) = find_straights(&cards);
 
-    // TODO: return the picked 5 cards (best out of 7)
+    // TODO: return the picked cards (best 5 out of 7)
     // royal flush
     if has_royal {
-        9
+        let value = tag_value(&rflush, 9);
+        PlayerHand {
+            category: Category::RoyalFlush,
+            picks: rflush,
+            value,
+        }
     }
     // straight flush
     else if has_flush && has_straights {
-        8
+        let sflush = find_straight_flush(&flush_cards,&straights);
+        let picks = sflush[0].to_vec();
+        let value = tag_value(&picks, 8);
+        PlayerHand {
+            category: Category::StraightFlush,
+            picks,
+            value,
+        }
     }
     // four of a kind
-    else if check_same_kinds(&sorted_kinds, SameKind::FourOfAKind) {
-        7
+    else if check_same_kinds(&sorted_kinds, Category::FourOfAKind) {
+        let picks = sorted_by_group[0..5].to_vec();
+        let value = tag_value(&picks, 7);
+        PlayerHand {
+            category: Category::FourOfAKind,
+            picks,
+            value,
+        }
     }
     // full house
-    else if check_same_kinds(&sorted_kinds, SameKind::FullHouse) {
-        6
+    else if check_same_kinds(&sorted_kinds, Category::FullHouse) {
+        let picks = sorted_by_group[0..5].to_vec();
+        let value = tag_value(&picks, 6);
+        PlayerHand {
+            category: Category::FullHouse,
+            picks,
+            value,
+        }
     }
     // flush
     else if has_flush {
-        5
+        let picks = flush_cards[0..5].to_vec();
+        let value = tag_value(&picks, 5);
+        PlayerHand {
+            category: Category::Flush,
+            picks,
+            value,
+        }
     }
     // straight
     else if has_straights {
-        4
+        let picks = straights[0].to_vec();
+        let value = tag_value(&picks, 4);
+        PlayerHand {
+            category: Category::Straight,
+            picks,
+            value,
+        }
     }
     // three of a kind
-    else if check_same_kinds(&sorted_kinds, SameKind::ThreeOfAKind) {
-        3
+    else if check_same_kinds(&sorted_kinds, Category::ThreeOfAKind) {
+        let picks = sorted_by_group[0..5].to_vec();
+        let value = tag_value(&picks, 3);
+        PlayerHand {
+            category: Category::ThreeOfAKind,
+            picks,
+            value,
+        }
     }
     // two pairs
-    else if check_same_kinds(&sorted_kinds, SameKind::TwoPairs) {
-        2
+    else if check_same_kinds(&sorted_kinds, Category::TwoPairs) {
+        let picks = sorted_by_group[0..5].to_vec();
+        let value = tag_value(&picks, 2);
+        PlayerHand {
+            category: Category::TwoPairs,
+            picks,
+            value,
+        }
     }
     // pair
-    else if check_same_kinds(&sorted_kinds, SameKind::Pair) {
-        1
+    else if check_same_kinds(&sorted_kinds, Category::Pair) {
+        let picks = sorted_by_group[0..5].to_vec();
+        let value = tag_value(&picks, 1);
+        PlayerHand {
+            category: Category::Pair,
+            picks,
+            value,
+        }
     }
     // high card
     else {
-        0
+        let picks = sorted_by_group[0..5].to_vec();
+        let value = tag_value(&picks, 0);
+        PlayerHand {
+            category: Category::HighCard,
+            picks,
+            value,
+        }
     }
 }
 
@@ -398,6 +498,7 @@ pub fn evaluate_cards(cards: Vec<&str>) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cmp::Ordering;
 
     #[test]
     // #[ignore]
@@ -547,7 +648,7 @@ mod tests {
 
         // assert!(check_same_kinds(&sorted_kinds, SameKind::FourOfAKind));
         // assert!(check_same_kinds(&sorted_kinds, SameKind::FullHouse));
-        assert!(check_same_kinds(&sorted_kinds, SameKind::ThreeOfAKind));
+        assert!(check_same_kinds(&sorted_kinds, Category::ThreeOfAKind));
         // assert!(check_same_kinds(&sorted_kinds, SameKind::TwoPairs));
         // assert!(check_same_kinds(&sorted_kinds, SameKind::Pair));
     }
@@ -559,6 +660,25 @@ mod tests {
         let cmt_cards: [&str; 5] = ["d7", "c6", "s7", "c7", "st"];
         let cards = create_cards(&cmt_cards, &hole_cards);
 
-        assert_eq!(3, evaluate_cards(cards));
+        let result: PlayerHand = evaluate_cards(cards);
+        assert_eq!(result.category, Category::ThreeOfAKind);
+        assert_eq!(vec!["d7", "s7", "c7", "ha", "st"], result.picks);
+        assert_eq!(vec![3, 7, 7, 7, 14, 10], result.value);
+
+    }
+
+    #[test]
+    fn test_compare_hands() {
+        let hole_cards1: [&str; 2] = ["h7", "h5"]; // three of a kind
+        let hole_cards2: [&str; 2] = ["s2", "d8"]; // two pairs
+        let cmt_cards: [&str; 5] = ["d7", "c6", "s6", "c7", "st"];
+        let cards1 = create_cards(&cmt_cards, &hole_cards1);
+        let cards2 = create_cards(&cmt_cards, &hole_cards2);
+        let hand1: PlayerHand = evaluate_cards(cards1);
+        let hand2: PlayerHand = evaluate_cards(cards2);
+
+        let result = compare_hands(&hand1.value, &hand2.value);
+
+        assert_eq!(Ordering::Greater, result);
     }
 }
