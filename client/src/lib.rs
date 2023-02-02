@@ -126,12 +126,17 @@ impl Client {
                         let required_idents =
                             random_state.list_required_secrets_by_from_addr(&self.addr);
 
+                        info!("share secrets: {:?}", random_state.secret_shares);
+                        info!("Required idents: {:?}", required_idents);
+
                         if !required_idents.is_empty() {
                             let shares = required_idents
                                 .into_iter()
                                 .map(|idt| {
                                     let secret_state = self.get_secret_state(idt.random_id)?;
                                     let secret = secret_state.get_key(idt.index)?;
+                                    // TODO, filter out existing items
+
                                     Ok(SecretShare::new(idt, secret))
                                 })
                                 .collect::<Result<Vec<SecretShare>>>()?;
@@ -279,9 +284,9 @@ fn decrypt_with_secrets(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::sync::Arc;
 
-    use race_core::client::Client;
     use race_core::context::GameContext;
     use race_core::error::Result;
     use race_core::event::{CustomEvent, Event};
@@ -345,11 +350,16 @@ mod tests {
     async fn test_update_secret_state() -> Result<()> {
         let (mut client, _encryptor, _connection, game_account) = setup();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
+        ctx.handle_pending_players()?;
+        ctx.handle_pending_servers()?;
         let rnd = deck_of_cards();
-        ctx.init_random_state(&rnd);
-        ctx.init_random_state(&rnd);
+        ctx.init_random_state(&rnd)?;
+        ctx.init_random_state(&rnd)?;
         client.update_secret_state(&ctx).unwrap();
         assert_eq!(client.secret_states.len(), 2);
+        ctx.init_random_state(&rnd)?;
+        client.update_secret_state(&ctx).unwrap();
+        assert_eq!(client.secret_states.len(), 3);
         Ok(())
     }
 }

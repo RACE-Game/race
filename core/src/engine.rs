@@ -56,7 +56,7 @@ pub fn general_handle_event(
             ciphertexts_and_digests: ciphertexts_and_tests,
         } => context.lock(sender, *random_id, ciphertexts_and_tests.clone()),
 
-        Event::RandomnessReady => Ok(()),
+        Event::RandomnessReady { .. } => Ok(()),
 
         Event::Sync {
             new_players,

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing::info;
 
 use crate::types::{Ciphertext, RandomId, SecretDigest, SecretIdent, SecretKey};
 
@@ -59,6 +60,9 @@ pub enum Error {
 
     #[error("No enough servers")]
     NoEnoughServer,
+
+    #[error("Invalid reveal operation")]
+    InvalidRevealOperation,
 }
 
 impl From<Error> for crate::error::Error {
@@ -391,6 +395,20 @@ impl RandomState {
         Ok(())
     }
 
+    fn add_secret_share(&mut self, share: Share) {
+        if self
+            .secret_shares
+            .iter()
+            .find(|ss| {
+                ss.from_addr.eq(&share.from_addr)
+                    && ss.to_addr.eq(&share.to_addr)
+                    && ss.index == share.index
+            })
+            .is_none()
+        {
+            self.secret_shares.push(share);
+        }
+    }
     pub fn reveal(&mut self, indexes: Vec<usize>) -> Result<()> {
         if !matches!(
             self.status,
@@ -399,26 +417,20 @@ impl RandomState {
             return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
 
-        // if indexes
-        //     .iter()
-        //     .filter_map(|i| self.get_ciphertext(*i))
-        //     .any(|c| c.owner == CipherOwner::Revealed)
-        // {
-        //     return Err(Error::CiphertextAlreadyAssigned);
-        // }
-
         for i in indexes.into_iter() {
             if let Some(c) = self.get_ciphertext_mut(i) {
-                c.owner = CipherOwner::Revealed;
-            }
-            let secrets = &mut self.secret_shares;
-            for o in self.owners.iter() {
-                secrets.push(Share {
-                    from_addr: o.to_owned(),
-                    to_addr: None,
-                    index: i,
-                    secret: None,
-                })
+                if c.owner != CipherOwner::Revealed {
+                    c.owner = CipherOwner::Revealed;
+                    let owners: Vec<String> = self.owners.iter().map(|o| o.to_owned()).collect();
+                    for o in owners.into_iter() {
+                        self.add_secret_share(Share {
+                            from_addr: o,
+                            to_addr: None,
+                            index: i,
+                            secret: None,
+                        })
+                    }
+                }
             }
         }
 
@@ -426,9 +438,10 @@ impl RandomState {
             .secret_shares
             .iter()
             .find(|ss| ss.secret.is_none())
-            .unwrap()
+            .ok_or(Error::InvalidRevealOperation)?
             .from_addr
             .clone();
+
         self.status = RandomStatus::WaitingSecrets(wait_addr);
         Ok(())
     }
@@ -553,6 +566,7 @@ impl RandomState {
                         //     return Err(Error::InvalidSecret);
                         // }
                         secret_share.secret = Some(secret);
+                        info!("Secret added: {:?}", secret_share);
                     } else {
                         return Err(Error::InvalidSecret);
                     }
@@ -571,7 +585,6 @@ impl RandomState {
         } else {
             self.status = RandomStatus::Ready;
         }
-
     }
 }
 
@@ -593,6 +606,35 @@ pub fn deck_of_cards() -> ShuffledList {
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn test_list_required_secrets() -> Result<()> {
+        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
+        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
+        state.mask("alice", vec![vec![1], vec![2], vec![3]])?;
+        state.mask("bob", vec![vec![1], vec![2], vec![3]])?;
+        state.lock(
+            "alice",
+            vec![(vec![1], vec![1]), (vec![2], vec![2]), (vec![3], vec![3])],
+        )?;
+        state.lock(
+            "bob",
+            vec![(vec![1], vec![1]), (vec![2], vec![2]), (vec![3], vec![3])],
+        )?;
+        state.reveal(vec![0])?;
+        assert_eq!(1, state.list_required_secrets_by_from_addr("alice").len());
+        assert_eq!(1, state.list_required_secrets_by_from_addr("bob").len());
+        state.add_secret("alice".into(), None, 0, vec![1, 2, 3])?;
+        // duplicated reveal
+        state.reveal(vec![0])?;
+        assert_eq!(0, state.list_required_secrets_by_from_addr("alice").len());
+        assert_eq!(1, state.list_required_secrets_by_from_addr("bob").len());
+        state.add_secret("bob".into(), None, 0, vec![1, 2, 3])?;
+        assert_eq!(0, state.list_required_secrets_by_from_addr("alice").len());
+        assert_eq!(0, state.list_required_secrets_by_from_addr("bob").len());
+        assert_eq!(RandomStatus::Ready, state.status);
+        Ok(())
+    }
 
     #[test]
     fn test_new_random_spec() -> Result<()> {
@@ -627,6 +669,28 @@ mod tests {
             .expect("failed to mask");
         assert_eq!(RandomStatus::Locking("alice".into()), state.status);
         assert_eq!(true, state.is_fully_masked());
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_secret_share() -> Result<()>{
+        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
+        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
+        let share1 = Share {
+            from_addr: "alice".into(),
+            to_addr: None,
+            index: 0,
+            secret: None,
+        };
+        let share2 = Share {
+            from_addr: "alice".into(),
+            to_addr: None,
+            index: 0,
+            secret: Some(vec![1]),
+        };
+        state.add_secret_share(share1);
+        state.add_secret_share(share2);
+        assert_eq!(state.secret_shares.len(), 1);
         Ok(())
     }
 

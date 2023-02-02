@@ -143,6 +143,9 @@ impl RemoteConnection {
                 .encryptor
                 .sign(message.as_bytes(), self.server_addr.clone())?;
             let mut rpc_client = self.rpc_client.lock().await;
+
+            // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
             let res = rpc_client
                 .request(method, rpc_params![game_addr, params, signature])
                 .await;

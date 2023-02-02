@@ -40,7 +40,7 @@ function render(event, state) {
     events.push(event);
     let innerHTML = "";
     for (let e of events) {
-      innerHTML += "<p>" + JSON.stringify(e) + "</p>";
+      innerHTML += "<p class=\"m-2\">" + JSON.stringify(e) + "</p>";
     }
     document.getElementById("events").innerHTML = innerHTML;
   }

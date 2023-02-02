@@ -341,7 +341,6 @@ impl GameContext {
 
     pub fn reveal(&mut self, random_id: RandomId, indexes: Vec<usize>) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
-        println!("reavel: {:?}", rnd_st);
         rnd_st.reveal(indexes)?;
         Ok(())
     }
@@ -414,6 +413,15 @@ impl GameContext {
         Ok(())
     }
 
+    /// Handle all pending players.
+    /// This function should be used in test only.
+    pub fn handle_pending_players(&mut self) -> Result<()> {
+        for i in (0..self.pending_players.len()).rev() {
+            self.add_player(i)?;
+        }
+        Ok(())
+    }
+
     /// Add server to the game.
     /// Using in custom event handler is not allowed.
     pub fn add_server(&mut self, index: usize) -> Result<()> {
@@ -435,6 +443,15 @@ impl GameContext {
             return Err(Error::ServerAlreadyJoined(new_server.addr));
         }
         self.pending_servers.push(new_server);
+        Ok(())
+    }
+
+    /// Handle all pending servers.
+    /// This function should be used in test only.
+    pub fn handle_pending_servers(&mut self) -> Result<()> {
+        for i in (0..self.pending_servers.len()).rev() {
+            self.add_server(i)?;
+        }
         Ok(())
     }
 
@@ -485,7 +502,6 @@ impl GameContext {
     pub fn add_shared_secrets(&mut self, _addr: &str, shares: Vec<SecretShare>) -> Result<()> {
         for ss in shares.into_iter() {
             let (idt, secret) = ss.into();
-            println!("random_id {:?}", idt.random_id);
             let random_state = self.get_random_state_mut(idt.random_id)?;
             random_state.add_secret(idt.from_addr, idt.to_addr, idt.index, secret)?;
         }
@@ -512,8 +528,8 @@ impl GameContext {
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.lock(addr, ciphertexts_and_tests)?;
-        if self.is_all_random_ready() {
-            self.dispatch(Event::RandomnessReady, 0);
+        if rnd_st.status == RandomStatus::Ready {
+            self.dispatch(Event::RandomnessReady { random_id }, 0);
         }
         Ok(())
     }

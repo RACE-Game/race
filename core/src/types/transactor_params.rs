@@ -72,3 +72,9 @@ pub struct BroadcastFrame {
     pub game_addr: String,
     pub event: Event,
 }
+
+impl Display for BroadcastFrame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BroadcastFrame: {}", self.event)
+    }
+}

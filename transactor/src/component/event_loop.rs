@@ -75,7 +75,7 @@ async fn handle(
                 settle_version: game_context.get_settle_version(),
             })
             .await
-            .unwrap();
+                .unwrap();
 
             out.send(EventFrame::ContextUpdated {
                 context: game_context.clone(),

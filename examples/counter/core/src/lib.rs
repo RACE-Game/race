@@ -102,7 +102,7 @@ impl GameHandler for Counter {
                 self.handle_custom_event(context, sender, serde_json::from_str(raw).unwrap())
             }
             Event::GameStart { .. } => {
-                if context.count_players() < 2 {
+                if context.count_players() == 0 {
                     return Err(Error::NoEnoughPlayers);
                 }
                 self.value = 0;
@@ -121,16 +121,16 @@ impl GameHandler for Counter {
             } => {
                 self.num_of_players += new_players.len() as u64;
                 self.num_of_servers += new_servers.len() as u64;
-                if self.num_of_players > 1 {
+                if self.num_of_players >= 1 {
                     context.start_game();
                 }
                 Ok(())
             }
-            Event::RandomnessReady => {
-                if self.poker_random_id != 0 {
+            Event::RandomnessReady { random_id } => {
+                if self.poker_random_id == random_id {
                     context.reveal(self.poker_random_id, vec![0])?;
                 }
-                if self.dice_random_id != 0 {
+                if self.dice_random_id == random_id {
                     context.reveal(self.dice_random_id, vec![0])?;
                 }
                 Ok(())

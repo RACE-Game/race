@@ -36,7 +36,7 @@ pub enum Event {
 
     /// All randomness is prepared.
     /// This event is sent by transactor.
-    RandomnessReady,
+    RandomnessReady { random_id: RandomId },
 
     /// Sync with on-chain account.
     /// This event is sent by transactor based on the diff of the account states.
@@ -90,14 +90,23 @@ impl std::fmt::Display for Event {
         match self {
             Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {}", sender, raw),
             Event::Ready { sender } => write!(f, "Ready from {}", sender),
-            Event::ShareSecrets { sender, .. } => write!(f, "ShareSecrets from {}", sender),
+            Event::ShareSecrets { sender, secrets } => {
+                let repr = secrets
+                    .iter()
+                    .map(|s| format!("{}", s))
+                    .collect::<Vec<String>>()
+                    .join("|");
+                write!(f, "ShareSecrets from {}, secrets: {}", sender, repr)
+            }
             Event::Mask {
                 sender, random_id, ..
             } => write!(f, "Mask from {} for random: {}", sender, random_id),
             Event::Lock {
                 sender, random_id, ..
             } => write!(f, "Lock from {} for random: {}", sender, random_id),
-            Event::RandomnessReady => write!(f, "RandomnessReady"),
+            Event::RandomnessReady { random_id } => {
+                write!(f, "RandomnessReady, random_id: {}", random_id)
+            }
             Event::Sync {
                 new_players,
                 new_servers,

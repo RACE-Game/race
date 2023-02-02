@@ -31,7 +31,6 @@ async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Re
 
 async fn submit_event(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<()> {
     let (game_addr, arg, sig) = params.parse::<(String, SubmitEventParams, Signature)>()?;
-    info!("Submit event: {:?}", arg);
     context.verify(&game_addr, &arg, &sig).await.map_err(|e| {
         warn!("Reject event due to verification failed: {}", e);
         Error::Call(CallError::InvalidParams(e.into()))

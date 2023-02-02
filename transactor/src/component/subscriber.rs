@@ -8,6 +8,7 @@ use race_core::types::BroadcastFrame;
 use race_core::types::{GameAccount, ServerAccount};
 use tokio::sync::{mpsc, oneshot};
 use tracing::error;
+use tracing::info;
 
 use crate::frame::EventFrame;
 
@@ -78,6 +79,7 @@ impl Component<SubscriberContext> for Subscriber {
             pin_mut!(sub);
 
             while let Some(frame) = sub.next().await {
+                info!("Subscriber received: {}", frame);
                 let BroadcastFrame { event, .. } = frame;
                 let r = output_tx.send(EventFrame::SendServerEvent { event }).await;
                 if let Err(e) = r {

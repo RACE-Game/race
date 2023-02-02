@@ -115,6 +115,22 @@ pub struct SecretShare {
     secret: Vec<u8>,
 }
 
+impl std::fmt::Display for SecretShare {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "#{}[{}]=>[{}]@{}",
+            self.random_id,
+            self.from_addr,
+            match self.to_addr {
+                Some(ref addr) => addr.as_str(),
+                None => "ALL",
+            },
+            self.index
+        )
+    }
+}
+
 impl SecretShare {
     pub fn new(ident: SecretIdent, secret: SecretKey) -> Self {
         Self {
