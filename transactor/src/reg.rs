@@ -49,7 +49,7 @@ pub async fn start_reg_task(context: &ApplicationContext) {
     tokio::spawn(async move {
         loop {
             // We search for accounts every 10 seconds
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
             for addr in reg_addresses.iter() {
                 if let Some(reg) = transport.get_registration(addr).await {
                     for game_reg in reg.games.into_iter() {

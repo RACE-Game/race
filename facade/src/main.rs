@@ -36,6 +36,10 @@ const SERVER_ADDRESS_1: &str = "SERVER_ADDRESS_1";
 const SERVER_ADDRESS_2: &str = "SERVER_ADDRESS_2";
 const DEFAULT_OWNER_ADDRESS: &str = "DEFAULT_OWNER_ADDRESS";
 
+// Addresses for examples
+const CHAT_BUNDLE_ADDRESS: &str = "CHAT_BUNDLE_ADDRESS";
+const EXAMPLE_CHAT_ADDRESS: &str = "EXAMPLE_CHAT_ADDRESS";
+
 #[derive(Clone)]
 pub struct PlayerInfo {
     profile: PlayerProfile,
@@ -484,12 +488,20 @@ pub fn setup(context: &mut Context) {
         is_private: false,
         size: 10,
         owner: None,
-        games: vec![GameRegistration {
-            addr: "COUNTER_GAME_ADDRESS".into(),
-            title: "Counter Example".into(),
-            reg_time: 0,
-            bundle_addr: "COUNTER_BUNDLE_ADDRESS".into(),
-        }],
+        games: vec![
+            GameRegistration {
+                addr: "COUNTER_GAME_ADDRESS".into(),
+                title: "Counter Example".into(),
+                reg_time: 0,
+                bundle_addr: "COUNTER_BUNDLE_ADDRESS".into(),
+            },
+            GameRegistration {
+                addr: EXAMPLE_CHAT_ADDRESS.into(),
+                title: "Chat".into(),
+                reg_time: 0,
+                bundle_addr: CHAT_BUNDLE_ADDRESS.into(),
+            },
+        ],
     };
     println!(
         "Default registration created at {:?}",
@@ -505,6 +517,16 @@ pub fn setup(context: &mut Context) {
         data,
     };
     println!("Counter bundle created at {:?}", COUNTER_BUNDLE_ADDRESS);
+
+    let mut f = File::open("../target/wasm32-unknown-unknown/release/race_example_chat.wasm")
+        .expect("race_example_chat.wasm not found");
+    let mut data = vec![];
+    f.read_to_end(&mut data).unwrap();
+    let chat_bundle = GameBundle {
+        addr: CHAT_BUNDLE_ADDRESS.into(),
+        data,
+    };
+    println!("Example chat created at {:?}", CHAT_BUNDLE_ADDRESS);
 
     let server1 = ServerAccount {
         addr: SERVER_ADDRESS_1.into(),
@@ -535,9 +557,31 @@ pub fn setup(context: &mut Context) {
     };
     println!("Counter game created at {:?}", COUNTER_GAME_ADDRESS);
 
+    let chat_account = GameAccount {
+        addr: EXAMPLE_CHAT_ADDRESS.into(),
+        title: "Chat".into(),
+        bundle_addr: CHAT_BUNDLE_ADDRESS.into(),
+        settle_version: 0,
+        access_version: 0,
+        players: vec![],
+        deposits: vec![],
+        servers: vec![],
+        transactor_addr: None,
+        max_players: 20,
+        data_len: 0,
+        data: vec![],
+    };
+    println!("chat created at {:?}", EXAMPLE_CHAT_ADDRESS);
+
     context.registrations = HashMap::from([(DEFAULT_REGISTRATION_ADDRESS.into(), def_reg)]);
-    context.accounts = HashMap::from([(COUNTER_GAME_ADDRESS.into(), counter_game)]);
-    context.bundles = HashMap::from([(COUNTER_BUNDLE_ADDRESS.into(), counter_bundle)]);
+    context.accounts = HashMap::from([
+        (COUNTER_GAME_ADDRESS.into(), counter_game),
+        (EXAMPLE_CHAT_ADDRESS.into(), chat_account),
+    ]);
+    context.bundles = HashMap::from([
+        (COUNTER_BUNDLE_ADDRESS.into(), counter_bundle),
+        (CHAT_BUNDLE_ADDRESS.into(), chat_bundle),
+    ]);
     context.transactors = HashMap::from([
         (SERVER_ADDRESS_1.into(), server1),
         (SERVER_ADDRESS_2.into(), server2),

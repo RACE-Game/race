@@ -107,7 +107,7 @@ impl Connection {
                     }
                 }
                 Err(Call(jsonrpsee::types::error::CallError::Failed(e))) => {
-                    warn!("RPC Call failed due to", e.to_string());
+                    warn!("RPC CallError due to", e.to_string());
                     match e.downcast_ref::<Error>() {
                         Some(Error::GameNotLoaded) => {}
                         Some(e) => {
@@ -119,7 +119,7 @@ impl Connection {
                     }
                 }
                 Err(e) => {
-                    warn!("2RPC Call failed due to", e.to_string());
+                    warn!("RPC Call failed due to", e.to_string());
                     return Err(Error::RpcError(e.to_string()));
                 }
             }

@@ -2563,6 +2563,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "race-example-chat"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "race-core",
+ "race-proc-macro",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "race-example-console"
 version = "0.1.0"
 dependencies = [

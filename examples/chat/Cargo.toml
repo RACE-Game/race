@@ -1,0 +1,16 @@
+[package]
+name = "race-example-chat"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+race-core = { path = "../../core" }
+race-proc-macro = { path = "../../proc-macro" }
+serde_json = "1.0.85"
+serde = "1.0.144"
+borsh = "0.9.3"

@@ -27,7 +27,6 @@ impl AppHelper {
     /// # Arguments
     /// * `chain`, The name of blockchain, currently only `facade` is supported.
     /// * `rpc`, The endpoint of blockchain RPC.
-    /// * `player_addr`, The address of current player.
     #[wasm_bindgen]
     pub async fn try_init(chain: &str, rpc: &str) -> Result<AppHelper> {
         let transport = TransportBuilder::default()
