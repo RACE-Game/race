@@ -376,9 +376,9 @@ pub fn compare_hands(handv1: &Vec<u8>, handv2: &Vec<u8>) -> Ordering {
         .filter(|&r| r != 0)
         .collect();
 
-    if result[0] == 1 { Ordering::Greater }
+    if result.len() == 0 { Ordering::Equal } // Two hands are equal
+    else if result[0] == 1 { Ordering::Greater }
     else { Ordering::Less }
-
 }
 
 /// This fn accpets unsorted cards.
@@ -391,7 +391,6 @@ pub fn evaluate_cards(cards: Vec<&str>) -> PlayerHand {
     let (has_flush, flush_cards) = find_flush(&cards);
     let (has_straights, straights) = find_straights(&cards);
 
-    // TODO: return the picked cards (best 5 out of 7)
     // royal flush
     if has_royal {
         let value = tag_value(&rflush, 9);
@@ -669,7 +668,7 @@ mod tests {
 
     #[test]
     fn test_compare_hands() {
-        let hole_cards1: [&str; 2] = ["h7", "h5"]; // three of a kind
+        let hole_cards1: [&str; 2] = ["h7", "h5"]; // FullHouse
         let hole_cards2: [&str; 2] = ["s2", "d8"]; // two pairs
         let cmt_cards: [&str; 5] = ["d7", "c6", "s6", "c7", "st"];
         let cards1 = create_cards(&cmt_cards, &hole_cards1);
@@ -677,8 +676,39 @@ mod tests {
         let hand1: PlayerHand = evaluate_cards(cards1);
         let hand2: PlayerHand = evaluate_cards(cards2);
 
-        let result = compare_hands(&hand1.value, &hand2.value);
+        // Test detail of two hands
+        assert_eq!(Category::FullHouse, hand1.category);
+        assert_eq!(Category::TwoPairs, hand2.category);
+        assert_eq!(vec!["d7", "c7", "h7", "c6", "s6"], hand1.picks);
+        assert_eq!(vec!["d7", "c7", "c6", "s6", "st"], hand2.picks);
+        assert_eq!(vec![6, 7, 7, 7, 6, 6], hand1.value);
+        assert_eq!(vec![2, 7, 7, 6, 6, 10], hand2.value);
 
+        // Test result
+        let result = compare_hands(&hand1.value, &hand2.value);
         assert_eq!(Ordering::Greater, result);
+
+
+        // Test two equal hands: both are 10 pair
+        let hole_cards3: [&str; 2] = ["d9", "h4"];
+        let hole_cards4: [&str; 2] = ["h9", "s4"];
+        let cmt_cards2: [&str; 5] = ["st", "ht", "sk", "c8", "d5"];
+        let cards3 = create_cards(&cmt_cards2, &hole_cards3);
+        let cards4 = create_cards(&cmt_cards2, &hole_cards4);
+        let hand3: PlayerHand = evaluate_cards(cards3);
+        let hand4: PlayerHand = evaluate_cards(cards4);
+
+        // Test the detail of the two hands
+        assert_eq!(Category::Pair, hand3.category);
+        assert_eq!(Category::Pair, hand4.category);
+        assert_eq!(vec!["st", "ht", "sk", "d9", "c8"], hand3.picks);
+        assert_eq!(vec!["st", "ht", "sk", "h9", "c8"], hand4.picks);
+        assert_eq!(vec![1, 10, 10, 13, 9, 8], hand3.value);
+        assert_eq!(vec![1, 10, 10, 13, 9, 8], hand4.value);
+
+        // Test result
+        let result = compare_hands(&hand3.value, &hand4.value);
+        assert_eq!(Ordering::Equal, result);
+
     }
 }

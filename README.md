@@ -1,6 +1,6 @@
 # Introduction
 
-Race Protocol is for builders, to easily create blockchain native competitive games those usually contains asymmetric information, unchangable decisions and randomness.  All batteries included:
+Race Protocol is for builders, to easily create blockchain native competitive games usually characterized by asymmetric information, irrevocable decisions and randomness.  All batteries included:
 - The settlement system and corresponding contracts.
 - Blockchain-based storage solution, no database required.
 - RSA-based encrypted communication between server and clients.
