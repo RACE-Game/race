@@ -39,6 +39,8 @@ const DEFAULT_OWNER_ADDRESS: &str = "DEFAULT_OWNER_ADDRESS";
 // Addresses for examples
 const CHAT_BUNDLE_ADDRESS: &str = "CHAT_BUNDLE_ADDRESS";
 const EXAMPLE_CHAT_ADDRESS: &str = "EXAMPLE_CHAT_ADDRESS";
+const RAFFLE_BUNDLE_ADDRESS: &str = "RAFFLE_BUNDLE_ADDRESS";
+const EXAMPLE_RAFFLE_ADDRESS: &str = "EXAMPLE_RAFFLE_ADDRESS";
 
 #[derive(Clone)]
 pub struct PlayerInfo {
@@ -474,6 +476,59 @@ async fn run_server() -> anyhow::Result<ServerHandle> {
     Ok(handle)
 }
 
+fn add_bundle(ctx: &mut Context, path: &str, bundle_addr: &str) {
+    let mut f = File::open(path).expect("race_example_chat.wasm not found");
+    let mut data = vec![];
+    f.read_to_end(&mut data).unwrap();
+    let bundle = GameBundle {
+        addr: bundle_addr.into(),
+        data,
+    };
+    ctx.bundles.insert(bundle_addr.into(), bundle);
+    println!("Added the bundle account at {}", bundle_addr);
+}
+
+fn add_game(ctx: &mut Context, title: &str, game_addr: &str, bundle_addr: &str, data: Vec<u8>) {
+    let account = GameAccount {
+        addr: game_addr.into(),
+        title: title.into(),
+        bundle_addr: bundle_addr.into(),
+        settle_version: 0,
+        access_version: 0,
+        players: vec![],
+        deposits: vec![],
+        servers: vec![],
+        transactor_addr: None,
+        max_players: 20,
+        data_len: data.len() as _,
+        data,
+    };
+    ctx.accounts.insert(game_addr.into(), account);
+    ctx.registrations
+        .get_mut(DEFAULT_REGISTRATION_ADDRESS)
+        .unwrap()
+        .games
+        .push(GameRegistration {
+            title: title.into(),
+            addr: game_addr.into(),
+            reg_time: 0,
+            bundle_addr: bundle_addr.into(),
+        });
+    println!("Add the game account at {}", game_addr);
+}
+
+fn add_bundle_and_game(
+    ctx: &mut Context,
+    path: &str,
+    bundle_addr: &str,
+    game_addr: &str,
+    title: &str,
+    data: Vec<u8>,
+) {
+    add_bundle(ctx, path, bundle_addr);
+    add_game(ctx, title, game_addr, bundle_addr, data);
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     println!("Start facade server at: {:?}", HTTP_HOST);
@@ -482,51 +537,36 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn setup(context: &mut Context) {
+pub fn setup(ctx: &mut Context) {
     let def_reg = RegistrationAccount {
         addr: DEFAULT_REGISTRATION_ADDRESS.into(),
         is_private: false,
         size: 10,
         owner: None,
-        games: vec![
-            GameRegistration {
-                addr: "COUNTER_GAME_ADDRESS".into(),
-                title: "Counter Example".into(),
-                reg_time: 0,
-                bundle_addr: "COUNTER_BUNDLE_ADDRESS".into(),
-            },
-            GameRegistration {
-                addr: EXAMPLE_CHAT_ADDRESS.into(),
-                title: "Chat".into(),
-                reg_time: 0,
-                bundle_addr: CHAT_BUNDLE_ADDRESS.into(),
-            },
-        ],
+        games: Vec::default(),
     };
     println!(
         "Default registration created at {:?}",
         DEFAULT_REGISTRATION_ADDRESS
     );
+    ctx.registrations = HashMap::from([(DEFAULT_REGISTRATION_ADDRESS.into(), def_reg)]);
 
-    let mut f = File::open("../target/wasm32-unknown-unknown/release/race_example_counter.wasm")
-        .expect("race_example_counter.wasm not found");
-    let mut data = vec![];
-    f.read_to_end(&mut data).unwrap();
-    let counter_bundle = GameBundle {
-        addr: COUNTER_BUNDLE_ADDRESS.into(),
-        data,
-    };
-    println!("Counter bundle created at {:?}", COUNTER_BUNDLE_ADDRESS);
-
-    let mut f = File::open("../target/wasm32-unknown-unknown/release/race_example_chat.wasm")
-        .expect("race_example_chat.wasm not found");
-    let mut data = vec![];
-    f.read_to_end(&mut data).unwrap();
-    let chat_bundle = GameBundle {
-        addr: CHAT_BUNDLE_ADDRESS.into(),
-        data,
-    };
-    println!("Example chat created at {:?}", CHAT_BUNDLE_ADDRESS);
+    add_bundle_and_game(
+        ctx,
+        "../target/wasm32-unknown-unknown/release/race_example_chat.wasm",
+        CHAT_BUNDLE_ADDRESS,
+        EXAMPLE_CHAT_ADDRESS,
+        "Chat Room",
+        vec![],
+    );
+    add_bundle_and_game(
+        ctx,
+        "../target/wasm32-unknown-unknown/release/race_example_raffle.wasm",
+        RAFFLE_BUNDLE_ADDRESS,
+        EXAMPLE_RAFFLE_ADDRESS,
+        "Raffle",
+        vec![],
+    );
 
     let server1 = ServerAccount {
         addr: SERVER_ADDRESS_1.into(),
@@ -541,48 +581,7 @@ pub fn setup(context: &mut Context) {
     };
     println!("Transactor account created at {:?}", SERVER_ADDRESS_2);
 
-    let counter_game = GameAccount {
-        addr: COUNTER_GAME_ADDRESS.into(),
-        title: "Counter Example".into(),
-        bundle_addr: COUNTER_BUNDLE_ADDRESS.into(),
-        settle_version: 0,
-        access_version: 0,
-        players: vec![],
-        deposits: vec![],
-        servers: vec![],
-        transactor_addr: None,
-        max_players: 10,
-        data_len: 8,
-        data: vec![0u8; 8],
-    };
-    println!("Counter game created at {:?}", COUNTER_GAME_ADDRESS);
-
-    let chat_account = GameAccount {
-        addr: EXAMPLE_CHAT_ADDRESS.into(),
-        title: "Chat".into(),
-        bundle_addr: CHAT_BUNDLE_ADDRESS.into(),
-        settle_version: 0,
-        access_version: 0,
-        players: vec![],
-        deposits: vec![],
-        servers: vec![],
-        transactor_addr: None,
-        max_players: 20,
-        data_len: 0,
-        data: vec![],
-    };
-    println!("chat created at {:?}", EXAMPLE_CHAT_ADDRESS);
-
-    context.registrations = HashMap::from([(DEFAULT_REGISTRATION_ADDRESS.into(), def_reg)]);
-    context.accounts = HashMap::from([
-        (COUNTER_GAME_ADDRESS.into(), counter_game),
-        (EXAMPLE_CHAT_ADDRESS.into(), chat_account),
-    ]);
-    context.bundles = HashMap::from([
-        (COUNTER_BUNDLE_ADDRESS.into(), counter_bundle),
-        (CHAT_BUNDLE_ADDRESS.into(), chat_bundle),
-    ]);
-    context.transactors = HashMap::from([
+    ctx.transactors = HashMap::from([
         (SERVER_ADDRESS_1.into(), server1),
         (SERVER_ADDRESS_2.into(), server2),
     ]);

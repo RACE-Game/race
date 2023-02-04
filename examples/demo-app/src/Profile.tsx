@@ -25,9 +25,9 @@ function Profile() {
   }
 
   return (
-    <div className="grid place-items-center">
+    <div className="grid place-items-center border border-gray-500 rounded-lg">
       <input
-        className="text-gray-800 focus:text-black bg-transparent border-b border-black outline-none text-center p-4 m-2 text-lg"
+        className="text-gray-800 focus:text-black bg-transparent border-b border-black outline-none text-center p-4 text-lg"
         name="nick"
         type="text"
         placeholder="Enter nick"

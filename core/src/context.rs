@@ -244,8 +244,22 @@ impl GameContext {
         self.get_server_by_address(&self.transactor_addr).unwrap()
     }
 
-    pub fn dispatch(&mut self, event: Event, timeout: u64) {
-        self.dispatch = Some(DispatchEvent::new(event, timeout));
+    pub fn dispatch_event(&mut self, event: Event, timeout: u64) {
+        self.dispatch = Some(DispatchEvent::new(event, self.timestamp + timeout));
+    }
+
+    pub fn wait_timeout(&mut self, timeout: u64) {
+        self.dispatch = Some(DispatchEvent::new(
+            Event::WaitTimeout,
+            self.timestamp + timeout,
+        ));
+    }
+
+    pub fn action_timeout(&mut self, player_addr: String, timeout: u64) {
+        self.dispatch = Some(DispatchEvent::new(
+            Event::ActionTimeout { player_addr },
+            self.timestamp + timeout,
+        ));
     }
 
     pub fn start_game(&mut self) {
@@ -260,11 +274,15 @@ impl GameContext {
             sender: self.transactor_addr.to_owned(),
             raw: serde_json::to_string(e).unwrap(),
         };
-        self.dispatch(event, timeout);
+        self.dispatch_event(event, timeout);
     }
 
     pub fn get_players(&self) -> &Vec<Player> {
         &self.players
+    }
+
+    pub fn get_timestamp(&self) -> u64 {
+        self.timestamp
     }
 
     pub fn get_pending_players(&self) -> &Vec<PlayerJoin> {
@@ -479,7 +497,7 @@ impl GameContext {
     }
 
     /// Dispatch event after timeout.
-    pub fn disptach(&mut self, event: Event, timeout: u64) -> Result<()> {
+    pub fn dispatch(&mut self, event: Event, timeout: u64) -> Result<()> {
         if self.dispatch.is_some() {
             return Err(Error::DuplicatedEventDispatching);
         }
@@ -529,7 +547,7 @@ impl GameContext {
         let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.lock(addr, ciphertexts_and_tests)?;
         if rnd_st.status == RandomStatus::Ready {
-            self.dispatch(Event::RandomnessReady { random_id }, 0);
+            self.dispatch_event(Event::RandomnessReady { random_id }, 0);
         }
         Ok(())
     }

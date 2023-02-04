@@ -15,6 +15,7 @@ members = [
   "examples/counter/core",
   "examples/minimal/core",
   "examples/chat",
+  "examples/raffle",
   "examples/console",
   "examples/holdem",
 ]

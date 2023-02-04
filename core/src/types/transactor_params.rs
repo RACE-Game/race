@@ -71,6 +71,7 @@ impl Display for SubscribeEventParams {
 pub struct BroadcastFrame {
     pub game_addr: String,
     pub event: Event,
+    pub timestamp: u64,
 }
 
 impl Display for BroadcastFrame {

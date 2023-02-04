@@ -192,8 +192,9 @@ impl AppClient {
         debug!("Event stream connected");
 
         while let Some(frame) = sub.next().await {
-            let BroadcastFrame { game_addr, event } = frame;
+            let BroadcastFrame { game_addr, event, timestamp } = frame;
             let mut game_context = self.game_context.borrow_mut();
+            game_context.set_timestamp(timestamp);
             match self.handler.handle_event(&mut game_context, &event) {
                 Ok(_) => {
                     let state_js = parse(game_context.get_handler_state_json())

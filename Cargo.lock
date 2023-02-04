@@ -2615,6 +2615,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "race-example-raffle"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "race-core",
+ "race-proc-macro",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "race-facade"
 version = "0.1.0"
 dependencies = [

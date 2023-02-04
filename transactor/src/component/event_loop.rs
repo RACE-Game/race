@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::time::{Duration, UNIX_EPOCH};
 
-use race_core::context::{DispatchEvent, GameContext};
+use race_core::context::GameContext;
 use race_core::error::Error;
 use race_core::event::Event;
 use tokio::select;
@@ -73,9 +73,10 @@ async fn handle(
                 event,
                 access_version: game_context.get_access_version(),
                 settle_version: game_context.get_settle_version(),
+                timestamp: game_context.get_timestamp(),
             })
             .await
-                .unwrap();
+            .unwrap();
 
             out.send(EventFrame::ContextUpdated {
                 context: game_context.clone(),
@@ -107,26 +108,38 @@ async fn handle(
     }
 }
 
+/// Take the event from clients or the pending dispatched event.
 async fn retrieve_event(
     input_rx: &mut mpsc::Receiver<EventFrame>,
-    dispatch: &Option<DispatchEvent>,
+    game_context: &mut GameContext,
     mode: ClientMode,
 ) -> Option<EventFrame> {
+    // Set timestamp
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+    game_context.set_timestamp(timestamp);
+    info!("Set timestamp to {}", timestamp);
+
     if mode != ClientMode::Transactor {
         input_rx.recv().await
-    } else if let Some(dispatch) = dispatch {
-        if dispatch.timeout == 0 {
-            return Some(EventFrame::SendServerEvent {
-                event: dispatch.event.clone(),
-            });
+    } else if let Some(dispatch) = game_context.get_dispatch() {
+        // If already passed
+        if dispatch.timeout <= timestamp {
+            let event = dispatch.event.clone();
+            game_context.cancel_dispatch();
+            return Some(EventFrame::SendServerEvent { event });
         }
-        let to = tokio::time::sleep(Duration::from_millis(dispatch.timeout));
+        let to = tokio::time::sleep(Duration::from_millis(dispatch.timeout - timestamp));
         select! {
             ef = input_rx.recv() => {
                 ef
             }
             _ = to => {
-                Some(EventFrame::SendServerEvent {event: dispatch.event.clone()})
+                let event = dispatch.event.clone();
+                game_context.cancel_dispatch();
+                Some(EventFrame::SendServerEvent { event })
             }
         }
     } else {
@@ -159,7 +172,7 @@ impl Component<EventLoopContext> for EventLoop {
 
             // Read games from event bus
             while let Some(event_frame) =
-                retrieve_event(&mut ctx.input_rx, game_context.get_dispatch(), ctx.mode).await
+                retrieve_event(&mut ctx.input_rx, &mut game_context, ctx.mode).await
             {
                 match event_frame {
                     EventFrame::Sync {

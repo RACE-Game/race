@@ -21,6 +21,7 @@ pub struct EventBackup {
     pub event: Event,
     pub settle_version: u64,
     pub access_version: u64,
+    pub timestamp: u64,
 }
 
 pub struct BroadcasterContext {
@@ -34,6 +35,7 @@ pub struct BroadcasterContext {
 
 /// A component that pushs event to clients.
 pub struct Broadcaster {
+    game_addr: String,
     input_tx: mpsc::Sender<EventFrame>,
     closed_rx: oneshot::Receiver<CloseReason>,
     snapshot: Arc<Mutex<String>>,
@@ -71,6 +73,7 @@ impl Component<BroadcasterContext> for Broadcaster {
                             state_json,
                             access_version,
                             settle_version,
+                            timestamp,
                         } => {
                             // info!("Broadcaster broadcast event: {:?}", event);
                             let mut snapshot = snapshot.lock().await;
@@ -82,16 +85,17 @@ impl Component<BroadcasterContext> for Broadcaster {
                                 event: event.clone(),
                                 settle_version,
                                 access_version,
+                                timestamp,
                             });
                             // We keep at most 100 backups
                             if event_backups.len() > 100 {
                                 event_backups.pop_front();
                             }
-                            let r = ctx.broadcast_tx
-                                .send(BroadcastFrame {
-                                    game_addr: ctx.game_addr.clone(),
-                                    event,
-                                });
+                            let r = ctx.broadcast_tx.send(BroadcastFrame {
+                                game_addr: ctx.game_addr.clone(),
+                                event,
+                                timestamp,
+                            });
                             if let Err(e) = r {
                                 error!("Failed to broadcast event: {:?}", e);
                             }
@@ -138,6 +142,7 @@ impl Broadcaster {
             latest_settle_version: init_state.settle_version,
         });
         Self {
+            game_addr: init_state.addr.clone(),
             input_tx,
             closed_rx,
             snapshot,
@@ -156,14 +161,18 @@ impl Broadcaster {
     }
 
     /// Retrieve events those is handled with a specified `settle_version`.
-    pub async fn retrieve_events(&self, settle_version: u64) -> Vec<Event> {
+    pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
         self.event_backups
             .lock()
             .await
             .iter()
             .filter_map(|event_backup| {
                 if event_backup.settle_version >= settle_version {
-                    Some(event_backup.event.clone())
+                    Some(BroadcastFrame {
+                        game_addr: self.game_addr.clone(),
+                        event: event_backup.event.clone(),
+                        timestamp: event_backup.timestamp,
+                    })
                 } else {
                     None
                 }

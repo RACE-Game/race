@@ -1,58 +1,66 @@
 import { AppClient } from 'race-sdk';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { CHAIN, RPC } from './constants';
+import GameContext from './game-context';
+
+interface Message {
+  sender: string,
+  text: string,
+}
 
 interface State {
-  messages: string[],
+  messages: Message[],
   num_of_clients: number,
   num_of_servers: number,
 }
 
-function Chat(props: { profile: any, account: any }) {
+function Chat(props: { profile: any, account: any, state: State }) {
 
-  const { profile, account } = props;
-
-  const [state, setState] = useState<State>({
-    messages: [],
-    num_of_clients: 0,
-    num_of_servers: 0
-  });
-
-  const [client, setClient] = useState<AppClient | undefined>(undefined);
-
-  const onEvent = (addr: string, context: any, state: State) => {
-    console.log(addr, context, state);
-    setState(state);
-  }
+  const { state } = props;
+  const { client } = useContext(GameContext);
+  const [text, setText] = useState<string>('');
 
   const sendMessage = async () => {
-    client && await client.submit_event({ PublicMessage: { text: "Hello!" } })
-  }
-
-  const join = async () => {
-    client && client.join(0, 0n);
-  }
-
-  useEffect(() => {
-    if (client === undefined && account !== undefined && profile !== undefined) {
-      AppClient.try_init(CHAIN, RPC, profile.addr, account.addr, onEvent).then(client => {
-        setClient(client);
-        client.attach_game().then(() => {
-          client.join(0, 0n);
-        })
-      });
+    if (text.length > 0) {
+      client && await client.submit_event({ PublicMessage: { text } });
+      setText('');
     }
-  }, [client, profile, account]);
+  }
 
-  return <div className="p-4">
-    <div> Client: {state.num_of_clients} | Servers: {state.num_of_servers} </div>
-    <ul>
-      {
-        state.messages.map(msg => (<li>{msg}</li>))
-      }
-    </ul>
-    <button className="m-2 px-4 py-2 bg-black text-white" onClick={join}>Join</button>
-    <button className="m-2 px-4 py-2 bg-black text-white" onClick={sendMessage}>Send</button>
+  const onChangeText = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setText(e.target.value);
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
+  }
+
+  if (state.messages === undefined) return null;
+
+  return <div className="h-full w-full flex flex-col p-4">
+    <div className="flex-1 relative">
+      <div className="absolute inset-0 overflow-scroll">
+        {
+          state.messages.map((msg, idx) => (
+            <div key={idx} className="p-2">
+              <div className="flex">
+                <div className="font-bold rounded-lg p-2 text-sm">{msg.sender}</div>
+              </div>
+              <div className="p-2">{msg.text}</div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <div className="flex flex-row w-full h-12">
+      <div className="box-border border border-black overflow-hidden flex-1 flex">
+        <input className="box-border flex-1 h-full outline-none text-center" name="message-text" type="text" value={text} onChange={onChangeText} onKeyDown={onKeyDown} />
+        <button className="box-border h-full px-4 bg-black text-white" onClick={sendMessage}>Send</button>
+      </div>
+    </div>
   </div>
 }
 

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use race_core::error::Error;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{error, info};
+use tracing::error;
 
 use crate::component::traits::Attachable;
 use crate::frame::EventFrame;

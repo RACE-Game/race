@@ -26,8 +26,8 @@ pub fn general_handle_event(
     event: &Event,
     encryptor: &dyn EncryptorT,
 ) -> Result<()> {
-    // Remove current event disptaching
-    context.dispatch = None;
+    // // Remove current event disptaching
+    // context.dispatch = None;
 
     // General event handling
     match event {
@@ -39,7 +39,7 @@ pub fn general_handle_event(
         } => {
             context.add_shared_secrets(sender, shares.clone())?;
             if context.secrets_ready() {
-                context.disptach(Event::SecretsReady, 0)?;
+                context.dispatch_event(Event::SecretsReady, 0);
             }
             Ok(())
         }

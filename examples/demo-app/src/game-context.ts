@@ -1,19 +1,19 @@
 import { AppClient } from 'race-sdk';
 import React from 'react';
 
-type ContextData = {
+export type GameContextData = {
   context: any,
-  state: any,
-  account: any,
+  setContext: (context: any) => void,
   client: AppClient | undefined,
+  setClient: (client: AppClient) => void,
 }
 
 const GameContext =
-  React.createContext<ContextData>({
+  React.createContext<GameContextData>({
     context: undefined,
-    state: undefined,
-    account: undefined,
+    setContext: (_: any) => { },
     client: undefined,
+    setClient: (_: AppClient) => { },
   });
 
 export default GameContext;

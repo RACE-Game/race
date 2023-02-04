@@ -12,9 +12,15 @@ enum GameEvent {
 }
 
 #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+struct Message {
+    sender: String,
+    text: String,
+}
+
+#[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[game_handler]
 struct Chat {
-    messages: Vec<String>,
+    messages: Vec<Message>,
     num_of_clients: usize,
     num_of_servers: usize,
 }
@@ -30,13 +36,13 @@ impl GameHandler for Chat {
     }
 
     /// Handle event.
-    fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
+    fn handle_event(&mut self, _context: &mut GameContext, event: Event) -> Result<()> {
         match event {
             Event::Custom { sender, raw } => {
                 let event: GameEvent = serde_json::from_str(&raw).or(Err(Error::JsonParseError))?;
                 match event {
                     GameEvent::PublicMessage { text } => {
-                        self.messages.push(text);
+                        self.messages.push(Message { sender, text });
                     }
                 }
             }

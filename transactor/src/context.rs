@@ -87,12 +87,15 @@ impl GameManager {
         &self,
         game_addr: &str,
         settle_version: u64,
-    ) -> Result<(broadcast::Receiver<BroadcastFrame>, Vec<Event>)> {
+    ) -> Result<(broadcast::Receiver<BroadcastFrame>, Vec<BroadcastFrame>)> {
         let games = self.games.lock().await;
         let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
         let receiver = handle.broadcaster()?.get_broadcast_rx();
-        let events = handle.broadcaster()?.retrieve_events(settle_version).await;
-        Ok((receiver, events))
+        let histories = handle
+            .broadcaster()?
+            .retrieve_histories(settle_version)
+            .await;
+        Ok((receiver, histories))
     }
 
     pub async fn get_snapshot(&self, game_addr: &str) -> Result<String> {
@@ -204,7 +207,7 @@ impl ApplicationContext {
         &self,
         game_addr: &str,
         settle_version: u64,
-    ) -> Result<(broadcast::Receiver<BroadcastFrame>, Vec<Event>)> {
+    ) -> Result<(broadcast::Receiver<BroadcastFrame>, Vec<BroadcastFrame>)> {
         self.game_manager
             .get_broadcast(game_addr, settle_version)
             .await

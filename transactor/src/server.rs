@@ -8,7 +8,7 @@ use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
 use race_core::types::{
-    AttachGameParams, BroadcastFrame, ExitGameParams, GetStateParams, Signature, SubmitEventParams,
+    AttachGameParams, ExitGameParams, GetStateParams, Signature, SubmitEventParams,
     SubscribeEventParams,
 };
 use tokio_stream::wrappers::BroadcastStream;
@@ -87,7 +87,7 @@ fn subscribe_event(
             //     return;
             // }
 
-            let (receiver, events) =
+            let (receiver, histories) =
                 match context.get_broadcast(&game_addr, arg.settle_version).await {
                     Ok(x) => x,
                     Err(e) => {
@@ -101,16 +101,13 @@ fn subscribe_event(
             let rx = BroadcastStream::new(receiver);
             info!("Subscribe event stream: {:?}", game_addr);
 
-            events.into_iter().for_each(|e| {
-                sink.send(&BroadcastFrame {
-                    game_addr: game_addr.clone(),
-                    event: e,
-                })
-                .map_err(|e| {
-                    error!("Error occurred when broadcasting event histories: {:?}", e);
-                    e
-                })
-                .unwrap();
+            histories.into_iter().for_each(|x| {
+                sink.send(&x)
+                    .map_err(|e| {
+                        error!("Error occurred when broadcasting event histories: {:?}", e);
+                        e
+                    })
+                    .unwrap();
             });
 
             drop(context);
