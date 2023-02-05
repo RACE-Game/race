@@ -1,1 +1,1 @@
-# A fake blockchain for testing and the corresponding transport implementation
+# A server to simulate a blockchain for development and test
