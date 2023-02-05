@@ -60,7 +60,7 @@ pub enum Event {
     /// This event is sent by transactor based on client's connection status.
     Leave { player_addr: String },
 
-    /// Transactor uses this game as the start for each game.
+    /// Transactor uses this event as the start for each game.
     /// The `access_version` can be used to filter out which players are included.
     GameStart { access_version: u64 },
 

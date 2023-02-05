@@ -115,7 +115,7 @@ impl DispatchEvent {
 pub struct GameContext {
     pub(crate) game_addr: String,
     /// Version numbers for player/server access.  This number will be
-    /// increased whenever a new player joined or a server attached.
+    /// increased whenever a new player joins or a server gets attached.
     pub(crate) access_version: u64,
     /// Version number for transactor settlement.  This number will be
     /// increased whenever a transaction is sent.

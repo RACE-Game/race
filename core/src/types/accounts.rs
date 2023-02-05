@@ -58,7 +58,7 @@ impl ServerJoin {
     }
 }
 
-/// The data represent the state of on-chain transactor registration.
+/// The data represents the state of on-chain transactor registration.
 #[derive(
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
@@ -70,7 +70,7 @@ pub struct ServerAccount {
     pub endpoint: String,
 }
 
-/// The data represent the state of on-chain game account.
+/// The data represents the state of on-chain game account.
 ///
 /// # Access Version and Settle Version
 ///
@@ -87,7 +87,7 @@ pub struct ServerAccount {
 /// # Players and Servers
 ///
 /// Non-transactor nodes can only add themselves to the `players` list
-/// or `servers` list.  Only tranactor node can remove a player with
+/// or `servers` list.  Only tranactor nodes can remove a player with
 /// settlement transaction.
 ///
 /// If on-chain account requires a fixed length array to represent these lists:

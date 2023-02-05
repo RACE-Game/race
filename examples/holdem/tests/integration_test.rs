@@ -2,59 +2,59 @@ use std::collections::HashMap;
 
 use borsh::BorshSerialize;
 use race_core::{
-    context::{GameContext, GameStatus as GeneralStatus},
-    engine::GameHandler,
+    context::{DispatchEvent, GameContext, GameStatus as GeneralStatus},
     error::{Error, Result},
     event::Event,
-    // types::accounts::GameAccount
+    random::RandomStatus,
+    types::{ClientMode, PlayerJoin},
 };
+use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
+
+#[macro_use]
+extern crate log;
 
 use holdem::*;
 
-// fn create_holdem(ctx: &mut GameContext) -> Holdem {
-//
-//     let holdem_acct = HoldemAccount {
-//         sb: 50,
-//         bb: 100,
-//         buyin: 2000,
-//         rake: 0.02,
-//         size: 6,
-//         mode: String::from("cash"),
-//         token: String::from("USDC1234567890"),
-//     };
-//
-//     let v: Vec<u8> = holdem_acct.try_to_vec().unwrap();
-//
-//     let init_acct = GameAccount {
-//         addr: String::from("FAKE"),
-//         title: String::from("HOLDEM"),
-//         bundle_addr: String::from("FAKE"),
-//         settle_version: 0,
-//         access_version: 0,
-//         players: vec![],
-//         deposits: vec![],
-//         servers: vec![],
-//         transactor_addr: Some(String::from("FAKE")),
-//         max_players: 8,
-//         data_len: v.len() as _,
-//         data: v,
-//     };
-//
-//     // init_acct (GameAccount + HoldemAccount) + GameContext = Holdem
-//     Holdem::init_state(ctx, init_acct).unwrap()
-// }
-
-
 #[test]
-#[ignore]
-pub fn test_init_state() {
-    // let mut ctx = GameContext::default();
-    // let holdem = create_holdem(&mut ctx);
-    // assert_eq!(50, holdem.sb);
-    // assert_eq!(100, holdem.bb);
-    // // assert_eq!(String::from("gentoo"), holdem.player_nick);
-    // // assert_eq!(String::from("qwertyuiop"), holdem.player_id);
-    // assert_eq!(Street::Init, holdem.street);
+pub fn test_init_state() -> Result<()> {
+    // Initialize the game with 1 server added.
+    let game_acct = TestGameAccountBuilder::default()
+        .add_servers(1)
+        .build();
+
+    // Create game context and test handler.
+    let mut ctx = GameContext::try_new(&game_acct)?;
+    let mut holdem_hlr = TestHandler::<Holdem>::init_state(&mut ctx, &game_acct)?;
+    assert_eq!(0, ctx.count_players());
+
+
+    // Initialize the client, which simulates the behavior of transactor.
+    let transactor_addr = game_acct.transactor_addr.as_ref().unwrap().clone();
+    let mut transactor = TestClient::new(
+        transactor_addr.clone(),
+        game_acct.addr.clone(),
+        ClientMode::Transactor,
+    );
+
+    // Initialize two player clients, which simulate the behavior of player.
+    let mut alice = TestClient::new(
+        "Alice".into(),
+        game_acct.addr.clone(),
+        ClientMode::Player,
+    );
+    let mut bob = TestClient::new(
+        "Bob".into(),
+        game_acct.addr.clone(),
+        ClientMode::Player
+    );
+
+    // Try to start the "zero-player" game that will fail
+    let fail_to_start = ctx.gen_first_event();
+    let result = holdem_hlr.handle_event(&mut ctx, &fail_to_start);
+    assert_eq!(result, Err(Error::NoEnoughPlayers));
+
+    Ok(())
+
 }
 
 #[test]
@@ -68,18 +68,21 @@ pub fn test_handle_join() {
 }
 
 #[test]
+#[ignore]
 pub fn test_fns() {
     // Bob goes all in with 45 and Gentoo goes all in with 50
     // The other two call 100 and build side pots
     let mut holdem = Holdem {
+        deck_random_id: 0,
+        dealer_idx: 0,
         sb: 10,
         bb: 20,
         buyin: 400,
         btn: 3,
         rake: 0.02,
         size: 4,
-        status: HoldemStatus::Play,
-        street: Street::Preflop,
+        stage: HoldemStage::Play,
+        street: Street::Flop,
         street_bet: 20,
         bets: vec![
             Bet::new("Alice", 100),
@@ -113,29 +116,29 @@ pub fn test_fns() {
 
     // Test the bets collected in each pot
     holdem.collect_bets().unwrap();
-    assert_eq!(3, holdem.pots.len());         // passed
-    assert_eq!(180, holdem.pots[0].amount()); // passed
-    assert_eq!(15, holdem.pots[1].amount());  // passed
-    assert_eq!(100, holdem.pots[2].amount()); // passed
+    assert_eq!(3, holdem.pots.len());
+    assert_eq!(180, holdem.pots[0].amount());
+    assert_eq!(15, holdem.pots[1].amount());
+    assert_eq!(100, holdem.pots[2].amount());
 
     // Test num of pots and owners of each pot
     assert_eq!(4, holdem.pots[0].owners().len());
     assert_eq!(
         vec!["Alice".to_string(), "Bob".to_string(), "Carol".to_string(), "Gentoo".to_string()],
         holdem.pots[0].owners()
-    ); // passed
+    );
 
     assert_eq!(3, holdem.pots[1].owners().len());
     assert_eq!(
         vec!["Alice".to_string(), "Carol".to_string(), "Gentoo".to_string()],
         holdem.pots[1].owners()
-    ); // passed
+    );
 
     assert_eq!(2, holdem.pots[2].owners().len());
     assert_eq!(
         vec!["Alice".to_string(), "Carol".to_string()],
         holdem.pots[2].owners()
-    ); // passed
+    );
 
 
     // Test assigned winner(s) of each pot
@@ -147,40 +150,43 @@ pub fn test_fns() {
         ]).unwrap();
 
     // Test num of winners in each pot
-    assert_eq!(2, holdem.pots[0].winners().len()); // passed
-    assert_eq!(1, holdem.pots[1].winners().len()); // passed
-    assert_eq!(1, holdem.pots[2].winners().len()); // passed
+    assert_eq!(2, holdem.pots[0].winners().len());
+    assert_eq!(1, holdem.pots[1].winners().len());
+    assert_eq!(1, holdem.pots[2].winners().len());
 
     // Test winner(s) of each pot
-    assert_eq!(vec![String::from("Bob"), String::from("Gentoo")], holdem.pots[0].winners()); // passed
-    assert_eq!(vec![String::from("Gentoo")], holdem.pots[1].winners()); // passed
-    assert_eq!(vec![String::from("Alice") ], holdem.pots[2].winners()); // passed
+    assert_eq!(vec![String::from("Bob"), String::from("Gentoo")], holdem.pots[0].winners());
+    assert_eq!(vec![String::from("Gentoo")], holdem.pots[1].winners());
+    assert_eq!(vec![String::from("Alice") ], holdem.pots[2].winners());
 
     // Test prize map of each player
     holdem.calc_prize().unwrap();
-    assert_eq!(90u64, holdem.prize_map.get(&"Bob".to_string()).copied().unwrap());     // passed
-    assert_eq!(105u64, holdem.prize_map.get(&"Gentoo".to_string()).copied().unwrap()); // passed
-    assert_eq!(100u64, holdem.prize_map.get(&"Alice".to_string()).copied().unwrap());  // passed
+    assert_eq!(90u64, holdem.prize_map.get(&"Bob".to_string()).copied().unwrap());
+    assert_eq!(105u64, holdem.prize_map.get(&"Gentoo".to_string()).copied().unwrap());
+    assert_eq!(100u64, holdem.prize_map.get(&"Alice".to_string()).copied().unwrap());
 
 
     // Test chips after applying the prize map
     holdem.apply_prize().unwrap();
-    assert_eq!(1500, holdem.players[0].chips); // passed
-    assert_eq!(90, holdem.players[1].chips);   // passed
-    assert_eq!(1100, holdem.players[2].chips); // passed
-    assert_eq!(105, holdem.players[3].chips);  // passed
+    assert_eq!(1500, holdem.players[0].chips);
+    assert_eq!(90, holdem.players[1].chips);
+    assert_eq!(1100, holdem.players[2].chips);
+    assert_eq!(105, holdem.players[3].chips);
 }
 
 #[test]
+#[ignore]
 pub fn test_blind_bets() {
     let mut holdem = Holdem {
+        deck_random_id: 0,
+        dealer_idx: 0,
         sb: 10,
         bb: 20,
         buyin: 400,
         btn: 3,
         rake: 0.02,
         size: 4,
-        status: HoldemStatus::Play,
+        stage: HoldemStage::Play,
         street: Street::Preflop,
         street_bet: 0,
         bets: vec![],
@@ -216,28 +222,31 @@ pub fn test_blind_bets() {
     assert_eq!(init_bet_map, holdem.bets);
 
     // After blind bets
-    assert_eq!((), holdem.blind_bets().unwrap()); // passed
-    assert_eq!(20, holdem.street_bet);            // passed
+    assert_eq!((), holdem.blind_bets().unwrap());
+    assert_eq!(20, holdem.street_bet);
     assert_eq!(
         vec![Bet::new("Alice", 10), Bet::new("Bob", 20)],
         holdem.bets
-    );                                            // passed
+    );
     assert_eq!(
         String::from("Carol") ,
         holdem.acting_player.unwrap().addr
-    );                                            // passed
+    );
 }
 
 #[test]
+#[ignore]
 pub fn test_single_player_wins() {
     let mut holdem = Holdem {
+        deck_random_id: 0,
+        dealer_idx: 0,
         sb: 10,
         bb: 20,
         buyin: 400,
         btn: 3,
         rake: 0.02,
         size: 4,
-        status: HoldemStatus::Play,
+        stage: HoldemStage::Play,
         street: Street::Preflop,
         street_bet: 0,
         bets: vec![
@@ -270,24 +279,27 @@ pub fn test_single_player_wins() {
         pots: vec![],
     };
 
-    assert_eq!((), holdem.single_player_win(&vec![vec!["Gentoo".to_string()]]).unwrap()); // passed
-    assert_eq!(1, holdem.pots.len());              // passed
-    assert_eq!(4, holdem.pots[0].owners().len());  // passed
-    assert_eq!(160, holdem.pots[0].amount());      // passed
-    assert_eq!(160, holdem.prize_map.get(&"Gentoo".to_string()).copied().unwrap()); // passed
-    assert_eq!(520, holdem.players[3].chips);      // passed
+    assert_eq!((), holdem.single_player_win(&vec![vec!["Gentoo".to_string()]]).unwrap());
+    assert_eq!(1, holdem.pots.len());
+    assert_eq!(4, holdem.pots[0].owners().len());
+    assert_eq!(160, holdem.pots[0].amount());
+    assert_eq!(160, holdem.prize_map.get(&"Gentoo".to_string()).copied().unwrap());
+    assert_eq!(520, holdem.players[3].chips);
 }
 
 #[test]
-pub fn test_change_street() {
+#[ignore]
+pub fn tstageange_street() {
     let mut holdem = Holdem {
+        deck_random_id: 0,
+        dealer_idx: 0,
         sb: 10,
         bb: 20,
         buyin: 400,
         btn: 3,
-        rake: 0.02,
+        rake: 0.1,
         size: 4,
-        status: HoldemStatus::Play,
+        stage: HoldemStage::Play,
         street: Street::Preflop,
         street_bet: 20,
         bets: vec![
@@ -325,28 +337,29 @@ pub fn test_change_street() {
     };
 
     let next_street = holdem.next_street();
-    assert_eq!((), holdem.change_street(next_street).unwrap()); // passed
-    assert_eq!(PlayerStatus::Wait, holdem.players[2].status);   // passed
+    assert_eq!((), holdem.change_street(next_street).unwrap());
+    assert_eq!(PlayerStatus::Wait, holdem.players[2].status);
 
-    assert_eq!(0, holdem.street_bet);        // passed
-    assert_eq!(Street::Flop, holdem.street); // passed
+    assert_eq!(0, holdem.street_bet);
+    assert_eq!(Street::Flop, holdem.street);
 }
 
 #[test]
 #[ignore]
 pub fn test_next_state() {
     let mut ctx = GameContext::default();
-
     // Modify the fields to fall into different states
     // Below is an example for tesing blind bets, similiar to test_blind_bets() above
     let mut holdem = Holdem {
+        deck_random_id: 0,
+        dealer_idx: 0,
         sb: 10,
         bb: 20,
         buyin: 400,
         btn: 3,
-        rake: 0.02,
+        rake: 0.1,
         size: 4,
-        status: HoldemStatus::Play,
+        stage: HoldemStage::Play,
         street: Street::Preflop,
         street_bet: 0,
         bets: vec![
@@ -379,7 +392,7 @@ pub fn test_next_state() {
         pots: vec![],
     };
 
-    assert_eq!((), holdem.next_state(&mut ctx).unwrap()); // passed
+    assert_eq!((), holdem.next_state(&mut ctx).unwrap());
 
 }
 

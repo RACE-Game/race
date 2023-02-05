@@ -106,7 +106,7 @@ impl GameHandler for MinimalHandler {
 
     fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
         match event {
-            // Custom events are the events we defined for this game epecifically
+            // Custom events are the events we defined for this game particularly
             // See [[GameEvent]].
             Event::Custom { sender, raw } => {
                 let event = serde_json::from_str(&raw).unwrap();
@@ -126,7 +126,7 @@ impl GameHandler for MinimalHandler {
                 self.stage = GameStage::Dealing;
             }
 
-            Event::RandomnessReady => {
+            Event::RandomnessReady { .. } => {
                 let addr0 = context.get_player_by_index(0).unwrap().addr.clone();
                 let addr1 = context.get_player_by_index(1).unwrap().addr.clone();
                 context.assign(self.deck_random_id, addr0, vec![0])?;

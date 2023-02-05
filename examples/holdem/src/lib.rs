@@ -1,15 +1,17 @@
 use std::collections::HashMap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::value::I8Deserializer;
 use serde::{Deserialize, Serialize};
 
 use race_proc_macro::game_handler;
-use race_core::error::{Error, Result};
-use race_core::event::{Event, CustomEvent};
-use race_core::{context::{GameContext, GameStatus as GeneralStatus},
-                engine::GameHandler,
-                types::GameAccount};
+use race_core::{
+    context::GameContext,
+    engine::GameHandler,
+    error::{Error, Result},
+    event::{CustomEvent, Event},
+    random::deck_of_cards,
+    types::{GameAccount, RandomId, Settle},
+};
 
 pub mod evaluator;
 
@@ -134,8 +136,9 @@ impl Pot {
     }
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+#[derive(Deserialize, Serialize, PartialEq, Debug, Default, Clone)]
 pub enum Street {
+    #[default]
     Init,
     Preflop,
     Flop,
@@ -167,8 +170,9 @@ impl Bet {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Clone)]
-pub enum HoldemStatus {
+#[derive(Default, Serialize, Deserialize, PartialEq, Clone)]
+pub enum HoldemStage {
+    #[default]
     Init,
     Encrypt,
     ShareKey,
@@ -190,17 +194,18 @@ pub enum GameEvent {
 
 impl CustomEvent for GameEvent {}
 
-
 #[game_handler]
-#[derive(Deserialize, Serialize, Clone)]
-pub struct Holdem {// must have random cards id
+#[derive(Deserialize, Serialize, Clone, Default)]
+pub struct Holdem {// GameState Handler
+    pub deck_random_id: RandomId,
+    pub dealer_idx: usize,
     pub sb: u64,
     pub bb: u64,
     pub buyin: u64,
     pub btn: usize,            // current btn position, zero-indexed?
     pub rake: f32,
     pub size: u8,              // table size: total number of players
-    pub status: HoldemStatus,
+    pub stage: HoldemStage,
     // mode: String,           // game type: cash, sng or tourney? Treat as CASH GAME
     // token: String,          // token should be a struct of its own?
     pub street: Street,
@@ -467,7 +472,7 @@ impl Holdem {
             println!("Ask next player to act!");
             self.ask_for_action(&mut next_action_player)?;
             Ok(())
-        } else if self.status != HoldemStatus::Runner && remain_players.len() == allin_players.len() + 1 {
+        } else if self.stage != HoldemStage::Runner && remain_players.len() == allin_players.len() + 1 {
             // Runner
             println!("Entering runner state");
             todo!()
@@ -521,20 +526,22 @@ impl Holdem {
 
 impl GameHandler for Holdem {
     fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
-        let account = HoldemAccount::try_from_slice(&init_account.data).unwrap();
-
+        // Skip this account part for now
+        // let account = HoldemAccount::try_from_slice(&init_account.data).unwrap();
         Ok(Self {
-            sb: account.sb,
-            bb: account.bb,
-            buyin: account.buyin,
+            deck_random_id: 0,
+            dealer_idx: 0,
+            sb: 10,
+            bb: 20,
+            buyin: 400,
             btn: context.get_players().len(),
-            size: account.size,
-            rake: account.rake,
-            status: HoldemStatus::Init,
+            size: 6,
+            rake: 0.2,
+            stage: HoldemStage::Init,
             street: Street::Init,
-            street_bet: account.bb,
+            street_bet: 0,
             // community_cards: vec![],
-            bets: vec![],    // last p[0] is sb, p[0] at bb, p[3] is the first to act, p[n-1] (last) btn
+            bets: vec![],    // p[0] is sb, p[1] at bb, p[2] the first to act, p[n-1] (last) btn
             prize_map: HashMap::new(),
             players: vec![],
             pots: vec![
@@ -548,31 +555,23 @@ impl GameHandler for Holdem {
         match event {
             // Handle custom events
             Event::Custom { sender, raw } => {
-                // 1. Check if event sender is in the players
-                if let Some(_) = context.get_players().iter().find(|&p| p.addr == sender) {
-                    println!("Valid player");
-                } else {
-                    return Err(Error::Custom(String::from("Unknown player!")));
-                }
-
-                // 2. Check game status is valid (running)?
-                match context.get_status() {
-                    GeneralStatus::Running => {
-                        println!("Valid game status: Running");
-                    },
-                    _ => {
-                        return Err(Error::Custom(String::from("Invalid GameStatus: Game is not running!")));
-                    }
-                }
-                // 3. handle this custom event
                 let evt: GameEvent = serde_json::from_str(&raw)?;
-                self.handle_custom_event(context, evt, sender)
+                self.handle_custom_event(context, evt, sender)?;
+            }
+            Event::GameStart { .. } => {
+                if context.count_players() < 2 {
+                    return Err(Error::NoEnoughPlayers);
+                }
+                let rnd_spec = deck_of_cards();
+                self.deck_random_id = context.init_random_state(&rnd_spec)?;
+                self.stage = HoldemStage::Init;
             }
             // Ignore other types of events for now
             _ => {
-                println!("Error");
-                return Err(Error::Custom(String::from("Unknow event type!")));
+                ()
             }
         }
+
+        Ok(())
     }
 }

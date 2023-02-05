@@ -1542,6 +1542,8 @@ name = "holdem"
 version = "0.1.0"
 dependencies = [
  "borsh",
+ "env_logger 0.10.0",
+ "log",
  "race-core",
  "race-proc-macro",
  "race-test",

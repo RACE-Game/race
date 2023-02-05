@@ -76,7 +76,7 @@ impl TestGameAccountBuilder {
 
     pub fn add_servers(mut self, num_of_servers: usize) -> Self {
         if num_of_servers > 3 {
-            panic!("num_of_servers must less equal than 3");
+            panic!("num_of_servers must be less than or equal to 3");
         }
 
         for addr in SERVER_ADDRS
@@ -99,7 +99,7 @@ impl TestGameAccountBuilder {
 
     pub fn add_players(mut self, num_of_players: usize) -> Self {
         if num_of_players > 6 {
-            panic!("num_of_players must less equal than 6");
+            panic!("num_of_players must be less than or equal to 6");
         }
 
         for (i, addr) in PLAYER_ADDRS
