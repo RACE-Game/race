@@ -2,27 +2,27 @@ Race Protocol is for builders, to easily create web3 asymmetric information comp
 
 # Project Status
 
-Work in progress, not ready for contribution yet.
+Work in progress, not ready to accept contributions yet.
 
 # Architecture Overview
 
 ## Game bundle
 
-Games are built as side-effect free state machine for core logic,
+Games are built as a side-effect free state machine for core logic,
 compiled to WebAssembly, and loaded by both servers and clients.
 
 ## Server
 
-The servers are standardized and generalized, serve game bundles.
+The servers are standardized and generalized, serving game bundles.
 Each game on each server can be executed in two modes: `Transactor` or
 `Validator`.
 
 With `Transactor` mode, the server sends transactions.  With
-`Validator` mode, the server validates game progress and contribute
+`Validator` mode, the server validates game progress and contributes
 to randomization.
 
-Game requires to be served by a cluster of independent servers that
-confirm consensus reached in a decentralized way.
+Game must be served by a cluster of independent servers that
+confirm the consensus reached in a decentralized way.
 
 ## Hidden Knowledge
 
@@ -37,7 +37,7 @@ The assets must be either in user wallet or in game account.
 
 ## What about Database
 
-No centralized database is involved, we emphasize database-free solution.
+No centralized database is ever involved, we emphasize a database-free solution.
 
 # Features
 
