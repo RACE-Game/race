@@ -82,7 +82,7 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                         }
                         access_version = av;
                     } else {
-                        sleep(Duration::from_secs(5)).await;
+                        sleep(Duration::from_secs(1)).await;
                     }
                 } else {
                     break;

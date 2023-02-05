@@ -57,8 +57,8 @@ impl GameHandler for Raffle {
                     let rnd_spec = ShuffledList::new(self.options.clone());
                     self.random_id = context.init_random_state(&rnd_spec)?;
                 } else {
-                    self.next_draw = context.get_timestamp() + 5_000;
-                    context.wait_timeout(5_000);
+                    self.next_draw = context.get_timestamp() + 10_000;
+                    context.wait_timeout(10_000);
                 }
             }
             Event::RandomnessReady { .. } => {

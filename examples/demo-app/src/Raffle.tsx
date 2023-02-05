@@ -15,7 +15,7 @@ function Winner(props: { settle_version: number, previous_winner: string | null 
 
   useEffect(() => {
     setFade(false);
-    setTimeout(() => setFade(true), 1000)
+    setTimeout(() => setFade(true), 5000)
   }, [props.settle_version]);
 
   if (props.previous_winner) {

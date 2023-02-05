@@ -1,4 +1,4 @@
-import { ChangeEvent, useContext, useState } from 'react';
+import React, { useContext, useState } from 'react';
 import HelperContext from './helper-context';
 import ProfileContext from './profile-context';
 
@@ -7,8 +7,14 @@ function Profile() {
   let helper = useContext(HelperContext);
   let { profile, setProfile } = useContext(ProfileContext);
 
-  const editNick = (e: ChangeEvent<HTMLInputElement>) => {
+  const editNick = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNick(e.target.value);
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      setNick(e.currentTarget.value);
+    }
   }
 
   const createProfile = async () => {
@@ -33,6 +39,7 @@ function Profile() {
         placeholder="Enter nick"
         disabled={helper === undefined || profile !== undefined}
         onChange={editNick}
+        onKeyDown={onKeyDown}
         value={nick} />
 
       {

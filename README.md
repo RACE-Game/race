@@ -4,7 +4,7 @@ Race Protocol is for builders, to easily create web3 asymmetric information comp
 
 Work in progress, not ready for contribution yet.
 
-# Archetecture Overview
+# Architecture Overview
 
 ## Game bundle
 
@@ -13,8 +13,8 @@ compiled to WebAssembly, and loaded by both servers and clients.
 
 ## Server
 
-The server is standardized and generalized, serves the game bundles.
-Each game on each server can be served in two modes: `Transactor` or
+The servers are standardized and generalized, serve game bundles.
+Each game on each server can be executed in two modes: `Transactor` or
 `Validator`.
 
 With `Transactor` mode, the server sends transactions.  With
@@ -24,11 +24,11 @@ to randomization.
 Game requires to be served by a cluster of independent servers that
 confirm consensus reached in a decentralized way.
 
-## Randomization
+## Hidden Knowledge
 
 Race Protocol provides Peer-to-Peer, Server-to-Server, Server-to-Peer
 cryptographically encrypted randomization and commuinication tools
-required to build single player or multiplayer hidden knowledge games.
+required to build single-player or multi-player hidden knowledge games and apps.
 
 ## Smart Contract
 
