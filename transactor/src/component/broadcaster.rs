@@ -8,7 +8,7 @@ use std::sync::Arc;
 use race_core::event::Event;
 use race_core::types::{BroadcastFrame, GameAccount};
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::component::event_bus::CloseReason;
 use crate::component::traits::{Attachable, Component, Named};
@@ -91,13 +91,14 @@ impl Component<BroadcasterContext> for Broadcaster {
                             if event_backups.len() > 100 {
                                 event_backups.pop_front();
                             }
+
                             let r = ctx.broadcast_tx.send(BroadcastFrame {
                                 game_addr: ctx.game_addr.clone(),
                                 event,
                                 timestamp,
                             });
                             if let Err(e) = r {
-                                error!("Failed to broadcast event: {:?}", e);
+                                warn!("Failed to broadcast event: {:?}", e);
                             }
                         }
                         _ => (),
