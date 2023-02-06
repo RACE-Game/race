@@ -24,14 +24,15 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Mutex;
 use uuid::Uuid;
+use base64::Engine;
 
 type Result<T> = std::result::Result<T, Error>;
 
 const DEFAULT_BALANCE: u64 = 10000;
 const HTTP_HOST: &str = "127.0.0.1:12002";
 const DEFAULT_REGISTRATION_ADDRESS: &str = "DEFAULT_REGISTRATION_ADDRESS";
-const COUNTER_GAME_ADDRESS: &str = "COUNTER_GAME_ADDRESS";
-const COUNTER_BUNDLE_ADDRESS: &str = "COUNTER_BUNDLE_ADDRESS";
+// const COUNTER_GAME_ADDRESS: &str = "COUNTER_GAME_ADDRESS";
+// const COUNTER_BUNDLE_ADDRESS: &str = "COUNTER_BUNDLE_ADDRESS";
 const SERVER_ADDRESS_1: &str = "SERVER_ADDRESS_1";
 const SERVER_ADDRESS_2: &str = "SERVER_ADDRESS_2";
 const DEFAULT_OWNER_ADDRESS: &str = "DEFAULT_OWNER_ADDRESS";
@@ -480,6 +481,8 @@ fn add_bundle(ctx: &mut Context, path: &str, bundle_addr: &str) {
     let mut f = File::open(path).expect("race_example_chat.wasm not found");
     let mut data = vec![];
     f.read_to_end(&mut data).unwrap();
+    let base64 = base64::prelude::BASE64_STANDARD;
+    let data = base64.encode(data);
     let bundle = GameBundle {
         addr: bundle_addr.into(),
         data,

@@ -13,7 +13,12 @@ pub struct PlayerJoin {
 }
 
 impl PlayerJoin {
-    pub fn new<S: Into<String>>(addr: S, position: usize, balance: u64, access_version: u64) -> Self {
+    pub fn new<S: Into<String>>(
+        addr: S,
+        position: usize,
+        balance: u64,
+        access_version: u64,
+    ) -> Self {
         Self {
             addr: addr.into(),
             position,
@@ -45,7 +50,7 @@ impl PlayerDeposit {
 pub struct ServerJoin {
     pub addr: String,
     pub endpoint: String,
-    pub access_version: u64
+    pub access_version: u64,
 }
 
 impl ServerJoin {
@@ -53,7 +58,7 @@ impl ServerJoin {
         Self {
             addr: addr.into(),
             endpoint,
-            access_version
+            access_version,
         }
     }
 }
@@ -156,7 +161,7 @@ pub struct RegistrationAccount {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GameBundle {
     pub addr: String,
-    pub data: Vec<u8>,
+    pub data: String, // In Base64
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -120,7 +120,6 @@ async fn retrieve_event(
         .unwrap()
         .as_millis() as u64;
     game_context.set_timestamp(timestamp);
-    info!("Set timestamp to {}", timestamp);
 
     if mode != ClientMode::Transactor {
         input_rx.recv().await

@@ -81,7 +81,7 @@ impl Connection {
     {
         let mut retried = 0;
         let message = format!("{}{}", game_addr, params.to_string());
-        info!("Message to encrypt: {}", &message);
+        // info!("Message to encrypt: {}", &message);
         let mut rpc_client = self.rpc_client.lock().await;
         loop {
             let signature = self

@@ -6,6 +6,7 @@ use race_core::{
 use race_env::Config;
 use race_transport::TransportBuilder;
 use std::{fs::File, io::Read};
+use base64::Engine;
 
 fn cli() -> Command {
     Command::new("cli")
@@ -73,7 +74,9 @@ async fn publish(config: Config, chain: &str, bundle: &str) {
     let mut buf = Vec::with_capacity(0x4000);
     file.read_to_end(&mut buf).unwrap();
     let addr = "facade-program-addr".into();
-    let bundle = GameBundle { addr, data: buf };
+    let base64 = base64::prelude::BASE64_STANDARD;
+    let data = base64.encode(&buf);
+    let bundle = GameBundle { addr, data };
     let resp = transport.publish_game(bundle).await.expect("RPC error");
     println!("Address: {:?}", &resp);
 }

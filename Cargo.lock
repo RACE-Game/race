@@ -2504,6 +2504,7 @@ name = "race-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.21.0",
  "clap",
  "jsonrpsee",
  "race-core",
@@ -2633,6 +2634,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.21.0",
  "futures",
  "getrandom 0.2.8",
  "hyper",
@@ -2666,6 +2668,7 @@ dependencies = [
  "anyhow",
  "async-stream",
  "async-trait",
+ "base64 0.21.0",
  "borsh",
  "futures",
  "getrandom 0.2.8",
@@ -2708,6 +2711,7 @@ dependencies = [
  "arrayref",
  "async-stream",
  "async-trait",
+ "base64 0.21.0",
  "borsh",
  "clap",
  "futures",

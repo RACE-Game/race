@@ -210,7 +210,7 @@ impl AppClient {
                         &state_js,
                     );
                     if let Err(e) = r {
-                        error!("Callback error, {}", e);
+                        error!(format!("Callback error, {:?}", e));
                     }
                 }
                 Err(e) => {
@@ -223,7 +223,7 @@ impl AppClient {
 
     #[wasm_bindgen]
     pub async fn submit_event(&self, val: JsValue) -> Result<()> {
-        info!(format!("Submit event: {:?}", val));
+        // info!(format!("Submit event: {:?}", val));
         let raw = stringify(&val)
             .or(Err(Error::JsonParseError))?
             .as_string()
