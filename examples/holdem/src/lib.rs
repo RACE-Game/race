@@ -40,7 +40,7 @@ pub enum PlayerStatus {
     Fold,
 }
 
-#[derive(Deserialize, Serialize, Default, Clone)]
+#[derive(Deserialize, Serialize, Default, Debug, Clone)]
 pub struct Player {
     pub addr: String,
     pub chips: u64,
@@ -50,6 +50,12 @@ pub struct Player {
     // pub drop_count
     // pub timebank
     // pub nickname
+}
+
+impl PartialEq for Player {
+    fn eq(&self, other: &Self) -> bool {
+        self.addr == other.addr
+    }
 }
 
 impl Player {
@@ -558,6 +564,7 @@ impl GameHandler for Holdem {
                 let evt: GameEvent = serde_json::from_str(&raw)?;
                 self.handle_custom_event(context, evt, sender)?;
             }
+
             Event::GameStart { .. } => {
                 if context.count_players() < 2 {
                     return Err(Error::NoEnoughPlayers);
@@ -565,6 +572,18 @@ impl GameHandler for Holdem {
                 let rnd_spec = deck_of_cards();
                 self.deck_random_id = context.init_random_state(&rnd_spec)?;
                 self.stage = HoldemStage::Init;
+            }
+
+            Event::Sync { new_players, .. } => {
+                for p in new_players.iter() {
+                    let player = Player::new(p.addr.clone(), p.balance, p.position);
+                    // TODO: Check diff of p.position and the current positions of game
+                    self.players.push(player);
+                }
+                if context.count_players() >= 2 {
+
+                    context.start_game();
+                }
             }
             // Ignore other types of events for now
             _ => {

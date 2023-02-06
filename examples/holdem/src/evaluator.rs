@@ -130,31 +130,21 @@ pub fn check_same_kinds(
 ) -> bool {
     match category {
         Category::FourOfAKind => {
-            if sorted_kinds[0..4].iter().all(|&c| c == sorted_kinds[0])
-            { true }
-            else { false }
+            sorted_kinds[0..4].iter().all(|&c| c == sorted_kinds[0])
         },
         Category::FullHouse => {
-            if sorted_kinds[0..3].iter().all(|&c| c == sorted_kinds[0])
-               && sorted_kinds[3..=4].iter().all(|&c| c == sorted_kinds[3])
-            { true }
-            else { false }
+            sorted_kinds[0..3].iter().all(|&c| c == sorted_kinds[0])
+            && sorted_kinds[3..=4].iter().all(|&c| c == sorted_kinds[3])
         },
         Category::ThreeOfAKind => {
-            if sorted_kinds[0..3].iter().all(|&c| c == sorted_kinds[0])
-            { true }
-            else { false }
+            sorted_kinds[0..3].iter().all(|&c| c == sorted_kinds[0])
         },
         Category::TwoPairs => {
-            if sorted_kinds[0] == sorted_kinds[1]
-               && sorted_kinds[2] == sorted_kinds[3]
-            { true }
-            else { false }
+            sorted_kinds[0] == sorted_kinds[1]
+            && sorted_kinds[2] == sorted_kinds[3]
         },
         Category::Pair => {
-            if sorted_kinds[0] == sorted_kinds[1]
-            { true }
-            else { false }
+            sorted_kinds[0] == sorted_kinds[1]
         },
         _ => false
     }

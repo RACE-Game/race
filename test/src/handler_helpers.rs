@@ -35,8 +35,8 @@ impl<H: GameHandler> TestHandler<H> {
     }
 
     /// Find the event which is going to be disptached in the context, then process it.
-    /// In real case, the disptached event will be handled by an event loop.
-    /// We use this function to simulate the case, since we don't have an event loop in tests.
+    /// In real cases, the disptached event will be handled by an event loop.
+    /// We use this function to simulate such cases, since we don't have an event loop in tests.
     pub fn handle_dispatch_event(&mut self, context: &mut GameContext) -> Result<()> {
         let event = context.get_dispatch().as_ref().expect("No dispatch event").event.clone();
         self.handle_event(context, &event)?;

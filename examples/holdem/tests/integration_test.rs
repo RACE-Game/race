@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use borsh::BorshSerialize;
 use race_core::{
-    context::{DispatchEvent, GameContext, GameStatus as GeneralStatus},
+    context::{DispatchEvent, GameContext, GameStatus},
     error::{Error, Result},
     event::Event,
     random::RandomStatus,
@@ -16,7 +16,7 @@ extern crate log;
 use holdem::*;
 
 #[test]
-pub fn test_init_state() -> Result<()> {
+pub fn test_holdem() -> Result<()> {
     // Initialize the game with 1 server added.
     let game_acct = TestGameAccountBuilder::default()
         .add_servers(1)
@@ -52,6 +52,115 @@ pub fn test_init_state() -> Result<()> {
     let fail_to_start = ctx.gen_first_event();
     let result = holdem_hlr.handle_event(&mut ctx, &fail_to_start);
     assert_eq!(result, Err(Error::NoEnoughPlayers));
+
+    // Let players join the game and dispatch the `GameStart' event
+    let av = ctx.get_access_version() + 1;
+    let sync_event = Event::Sync {
+        new_players: vec![
+            PlayerJoin {
+                addr: "Alice".into(),
+                balance: 10000,
+                position: 0,
+                access_version: av,
+            },
+            PlayerJoin {
+                addr: "Bob".into(),
+                balance: 10000,
+                position: 1,
+                access_version: av,
+            }
+        ],
+        new_servers: vec![],
+        transactor_addr: transactor_account_addr(),
+        access_version: av,
+    };
+
+    // Sync info between transactor and context?
+    holdem_hlr.handle_event(&mut ctx, &sync_event)?;
+
+    // Start the game
+    DispatchEvent::new(
+        Event::GameStart { access_version: ctx.get_access_version() },
+        0
+    );
+
+    {
+        assert_eq!(2, ctx.count_players());
+        assert_eq!(GameStatus::Uninit, ctx.get_status());
+        assert_eq!(
+            Some(DispatchEvent {
+                timeout: 0,
+                event: Event::GameStart { access_version: ctx.get_access_version() },
+            }),
+            *ctx.get_dispatch());
+    }
+
+    // Use this test-only fn to handle the `GameStart' event, as would a transactor
+    holdem_hlr.handle_dispatch_event(&mut ctx)?;
+    {
+        let state: &Holdem = holdem_hlr.get_state();
+        assert_eq!(GameStatus::Running, ctx.get_status());
+        assert_eq!(1, state.deck_random_id);
+        assert_eq!(
+            String::from("Alice"),
+            state.players[0].addr.clone()
+        );
+        assert_eq!(
+            RandomStatus::Masking(transactor_addr.clone()),
+            ctx.get_random_state_unchecked(1).status
+        );
+    }
+
+    // Since there is one server only, one event will get returned
+    let events = transactor.handle_updated_context(&ctx)?;
+    {
+        assert_eq!(1, transactor.secret_states().len());
+        assert_eq!(1, events.len());
+    }
+
+    // Send the mask event to handler for `Locking`.
+    holdem_hlr.handle_event(&mut ctx, &events[0])?;
+    {
+        assert_eq!(
+            RandomStatus::Locking(transactor_addr.clone()),
+            ctx.get_random_state_unchecked(1).status
+        );
+    }
+
+    // Let the client handle the updated context.
+    // One `Lock` event will be created.
+    let events = transactor.handle_updated_context(&ctx)?;
+    {
+        assert_eq!(1, events.len());
+    }
+
+    // Send the lock event to handler, we expect the random status to be changed to `Ready`.
+    // Since all randomness is ready, an event of `RandomnessReady` will be dispatched.
+    holdem_hlr.handle_event(&mut ctx, &events[0])?;
+    {
+        assert_eq!(
+            RandomStatus::Ready,
+            ctx.get_random_state_unchecked(1).status
+        );
+        assert_eq!(
+            Some(DispatchEvent::new(Event::RandomnessReady {random_id: 1}, 0)),
+            *ctx.get_dispatch()
+        );
+    }
+
+    // Handle this dispatched `RandomnessReady`: each player gets two cards
+    holdem_hlr.handle_dispatch_event(&mut ctx)?;
+    // {
+    //     let random_state = ctx.get_random_state_unchecked(1);
+    //     let ciphertexts_for_alice = random_state.list_assigned_ciphertexts("Alice");
+    //     let ciphertexts_for_bob = random_state.list_assigned_ciphertexts("Bob");
+    //     assert_eq!(
+    //         RandomStatus::WaitingSecrets(transactor_account_addr()),
+    //         random_state.status
+    //     );
+    //     assert_eq!(1, ciphertexts_for_alice.len());
+    //     assert_eq!(1, ciphertexts_for_bob.len());
+    // }
 
     Ok(())
 

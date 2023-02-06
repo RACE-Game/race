@@ -147,13 +147,13 @@ fn test() -> Result<()> {
             ctx.get_random_state_unchecked(1).status
         );
         assert_eq!(
-            Some(DispatchEvent::new(Event::RandomnessReady, 0)),
+            Some(DispatchEvent::new(Event::RandomnessReady {random_id: 1}, 0)),
             *ctx.get_dispatch()
         );
     }
 
     // Handle this dispatched `RandomnessReady`.
-    // We expect each player got one card assigned.
+    // We expect each player to be assigned one card.
     handler.handle_dispatch_event(&mut ctx)?;
     {
         let random_state = ctx.get_random_state_unchecked(1);
