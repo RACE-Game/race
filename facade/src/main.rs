@@ -556,7 +556,7 @@ pub fn setup(ctx: &mut Context) {
 
     add_bundle_and_game(
         ctx,
-        "../target/wasm32-unknown-unknown/release/race_example_chat.wasm",
+        "./target/wasm32-unknown-unknown/release/race_example_chat.wasm",
         CHAT_BUNDLE_ADDRESS,
         EXAMPLE_CHAT_ADDRESS,
         "Chat Room",
@@ -564,7 +564,7 @@ pub fn setup(ctx: &mut Context) {
     );
     add_bundle_and_game(
         ctx,
-        "../target/wasm32-unknown-unknown/release/race_example_raffle.wasm",
+        "./target/wasm32-unknown-unknown/release/race_example_raffle.wasm",
         RAFFLE_BUNDLE_ADDRESS,
         EXAMPLE_RAFFLE_ADDRESS,
         "Raffle",
