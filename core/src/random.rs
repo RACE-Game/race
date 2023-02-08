@@ -165,15 +165,15 @@ impl Lock {
 pub enum CipherOwner {
     #[default]
     Unclaimed,
-    // Only one guy can see,
+    // Visible to the assigned player only
     Assigned(String),
     // Assigned to multiple players
     MultiAssigned(Vec<String>),
     Revealed,
 }
 
-/// The representation for a ciphertext with locks applied.
-/// If all locks required are applied, then it's ready.
+/// The representation of a ciphertext with locks applied.
+/// If all the required locks are applied, then it's ready.
 #[derive(Debug, Default, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
 pub struct LockedCiphertext {
     pub locks: Vec<Lock>,

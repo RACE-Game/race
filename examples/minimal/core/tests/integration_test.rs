@@ -209,7 +209,7 @@ fn test() -> Result<()> {
         assert_eq!(500, state.bet);
     }
 
-    // Bob call this.
+    // Bob calls this.
     // Now, it's time to reveal the cards, so two secrets for hands are required.
     let event = bob.custom_event(GameEvent::Call);
     handler.handle_event(&mut ctx, &event)?;

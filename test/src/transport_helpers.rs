@@ -81,7 +81,8 @@ impl TransportT for DummyTransport {
             .unwrap();
             let mut data = vec![];
             f.read_to_end(&mut data).unwrap();
-            Some(GameBundle { addr, data })
+            // Some(GameBundle { addr, data })
+            Some(GameBundle { addr, data: String::from_utf8(data).unwrap() })
         } else {
             None
         }
