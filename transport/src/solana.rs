@@ -4,7 +4,7 @@ use race_core::error::Result;
 
 use race_core::types::{
     CreateRegistrationParams, RegisterGameParams, RegisterServerParams,
-    RegistrationAccount, ServerAccount, UnregisterGameParams, ServeParams, CreatePlayerProfileParams, DepositParams,
+    RegistrationAccount, ServerAccount, UnregisterGameParams, ServeParams, CreatePlayerProfileParams, DepositParams, VoteParams,
 };
 use race_core::{
     transport::TransportT,
@@ -35,6 +35,10 @@ impl TransportT for SolanaTransport {
     }
 
     async fn serve(&self, params: ServeParams) -> Result<()> {
+        todo!()
+    }
+
+    async fn vote(&self, params: VoteParams) -> Result<()> {
         todo!()
     }
 

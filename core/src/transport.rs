@@ -5,7 +5,7 @@ use crate::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
         GameBundle, JoinParams, PlayerProfile, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServerAccount, SettleParams, UnregisterGameParams, ServeParams, CreatePlayerProfileParams, DepositParams,
+        RegistrationAccount, ServerAccount, SettleParams, UnregisterGameParams, ServeParams, CreatePlayerProfileParams, DepositParams, VoteParams,
     },
 };
 use async_trait::async_trait;
@@ -93,6 +93,14 @@ pub trait TransportT: Send + Sync {
     /// # Returns
     /// * [`Error::RpcError`] when the RPC invocation failed.
     async fn serve(&self, params: ServeParams) -> Result<()>;
+
+    /// Send a vote to game account.  For example, vote for a server disconnecting.
+    ///
+    /// # Arguments:
+    /// * `vote_type` - The type of vote, currently only `ServerDropOff` and `ServerIsOnline` are supported.
+    /// * `sender_addr` - The sender of the vote, must be the same with signer.
+    /// * `receiver_addr` - The receiver of the vote.  Generally, it should be the server address.
+    async fn vote(&self, params: VoteParams) -> Result<()>;
 
     /// Create a player profile on chain.  A profile is required to join any games.
     /// The player profile address is derived from the player wallet address.

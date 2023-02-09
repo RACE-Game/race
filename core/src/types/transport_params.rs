@@ -134,3 +134,16 @@ pub struct DepositParams {
     pub amount: u64,
     pub settle_version: u64,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VoteType {
+    ServerDropOff,
+    ServerIsOnline,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoteParams {
+    pub vote_type: VoteType,
+    pub sender_addr: String,
+    pub receiver_addr: String,
+}

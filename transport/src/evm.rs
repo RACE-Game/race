@@ -7,7 +7,7 @@ use race_core::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
         GameBundle, JoinParams, PlayerProfile, RegisterGameParams,
         RegisterServerParams, RegistrationAccount, SettleParams, ServerAccount,
-        UnregisterGameParams, ServeParams, CreatePlayerProfileParams, DepositParams,
+        UnregisterGameParams, ServeParams, CreatePlayerProfileParams, DepositParams, VoteParams,
     },
 };
 
@@ -33,6 +33,10 @@ impl TransportT for EvmTransport {
     }
 
     async fn serve(&self, params: ServeParams) -> Result<()> {
+        todo!()
+    }
+
+    async fn vote(&self, params: VoteParams) -> Result<()> {
         todo!()
     }
 

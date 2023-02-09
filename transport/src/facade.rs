@@ -16,7 +16,7 @@ use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
     RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount,
-    SettleParams, UnregisterGameParams,
+    SettleParams, UnregisterGameParams, VoteParams,
 };
 
 use crate::error::{TransportError, TransportResult};
@@ -72,6 +72,13 @@ impl TransportT for FacadeTransport {
     }
 
     async fn serve(&self, params: ServeParams) -> Result<()> {
+        self.client
+            .request("serve", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
+    async fn vote(&self, params: VoteParams) -> Result<()> {
         self.client
             .request("serve", rpc_params![params])
             .await
