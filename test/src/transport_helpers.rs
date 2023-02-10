@@ -6,14 +6,15 @@ use std::{
 
 use crate::account_helpers::*;
 use async_trait::async_trait;
+use base64::prelude::Engine;
 use race_core::{
-    error::{Result, Error},
+    error::{Error, Result},
     transport::TransportT,
     types::{
-        CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams,
-        GameAccount, GameBundle, JoinParams, PlayerProfile,
-        RegisterGameParams, RegisterServerParams, Settle, SettleParams,
-        ServerAccount, UnregisterGameParams, RegistrationAccount, ServeParams, CreatePlayerProfileParams, DepositParams,
+        CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
+        CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
+        PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
+        ServerAccount, Settle, SettleParams, UnregisterGameParams, VoteParams,
     },
 };
 
@@ -62,6 +63,10 @@ impl TransportT for DummyTransport {
         Ok(())
     }
 
+    async fn vote(&self, params: VoteParams) -> Result<()> {
+        Ok(())
+    }
+
     async fn get_game_account(&self, _addr: &str) -> Option<GameAccount> {
         let mut states = self.states.lock().unwrap();
         if states.is_empty() {
@@ -79,10 +84,11 @@ impl TransportT for DummyTransport {
                 "../target/wasm32-unknown-unknown/release/race_example_counter.wasm",
             )
             .unwrap();
-            let mut data = vec![];
-            f.read_to_end(&mut data).unwrap();
-            // Some(GameBundle { addr, data })
-            Some(GameBundle { addr, data: String::from_utf8(data).unwrap() })
+            let mut buf = vec![];
+            f.read_to_end(&mut buf).unwrap();
+            let base64 = base64::prelude::BASE64_STANDARD;
+            let data = base64.encode(buf);
+            Some(GameBundle { addr, data })
         } else {
             None
         }
@@ -110,7 +116,7 @@ impl TransportT for DummyTransport {
         }
     }
 
-    async fn deposit(&self, params: DepositParams) -> Result<()>{
+    async fn deposit(&self, params: DepositParams) -> Result<()> {
         todo!()
     }
 
@@ -178,10 +184,7 @@ mod tests {
     #[tokio::test]
     async fn test_settle() {
         let transport = DummyTransport::default();
-        let settles = vec![
-            Settle::add("Alice", 100),
-            Settle::add("Bob", 100),
-        ];
+        let settles = vec![Settle::add("Alice", 100), Settle::add("Bob", 100)];
         let params = SettleParams {
             addr: game_account_addr(),
             settles: settles.clone(),

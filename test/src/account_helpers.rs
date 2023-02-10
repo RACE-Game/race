@@ -47,6 +47,7 @@ impl Default for TestGameAccountBuilder {
             data: vec![],
             transactor_addr: None,
             servers: vec![],
+            votes: vec![],
             max_players: 6,
             deposits: vec![],
         };
