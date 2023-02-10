@@ -7,6 +7,12 @@ pub enum Error {
     #[error("Player already joined: {0}")]
     PlayerAlreadyJoined(String),
 
+    #[error("Game is full: {0}")]
+    GameIsFull(u32),
+
+    #[error("Server queue is full: {0}")]
+    ServerQueueIsFull(u32),
+
     #[error("No enough players")]
     NoEnoughPlayers,
 
@@ -35,6 +41,12 @@ pub enum Error {
     Custom(String),
 
     #[error("Game account not found")]
+    ServerAccountNotFound,
+
+    #[error("Player profile not found")]
+    PlayerProfileNotFound,
+
+    #[error("Game account not found")]
     GameAccountNotFound,
 
     #[error("Game bundle not found")]
@@ -42,6 +54,9 @@ pub enum Error {
 
     #[error("Server account exists")]
     ServerAccountExists,
+
+    #[error("Registration not found")]
+    RegistrationNotFound,
 
     #[error("Rpc error: {0}")]
     RpcError(String),
@@ -153,6 +168,18 @@ pub enum Error {
 
     #[error("Not supported in validator mode")]
     NotSupportedInValidatorMode,
+
+    #[error("Invalid voter: {0}")]
+    InvalidVoter(String),
+
+    #[error("Invalid votee: {0}")]
+    InvalidVotee(String),
+
+    #[error("Duplicate vote")]
+    DuplicateVote,
+
+    #[error("Transaction expired")]
+    TransactionExpired,
 
     #[error("Event ignored")]
     EventIgnored,

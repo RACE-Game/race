@@ -156,3 +156,9 @@ impl Into<(SecretIdent, SecretKey)> for SecretShare {
         )
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub enum VoteType {
+    ServerVoteTransactorDropOff,
+    ClientVoteTransactorDropOff,
+}

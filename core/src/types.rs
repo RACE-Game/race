@@ -5,12 +5,12 @@ mod transport_params;
 
 pub use common::{
     empty_secret_key, empty_secret_key_raw, Addr, Ciphertext, ClientMode, RandomId, SecretDigest,
-    SecretIdent, SecretKey, SecretKeyRaw, SecretShare, Signature,
+    SecretIdent, SecretKey, SecretKeyRaw, SecretShare, Signature, VoteType,
 };
 
 pub use accounts::{
     GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin, PlayerProfile,
-    RegistrationAccount, ServerAccount, ServerJoin,
+    RegistrationAccount, ServerAccount, ServerJoin, Vote
 };
 
 pub use transport_params::{

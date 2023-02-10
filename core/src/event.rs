@@ -5,17 +5,26 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum Event {
     /// Custom game event sent by players.
-    Custom { sender: String, raw: String },
+    Custom {
+        sender: String,
+        raw: String,
+    },
 
     /// Client marks itself as ready for the next game
     /// This event is sent by client.
-    Ready { sender: String },
+    Ready {
+        sender: String,
+    },
 
     /// Transactor shares its secert to specific player.
     /// The `secret_data` is encrypted with the receiver's public key.
     ShareSecrets {
         sender: String,
         secrets: Vec<SecretShare>,
+    },
+
+    ShareTimeout {
+        addr: String,
     },
 
     /// Randomize items.
@@ -26,6 +35,10 @@ pub enum Event {
         ciphertexts: Vec<Ciphertext>,
     },
 
+    MaskTimeout {
+        addr: String,
+    },
+
     /// Lock items.
     /// This event is sent by transactors.
     Lock {
@@ -34,9 +47,15 @@ pub enum Event {
         ciphertexts_and_digests: Vec<(Ciphertext, SecretDigest)>,
     },
 
+    LockTimeout {
+        addr: String,
+    },
+
     /// All randomness is prepared.
     /// This event is sent by transactor.
-    RandomnessReady { random_id: RandomId },
+    RandomnessReady {
+        random_id: RandomId,
+    },
 
     /// Sync with on-chain account.
     /// This event is sent by transactor based on the diff of the account states.
@@ -58,11 +77,15 @@ pub enum Event {
 
     /// Client left game
     /// This event is sent by transactor based on client's connection status.
-    Leave { player_addr: String },
+    Leave {
+        player_addr: String,
+    },
 
     /// Transactor uses this event as the start for each game.
     /// The `access_version` can be used to filter out which players are included.
-    GameStart { access_version: u64 },
+    GameStart {
+        access_version: u64,
+    },
 
     /// Timeout when waiting for start
     WaitTimeout,
@@ -79,7 +102,9 @@ pub enum Event {
 
     /// Timeout when waiting for player's action
     /// Sent by transactor.
-    ActionTimeout { player_addr: String },
+    ActionTimeout {
+        player_addr: String,
+    },
 
     /// All required secrets are shared
     SecretsReady,
@@ -132,7 +157,7 @@ impl std::fmt::Display for Event {
                 sender, random_id, indexes
             ),
             Event::DrawTimeout => write!(f, "DrawTimeout"),
-            Event::ActionTimeout { player_addr } => write!(f, "ActionTimeout from {}", player_addr),
+            Event::ActionTimeout { player_addr } => write!(f, "ActionTimeout for {}", player_addr),
             Event::SecretsReady => write!(f, "SecretsReady"),
             Event::ServerLeave {
                 server_addr,
@@ -142,6 +167,15 @@ impl std::fmt::Display for Event {
                 "ServerLeave {}, current transactor: {}",
                 server_addr, transactor_addr
             ),
+            Event::ShareTimeout { addr } => {
+                write!(f, "ShareTimeout for {}", addr)
+            }
+            Event::MaskTimeout { addr } => {
+                write!(f, "MaskTimeout for {}", addr)
+            }
+            Event::LockTimeout { addr } => {
+                write!(f, "LockTimeout for {}", addr)
+            }
         }
     }
 }

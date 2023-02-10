@@ -116,6 +116,7 @@ pub trait TransportT: Send + Sync {
     async fn settle_game(&self, params: SettleParams) -> Result<()>;
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String>;
+
     async fn register_game(&self, params: RegisterGameParams) -> Result<()>;
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()>;

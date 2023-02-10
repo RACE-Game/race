@@ -3,6 +3,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
+use super::common::VoteType;
+
 /// Represent a player call the join instruction in contract.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
 pub struct PlayerJoin {
@@ -63,6 +65,13 @@ impl ServerJoin {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+pub struct Vote {
+    pub voter: String,
+    pub votee: String,
+    pub vote_type: VoteType,
+}
+
 /// The data represents the state of on-chain transactor registration.
 #[derive(
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
@@ -112,6 +121,17 @@ pub struct ServerAccount {
 /// Expired deposit records can be safely deleted during the
 /// settlement.
 ///
+/// # Votes
+///
+/// Clients and servers can vote for disconnecting.  If current
+/// transactor is voted by over 50% of others, it will be downgraded
+/// to a normal server.  The next server will be upgraded as
+/// transactor.  The votes will be cleared at settlement.
+///
+/// A server or client should vote in following cases:
+/// * The transactor is not responsive
+/// * Event verification failed(For both timestamp or signature)
+///
 /// # Data and Data Len
 ///
 /// Data is custom-formatted data that depends on the game logic. The
@@ -132,6 +152,7 @@ pub struct GameAccount {
     pub deposits: Vec<PlayerDeposit>,
     pub servers: Vec<ServerJoin>,
     pub transactor_addr: Option<String>,
+    pub votes: Vec<Vote>,
     pub max_players: u8,
     pub data_len: u32,
     pub data: Vec<u8>,

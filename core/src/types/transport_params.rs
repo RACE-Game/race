@@ -3,6 +3,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
+use super::common::VoteType;
+
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct CreateGameAccountParams {
     pub title: String,
@@ -136,14 +138,9 @@ pub struct DepositParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum VoteType {
-    ServerDropOff,
-    ServerIsOnline,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VoteParams {
+    pub game_addr: String,
     pub vote_type: VoteType,
-    pub sender_addr: String,
-    pub receiver_addr: String,
+    pub voter_addr: String,
+    pub votee_addr: String,
 }
