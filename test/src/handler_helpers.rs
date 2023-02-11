@@ -7,6 +7,8 @@ use race_core::event::Event;
 use race_core::types::GameAccount;
 use race_encryptor::Encryptor;
 
+use crate::client_helpers::TestClient;
+
 /// A wrapped handler for testing
 /// This handler includes the general event handling, which is necessary for integration test.
 pub struct TestHandler<H>
@@ -42,6 +44,28 @@ impl<H: GameHandler> TestHandler<H> {
         self.handle_event(context, &event)?;
         Ok(())
     }
+
+    /// This fn keeps handling events of the following two types, until there is none:
+    /// 1. Event dispatched from within the updated context: context.dispatch
+    /// 2. Event dispatched by clients because they see the updated context
+pub fn handle_until_no_events(
+    &mut self,
+    context: &mut GameContext,
+    // event: &Event,
+    clients: &[&mut TestClient; 2]
+) -> Result<()> {
+    if let Some(_) = context.get_dispatch().as_ref() {
+        self.handle_dispatch_event(context)?
+        // let ctx_evt = context_event.event.clone();
+        // self.handle_event(context, &ctx_evt)?;
+    }
+    // Clients/transactors to handle the updated context
+    for clinet in clients.iter() {
+        todo!()
+    }
+
+    Ok(())
+}
 
     pub fn get_state(&self) -> &H {
         &self.handler

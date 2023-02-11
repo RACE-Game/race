@@ -117,6 +117,7 @@ pub fn test_fns() {
 #[test]
 #[ignore]
 pub fn test_blind_bets() {
+    let mut ctx = GameContext::default();
     let mut holdem = Holdem {
         deck_random_id: 0,
         dealer_idx: 0,
@@ -163,7 +164,7 @@ pub fn test_blind_bets() {
     assert_eq!(init_bet_map, holdem.bets);
 
     // After blind bets
-    assert_eq!((), holdem.blind_bets().unwrap());
+    assert_eq!((), holdem.blind_bets(&mut ctx).unwrap());
     assert_eq!(20, holdem.street_bet);
     assert_eq!(
         vec![Bet::new("Alice", 10), Bet::new("Bob", 20)],
