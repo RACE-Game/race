@@ -132,6 +132,13 @@ pub struct ServerAccount {
 /// * The transactor is not responsive
 /// * Event verification failed(For both timestamp or signature)
 ///
+/// # Unlock Time
+///
+/// This is the timestamp used to specify when this account will be considered as unlocked.
+/// Generally a game should be locked in following cases:
+/// * A server is ejected from game.
+/// * A vote is proceed.  In this case all clients and servers are ejected.
+///
 /// # Data and Data Len
 ///
 /// Data is custom-formatted data that depends on the game logic. The
@@ -153,6 +160,7 @@ pub struct GameAccount {
     pub servers: Vec<ServerJoin>,
     pub transactor_addr: Option<String>,
     pub votes: Vec<Vote>,
+    pub unlock_time: Option<u64>,
     pub max_players: u8,
     pub data_len: u32,
     pub data: Vec<u8>,

@@ -4,7 +4,10 @@ use std::sync::Arc;
 
 use futures::pin_mut;
 use futures::StreamExt;
+use race_core::transport::TransportT;
 use race_core::types::BroadcastFrame;
+use race_core::types::VoteParams;
+use race_core::types::VoteType;
 use race_core::types::{GameAccount, ServerAccount};
 use tokio::sync::{mpsc, oneshot};
 use tracing::error;
@@ -17,9 +20,11 @@ use super::{event_bus::CloseReason, Attachable, Component, Named, RemoteConnecti
 pub(crate) struct SubscriberContext {
     game_addr: String,
     server_addr: String,
+    transactor_addr: String,
     start_settle_version: u64,
     output_tx: mpsc::Sender<EventFrame>,
     closed_tx: oneshot::Sender<CloseReason>,
+    transport: Arc<dyn TransportT>,
     connection: Arc<RemoteConnection>,
 }
 
@@ -53,12 +58,15 @@ impl Component<SubscriberContext> for Subscriber {
             let SubscriberContext {
                 game_addr,
                 server_addr,
+                transactor_addr,
                 start_settle_version,
                 output_tx,
                 closed_tx,
+                transport,
                 connection,
             } = ctx;
 
+            let mut retries = 0;
             let sub = loop {
                 match connection
                     .subscribe_events(&game_addr, &server_addr, start_settle_version)
@@ -66,12 +74,27 @@ impl Component<SubscriberContext> for Subscriber {
                 {
                     Ok(sub) => break sub,
                     Err(e) => {
-                        error!(
-                            "Failed to subscribe events from transactor: {}, will retry",
-                            e
-                        );
-                        // TODO: should vote for downgrading transactor
-                        continue;
+                        if retries == 5 {
+                            error!(
+                                "Failed to subscribe events: {}. Vote on the transactor {} has dropped",
+                                e,
+                                transactor_addr
+                            );
+                            transport
+                                .vote(VoteParams {
+                                    game_addr,
+                                    vote_type: VoteType::ServerVoteTransactorDropOff,
+                                    voter_addr: server_addr,
+                                    votee_addr: transactor_addr,
+                                })
+                                .await
+                                .unwrap();
+                            return;
+                        } else {
+                            error!("Failed to subscribe events: {}, will retry", e);
+                            retries += 1;
+                            continue;
+                        }
                     }
                 }
             };
@@ -106,6 +129,7 @@ impl Subscriber {
     pub fn new(
         game_account: &GameAccount,
         server_account: &ServerAccount,
+        transport: Arc<dyn TransportT>,
         connection: Arc<RemoteConnection>,
     ) -> Self {
         let start_settle_version = game_account.settle_version;
@@ -114,9 +138,11 @@ impl Subscriber {
         let ctx = SubscriberContext {
             game_addr: game_account.addr.to_owned(),
             server_addr: server_account.addr.to_owned(),
+            transactor_addr: game_account.transactor_addr.as_ref().unwrap().to_owned(),
             start_settle_version,
             output_tx,
             closed_tx,
+            transport,
             connection,
         };
         Self {

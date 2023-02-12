@@ -26,9 +26,6 @@ pub fn general_handle_event(
     event: &Event,
     encryptor: &dyn EncryptorT,
 ) -> Result<()> {
-    // // Remove current event disptaching
-    // context.dispatch = None;
-
     // General event handling
     match event {
         Event::Ready { sender } => context.set_player_status(sender, PlayerStatus::Ready),
@@ -111,6 +108,11 @@ pub fn general_handle_event(
                 context.add_server(s_idx)?;
             }
             context.set_game_status(GameStatus::Running);
+            Ok(())
+        }
+
+        Event::OperationTimeout { addr: _ } => {
+            // This event is for game handler
             Ok(())
         }
 

@@ -127,7 +127,7 @@ impl ValidatorHandle {
             )
             .await?,
         );
-        let mut subscriber = Subscriber::new(game_account, server_account, connection.clone());
+        let mut subscriber = Subscriber::new(game_account, server_account, transport.clone(), connection.clone());
         let mut client = WrappedClient::new(
             server_account,
             game_account,

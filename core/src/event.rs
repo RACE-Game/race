@@ -23,7 +23,7 @@ pub enum Event {
         secrets: Vec<SecretShare>,
     },
 
-    ShareTimeout {
+    OperationTimeout {
         addr: String,
     },
 
@@ -35,20 +35,12 @@ pub enum Event {
         ciphertexts: Vec<Ciphertext>,
     },
 
-    MaskTimeout {
-        addr: String,
-    },
-
     /// Lock items.
     /// This event is sent by transactors.
     Lock {
         sender: String,
         random_id: RandomId,
         ciphertexts_and_digests: Vec<(Ciphertext, SecretDigest)>,
-    },
-
-    LockTimeout {
-        addr: String,
     },
 
     /// All randomness is prepared.
@@ -167,14 +159,8 @@ impl std::fmt::Display for Event {
                 "ServerLeave {}, current transactor: {}",
                 server_addr, transactor_addr
             ),
-            Event::ShareTimeout { addr } => {
-                write!(f, "ShareTimeout for {}", addr)
-            }
-            Event::MaskTimeout { addr } => {
-                write!(f, "MaskTimeout for {}", addr)
-            }
-            Event::LockTimeout { addr } => {
-                write!(f, "LockTimeout for {}", addr)
+            Event::OperationTimeout { addr } => {
+                write!(f, "OperationTimeout for {}", addr)
             }
         }
     }

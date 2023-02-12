@@ -138,11 +138,11 @@ pub struct GameContext {
     pub(crate) dispatch: Option<DispatchEvent>,
     pub(crate) state_json: String,
     pub(crate) timestamp: u64,
-    // Whether a player can leave or not
+    /// Whether a player can leave or not
     pub(crate) allow_exit: bool,
-    // All runtime random state, each stores the ciphers and assignments.
+    /// All runtime random state, each stores the ciphers and assignments.
     pub(crate) random_states: Vec<RandomState>,
-    // Settles, if is not None, will be handled by event loop.
+    /// Settles, if is not None, will be handled by event loop.
     pub(crate) settles: Option<Vec<Settle>>,
     pub(crate) error: Option<Error>,
 }
@@ -564,19 +564,19 @@ impl GameContext {
             RandomStatus::Locking(addr) => {
                 if no_dispatch {
                     let addr = addr.clone();
-                    self.dispatch_event(Event::LockTimeout { addr }, OPERATION_TIMEOUT);
+                    self.dispatch_event(Event::OperationTimeout { addr }, OPERATION_TIMEOUT);
                 }
             }
             RandomStatus::Masking(addr) => {
                 if no_dispatch {
                     let addr = addr.clone();
-                    self.dispatch_event(Event::MaskTimeout { addr }, OPERATION_TIMEOUT);
+                    self.dispatch_event(Event::OperationTimeout { addr }, OPERATION_TIMEOUT);
                 }
             }
             RandomStatus::WaitingSecrets(addr) => {
                 if no_dispatch {
                     let addr = addr.clone();
-                    self.dispatch_event(Event::ShareTimeout { addr }, OPERATION_TIMEOUT);
+                    self.dispatch_event(Event::OperationTimeout { addr }, OPERATION_TIMEOUT);
                 }
             }
         }
