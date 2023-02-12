@@ -64,7 +64,7 @@ impl GameHandler for Raffle {
             Event::RandomnessReady { .. } => {
                 context.reveal(self.random_id, vec![0])?;
             }
-            Event::WaitTimeout => {
+            Event::WaitingTimeout => {
                 context.start_game();
             }
             Event::SecretsReady => {

@@ -130,7 +130,7 @@ fn test_random_card() -> anyhow::Result<()> {
     {
         assert_eq!(
             ctx.get_dispatch().as_ref().unwrap().event,
-            Event::RandomnessReady
+            Event::RandomnessReady { random_id: 2 }
         );
     }
 

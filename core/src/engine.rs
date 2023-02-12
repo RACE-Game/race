@@ -114,7 +114,7 @@ pub fn general_handle_event(
             Ok(())
         }
 
-        Event::WaitTimeout => Ok(()),
+        Event::WaitingTimeout => Ok(()),
 
         Event::ActionTimeout { player_addr: _ } => {
             // This event is for game handler

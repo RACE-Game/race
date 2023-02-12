@@ -88,7 +88,7 @@ pub enum Event {
     },
 
     /// Timeout when waiting for start
-    WaitTimeout,
+    WaitingTimeout,
 
     /// Random drawer takes random items by indexes.
     DrawRandomItems {
@@ -146,7 +146,7 @@ impl std::fmt::Display for Event {
             Event::GameStart { access_version } => {
                 write!(f, "GameStart, access_version = {}", access_version)
             }
-            Event::WaitTimeout => write!(f, "WaitTimeout"),
+            Event::WaitingTimeout => write!(f, "WaitTimeout"),
             Event::DrawRandomItems {
                 sender,
                 random_id,

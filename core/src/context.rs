@@ -256,7 +256,7 @@ impl GameContext {
 
     pub fn wait_timeout(&mut self, timeout: u64) {
         self.dispatch = Some(DispatchEvent::new(
-            Event::WaitTimeout,
+            Event::WaitingTimeout,
             self.timestamp + timeout,
         ));
     }
@@ -540,7 +540,7 @@ impl GameContext {
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.mask(addr, ciphertexts)?;
-        self.dispatch_randomize_timeout(random_id)
+        self.dispatch_randomization_timeout(random_id)
     }
 
     pub fn lock(
@@ -551,10 +551,10 @@ impl GameContext {
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.lock(addr, ciphertexts_and_tests)?;
-        self.dispatch_randomize_timeout(random_id)
+        self.dispatch_randomization_timeout(random_id)
     }
 
-    pub fn dispatch_randomize_timeout(&mut self, random_id: RandomId) -> Result<()> {
+    pub fn dispatch_randomization_timeout(&mut self, random_id: RandomId) -> Result<()> {
         let no_dispatch = self.dispatch.is_none();
         let rnd_st = self.get_random_state_mut(random_id)?;
         match &rnd_st.status {
