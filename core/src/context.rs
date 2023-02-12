@@ -14,6 +14,8 @@ use crate::{
     types::{Ciphertext, GameAccount},
 };
 
+const OPERATION_TIMEOUT: u64 = 15_000;
+
 #[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Serialize)]
 pub enum PlayerStatus {
     #[default]
@@ -246,6 +248,10 @@ impl GameContext {
 
     pub fn dispatch_event(&mut self, event: Event, timeout: u64) {
         self.dispatch = Some(DispatchEvent::new(event, self.timestamp + timeout));
+    }
+
+    pub fn dispatch_event_instantly(&mut self, event: Event) {
+        self.dispatch_event(event, 0);
     }
 
     pub fn wait_timeout(&mut self, timeout: u64) {
@@ -526,7 +532,7 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn randomize(
+    pub fn randomize_and_mask(
         &mut self,
         addr: &str,
         random_id: usize,
@@ -534,8 +540,7 @@ impl GameContext {
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.mask(addr, ciphertexts)?;
-
-        Ok(())
+        self.dispatch_randomize_timeout(random_id)
     }
 
     pub fn lock(
@@ -546,8 +551,34 @@ impl GameContext {
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.lock(addr, ciphertexts_and_tests)?;
-        if rnd_st.status == RandomStatus::Ready {
-            self.dispatch_event(Event::RandomnessReady { random_id }, 0);
+        self.dispatch_randomize_timeout(random_id)
+    }
+
+    pub fn dispatch_randomize_timeout(&mut self, random_id: RandomId) -> Result<()> {
+        let no_dispatch = self.dispatch.is_none();
+        let rnd_st = self.get_random_state_mut(random_id)?;
+        match &rnd_st.status {
+            RandomStatus::Ready => {
+                self.dispatch_event_instantly(Event::RandomnessReady { random_id });
+            }
+            RandomStatus::Locking(addr) => {
+                if no_dispatch {
+                    let addr = addr.clone();
+                    self.dispatch_event(Event::LockTimeout { addr }, OPERATION_TIMEOUT);
+                }
+            }
+            RandomStatus::Masking(addr) => {
+                if no_dispatch {
+                    let addr = addr.clone();
+                    self.dispatch_event(Event::MaskTimeout { addr }, OPERATION_TIMEOUT);
+                }
+            }
+            RandomStatus::WaitingSecrets(addr) => {
+                if no_dispatch {
+                    let addr = addr.clone();
+                    self.dispatch_event(Event::ShareTimeout { addr }, OPERATION_TIMEOUT);
+                }
+            }
         }
         Ok(())
     }

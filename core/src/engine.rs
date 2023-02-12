@@ -48,7 +48,7 @@ pub fn general_handle_event(
             sender,
             random_id,
             ciphertexts,
-        } => context.randomize(sender, *random_id, ciphertexts.clone()),
+        } => context.randomize_and_mask(sender, *random_id, ciphertexts.clone()),
 
         Event::Lock {
             sender,
