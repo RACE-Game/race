@@ -79,11 +79,10 @@ impl PartialEq for Player {
 }
 
 impl Player {
-    // FIXME: use addr, chips, position, status to initialize
-    pub fn new<T: Into<String>>(id: T, bb: u64, pos: usize) -> Player {
+    pub fn new<S: Into<String>>(id: S, chips: u64, pos: usize) -> Player {
         Self {
             addr: id.into(),
-            chips: 20 * bb,     // suppose initial chips are 20 bbs (X)
+            chips,
             position: pos,
             status: PlayerStatus::Wait,
         }
@@ -237,7 +236,7 @@ pub struct Holdem {// GameState Handler
     pub rake: f32,
     pub size: u8,              // table size: total number of players
     pub stage: HoldemStage,
-    // mode: String,           // game type: cash, sng or tourney? Treat as CASH GAME
+    // mode: HoldeMode,        // game type: cash, sng or tourney? Treat as CASH GAME
     // token: String,          // token should be a struct of its own?
     pub street: Street,
     // TODO: add min_raise
@@ -357,16 +356,17 @@ impl Holdem {
                 // If player in the prize map, chips increase by the amt in the map
                 Some(prize) => {
                     println!("Found the player and applying prize to their chips ... ");
-                    ply.chips += *prize - &self.bets[ply.position].amount();
+                    // ply.chips += *prize - &self.bets[ply.position].amount();
+                    ply.chips += *prize;
                 },
                 // else chips decrease by the amt in the bet map?
                 None => {
                     println!("Lost chips");
-                    ply.chips = ply.chips - &self.bets[ply.position].amount();
+                    // player.take_bet() aleady reduced the chips
+                    // ply.chips = ply.chips - &self.bets[ply.position].amount();
                 }
             }
         }
-        self.bets = Vec::<Bet>::new();
         Ok(())
     }
 
@@ -437,7 +437,7 @@ impl Holdem {
                 acc += bet;
             }
         }
-        // self.bets = Vec::<Bet>::new();
+        self.bets = Vec::<Bet>::new();
         self.pots = new_pots;
         Ok(())
     }
@@ -447,14 +447,11 @@ impl Holdem {
         player: &mut Player,
         context: &mut GameContext
     ) -> Result<()> {
-        // if self.acting_player.is_some() {
-        //     return Err(Error::Custom("Acting player has NOT acted yet!".to_string()));
-        // }
         player.status = PlayerStatus::Acting;
         self.acting_player = Some(player.clone());
         let player_addr = player.addr.clone();
         // Dispatch the ActionTimeout event after 30s
-        context.action_timeout(player_addr, 1 * 1000);
+        context.action_timeout(player_addr, 30 * 1000);
         Ok(())
     }
 
@@ -704,6 +701,7 @@ impl GameHandler for Holdem {
             Event::Sync { new_players, .. } => {
                 // TODO
                 for p in new_players.iter() {
+                    // TODO: balance == chips?
                     let player = Player::new(p.addr.clone(), p.balance, p.position);
                     // TODO: Check diff of p.position and the current positions of game
                     self.seats_map.insert(player.addr.clone(), player.position);

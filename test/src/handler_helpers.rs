@@ -4,7 +4,7 @@ use race_core::context::GameContext;
 use race_core::engine::{general_handle_event, general_init_state, GameHandler};
 use race_core::error::Result;
 use race_core::event::Event;
-use race_core::types::GameAccount;
+use race_core::types::{GameAccount, ClientMode};
 use race_encryptor::Encryptor;
 
 use crate::client_helpers::TestClient;
@@ -51,20 +51,33 @@ impl<H: GameHandler> TestHandler<H> {
 pub fn handle_until_no_events(
     &mut self,
     context: &mut GameContext,
-    // event: &Event,
-    clients: &[&mut TestClient; 2]
+    event: &Event,              // Client or Transactor event
+    client: &mut TestClient
 ) -> Result<()> {
-    if let Some(_) = context.get_dispatch().as_ref() {
-        self.handle_dispatch_event(context)?
-        // let ctx_evt = context_event.event.clone();
-        // self.handle_event(context, &ctx_evt)?;
-    }
-    // Clients/transactors to handle the updated context
-    for clinet in clients.iter() {
-        todo!()
+    // Keep handling Events Type 1
+    while context.get_dispatch().as_ref().is_some() {
+        self.handle_dispatch_event(context)?;
     }
 
-    Ok(())
+    // Keep handling Events Type 2
+    match client.get_mode() {
+        ClientMode::Player => {
+            self.handle_event(context, event)?;
+            Ok(())
+        }
+
+        ClientMode::Transactor => {
+            let evts = client.handle_updated_context(context)?;
+            if evts.len() >= 1 {
+                self.handle_event(context, &evts[0])?;
+            } else {
+                panic!("No event for transactor to handle!");
+                // return Err(Error::Custom("No event for transactor to handle!".to_string()));
+            }
+            Ok(())
+        }
+        _ => Ok(())
+    }
 }
 
     pub fn get_state(&self) -> &H {

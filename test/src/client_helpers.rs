@@ -77,6 +77,10 @@ impl TestClient {
         self.client.handle_updated_context(ctx)
     }
 
+    pub fn get_mode(&self) -> ClientMode {
+        self.client.mode.clone()
+    }
+
     pub fn decrypt(
         &mut self,
         ctx: &GameContext,

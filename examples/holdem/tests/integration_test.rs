@@ -29,7 +29,7 @@ pub fn test_holdem() -> Result<()> {
 
     // Create game context and test handler.
     let mut ctx = GameContext::try_new(&game_acct)?;
-    let mut holdem_hlr = TestHandler::<Holdem>::init_state(&mut ctx, &game_acct)?;
+    let mut holdem = TestHandler::<Holdem>::init_state(&mut ctx, &game_acct)?;
     assert_eq!(0, ctx.count_players());
 
     // Initialize the client, which simulates the behavior of transactor.
@@ -55,9 +55,10 @@ pub fn test_holdem() -> Result<()> {
     // ------------------------- INITTEST ------------------------
     // Try to start the "zero-player" game that will fail
     let fail_to_start = ctx.gen_first_event();
-    let result = holdem_hlr.handle_event(&mut ctx, &fail_to_start);
+    let result = holdem.handle_event(&mut ctx, &fail_to_start);
     assert_eq!(result, Err(Error::NoEnoughPlayers));
 
+    // ------------------------- PLAYERJOIN ------------------------
     // Let players join the game
     let av = ctx.get_access_version() + 1;
     let sync_event = Event::Sync {
@@ -81,7 +82,7 @@ pub fn test_holdem() -> Result<()> {
     };
 
     // Sync event will cause context to dispatch a GameStart Event, if possible
-    holdem_hlr.handle_event(&mut ctx, &sync_event)?;
+    holdem.handle_event(&mut ctx, &sync_event)?;
     {
         assert_eq!(2, ctx.count_players());
         assert_eq!(GameStatus::Uninit, ctx.get_status());
@@ -96,9 +97,9 @@ pub fn test_holdem() -> Result<()> {
     // ------------------------- GAMESTART ------------------------
     // ------------------------- BLINDBETS ------------------------
     // Handle GameStart event and next_state should lead to blind bets
-    holdem_hlr.handle_dispatch_event(&mut ctx)?;
+    holdem.handle_dispatch_event(&mut ctx)?;
     {
-        let state: &Holdem = holdem_hlr.get_state();
+        let state: &Holdem = holdem.get_state();
         assert_eq!(GameStatus::Running, ctx.get_status());
         assert_eq!(1, state.deck_random_id);
         assert_eq!(
@@ -126,32 +127,34 @@ pub fn test_holdem() -> Result<()> {
 
     // ------------------------- 1st TO ACT -----------------------
     // In this 2-player game, Bob is at SB and asked for action within 30 secs
-    holdem_hlr.handle_dispatch_event(&mut ctx)?;
+    holdem.handle_dispatch_event(&mut ctx)?;
 
     // Test ActionTimeout Event: Player either checks or folds automatically
     // Since Bob hasnt bet yet, so he will be forced to fold
-    // This will lead to the result where the single player left, Alice, wins.
-    {
-        let state: &Holdem = holdem_hlr.get_state();
-        assert!(state.acting_player.is_none());
-        assert_eq!(1, state.pots.len());
-        assert_eq!(
-            vec!["Alice".to_string(), "Bob".to_string()],
-            state.pots[0].owners()
-        );
-        assert_eq!(
-            vec!["Alice".to_string()],
-            state.pots[0].winners()
-        );
-        assert_eq!(20, state.pots[0].amount());
-    }
-    // Bob decides to call
-    // let event = bob.custom_event(GameEvent::Bet(10));
-    // holdem_hlr.handle_event(&mut ctx, &event)?;
+    // This will lead to the result where the left single player, Alice, wins.
     // {
-    //     let state = holdem_hlr.get_state();
-    //     assert_eq!(500, state.street_bet);
+    //     let state: &Holdem = holdem.get_state();
+    //     assert!(state.acting_player.is_none());
+    //     assert_eq!(1, state.pots.len());
+    //     assert_eq!(
+    //         vec!["Alice".to_string(), "Bob".to_string()],
+    //         state.pots[0].owners()
+    //     );
+    //     assert_eq!(
+    //         vec!["Alice".to_string()],
+    //         state.pots[0].winners()
+    //     );
+    //     assert_eq!(20, state.pots[0].amount());
+    //
     // }
+
+    // Bob decides to call
+    let event = bob.custom_event(GameEvent::Bet(10));
+    holdem.handle_event(&mut ctx, &event)?;
+    {
+        let state = holdem.get_state();
+        assert_eq!(20, state.street_bet);
+    }
 
     // let events = transactor.handle_updated_context(&ctx)?;
     // {
