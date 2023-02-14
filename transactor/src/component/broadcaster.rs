@@ -65,55 +65,55 @@ impl Component<BroadcasterContext> for Broadcaster {
         let snapshot = self.snapshot.clone();
         let event_backups = self.event_backups.clone();
         tokio::spawn(async move {
-            loop {
-                if let Some(event) = ctx.input_rx.recv().await {
-                    match event {
-                        EventFrame::Broadcast {
-                            event,
-                            state_json,
-                            access_version,
+            while let Some(event) = ctx.input_rx.recv().await {
+                match event {
+                    EventFrame::Broadcast {
+                        event,
+                        state_json,
+                        access_version,
+                        settle_version,
+                        timestamp,
+                    } => {
+                        // info!("Broadcaster broadcast event: {:?}", event);
+                        let mut snapshot = snapshot.lock().await;
+                        let mut event_backups = event_backups.lock().await;
+                        ctx.latest_access_version = access_version;
+                        ctx.latest_settle_version = settle_version;
+                        *snapshot = state_json.clone();
+                        event_backups.push_back(EventBackup {
+                            event: event.clone(),
                             settle_version,
+                            access_version,
                             timestamp,
-                        } => {
-                            // info!("Broadcaster broadcast event: {:?}", event);
-                            let mut snapshot = snapshot.lock().await;
-                            let mut event_backups = event_backups.lock().await;
-                            ctx.latest_access_version = access_version;
-                            ctx.latest_settle_version = settle_version;
-                            *snapshot = state_json.clone();
-                            event_backups.push_back(EventBackup {
-                                event: event.clone(),
-                                settle_version,
-                                access_version,
-                                timestamp,
-                            });
-                            // We keep at most 100 backups
-                            if event_backups.len() > 100 {
-                                event_backups.pop_front();
-                            }
-
-                            let r = ctx.broadcast_tx.send(BroadcastFrame {
-                                game_addr: ctx.game_addr.clone(),
-                                event,
-                                timestamp,
-                            });
-                            if let Err(e) = r {
-                                warn!("Failed to broadcast event: {:?}", e);
-                            }
+                        });
+                        // We keep at most 100 backups
+                        if event_backups.len() > 100 {
+                            event_backups.pop_front();
                         }
-                        _ => (),
+
+                        let r = ctx.broadcast_tx.send(BroadcastFrame {
+                            game_addr: ctx.game_addr.clone(),
+                            event,
+                            timestamp,
+                        });
+                        if let Err(e) = r {
+                            warn!("Failed to broadcast event: {:?}", e);
+                        }
                     }
-                } else {
-                    ctx.closed_tx
-                        .send(CloseReason::Complete)
-                        .map_err(|e| {
-                            error!("Broadcaster failed to close: {:?}", e);
-                            e
-                        })
-                        .unwrap();
-                    break;
+                    EventFrame::Shutdown => {
+                        warn!("Shutdown broadcaster");
+                        break;
+                    },
+                    _ => (),
                 }
             }
+            ctx.closed_tx
+                .send(CloseReason::Complete)
+                .map_err(|e| {
+                    error!("Broadcaster failed to close: {:?}", e);
+                    e
+                })
+                .unwrap();
         });
     }
 
@@ -197,6 +197,7 @@ mod tests {
         let event_frame = EventFrame::Broadcast {
             access_version: 10,
             settle_version: 10,
+            timestamp: 0,
             state_json: "STATE JSON".into(),
             event: Event::Custom {
                 sender: "Alice".into(),
@@ -205,6 +206,7 @@ mod tests {
         };
         let broadcast_frame = BroadcastFrame {
             game_addr: game_account.addr,
+            timestamp: 0,
             event: Event::Custom {
                 sender: "Alice".into(),
                 raw: "CUSTOM EVENT".into(),

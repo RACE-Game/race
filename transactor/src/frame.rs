@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::{
     context::GameContext,
     event::Event,
-    types::{PlayerJoin, ServerJoin, Settle},
+    types::{PlayerJoin, ServerJoin, Settle, VoteType},
 };
 
 #[derive(Debug, Clone)]
@@ -48,6 +48,10 @@ pub enum EventFrame {
     ContextUpdated {
         context: GameContext,
     },
+    Vote {
+        votee: String,
+        vote_type: VoteType,
+    },
     Shutdown,
 }
 
@@ -67,20 +71,19 @@ impl std::fmt::Display for EventFrame {
                 new_servers.len(),
                 access_version
             ),
-            EventFrame::PlayerDeposited {
-                ..
-            } => write!(f, "PlayerDeposited"),
+            EventFrame::PlayerDeposited { .. } => write!(f, "PlayerDeposited"),
             EventFrame::PlayerLeaving { .. } => write!(f, "PlayerLeaving"),
             EventFrame::SendEvent { event } => write!(f, "SendEvent: {}", event),
             EventFrame::SendServerEvent { event } => write!(f, "SendServerEvent: {}", event),
-            EventFrame::Broadcast {
-                event,
-                ..
-            } => write!(f, "Broadcast: {}", event),
+            EventFrame::Broadcast { event, .. } => write!(f, "Broadcast: {}", event),
             EventFrame::Settle { .. } => write!(f, "Settle"),
             EventFrame::SettleFinalized { .. } => write!(f, "SettleFinalized"),
             EventFrame::ContextUpdated { context: _ } => write!(f, "ContextUpdated"),
             EventFrame::Shutdown => write!(f, "Shutdown"),
+            EventFrame::Vote {
+                votee,
+                vote_type,
+            } => write!(f, "Vote: to {} for {:?}", votee, vote_type),
         }
     }
 }

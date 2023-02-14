@@ -27,9 +27,9 @@ struct Raffle {
 }
 
 impl Raffle {
-    fn cleanup(&mut self, winner: String) {
+    fn cleanup(&mut self, winner: Option<String>) {
         self.options.clear();
-        self.previous_winner = Some(winner);
+        self.previous_winner = winner;
         self.random_id = 0;
     }
 }
@@ -67,6 +67,10 @@ impl GameHandler for Raffle {
             Event::WaitingTimeout => {
                 context.start_game();
             }
+            Event::OperationTimeout { .. } => {
+                context.wait_timeout(60_000);
+                self.cleanup(None);
+            }
             Event::SecretsReady => {
                 let winner = context.get_revealed(self.random_id)?.get(&0).unwrap().to_owned();
                 let mut settles = vec![];
@@ -82,7 +86,7 @@ impl GameHandler for Raffle {
                 }
                 context.settle(settles);
                 context.wait_timeout(5_000);
-                self.cleanup(winner);
+                self.cleanup(Some(winner));
             }
             _ => (),
         }

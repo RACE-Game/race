@@ -136,8 +136,9 @@ pub struct ServerAccount {
 ///
 /// This is the timestamp used to specify when this account will be considered as unlocked.
 /// Generally a game should be locked in following cases:
-/// * A server is ejected from game.
 /// * A vote is proceed.  In this case all clients and servers are ejected.
+///
+/// A locked game can't be started, so settlements are disallowed.
 ///
 /// # Data and Data Len
 ///

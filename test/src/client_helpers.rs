@@ -68,8 +68,7 @@ impl TestClient {
         let encryptor = Arc::new(Encryptor::default());
         let connection = Arc::new(DummyConnection::default());
         Self {
-            client: Client::try_new(addr, game_addr, mode, transport, encryptor, connection)
-                .expect("Failed to test client"),
+            client: Client::new(addr, game_addr, mode, transport, encryptor, connection)
         }
     }
 

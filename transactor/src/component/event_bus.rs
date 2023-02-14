@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use race_core::error::Error;
 use tokio::sync::{mpsc, Mutex};
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::component::traits::Attachable;
 use crate::frame::EventFrame;
@@ -24,6 +24,8 @@ impl EventBus {
                         Ok(_) => (),
                         Err(e) => {
                             error!("Failed to send event: {:?}", e);
+                            warn!("Shutdown event bus");
+                            return;
                         }
                     }
                 }

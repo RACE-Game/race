@@ -33,15 +33,15 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn try_new(
+    pub fn new(
         addr: String,
         game_addr: String,
         mode: ClientMode,
         transport: Arc<dyn TransportT>,
         encryptor: Arc<dyn EncryptorT>,
         connection: Arc<dyn ConnectionT>,
-    ) -> Result<Self> {
-        Ok(Self {
+    ) -> Self {
+        Self {
             addr,
             game_addr,
             mode,
@@ -49,7 +49,7 @@ impl Client {
             transport,
             encryptor,
             connection,
-        })
+        }
     }
 
     fn get_secret_state(&self, random_id: RandomId) -> Result<&SecretState> {
@@ -301,7 +301,7 @@ mod tests {
         let transport = Arc::new(DummyTransport::default());
         let connection = Arc::new(DummyConnection::default());
         let encryptor = Arc::new(Encryptor::default());
-        let client = Client::try_new(
+        let client = Client::new(
             server_account_addr(0),
             game_account_addr(),
             ClientMode::Transactor,

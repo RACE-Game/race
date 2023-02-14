@@ -9,6 +9,7 @@ mod wrapped_transport;
 mod wrapped_client;
 mod connection;
 mod subscriber;
+mod voter;
 
 pub use broadcaster::Broadcaster;
 pub use event_loop::EventLoop;
@@ -23,3 +24,4 @@ pub use wrapped_handler::WrappedHandler;
 pub use wrapped_transport::WrappedTransport;
 pub use wrapped_client::WrappedClient;
 pub use connection::{LocalConnection, RemoteConnection};
+pub use voter::Voter;

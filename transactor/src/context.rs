@@ -41,8 +41,10 @@ impl GameManager {
         if let Entry::Vacant(e) = games.entry(game_addr) {
             if let Ok(handle) = Handle::try_new(transport, encryptor, server_account, e.key()).await
             {
+                info!("Game handle created: {}", e.key());
                 e.insert(handle);
-                info!("Game started!");
+            } else {
+                warn!("Failed to load game: {}", e.key());
             }
         }
     }

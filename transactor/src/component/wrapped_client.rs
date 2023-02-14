@@ -15,7 +15,7 @@ use race_core::encryptor::EncryptorT;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, ServerAccount};
 use tokio::sync::{mpsc, oneshot};
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::component::traits::{Attachable, Component, Named};
 
@@ -112,14 +112,11 @@ impl Component<ClientContext> for WrappedClient {
                 closed_tx,
             } = ctx;
 
-            let mut client =
-                Client::try_new(addr, game_addr, mode, transport, encryptor, connection)
-                    .expect("Failed to create client");
+            let mut client = Client::new(addr, game_addr, mode, transport, encryptor, connection);
 
-            client
-                .attach_game()
-                .await
-                .expect("Failed to attach to game");
+            if let Err(e) = client.attach_game().await {
+                warn!("Failed to attach to game due to error: {:?}", e);
+            }
 
             let mut res = Ok(());
             'outer: while let Some(event_frame) = input_rx.recv().await {
@@ -133,7 +130,7 @@ impl Component<ClientContext> for WrappedClient {
                                 for event in events.into_iter() {
                                     info!("Connection send event: {}", event);
                                     if let Err(_e) = client.submit_event(event).await {
-                                        // TODO: Should vote for another transactor.
+                                        break 'outer;
                                     }
                                 }
                             }
@@ -148,6 +145,7 @@ impl Component<ClientContext> for WrappedClient {
                 }
             }
 
+            warn!("Shutdown client");
             match res {
                 Ok(()) => closed_tx
                     .send(CloseReason::Complete)

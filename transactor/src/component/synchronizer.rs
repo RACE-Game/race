@@ -11,7 +11,7 @@ use race_core::{
     transport::TransportT,
     types::{PlayerJoin, ServerJoin},
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::component::{
     event_bus::CloseReason,
@@ -76,6 +76,7 @@ impl Component<GameSynchronizerContext> for GameSynchronizer {
                                 access_version: state.access_version,
                             };
                             if let Err(_e) = ctx.output_tx.send(frame).await {
+                                warn!("Shutdown synchronizer");
                                 ctx.closed_tx.send(CloseReason::Complete).unwrap();
                                 break;
                             }

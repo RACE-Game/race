@@ -115,10 +115,14 @@ async fn game_info(config: Config, chain: &str, addr: &str) {
             for s in game_account.servers.iter() {
                 println!("Server[{}]: {}", s.endpoint, s.addr);
             }
+            println!("Votes:");
+            for v in game_account.votes.iter() {
+                println!("Vote from {} to {} for {:?}", v.voter, v.votee, v.vote_type);
+            }
             println!("Current transactor: {:?}", game_account.transactor_addr);
         }
         None => {
-            println!("Game bundle not found");
+            println!("Game account not found");
         }
     }
 }

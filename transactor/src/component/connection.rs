@@ -87,7 +87,7 @@ pub struct RemoteConnection {
     server_addr: String,
     endpoint: String,
     encryptor: Arc<dyn EncryptorT>,
-    rpc_client: Mutex<WsClient>,
+    rpc_client: Mutex<Option<WsClient>>,
     max_retries: u32,
 }
 
@@ -121,12 +121,11 @@ impl RemoteConnection {
         encryptor: Arc<dyn EncryptorT>,
     ) -> Result<Self> {
         let max_retries = 3;
-        let rpc_client = build_rpc_client(endpoint).await?;
         Ok(Self {
             server_addr: server_addr.to_owned(),
             endpoint: endpoint.into(),
             encryptor,
-            rpc_client: Mutex::new(rpc_client),
+            rpc_client: Mutex::new(None),
             max_retries,
         })
     }
@@ -136,39 +135,40 @@ impl RemoteConnection {
         P: Serialize + ToString,
         R: DeserializeOwned,
     {
-        let retries = 3;
+        let mut rpc_client = self.rpc_client.lock().await;
+        let mut retries = 0;
+        let message = format!("{}{}", game_addr, params.to_string());
+        let signature = self
+            .encryptor
+            .sign(message.as_bytes(), self.server_addr.clone())?;
+
         loop {
-            let message = format!("{}{}", game_addr, params.to_string());
-            let signature = self
-                .encryptor
-                .sign(message.as_bytes(), self.server_addr.clone())?;
-            let mut rpc_client = self.rpc_client.lock().await;
+            let client = if let Some(rpc_client) = rpc_client.as_ref() {
+                rpc_client
+            } else {
+                *rpc_client = Some(build_rpc_client(&self.endpoint).await?);
+                rpc_client.as_ref().unwrap()
+            };
 
-            // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-            let res = rpc_client
-                .request(method, rpc_params![game_addr, params, signature])
+            let res = client
+                .request(method, rpc_params![game_addr, params, &signature])
                 .await;
             use jsonrpsee::core::error::Error::*;
             match res {
                 Ok(ret) => return Ok(ret),
                 Err(RestartNeeded(e)) => {
-                    if retries >= self.max_retries {
-                        return Err(Error::RpcError(e));
-                    } else {
-                        warn!(
-                            "Restart RPC client for the connection to transactor, due to error: {}",
-                            e
-                        );
-                        let old = std::mem::replace(
-                            &mut *rpc_client,
-                            build_rpc_client(&self.endpoint).await?,
-                        );
-                        drop(old);
-                        continue;
-                    }
+                    // For reconnecting
+                    warn!("Try reconnect due to error: {:?}", e);
+                    *rpc_client = None;
                 }
-                Err(e) => return Err(Error::RpcError(e.to_string())),
+                Err(_) => (),
+            }
+
+            if retries < self.max_retries {
+                retries += 1;
+                continue;
+            } else {
+                return Err(Error::RpcError("Max retries has been reached".into()));
             }
         }
     }
@@ -183,9 +183,15 @@ impl RemoteConnection {
         let message = format!("{}{}", game_addr, params.to_string());
         let signature = self.encryptor.sign(message.as_bytes(), signer.to_owned())?;
 
-        let rpc_client = self.rpc_client.lock().await;
+        let mut rpc_client = self.rpc_client.lock().await;
+        let client = if let Some(client) = rpc_client.as_ref() {
+            client
+        } else {
+            *rpc_client = Some(build_rpc_client(&self.endpoint).await?);
+            rpc_client.as_ref().unwrap()
+        };
 
-        let sub = rpc_client
+        let sub = client
             .subscribe(
                 "subscribe_event",
                 rpc_params![game_addr, params, signature],

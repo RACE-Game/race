@@ -79,10 +79,23 @@ impl TransportT for FacadeTransport {
     }
 
     async fn vote(&self, params: VoteParams) -> Result<()> {
-        self.client
-            .request("serve", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+        if let Some(game_account) = self.get_game_account(&params.game_addr).await {
+            if game_account
+                .votes
+                .iter()
+                .find(|v| v.voter.eq(&params.voter_addr))
+                .is_some()
+            {
+                Err(Error::DuplicateVote)
+            } else {
+                self.client
+                    .request("vote", rpc_params![params])
+                    .await
+                    .map_err(|e| Error::RpcError(e.to_string()))
+            }
+        } else {
+            Err(Error::GameAccountNotFound)
+        }
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {

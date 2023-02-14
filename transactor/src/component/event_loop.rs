@@ -199,6 +199,7 @@ impl Component<EventLoopContext> for EventLoop {
                         handle(&mut handler, &mut game_context, event, &output_tx, ctx.mode).await;
                     }
                     EventFrame::Shutdown => {
+                        warn!("Shutdown event loop");
                         ctx.closed_tx.send(CloseReason::Complete).unwrap();
                         break;
                     }

@@ -4,14 +4,13 @@ use std::sync::Arc;
 
 use futures::pin_mut;
 use futures::StreamExt;
-use race_core::transport::TransportT;
 use race_core::types::BroadcastFrame;
-use race_core::types::VoteParams;
 use race_core::types::VoteType;
 use race_core::types::{GameAccount, ServerAccount};
 use tokio::sync::{mpsc, oneshot};
 use tracing::error;
 use tracing::info;
+use tracing::warn;
 
 use crate::frame::EventFrame;
 
@@ -24,7 +23,6 @@ pub(crate) struct SubscriberContext {
     start_settle_version: u64,
     output_tx: mpsc::Sender<EventFrame>,
     closed_tx: oneshot::Sender<CloseReason>,
-    transport: Arc<dyn TransportT>,
     connection: Arc<RemoteConnection>,
 }
 
@@ -62,7 +60,6 @@ impl Component<SubscriberContext> for Subscriber {
                 start_settle_version,
                 output_tx,
                 closed_tx,
-                transport,
                 connection,
             } = ctx;
 
@@ -74,21 +71,20 @@ impl Component<SubscriberContext> for Subscriber {
                 {
                     Ok(sub) => break sub,
                     Err(e) => {
-                        if retries == 5 {
+                        if retries == 3 {
                             error!(
                                 "Failed to subscribe events: {}. Vote on the transactor {} has dropped",
                                 e,
                                 transactor_addr
                             );
-                            transport
-                                .vote(VoteParams {
-                                    game_addr,
+                            output_tx
+                                .send(EventFrame::Vote {
+                                    votee: transactor_addr,
                                     vote_type: VoteType::ServerVoteTransactorDropOff,
-                                    voter_addr: server_addr,
-                                    votee_addr: transactor_addr,
                                 })
-                                .await
-                                .unwrap();
+                                .await.unwrap();
+
+                            warn!("Shutdown subscriber");
                             return;
                         } else {
                             error!("Failed to subscribe events: {}, will retry", e);
@@ -105,11 +101,13 @@ impl Component<SubscriberContext> for Subscriber {
                 info!("Subscriber received: {}", frame);
                 let BroadcastFrame { event, .. } = frame;
                 let r = output_tx.send(EventFrame::SendServerEvent { event }).await;
-                if let Err(e) = r {
-                    error!("Failed to send event, error: {:?}", e);
+                if let Err(_e) = r {
+                    warn!("Close due to no consumers");
+                    break;
                 }
             }
 
+            warn!("Shutdown subscriber");
             if let Err(e) = closed_tx.send(CloseReason::Complete) {
                 error!("Subscriber: Failed to close: {:?}", e);
             }
@@ -129,7 +127,6 @@ impl Subscriber {
     pub fn new(
         game_account: &GameAccount,
         server_account: &ServerAccount,
-        transport: Arc<dyn TransportT>,
         connection: Arc<RemoteConnection>,
     ) -> Self {
         let start_settle_version = game_account.settle_version;
@@ -142,7 +139,6 @@ impl Subscriber {
             start_settle_version,
             output_tx,
             closed_tx,
-            transport,
             connection,
         };
         Self {

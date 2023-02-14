@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use crate::component::{
     Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, LocalConnection,
-    RemoteConnection, Submitter, Subscriber, WrappedClient, WrappedHandler,
+    RemoteConnection, Submitter, Subscriber, Voter, WrappedClient, WrappedHandler,
 };
 use race_core::context::GameContext;
 use race_core::encryptor::EncryptorT;
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
-use race_core::types::{GameAccount, GameBundle, ServerAccount, ClientMode};
+use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount};
 use tracing::info;
 
 pub enum Handle {
@@ -35,7 +35,11 @@ impl TransactorHandle {
         encryptor: Arc<dyn EncryptorT>,
         transport: Arc<dyn TransportT>,
     ) -> Result<Self> {
-        info!("Use transactor mode");
+        info!(
+            "Start game handle for {} with Transactor mode",
+            game_account.addr
+        );
+
         let mut game_context = GameContext::try_new(&game_account)?;
         let mut handler =
             WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
@@ -90,6 +94,7 @@ pub struct ValidatorHandle {
     addr: String,
     event_bus: EventBus,
     subscriber: Subscriber,
+    voter: Voter,
     client: WrappedClient,
     event_loop: EventLoop,
 }
@@ -102,7 +107,10 @@ impl ValidatorHandle {
         encryptor: Arc<dyn EncryptorT>,
         transport: Arc<dyn TransportT>,
     ) -> Result<Self> {
-        info!("Use transactor mode");
+        info!(
+            "Start game handle for {} with Validator mode",
+            game_account.addr
+        );
         let mut game_context = GameContext::try_new(&game_account)?;
         let mut handler =
             WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
@@ -127,7 +135,7 @@ impl ValidatorHandle {
             )
             .await?,
         );
-        let mut subscriber = Subscriber::new(game_account, server_account, transport.clone(), connection.clone());
+        let mut subscriber = Subscriber::new(game_account, server_account, connection.clone());
         let mut client = WrappedClient::new(
             server_account,
             game_account,
@@ -135,16 +143,19 @@ impl ValidatorHandle {
             encryptor,
             connection,
         );
+        let mut voter = Voter::new(game_account, server_account, transport.clone());
 
         info!("Attaching components");
+        event_bus.attach(&mut voter).await;
         event_bus.attach(&mut event_loop).await;
-        event_bus.attach(&mut client).await;
         event_bus.attach(&mut subscriber).await;
+        event_bus.attach(&mut client).await;
 
         info!("Starting components");
         client.start();
         subscriber.start();
         event_loop.start();
+        voter.start();
 
         Ok(Self {
             addr: game_account.addr.clone(),
@@ -152,6 +163,7 @@ impl ValidatorHandle {
             subscriber,
             client,
             event_loop,
+            voter,
         })
     }
 }
