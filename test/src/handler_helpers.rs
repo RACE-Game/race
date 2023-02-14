@@ -46,38 +46,41 @@ impl<H: GameHandler> TestHandler<H> {
     }
 
     /// This fn keeps handling events of the following two types, until there is none:
-    /// 1. Event dispatched from within the updated context: context.dispatch
-    /// 2. Event dispatched by clients because they see the updated context
+    /// 1. Event dispatched from within the (updated) context: context.dispatch
+    /// 2. Event dispatched by clients after they see the updated context
 pub fn handle_until_no_events(
     &mut self,
     context: &mut GameContext,
     event: &Event,              // Client or Transactor event
-    client: &mut TestClient
+    clients: &mut [&mut TestClient]
 ) -> Result<()> {
-    // Keep handling Events Type 1
-    while context.get_dispatch().as_ref().is_some() {
-        self.handle_dispatch_event(context)?;
-    }
+    // 1. Process the `event'(arg) --> context updated
+    // 2. context may dispatch --> take care those with timeout == 0
+    // 3. iter clients to syn with updated context --> a couple of events
+    // 4. handle these client/trans events
+    let mut evts: Vec<Event> = vec![event.clone()]; // keep handling events in this vec
 
-    // Keep handling Events Type 2
-    match client.get_mode() {
-        ClientMode::Player => {
-            self.handle_event(context, event)?;
-            Ok(())
+    while !evts.is_empty() {
+        let evt = &evts[0];
+        self.handle_event(context, evt)?;
+        if evts.len() <= 1 {
+            evts.clear();
+        } else {
+            evts = evts.iter().skip(1).map(|e| e.clone()).collect();
         }
-
-        ClientMode::Transactor => {
-            let evts = client.handle_updated_context(context)?;
-            if evts.len() >= 1 {
-                self.handle_event(context, &evts[0])?;
-            } else {
-                panic!("No event for transactor to handle!");
-                // return Err(Error::Custom("No event for transactor to handle!".to_string()));
+        if let Some(ctx_evt) = context.get_dispatch() { // timeout == 0
+            evts.push(ctx_evt.event.clone());
+        }
+        // Handle events (responses) from Clients/transactor(s) after they see updated ctx
+        if clients.len() > 0 {
+            for c in clients.iter_mut() {
+                let cli_evts = c.handle_updated_context(context)?;
+                evts.extend_from_slice(&cli_evts);
             }
-            Ok(())
         }
-        _ => Ok(())
+
     }
+    Ok(())
 }
 
     pub fn get_state(&self) -> &H {

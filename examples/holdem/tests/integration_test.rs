@@ -115,7 +115,7 @@ pub fn test_holdem() -> Result<()> {
         assert_eq!(20, state.bets[0].amount());
         assert_eq!(20, state.street_bet);
         // Bob should be at sb and thus the acting player (via ask_for_action)
-        assert!(!state.acting_player.is_none());
+        assert!(state.acting_player.is_some());
         assert_eq!(
             Some(Player { addr: "Bob".to_string(),
                           chips: 10000,
@@ -125,10 +125,9 @@ pub fn test_holdem() -> Result<()> {
         );
     }
 
-    // ------------------------- 1st TO ACT -----------------------
+    // ------------------------- SB FOLDS -----------------------
     // In this 2-player game, Bob is at SB and asked for action within 30 secs
-    holdem.handle_dispatch_event(&mut ctx)?;
-
+    // holdem.handle_dispatch_event(&mut ctx)?;
     // Test ActionTimeout Event: Player either checks or folds automatically
     // Since Bob hasnt bet yet, so he will be forced to fold
     // This will lead to the result where the left single player, Alice, wins.
@@ -148,13 +147,24 @@ pub fn test_holdem() -> Result<()> {
     //
     // }
 
+    // ------------------------- SB CALLS -----------------------
     // Bob decides to call
     let event = bob.custom_event(GameEvent::Bet(10));
     holdem.handle_event(&mut ctx, &event)?;
     {
         let state = holdem.get_state();
         assert_eq!(20, state.street_bet);
+        assert!(state.acting_player.is_some());
+        assert_eq!(
+            Some(Player { addr: "Alice".to_string(),
+                          chips: 10000,
+                          position: 1,
+                          status: PlayerStatus::Acting}),
+            state.acting_player
+        )
     }
+
+    // ------------------------- BB CHECKS -----------------------
 
     // let events = transactor.handle_updated_context(&ctx)?;
     // {
