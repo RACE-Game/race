@@ -130,14 +130,14 @@ impl AppClient {
                 .await?,
         );
 
-        let client = Client::try_new(
+        let client = Client::new(
             player_addr.to_owned(),
             game_addr.to_owned(),
             ClientMode::Player,
             transport.clone(),
             encryptor.clone(),
             connection.clone(),
-        )?;
+        );
 
         let handler = Handler::from_bundle(game_bundle, encryptor).await;
 
