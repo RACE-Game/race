@@ -10,10 +10,7 @@ use std::collections::{HashMap, HashSet};
 /// Cards can be sorted in two ways:
 /// 1. by their kinds, for finding straights;
 /// 2. by grouped kinds, for pairs, full house, or three/four of a kind.
-pub fn create_cards<'a>(
-    community_cards: &[&'a str; 5],
-    hole_cards: &[&'a str; 2]
-) -> Vec<&'a str> {
+pub fn create_cards<'a>(community_cards: &[&'a str; 5], hole_cards: &[&'a str; 2]) -> Vec<&'a str> {
     let mut cards: Vec<&str> = Vec::with_capacity(7);
     cards.extend_from_slice(community_cards);
     cards.extend_from_slice(hole_cards);
@@ -23,12 +20,19 @@ pub fn create_cards<'a>(
 
 fn kind_to_order(card: &str) -> u8 {
     let (_, kind) = card.split_at(1);
-    if kind == "a" { 14 }
-    else if kind == "k" { 13 }
-    else if kind == "q" { 12 }
-    else if kind == "j" { 11 }
-    else if kind == "t" { 10 }
-    else { kind.parse::<u8>().unwrap() } // 2-9
+    if kind == "a" {
+        14
+    } else if kind == "k" {
+        13
+    } else if kind == "q" {
+        12
+    } else if kind == "j" {
+        11
+    } else if kind == "t" {
+        10
+    } else {
+        kind.parse::<u8>().unwrap()
+    } // 2-9
 }
 
 /// Used as the fn required by the built-in sort_by method on Vec.
@@ -39,14 +43,21 @@ pub fn compare_kinds(card1: &str, card2: &str) -> Ordering {
     let order1 = kind_to_order(card1);
     let order2 = kind_to_order(card2);
 
-    if order2 > order1 { Ordering::Greater }
-    else if order2 < order1 {Ordering::Less }
-    else { Ordering::Equal }
+    if order2 > order1 {
+        Ordering::Greater
+    } else if order2 < order1 {
+        Ordering::Less
+    } else {
+        Ordering::Equal
+    }
 }
 
 pub fn validate_cards(cards: &Vec<&str>) -> bool {
-    if cards.len() == 7 { true }
-    else { false }
+    if cards.len() == 7 {
+        true
+    } else {
+        false
+    }
 }
 
 /// Sort the 7 cards first by the number of grouped kinds.
@@ -55,12 +66,11 @@ pub fn validate_cards(cards: &Vec<&str>) -> bool {
 /// Output: ["ht", "st", "s8", "c8", "d3", "h3", "h5"]
 pub fn sort_grouped_cards<'a>(cards: &Vec<&'a str>) -> Vec<&'a str> {
     // Group cards by their kinds
-    let cards_to_kinds: Vec<u8> = cards.iter()
-        .map(|&c| kind_to_order(c))
-        .collect();
+    let cards_to_kinds: Vec<u8> = cards.iter().map(|&c| kind_to_order(c)).collect();
     let mut groups: HashMap<u8, Vec<&str>> = HashMap::with_capacity(7);
     for (idx, kind) in cards_to_kinds.into_iter().enumerate() {
-        groups.entry(kind)
+        groups
+            .entry(kind)
             .and_modify(|grp| grp.push(cards[idx]))
             .or_insert(vec![cards[idx]]);
     }
@@ -68,23 +78,26 @@ pub fn sort_grouped_cards<'a>(cards: &Vec<&'a str>) -> Vec<&'a str> {
     let mut to_sort: Vec<(u8, Vec<&str>)> = groups.into_iter().collect();
 
     // Sort the (kind, cards) in the vec
-    to_sort.sort_by(
-        |(k1, c1), (k2, c2)| -> Ordering {
-            if c2.len() > c1.len() { Ordering::Greater }
-            else if c2.len() == c1.len() {
-                if k2 > k1 { Ordering::Greater }
-                else { Ordering::Less }
+    to_sort.sort_by(|(k1, c1), (k2, c2)| -> Ordering {
+        if c2.len() > c1.len() {
+            Ordering::Greater
+        } else if c2.len() == c1.len() {
+            if k2 > k1 {
+                Ordering::Greater
+            } else {
+                Ordering::Less
             }
-            else { Ordering::Less }
+        } else {
+            Ordering::Less
         }
-    );
+    });
 
-    let result: Vec<&str> = to_sort.into_iter()
-        .fold(Vec::with_capacity(7),
-              |mut acc, (_, cs)| {
-                  acc.extend_from_slice(&cs);
-                  acc
-              });
+    let result: Vec<&str> = to_sort
+        .into_iter()
+        .fold(Vec::with_capacity(7), |mut acc, (_, cs)| {
+            acc.extend_from_slice(&cs);
+            acc
+        });
     result
 }
 
@@ -109,11 +122,10 @@ pub enum Category {
 }
 
 pub struct PlayerHand<'a> {
-    pub category: Category,         // ranking
-    pub picks: Vec<&'a str>,        // Best 5 of 7
-    pub value: Vec<u8>,             // Values of Best 5 Kinds + category value
+    pub category: Category,  // ranking
+    pub picks: Vec<&'a str>, // Best 5 of 7
+    pub value: Vec<u8>,      // Values of Best 5 Kinds + category value
 }
-
 
 /// Given the vec of kind orders, tag the category order value in the first place
 fn tag_value(picked: &Vec<&str>, catetogry_orderv: u8) -> Vec<u8> {
@@ -124,29 +136,19 @@ fn tag_value(picked: &Vec<&str>, catetogry_orderv: u8) -> Vec<u8> {
 }
 
 /// Use the enum Category to check if there is indeed one
-pub fn check_same_kinds(
-    sorted_kinds: &Vec<&str>,
-    category: Category
-) -> bool {
+pub fn check_same_kinds(sorted_kinds: &Vec<&str>, category: Category) -> bool {
     match category {
-        Category::FourOfAKind => {
-            sorted_kinds[0..4].iter().all(|&c| c == sorted_kinds[0])
-        },
+        Category::FourOfAKind => sorted_kinds[0..4].iter().all(|&c| c == sorted_kinds[0]),
         Category::FullHouse => {
             sorted_kinds[0..3].iter().all(|&c| c == sorted_kinds[0])
-            && sorted_kinds[3..=4].iter().all(|&c| c == sorted_kinds[3])
-        },
-        Category::ThreeOfAKind => {
-            sorted_kinds[0..3].iter().all(|&c| c == sorted_kinds[0])
-        },
+                && sorted_kinds[3..=4].iter().all(|&c| c == sorted_kinds[3])
+        }
+        Category::ThreeOfAKind => sorted_kinds[0..3].iter().all(|&c| c == sorted_kinds[0]),
         Category::TwoPairs => {
-            sorted_kinds[0] == sorted_kinds[1]
-            && sorted_kinds[2] == sorted_kinds[3]
-        },
-        Category::Pair => {
-            sorted_kinds[0] == sorted_kinds[1]
-        },
-        _ => false
+            sorted_kinds[0] == sorted_kinds[1] && sorted_kinds[2] == sorted_kinds[3]
+        }
+        Category::Pair => sorted_kinds[0] == sorted_kinds[1],
+        _ => false,
     }
 }
 
@@ -158,7 +160,8 @@ pub fn find_flush<'a>(cards: &Vec<&'a str>) -> (bool, Vec<&'a str>) {
 
     for card in cards {
         let (suit, _) = card.split_at(1);
-        groups.entry(suit)
+        groups
+            .entry(suit)
             .and_modify(|grp| grp.push(card))
             .or_insert(vec![card]);
     }
@@ -178,15 +181,21 @@ pub fn find_flush<'a>(cards: &Vec<&'a str>) -> (bool, Vec<&'a str>) {
 /// To be used only inside the find_straights below.
 fn match_straight<'a>(cards: Vec<&'a str>, result: &mut Vec<Vec<&'a str>>) {
     let straights: [[u8; 5]; 10] = [
-        [14, 13, 12, 11, 10], [13, 12, 11, 10, 9],
-        [12, 11, 10, 9, 8], [11, 10, 9, 8, 7],
-        [10, 9, 8, 7, 6], [9, 8, 7, 6, 5],
-        [8, 7, 6, 5, 4], [7, 6, 5, 4, 3],
-        [6, 5, 4, 3, 2], [5, 4, 3, 2, 14],
+        [14, 13, 12, 11, 10],
+        [13, 12, 11, 10, 9],
+        [12, 11, 10, 9, 8],
+        [11, 10, 9, 8, 7],
+        [10, 9, 8, 7, 6],
+        [9, 8, 7, 6, 5],
+        [8, 7, 6, 5, 4],
+        [7, 6, 5, 4, 3],
+        [6, 5, 4, 3, 2],
+        [5, 4, 3, 2, 14],
     ];
 
     for straight in straights {
-        let hit: Vec<&str> = cards.iter()
+        let hit: Vec<&str> = cards
+            .iter()
             .zip(straight.iter())
             .filter(|(&c, &k)| kind_to_order(c) == k)
             .map(|(&c, _)| c)
@@ -204,14 +213,13 @@ pub fn find_straights<'a>(cards: &Vec<&'a str>) -> (bool, Vec<Vec<&'a str>>) {
     let sorted_by_kinds: Vec<&str> = cards.iter().copied().collect();
     // In theory, 7 cards can yeild at most 4 straights?
     let mut result: Vec<Vec<&str>> = vec![];
-    let cards_to_kinds: Vec<u8> = sorted_by_kinds.iter()
-        .map(|&c| kind_to_order(c))
-        .collect();
+    let cards_to_kinds: Vec<u8> = sorted_by_kinds.iter().map(|&c| kind_to_order(c)).collect();
 
     // Group cards by kind to check if any 2 or more cards have the same kind
     let mut groups: HashMap<u8, Vec<&str>> = HashMap::with_capacity(7);
     for (idx, kind) in cards_to_kinds.iter().enumerate() {
-        groups.entry(*kind)
+        groups
+            .entry(*kind)
             .and_modify(|grp| grp.push(sorted_by_kinds[idx]))
             .or_insert(vec![sorted_by_kinds[idx]]);
     }
@@ -233,16 +241,20 @@ pub fn find_straights<'a>(cards: &Vec<&'a str>) -> (bool, Vec<Vec<&'a str>>) {
         // In this case, a straight can possibly appear in 3 places:
         // first 5, middle 5, or last 5
         for start in 0..=2 {
-            let hand: Vec<&str> = tmp_cards[start..=(start+4)].to_vec();
+            let hand: Vec<&str> = tmp_cards[start..=(start + 4)].to_vec();
             match_straight(hand, &mut result);
         }
 
-        if result.len() >= 1 { return (true, result); }
-        else { return (false, result); }
+        if result.len() >= 1 {
+            return (true, result);
+        } else {
+            return (false, result);
+        }
     }
     // At least 2 cards have the same kind, len() == 5 | 6
     else {
-        let same_kinds: Vec<Vec<&str>> = groups.values()
+        let same_kinds: Vec<Vec<&str>> = groups
+            .values()
             .filter(|c| c.len() == 2 || c.len() == 3)
             .map(|c| c[..].to_vec())
             .collect();
@@ -252,7 +264,9 @@ pub fn find_straights<'a>(cards: &Vec<&'a str>) -> (bool, Vec<Vec<&'a str>>) {
         let mut mtx: Vec<Vec<&str>> = Vec::new();
         if same_kinds.len() == 1 {
             // One same kind from 2 or 3 suits: [[h7 s7]] or [[h7 s7 d7]]
-            for c in &same_kinds[0] { mtx.push(vec![c]) };
+            for c in &same_kinds[0] {
+                mtx.push(vec![c])
+            }
         } else if same_kinds.len() == 2 {
             // 4 cards with each two having the same kinds
             // [[c7, h7], [h6, s6]] => [[c7, h6], [c7, s6], [h7, h6], [h7, s6]]
@@ -264,7 +278,8 @@ pub fn find_straights<'a>(cards: &Vec<&'a str>) -> (bool, Vec<Vec<&'a str>>) {
         }
 
         // Cards that each with a different kind
-        let other_kinds: Vec<&str> = groups.values()
+        let other_kinds: Vec<&str> = groups
+            .values()
             .filter(|c| c.len() == 1)
             .map(|c| c[0])
             .collect();
@@ -284,17 +299,19 @@ pub fn find_straights<'a>(cards: &Vec<&'a str>) -> (bool, Vec<Vec<&'a str>>) {
         for ele in mtx {
             if ele.len() == 6 {
                 for start in 0..=1 {
-                    let hand: Vec<&str> = ele[start..=(start+4)].to_vec();
+                    let hand: Vec<&str> = ele[start..=(start + 4)].to_vec();
                     match_straight(hand, &mut result);
                 }
-            }
-            else if ele.len() == 5 {
+            } else if ele.len() == 5 {
                 match_straight(ele, &mut result);
             }
         }
 
-        if result.len() >= 1 { return (true, result); }
-        else { return (false, result); }
+        if result.len() >= 1 {
+            return (true, result);
+        } else {
+            return (false, result);
+        }
     }
 }
 
@@ -308,15 +325,13 @@ pub fn find_royal_flush<'a>(cards: &Vec<&'a str>) -> (bool, Vec<&'a str>) {
         ["sa", "sk", "sq", "sj", "st"],
     ];
 
-    let cards_set = HashSet::from(
-        [cards[0], cards[1], cards[2], cards[3], cards[4], cards[5], cards[6]]
-    );
+    let cards_set = HashSet::from([
+        cards[0], cards[1], cards[2], cards[3], cards[4], cards[5], cards[6],
+    ]);
 
     for rf in royal_flush {
         let royal_set = HashSet::from(rf);
-        let mut hit: Vec<&str> = royal_set.intersection(&cards_set)
-            .map(|&c| c)
-            .collect();
+        let mut hit: Vec<&str> = royal_set.intersection(&cards_set).map(|&c| c).collect();
 
         if hit.len() == 5 {
             hit.sort_by(|c1, c2| compare_kinds(c1, c2));
@@ -330,7 +345,7 @@ pub fn find_royal_flush<'a>(cards: &Vec<&'a str>) -> (bool, Vec<&'a str>) {
 /// Search for straight flush from all found straights and flushes
 pub fn find_straight_flush<'a>(
     flush: &Vec<&'a str>,
-    straights: &Vec<Vec<&'a str>>
+    straights: &Vec<Vec<&'a str>>,
 ) -> Vec<Vec<&'a str>> {
     // [9,8,7,6,5,4,3]
     // [7,6,5,4,3,2,14]
@@ -339,43 +354,57 @@ pub fn find_straight_flush<'a>(
 
     for straight in straights {
         let straight_set: HashSet<&str> = straight.iter().map(|&c| c).collect();
-        let mut hit: Vec<&str> = straight_set.intersection(&flush_set)
-            .map(|&c| c)
-            .collect();
+        let mut hit: Vec<&str> = straight_set.intersection(&flush_set).map(|&c| c).collect();
         hit.sort_by(|c1, c2| compare_kinds(c1, c2));
         if hit.len() == 5 {
             // Simply move A to the end
             if hit[0].contains("a") {
-                let ace: &str  = hit.remove(0);
+                let ace: &str = hit.remove(0);
                 hit.push(ace);
             }
-            result.push(hit) }
+            result.push(hit)
+        }
     }
     result
 }
 
 /// Compare values of two hands
 pub fn compare_hands(handv1: &Vec<u8>, handv2: &Vec<u8>) -> Ordering {
-    let result: Vec<i8> = handv1.iter()
+    let result: Vec<i8> = handv1
+        .iter()
         .zip(handv2.iter())
         .map(|(v1, v2)| -> i8 {
-            if v1 > v2 { 1 }
-            else if v1 < v2 { -1 }
-            else { 0 }
+            if v1 > v2 {
+                1
+            } else if v1 < v2 {
+                -1
+            } else {
+                0
+            }
         })
         .filter(|&r| r != 0)
         .collect();
 
-    if result.len() == 0 { Ordering::Equal } // Two hands are equal
-    else if result[0] == 1 { Ordering::Greater }
-    else { Ordering::Less }
+    if result.len() == 0 {
+        Ordering::Equal
+    }
+    // Two hands are equal
+    else if result[0] == 1 {
+        Ordering::Greater
+    } else {
+        Ordering::Less
+    }
 }
 
 /// This fn accpets unsorted cards.
 pub fn evaluate_cards(cards: Vec<&str>) -> PlayerHand {
     let sorted_by_group: Vec<&str> = sort_grouped_cards(&cards);
-    let sorted_kinds: Vec<&str> = sorted_by_group.iter()
-        .map(|&c| -> &str { let (_, k) = c.split_at(1); k })
+    let sorted_kinds: Vec<&str> = sorted_by_group
+        .iter()
+        .map(|&c| -> &str {
+            let (_, k) = c.split_at(1);
+            k
+        })
         .collect();
     let (has_royal, rflush) = find_royal_flush(&cards);
     let (has_flush, flush_cards) = find_flush(&cards);
@@ -392,7 +421,7 @@ pub fn evaluate_cards(cards: Vec<&str>) -> PlayerHand {
     }
     // straight flush
     else if has_flush && has_straights {
-        let sflush = find_straight_flush(&flush_cards,&straights);
+        let sflush = find_straight_flush(&flush_cards, &straights);
         let picks = sflush[0].to_vec();
         let value = tag_value(&picks, 8);
         PlayerHand {
@@ -483,7 +512,6 @@ pub fn evaluate_cards(cards: Vec<&str>) -> PlayerHand {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -549,9 +577,9 @@ mod tests {
         let (has_straights2, straights2) = find_straights(&new_cards2);
         assert!(has_straights2);
         assert_eq!(3, straights2.len());
-        assert_eq!(vec!["st","h9","d8","c7","c6"], straights2[0]);
-        assert_eq!(vec!["h9","d8","c7","c6","d5"], straights2[1]);
-        assert_eq!(vec!["d8","c7","c6","d5","d4"], straights2[2]);
+        assert_eq!(vec!["st", "h9", "d8", "c7", "c6"], straights2[0]);
+        assert_eq!(vec!["h9", "d8", "c7", "c6", "d5"], straights2[1]);
+        assert_eq!(vec!["d8", "c7", "c6", "d5", "d4"], straights2[2]);
 
         // Test A hight straight [14,13,12,11,10]
         let hole_cards3: [&str; 2] = ["sa", "hq"];
@@ -562,9 +590,9 @@ mod tests {
         let (has_straights3, straights3) = find_straights(&new_cards3);
         assert!(has_straights3);
         assert_eq!(3, straights3.len());
-        assert_eq!(vec!["sa","ck","hq","cj","dt"], straights3[0]);
-        assert_eq!(vec!["sa","sk","hq","cj","dt"], straights3[1]);
-        assert_eq!(vec!["sa","hk","hq","cj","dt"], straights3[2]);
+        assert_eq!(vec!["sa", "ck", "hq", "cj", "dt"], straights3[0]);
+        assert_eq!(vec!["sa", "sk", "hq", "cj", "dt"], straights3[1]);
+        assert_eq!(vec!["sa", "hk", "hq", "cj", "dt"], straights3[2]);
 
         // Test Five high straight [14,5,4,3,2]
         let hole_cards4: [&str; 2] = ["sa", "h7"];
@@ -575,8 +603,8 @@ mod tests {
         let (has_straights4, straights4) = find_straights(&new_cards4);
         assert!(has_straights4);
         assert_eq!(2, straights4.len());
-        assert_eq!(vec!["c5","d4","d3", "c2", "ha"], straights4[0]);
-        assert_eq!(vec!["c5","d4","d3", "c2", "sa"], straights4[1]);
+        assert_eq!(vec!["c5", "d4", "d3", "c2", "ha"], straights4[0]);
+        assert_eq!(vec!["c5", "d4", "d3", "c2", "sa"], straights4[1]);
 
         // Test Four of a kind or full house (this is by accident)
         let hole_cards5: [&str; 2] = ["sa", "h7"];
@@ -631,8 +659,12 @@ mod tests {
         let cmt_cards: [&str; 5] = ["d7", "c6", "s7", "c7", "st"];
         let cards = create_cards(&cmt_cards, &hole_cards);
         let sorted_by_group: Vec<&str> = sort_grouped_cards(&cards);
-        let sorted_kinds: Vec<&str> = sorted_by_group.iter()
-            .map(|&c| -> &str { let (_, k) = c.split_at(1); k})
+        let sorted_kinds: Vec<&str> = sorted_by_group
+            .iter()
+            .map(|&c| -> &str {
+                let (_, k) = c.split_at(1);
+                k
+            })
             .collect();
 
         // assert!(check_same_kinds(&sorted_kinds, SameKind::FourOfAKind));
@@ -653,7 +685,6 @@ mod tests {
         assert_eq!(result.category, Category::ThreeOfAKind);
         assert_eq!(vec!["d7", "s7", "c7", "ha", "st"], result.picks);
         assert_eq!(vec![3, 7, 7, 7, 14, 10], result.value);
-
     }
 
     #[test]
@@ -678,7 +709,6 @@ mod tests {
         let result = compare_hands(&hand1.value, &hand2.value);
         assert_eq!(Ordering::Greater, result);
 
-
         // Test two equal hands: both are 10 pair
         let hole_cards3: [&str; 2] = ["d9", "h4"];
         let hole_cards4: [&str; 2] = ["h9", "s4"];
@@ -699,6 +729,5 @@ mod tests {
         // Test result
         let result = compare_hands(&hand3.value, &hand4.value);
         assert_eq!(Ordering::Equal, result);
-
     }
 }
