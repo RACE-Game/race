@@ -4,10 +4,10 @@ use race_core::{
     error::Result,
     transport::TransportT,
     types::{
-        CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
-        GameBundle, JoinParams, PlayerProfile, RegisterGameParams,
-        RegisterServerParams, RegistrationAccount, SettleParams, ServerAccount,
-        UnregisterGameParams, ServeParams, CreatePlayerProfileParams, DepositParams, VoteParams,
+        CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
+        CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
+        PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
+        ServerAccount, SettleParams, UnregisterGameParams, VoteParams,
     },
 };
 
@@ -68,7 +68,7 @@ impl TransportT for EvmTransport {
         todo!()
     }
 
-    async fn deposit(&self, params: DepositParams) -> Result<()>{
+    async fn deposit(&self, params: DepositParams) -> Result<()> {
         todo!()
     }
 

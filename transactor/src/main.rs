@@ -1,3 +1,4 @@
+mod game_manager;
 mod component;
 mod context;
 mod frame;

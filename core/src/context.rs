@@ -272,6 +272,10 @@ impl GameContext {
         self.dispatch = Some(DispatchEvent::new(self.gen_first_event(), 0));
     }
 
+    pub fn shutdown_game(&mut self) {
+        self.dispatch = Some(DispatchEvent::new(Event::Shutdown, 0));
+    }
+
     pub fn dispatch_custom<E>(&mut self, e: &E, timeout: u64)
     where
         E: CustomEvent,

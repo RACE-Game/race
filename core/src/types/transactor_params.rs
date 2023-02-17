@@ -58,7 +58,7 @@ impl Display for RetrieveEventsParams {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubscribeEventParams {
-    pub settle_version: u64
+    pub settle_version: u64,
 }
 
 impl Display for SubscribeEventParams {

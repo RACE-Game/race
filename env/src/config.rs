@@ -1,6 +1,6 @@
 //! Configuration of application
 
-use std::{path::PathBuf, fs::File, io::Read};
+use std::{fs::File, io::Read, path::PathBuf};
 
 use serde::Deserialize;
 use tracing::info;

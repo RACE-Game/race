@@ -298,7 +298,11 @@ async fn vote(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         game_addr, voter_addr, votee_addr, vote_type
     );
     let mut context = context.lock().await;
-    let Context{ ref mut accounts, ref mut players, .. } = &mut *context;
+    let Context {
+        ref mut accounts,
+        ref mut players,
+        ..
+    } = &mut *context;
     if let Some(game_account) = accounts.get_mut(&game_addr) {
         // Check if game is served
         if let Some(ref transactor_addr) = game_account.transactor_addr {
@@ -362,7 +366,11 @@ async fn vote(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
             game_account.players.clear();
             game_account.servers.clear();
             game_account.transactor_addr = None;
-            let unlock_time = std::time::SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() + 60_000;
+            let unlock_time = std::time::SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 60_000;
             game_account.unlock_time = Some(unlock_time as _);
         }
     } else {
@@ -418,7 +426,9 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
         // Should be larger in real case
         //
         if account.servers.len() >= DEFAULT_MAX_SERVERS {
-            return Err(custom_error(Error::ServerQueueIsFull(DEFAULT_MAX_SERVERS as _)));
+            return Err(custom_error(Error::ServerQueueIsFull(
+                DEFAULT_MAX_SERVERS as _,
+            )));
         } else {
             account.access_version += 1;
             account.servers.push(ServerJoin::new(

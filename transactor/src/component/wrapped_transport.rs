@@ -3,7 +3,8 @@
 use jsonrpsee::core::async_trait;
 use race_core::error::Result;
 use race_core::types::{
-    CreateRegistrationParams, RegisterGameParams, ServeParams, UnregisterGameParams, DepositParams, CreatePlayerProfileParams, VoteParams,
+    CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, RegisterGameParams,
+    ServeParams, UnregisterGameParams, VoteParams,
 };
 use race_core::{
     transport::TransportT,

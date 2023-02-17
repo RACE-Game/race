@@ -2,149 +2,121 @@
 /// Subscriber used to subscribe events from the transactor.
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use futures::pin_mut;
 use futures::StreamExt;
 use race_core::types::BroadcastFrame;
 use race_core::types::VoteType;
 use race_core::types::{GameAccount, ServerAccount};
-use tokio::sync::{mpsc, oneshot};
 use tracing::error;
 use tracing::info;
 use tracing::warn;
 
 use crate::frame::EventFrame;
 
-use super::{event_bus::CloseReason, Attachable, Component, Named, RemoteConnection};
+use super::common::{Component, Ports, ProducerPorts};
+use super::{event_bus::CloseReason, RemoteConnection};
 
-pub(crate) struct SubscriberContext {
+pub struct SubscriberContext {
     game_addr: String,
     server_addr: String,
     transactor_addr: String,
     start_settle_version: u64,
-    output_tx: mpsc::Sender<EventFrame>,
-    closed_tx: oneshot::Sender<CloseReason>,
     connection: Arc<RemoteConnection>,
 }
 
-pub struct Subscriber {
-    output_rx: Option<mpsc::Receiver<EventFrame>>,
-    closed_rx: oneshot::Receiver<CloseReason>,
-    ctx: Option<SubscriberContext>,
-}
-
-impl Attachable for Subscriber {
-    fn input(&self) -> Option<mpsc::Sender<EventFrame>> {
-        None
-    }
-
-    fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
-        let mut ret = None;
-        std::mem::swap(&mut ret, &mut self.output_rx);
-        ret
-    }
-}
-
-impl Named for Subscriber {
-    fn name<'a>(&self) -> &'a str {
-        "Subscriber"
-    }
-}
-
-impl Component<SubscriberContext> for Subscriber {
-    fn run(&mut self, ctx: SubscriberContext) {
-        tokio::spawn(async move {
-            let SubscriberContext {
-                game_addr,
-                server_addr,
-                transactor_addr,
-                start_settle_version,
-                output_tx,
-                closed_tx,
-                connection,
-            } = ctx;
-
-            let mut retries = 0;
-            let sub = loop {
-                match connection
-                    .subscribe_events(&game_addr, &server_addr, start_settle_version)
-                    .await
-                {
-                    Ok(sub) => break sub,
-                    Err(e) => {
-                        if retries == 3 {
-                            error!(
-                                "Failed to subscribe events: {}. Vote on the transactor {} has dropped",
-                                e,
-                                transactor_addr
-                            );
-                            output_tx
-                                .send(EventFrame::Vote {
-                                    votee: transactor_addr,
-                                    vote_type: VoteType::ServerVoteTransactorDropOff,
-                                })
-                                .await.unwrap();
-
-                            warn!("Shutdown subscriber");
-                            return;
-                        } else {
-                            error!("Failed to subscribe events: {}, will retry", e);
-                            retries += 1;
-                            continue;
-                        }
-                    }
-                }
-            };
-
-            pin_mut!(sub);
-
-            while let Some(frame) = sub.next().await {
-                info!("Subscriber received: {}", frame);
-                let BroadcastFrame { event, .. } = frame;
-                let r = output_tx.send(EventFrame::SendServerEvent { event }).await;
-                if let Err(_e) = r {
-                    warn!("Close due to no consumers");
-                    break;
-                }
-            }
-
-            warn!("Shutdown subscriber");
-            if let Err(e) = closed_tx.send(CloseReason::Complete) {
-                error!("Subscriber: Failed to close: {:?}", e);
-            }
-        });
-    }
-
-    fn borrow_mut_ctx(&mut self) -> &mut Option<SubscriberContext> {
-        &mut self.ctx
-    }
-
-    fn closed(self) -> oneshot::Receiver<CloseReason> {
-        self.closed_rx
-    }
-}
+pub struct Subscriber {}
 
 impl Subscriber {
-    pub fn new(
+    pub fn init(
         game_account: &GameAccount,
         server_account: &ServerAccount,
         connection: Arc<RemoteConnection>,
-    ) -> Self {
-        let start_settle_version = game_account.settle_version;
-        let (output_tx, output_rx) = mpsc::channel(3);
-        let (closed_tx, closed_rx) = oneshot::channel();
-        let ctx = SubscriberContext {
-            game_addr: game_account.addr.to_owned(),
-            server_addr: server_account.addr.to_owned(),
-            transactor_addr: game_account.transactor_addr.as_ref().unwrap().to_owned(),
+    ) -> (Self, SubscriberContext) {
+        (
+            Self {},
+            SubscriberContext {
+                game_addr: game_account.addr.clone(),
+                server_addr: server_account.addr.clone(),
+                transactor_addr: game_account.transactor_addr.as_ref().unwrap().clone(),
+                start_settle_version: game_account.settle_version,
+                connection,
+            },
+        )
+    }
+}
+
+#[async_trait]
+impl Component<ProducerPorts, SubscriberContext> for Subscriber {
+
+    fn name(&self) -> &str {
+        "Subscriber"
+    }
+
+    async fn run(ports: ProducerPorts, ctx: SubscriberContext) {
+        let SubscriberContext {
+            game_addr,
+            server_addr,
+            transactor_addr,
             start_settle_version,
-            output_tx,
-            closed_tx,
             connection,
+        } = ctx;
+
+        let mut retries = 0;
+        let sub = loop {
+            match connection
+                .subscribe_events(&game_addr, &server_addr, start_settle_version)
+                .await
+            {
+                Ok(sub) => break sub,
+                Err(e) => {
+                    if retries == 3 {
+                        error!(
+                            "Failed to subscribe events: {}. Vote on the transactor {} has dropped",
+                            e, transactor_addr
+                        );
+
+                        ports
+                            .send(EventFrame::Vote {
+                                votee: transactor_addr,
+                                vote_type: VoteType::ServerVoteTransactorDropOff,
+                            })
+                            .await;
+
+                        ports.close(CloseReason::Complete);
+                        warn!("Shutdown subscriber");
+                        return;
+                    } else {
+                        error!("Failed to subscribe events: {}, will retry", e);
+                        retries += 1;
+                        continue;
+                    }
+                }
+            }
         };
-        Self {
-            output_rx: Some(output_rx),
-            closed_rx,
-            ctx: Some(ctx),
+
+        pin_mut!(sub);
+
+        while let Some(frame) = sub.next().await {
+            info!("Subscriber received: {}", frame);
+            let BroadcastFrame { event, .. } = frame;
+            if ports
+                .try_send(EventFrame::SendServerEvent { event })
+                .await
+                .is_err()
+            {
+                break;
+            }
         }
+
+        // Vote for disconnecting
+        ports
+            .send(EventFrame::Vote {
+                votee: transactor_addr,
+                vote_type: VoteType::ServerVoteTransactorDropOff,
+            })
+            .await;
+
+        ports.close(CloseReason::Complete);
     }
 }

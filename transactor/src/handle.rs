@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::component::{
-    Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, LocalConnection,
+    Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle,
     RemoteConnection, Submitter, Subscriber, Voter, WrappedClient, WrappedHandler,
 };
 use race_core::context::GameContext;
@@ -9,6 +9,7 @@ use race_core::encryptor::EncryptorT;
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount};
+use tokio::task::JoinHandle;
 use tracing::info;
 
 pub enum Handle {
@@ -19,12 +20,9 @@ pub enum Handle {
 #[allow(dead_code)]
 pub struct TransactorHandle {
     addr: String,
+    handles: Vec<PortsHandle>,
     event_bus: EventBus,
-    submitter: Submitter,
-    synchronizer: GameSynchronizer,
     broadcaster: Broadcaster,
-    client: WrappedClient,
-    event_loop: EventLoop,
 }
 
 impl TransactorHandle {
@@ -46,45 +44,52 @@ impl TransactorHandle {
         handler.init_state(&mut game_context, game_account)?;
 
         let event_bus = EventBus::default();
-        let mut broadcaster =
-            Broadcaster::new(&game_account, game_context.get_handler_state_json().into());
-        let mut event_loop = EventLoop::new(handler, game_context, ClientMode::Transactor);
-        let mut submitter = Submitter::new(transport.clone(), game_account.clone());
-        let mut synchronizer = GameSynchronizer::new(transport.clone(), game_account.clone());
+
+        let (broadcaster, broadcaster_ctx) =
+            Broadcaster::init(&game_account, game_context.get_handler_state_json().into());
+        let mut broadcaster_handle = broadcaster.start(broadcaster_ctx);
+
+        let (event_loop, event_loop_ctx) =
+            EventLoop::init(handler, game_context, ClientMode::Transactor);
+        let mut event_loop_handle = event_loop.start(event_loop_ctx);
+
+        let (submitter, submitter_ctx) = Submitter::init(&game_account, transport.clone());
+        let mut submitter_handle = submitter.start(submitter_ctx);
+
+        let (synchronizer, synchronizer_ctx) =
+            GameSynchronizer::init(transport.clone(), &game_account);
+        let mut synchronizer_handle = synchronizer.start(synchronizer_ctx);
+
         let mut connection = LocalConnection::new(encryptor.clone());
 
-        info!("Creating components");
         event_bus.attach(&mut connection).await;
-        let mut client = WrappedClient::new(
-            server_account,
-            game_account,
+        let (client, client_ctx) = WrappedClient::init(
+            &server_account,
+            &game_account,
             transport.clone(),
             encryptor,
             Arc::new(connection),
         );
+        let mut client_handle = client.start(client_ctx);
 
         info!("Attaching components");
-        event_bus.attach(&mut submitter).await;
-        event_bus.attach(&mut synchronizer).await;
-        event_bus.attach(&mut event_loop).await;
-        event_bus.attach(&mut client).await;
-        event_bus.attach(&mut broadcaster).await;
-
-        info!("Starting components");
-        submitter.start();
-        synchronizer.start();
-        broadcaster.start();
-        client.start();
-        event_loop.start();
+        event_bus.attach(&mut broadcaster_handle).await;
+        event_bus.attach(&mut submitter_handle).await;
+        event_bus.attach(&mut event_loop_handle).await;
+        event_bus.attach(&mut client_handle).await;
+        event_bus.attach(&mut synchronizer_handle).await;
 
         Ok(Self {
             addr: game_account.addr.clone(),
             event_bus,
-            submitter,
-            synchronizer,
+            handles: vec![
+                broadcaster_handle,
+                submitter_handle,
+                event_loop_handle,
+                client_handle,
+                synchronizer_handle,
+            ],
             broadcaster,
-            client,
-            event_loop,
         })
     }
 }
@@ -93,10 +98,7 @@ impl TransactorHandle {
 pub struct ValidatorHandle {
     addr: String,
     event_bus: EventBus,
-    subscriber: Subscriber,
-    voter: Voter,
-    client: WrappedClient,
-    event_loop: EventLoop,
+    handles: Vec<PortsHandle>,
 }
 
 impl ValidatorHandle {
@@ -126,7 +128,11 @@ impl ValidatorHandle {
 
         info!("Creating components");
         let event_bus = EventBus::default();
-        let mut event_loop = EventLoop::new(handler, game_context, ClientMode::Validator);
+
+        let (event_loop, event_loop_ctx) =
+            EventLoop::init(handler, game_context, ClientMode::Transactor);
+        let mut event_loop_handle = event_loop.start(event_loop_ctx);
+
         let connection = Arc::new(
             RemoteConnection::try_new(
                 &server_account.addr,
@@ -135,35 +141,38 @@ impl ValidatorHandle {
             )
             .await?,
         );
-        let mut subscriber = Subscriber::new(game_account, server_account, connection.clone());
-        let mut client = WrappedClient::new(
-            server_account,
-            game_account,
+        // let mut subscriber = Subscriber::new(game_account, server_account, connection.clone());
+        let (subscriber, subscriber_context) =
+            Subscriber::init(game_account, server_account, connection.clone());
+        let mut subscriber_handle = subscriber.start(subscriber_context);
+
+        let (client, client_ctx) = WrappedClient::init(
+            &server_account,
+            &game_account,
             transport.clone(),
             encryptor,
             connection,
         );
-        let mut voter = Voter::new(game_account, server_account, transport.clone());
+        let mut client_handle = client.start(client_ctx);
+
+        let (voter, voter_ctx) = Voter::init(game_account, server_account, transport.clone());
+        let mut voter_handle = voter.start(voter_ctx);
 
         info!("Attaching components");
-        event_bus.attach(&mut voter).await;
-        event_bus.attach(&mut event_loop).await;
-        event_bus.attach(&mut subscriber).await;
-        event_bus.attach(&mut client).await;
-
-        info!("Starting components");
-        client.start();
-        subscriber.start();
-        event_loop.start();
-        voter.start();
+        event_bus.attach(&mut subscriber_handle).await;
+        event_bus.attach(&mut event_loop_handle).await;
+        event_bus.attach(&mut voter_handle).await;
+        event_bus.attach(&mut client_handle).await;
 
         Ok(Self {
             addr: game_account.addr.clone(),
             event_bus,
-            subscriber,
-            client,
-            event_loop,
-            voter,
+            handles: vec![
+                subscriber_handle,
+                client_handle,
+                event_loop_handle,
+                voter_handle,
+            ],
         })
     }
 }
@@ -238,5 +247,21 @@ impl Handle {
             Handle::Transactor(h) => &h.event_bus,
             Handle::Validator(h) => &h.event_bus,
         }
+    }
+
+    pub fn wait(&mut self) -> JoinHandle<()> {
+        let handles = match self {
+            Handle::Transactor(ref mut x) => &mut x.handles,
+            Handle::Validator(ref mut x) => &mut x.handles,
+        };
+        if handles.is_empty() {
+            panic!("Some where else is waiting");
+        }
+        let handles = std::mem::replace(handles, vec![]);
+        tokio::spawn(async move {
+            for mut h in handles.into_iter() {
+                h.wait().await;
+            }
+        })
     }
 }

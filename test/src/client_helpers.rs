@@ -68,7 +68,7 @@ impl TestClient {
         let encryptor = Arc::new(Encryptor::default());
         let connection = Arc::new(DummyConnection::default());
         Self {
-            client: Client::new(addr, game_addr, mode, transport, encryptor, connection)
+            client: Client::new(addr, game_addr, mode, transport, encryptor, connection),
         }
     }
 

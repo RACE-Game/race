@@ -5,13 +5,14 @@
 use std::collections::LinkedList;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use race_core::event::Event;
 use race_core::types::{BroadcastFrame, GameAccount};
-use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
-use tracing::{error, warn};
+use tokio::sync::{broadcast, Mutex};
+use tracing::warn;
 
+use crate::component::common::{Component, ConsumerPorts, Ports};
 use crate::component::event_bus::CloseReason;
-use crate::component::traits::{Attachable, Component, Named};
 use crate::frame::EventFrame;
 
 /// Backup events in memeory, for new connected client.
@@ -26,131 +27,43 @@ pub struct EventBackup {
 
 pub struct BroadcasterContext {
     game_addr: String,
-    input_rx: mpsc::Receiver<EventFrame>,
-    closed_tx: oneshot::Sender<CloseReason>,
-    broadcast_tx: broadcast::Sender<BroadcastFrame>,
+    snapshot: Arc<Mutex<String>>,
+    event_backups: Arc<Mutex<LinkedList<EventBackup>>>,
     latest_access_version: u64,
     latest_settle_version: u64,
+    broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 /// A component that pushs event to clients.
 pub struct Broadcaster {
     game_addr: String,
-    input_tx: mpsc::Sender<EventFrame>,
-    closed_rx: oneshot::Receiver<CloseReason>,
     snapshot: Arc<Mutex<String>>,
     event_backups: Arc<Mutex<LinkedList<EventBackup>>>,
-    ctx: Option<BroadcasterContext>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
-impl Named for Broadcaster {
-    fn name<'a>(&self) -> &'a str {
-        "Broadcaster"
-    }
-}
-
-impl Attachable for Broadcaster {
-    fn input(&self) -> Option<mpsc::Sender<EventFrame>> {
-        Some(self.input_tx.clone())
-    }
-
-    fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
-        None
-    }
-}
-
-impl Component<BroadcasterContext> for Broadcaster {
-    fn run(&mut self, mut ctx: BroadcasterContext) {
-        let snapshot = self.snapshot.clone();
-        let event_backups = self.event_backups.clone();
-        tokio::spawn(async move {
-            while let Some(event) = ctx.input_rx.recv().await {
-                match event {
-                    EventFrame::Broadcast {
-                        event,
-                        state_json,
-                        access_version,
-                        settle_version,
-                        timestamp,
-                    } => {
-                        // info!("Broadcaster broadcast event: {:?}", event);
-                        let mut snapshot = snapshot.lock().await;
-                        let mut event_backups = event_backups.lock().await;
-                        ctx.latest_access_version = access_version;
-                        ctx.latest_settle_version = settle_version;
-                        *snapshot = state_json.clone();
-                        event_backups.push_back(EventBackup {
-                            event: event.clone(),
-                            settle_version,
-                            access_version,
-                            timestamp,
-                        });
-                        // We keep at most 100 backups
-                        if event_backups.len() > 100 {
-                            event_backups.pop_front();
-                        }
-
-                        let r = ctx.broadcast_tx.send(BroadcastFrame {
-                            game_addr: ctx.game_addr.clone(),
-                            event,
-                            timestamp,
-                        });
-                        if let Err(e) = r {
-                            warn!("Failed to broadcast event: {:?}", e);
-                        }
-                    }
-                    EventFrame::Shutdown => {
-                        warn!("Shutdown broadcaster");
-                        break;
-                    },
-                    _ => (),
-                }
-            }
-            ctx.closed_tx
-                .send(CloseReason::Complete)
-                .map_err(|e| {
-                    error!("Broadcaster failed to close: {:?}", e);
-                    e
-                })
-                .unwrap();
-        });
-    }
-
-    fn borrow_mut_ctx(&mut self) -> &mut Option<BroadcasterContext> {
-        &mut self.ctx
-    }
-
-    fn closed(self) -> oneshot::Receiver<CloseReason> {
-        self.closed_rx
-    }
-}
-
 impl Broadcaster {
-    pub fn new(init_state: &GameAccount, init_snapshot: String) -> Self {
+    pub fn init(game_account: &GameAccount, init_snapshot: String) -> (Self, BroadcasterContext) {
         let snapshot = Arc::new(Mutex::new(init_snapshot));
         let event_backups = Arc::new(Mutex::new(LinkedList::new()));
-        let (input_tx, input_rx) = mpsc::channel(3);
-        let (closed_tx, closed_rx) = oneshot::channel();
-        let (broadcast_tx, broadcast_rx) = broadcast::channel(3);
+        let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);
-        let ctx = Some(BroadcasterContext {
-            game_addr: init_state.addr.clone(),
-            closed_tx,
-            input_rx,
-            broadcast_tx: broadcast_tx.clone(),
-            latest_access_version: init_state.access_version,
-            latest_settle_version: init_state.settle_version,
-        });
-        Self {
-            game_addr: init_state.addr.clone(),
-            input_tx,
-            closed_rx,
-            snapshot,
-            ctx,
-            broadcast_tx,
-            event_backups,
-        }
+        (
+            Self {
+                game_addr: game_account.addr.clone(),
+                snapshot: snapshot.clone(),
+                event_backups: event_backups.clone(),
+                broadcast_tx: broadcast_tx.clone(),
+            },
+            BroadcasterContext {
+                game_addr: game_account.addr.clone(),
+                snapshot,
+                event_backups,
+                latest_access_version: game_account.access_version,
+                latest_settle_version: game_account.settle_version,
+                broadcast_tx,
+            },
+        )
     }
 
     pub async fn get_snapshot(&self) -> String {
@@ -182,18 +95,71 @@ impl Broadcaster {
     }
 }
 
+#[async_trait]
+impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
+    fn name(&self) -> &str {
+        "Broadcaster"
+    }
+
+    async fn run(mut ports: ConsumerPorts, mut ctx: BroadcasterContext) {
+        while let Some(event) = ports.recv().await {
+            match event {
+                EventFrame::Broadcast {
+                    event,
+                    state_json,
+                    access_version,
+                    settle_version,
+                    timestamp,
+                } => {
+                    // info!("Broadcaster broadcast event: {:?}", event);
+                    let mut snapshot = ctx.snapshot.lock().await;
+                    let mut event_backups = ctx.event_backups.lock().await;
+                    ctx.latest_access_version = access_version;
+                    ctx.latest_settle_version = settle_version;
+                    *snapshot = state_json.clone();
+                    event_backups.push_back(EventBackup {
+                        event: event.clone(),
+                        settle_version,
+                        access_version,
+                        timestamp,
+                    });
+                    // We keep at most 100 backups
+                    if event_backups.len() > 100 {
+                        event_backups.pop_front();
+                    }
+
+                    let r = ctx.broadcast_tx.send(BroadcastFrame {
+                        game_addr: ctx.game_addr.clone(),
+                        event,
+                        timestamp,
+                    });
+                    if let Err(e) = r {
+                        warn!("Failed to broadcast event: {:?}", e);
+                    }
+                }
+                EventFrame::Shutdown => {
+                    warn!("Shutdown broadcaster");
+                    break;
+                }
+                _ => (),
+            }
+        }
+        ports.close(CloseReason::Complete);
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use race_core::event::Event;
-    use race_test::*;
-
     use super::*;
+    use race_test::*;
 
     #[tokio::test]
     async fn test_broadcast_event() {
         let game_account = TestGameAccountBuilder::default().add_players(2).build();
-        let mut broadcaster = Broadcaster::new(&game_account, "{}".into());
+        let (broadcaster, ctx) = Broadcaster::init(&game_account, "{}".into());
+        let handle = broadcaster.start(ctx);
         let mut rx = broadcaster.get_broadcast_rx();
+
         let event_frame = EventFrame::Broadcast {
             access_version: 10,
             settle_version: 10,
@@ -204,6 +170,7 @@ mod tests {
                 raw: "CUSTOM EVENT".into(),
             },
         };
+
         let broadcast_frame = BroadcastFrame {
             game_addr: game_account.addr,
             timestamp: 0,
@@ -212,9 +179,9 @@ mod tests {
                 raw: "CUSTOM EVENT".into(),
             },
         };
-        broadcaster.start();
-        broadcaster.input_tx.send(event_frame).await.unwrap();
-        let frame = rx.recv().await.expect("Failed to receive event");
-        assert_eq!(frame, broadcast_frame);
+
+        handle.send_unchecked(event_frame).await;
+        let received = rx.recv().await.unwrap();
+        assert_eq!(received, broadcast_frame);
     }
 }

@@ -1,10 +1,10 @@
-
 use async_trait::async_trait;
 use race_core::error::Result;
 
 use race_core::types::{
-    CreateRegistrationParams, RegisterGameParams, RegisterServerParams,
-    RegistrationAccount, ServerAccount, UnregisterGameParams, ServeParams, CreatePlayerProfileParams, DepositParams, VoteParams,
+    CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, RegisterGameParams,
+    RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount, UnregisterGameParams,
+    VoteParams,
 };
 use race_core::{
     transport::TransportT,
@@ -69,7 +69,7 @@ impl TransportT for SolanaTransport {
         todo!()
     }
 
-    async fn deposit(&self, params: DepositParams) -> Result<()>{
+    async fn deposit(&self, params: DepositParams) -> Result<()> {
         todo!()
     }
 

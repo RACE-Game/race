@@ -1,14 +1,14 @@
+pub mod error;
 pub mod evm;
 pub mod facade;
 pub mod signer;
 pub mod solana;
-pub mod error;
 
+use error::{TransportError, TransportResult};
 use race_core::transport::TransportT;
 use race_env::Config;
-use tracing::info;
 use signer::Signer;
-use error::{TransportError, TransportResult};
+use tracing::info;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ChainType {

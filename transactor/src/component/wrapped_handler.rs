@@ -32,10 +32,11 @@ impl WrappedHandler {
     ) -> Result<Self> {
         let base64 = base64::prelude::BASE64_STANDARD;
         let mut buffer = Vec::with_capacity(1024);
-        base64.decode_vec(&bundle.data, &mut buffer).or(Err(Error::MalformedGameBundle))?;
+        base64
+            .decode_vec(&bundle.data, &mut buffer)
+            .or(Err(Error::MalformedGameBundle))?;
         let mut store = Store::default();
-        let module =
-            Module::from_binary(&store, &buffer).or(Err(Error::MalformedGameBundle))?;
+        let module = Module::from_binary(&store, &buffer).or(Err(Error::MalformedGameBundle))?;
         let import_object = imports![];
         let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
         Ok(Self {
@@ -215,7 +216,7 @@ mod tests {
                 addr: "FAKE_ADDR".into(),
                 balance: 1000,
                 position: 0,
-                access_version: ctx.get_access_version() + 1
+                access_version: ctx.get_access_version() + 1,
             }],
             new_servers: vec![],
             transactor_addr: transactor_account_addr(),

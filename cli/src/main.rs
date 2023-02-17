@@ -1,3 +1,4 @@
+use base64::Engine;
 use clap::{arg, Command};
 use race_core::{
     transport::TransportT,
@@ -6,7 +7,6 @@ use race_core::{
 use race_env::Config;
 use race_transport::TransportBuilder;
 use std::{fs::File, io::Read};
-use base64::Engine;
 
 fn cli() -> Command {
     Command::new("cli")
@@ -155,10 +155,7 @@ async fn reg_info(config: Config, chain: &str, addr: &str) {
             println!("Owner: {}", reg.owner.unwrap_or("None".into()));
             println!("Games:");
             for g in reg.games.iter() {
-                println!(
-                    "Game account: {}, Game bundle: {}",
-                    g.addr, g.bundle_addr
-                );
+                println!("Game account: {}, Game bundle: {}", g.addr, g.bundle_addr);
             }
         }
         None => {

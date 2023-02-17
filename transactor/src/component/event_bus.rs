@@ -4,7 +4,7 @@ use race_core::error::Error;
 use tokio::sync::{mpsc, Mutex};
 use tracing::{error, warn};
 
-use crate::component::traits::Attachable;
+use crate::component::common::Attachable;
 use crate::frame::EventFrame;
 
 /// An event bus that passes the events between different components.
@@ -14,7 +14,10 @@ pub struct EventBus {
 }
 
 impl EventBus {
-    pub async fn attach<T: Attachable>(&self, attachable: &mut T) {
+    pub async fn attach<T>(&self, attachable: &mut T)
+    where
+        T: Attachable,
+    {
         if let Some(mut rx) = attachable.output() {
             let tx = self.tx.clone();
             tokio::spawn(async move {
@@ -31,6 +34,7 @@ impl EventBus {
                 }
             });
         }
+
         if let Some(tx) = attachable.input() {
             let mut txs = self.attached_txs.lock().await;
             txs.push(tx.clone());
@@ -76,48 +80,25 @@ pub enum CloseReason {
 #[cfg(test)]
 mod tests {
 
+    use crate::component::common::{Component, ConsumerPorts, Ports, ProducerPorts};
+
     use super::*;
-    use crate::component::traits::{Attachable, Component, Named};
-    use tokio::{
-        sync::{mpsc, oneshot},
-        time::{sleep, Duration},
-    };
+    use async_trait::async_trait;
+    use tokio::time::{sleep, Duration};
 
-    struct TestProducerCtx {
-        output_tx: mpsc::Sender<EventFrame>,
-        closed_tx: oneshot::Sender<CloseReason>,
-    }
+    #[derive(Default)]
+    struct TestProducerCtx {}
 
-    struct TestProducer {
-        output_rx: Option<mpsc::Receiver<EventFrame>>,
-        closed_rx: oneshot::Receiver<CloseReason>,
-        ctx: Option<TestProducerCtx>,
-    }
+    #[derive(Default)]
+    struct TestProducer {}
 
-    impl Named for TestProducer {
-        fn name<'a>(&self) -> &'a str {
-            "TestProducer"
-        }
-    }
-
-    impl Attachable for TestProducer {
-        fn input(&self) -> Option<mpsc::Sender<EventFrame>> {
-            None
+    #[async_trait]
+    impl Component<ProducerPorts, TestProducerCtx> for TestProducer {
+        fn name(&self) -> &str {
+            "Test Producer"
         }
 
-        fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
-            let mut ret = None;
-            std::mem::swap(&mut ret, &mut self.output_rx);
-            ret
-        }
-    }
-
-    impl Component<TestProducerCtx> for TestProducer {
-        fn closed(self) -> oneshot::Receiver<CloseReason> {
-            self.closed_rx
-        }
-
-        fn run(&mut self, ctx: TestProducerCtx) {
+        async fn run(ports: ProducerPorts, _ctx: TestProducerCtx) {
             tokio::spawn(async move {
                 loop {
                     println!("Producer started");
@@ -127,59 +108,46 @@ mod tests {
                         transactor_addr: "".into(),
                         access_version: 1,
                     };
-                    match ctx.output_tx.send(event.clone()).await {
-                        Ok(_) => sleep(Duration::from_secs(5)).await,
-                        Err(_) => {
-                            break;
-                        }
+                    if ports.try_send(event.clone()).await.is_ok() {
+                        sleep(Duration::from_millis(1)).await;
+                    } else {
+                        break;
                     }
                 }
-                ctx.closed_tx.send(CloseReason::Complete).unwrap();
+                ports.close(CloseReason::Complete);
             });
-        }
-
-        fn borrow_mut_ctx(&mut self) -> &mut Option<TestProducerCtx> {
-            &mut self.ctx
-        }
-    }
-
-    impl TestProducer {
-        fn new() -> Self {
-            let (output_tx, output_rx) = mpsc::channel(3);
-            let (closed_tx, closed_rx) = oneshot::channel();
-            let ctx = TestProducerCtx {
-                output_tx,
-                closed_tx,
-            };
-            Self {
-                output_rx: Some(output_rx),
-                closed_rx,
-                ctx: Some(ctx),
-            }
         }
     }
 
     struct TestConsumerCtx {
-        input_rx: mpsc::Receiver<EventFrame>,
-        output_tx: mpsc::Sender<EventFrame>,
-        closed_tx: oneshot::Sender<CloseReason>,
         n: Arc<Mutex<u8>>,
     }
 
     struct TestConsumer {
-        input_tx: mpsc::Sender<EventFrame>,
-        output_rx: Option<mpsc::Receiver<EventFrame>>,
-        closed_rx: oneshot::Receiver<CloseReason>,
-        ctx: Option<TestConsumerCtx>,
         n: Arc<Mutex<u8>>,
     }
 
-    impl Component<TestConsumerCtx> for TestConsumer {
-        fn run(&mut self, mut ctx: TestConsumerCtx) {
+    impl TestConsumer {
+        pub fn init() -> (Self, TestConsumerCtx) {
+            let n = Arc::new(Mutex::new(0));
+            (Self { n: n.clone() }, TestConsumerCtx { n })
+        }
+        pub fn get_n(&self) -> Arc<Mutex<u8>> {
+            self.n.clone()
+        }
+    }
+
+    #[async_trait]
+    impl Component<ConsumerPorts, TestConsumerCtx> for TestConsumer {
+        fn name(&self) -> &str {
+            "Test Consumer"
+        }
+
+        async fn run(mut ports: ConsumerPorts, ctx: TestConsumerCtx) {
             tokio::spawn(async move {
                 println!("Consumer started");
                 loop {
-                    match ctx.input_rx.recv().await {
+                    match ports.recv().await {
                         Some(event) => {
                             println!("Consumer receive event: {:?}", event);
                             let mut n = ctx.n.lock().await;
@@ -187,8 +155,6 @@ mod tests {
                             println!("n = {:?}", n);
                             if *n == 2 {
                                 break;
-                            } else {
-                                ctx.output_tx.send(EventFrame::Empty).await.unwrap();
                             }
                         }
                         None => {
@@ -197,81 +163,28 @@ mod tests {
                     }
                 }
                 println!("Consumer quit");
-                ctx.closed_tx.send(CloseReason::Complete).unwrap();
+                ports.close(CloseReason::Complete);
             });
-        }
-
-        fn closed(self) -> oneshot::Receiver<CloseReason> {
-            self.closed_rx
-        }
-
-        fn borrow_mut_ctx(&mut self) -> &mut Option<TestConsumerCtx> {
-            &mut self.ctx
-        }
-    }
-
-    impl Named for TestConsumer {
-        fn name<'a>(&self) -> &'a str {
-            "TestConsumer"
-        }
-    }
-
-    impl Attachable for TestConsumer {
-        fn input(&self) -> Option<mpsc::Sender<EventFrame>> {
-            Some(self.input_tx.clone())
-        }
-
-        fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
-            let mut ret = None;
-            std::mem::swap(&mut ret, &mut self.output_rx);
-            ret
-        }
-    }
-
-    impl TestConsumer {
-        fn new() -> Self {
-            let (input_tx, input_rx) = mpsc::channel(1);
-            let (output_tx, output_rx) = mpsc::channel(3);
-            let (closed_tx, closed_rx) = oneshot::channel();
-            let n = Arc::new(Mutex::new(0));
-
-            let ctx = TestConsumerCtx {
-                input_rx,
-                output_tx,
-                closed_tx,
-                n: n.clone(),
-            };
-
-            Self {
-                input_tx,
-                output_rx: Some(output_rx),
-                closed_rx,
-                ctx: Some(ctx),
-                n,
-            }
-        }
-
-        pub fn get_n(&self) -> Arc<Mutex<u8>> {
-            self.n.clone()
         }
     }
 
     // #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
     #[tokio::test]
     async fn test_component_produce() {
-        let mut p = TestProducer::new();
-        let mut c = TestConsumer::new();
+        let p = TestProducer::default();
+        let p_ctx = TestProducerCtx::default();
+        let (c, c_ctx) = TestConsumer::init();
         let eb = EventBus::default();
 
-        eb.attach(&mut c).await;
-        eb.attach(&mut p).await;
+        let mut p_handle = p.start(p_ctx);
+        let mut c_handle = c.start(c_ctx);
 
-        c.start();
-        p.start();
+        eb.attach(&mut p_handle).await;
+        eb.attach(&mut c_handle).await;
 
         let n = c.get_n();
 
-        c.closed().await.unwrap();
+        c_handle.wait().await;
 
         let n = n.lock().await;
         assert_eq!(*n, 2);

@@ -3,9 +3,10 @@ use crate::error::Error;
 use crate::{
     error::Result,
     types::{
-        CloseGameAccountParams, CreateGameAccountParams, CreateRegistrationParams, GameAccount,
-        GameBundle, JoinParams, PlayerProfile, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServerAccount, SettleParams, UnregisterGameParams, ServeParams, CreatePlayerProfileParams, DepositParams, VoteParams,
+        CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
+        CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
+        PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
+        ServerAccount, SettleParams, UnregisterGameParams, VoteParams,
     },
 };
 use async_trait::async_trait;

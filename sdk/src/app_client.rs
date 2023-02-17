@@ -3,7 +3,7 @@
 use gloo::utils::format::JsValueSerdeExt;
 use js_sys::Function;
 use js_sys::JSON::{parse, stringify};
-use race_core::context::{GameContext, GameStatus, Server, Player};
+use race_core::context::{GameContext, GameStatus, Player, Server};
 use race_core::types::{BroadcastFrame, ExitGameParams, PlayerJoin};
 use race_transport::TransportBuilder;
 use serde::Serialize;
@@ -192,7 +192,11 @@ impl AppClient {
         debug!("Event stream connected");
 
         while let Some(frame) = sub.next().await {
-            let BroadcastFrame { game_addr, event, timestamp } = frame;
+            let BroadcastFrame {
+                game_addr,
+                event,
+                timestamp,
+            } = frame;
             let mut game_context = self.game_context.borrow_mut();
             game_context.set_timestamp(timestamp);
             match self.handler.handle_event(&mut game_context, &event) {

@@ -8,28 +8,21 @@
 
 use std::sync::Arc;
 
+use crate::component::common::{Component, ConsumerPorts, Ports};
 use crate::frame::EventFrame;
+use async_trait::async_trait;
 use race_client::Client;
 use race_core::connection::ConnectionT;
 use race_core::encryptor::EncryptorT;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, ServerAccount};
-use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
-
-use crate::component::traits::{Attachable, Component, Named};
 
 use super::event_bus::CloseReason;
 
-pub struct WrappedClient {
-    pub input_tx: mpsc::Sender<EventFrame>,
-    pub closed_rx: oneshot::Receiver<CloseReason>,
-    pub ctx: Option<ClientContext>,
-}
+pub struct WrappedClient {}
 
 pub struct ClientContext {
-    pub input_rx: mpsc::Receiver<EventFrame>,
-    pub closed_tx: oneshot::Sender<CloseReason>,
     pub addr: String,
     pub game_addr: String,
     pub transport: Arc<dyn TransportT>,
@@ -39,16 +32,13 @@ pub struct ClientContext {
 }
 
 impl WrappedClient {
-    pub fn new(
+    pub fn init(
         server_account: &ServerAccount,
         init_account: &GameAccount,
         transport: Arc<dyn TransportT>,
         encryptor: Arc<dyn EncryptorT>,
         connection: Arc<dyn ConnectionT>,
-    ) -> Self {
-        let (input_tx, input_rx) = mpsc::channel(3);
-        let (closed_tx, closed_rx) = oneshot::channel();
-
+    ) -> (Self, ClientContext) {
         // Detect our client mode by check if our address is the transactor address
         let server_addr = server_account.addr.clone();
         let mode = if server_addr.eq(init_account
@@ -61,108 +51,74 @@ impl WrappedClient {
             ClientMode::Validator
         };
 
-        let ctx = Some(ClientContext {
-            input_rx,
-            closed_tx,
-            transport,
-            encryptor,
-            connection,
-            mode,
-            addr: server_addr,
-            game_addr: init_account.addr.to_owned(),
-        });
-        Self {
-            input_tx,
-            closed_rx,
-            ctx,
-        }
-    }
-}
-
-impl Named for WrappedClient {
-    fn name<'a>(&self) -> &'a str {
-        "Client"
-    }
-}
-
-impl Attachable for WrappedClient {
-    fn input(&self) -> Option<mpsc::Sender<EventFrame>> {
-        Some(self.input_tx.clone())
-    }
-
-    fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
-        // let mut ret = None;
-        // std::mem::swap(&mut ret, &mut self.output_rx);
-        // ret
-        None
-    }
-}
-
-impl Component<ClientContext> for WrappedClient {
-    fn run(&mut self, ctx: ClientContext) {
-        tokio::spawn(async move {
-            let ClientContext {
-                mut input_rx,
-                addr,
-                game_addr,
-                mode,
+        (
+            Self {},
+            ClientContext {
                 transport,
                 encryptor,
                 connection,
-                closed_tx,
-            } = ctx;
+                mode,
+                addr: server_addr,
+                game_addr: init_account.addr.to_owned(),
+            },
+        )
+    }
+}
 
-            let mut client = Client::new(addr, game_addr, mode, transport, encryptor, connection);
+#[async_trait]
+impl Component<ConsumerPorts, ClientContext> for WrappedClient {
+    fn name(&self) -> &str {
+        "Client"
+    }
 
-            if let Err(e) = client.attach_game().await {
-                warn!("Failed to attach to game due to error: {:?}", e);
-            }
+    async fn run(mut ports: ConsumerPorts, ctx: ClientContext) {
+        let ClientContext {
+            addr,
+            game_addr,
+            mode,
+            transport,
+            encryptor,
+            connection,
+        } = ctx;
 
-            let mut res = Ok(());
-            'outer: while let Some(event_frame) = input_rx.recv().await {
-                match event_frame {
-                    EventFrame::Settle { .. } => {
-                        client.flush_secret_states();
-                    }
-                    EventFrame::ContextUpdated { ref context } => {
-                        match client.handle_updated_context(context) {
-                            Ok(events) => {
-                                for event in events.into_iter() {
-                                    info!("Connection send event: {}", event);
-                                    if let Err(_e) = client.submit_event(event).await {
-                                        break 'outer;
-                                    }
+        let mut client = Client::new(addr, game_addr, mode, transport, encryptor, connection);
+
+        if let Err(e) = client.attach_game().await {
+            warn!("Failed to attach to game due to error: {:?}", e);
+        }
+
+        let mut res = Ok(());
+        'outer: while let Some(event_frame) = ports.recv().await {
+            match event_frame {
+                EventFrame::Settle { .. } => {
+                    client.flush_secret_states();
+                }
+                EventFrame::ContextUpdated { ref context } => {
+                    match client.handle_updated_context(context) {
+                        Ok(events) => {
+                            for event in events.into_iter() {
+                                info!("Connection send event: {}", event);
+                                if let Err(_e) = client.submit_event(event).await {
+                                    break 'outer;
                                 }
                             }
-                            Err(e) => {
-                                res = Err(e);
-                                break 'outer;
-                            }
+                        }
+                        Err(e) => {
+                            res = Err(e);
+                            break 'outer;
                         }
                     }
-                    EventFrame::Shutdown => break,
-                    _ => (),
                 }
+                EventFrame::Shutdown => break,
+                _ => (),
             }
+        }
 
-            warn!("Shutdown client");
-            match res {
-                Ok(()) => closed_tx
-                    .send(CloseReason::Complete)
-                    .expect("Failed to send close reason"),
-                Err(e) => closed_tx
-                    .send(CloseReason::Fault(e))
-                    .expect("Fail to send close reason"),
-            }
-        });
-    }
-
-    fn borrow_mut_ctx(&mut self) -> &mut Option<ClientContext> {
-        &mut self.ctx
-    }
-
-    fn closed(self) -> oneshot::Receiver<CloseReason> {
-        self.closed_rx
+        warn!("Shutdown client");
+        match res {
+            Ok(()) => ports.close(CloseReason::Complete),
+            Err(e) => ports.close(CloseReason::Fault(e)),
+        };
     }
 }
 
@@ -173,9 +129,16 @@ mod tests {
     use race_encryptor::Encryptor;
     use race_test::*;
 
+    use crate::component::common::PortsHandle;
+
     use super::*;
 
-    fn setup() -> (WrappedClient, GameContext, Arc<DummyConnection>) {
+    fn setup() -> (
+        WrappedClient,
+        GameContext,
+        PortsHandle,
+        Arc<DummyConnection>,
+    ) {
         let game_account = TestGameAccountBuilder::default()
             .add_players(2)
             .add_servers(1)
@@ -184,24 +147,24 @@ mod tests {
         let transactor_account = transactor_account();
         let connection = Arc::new(DummyConnection::default());
         let transport = Arc::new(DummyTransport::default());
-        let mut client = WrappedClient::new(
+        let (client, client_ctx) = WrappedClient::init(
             &transactor_account,
             &game_account,
             transport,
             encryptor,
             connection.clone(),
         );
-        client.start();
+        let handle = client.start(client_ctx);
         let mut context = GameContext::try_new(&game_account).unwrap();
         context.add_player(1).unwrap();
         context.add_player(0).unwrap();
         context.add_server(0).unwrap();
-        (client, context, connection)
+        (client, context, handle, connection)
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_lock() {
-        let (mut client, mut ctx, connection) = setup();
+        let (mut _client, mut ctx, handle, connection) = setup();
 
         // Mask the random_state
         let random = ShuffledList::new(vec!["a", "b", "c"]);
@@ -211,11 +174,8 @@ mod tests {
             .mask(transactor_account_addr(), vec![vec![0], vec![0], vec![0]])
             .unwrap();
 
-        println!("client created");
-        client.start();
-
         let event_frame = EventFrame::ContextUpdated { context: ctx };
-        client.input_tx.send(event_frame).await.unwrap();
+        handle.send_unchecked(event_frame).await;
 
         println!("before read event");
         let event = connection.take().await.unwrap();
@@ -235,17 +195,14 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_mask() {
-        let (mut client, mut ctx, connection) = setup();
+        let (mut _client, mut ctx, handle, connection) = setup();
 
         let random = ShuffledList::new(vec!["a", "b", "c"]);
         let rid = ctx.init_random_state(&random).unwrap();
         println!("random inited");
 
-        println!("client created");
-        client.start();
-
         let event_frame = EventFrame::ContextUpdated { context: ctx };
-        client.input_tx.send(event_frame).await.unwrap();
+        handle.send_unchecked(event_frame).await;
 
         println!("before read event");
         let event = connection.take().await.unwrap();

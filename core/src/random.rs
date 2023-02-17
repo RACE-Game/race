@@ -673,7 +673,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_secret_share() -> Result<()>{
+    fn test_add_secret_share() -> Result<()> {
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
         let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
         let share1 = Share {

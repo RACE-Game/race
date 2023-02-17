@@ -29,7 +29,7 @@ use race_core::{
     types::{BroadcastFrame, SubscribeEventParams},
 };
 
-use crate::component::traits::Attachable;
+use crate::component::common::Attachable;
 use crate::frame::EventFrame;
 
 /// A connection to local event bus, for transactor loopback.
@@ -72,7 +72,7 @@ impl LocalConnection {
 }
 
 impl Attachable for LocalConnection {
-    fn input(&self) -> Option<mpsc::Sender<EventFrame>> {
+    fn input(&mut self) -> Option<mpsc::Sender<EventFrame>> {
         None
     }
 

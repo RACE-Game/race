@@ -80,10 +80,9 @@ impl std::fmt::Display for EventFrame {
             EventFrame::SettleFinalized { .. } => write!(f, "SettleFinalized"),
             EventFrame::ContextUpdated { context: _ } => write!(f, "ContextUpdated"),
             EventFrame::Shutdown => write!(f, "Shutdown"),
-            EventFrame::Vote {
-                votee,
-                vote_type,
-            } => write!(f, "Vote: to {} for {:?}", votee, vote_type),
+            EventFrame::Vote { votee, vote_type } => {
+                write!(f, "Vote: to {} for {:?}", votee, vote_type)
+            }
         }
     }
 }

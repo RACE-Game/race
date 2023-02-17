@@ -72,7 +72,11 @@ impl GameHandler for Raffle {
                 self.cleanup(None);
             }
             Event::SecretsReady => {
-                let winner = context.get_revealed(self.random_id)?.get(&0).unwrap().to_owned();
+                let winner = context
+                    .get_revealed(self.random_id)?
+                    .get(&0)
+                    .unwrap()
+                    .to_owned();
                 let mut settles = vec![];
 
                 for p in context.get_players().iter() {
