@@ -81,15 +81,20 @@ pub fn test_holdem() -> Result<()> {
     };
 
     // ------------------------- GAMESTART ------------------------
-    // Sync event will cause context to dispatch a GameStart Event
-    // holdem.handle_event(&mut ctx, &sync_event)?;
-
+    // Handle the sync event so that game kicks off
     holdem.handle_until_no_events(
         &mut ctx,
         &sync_event,
         vec![&mut alice, &mut bob, &mut transactor],
     )?;
     {
+        // Randomness and Secrets will be ready before blind bets
+        assert_eq!(
+            RandomStatus::Ready,
+            ctx.get_random_state_unchecked(1).status
+        );
+
+        // This is the preflop round, sb will be asked to act
         let state = holdem.get_state();
         assert_eq!(Street::Preflop, state.street);
         assert_eq!(2, ctx.count_players());
@@ -97,58 +102,178 @@ pub fn test_holdem() -> Result<()> {
         assert_eq!(
             Some(DispatchEvent {
                 timeout: 30_000,
-                event: Event::ActionTimeout { player_addr: "Bob".into() },
+                event: Event::ActionTimeout { player_addr: "Alice".into() },
             }),
             *ctx.get_dispatch()
         );
-        println!("Alice Cards {:?}", alice.decrypt(&ctx, 1).unwrap());
-        assert_eq!(alice.decrypt(&ctx, 1).unwrap().len(), 2);
 
     }
 
-    // ------------------------- SB CALLS -----------------------
-    // Bob decides to call
-    let bob_call = bob.custom_event(GameEvent::Call);
+    // ------------------------- BLIND BETS -----------------------
+    // Alice (SB) calls
+    let alice_call = alice.custom_event(GameEvent::Call);
     holdem.handle_until_no_events(
         &mut ctx,
-        &bob_call,
+        &alice_call,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+    // Then Bob will be asked to act
+    {
+        let state = holdem.get_state();
+        assert_eq!(
+            Some(Player {
+                addr: "Bob".to_string(),
+                chips: 9980,
+                position: 0,
+                status: PlayerStatus::Acting
+            }),
+            state.acting_player
+        );
+    }
+    // Bob (BB) checks
+    let bob_check = bob.custom_event(GameEvent::Check);
+    holdem.handle_until_no_events(
+        &mut ctx,
+        &bob_check,
         vec![&mut alice, &mut bob, &mut transactor],
     )?;
     {
         let state = holdem.get_state();
+        // There should be 1 pot of 40 chips, owned by Alice and Bob
         assert_eq!(0, state.street_bet);
+        assert_eq!(1, state.pots.len());
+        assert_eq!(
+            vec!["Alice".to_string(), "Bob".to_string()],
+            state.pots[0].owners
+        );
+        assert_eq!(40, state.pots[0].amount);
+        assert_eq!(9980, state.players[0].chips);
         assert_eq!(9980, state.players[1].chips);
+
+        // Then game goes to Flop and Alice will be asked to act
+        assert_eq!(Street::Flop, state.street);
         assert_eq!(
             Some(Player {
                 addr: "Alice".to_string(),
-                chips: 10000,
+                chips: 9980,
+                position: 0,
+                status: PlayerStatus::Acting
+            }),
+            state.acting_player
+        );
+        assert_eq!(Street::Flop, state.street);
+    }
+
+    // ------------------------- FLOP -----------------------
+    {
+        // Now both Alice and Bob should be able to see their hole cards + 3 community cards
+        println!("Revealed Community Cards from context {:?}", ctx.get_revealed(1));
+        // println!("Cards revealed to Alice {:?}", alice.decrypt(&ctx, 1).unwrap());
+        println!("Alice Cards {:?}", alice.decrypt(&ctx, 1).unwrap());
+        assert_eq!(alice.decrypt(&ctx, 1).unwrap().len(), 5);
+        println!("Bob Cards {:?}", bob.decrypt(&ctx, 1).unwrap());
+        assert_eq!(bob.decrypt(&ctx, 1).unwrap().len(), 5);
+    }
+
+    // Alice SB checks
+    let alice_check2 = alice.custom_event(GameEvent::Check);
+    holdem.handle_until_no_events(
+        &mut ctx,
+        &alice_check2,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+    {
+        // Bob is asked to act
+        let state = holdem.get_state();
+        assert_eq!(
+            Some(Player {
+                addr: "Bob".to_string(),
+                chips: 9980,
                 position: 1,
                 status: PlayerStatus::Acting
             }),
             state.acting_player
         );
-        println!("Revealed Community Cards from context {:?}", ctx.get_revealed(1));
-        println!("Cards revealed to Alice {:?}", alice.decrypt(&ctx, 1).unwrap());
-    }
-    // // ------------------------- BB CHECKS -----------------------
-    // let event = alice.custom_event(GameEvent::Check);
-    // holdem.handle_event(&mut ctx, &event)?;
-    // {
-    //     // let mut clients: Vec<&mut TestClient> = vec![&mut alice, &mut bob, &mut transactor];
-    //     // holdem.handle_until_no_events(&mut ctx, &event, &mut clients[..])?;
-    //     let state = holdem.get_state();
-    //     assert_eq!(0, state.street_bet);
-    //     assert_eq!(1, state.pots.len());
-    //     assert_eq!(
-    //         vec!["Alice".to_string(), "Bob".to_string()],
-    //         state.pots[0].owners
-    //     );
-    //     assert_eq!(40, state.pots[0].amount);
-    //     assert_eq!(Street::Flop, state.street);
-    // }
 
-    // ------------------------- PREFLOP -----------------------
-    // ------------------------- SHUFFLE -----------------------
+    }
+    // Bob BB checks
+    let bob_check2 = bob.custom_event(GameEvent::Check);
+    holdem.handle_until_no_events(
+        &mut ctx,
+        &bob_check2,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+    // Game should move to next street: Turn
+    {
+        let state = holdem.get_state();
+        assert_eq!(Street::Turn, state.street);
+    }
+
+    // ------------------------- TURN -----------------------
+    {
+        // Visible cards: hole cards + 4 community cards
+        println!("Revealed Community Cards from context {:?}", ctx.get_revealed(1));
+        println!("Alice Cards {:?}", alice.decrypt(&ctx, 1).unwrap());
+        assert_eq!(alice.decrypt(&ctx, 1).unwrap().len(), 6);
+        println!("Bob Cards {:?}", bob.decrypt(&ctx, 1).unwrap());
+        assert_eq!(bob.decrypt(&ctx, 1).unwrap().len(), 6);
+    }
+
+    // Alice and Bob keep checking in turn, heading for the last street: River
+    let alice_check3 = alice.custom_event(GameEvent::Check);
+    holdem.handle_until_no_events(
+        &mut ctx,
+        &alice_check3,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+    let bob_check3 = bob.custom_event(GameEvent::Check);
+    holdem.handle_until_no_events(
+        &mut ctx,
+        &bob_check3,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+    {
+        let state = holdem.get_state();
+        assert_eq!(Street::River, state.street);
+
+    }
+
+    // ------------------------- RIVER -----------------------
+    {
+        // Visible cards: hole cards + 5 community cards
+        println!("Revealed Community Cards from context {:?}", ctx.get_revealed(1));
+        println!("Alice Cards {:?}", alice.decrypt(&ctx, 1).unwrap());
+        assert_eq!(alice.decrypt(&ctx, 1).unwrap().len(), 7);
+        println!("Bob Cards {:?}", bob.decrypt(&ctx, 1).unwrap());
+        assert_eq!(bob.decrypt(&ctx, 1).unwrap().len(), 7);
+    }
+
+    // Alice and Bob both check again, thus running into showdown
+    let alice_check4 = alice.custom_event(GameEvent::Check);
+    holdem.handle_until_no_events(
+        &mut ctx,
+        &alice_check4,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+    let bob_check4 = bob.custom_event(GameEvent::Check);
+    holdem.handle_until_no_events(
+        &mut ctx,
+        &bob_check4,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+
+    {
+        let state = holdem.get_state();
+        assert_eq!(Street::Showdown, state.street);
+    }
+
+    // ------------------------- Showdown -----------------------
+    let event = Event::SecretsReady;
+    holdem.handle_until_no_events(
+        &mut ctx,
+        &event,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
 
     Ok(())
 }
