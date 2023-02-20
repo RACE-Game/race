@@ -164,7 +164,7 @@ impl std::fmt::Display for Event {
             ),
             Event::OperationTimeout { addr } => {
                 write!(f, "OperationTimeout for {}", addr)
-            },
+            }
             Event::Shutdown => {
                 write!(f, "Shutdown")
             }

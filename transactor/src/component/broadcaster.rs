@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use race_core::event::Event;
 use race_core::types::{BroadcastFrame, GameAccount};
 use tokio::sync::{broadcast, Mutex};
-use tracing::warn;
+use tracing::{warn, debug};
 
 use crate::component::common::{Component, ConsumerPorts, Ports};
 use crate::component::event_bus::CloseReason;
@@ -133,8 +133,10 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         event,
                         timestamp,
                     });
+
                     if let Err(e) = r {
-                        warn!("Failed to broadcast event: {:?}", e);
+                        // Usually it means no receivers
+                        debug!("Failed to broadcast event: {:?}", e);
                     }
                 }
                 EventFrame::Shutdown => {

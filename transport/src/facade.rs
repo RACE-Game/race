@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
-use tracing::debug;
+use tracing::{debug, error};
 
 #[cfg(target_arch = "wasm32")]
 use jsonrpsee::core::client::Client;
@@ -107,6 +107,7 @@ impl TransportT for FacadeTransport {
         if let Ok(rs) = rs {
             Some(rs)
         } else {
+
             None
         }
     }
@@ -134,10 +135,18 @@ impl TransportT for FacadeTransport {
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
         debug!("Fetch server account: {:?}", addr);
-        self.client
+        let resp = self.client
             .request("get_server_info", rpc_params![addr])
-            .await
-            .ok()
+            .await;
+        match resp {
+            Ok(server_account) => {
+                Some(server_account)
+            },
+            Err(e) => {
+                error!("Failed to get server account due to {:?}", e);
+                None
+            }
+        }
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {

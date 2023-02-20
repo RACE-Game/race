@@ -25,12 +25,33 @@ pub enum PlayerStatus {
     DropOff,
 }
 
+impl std::fmt::Display for PlayerStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PlayerStatus::Absent => write!(f, "absent"),
+            PlayerStatus::Ready => write!(f, "ready"),
+            PlayerStatus::Disconnected => write!(f, "disconnected"),
+            PlayerStatus::DropOff => write!(f, "drop-off"),
+        }
+    }
+}
+
 #[derive(Debug, Default, Serialize, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 pub enum ServerStatus {
     #[default]
     Absent,
     Ready,
     DropOff,
+}
+
+impl std::fmt::Display for ServerStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ServerStatus::Absent => write!(f, "absent"),
+            ServerStatus::Ready => write!(f, "ready"),
+            ServerStatus::DropOff => write!(f, "drop-off"),
+        }
+    }
 }
 
 #[derive(
@@ -41,6 +62,16 @@ pub enum GameStatus {
     Uninit,
     Running,
     Closed,
+}
+
+impl std::fmt::Display for GameStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GameStatus::Uninit => write!(f, "uninit"),
+            GameStatus::Running => write!(f, "running"),
+            GameStatus::Closed => write!(f, "closed"),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]

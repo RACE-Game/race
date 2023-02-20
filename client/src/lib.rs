@@ -210,7 +210,7 @@ impl Client {
     }
 
     pub fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<Vec<Event>> {
-        info!("Client handle updated context in mode: {:?}", self.mode);
+        // info!("Client handle updated context in mode: {:?}", self.mode);
         let events = match self.mode {
             ClientMode::Player => {
                 self.update_secret_state(ctx)?;
@@ -221,7 +221,10 @@ impl Client {
                 self.randomize_and_share(ctx)?
             }
         };
-        info!("Generated {} events", events.len());
+        let count = events.len();
+        if count > 0 {
+            info!("Generated {} events", count);
+        }
         Ok(events)
     }
 
@@ -308,8 +311,7 @@ mod tests {
             transport.clone(),
             encryptor.clone(),
             connection.clone(),
-        )
-        .unwrap();
+        );
         let game_account = TestGameAccountBuilder::default()
             .add_players(2)
             .add_servers(2)

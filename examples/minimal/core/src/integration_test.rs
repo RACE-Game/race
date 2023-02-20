@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::{GameEvent, MinimalHandler};
 use race_core::{
     context::{DispatchEvent, GameContext, GameStatus},
     error::{Error, Result},
@@ -7,11 +8,7 @@ use race_core::{
     random::RandomStatus,
     types::{ClientMode, PlayerJoin},
 };
-use race_example_minimal::{GameEvent, MinimalHandler};
 use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
-
-#[macro_use]
-extern crate log;
 
 #[test]
 fn test() -> Result<()> {
@@ -52,7 +49,7 @@ fn test() -> Result<()> {
     let ret = handler.handle_event(&mut ctx, &first_event);
     assert_eq!(ret, Err(Error::NoEnoughPlayers));
 
-    info!("context: {:?}", ctx);
+    println!("context: {:?}", ctx);
     {
         let state: &MinimalHandler = handler.get_state();
         assert_eq!(0, state.dealer_idx);
@@ -147,7 +144,10 @@ fn test() -> Result<()> {
             ctx.get_random_state_unchecked(1).status
         );
         assert_eq!(
-            Some(DispatchEvent::new(Event::RandomnessReady {random_id: 1}, 0)),
+            Some(DispatchEvent::new(
+                Event::RandomnessReady { random_id: 1 },
+                0
+            )),
             *ctx.get_dispatch()
         );
     }
@@ -194,8 +194,8 @@ fn test() -> Result<()> {
     let alice_decryption = alice.decrypt(&ctx, 1)?;
     let bob_decryption = bob.decrypt(&ctx, 1)?;
     {
-        info!("Alice decryption: {:?}", alice_decryption);
-        info!("Bob decryption: {:?}", bob_decryption);
+        println!("Alice decryption: {:?}", alice_decryption);
+        println!("Bob decryption: {:?}", bob_decryption);
         assert_eq!(1, alice_decryption.len());
         assert_eq!(1, bob_decryption.len());
     }
@@ -228,7 +228,7 @@ fn test() -> Result<()> {
     let events = transactor.handle_updated_context(&ctx)?;
     {
         let event = &events[0];
-        info!(
+        println!(
             "Required ident: {:?}",
             ctx.get_random_state_unchecked(1)
                 .list_required_secrets_by_from_addr(&transactor_addr)
@@ -245,10 +245,10 @@ fn test() -> Result<()> {
     }
 
     // Handle `ShareSecret` event.
-    info!("Handle ShareSecret event.");
+    println!("Handle ShareSecret event.");
     handler.handle_event(&mut ctx, &events[0])?;
     {
-        info!(
+        println!(
             "Required ident: {:?}",
             ctx.get_random_state_unchecked(1)
                 .list_required_secrets_by_from_addr(&transactor_addr)
@@ -267,7 +267,7 @@ fn test() -> Result<()> {
 
     // Now, the transactor should be able to reveal all hole cards.
     let decryption = transactor.decrypt(&ctx, 1)?;
-    info!("Decryption: {:?}", decryption);
+    println!("Decryption: {:?}", decryption);
     assert_eq!(2, decryption.len());
     // ctx.add_revealed(0, decryption)?;
 

@@ -1,11 +1,11 @@
 import React, { useContext, useState } from 'react';
 import HelperContext from './helper-context';
-import ProfileContext from './profile-context';
+import ProfileContext, { ProfileData } from './profile-context';
 
-function Profile() {
+function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
   let [nick, setNick] = useState<string>("");
   let helper = useContext(HelperContext);
-  let { profile, setProfile } = useContext(ProfileContext);
+  let profile = useContext(ProfileContext);
 
   const editNick = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNick(e.target.value);
@@ -24,8 +24,7 @@ function Profile() {
       } else {
         await helper.create_profile(nick, nick, "");
         const profile = await helper.get_profile(nick);
-        console.log(profile);
-        setProfile(profile);
+        props.updateProfile(profile);
       }
     }
   }

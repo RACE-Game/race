@@ -26,7 +26,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Instant, UNIX_EPOCH};
 use tokio::sync::Mutex;
-use tracing::info;
+use tracing::{info, debug};
 use uuid::Uuid;
 
 type RpcResult<T> = std::result::Result<T, RpcError>;
@@ -90,7 +90,7 @@ async fn get_game_bundle(
     context: Arc<Mutex<Context>>,
 ) -> RpcResult<GameBundle> {
     let addr: String = params.one()?;
-    info!("Get game bundle: {:?}", addr);
+    debug!("Get game bundle: {:?}", addr);
     let context = context.lock().await;
     if let Some(bundle) = context.bundles.get(&addr) {
         Ok(bundle.to_owned())
@@ -104,7 +104,7 @@ async fn get_registration_info(
     context: Arc<Mutex<Context>>,
 ) -> RpcResult<RegistrationAccount> {
     let addr: String = params.one()?;
-    info!("Get registration account: {:?}", addr);
+    debug!("Get registration account: {:?}", addr);
     let context = context.lock().await;
     if let Some(registration) = context.registrations.get(&addr) {
         Ok(registration.to_owned())
@@ -613,7 +613,7 @@ fn add_bundle(ctx: &mut Context, path: &str, bundle_addr: &str) {
         data,
     };
     ctx.bundles.insert(bundle_addr.into(), bundle);
-    println!("Added the bundle account at {}", bundle_addr);
+    info!("Added the bundle account at {}", bundle_addr);
 }
 
 fn add_game(ctx: &mut Context, title: &str, game_addr: &str, bundle_addr: &str, data: Vec<u8>) {
@@ -644,7 +644,7 @@ fn add_game(ctx: &mut Context, title: &str, game_addr: &str, bundle_addr: &str, 
             reg_time: 0,
             bundle_addr: bundle_addr.into(),
         });
-    println!("Add the game account at {}", game_addr);
+    info!("Added the game account at {}", game_addr);
 }
 
 fn add_bundle_and_game(
@@ -661,7 +661,7 @@ fn add_bundle_and_game(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    println!("Start facade server at: {:?}", HTTP_HOST);
+    info!("Start facade server at: {:?}", HTTP_HOST);
     let server_handle = run_server().await?;
     server_handle.stopped().await;
     Ok(())
@@ -675,15 +675,17 @@ pub fn setup(ctx: &mut Context) {
         owner: None,
         games: Vec::default(),
     };
-    println!(
+    info!(
         "Default registration created at {:?}",
         DEFAULT_REGISTRATION_ADDRESS
     );
     ctx.registrations = HashMap::from([(DEFAULT_REGISTRATION_ADDRESS.into(), def_reg)]);
 
+    info!("path: {:?}", std::env::current_dir());
+
     add_bundle_and_game(
         ctx,
-        "./target/wasm32-unknown-unknown/release/race_example_chat.wasm",
+        "./target/race_example_chat.wasm",
         CHAT_BUNDLE_ADDRESS,
         EXAMPLE_CHAT_ADDRESS,
         "Chat Room",
@@ -691,7 +693,7 @@ pub fn setup(ctx: &mut Context) {
     );
     add_bundle_and_game(
         ctx,
-        "./target/wasm32-unknown-unknown/release/race_example_raffle.wasm",
+        "./target/race_example_raffle.wasm",
         RAFFLE_BUNDLE_ADDRESS,
         EXAMPLE_RAFFLE_ADDRESS,
         "Raffle",
@@ -703,13 +705,13 @@ pub fn setup(ctx: &mut Context) {
         owner_addr: DEFAULT_OWNER_ADDRESS.into(),
         endpoint: "ws://localhost:12003".into(),
     };
-    println!("Transactor account created at {:?}", SERVER_ADDRESS_1);
+    info!("Transactor account created at {:?}", SERVER_ADDRESS_1);
     let server2 = ServerAccount {
         addr: SERVER_ADDRESS_2.into(),
         owner_addr: DEFAULT_OWNER_ADDRESS.into(),
         endpoint: "ws://localhost:12004".into(),
     };
-    println!("Transactor account created at {:?}", SERVER_ADDRESS_2);
+    info!("Transactor account created at {:?}", SERVER_ADDRESS_2);
 
     ctx.transactors = HashMap::from([
         (SERVER_ADDRESS_1.into(), server1),

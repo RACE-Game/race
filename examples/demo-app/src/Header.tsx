@@ -1,35 +1,35 @@
-import { useContext } from "react";
-import GameContext from "./game-context";
+import { useState, useEffect, useContext } from "react";
+import HelperContext from "./helper-context";
 
 function Header() {
-  const { context, client } = useContext(GameContext);
+  let [account, setAccount] = useState<any | undefined>(undefined);
+  let helper = useContext(HelperContext);
 
-  const onJoin = () => {
-    if (client !== undefined) {
-      client.join(0, 0n);
-    }
-  }
+  // timer
+  useEffect(() => {
+    let t = setInterval(async () => {
+      if (helper !== undefined) {
+        let account = await helper.get_game_account("EXAMPLE_RAFFLE_ADDRESS");
+        setAccount(account);
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  });
 
-  if (context === undefined) {
-    return <div></div>;
+  if (account === undefined) {
+    return (
+      <div> Loading </div>
+    );
   } else {
     return (
-      <div className="w-full h-full p-2 flex">
-        <div className="flex-1 flex flex-wrap">
-          <div className="m-2"> <span className="font-bold">Address:</span> {context.game_addr}</div>
-          <div className="m-2"> <span className="font-bold">Status:</span> {context.status}</div>
-          <div className="m-2"> <span className="font-bold">Servers:</span> {context.servers.length}</div>
-          <div className="m-2"> <span className="font-bold">Clients:</span> {context.players.length} ({context.pending_players.length})</div>
-          <div className="m-2"> <span className="font-bold">Settles:</span> {context.settle_version}</div>
-          <div className="m-2"> <span className="font-bold">Accesses:</span> {context.access_version}</div>
-        </div>
-        <button className="rounded-full border border-black hover:bg-gray-200 active:scale-[90%]
-transition-all w-20 h-20 self-center"
-          onClick={onJoin}>
-          + Join
-        </button>
+      <div className="w-full h-full p-2 flex flex-wrap">
+        <div className="m-2"> <span className="font-bold">Address:</span> {account.game_addr}</div>
+        <div className="m-2"> <span className="font-bold">Status:</span> {account.players.length}</div>
+        <div className="m-2"> <span className="font-bold">Servers:</span> {account.servers.length}</div>
+        <div className="m-2"> <span className="font-bold">Settles:</span> {account.settle_version}</div>
+        <div className="m-2"> <span className="font-bold">Accesses:</span> {account.access_version}</div>
       </div>
-    )
+    );
   }
 }
 

@@ -174,3 +174,6 @@ impl GameHandler for MinimalHandler {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod integration_test;

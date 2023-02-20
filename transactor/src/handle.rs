@@ -199,39 +199,40 @@ impl Handle {
             .await
             .ok_or(Error::GameAccountNotFound)?;
 
-        if game_account.transactor_addr.is_none() {
-            return Err(Error::GameNotServed);
-        }
+        if let Some(ref transactor_addr) = game_account.transactor_addr {
+            info!("Current transactor: {}", transactor_addr);
+            // Query the game bundle
+            info!("Query game bundle: {}", game_account.bundle_addr);
+            let game_bundle = transport
+                .get_game_bundle(&game_account.bundle_addr)
+                .await
+                .ok_or(Error::GameBundleNotFound)?;
 
-        // Query the game bundle
-        info!("Query game bundle: {}", game_account.bundle_addr);
-        let game_bundle = transport
-            .get_game_bundle(&game_account.bundle_addr)
-            .await
-            .ok_or(Error::GameBundleNotFound)?;
-
-        if game_account.transactor_addr.as_ref() == Some(&server_account.addr) {
-            Ok(Self::Transactor(
-                TransactorHandle::try_new(
-                    &game_account,
-                    server_account,
-                    &game_bundle,
-                    encryptor.clone(),
-                    transport.clone(),
-                )
-                .await?,
-            ))
+            if transactor_addr.eq(&server_account.addr) {
+                Ok(Self::Transactor(
+                    TransactorHandle::try_new(
+                        &game_account,
+                        server_account,
+                        &game_bundle,
+                        encryptor.clone(),
+                        transport.clone(),
+                    )
+                    .await?,
+                ))
+            } else {
+                Ok(Self::Validator(
+                    ValidatorHandle::try_new(
+                        &game_account,
+                        server_account,
+                        &game_bundle,
+                        encryptor.clone(),
+                        transport.clone(),
+                    )
+                    .await?,
+                ))
+            }
         } else {
-            Ok(Self::Validator(
-                ValidatorHandle::try_new(
-                    &game_account,
-                    server_account,
-                    &game_bundle,
-                    encryptor.clone(),
-                    transport.clone(),
-                )
-                .await?,
-            ))
+            return Err(Error::GameNotServed);
         }
     }
 
