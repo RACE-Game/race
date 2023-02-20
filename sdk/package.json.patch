@@ -1,0 +1,9 @@
+--- pkg/package.json	2023-02-19 16:24:39.337640017 +0800
++++ new_package.json	2023-02-19 16:24:18.734250615 +0800
+@@ -1,5 +1,6 @@
+ {
+   "name": "race-sdk",
++  "main": "./race_sdk.js",
+   "version": "0.1.0",
+   "files": [
+     "race_sdk_bg.wasm",

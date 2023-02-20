@@ -5,3 +5,4 @@ mod app_helper;
 mod connection;
 mod error;
 mod handler;
+mod js;

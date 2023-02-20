@@ -3,10 +3,9 @@
 use gloo::utils::format::JsValueSerdeExt;
 use js_sys::Function;
 use js_sys::JSON::{parse, stringify};
-use race_core::context::{GameContext, GameStatus, Player, Server};
-use race_core::types::{BroadcastFrame, ExitGameParams, PlayerJoin};
+use race_core::context::GameContext;
+use race_core::types::{BroadcastFrame, ExitGameParams};
 use race_transport::TransportBuilder;
-use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 use futures::pin_mut;
@@ -19,6 +18,7 @@ use crate::handler::Handler;
 use gloo::console::{debug, error, info, warn};
 
 use crate::error::Result;
+use crate::js::{Event as JsEvent, JsGameContext};
 use race_client::Client;
 use race_core::{
     connection::ConnectionT,
@@ -28,35 +28,6 @@ use race_core::{
     types::{ClientMode, GetStateParams, JoinParams, SubmitEventParams},
 };
 use race_encryptor::Encryptor;
-
-#[derive(Default, Serialize)]
-pub struct PartialGameContext<'a> {
-    game_addr: &'a str,
-    access_version: u64,
-    settle_version: u64,
-    status: GameStatus,
-    allow_exit: bool,
-    players: Vec<&'a Player>,
-    pending_players: Vec<&'a PlayerJoin>,
-    servers: Vec<&'a Server>,
-    event: Option<&'a Event>,
-}
-
-impl<'a> PartialGameContext<'a> {
-    pub fn from_game_context(context: &'a GameContext, event: Option<&'a Event>) -> Self {
-        Self {
-            game_addr: context.get_game_addr(),
-            access_version: context.get_access_version(),
-            settle_version: context.get_settle_version(),
-            status: context.get_status(),
-            allow_exit: context.is_allow_exit(),
-            servers: context.get_servers().iter().collect(),
-            players: context.get_players().iter().collect(),
-            pending_players: context.get_pending_players().iter().collect(),
-            event,
-        }
-    }
-}
 
 #[wasm_bindgen]
 pub struct AppClient {
@@ -147,25 +118,27 @@ impl AppClient {
 
         let state_js =
             parse(game_context.get_handler_state_json()).map_err(|_| Error::JsonParseError)?;
-        let partial_context = PartialGameContext::from_game_context(&game_context, None);
 
-        let this = JsValue::null();
+        let context = JsGameContext::from_context(&game_context);
+
+        let null = JsValue::null();
         Function::call3(
             &callback,
-            &this,
-            &JsValue::from_str(&game_addr),
-            &JsValue::from_serde(&partial_context).unwrap(),
+            &null,
+            &JsValue::from_serde(&context).unwrap(),
             &state_js,
+            &null,
         )
         .expect("Init callback error");
 
+        let game_context = RefCell::new(game_context);
         Ok(Self {
             addr: game_addr.to_owned(),
             client,
             transport,
             connection,
             handler,
-            game_context: RefCell::new(game_context),
+            game_context,
             callback,
         })
     }
@@ -193,7 +166,7 @@ impl AppClient {
 
         while let Some(frame) = sub.next().await {
             let BroadcastFrame {
-                game_addr,
+                game_addr: _,
                 event,
                 timestamp,
             } = frame;
@@ -201,17 +174,19 @@ impl AppClient {
             game_context.set_timestamp(timestamp);
             match self.handler.handle_event(&mut game_context, &event) {
                 Ok(_) => {
+                    let event = JsEvent::from(event);
                     let state_js = parse(game_context.get_handler_state_json())
                         .map_err(|_| Error::JsonParseError)?;
-                    let partial_context =
-                        PartialGameContext::from_game_context(&game_context, Some(&event));
-                    let this = JsValue::null();
+
+                    let context = JsGameContext::from_context(&game_context);
+
+                    let null = JsValue::null();
                     let r = Function::call3(
                         &self.callback,
-                        &this,
-                        &JsValue::from_str(&game_addr),
-                        &JsValue::from_serde(&partial_context).unwrap(),
+                        &null,
+                        &JsValue::from_serde(&context).unwrap(),
                         &state_js,
+                        &event.into(),
                     );
                     if let Err(e) = r {
                         error!(format!("Callback error, {:?}", e));
