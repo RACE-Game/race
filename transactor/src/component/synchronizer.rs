@@ -9,7 +9,7 @@ use race_core::{
     transport::TransportT,
     types::{PlayerJoin, ServerJoin},
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::component::{
     common::{Component, Ports, ProducerPorts},
@@ -81,15 +81,19 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                             transactor_addr: transactor_addr.unwrap().clone(),
                             access_version: state.access_version,
                         };
-                        ports.send(frame).await;
-                        ports.close(CloseReason::Complete);
-                        break;
+                        // When other channels are closed
+                        if let Err(_) = ports.try_send(frame).await {
+                            ports.close(CloseReason::Complete);
+                            return;
+                        }
                     }
                     access_version = av;
                 } else {
                     sleep(Duration::from_secs(1)).await;
                 }
             } else {
+                warn!("Game account not found, shutdown synchronizer");
+                ports.close(CloseReason::Complete);
                 break;
             }
         }
