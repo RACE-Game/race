@@ -1,17 +1,13 @@
-#![allow(unused_variables)]               // Remove these two later
-#![allow(warnings)]
-
 // use borsh::BorshSerialize;
 use race_core::{
     context::{DispatchEvent, GameContext, GameStatus},
-    error::{Error, Result},
-
+    error::Result,
     event::Event,
     random::RandomStatus,
     types::{ClientMode, PlayerJoin},
 };
 use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
-use std::collections::HashMap;
+// use std::collections::HashMap;
 
 #[macro_use]
 extern crate log;
@@ -102,11 +98,12 @@ pub fn test_holdem() -> Result<()> {
         assert_eq!(
             Some(DispatchEvent {
                 timeout: 30_000,
-                event: Event::ActionTimeout { player_addr: "Alice".into() },
+                event: Event::ActionTimeout {
+                    player_addr: "Alice".into()
+                },
             }),
             *ctx.get_dispatch()
         );
-
     }
 
     // ------------------------- BLIND BETS -----------------------
@@ -124,7 +121,7 @@ pub fn test_holdem() -> Result<()> {
             Some(Player {
                 addr: "Bob".to_string(),
                 chips: 9980,
-                position: 0,
+                position: 1,
                 status: PlayerStatus::Acting
             }),
             state.acting_player
@@ -167,7 +164,10 @@ pub fn test_holdem() -> Result<()> {
     // ------------------------- FLOP -----------------------
     {
         // Now both Alice and Bob should be able to see their hole cards + 3 community cards
-        println!("Revealed Community Cards from context {:?}", ctx.get_revealed(1));
+        println!(
+            "Revealed Community Cards from context {:?}",
+            ctx.get_revealed(1)
+        );
         // println!("Cards revealed to Alice {:?}", alice.decrypt(&ctx, 1).unwrap());
         println!("Alice Cards {:?}", alice.decrypt(&ctx, 1).unwrap());
         assert_eq!(alice.decrypt(&ctx, 1).unwrap().len(), 5);
@@ -194,7 +194,6 @@ pub fn test_holdem() -> Result<()> {
             }),
             state.acting_player
         );
-
     }
     // Bob BB checks
     let bob_check2 = bob.custom_event(GameEvent::Check);
@@ -212,7 +211,10 @@ pub fn test_holdem() -> Result<()> {
     // ------------------------- TURN -----------------------
     {
         // Visible cards: hole cards + 4 community cards
-        println!("Revealed Community Cards from context {:?}", ctx.get_revealed(1));
+        println!(
+            "Revealed Community Cards from context {:?}",
+            ctx.get_revealed(1)
+        );
         println!("Alice Cards {:?}", alice.decrypt(&ctx, 1).unwrap());
         assert_eq!(alice.decrypt(&ctx, 1).unwrap().len(), 6);
         println!("Bob Cards {:?}", bob.decrypt(&ctx, 1).unwrap());
@@ -235,13 +237,15 @@ pub fn test_holdem() -> Result<()> {
     {
         let state = holdem.get_state();
         assert_eq!(Street::River, state.street);
-
     }
 
     // ------------------------- RIVER -----------------------
     {
         // Visible cards: hole cards + 5 community cards
-        println!("Revealed Community Cards from context {:?}", ctx.get_revealed(1));
+        println!(
+            "Revealed Community Cards from context {:?}",
+            ctx.get_revealed(1)
+        );
         println!("Alice Cards {:?}", alice.decrypt(&ctx, 1).unwrap());
         assert_eq!(alice.decrypt(&ctx, 1).unwrap().len(), 7);
         println!("Bob Cards {:?}", bob.decrypt(&ctx, 1).unwrap());

@@ -1,7 +1,7 @@
-use std::collections::{HashMap, HashSet};
-use std::cmp::Ordering;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::collections::{HashMap, HashSet};
 
 use race_core::{
     context::GameContext,
@@ -14,7 +14,15 @@ use race_core::{
 use race_proc_macro::game_handler;
 
 pub mod evaluator;
-use evaluator::{create_cards, evaluate_cards, compare_hands};
+use evaluator::{compare_hands, create_cards, evaluate_cards};
+
+// #[macro_use]
+// extern crate log;
+
+#[cfg(test)]
+mod holdem_tests;
+// #[cfg(test)]
+// mod integration_test;
 
 // HoldemAccount offers necessary (static) data (serialized in vec) to GameAccount for Holdem games
 // This HoldemAccount data go to the (Raw) data field and
@@ -54,9 +62,9 @@ pub enum HoldemMode {
 #[derive(Deserialize, Serialize, Default, PartialEq, Clone, Debug)]
 pub enum PlayerStatus {
     #[default]
-    Wait, // or Idle?
+    Wait,
     Acted,
-    Acting, // or InAction?
+    Acting,
     Allin,
     Fold,
 }
@@ -75,7 +83,7 @@ pub struct Player {
 
 impl PartialEq for Player {
     fn eq(&self, other: &Self) -> bool {
-        self.addr == other.addr
+        self.addr == other.addr && self.position == other.position
     }
 }
 
@@ -87,10 +95,6 @@ impl Player {
             position: pos,
             status: PlayerStatus::Wait,
         }
-    }
-
-    pub fn chips(&self) -> u64 {
-        self.chips
     }
 
     // Whether need to act
@@ -116,19 +120,19 @@ impl Player {
     }
 
     // This fn should:
-    // 1. Indicate whether the sb/bb goes all in due to short of chips
+    // 1. Indicate whether player goes all in
     // 2. Indicate the real bet (<= sb/bb)
     // 3. Update the player's chips in place
-    // TODO: return an indicator to show if the player goes all in
-    pub fn take_bet(&mut self, bet: u64) -> u64 {
+    pub fn take_bet(&mut self, bet: u64) -> (bool, u64) {
         if bet < self.chips {
+            println!("Take {} from {}", bet, &self.addr);
             self.chips -= bet;
-            bet // real bet
+            (false, bet) // real bet
         } else {
+            println!("{} ALL IN: {}", &self.addr, bet);
             let chips_left = self.chips;
-            // self.status = PlayerStatus::Allin;
             self.chips = 0;
-            chips_left // real bet
+            (true, chips_left) // real bet
         }
     }
 }
@@ -147,22 +151,6 @@ impl Pot {
             winners: Vec::<String>::new(),
             amount: 0,
         }
-    }
-
-    pub fn amount(&self) -> u64 {
-        self.amount
-    }
-
-    pub fn owners(&self) -> Vec<String> {
-        self.owners.clone()
-    }
-
-    pub fn winners(&self) -> Vec<String> {
-        self.winners.clone()
-    }
-
-    pub fn update_winners(&mut self, winners: Vec<String>) {
-        self.winners = winners;
     }
 }
 
@@ -190,14 +178,6 @@ impl Bet {
             owner: owner.into(),
             amount,
         }
-    }
-
-    pub fn amount(&self) -> u64 {
-        self.amount
-    }
-
-    pub fn owner(&self) -> String {
-        self.owner.clone()
     }
 }
 
@@ -234,6 +214,7 @@ pub struct Holdem {
     pub dealer_idx: usize,
     pub sb: u64,
     pub bb: u64,
+    // pub mini_rasie: u64, (init == bb, then last raise amount)
     pub buyin: u64,
     pub btn: usize, // current btn position, zero-indexed?
     pub rake: f32,
@@ -245,7 +226,7 @@ pub struct Holdem {
     // TODO: add min_raise
     pub street_bet: u64,
     pub seats_map: HashMap<String, usize>,
-    // pub community_cards: &'a str,
+    // pub community_cards: &'a str, Rust: COW/to_owned()
     pub bets: Vec<Bet>, // each bet's index maps to player's pos (index) in the below player list
     pub prize_map: HashMap<String, u64>,
     pub players: Vec<Player>,
@@ -266,29 +247,15 @@ impl Holdem {
         for p in players_toact {
             if let Some(bet) = self.bets.get(p.position) {
                 if bet.amount < self.street_bet || p.status == PlayerStatus::Wait {
-                    println!("{} is the next to act.", p.addr.clone());
-                    println!("{} bets amount {:?}", p.addr.clone(), bet.amount);
+                    println!("{}' current bet amount {:?}", p.addr, bet.amount);
                     println!("Current street bet: {}", self.street_bet);
                     return Some(p.addr.clone());
                 }
             } else if p.status == PlayerStatus::Wait {
-                println!("{} is the next to act.", p.addr.clone());
                 return Some(p.addr.clone());
             }
         }
         None
-    }
-
-    pub fn get_player(&self, index: usize) -> Option<&Player> {
-        self.players.get(index)
-    }
-
-    pub fn get_player_mut(&mut self, index: usize) -> Option<&mut Player> {
-        self.players.get_mut(index)
-    }
-
-    pub fn get_seats_map(&self) -> HashMap<String, usize> {
-        self.seats_map.clone()
     }
 
     pub fn get_player_position(&self, player_addr: &String) -> Option<usize> {
@@ -299,9 +266,28 @@ impl Holdem {
         }
     }
 
-    // Get Bet of Player at seat (index)
-    pub fn get_player_bet(&self, index: usize) -> Bet {
-        self.bets[index].clone()
+    pub fn is_acting_player(&self, player_addr: String) -> bool {
+        match &self.acting_player {
+            Some(player) => {
+                player.addr == player_addr
+            }
+            None => false
+        }
+    }
+
+    pub fn ask_for_action(&mut self, player_addr: String, context: &mut GameContext) -> Result<()> {
+        let player_pos: usize = self
+            .seats_map
+            .get(&player_addr)
+            .expect("Player not found in game!")
+            .clone();
+        let player = self.players.get_mut(player_pos).unwrap();
+        println!("Asking next player {} to act ... ", player.addr);
+        player.status = PlayerStatus::Acting;
+        self.acting_player = Some(player.clone());
+        // Ask player for action within 30 secs
+        context.action_timeout(player_addr, 30_000);
+        Ok(())
     }
 
     pub fn change_street(&mut self, context: &mut GameContext, street: Street) -> Result<()> {
@@ -345,8 +331,6 @@ impl Holdem {
                 Ok(())
             }
 
-
-
             _ => Ok(()),
         }
     }
@@ -367,11 +351,11 @@ impl Holdem {
                 // If player in the prize map, chips increase by the amt in the map
                 Some(prize) => {
                     ply.chips += *prize;
-                    println!("Player {} win {} chips", ply.addr.clone(), *prize);
+                    println!("Player {} won {} chips", ply.addr, *prize);
                 }
                 // else chips decrease by the amt in the bet map?
                 None => {
-                    println!("Player {} lost bet", ply.addr.clone());
+                    println!("Player {} lost bet", ply.addr);
                     // player.take_bet() aleady reduced the chips
                 }
             }
@@ -380,12 +364,12 @@ impl Holdem {
     }
 
     pub fn calc_prize(&mut self) -> Result<()> {
-        let pots = &self.pots;
+        let pots = &mut self.pots;
         let mut prize_map = HashMap::<String, u64>::new();
         for pot in pots {
-            let cnt: u64 = pot.winners().len() as u64;
-            let prize: u64 = pot.amount() / cnt;
-            for wnr in pot.winners() {
+            let cnt: u64 = pot.winners.len() as u64;
+            let prize: u64 = pot.amount / cnt;
+            for wnr in &pot.winners {
                 prize_map
                     .entry(wnr.clone())
                     .and_modify(|p| *p += prize)
@@ -401,12 +385,12 @@ impl Holdem {
         let mut pots = self.pots.clone();
         for (idx, pot) in pots.iter_mut().enumerate() {
             let real_wnrs: Vec<String> = pot
-                .owners()
+                .owners
                 .iter()
                 .filter(|w| winner_sets[idx].contains(w))
                 .map(|w| (*w).clone())
                 .collect();
-            pot.update_winners(real_wnrs);
+            pot.winners = real_wnrs;
         }
         self.pots = pots;
         Ok(())
@@ -419,7 +403,7 @@ impl Holdem {
     // Side2: { amount: 50,   owners: [A], winners [] } <-- should return bet to A
     pub fn collect_bets(&mut self) -> Result<()> {
         // filter bets: arrange from small to big and remove duplicates
-        let mut bets: Vec<u64> = self.bets.iter().map(|b| b.amount()).collect();
+        let mut bets: Vec<u64> = self.bets.iter().map(|b| b.amount).collect();
         bets.sort_by(|b1, b2| b1.cmp(b2));
         bets.dedup();
 
@@ -430,8 +414,8 @@ impl Holdem {
             let owners: Vec<String> = self
                 .bets
                 .iter()
-                .filter(|b| b.amount() >= bet)
-                .map(|b| b.owner())
+                .filter(|b| b.amount >= bet)
+                .map(|b| b.owner.clone())
                 .collect();
             let amount = (bet - acc) * owners.len() as u64;
             // Pot with only 1 owner should return the bet in it to the owner
@@ -440,7 +424,7 @@ impl Holdem {
                 let index = self
                     .get_player_position(&owners[0])
                     .expect("Player NOT found at table");
-                if let Some(receiver) = self.get_player_mut(index) {
+                if let Some(receiver) = self.players.get_mut(index) {
                     receiver.chips += amount;
                 }
                 continue;
@@ -458,24 +442,7 @@ impl Holdem {
         Ok(())
     }
 
-    pub fn ask_for_action(
-        &mut self,
-        player_addr: String,
-        context: &mut GameContext
-    ) -> Result<()> {
-        let player_pos: usize = self
-            .seats_map
-            .get(&player_addr)
-            .expect("Player not found in game!")
-            .clone();
-        let player = self.players.get_mut(player_pos).unwrap();
-        println!("Asking {} to act ...", player.addr.clone());
-        player.status = PlayerStatus::Acting;
-        self.acting_player = Some(player.clone());
-        // Ask player for action within 30 secs
-        context.action_timeout(player_addr, 30 * 1000);
-        Ok(())
-    }
+
 
     pub fn blind_bets(&mut self, context: &mut GameContext) -> Result<()> {
         let players = &mut self.players;
@@ -484,13 +451,13 @@ impl Holdem {
         if players.len() == 2 {
             // Take bet from SB (btn)
             {
-                self.btn = 0;       // SB is btn
+                self.btn = 0; // SB is btn
                 let sb_player = players.get_mut(self.btn).unwrap();
                 // sb_player.position = self.btn;
                 self.seats_map.insert(sb_player.addr.clone(), self.btn);
                 player_to_act = sb_player.addr.clone();
-                println!("Blind bets and SB Player is {:?}", sb_player);
-                let real_sb = sb_player.take_bet(self.sb);
+                println!("SB Player is {:?}", sb_player);
+                let (allin, real_sb) = sb_player.take_bet(self.sb);
                 self.bets.push(Bet::new(sb_player.addr.clone(), real_sb));
             }
             // Take bet from BB
@@ -498,8 +465,8 @@ impl Holdem {
                 let bb_player = players.get_mut(1).unwrap();
                 // bb_player.position = 0;
                 self.seats_map.insert(bb_player.addr.clone(), 1);
-                println!("Blind bets and BB Player is {:?}", bb_player);
-                let real_bb = bb_player.take_bet(self.bb);
+                println!("BB Player is {:?}", bb_player);
+                let (allin, real_bb) = bb_player.take_bet(self.bb);
                 self.bets.push(Bet::new(bb_player.addr.clone(), real_bb));
             }
             // SB acts first
@@ -508,15 +475,15 @@ impl Holdem {
             // Take bet from SB (1st in Player vec)
             {
                 let sb_player = players.get_mut(0).unwrap();
-                println!("Blind bets and SB Player is {:?}", sb_player);
-                let real_sb = sb_player.take_bet(self.sb);
+                println!("SB Player is {:?}", sb_player);
+                let (allin, real_sb) = sb_player.take_bet(self.sb);
                 self.bets.push(Bet::new(sb_player.addr.clone(), real_sb));
             }
             // Take bet from BB (2nd in Player vec)
             {
                 let bb_player = players.get_mut(1).unwrap();
-                println!("Blind bets and BB Player is {:?}", bb_player);
-                let real_bb = bb_player.take_bet(self.bb);
+                println!("BB Player is {:?}", bb_player);
+                let (allin, real_bb) = bb_player.take_bet(self.bb);
                 self.bets.push(Bet::new(bb_player.addr.clone(), real_bb));
             }
 
@@ -534,11 +501,13 @@ impl Holdem {
                     // TODO: old_pos can be None
                     println!(
                         "Player {} old position: {}",
-                        ply.addr.clone(),
+                        ply.addr,
                         old_pos.unwrap_or(9999usize)
                     );
-                    println!("Player {} new position: {}", ply.addr.clone(), pos);
+                    println!("Player {} new position: {}", ply.addr, pos);
                 }
+                // TODO: update players vec
+                // self.players = new_players
             }
             self.ask_for_action(player_to_act, context)?;
         }
@@ -577,6 +546,8 @@ impl Holdem {
         let next_player = self.next_action_player(toact_players);
         let new_street = self.next_street();
 
+        println!("Current GAME BETS are {:?}", self.bets);
+
         // Blind bets
         if self.street == Street::Preflop && self.bets.is_empty() {
             println!("[Next State]: Blind bets");
@@ -587,7 +558,7 @@ impl Holdem {
         // Single player wins because there are one player only
         else if all_players.len() == 1 {
             let winner = all_players[0].addr.clone();
-            println!("[Next State]: Only {} left and wins.", winner.clone());
+            println!("[Next State]: Only {} left and wins.", winner);
             self.single_player_win(&vec![vec![winner]])?;
             Ok(())
         }
@@ -595,44 +566,42 @@ impl Holdem {
         else if remained_players.len() == 1 {
             let winner = remained_players[0].addr.clone();
             println!(
-                "[Next State]: All others folded and single winner is {}",
-                winner.clone()
-            );
+                "[Next State]: All others folded and single winner is {}", winner);
             self.single_player_win(&vec![vec![winner]])?;
             Ok(())
         }
         // Next player to act
         else if next_player.is_some() {
-            println!("Current bets are {:?}", self.bets);
             let next_action_player = next_player.unwrap();
-            println!("[Next State]: Next-to-act player is: {}", next_action_player.clone());
+            println!(
+                "[Next State]: Next-to-act player is: {}", next_action_player);
             self.ask_for_action(next_action_player, context)?;
             Ok(())
         }
         // Runner
         else if self.stage != HoldemStage::Runner
-            && remained_players.len() == allin_players.len() + 1
+            && allin_players.len() + 1 >= remained_players.len()
         {
             println!("[Next State]: Runner");
-                        let mut indexes = Vec::new();
+            self.street = Street::Showdown;
+
+            // Reveal players' hole cards
+            let mut indexes = Vec::<usize>::new();
             for (idx, player) in self.players.iter().enumerate() {
                 if player.status != PlayerStatus::Fold {
-                    indexes.push(idx*2);
-                    indexes.push(idx*2 + 1);
+                    indexes.push(idx * 2);
+                    indexes.push(idx * 2 + 1);
                 }
             }
+            context.reveal(self.deck_random_id, indexes)?;
+
+            // Reveal community cards
+            let players_cnt = self.players.len() * 2;
             context.reveal(
                 self.deck_random_id,
-                indexes
+                (players_cnt..(players_cnt + 5)).collect::<Vec<usize>>(),
             )?;
-
-            let players_cnt = context.count_players() * 2;
-            context.reveal(
-                    self.deck_random_id,
-                    (players_cnt..(players_cnt + 5)).collect::<Vec<usize>>(),
-                )?;
             Ok(())
-
         }
         // Next Street
         else if new_street != Street::Showdown {
@@ -643,20 +612,17 @@ impl Holdem {
         // Showdown
         else {
             println!("[Next State]: Showdown");
-            // Reveal all hole cards of players not folded
+            self.street = Street::Showdown;
+            // Reveal all hole cards for players who have not folded
             let mut indexes = Vec::new();
             for (idx, player) in self.players.iter().enumerate() {
                 if player.status != PlayerStatus::Fold {
-                    indexes.push(idx*2);
-                    indexes.push(idx*2 + 1);
+                    indexes.push(idx * 2);
+                    indexes.push(idx * 2 + 1);
                 }
             }
-            context.reveal(
-                self.deck_random_id,
-                indexes
-            )?;
+            context.reveal(self.deck_random_id, indexes)?;
 
-            self.street = Street::Showdown;
             Ok(())
         }
     }
@@ -671,15 +637,20 @@ impl Holdem {
         match event {
             GameEvent::Bet(amount) => {
                 // TODO: handle other Errors
+                if !self.is_acting_player(sender.clone()) {
+                    return Err(Error::Custom(
+                        "Player is NOT the acting player so can't raise!".to_string(),
+                    ));
+                }
                 // TODO: Log more detailed error info?
-                let player_pos: usize = self
-                    .seats_map
+                // TODO: amount must be dividable by sb!
+                let player_pos: usize = self.seats_map
                     .get(&sender)
                     .expect("Player not found in game!")
                     .clone();
                 // FIXME: update condition after refactoring bet_map
                 if self.bets.get(player_pos).is_some() {
-                    return Err(Error::Custom("Player cant bet!".to_string()));
+                    return Err(Error::Custom("Player already betted!".to_string()));
                 }
 
                 // TODO: amount must be less than player's remained chips
@@ -688,8 +659,13 @@ impl Holdem {
                 }
 
                 if let Some(player) = self.players.get_mut(player_pos) {
-                    let player_bet = player.take_bet(amount);
-                    self.bets.push(Bet::new(player.addr.clone(), player_bet));
+                    let (allin, real_bet) = player.take_bet(amount);
+                    self.bets.push(Bet::new(player.addr.clone(), real_bet));
+                    player.status = if allin {
+                        PlayerStatus::Allin
+                    } else {
+                        PlayerStatus::Acted
+                    };
                     self.next_state(context)?;
                     Ok(())
                 } else {
@@ -701,6 +677,11 @@ impl Holdem {
 
             GameEvent::Call => {
                 // TODO: handle errors
+                if !self.is_acting_player(sender.clone()) {
+                    return Err(Error::Custom(
+                        "Player is NOT the acting player so can't raise!".to_string(),
+                    ));
+                }
                 let player_pos: usize = self
                     .seats_map
                     .get(&sender)
@@ -711,17 +692,26 @@ impl Holdem {
                     if let Some(betted) = self.bets.get_mut(player_pos) {
                         let betted_amount = betted.amount;
                         let call_amount = self.street_bet - betted_amount;
-                        let real_bet = player.take_bet(call_amount);
-                        println!("After calls: {:?}", player);
+                        println!("{} needs to call with amount {}", player.addr, call_amount);
+                        let (allin, real_bet) = player.take_bet(call_amount);
                         betted.amount += real_bet;
-                        player.status = PlayerStatus::Acted;
+                        player.status = if allin {
+                            PlayerStatus::Allin
+                        } else {
+                            PlayerStatus::Acted
+                        };
+                        println!("After calls: {:?}", player);
                         self.next_state(context)?;
                         Ok(())
                     } else {
                         let call_amount = self.street_bet - 0;
-                        let real_bet = player.take_bet(call_amount);
+                        let (allin, real_bet) = player.take_bet(call_amount);
                         self.bets.push(Bet::new(player.addr.clone(), real_bet));
-                        player.status = PlayerStatus::Acted;
+                        player.status = if allin {
+                            PlayerStatus::Allin
+                        } else {
+                            PlayerStatus::Acted
+                        };
                         self.next_state(context)?;
                         Ok(())
                     }
@@ -731,6 +721,11 @@ impl Holdem {
             }
 
             GameEvent::Check => {
+                if !self.is_acting_player(sender.clone()) {
+                    return Err(Error::Custom(
+                        "Player is NOT the acting player so can't raise!".to_string(),
+                    ));
+                }
                 let player_pos: usize = self
                     .seats_map
                     .get(&sender)
@@ -740,7 +735,7 @@ impl Holdem {
                     Street::Preflop => {
                         if let Some(player_bet) = self.bets.get(player_pos) {
                             if self.street_bet != player_bet.amount {
-                                return Err(Error::Custom("Player cant check!".to_string()));
+                                return Err(Error::Custom("Player can't check!".to_string()));
                             }
 
                             if let Some(player) = self.players.get_mut(player_pos) {
@@ -765,12 +760,18 @@ impl Holdem {
                             return Err(Error::Custom("Player hasnt bet yet!".to_string()));
                         }
                     }
-                    _ => Err(Error::Custom("Invalid Street so player can't check!".to_string()))
+                    _ => Err(Error::Custom(
+                        "Invalid Street so player can't check!".to_string(),
+                    )),
                 }
-
             }
 
             GameEvent::Fold => {
+                if !self.is_acting_player(sender.clone()) {
+                    return Err(Error::Custom(
+                        "Player is NOT the acting player so can't raise!".to_string(),
+                    ));
+                }
                 // FIXME: refactor this part
                 let acting_player = self.acting_player.clone();
                 match acting_player {
@@ -787,20 +788,51 @@ impl Holdem {
                 }
 
                 Ok(())
-
-                // single player wins: only one player left
-                // if self.players.len() == 1 {
-                //     todo!()
-                // }
-                // single player wins: others all folded
-
-                // next player to act
-
-                // runner
             }
 
             GameEvent::Raise(amount) => {
-                todo!()
+                if !self.is_acting_player(sender.clone()) {
+                    return Err(Error::Custom(
+                        "Player is the acting player so can't raise!".to_string(),
+                    ));
+                }
+                if self.street_bet == 0 || self.bets.is_empty() {
+                    return Err(Error::Custom(
+                        "Street bet is 0 so raising is not allowed!".to_string(),
+                    ));
+                }
+                if amount == 0 || amount < self.street_bet {
+                    return Err(Error::Custom(
+                        "Invalid raise amount: 0 or less than street bet".to_string(),
+                    ));
+                }
+                // TODO: handle raise too small
+                let player_pos: usize = self
+                    .seats_map
+                    .get(&sender)
+                    .expect("Player not found in game!")
+                    .clone();
+                if let Some(player) = self.players.get_mut(player_pos) {
+                    let betted = self.bets.get_mut(player_pos).unwrap();
+                    let added_bet = amount - betted.amount;
+                    let (allin, real_bet) = player.take_bet(added_bet);
+                    self.street_bet = betted.amount + real_bet;
+                    // TODO: update mini raise amount
+                    player.status = if allin {
+                        PlayerStatus::Allin
+                    } else {
+                        PlayerStatus::Acted
+                    };
+                    if let Some(player_bet) = self.bets.get_mut(player_pos) {
+                        player_bet.amount += real_bet;
+                    } else {
+                        self.bets.push(Bet::new(player.addr.clone(), real_bet))
+                    }
+                    self.next_state(context)?;
+                    Ok(())
+                } else {
+                    return Err(Error::Custom("Player not found in game!".to_string()));
+                }
             }
         }
     }
@@ -845,20 +877,15 @@ impl GameHandler for Holdem {
             // Timeout, reveal, assign
             Event::GameStart { .. } => {
                 // After a player joins
-                // TODO: count servers/players
-                let player_num = context.count_players();
-                if player_num < 2 {
-                    context.wait_timeout(10_000);
-                } else {
-                    let rnd_spec = deck_of_cards();
-                    self.deck_random_id = context.init_random_state(&rnd_spec)?;
+                let player_num = context.get_players().len();
+                let rnd_spec = deck_of_cards();
+                self.deck_random_id = context.init_random_state(&rnd_spec)?;
 
-                    // Initializing the game state
-                    // self.stage = HoldemStage::Play;
-                    println!("There are {} players in game", context.count_players());
-                    self.btn = player_num - 1;
-                    self.street = Street::Preflop;
-                }
+                // Initializing the game state
+                // self.stage = HoldemStage::Play;
+                println!("There are {} players in game", context.count_players());
+                self.btn = player_num - 1;
+                self.street = Street::Preflop;
                 Ok(())
             }
 
@@ -872,7 +899,8 @@ impl GameHandler for Holdem {
                     self.players.push(player);
                 }
 
-                if context.count_players() >= 2 {
+                // Must detect num of players and servers
+                if context.count_players() >= 2 && context.count_servers() >= 1 {
                     context.start_game();
                 }
                 Ok(())
@@ -880,27 +908,34 @@ impl GameHandler for Holdem {
 
             Event::ActionTimeout { player_addr } => {
                 // TODO: Handle player's default preference (always check)?
-                if let Some(index) = self.get_player_position(&player_addr) {
-                    let player_bet = self.get_player_bet(index);
-                    let street_bet = self.street_bet;
-                    if let Some(player) = self.get_player_mut(index) {
-                        if player.addr.clone() == player_bet.owner() {
-                            if player_bet.amount() == street_bet {
-                                player.status = PlayerStatus::Acted;
-                                self.acting_player = None;
-                                self.next_state(context)?;
-                                Ok(())
-                            } else {
-                                player.status = PlayerStatus::Fold;
-                                self.acting_player = None;
-                                self.next_state(context)?;
-                                Ok(())
-                            }
+
+                let player_pos: usize = self
+                    .seats_map
+                    .get(&player_addr)
+                    .expect("Player not found in game!")
+                    .clone();
+                let player_bet = self
+                    .bets
+                    .get(player_pos)
+                    .expect("No bet found for player!")
+                    .clone();
+                let street_bet = self.street_bet;
+
+                if let Some(player) = self.players.get_mut(player_pos) {
+                    if player.addr.clone() == player_bet.owner {
+                        if player_bet.amount == street_bet {
+                            player.status = PlayerStatus::Acted;
+                            self.acting_player = None;
+                            self.next_state(context)?;
+                            Ok(())
                         } else {
-                            Err(Error::Custom("Player not found in bets array!".to_string()))
+                            player.status = PlayerStatus::Fold;
+                            self.acting_player = None;
+                            self.next_state(context)?;
+                            Ok(())
                         }
                     } else {
-                        Err(Error::Custom("Player not found in game!".to_string()))
+                        Err(Error::Custom("Player not found in bets array!".to_string()))
                     }
                 } else {
                     Err(Error::Custom("Player not found in game!".to_string()))
@@ -908,6 +943,7 @@ impl GameHandler for Holdem {
             }
 
             Event::RandomnessReady { .. } => {
+                // TODO: handle multi-player table
                 let addr0 = context.get_player_by_index(0).unwrap().addr.clone();
                 let addr1 = context.get_player_by_index(1).unwrap().addr.clone();
                 context.assign(self.deck_random_id, addr0, vec![0, 1])?;
@@ -917,11 +953,7 @@ impl GameHandler for Holdem {
 
             // TODO: Use Stage?
             Event::SecretsReady => match self.street {
-                Street::Init    |
-                Street::Preflop |
-                Street::Flop    |
-                Street::Turn    |
-                Street::River => {
+                Street::Init | Street::Preflop | Street::Flop | Street::Turn | Street::River => {
                     self.next_state(context)?;
                     Ok(())
                 }
@@ -963,9 +995,15 @@ impl GameHandler for Holdem {
 
                     let result = compare_hands(&alice_hand.value, &bob_hand.value);
                     match result {
-                        Ordering::Greater => { println!("Winner is Alice") }
-                        Ordering::Less    => { println!("Winner is Bob") }
-                        Ordering::Equal   => { println!("A Tie!") }
+                        Ordering::Greater => {
+                            println!("Winner is Alice")
+                        }
+                        Ordering::Less => {
+                            println!("Winner is Bob")
+                        }
+                        Ordering::Equal => {
+                            println!("A Tie!")
+                        }
                     };
                     // let (winner, loser) = if is_better_than(dealer_card, player_card) {
                     //     (dealer_addr, player_addr)
@@ -980,9 +1018,10 @@ impl GameHandler for Holdem {
                     Ok(())
                 }
 
-                _ => {
-                    Ok(())
-                }
+                //TODO: handle opertaiontimeout event
+                //
+
+                _ => Ok(()),
             },
             _ => Ok(()),
         }

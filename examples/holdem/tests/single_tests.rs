@@ -67,12 +67,12 @@ pub fn test_fns() {
     // Test the bets collected in each pot
     holdem.collect_bets().unwrap();
     assert_eq!(3, holdem.pots.len());
-    assert_eq!(180, holdem.pots[0].amount());
-    assert_eq!(15, holdem.pots[1].amount());
-    assert_eq!(100, holdem.pots[2].amount());
+    assert_eq!(180, holdem.pots[0].amount);
+    assert_eq!(15, holdem.pots[1].amount);
+    assert_eq!(100, holdem.pots[2].amount);
 
     // Test num of pots and owners of each pot
-    assert_eq!(4, holdem.pots[0].owners().len());
+    assert_eq!(4, holdem.pots[0].owners.len());
     assert_eq!(
         vec![
             "Alice".to_string(),
@@ -80,23 +80,23 @@ pub fn test_fns() {
             "Carol".to_string(),
             "Gentoo".to_string()
         ],
-        holdem.pots[0].owners()
+        holdem.pots[0].owners
     );
 
-    assert_eq!(3, holdem.pots[1].owners().len());
+    assert_eq!(3, holdem.pots[1].owners.len());
     assert_eq!(
         vec![
             "Alice".to_string(),
             "Carol".to_string(),
             "Gentoo".to_string()
         ],
-        holdem.pots[1].owners()
+        holdem.pots[1].owners
     );
 
-    assert_eq!(2, holdem.pots[2].owners().len());
+    assert_eq!(2, holdem.pots[2].owners.len());
     assert_eq!(
         vec!["Alice".to_string(), "Carol".to_string()],
-        holdem.pots[2].owners()
+        holdem.pots[2].owners
     );
 
     // Test assigned winner(s) of each pot
@@ -109,17 +109,17 @@ pub fn test_fns() {
         .unwrap();
 
     // Test num of winners in each pot
-    assert_eq!(2, holdem.pots[0].winners().len());
-    assert_eq!(1, holdem.pots[1].winners().len());
-    assert_eq!(1, holdem.pots[2].winners().len());
+    assert_eq!(2, holdem.pots[0].winners.len());
+    assert_eq!(1, holdem.pots[1].winners.len());
+    assert_eq!(1, holdem.pots[2].winners.len());
 
     // Test winner(s) of each pot
     assert_eq!(
         vec![String::from("Bob"), String::from("Gentoo")],
-        holdem.pots[0].winners()
+        holdem.pots[0].winners
     );
-    assert_eq!(vec![String::from("Gentoo")], holdem.pots[1].winners());
-    assert_eq!(vec![String::from("Alice")], holdem.pots[2].winners());
+    assert_eq!(vec![String::from("Gentoo")], holdem.pots[1].winners);
+    assert_eq!(vec![String::from("Alice")], holdem.pots[2].winners);
 
     // Test prize map of each player
     holdem.calc_prize().unwrap();
@@ -276,8 +276,8 @@ pub fn test_single_player_wins() {
             .unwrap()
     );
     assert_eq!(1, holdem.pots.len());
-    assert_eq!(4, holdem.pots[0].owners().len());
-    assert_eq!(160, holdem.pots[0].amount());
+    assert_eq!(4, holdem.pots[0].owners.len());
+    assert_eq!(160, holdem.pots[0].amount);
     assert_eq!(
         160,
         holdem
