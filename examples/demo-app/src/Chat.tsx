@@ -25,7 +25,6 @@ function Chat() {
   let profile = useContext(ProfileContext);
   const [text, setText] = useState<string>('');
 
-
   // Game event handler
   const onEvent = (_context: any, state: State, event: Event | null) => {
     if (event !== null) {
@@ -52,11 +51,6 @@ function Chat() {
       }
     };
     initClient();
-    return () => {
-      if (client !== undefined) {
-        client.free();
-      }
-    }
   }, [profile, addr]);
 
 

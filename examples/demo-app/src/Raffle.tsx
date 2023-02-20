@@ -68,15 +68,10 @@ function Raffle() {
       }
     };
     initClient();
-    return () => {
-      if (client !== undefined) {
-        client.free();
-      }
-    }
   }, [profile, addr]);
 
   if (state === undefined || context === undefined) {
-    <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24"></svg>
+    return <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24"></svg>
   } else {
     return (
       <div className="h-full w-full flex flex-col">
