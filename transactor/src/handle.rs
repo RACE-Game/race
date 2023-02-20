@@ -130,7 +130,7 @@ impl ValidatorHandle {
         let event_bus = EventBus::default();
 
         let (event_loop, event_loop_ctx) =
-            EventLoop::init(handler, game_context, ClientMode::Transactor);
+            EventLoop::init(handler, game_context, ClientMode::Validator);
         let mut event_loop_handle = event_loop.start(event_loop_ctx);
 
         let connection = Arc::new(
