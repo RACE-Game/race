@@ -1,19 +1,19 @@
 set dotenv-load
 
-build: sdk transactor
+build: sdk transactor cli
 
 sdk:
-    cd ./sdk; wasm-pack build --release --target web
-    cd ./sdk; patch pkg/package.json < package.json.patch
-
-demo-app:
-    cd ./examples/demo-app; npm run build
+    wasm-pack build --release --target web sdk
+    patch ./sdk/pkg/package.json < ./sdk/package.json.patch
 
 facade:
     cargo build -r -p race-facade
 
 transactor:
     cargo build -r -p race-transactor
+
+cli:
+    cargo build -r -p race-cli
 
 
 test: test-transactor
@@ -22,7 +22,7 @@ test-transactor:
     cargo test -p race-transactor
 
 
-examples: example-chat example-raffle
+examples: example-chat example-raffle preview-demo-app
 
 example-chat:
     cargo build -r -p race-example-chat --target wasm32-unknown-unknown
@@ -33,7 +33,13 @@ example-raffle:
     wasm-opt -Oz target/wasm32-unknown-unknown/release/race_example_raffle.wasm -o target/race_example_raffle.wasm
 
 dev-demo-app:
-    cd ./examples/demo-app; npm run dev
+    npm --prefix ./examples/demo-app run dev
+
+demo-app:
+    npm --prefix ./examples/demo-app run build
+
+preview-demo-app: demo-app
+    npm --prefix ./examples/demo-app run preview
 
 dev-facade:
     cargo run -p race-facade
