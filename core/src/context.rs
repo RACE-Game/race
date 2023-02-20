@@ -263,6 +263,10 @@ impl GameContext {
         self.players.len() + self.pending_players.len()
     }
 
+    pub fn count_servers(&self) -> usize {
+        self.servers.len() + self.pending_servers.len()
+    }
+
     pub fn gen_first_event(&self) -> Event {
         Event::GameStart {
             access_version: self.access_version,

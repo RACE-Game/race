@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::info;
 
 use crate::types::{Ciphertext, RandomId, SecretDigest, SecretIdent, SecretKey};
 
@@ -566,7 +565,6 @@ impl RandomState {
                         //     return Err(Error::InvalidSecret);
                         // }
                         secret_share.secret = Some(secret);
-                        info!("Secret added: {:?}", secret_share);
                     } else {
                         return Err(Error::InvalidSecret);
                     }
