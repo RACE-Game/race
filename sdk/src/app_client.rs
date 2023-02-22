@@ -1,10 +1,10 @@
 //! A common client to use in dapp(native version).
 
 use gloo::utils::format::JsValueSerdeExt;
-use js_sys::Function;
 use js_sys::JSON::{parse, stringify};
+use js_sys::{Function, Object, Reflect};
 use race_core::context::GameContext;
-use race_core::types::{BroadcastFrame, ExitGameParams};
+use race_core::types::{BroadcastFrame, ExitGameParams, RandomId};
 use race_transport::TransportBuilder;
 use wasm_bindgen::prelude::*;
 
@@ -215,6 +215,18 @@ impl AppClient {
             .submit_event(&self.addr, SubmitEventParams { event })
             .await?;
         Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub async fn get_revealed(&self, random_id: RandomId) -> Result<JsValue> {
+        let context = self.game_context.borrow();
+        Ok(context.get_revealed(random_id).map(|r| {
+            let obj = Object::new();
+            for (k, v) in r.iter() {
+                Reflect::set(&obj, &(*k as u32).into(), &v.into()).unwrap();
+            }
+            JsValue::from(obj)
+        })?)
     }
 
     /// Get current game state.
