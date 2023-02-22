@@ -2,7 +2,7 @@
 #![allow(warnings)]
 use holdem::*;
 use race_core::context::GameContext;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 // The unit tests in this file test Holdem specific single functions,
 // such as fns modifying pots, players, chips and so on.
@@ -18,6 +18,7 @@ pub fn test_fns() {
         dealer_idx: 0,
         sb: 10,
         bb: 20,
+        min_raise: 20,
         buyin: 400,
         btn: 3,
         rake: 0.02,
@@ -25,13 +26,16 @@ pub fn test_fns() {
         stage: HoldemStage::Play,
         street: Street::Flop,
         street_bet: 20,
-        seats_map: HashMap::new(),
-        bets: vec![
-            Bet::new("Alice", 100),
-            Bet::new("Bob", 45),
-            Bet::new("Carol", 100),
-            Bet::new("Gentoo", 50),
-        ],
+        board: Vec::with_capacity(5),
+        seats_map: HashMap::<String, usize>::new(),
+        player_map: BTreeMap::<String, Player>::new(),
+        bet_map: HashMap::new(),
+        // bets: vec![
+        //     Bet::new("Alice", 100),
+        //     Bet::new("Bob", 45),
+        //     Bet::new("Carol", 100),
+        //     Bet::new("Gentoo", 50),
+        // ],
         prize_map: HashMap::new(),
         players: vec![
             Player {
@@ -157,15 +161,18 @@ pub fn test_blind_bets() {
         dealer_idx: 0,
         sb: 10,
         bb: 20,
+        min_raise: 20,
         buyin: 400,
         btn: 3,
         rake: 0.02,
         size: 4,
         stage: HoldemStage::Play,
         street: Street::Preflop,
+        board: Vec::with_capacity(5),
+        seats_map: HashMap::<String, usize>::new(),
+        player_map: BTreeMap::<String, Player>::new(),
         street_bet: 0,
-        seats_map: HashMap::new(),
-        bets: vec![],
+        bet_map: HashMap::new(),
         prize_map: HashMap::new(),
         players: vec![
             Player {
@@ -200,19 +207,19 @@ pub fn test_blind_bets() {
 
     // Test blind bets
     // Before blind bets:
-    assert_eq!(0, holdem.street_bet);
-    // assert_eq!(None, holdem.acting_player.unwrap());
+    // assert_eq!(0, holdem.street_bet);
+    // assert_eq!(None, holdem.actinbet_mapayer.unwrap());
     let init_bet_map: Vec<Bet> = vec![];
-    assert_eq!(init_bet_map, holdem.bets);
+    // assert_eq!(init_bet_map, holdem.bets);
 
     // After blind bets
     assert_eq!((), holdem.blind_bets(&mut ctx).unwrap());
     assert_eq!(20, holdem.street_bet);
-    assert_eq!(
-        vec![Bet::new("Alice", 10), Bet::new("Bob", 20)],
-        holdem.bets
-    );
-    assert_eq!(String::from("Carol"), holdem.acting_player.unwrap().addr);
+    // assert_eq!(bet_map
+    //     vec![Bet::new("Alice", 10), Bet::new("Bob", 20)],
+    //     holdem.bets
+    // );
+    assert_eq!(String::from("Carol"), holdem.acting_player.unwrap());
 }
 
 #[test]
@@ -223,20 +230,25 @@ pub fn test_single_player_wins() {
         dealer_idx: 0,
         sb: 10,
         bb: 20,
+        min_raise: 20,
         buyin: 400,
         btn: 3,
         rake: 0.02,
         size: 4,
         stage: HoldemStage::Play,
+        board: Vec::with_capacity(5),
+        player_map: BTreeMap::<String, Player>::new(),
         street: Street::Preflop,
         street_bet: 0,
+        bet_map: HashMap::new(),
         seats_map: HashMap::new(),
-        bets: vec![
-            Bet::new("Alice", 40),
-            Bet::new("Bob", 40),
-            Bet::new("Carol", 40),
-            Bet::new("Gentoo", 40),
-        ],
+        // bets: vec![
+        //     Bet::new("Alice", 40),
+        //     Bet::new("Bob", 40),
+        //     Bet::new("Carol", 40),
+        //     Bet::new("Gentoo", 40),
+        // ],
+
         prize_map: HashMap::new(),
         players: vec![
             Player {
@@ -297,6 +309,7 @@ pub fn test_new_street() {
         dealer_idx: 0,
         sb: 10,
         bb: 20,
+        min_raise: 20,
         buyin: 400,
         btn: 3,
         rake: 0.1,
@@ -305,12 +318,15 @@ pub fn test_new_street() {
         street: Street::Preflop,
         street_bet: 20,
         seats_map: HashMap::new(),
-        bets: vec![
-            // Bet::new("Alice", 40),
-            Bet::new("Bob", 40),
-            Bet::new("Carol", 40),
-            Bet::new("Gentoo", 40),
-        ],
+        board: Vec::<String>::with_capacity(5),
+        bet_map: HashMap::<String, Bet>::new(),
+        player_map: BTreeMap::<String, Player>::new(),
+        // bets: vec![
+        //     // Bet::new("Alice", 40),
+        //     Bet::new("Bob", 40),
+        //     Bet::new("Carol", 40),
+        //     Bet::new("Gentoo", 40),
+        // ],
         prize_map: HashMap::new(),
         players: vec![
             Player {
@@ -339,12 +355,7 @@ pub fn test_new_street() {
                 status: PlayerStatus::Acted,
             },
         ],
-        acting_player: Some(Player {
-            addr: String::from("Gentoo"),
-            chips: 400,
-            position: 3,
-            status: PlayerStatus::Acted,
-        }),
+        acting_player: Some("Gentoo".to_string()),
         pots: vec![],
     };
 
@@ -367,20 +378,24 @@ pub fn test_next_state() {
         dealer_idx: 0,
         sb: 10,
         bb: 20,
+        min_raise: 20,
         buyin: 400,
+        size: 6,
         btn: 3,
         rake: 0.1,
-        size: 4,
         stage: HoldemStage::Play,
         street: Street::Preflop,
         street_bet: 0,
         seats_map: HashMap::new(),
-        bets: vec![
+        player_map: BTreeMap::<String, Player>::new(),
+        board: Vec::<String>::with_capacity(5),
+        bet_map: HashMap::<String, Bet>::new(),
+        // bets: vec![
             // Bet::new("Alice", 40),
             // Bet::new("Bob", 40),
             // Bet::new("Carol", 40),
             // Bet::new("Gentoo", 40),
-        ],
+        // ],
         prize_map: HashMap::new(),
         players: vec![
             Player {

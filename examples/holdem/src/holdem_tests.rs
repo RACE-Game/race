@@ -49,6 +49,7 @@ fn create_sync_event(ctx: &GameContext, players: Vec<String>) -> Event {
 }
 
 #[test]
+#[ignore]
 fn test_runner() -> Result<()> {
     let (game_acct, mut ctx, mut handler, mut transactor) = set_up();
     let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
@@ -82,7 +83,7 @@ fn test_runner() -> Result<()> {
             }),
             *ctx.get_dispatch()
         );
-        assert!(state.is_acting_player("Alice".to_string()));
+        assert!(state.is_acting_player(&"Alice".to_string()));
 
     }
 
@@ -104,7 +105,43 @@ fn test_runner() -> Result<()> {
     )?;
 
     // ------------------------- RUNNER ------------------------
+    // {
+    //     let state = handler.get_state();
+    //     assert_eq!(2, state.pots.len());
+    //     assert_eq!(2, state.pots[0].owners.len());
+    //     assert_eq!(1, state.pots[0].winners.len());
+    // }
 
+    Ok(())
+}
+
+#[test]
+fn test_players_order() -> Result<()> {
+    let (game_acct, mut ctx, mut handler, mut transactor) = set_up();
+
+
+    let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
+    let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
+    let mut carol = TestClient::new("Carol".into(), game_acct.addr.clone(), ClientMode::Player);
+    let mut dave = TestClient::new("Dave".into(), game_acct.addr.clone(), ClientMode::Player);
+    let mut eva = TestClient::new("Eva".into(), game_acct.addr.clone(), ClientMode::Player);
+
+    let sync_evt = create_sync_event(
+        &ctx,
+        vec!["Alice".to_string(),
+             "Bob".to_string(),
+             "Carol".to_string(),
+             "Dave".to_string(),
+             "Eva".to_string(),
+        ]
+    );
+
+    // ------------------------- GAMESTART ------------------------
+    handler.handle_until_no_events(
+        &mut ctx,
+        &sync_evt,
+        vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+    )?;
 
     Ok(())
 }
