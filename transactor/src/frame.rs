@@ -10,7 +10,7 @@ pub enum SignalFrame {
     StartGame { game_addr: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub enum EventFrame {
     Empty,
     Sync {

@@ -2,6 +2,10 @@ set dotenv-load
 
 build: sdk transactor cli
 
+dep:
+    cargo fetch
+    npm --prefix ./examples/demo-app i
+
 sdk:
     wasm-pack build --release --target web sdk
     patch ./sdk/pkg/package.json < ./sdk/package.json.patch

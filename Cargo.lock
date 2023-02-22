@@ -2500,6 +2500,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "race-blackjack"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "env_logger 0.10.0",
+ "log",
+ "race-core",
+ "race-proc-macro",
+ "race-test",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "race-cli"
 version = "0.1.0"
 dependencies = [

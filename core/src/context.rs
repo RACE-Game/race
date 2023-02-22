@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::Serialize;
 
+use crate::decision::DecisionState;
 use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
@@ -104,7 +105,7 @@ impl Player {
     }
 }
 
-#[derive(Debug, Serialize, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct Server {
     pub addr: String,
     pub status: ServerStatus,
@@ -131,7 +132,8 @@ impl Server {
     }
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct DispatchEvent {
     pub timeout: u64,
     pub event: Event,
@@ -144,7 +146,7 @@ impl DispatchEvent {
 }
 
 /// The context for public data.
-#[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct GameContext {
     pub(crate) game_addr: String,
     /// Version numbers for player/server access.  This number will be
@@ -173,6 +175,7 @@ pub struct GameContext {
     pub(crate) allow_exit: bool,
     /// All runtime random state, each stores the ciphers and assignments.
     pub(crate) random_states: Vec<RandomState>,
+    pub(crate) decision_state: DecisionState,
     /// Settles, if is not None, will be handled by event loop.
     pub(crate) settles: Option<Vec<Settle>>,
     pub(crate) error: Option<Error>,
@@ -200,6 +203,7 @@ impl GameContext {
             timestamp: 0,
             allow_exit: false,
             random_states: vec![],
+            decision_state: DecisionState::default(),
             settles: None,
             error: None,
         })
@@ -391,14 +395,14 @@ impl GameContext {
     }
 
     /// Assign random item to a player
-    pub fn assign(
+    pub fn assign<S: Into<String>>(
         &mut self,
         random_id: RandomId,
-        player_addr: String,
+        player_addr: S,
         indexes: Vec<usize>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
-        rnd_st.assign(player_addr, indexes)?;
+        rnd_st.assign(player_addr.into(), indexes)?;
         Ok(())
     }
 
@@ -671,7 +675,7 @@ impl GameContext {
         }
     }
 
-    pub fn add_revealed(
+    pub fn add_revealed_random(
         &mut self,
         random_id: RandomId,
         revealed: HashMap<usize, String>,
@@ -680,6 +684,15 @@ impl GameContext {
         rnd_st
             .add_revealed(revealed)
             .map_err(|e| Error::InvalidDecryptedValue(e.to_string()))
+    }
+
+    pub fn add_revealed_decision(
+        &mut self,
+        owner: String,
+        key: String,
+        value: String,
+    ) -> Result<()> {
+        todo!()
     }
 
     pub fn get_revealed(&self, random_id: usize) -> Result<&HashMap<usize, String>> {

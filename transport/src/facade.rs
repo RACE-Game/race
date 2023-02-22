@@ -86,7 +86,7 @@ impl TransportT for FacadeTransport {
                 .find(|v| v.voter.eq(&params.voter_addr))
                 .is_some()
             {
-                Err(Error::DuplicateVote)
+                Err(Error::DuplicatedVote)
             } else {
                 self.client
                     .request("vote", rpc_params![params])

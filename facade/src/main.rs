@@ -347,7 +347,7 @@ async fn vote(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
             .find(|v| v.voter.eq(&voter_addr))
             .is_some()
         {
-            return Err(custom_error(Error::DuplicateVote));
+            return Err(custom_error(Error::DuplicatedVote));
         }
 
         game_account.votes.push(Vote {

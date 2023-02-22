@@ -136,7 +136,7 @@ pub fn general_handle_event(
                 res.push((random_state.id, revealed));
             }
             for (random_id, revealed) in res.into_iter() {
-                context.add_revealed(random_id, revealed)?;
+                context.add_revealed_random(random_id, revealed)?;
             }
             Ok(())
         }

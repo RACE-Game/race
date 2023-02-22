@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 #[allow(unused)]
 pub type Addr = String;
 #[allow(unused)]
+pub type Amount = u64;
+#[allow(unused)]
 pub type RandomId = usize;
+pub type DecisionId = usize;
 pub type Ciphertext = Vec<u8>;
 pub type SecretDigest = Vec<u8>;
 pub type SecretKeyRaw = [u8; 44]; // key: 32, nonce: 12

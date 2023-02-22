@@ -177,14 +177,23 @@ pub enum Error {
     #[error("Invalid votee: {0}")]
     InvalidVotee(String),
 
-    #[error("Duplicate vote")]
-    DuplicateVote,
+    #[error("Duplicated vote")]
+    DuplicatedVote,
 
     #[error("Transaction expired")]
     TransactionExpired,
 
     #[error("Event ignored")]
     EventIgnored,
+
+    #[error("Invalid custom event")]
+    InvalidCustomEvent,
+
+    #[error("Invalid decision status")]
+    InvalidDecisionStatus,
+
+    #[error("Duplicated secret share")]
+    DuplicatedSecretShare,
 }
 
 impl From<serde_json::Error> for Error {

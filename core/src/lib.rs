@@ -10,6 +10,7 @@ pub mod engine;
 pub mod error;
 pub mod event;
 pub mod random;
+pub mod decision;
 pub mod secret;
 pub mod transport;
 pub mod types;

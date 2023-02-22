@@ -269,7 +269,6 @@ fn test() -> Result<()> {
     let decryption = transactor.decrypt(&ctx, 1)?;
     println!("Decryption: {:?}", decryption);
     assert_eq!(2, decryption.len());
-    // ctx.add_revealed(0, decryption)?;
 
     // Now send `SecretReady` to handler.
     handler.handle_dispatch_event(&mut ctx)?;
