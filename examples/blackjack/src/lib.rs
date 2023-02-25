@@ -151,7 +151,7 @@ impl GameHandler for Handler {
                 Ok(())
             }
             Event::SecretsReady => {
-
+                Ok(())
             }
             Event::ActionTimeout { player_addr } => {
                 Ok(())

@@ -8,7 +8,9 @@ use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
 use crate::random::RandomStatus;
-use crate::types::{PlayerJoin, RandomId, SecretShare, ServerJoin, Settle, SettleOp};
+use crate::types::{
+    Addr, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin, Settle, SettleOp,
+};
 use crate::{
     event::Event,
     random::{RandomSpec, RandomState},
@@ -148,7 +150,7 @@ impl DispatchEvent {
 /// The context for public data.
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct GameContext {
-    pub(crate) game_addr: String,
+    pub(crate) game_addr: Addr,
     /// Version numbers for player/server access.  This number will be
     /// increased whenever a new player joins or a server gets attached.
     pub(crate) access_version: u64,
@@ -156,7 +158,7 @@ pub struct GameContext {
     /// increased whenever a transaction is sent.
     pub(crate) settle_version: u64,
     /// Current transactor's address
-    pub(crate) transactor_addr: String,
+    pub(crate) transactor_addr: Addr,
     pub(crate) status: GameStatus,
     /// List of players playing in this game
     pub(crate) players: Vec<Player>,
@@ -175,7 +177,7 @@ pub struct GameContext {
     pub(crate) allow_exit: bool,
     /// All runtime random state, each stores the ciphers and assignments.
     pub(crate) random_states: Vec<RandomState>,
-    pub(crate) decision_state: DecisionState,
+    pub(crate) decision_states: Vec<DecisionState>,
     /// Settles, if is not None, will be handled by event loop.
     pub(crate) settles: Option<Vec<Settle>>,
     pub(crate) error: Option<Error>,
@@ -203,7 +205,7 @@ impl GameContext {
             timestamp: 0,
             allow_exit: false,
             random_states: vec![],
-            decision_state: DecisionState::default(),
+            decision_states: vec![],
             settles: None,
             error: None,
         })
@@ -350,6 +352,10 @@ impl GameContext {
         &self.random_states
     }
 
+    pub fn list_decision_states(&self) -> &Vec<DecisionState> {
+        &self.decision_states
+    }
+
     pub fn get_dispatch(&self) -> &Option<DispatchEvent> {
         &self.dispatch
     }
@@ -382,6 +388,16 @@ impl GameContext {
         &self.random_states[id - 1]
     }
 
+    pub fn get_decision_state_mut(&mut self, id: DecisionId) -> Result<&mut DecisionState> {
+        if id == 0 {
+            return Err(Error::InvalidDecisionId);
+        }
+        if let Some(st) = self.decision_states.get_mut(id - 1) {
+            Ok(st)
+        } else {
+            Err(Error::InvalidDecisionId)
+        }
+    }
     /// Get the mutable random state by its id.
     pub fn get_random_state_mut(&mut self, id: RandomId) -> Result<&mut RandomState> {
         if id == 0 {
@@ -416,7 +432,7 @@ impl GameContext {
         match self.get_random_state(random_id) {
             Ok(rnd) => matches!(
                 rnd.status,
-                RandomStatus::Ready | RandomStatus::WaitingSecrets(_)
+                RandomStatus::Ready | RandomStatus::WaitingSecrets
             ),
             Err(_) => false,
         }
@@ -567,10 +583,27 @@ impl GameContext {
     }
 
     pub fn add_shared_secrets(&mut self, _addr: &str, shares: Vec<SecretShare>) -> Result<()> {
-        for ss in shares.into_iter() {
-            let (idt, secret) = ss.into();
-            let random_state = self.get_random_state_mut(idt.random_id)?;
-            random_state.add_secret(idt.from_addr, idt.to_addr, idt.index, secret)?;
+        for share in shares.into_iter() {
+            match share {
+                SecretShare::Random {
+                    from_addr,
+                    to_addr,
+                    random_id,
+                    index,
+                    secret,
+                } => {
+                    self.get_random_state_mut(random_id)?
+                        .add_secret(from_addr, to_addr, index, secret)?;
+                }
+                SecretShare::Answer {
+                    from_addr,
+                    decision_id,
+                    secret,
+                } => {
+                    self.get_decision_state_mut(decision_id)?
+                        .add_secret(&from_addr, secret)?;
+                }
+            }
         }
         Ok(())
     }
@@ -604,22 +637,22 @@ impl GameContext {
             RandomStatus::Ready => {
                 self.dispatch_event_instantly(Event::RandomnessReady { random_id });
             }
-            RandomStatus::Locking(addr) => {
+            RandomStatus::Locking => {
                 if no_dispatch {
-                    let addr = addr.clone();
-                    self.dispatch_event(Event::OperationTimeout { addr }, OPERATION_TIMEOUT);
+                    let addrs = rnd_st.list_operating_addrs();
+                    self.dispatch_event(Event::OperationTimeout { addrs }, OPERATION_TIMEOUT);
                 }
             }
-            RandomStatus::Masking(addr) => {
+            RandomStatus::Masking => {
                 if no_dispatch {
-                    let addr = addr.clone();
-                    self.dispatch_event(Event::OperationTimeout { addr }, OPERATION_TIMEOUT);
+                    let addrs = rnd_st.list_operating_addrs();
+                    self.dispatch_event(Event::OperationTimeout { addrs }, OPERATION_TIMEOUT);
                 }
             }
-            RandomStatus::WaitingSecrets(addr) => {
+            RandomStatus::WaitingSecrets => {
                 if no_dispatch {
-                    let addr = addr.clone();
-                    self.dispatch_event(Event::OperationTimeout { addr }, OPERATION_TIMEOUT);
+                    let addrs = rnd_st.list_operating_addrs();
+                    self.dispatch_event(Event::OperationTimeout { addrs }, OPERATION_TIMEOUT);
                 }
             }
         }
@@ -686,13 +719,27 @@ impl GameContext {
             .map_err(|e| Error::InvalidDecryptedValue(e.to_string()))
     }
 
-    pub fn add_revealed_decision(
+    pub fn add_revealed_answer(&mut self, decision_id: DecisionId, revealed: String) -> Result<()> {
+        let st = self.get_decision_state_mut(decision_id)?;
+        st.add_revealed(revealed)
+    }
+
+    pub fn prompt(&mut self, owner: String) -> DecisionId {
+        let id = self.decision_states.len();
+        let st = DecisionState::new(id, owner);
+        self.decision_states.push(st);
+        id
+    }
+
+    pub fn answer_decision(
         &mut self,
-        owner: String,
-        key: String,
-        value: String,
+        id: usize,
+        owner: &str,
+        ciphertext: Ciphertext,
+        digest: SecretDigest,
     ) -> Result<()> {
-        todo!()
+        let st = self.get_decision_state_mut(id)?;
+        st.answer(owner, ciphertext, digest)
     }
 
     pub fn get_revealed(&self, random_id: usize) -> Result<&HashMap<usize, String>> {

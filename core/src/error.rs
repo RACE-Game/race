@@ -2,6 +2,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::types::DecisionId;
+
 #[derive(
     Error, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq,
 )]
@@ -188,6 +190,18 @@ pub enum Error {
 
     #[error("Invalid custom event")]
     InvalidCustomEvent,
+
+    #[error("Invalid decision id")]
+    InvalidDecisionId,
+
+    #[error("Missing decision secret: {0}")]
+    MissingDecisionSecret(DecisionId),
+
+    #[error("Invalid decision answer")]
+    InvalidDecisionAnswer,
+
+    #[error("Invalid decision owner")]
+    InvalidDecisionOwner,
 
     #[error("Invalid decision status")]
     InvalidDecisionStatus,

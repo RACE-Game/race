@@ -16,7 +16,8 @@ impl Display for AttachGameParams {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmitEventParams {
     pub event: Event,
 }
@@ -67,7 +68,7 @@ impl Display for SubscribeEventParams {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BroadcastFrame {
     pub game_addr: String,
     pub event: Event,

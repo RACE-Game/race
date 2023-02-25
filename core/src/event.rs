@@ -1,17 +1,29 @@
-use crate::types::{Ciphertext, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin};
+use crate::types::{
+    Ciphertext, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin,
+};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-#[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone)]
+/// Game event structure
+#[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum Event {
-    /// Custom game event sent by players.
+    /// Sent by player clients.  Represent game specific events, the `raw`
+    /// parts is the serialized data from a custom game event which
+    /// satisfies [`CustomEvent`].
     Custom {
         sender: String,
         raw: String,
     },
 
-    /// Client marks itself as ready for the next game
-    /// This event is sent by client.
+    /// Sent by player clients.  Represent the ready status of a player client.
+    ///
+    /// TODO: All player clients should be asked to send this event to
+    /// indicate they are ready for the next game.  The game can be
+    /// started either when all players are ready or the timeout is
+    /// reached.  The [`Event::GameStart`] should ship all players' ready
+    /// status, a non-ready player should be considered as
+    /// disconnected due to network issue.  It's game's responsibility
+    /// to handle these players.
     Ready {
         sender: String,
     },
@@ -20,11 +32,11 @@ pub enum Event {
     /// The `secret_data` is encrypted with the receiver's public key.
     ShareSecrets {
         sender: String,
-        secrets: Vec<SecretShare>,
+        shares: Vec<SecretShare>,
     },
 
     OperationTimeout {
-        addr: String,
+        addrs: Vec<String>,
     },
 
     /// Randomize items.
@@ -98,6 +110,12 @@ pub enum Event {
         player_addr: String,
     },
 
+    /// Answer the decision question with encrypted ciphertext
+    AnswerDecision {
+        decision_id: DecisionId,
+        ciphertext: Ciphertext,
+    },
+
     /// All required secrets are shared
     SecretsReady,
 
@@ -110,8 +128,8 @@ impl std::fmt::Display for Event {
         match self {
             Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {}", sender, raw),
             Event::Ready { sender } => write!(f, "Ready from {}", sender),
-            Event::ShareSecrets { sender, secrets } => {
-                let repr = secrets
+            Event::ShareSecrets { sender, shares } => {
+                let repr = shares
                     .iter()
                     .map(|s| format!("{}", s))
                     .collect::<Vec<String>>()
@@ -162,8 +180,11 @@ impl std::fmt::Display for Event {
                 "ServerLeave {}, current transactor: {}",
                 server_addr, transactor_addr
             ),
-            Event::OperationTimeout { addr } => {
-                write!(f, "OperationTimeout for {}", addr)
+            Event::AnswerDecision { decision_id, .. } => {
+                write!(f, "AnswerDecision for {}", decision_id)
+            }
+            Event::OperationTimeout { addrs } => {
+                write!(f, "OperationTimeout for {:?}", addrs)
             }
             Event::Shutdown => {
                 write!(f, "Shutdown")

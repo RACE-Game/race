@@ -4,7 +4,7 @@ use gloo::utils::format::JsValueSerdeExt;
 use js_sys::JSON::{parse, stringify};
 use js_sys::{Function, Object, Reflect};
 use race_core::context::GameContext;
-use race_core::types::{BroadcastFrame, ExitGameParams, RandomId};
+use race_core::types::{BroadcastFrame, DecisionId, ExitGameParams, RandomId};
 use race_transport::TransportBuilder;
 use wasm_bindgen::prelude::*;
 
@@ -227,6 +227,12 @@ impl AppClient {
             }
             JsValue::from(obj)
         })?)
+    }
+
+    #[wasm_bindgen]
+    pub async fn answer(&mut self, decision_id: DecisionId, value: String) -> Result<()> {
+        self.client.answer(decision_id, value).await?;
+        Ok(())
     }
 
     /// Get current game state.

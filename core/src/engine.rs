@@ -32,7 +32,7 @@ pub fn general_handle_event(
 
         Event::ShareSecrets {
             sender,
-            secrets: shares,
+            shares,
         } => {
             context.add_shared_secrets(sender, shares.clone())?;
             if context.secrets_ready() {
@@ -111,7 +111,7 @@ pub fn general_handle_event(
             Ok(())
         }
 
-        Event::OperationTimeout { addr: _ } => {
+        Event::OperationTimeout { addrs: _ } => {
             // This event is for game handler
             Ok(())
         }

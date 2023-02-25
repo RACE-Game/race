@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::{HashMap, BTreeSet}, sync::Arc};
 
 use tracing::info;
 
@@ -8,15 +8,52 @@ use race_core::{
     encryptor::EncryptorT,
     error::{Error, Result},
     event::{CustomEvent, Event},
-    random::{RandomMode, RandomStatus},
+    random::{RandomStatus, RandomState},
     secret::SecretState,
     transport::TransportT,
     types::{
-        AttachGameParams, Ciphertext, ClientMode, RandomId, SecretKey, SecretShare,
-        SubmitEventParams,
+        AttachGameParams, Ciphertext, ClientMode, DecisionId, RandomId, SecretKey, SecretShare,
+        SubmitEventParams, SecretIdent,
     },
 };
 
+/// Operation Ident
+///
+/// Each event can be recorded as one or more idents, we save these
+/// idents to avoid duplicated submission.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+pub enum OpIdent {
+    RandomSecret {
+        random_id: RandomId,
+        to_addr: Option<String>,
+        index: usize,
+    },
+    AnswerSecret {
+        decision_id: DecisionId,
+    },
+    Lock {
+        random_id: RandomId,
+    },
+    Mask {
+        random_id: RandomId,
+    },
+}
+
+/// The client core for player, transactor and validator nodes.
+///
+/// It reads the updated context, generates events and sends them via
+/// connection.
+///
+/// # Client Mode
+///
+/// Three modes are supported:
+///
+/// | Mode      | Randomize | Decisions | Decryption |
+/// |-----------|-----------|-----------|------------|
+/// | Client    | x         | o         | o          |
+/// | Server    | o         | x         | o          |
+/// | Validator | o         | x         | o          |
+///
 pub struct Client {
     pub encryptor: Arc<dyn EncryptorT>,
     pub transport: Arc<dyn TransportT>,
@@ -28,8 +65,8 @@ pub struct Client {
     // Only the player can send custom event.
     // Only the transactor can send system event.
     pub mode: ClientMode,
-    // The state of secrets, should match the state of randomness.
-    pub secret_states: Vec<SecretState>,
+    pub op_hist: BTreeSet<OpIdent>,
+    pub secret_state: SecretState,
 }
 
 impl Client {
@@ -45,32 +82,11 @@ impl Client {
             addr,
             game_addr,
             mode,
-            secret_states: Vec::new(),
+            op_hist: BTreeSet::new(),
+            secret_state: SecretState::new(encryptor.clone()),
             transport,
             encryptor,
             connection,
-        }
-    }
-
-    fn get_secret_state(&self, random_id: RandomId) -> Result<&SecretState> {
-        if random_id == 0 {
-            return Err(Error::InvalidRandomId);
-        }
-        if let Some(ret) = self.secret_states.get(random_id - 1) {
-            Ok(ret)
-        } else {
-            return Err(Error::InvalidRandomId);
-        }
-    }
-
-    fn get_secret_state_mut(&mut self, random_id: RandomId) -> Result<&mut SecretState> {
-        if random_id == 0 {
-            return Err(Error::InvalidRandomId);
-        }
-        if let Some(ret) = self.secret_states.get_mut(random_id - 1) {
-            Ok(ret)
-        } else {
-            return Err(Error::InvalidRandomId);
         }
     }
 
@@ -94,78 +110,148 @@ impl Client {
             .await
     }
 
-    pub fn update_secret_state(&mut self, game_context: &GameContext) -> Result<()> {
-        let random_states = game_context.list_random_states();
-        let secret_states = &mut self.secret_states;
-        if random_states.len() > secret_states.len() {
-            for random_state in random_states.iter().skip(secret_states.len()) {
-                let secret_state = SecretState::from_random_state(
-                    self.encryptor.clone(),
-                    random_state,
-                    RandomMode::Shuffler,
-                );
-                info!(
-                    "Create secret state for random id: {}, with mode: {:?}",
-                    random_state.id,
-                    RandomMode::Shuffler
-                );
-                secret_states.push(secret_state);
+    pub fn load_random_states(&mut self, game_context: &GameContext) -> Result<()> {
+        for random_state in game_context.list_random_states().iter() {
+            if !self.secret_state.is_random_loaded(random_state.id) {
+                self.secret_state
+                    .gen_random_secrets(random_state.id, random_state.size);
             }
         }
         Ok(())
     }
 
-    pub fn randomize_and_share(&mut self, game_context: &GameContext) -> Result<Vec<Event>> {
+    pub async fn answer(&mut self, decision_id: DecisionId, value: String) -> Result<()> {
+        let ciphertext = self.secret_state.encrypt_answer(decision_id, value)?;
+        let event = Event::AnswerDecision {
+            decision_id,
+            ciphertext,
+        };
+        self.connection
+            .submit_event(&self.game_addr, SubmitEventParams { event })
+            .await?;
+        Ok(())
+    }
+
+    pub fn handle_decision(&mut self, game_context: &GameContext) -> Result<Vec<Event>> {
+        let mut shares = Vec::new();
+
+        for state in game_context.list_decision_states() {
+            let secret = self
+                .secret_state
+                .get_answer_secret(state.id)
+                .ok_or(Error::MissingDecisionSecret(state.id))?;
+            shares.push(SecretShare::new_for_answer(
+                state.id,
+                self.addr.clone(),
+                secret,
+            ));
+        }
+
+        Ok(vec![Event::ShareSecrets {
+            sender: self.addr.clone(),
+            shares,
+        }])
+    }
+
+    pub fn handle_random_waiting(&mut self, random_state: &RandomState, game_context: &GameContext) -> Result<Vec<Event>> {
+        let mut events = Vec::new();
+        let mut op_hist = Vec::new();
+
+        let required_idents: Vec<SecretIdent> =
+            random_state.list_required_secrets_by_from_addr(&self.addr)
+            .into_iter()
+            .filter_map(|idt| {
+                let op_ident = OpIdent::RandomSecret {
+                    random_id: idt.random_id,
+                    to_addr: idt.to_addr.clone(),
+                    index: idt.index,
+                };
+                if self.op_hist.contains(&op_ident) {
+                    None
+                } else {
+
+                    Some((idt, op_hist))
+                }
+            })
+            .collect();
+
+        let shares = required_idents
+            .into_iter()
+            .map(|idt| {
+                let secret = self
+                    .secret_state
+                    .get_random_lock(idt.random_id, idt.index)?;
+                Ok(SecretShare::new_for_random(
+                    idt.random_id,
+                    idt.index,
+                    self.addr.clone(),
+                    idt.to_addr,
+                    secret,
+                ))
+            })
+            .collect::<Result<Vec<SecretShare>>>()?;
+
+
+        Ok(events)
+    }
+
+    pub fn handle_randomization(&mut self, game_context: &GameContext) -> Result<Vec<Event>> {
         let mut events = vec![];
         for random_state in game_context.list_random_states().iter() {
             match random_state.status {
                 RandomStatus::Ready => (),
                 RandomStatus::WaitingSecrets(ref addr) => {
                     if self.addr.eq(addr) {
+
+                        let op_hist: Vec<OpIdent> = Vec::new();
+
+                        // let required_idents =
+                        //     random_state
+                        //     .list_required_secrets_by_from_addr(&self.addr)
+                        //     .into_iter()
+
                         // check if our secret is required
                         let required_idents =
-                            random_state.list_required_secrets_by_from_addr(&self.addr);
+                            random_state.list_required_secrets_by_from_addr(&self.addr)
+                            .into_iter()
+                            .filter_map(|idt| {
+                                ;
 
-                        info!("share secrets: {:?}", random_state.secret_shares);
-                        info!("Required idents: {:?}", required_idents);
+                            })
 
                         if !required_idents.is_empty() {
-                            let shares = required_idents
-                                .into_iter()
-                                .map(|idt| {
-                                    let secret_state = self.get_secret_state(idt.random_id)?;
-                                    let secret = secret_state.get_key(idt.index)?;
-                                    // TODO, filter out existing items
+                            let op_hist: Vec<OpIdent> = required_idents
+                                .iter()
+                                .map(|idt| )
+                                .collect();
 
-                                    Ok(SecretShare::new(idt, secret))
-                                })
-                                .collect::<Result<Vec<SecretShare>>>()?;
 
                             let event = Event::ShareSecrets {
                                 sender: self.addr.clone(),
-                                secrets: shares,
+                                shares,
                             };
                             events.push(event);
+                            self.op_hist.extend(op_hist);
                         }
                     }
                 }
                 RandomStatus::Locking(ref addr) => {
                     // check if our operation is being requested
                     if self.addr.eq(addr) {
-                        let secret_state = self.get_secret_state_mut(random_state.id)?;
-
                         let origin = random_state
                             .ciphertexts
                             .iter()
                             .map(|c| c.ciphertext().to_owned())
                             .collect();
 
-                        let unmasked = secret_state
-                            .unmask(origin)
+                        let unmasked = self
+                            .secret_state
+                            .unmask(random_state.id, origin)
                             .map_err(|e| Error::RandomizationError(e.to_string()))?;
 
-                        let locked = secret_state
-                            .lock(unmasked)
+                        let locked = self
+                            .secret_state
+                            .lock(random_state.id, unmasked)
                             .map_err(|e| Error::RandomizationError(e.to_string()))?;
 
                         let event = Event::Lock {
@@ -180,16 +266,15 @@ impl Client {
                 RandomStatus::Masking(ref addr) => {
                     // check if our operation is being requested
                     if self.addr.eq(addr) {
-                        let secret_state = self.get_secret_state_mut(random_state.id)?;
-
                         let origin = random_state
                             .ciphertexts
                             .iter()
                             .map(|c| c.ciphertext().to_owned())
                             .collect();
 
-                        let mut masked = secret_state
-                            .mask(origin)
+                        let mut masked = self
+                            .secret_state
+                            .mask(random_state.id, origin)
                             .map_err(|e| Error::RandomizationError(e.to_string()))?;
 
                         self.encryptor.shuffle(&mut masked);
@@ -213,12 +298,12 @@ impl Client {
         // info!("Client handle updated context in mode: {:?}", self.mode);
         let events = match self.mode {
             ClientMode::Player => {
-                self.update_secret_state(ctx)?;
-                vec![]
+                self.load_random_states(ctx)?;
+                self.handle_decision(ctx)?
             }
             ClientMode::Transactor | ClientMode::Validator => {
-                self.update_secret_state(ctx)?;
-                self.randomize_and_share(ctx)?
+                self.load_random_states(ctx)?;
+                self.handle_randomization(ctx)?
             }
         };
         let count = events.len();
@@ -229,7 +314,7 @@ impl Client {
     }
 
     pub fn flush_secret_states(&mut self) {
-        self.secret_states.clear();
+        self.secret_state.clear();
     }
 
     /// Decrypt the ciphertexts with shared secrets.
@@ -357,11 +442,11 @@ mod tests {
         let rnd = deck_of_cards();
         ctx.init_random_state(&rnd)?;
         ctx.init_random_state(&rnd)?;
-        client.update_secret_state(&ctx).unwrap();
-        assert_eq!(client.secret_states.len(), 2);
+        client.handle_updated_context(&ctx)?;
+        assert_eq!(client.secret_state.list_random_secrets().len(), 2);
         ctx.init_random_state(&rnd)?;
-        client.update_secret_state(&ctx).unwrap();
-        assert_eq!(client.secret_states.len(), 3);
+        client.handle_updated_context(&ctx)?;
+        assert_eq!(client.secret_state.list_random_secrets().len(), 3);
         Ok(())
     }
 }

@@ -7,6 +7,7 @@ pub type Addr = String;
 pub type Amount = u64;
 #[allow(unused)]
 pub type RandomId = usize;
+pub type RandomIndex = usize;
 pub type DecisionId = usize;
 pub type Ciphertext = Vec<u8>;
 pub type SecretDigest = Vec<u8>;
@@ -98,65 +99,79 @@ impl SecretIdent {
 }
 
 #[derive(
-    Hash,
-    Debug,
-    BorshDeserialize,
-    BorshSerialize,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    Clone,
-    PartialOrd,
-    Ord,
+    Hash, Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, PartialEq, Eq,
 )]
-pub struct SecretShare {
-    from_addr: String,
-    to_addr: Option<String>,
-    random_id: RandomId,
-    index: usize,
-    secret: Vec<u8>,
+pub enum SecretShare {
+    Random {
+        from_addr: String,
+        to_addr: Option<String>,
+        random_id: RandomId,
+        index: usize,
+        secret: Vec<u8>,
+    },
+    Answer {
+        from_addr: String,
+        decision_id: DecisionId,
+        secret: Vec<u8>,
+    },
 }
 
 impl std::fmt::Display for SecretShare {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "#{}[{}]=>[{}]@{}",
-            self.random_id,
-            self.from_addr,
-            match self.to_addr {
-                Some(ref addr) => addr.as_str(),
-                None => "ALL",
-            },
-            self.index
-        )
-    }
-}
-
-impl SecretShare {
-    pub fn new(ident: SecretIdent, secret: SecretKey) -> Self {
-        Self {
-            from_addr: ident.from_addr,
-            to_addr: ident.to_addr,
-            random_id: ident.random_id,
-            index: ident.index,
-            secret,
+        match self {
+            SecretShare::Random {
+                from_addr,
+                to_addr,
+                random_id,
+                index,
+                ..
+            } => {
+                write!(
+                    f,
+                    "#{}[{}]=>[{}]@{}",
+                    random_id,
+                    from_addr,
+                    match to_addr {
+                        Some(ref addr) => addr.as_str(),
+                        None => "ALL",
+                    },
+                    index
+                )
+            }
+            SecretShare::Answer {
+                from_addr,
+                decision_id,
+                ..
+            } => {
+                write!(f, "#{}[{}]", decision_id, from_addr)
+            }
         }
     }
 }
 
-impl Into<(SecretIdent, SecretKey)> for SecretShare {
-    fn into(self) -> (SecretIdent, SecretKey) {
-        (
-            SecretIdent {
-                from_addr: self.from_addr,
-                to_addr: self.to_addr,
-                random_id: self.random_id,
-                index: self.index,
-            },
-            self.secret,
-        )
+impl SecretShare {
+    pub fn new_for_random(
+        random_id: RandomId,
+        index: RandomIndex,
+        from_addr: Addr,
+        to_addr: Option<Addr>,
+        secret: SecretKey,
+    ) -> Self {
+        SecretShare::Random {
+            from_addr,
+            to_addr,
+            random_id,
+            index,
+            secret,
+        }
+    }
+
+    pub fn new_for_answer(decision_id: DecisionId, from_addr: Addr, secret: SecretKey) -> Self {
+        SecretShare::Answer {
+            decision_id,
+            from_addr,
+            secret,
+        }
     }
 }
 
