@@ -1,19 +1,45 @@
-use serde::{de::DeserializeOwned, Serialize};
+use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::{
     context::{GameContext, GameStatus, PlayerStatus},
+    effect::Effect,
     encryptor::EncryptorT,
     error::{Error, Result},
     event::Event,
-    types::{GameAccount, Settle},
+    types::{GameAccount, PlayerJoin, Settle},
 };
 
-pub trait GameHandler: Sized + Serialize + DeserializeOwned {
+/// A subset of on-chain account, used for game handler initialization.
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct InitAccount {
+    pub addr: String,
+    pub players: Vec<PlayerJoin>,
+    pub data: Vec<u8>,
+}
+
+impl From<GameAccount> for InitAccount {
+    fn from(value: GameAccount) -> Self {
+        let players = value
+            .players
+            .iter()
+            .filter(|p| p.access_version <= value.access_version)
+            .cloned()
+            .collect();
+
+        Self {
+            addr: value.addr.clone(),
+            players,
+            data: value.data,
+        }
+    }
+}
+
+pub trait GameHandler: Sized + BorshDeserialize + BorshSerialize {
     /// Initialize handler state with on-chain game account data.
-    fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self>;
+    fn init_state(context: &mut Effect, init_account: GameAccount) -> Result<Self>;
 
     /// Handle event.
-    fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()>;
+    fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()>;
 }
 
 pub fn general_init_state(_context: &mut GameContext, _init_account: &GameAccount) -> Result<()> {
@@ -30,10 +56,7 @@ pub fn general_handle_event(
     match event {
         Event::Ready { sender } => context.set_player_status(sender, PlayerStatus::Ready),
 
-        Event::ShareSecrets {
-            sender,
-            shares,
-        } => {
+        Event::ShareSecrets { sender, shares } => {
             context.add_shared_secrets(sender, shares.clone())?;
             if context.secrets_ready() {
                 context.dispatch_event(Event::SecretsReady, 0);
@@ -61,6 +84,7 @@ pub fn general_handle_event(
             transactor_addr: _,
             access_version,
         } => {
+
             if *access_version <= context.access_version {
                 return Err(Error::EventIgnored);
             }
@@ -161,4 +185,16 @@ pub fn post_handle_event(old_context: &GameContext, new_context: &mut GameContex
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_handle_share_secrets() -> anyhow::Result<()> {
+
+        Ok(())
+    }
 }

@@ -989,19 +989,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "env_logger"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85cdab6a89accf66733ad5a1693a4dcced6aeff64602b634530dd73c1f3ee9f0"
-dependencies = [
- "humantime",
- "is-terminal",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
 name = "errno"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1535,20 +1522,6 @@ dependencies = [
  "digest 0.9.0",
  "generic-array",
  "hmac 0.8.1",
-]
-
-[[package]]
-name = "holdem"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "env_logger 0.10.0",
- "log",
- "race-core",
- "race-proc-macro",
- "race-test",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -2500,20 +2473,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "race-blackjack"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "env_logger 0.10.0",
- "log",
- "race-core",
- "race-proc-macro",
- "race-test",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "race-cli"
 version = "0.1.0"
 dependencies = [
@@ -2577,58 +2536,6 @@ dependencies = [
  "serde",
  "toml",
  "tracing",
-]
-
-[[package]]
-name = "race-example-chat"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "race-core",
- "race-proc-macro",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "race-example-console"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "race-core",
- "race-sdk",
- "race-transport",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "race-example-counter"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "borsh",
- "race-core",
- "race-proc-macro",
- "race-test",
- "serde",
- "serde_json",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "race-example-minimal"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "env_logger 0.10.0",
- "log",
- "race-core",
- "race-proc-macro",
- "race-test",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -3424,7 +3331,7 @@ version = "1.14.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "447d16a70a1b5383736ef44801050c0e1affd022303b22ed899352f958c2de4b"
 dependencies = [
- "env_logger 0.9.3",
+ "env_logger",
  "lazy_static",
  "log",
 ]

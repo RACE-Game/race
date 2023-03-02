@@ -112,6 +112,10 @@ impl DecisionState {
     pub fn get_answer(&self) -> Option<&Answer> {
         self.answer.as_ref()
     }
+
+    pub fn get_revealed(&self) -> Option<&String> {
+       self.value.as_ref()
+    }
 }
 
 #[cfg(test)]

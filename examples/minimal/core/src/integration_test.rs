@@ -45,7 +45,7 @@ fn test() -> Result<()> {
     assert_eq!(1, ctx.count_players());
 
     // Start game
-    let first_event = ctx.gen_first_event();
+    let first_event = ctx.gen_start_game_event();
     let ret = handler.handle_event(&mut ctx, &first_event);
     assert_eq!(ret, Err(Error::NoEnoughPlayers));
 

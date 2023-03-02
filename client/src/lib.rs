@@ -1,4 +1,7 @@
-use std::{collections::{HashMap, BTreeSet}, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use tracing::info;
 
@@ -8,12 +11,12 @@ use race_core::{
     encryptor::EncryptorT,
     error::{Error, Result},
     event::{CustomEvent, Event},
-    random::{RandomStatus, RandomState},
+    random::{RandomState, RandomStatus},
     secret::SecretState,
     transport::TransportT,
     types::{
-        AttachGameParams, Ciphertext, ClientMode, DecisionId, RandomId, SecretKey, SecretShare,
-        SubmitEventParams, SecretIdent,
+        AttachGameParams, Ciphertext, ClientMode, DecisionId, RandomId, SecretIdent, SecretKey,
+        SecretShare, SubmitEventParams,
     },
 };
 
@@ -153,12 +156,12 @@ impl Client {
         }])
     }
 
-    pub fn handle_random_waiting(&mut self, random_state: &RandomState, game_context: &GameContext) -> Result<Vec<Event>> {
-        let mut events = Vec::new();
-        let mut op_hist = Vec::new();
-
-        let required_idents: Vec<SecretIdent> =
-            random_state.list_required_secrets_by_from_addr(&self.addr)
+    pub fn handle_random_waiting(
+        &mut self,
+        random_state: &RandomState,
+    ) -> Result<Event> {
+        let required_idents: Vec<SecretIdent> = random_state
+            .list_required_secrets_by_from_addr(&self.addr)
             .into_iter()
             .filter_map(|idt| {
                 let op_ident = OpIdent::RandomSecret {
@@ -169,8 +172,7 @@ impl Client {
                 if self.op_hist.contains(&op_ident) {
                     None
                 } else {
-
-                    Some((idt, op_hist))
+                    Some(idt)
                 }
             })
             .collect();
@@ -191,8 +193,66 @@ impl Client {
             })
             .collect::<Result<Vec<SecretShare>>>()?;
 
+        let event = Event::ShareSecrets {
+            sender: self.addr.clone(),
+            shares,
+        };
+        Ok(event)
+    }
 
-        Ok(events)
+    pub fn handle_random_masking(
+        &mut self,
+        random_state: &RandomState,
+    ) -> Result<Event> {
+        let origin = random_state
+            .ciphertexts
+            .iter()
+            .map(|c| c.ciphertext().to_owned())
+            .collect();
+
+        let mut masked = self
+            .secret_state
+            .mask(random_state.id, origin)
+            .map_err(|e| Error::RandomizationError(e.to_string()))?;
+
+        self.encryptor.shuffle(&mut masked);
+
+        let event = Event::Mask {
+            sender: self.addr.clone(),
+            random_id: random_state.id,
+            ciphertexts: masked,
+        };
+
+        Ok(event)
+    }
+
+    pub fn handle_random_locking(
+        &mut self,
+        random_state: &RandomState,
+    ) -> Result<Event> {
+        let origin = random_state
+            .ciphertexts
+            .iter()
+            .map(|c| c.ciphertext().to_owned())
+            .collect();
+
+        let unmasked = self
+            .secret_state
+            .unmask(random_state.id, origin)
+            .map_err(|e| Error::RandomizationError(e.to_string()))?;
+
+        let locked = self
+            .secret_state
+            .lock(random_state.id, unmasked)
+            .map_err(|e| Error::RandomizationError(e.to_string()))?;
+
+        let event = Event::Lock {
+            sender: self.addr.clone(),
+            random_id: random_state.id,
+            ciphertexts_and_digests: locked,
+        };
+
+        Ok(event)
     }
 
     pub fn handle_randomization(&mut self, game_context: &GameContext) -> Result<Vec<Event>> {
@@ -200,93 +260,14 @@ impl Client {
         for random_state in game_context.list_random_states().iter() {
             match random_state.status {
                 RandomStatus::Ready => (),
-                RandomStatus::WaitingSecrets(ref addr) => {
-                    if self.addr.eq(addr) {
-
-                        let op_hist: Vec<OpIdent> = Vec::new();
-
-                        // let required_idents =
-                        //     random_state
-                        //     .list_required_secrets_by_from_addr(&self.addr)
-                        //     .into_iter()
-
-                        // check if our secret is required
-                        let required_idents =
-                            random_state.list_required_secrets_by_from_addr(&self.addr)
-                            .into_iter()
-                            .filter_map(|idt| {
-                                ;
-
-                            })
-
-                        if !required_idents.is_empty() {
-                            let op_hist: Vec<OpIdent> = required_idents
-                                .iter()
-                                .map(|idt| )
-                                .collect();
-
-
-                            let event = Event::ShareSecrets {
-                                sender: self.addr.clone(),
-                                shares,
-                            };
-                            events.push(event);
-                            self.op_hist.extend(op_hist);
-                        }
-                    }
+                RandomStatus::WaitingSecrets => {
+                    events.push(self.handle_random_waiting(random_state)?);
                 }
-                RandomStatus::Locking(ref addr) => {
-                    // check if our operation is being requested
-                    if self.addr.eq(addr) {
-                        let origin = random_state
-                            .ciphertexts
-                            .iter()
-                            .map(|c| c.ciphertext().to_owned())
-                            .collect();
-
-                        let unmasked = self
-                            .secret_state
-                            .unmask(random_state.id, origin)
-                            .map_err(|e| Error::RandomizationError(e.to_string()))?;
-
-                        let locked = self
-                            .secret_state
-                            .lock(random_state.id, unmasked)
-                            .map_err(|e| Error::RandomizationError(e.to_string()))?;
-
-                        let event = Event::Lock {
-                            sender: self.addr.clone(),
-                            random_id: random_state.id,
-                            ciphertexts_and_digests: locked,
-                        };
-
-                        events.push(event);
-                    }
+                RandomStatus::Locking => {
+                    events.push(self.handle_random_locking(random_state)?);
                 }
-                RandomStatus::Masking(ref addr) => {
-                    // check if our operation is being requested
-                    if self.addr.eq(addr) {
-                        let origin = random_state
-                            .ciphertexts
-                            .iter()
-                            .map(|c| c.ciphertext().to_owned())
-                            .collect();
-
-                        let mut masked = self
-                            .secret_state
-                            .mask(random_state.id, origin)
-                            .map_err(|e| Error::RandomizationError(e.to_string()))?;
-
-                        self.encryptor.shuffle(&mut masked);
-
-                        let event = Event::Mask {
-                            sender: self.addr.clone(),
-                            random_id: random_state.id,
-                            ciphertexts: masked,
-                        };
-
-                        events.push(event);
-                    }
+                RandomStatus::Masking => {
+                    events.push(self.handle_random_masking(random_state)?);
                 }
             }
         }

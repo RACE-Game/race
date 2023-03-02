@@ -26,7 +26,11 @@ test-transactor:
     cargo test -p race-transactor
 
 
-examples: example-chat example-raffle preview-demo-app
+examples: example-counter example-chat example-raffle
+
+
+example-counter:
+    cargo build -r -p race-example-counter --target wasm32-unknown-unknown
 
 example-chat:
     cargo build -r -p race-example-chat --target wasm32-unknown-unknown

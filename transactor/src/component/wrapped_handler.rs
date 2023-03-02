@@ -5,6 +5,7 @@ use std::sync::Arc;
 use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
+use race_core::effect::Effect;
 use race_core::encryptor::EncryptorT;
 use race_core::engine::{general_handle_event, general_init_state, post_handle_event};
 use race_core::error::{Error, Result};
@@ -79,26 +80,28 @@ impl WrappedHandler {
             .get_typed_function(&self.store, "init_state")
             .expect("Failed to get function");
         let mem_view = memory.view(&self.store);
-        let context_bs = context.try_to_vec().unwrap();
+        let effect = Effect::from_context(context);
+        let effect_bs = effect.try_to_vec().unwrap();
         let init_account_bs = init_account.try_to_vec().unwrap();
         let mut offset = 1u64;
         mem_view
-            .write(offset as _, &context_bs)
-            .expect("Failed to write context");
-        offset += context_bs.len() as u64;
+            .write(offset as _, &effect_bs)
+            .expect("Failed to write effect");
+        offset += effect_bs.len() as u64;
         mem_view
             .write(offset as _, &init_account_bs)
             .expect("Failed to write init account");
         let len = init_state
             .call(
                 &mut self.store,
-                context_bs.len() as _,
+                effect_bs.len() as _,
                 init_account_bs.len() as _,
             )
             .expect("Handle event error");
         let mut buf = vec![0; len as _];
         mem_view.read(1u64, &mut buf).unwrap();
-        *context = GameContext::try_from_slice(&buf).unwrap();
+        let effect = Effect::try_from_slice(&buf).unwrap();
+        context.apply_effect(effect)?;
         if let Some(e) = context.get_error() {
             Err(e.clone())
         } else {
@@ -118,18 +121,19 @@ impl WrappedHandler {
             .get_typed_function(&self.store, "handle_event")
             .expect("Failed to get function");
         let mem_view = memory.view(&self.store);
-        let context_bs = context.try_to_vec().unwrap();
+        let effect = Effect::from_context(context);
+        let effect_bs = effect.try_to_vec().unwrap();
         let event_bs = event.try_to_vec().unwrap();
         let mut offset = 1u64;
         mem_view
-            .write(offset as _, &context_bs)
-            .expect("Failed to write context");
-        offset += context_bs.len() as u64;
+            .write(offset as _, &effect_bs)
+            .expect("Failed to write effect");
+        offset += effect_bs.len() as u64;
         mem_view
             .write(offset as _, &event_bs)
             .expect("Failed to write event");
         let len = handle_event
-            .call(&mut self.store, context_bs.len() as _, event_bs.len() as _)
+            .call(&mut self.store, effect_bs.len() as _, event_bs.len() as _)
             .map_err(|e| {
                 error!("An error occurred in game handler: {:?}", e);
                 e
@@ -137,7 +141,8 @@ impl WrappedHandler {
             .expect("Handle event error");
         let mut buf = vec![0; len as _];
         mem_view.read(1u64, &mut buf).unwrap();
-        *context = GameContext::try_from_slice(&buf).unwrap();
+        let effect = Effect::try_from_slice(&buf).unwrap();
+        context.apply_effect(effect)?;
         if let Some(e) = context.get_error() {
             Err(e.clone())
         } else {

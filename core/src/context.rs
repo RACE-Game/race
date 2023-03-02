@@ -4,6 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::Serialize;
 
 use crate::decision::DecisionState;
+use crate::effect::{Assign, Effect, InitRandomState, Prompt, Reveal};
 use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
@@ -13,7 +14,7 @@ use crate::types::{
 };
 use crate::{
     event::Event,
-    random::{RandomSpec, RandomState},
+    random::RandomState,
     types::{Ciphertext, GameAccount},
 };
 
@@ -172,6 +173,7 @@ pub struct GameContext {
     pub(crate) pending_servers: Vec<ServerJoin>,
     pub(crate) dispatch: Option<DispatchEvent>,
     pub(crate) state_json: String,
+    pub(crate) handler_state: Vec<u8>,
     pub(crate) timestamp: u64,
     /// Whether a player can leave or not
     pub(crate) allow_exit: bool,
@@ -208,6 +210,7 @@ impl GameContext {
             decision_states: vec![],
             settles: None,
             error: None,
+            handler_state: Vec::new(),
         })
     }
 
@@ -227,7 +230,7 @@ impl GameContext {
     where
         H: GameHandler,
     {
-        serde_json::from_str(&self.state_json).unwrap()
+        H::try_from_slice(&self.handler_state).unwrap()
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
@@ -273,7 +276,7 @@ impl GameContext {
         self.servers.len() + self.pending_servers.len()
     }
 
-    pub fn gen_first_event(&self) -> Event {
+    pub fn gen_start_game_event(&self) -> Event {
         Event::GameStart {
             access_version: self.access_version,
         }
@@ -310,7 +313,7 @@ impl GameContext {
     }
 
     pub fn start_game(&mut self) {
-        self.dispatch = Some(DispatchEvent::new(self.gen_first_event(), 0));
+        self.dispatch = Some(DispatchEvent::new(self.gen_start_game_event(), 0));
     }
 
     pub fn shutdown_game(&mut self) {
@@ -570,13 +573,13 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn init_random_state(&mut self, rnd: &dyn RandomSpec) -> Result<RandomId> {
+    pub fn init_random_state(&mut self, options: Vec<String>, size: usize) -> Result<RandomId> {
         let random_id = self.random_states.len() + 1;
         let owners: Vec<String> = self.servers.iter().map(|v| v.addr.clone()).collect();
 
         // The only failure case is no enough owners.
         // Here we know the game is served, so the servers must not be empty.
-        let random_state = RandomState::try_new(random_id, rnd, &owners)?;
+        let random_state = RandomState::try_new(random_id, options, size, &owners)?;
 
         self.random_states.push(random_state);
         Ok(random_id)
@@ -745,5 +748,61 @@ impl GameContext {
     pub fn get_revealed(&self, random_id: usize) -> Result<&HashMap<usize, String>> {
         let rnd_st = self.get_random_state(random_id)?;
         Ok(&rnd_st.revealed)
+    }
+
+    pub fn apply_effect(&mut self, effect: Effect) -> Result<()> {
+        let Effect {
+            action_timeout,
+            wait_timeout,
+            start_game,
+            stop_game,
+            cancel_dispatch,
+            prompts,
+            assigns,
+            reveals,
+            init_random_states,
+            settles,
+            ..
+        } = effect;
+
+        // Handle dispatching
+        if start_game {
+            self.start_game();
+        } else if stop_game {
+            self.shutdown_game();
+        } else if let Some(t) = action_timeout {
+            self.action_timeout(t.player_addr, t.timeout);
+        } else if let Some(t) = wait_timeout {
+            self.wait_timeout(t);
+        } else if cancel_dispatch {
+            self.cancel_dispatch();
+        }
+
+        for Assign {
+            random_id,
+            indexes,
+            player_addr,
+        } in assigns.into_iter()
+        {
+            self.assign(random_id, player_addr, indexes)?;
+        }
+
+        for Reveal { random_id, indexes } in reveals.into_iter() {
+            self.reveal(random_id, indexes)?;
+        }
+
+        for Prompt { player_addr } in prompts.into_iter() {
+            self.prompt(player_addr);
+        }
+
+        for InitRandomState { options, size } in init_random_states.into_iter() {
+            self.init_random_state(options, size)?;
+        }
+
+        if !settles.is_empty() {
+            self.settle(settles);
+        }
+
+        Ok(())
     }
 }

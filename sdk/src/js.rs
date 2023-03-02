@@ -134,12 +134,12 @@ impl From<race_core::event::Event> for Event {
                 sender: Some(sender),
                 data: JsValue::null(),
             },
-            ShareSecrets { sender, secrets } => {
+            ShareSecrets { sender, shares } => {
                 let data = Object::new();
                 Reflect::set(
                     &data,
-                    &"secrets".into(),
-                    &JsValue::from_serde(&secrets).unwrap(),
+                    &"shares".into(),
+                    &JsValue::from_serde(&shares).unwrap(),
                 )
                 .unwrap();
                 Self {
@@ -148,9 +148,9 @@ impl From<race_core::event::Event> for Event {
                     data: JsValue::from(data),
                 }
             }
-            OperationTimeout { addr } => {
+            OperationTimeout { addrs } => {
                 let data = Object::new();
-                Reflect::set(&data, &"addr".into(), &addr.into()).unwrap();
+                Reflect::set(&data, &"addrs".into(), &JsValue::from_serde(&addrs).unwrap()).unwrap();
                 Self {
                     kind: "operation-timeout".into(),
                     sender: None,

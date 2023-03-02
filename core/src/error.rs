@@ -194,6 +194,9 @@ pub enum Error {
     #[error("Invalid decision id")]
     InvalidDecisionId,
 
+    #[error("Answer not available")]
+    AnswerNotAvailable,
+
     #[error("Missing decision secret: {0}")]
     MissingDecisionSecret(DecisionId),
 
@@ -208,6 +211,9 @@ pub enum Error {
 
     #[error("Duplicated secret share")]
     DuplicatedSecretShare,
+
+    #[error("Serialization error")]
+    SerializationError,
 }
 
 impl From<serde_json::Error> for Error {

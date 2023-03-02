@@ -43,7 +43,7 @@ pub fn test_holdem() -> Result<()> {
 
     // ------------------------- INITTEST ------------------------
     // Try to start the "zero-player" game that will fail
-    let fail_to_start = ctx.gen_first_event();
+    let fail_to_start = ctx.gen_start_game_event();
     holdem.handle_event(&mut ctx, &fail_to_start)?;
     assert_eq!(
         *ctx.get_dispatch(),

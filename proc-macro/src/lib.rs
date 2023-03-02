@@ -5,6 +5,29 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, ItemStruct};
 
+/// A macro to generate boilerplate code for using in wasm.
+///
+/// ```
+/// use borsh::{BorshDeserialize, BorshSerialize};
+/// use race_core::{
+///     effect::Effect, engine::GameHandler, error::Result, event::Event, types::GameAccount,
+/// };
+/// use race_proc_macro::game_handler;
+///
+/// #[game_handler]
+/// #[derive(BorshDeserialize, BorshSerialize)]
+/// struct S {}
+///
+/// impl GameHandler for S {
+///     fn init_state(context: &mut Effect, init_account: GameAccount) -> Result<Self> {
+///         Ok(Self {})
+///     }
+
+///     fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()> {
+///         Ok(())
+///     }
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
     let s = parse_macro_input!(input as ItemStruct);
@@ -29,30 +52,30 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
         }
 
         #[no_mangle]
-        pub extern "C" fn handle_event(context_size: u32, event_size: u32) -> u32 {
+        pub extern "C" fn handle_event(effect_size: u32, event_size: u32) -> u32 {
             let mut ptr = 1 as *mut u8;
-            let mut context: race_core::context::GameContext = read_ptr(&mut ptr, context_size);
+            let mut effect: race_core::effect::Effect = read_ptr(&mut ptr, effect_size);
             let event: race_core::event::Event = read_ptr(&mut ptr, event_size);
-            let mut handler: #s_idt = context.get_handler_state();
-            match handler.handle_event(&mut context, event) {
-                Ok(_) => context.set_handler_state(&handler),
-                Err(e) => context.set_error(e),
+            let mut handler: #s_idt = effect.__handler_state();
+            match handler.handle_event(&mut effect, event) {
+                Ok(_) => effect.__set_handler_state(&handler),
+                Err(e) => effect.__set_error(e),
             }
             let mut ptr = 1 as *mut u8;
-            write_ptr(&mut ptr, context)
+            write_ptr(&mut ptr, effect)
         }
 
         #[no_mangle]
-        pub extern "C" fn init_state(context_size: u32, init_account_size: u32) -> u32 {
+        pub extern "C" fn init_state(effect_size: u32, init_account_size: u32) -> u32 {
             let mut ptr = 1 as *mut u8;
-            let mut context: race_core::context::GameContext = read_ptr(&mut ptr, context_size);
+            let mut effect: race_core::effect::Effect = read_ptr(&mut ptr, effect_size);
             let init_account: race_core::types::GameAccount = read_ptr(&mut ptr, init_account_size);
-            match #s_idt::init_state(&mut context, init_account) {
-                Ok(handler) => context.set_handler_state(&handler),
-                Err(e) => context.set_error(e),
+            match #s_idt::init_state(&mut effect, init_account) {
+                Ok(handler) => effect.__set_handler_state(&handler),
+                Err(e) => effect.__set_error(e),
             }
             let mut ptr = 1 as *mut u8;
-            write_ptr(&mut ptr, context)
+            write_ptr(&mut ptr, effect)
         }
     })
 }

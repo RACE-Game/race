@@ -78,6 +78,9 @@ pub enum RandomMode {
     Drawer,
 }
 
+
+
+
 /// An interface for randomness
 /// Since we are using P2P generated randomness, so this structure doesn't really hold the random result.
 /// `Randomness` holds the option of values, the identifiers and the generation status.
@@ -252,8 +255,7 @@ impl RandomState {
         self.ciphertexts.get_mut(index)
     }
 
-    pub fn try_new(id: RandomId, rnd: &dyn RandomSpec, owners: &[String]) -> Result<Self> {
-        let options = rnd.options();
+    pub fn try_new(id: RandomId, options: Vec<String>, size: usize, owners: &[String]) -> Result<Self> {
         let ciphertexts = options
             .iter()
             .map(|o| {
@@ -268,7 +270,7 @@ impl RandomState {
         let status = RandomStatus::Masking;
         Ok(Self {
             id,
-            size: rnd.size(),
+            size,
             masks,
             owners: owners.to_owned(),
             options: options.clone(),
@@ -613,8 +615,12 @@ mod tests {
 
     #[test]
     fn test_list_required_secrets() -> Result<()> {
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
+        let mut state = RandomState::try_new(
+            0,
+            vec!["a".into(), "b".into(), "c".into()],
+            3,
+            &["alice".into(), "bob".into()],
+        )?;
         state.mask("alice", vec![vec![1], vec![2], vec![3]])?;
         state.mask("bob", vec![vec![1], vec![2], vec![3]])?;
         state.lock(
@@ -642,9 +648,12 @@ mod tests {
 
     #[test]
     fn test_new_random_spec() -> Result<()> {
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let state =
-            RandomState::try_new(0, &rnd, &["alice".into(), "bob".into(), "charlie".into()])?;
+        let state = RandomState::try_new(
+            0,
+            vec!["a".into(), "b".into(), "c".into()],
+            3,
+            &["alice".into(), "bob".into(), "charlie".into()],
+        )?;
         assert_eq!(3, state.masks.len());
         Ok(())
     }
@@ -659,8 +668,12 @@ mod tests {
 
     #[test]
     fn test_mask() -> Result<()> {
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
+        let mut state = RandomState::try_new(
+            0,
+            vec!["a".into(), "b".into(), "c".into()],
+            3,
+            &["alice".into(), "bob".into()],
+        )?;
         assert_eq!(RandomStatus::Masking, state.status);
         state
             .mask("alice", vec![vec![1], vec![2], vec![3]])
@@ -678,8 +691,12 @@ mod tests {
 
     #[test]
     fn test_add_secret_share() -> Result<()> {
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
+        let mut state = RandomState::try_new(
+            0,
+            vec!["a".into(), "b".into(), "c".into()],
+            3,
+            &["alice".into(), "bob".into()],
+        )?;
         let share1 = Share {
             from_addr: "alice".into(),
             to_addr: None,
@@ -700,8 +717,12 @@ mod tests {
 
     #[test]
     fn test_lock() -> Result<()> {
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
+        let mut state = RandomState::try_new(
+            0,
+            vec!["a".into(), "b".into(), "c".into()],
+            3,
+            &["alice".into(), "bob".into()],
+        )?;
         state
             .mask("alice", vec![vec![1], vec![2], vec![3]])
             .expect("failed to mask");
