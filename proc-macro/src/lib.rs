@@ -47,7 +47,6 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
         pub fn write_ptr<T: BorshSerialize>(ptr: &mut *mut u8, data: T) -> u32 {
             let vec = data.try_to_vec().expect("Borsh serialize error");
             unsafe { std::ptr::copy(vec.as_ptr(), *ptr, vec.len()) }
-            *ptr = unsafe { ptr.add(vec.len() as _) };
             vec.len() as _
         }
 

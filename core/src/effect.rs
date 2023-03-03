@@ -12,11 +12,13 @@ use crate::{
     types::{DecisionId, RandomId, Settle},
 };
 
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(crate) struct Prompt {
     pub(crate) player_addr: String,
 }
 
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(crate) struct Assign {
     pub(crate) random_id: RandomId,
@@ -24,18 +26,21 @@ pub(crate) struct Assign {
     pub(crate) indexes: Vec<usize>,
 }
 
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(crate) struct Reveal {
     pub(crate) random_id: RandomId,
     pub(crate) indexes: Vec<usize>,
 }
 
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(crate) struct InitRandomState {
     pub(crate) options: Vec<String>,
     pub(crate) size: usize,
 }
 
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(crate) struct ActionTimeout {
     pub(crate) player_addr: String,
@@ -130,6 +135,7 @@ pub(crate) struct ActionTimeout {
 /// effect.settle(Settle::eject("Charlie"));
 /// ```
 
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Default, BorshSerialize, BorshDeserialize)]
 pub struct Effect {
     pub(crate) action_timeout: Option<ActionTimeout>,
@@ -340,7 +346,73 @@ impl Effect {
         self.error = Some(error);
     }
 
+    /// Take error
+    ///
+    /// This is an internal function, DO NOT use in game handler.
     pub fn __take_error(&mut self) -> Option<Error> {
         std::mem::replace(&mut self.error, None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_serialization() -> anyhow::Result<()> {
+        let mut answered = BTreeMap::new();
+        answered.insert(1, "A".into());
+
+        let mut revealed = BTreeMap::new();
+        {
+            let mut m = BTreeMap::new();
+            m.insert(1, "B".into());
+            revealed.insert(2, m);
+        }
+
+        let effect = Effect {
+            action_timeout: Some(ActionTimeout {
+                player_addr: "alice".into(),
+                timeout: 100,
+            }),
+            wait_timeout: Some(200),
+            start_game: true,
+            stop_game: true,
+            cancel_dispatch: true,
+            timestamp: 300_000,
+            curr_random_id: 1,
+            curr_decision_id: 1,
+            players_count: 4,
+            servers_count: 4,
+            prompts: vec![Prompt {
+                player_addr: "bob".into(),
+            }],
+            assigns: vec![Assign {
+                player_addr: "bob".into(),
+                random_id: 1,
+                indexes: vec![0, 1, 2],
+            }],
+            reveals: vec![Reveal {
+                random_id: 1,
+                indexes: vec![0, 1, 2],
+            }],
+            init_random_states: vec![InitRandomState {
+                options: vec!["a".into(), "b".into()],
+                size: 2,
+            }],
+            revealed,
+            answered,
+            settles: vec![Settle::add("alice", 200), Settle::add("bob", 200)],
+            handler_state: Some(vec![0, 1, 2, 3]),
+            error: Some(Error::NoEnoughPlayers),
+            allow_exit: true,
+        };
+        let bs = effect.try_to_vec()?;
+
+        let parsed = Effect::try_from_slice(&bs)?;
+        assert_eq!(effect, parsed);
+        assert!(false);
+        Ok(())
     }
 }

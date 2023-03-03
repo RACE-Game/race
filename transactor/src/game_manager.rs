@@ -35,22 +35,23 @@ impl GameManager {
     ) {
         let mut games = self.games.lock().await;
         if let Entry::Vacant(e) = games.entry(game_addr.clone()) {
-            if let Ok(mut handle) =
-                Handle::try_new(transport, encryptor, server_account, e.key()).await
-            {
-                info!("Game handle created: {}", e.key());
-                let join_handle = handle.wait();
-                e.insert(handle);
-                let games = self.games.clone();
-                // Wait and unload
-                tokio::spawn(async move {
-                    join_handle.await.unwrap();
-                    let mut games = games.lock().await;
-                    games.remove(&game_addr);
-                    info!("Clean game handle: {}", game_addr);
-                });
-            } else {
-                warn!("Failed to load game: {}", e.key());
+            match Handle::try_new(transport, encryptor, server_account, e.key()).await {
+                Ok(mut handle) => {
+                    info!("Game handle created: {}", e.key());
+                    let join_handle = handle.wait();
+                    e.insert(handle);
+                    let games = self.games.clone();
+                    // Wait and unload
+                    tokio::spawn(async move {
+                        join_handle.await.unwrap();
+                        let mut games = games.lock().await;
+                        games.remove(&game_addr);
+                        info!("Clean game handle: {}", game_addr);
+                    });
+                }
+                Err(err) => {
+                    warn!("Failed to load game: {}, error: {}", e.key(), err.to_string());
+                }
             }
         }
     }

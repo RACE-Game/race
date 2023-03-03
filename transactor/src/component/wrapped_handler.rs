@@ -106,8 +106,11 @@ impl WrappedHandler {
             )
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mut buf = vec![0; len as _];
-        mem_view.read(1u64, &mut buf).unwrap();
-        let mut effect = Effect::try_from_slice(&buf).unwrap();
+        mem_view
+            .read(1u64, &mut buf)
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+        let mut effect =
+            Effect::try_from_slice(&buf).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         if let Some(e) = effect.__take_error() {
             Err(e)
         } else {
@@ -146,8 +149,11 @@ impl WrappedHandler {
             .call(&mut self.store, effect_bs.len() as _, event_bs.len() as _)
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mut buf = vec![0; len as _];
-        mem_view.read(1u64, &mut buf).unwrap();
-        let mut effect = Effect::try_from_slice(&buf).unwrap();
+        mem_view
+            .read(1u64, &mut buf)
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+        let mut effect =
+            Effect::try_from_slice(&buf).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         if let Some(e) = effect.__take_error() {
             Err(e)
         } else {
@@ -213,7 +219,7 @@ mod tests {
         let game_account = make_game_account();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         hdlr.init_state(&mut ctx, &game_account).unwrap();
-        assert_ne!("", ctx.get_handler_state_json());
+        assert_ne!(&[] as &[u8], ctx.get_handler_state_raw());
     }
 
     #[test]
@@ -227,6 +233,7 @@ mod tests {
                 balance: 1000,
                 position: 0,
                 access_version: ctx.get_access_version() + 1,
+                settle_version: game_account.settle_version,
             }],
             new_servers: vec![],
             transactor_addr: transactor_account_addr(),
@@ -235,6 +242,6 @@ mod tests {
         hdlr.init_state(&mut ctx, &game_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
-        assert_ne!("", ctx.get_handler_state_json());
+        assert_ne!(&[] as &[u8], ctx.get_handler_state_raw());
     }
 }
