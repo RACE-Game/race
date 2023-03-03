@@ -7,12 +7,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
 use race_core::effect::Effect;
 use race_core::encryptor::EncryptorT;
-use race_core::engine::{general_handle_event, general_init_state, post_handle_event};
+use race_core::engine::{general_handle_event, general_init_state, post_handle_event, InitAccount};
 use race_core::error::{Error, Result};
 use race_core::event::Event;
 use race_core::types::{GameAccount, GameBundle, Settle};
 use race_encryptor::Encryptor;
-use tracing::error;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
 
 pub struct WrappedHandler {
@@ -66,46 +65,53 @@ impl WrappedHandler {
     pub fn custom_init_state(
         &mut self,
         context: &mut GameContext,
-        init_account: &GameAccount,
+        game_account: &GameAccount,
     ) -> Result<()> {
         let memory = self
             .instance
             .exports
             .get_memory("memory")
-            .expect("Get memory failed");
-        memory.grow(&mut self.store, 4).expect("Failed to grow");
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+
+        memory
+            .grow(&mut self.store, 4)
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let init_state: TypedFunction<(u32, u32), u32> = self
             .instance
             .exports
             .get_typed_function(&self.store, "init_state")
-            .expect("Failed to get function");
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
         let effect = Effect::from_context(context);
-        let effect_bs = effect.try_to_vec().unwrap();
-        let init_account_bs = init_account.try_to_vec().unwrap();
+        let effect_bs = effect
+            .try_to_vec()
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+        let init_account: InitAccount = game_account.into();
+        let init_account_bs = init_account
+            .try_to_vec()
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mut offset = 1u64;
         mem_view
             .write(offset as _, &effect_bs)
-            .expect("Failed to write effect");
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         offset += effect_bs.len() as u64;
         mem_view
             .write(offset as _, &init_account_bs)
-            .expect("Failed to write init account");
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let len = init_state
             .call(
                 &mut self.store,
                 effect_bs.len() as _,
                 init_account_bs.len() as _,
             )
-            .expect("Handle event error");
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mut buf = vec![0; len as _];
         mem_view.read(1u64, &mut buf).unwrap();
-        let effect = Effect::try_from_slice(&buf).unwrap();
-        context.apply_effect(effect)?;
-        if let Some(e) = context.get_error() {
-            Err(e.clone())
+        let mut effect = Effect::try_from_slice(&buf).unwrap();
+        if let Some(e) = effect.__take_error() {
+            Err(e)
         } else {
-            Ok(())
+            context.apply_effect(effect)
         }
     }
 
@@ -114,39 +120,38 @@ impl WrappedHandler {
             .instance
             .exports
             .get_memory("memory")
-            .expect("Get memory failed");
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let handle_event: TypedFunction<(u32, u32), u32> = self
             .instance
             .exports
             .get_typed_function(&self.store, "handle_event")
-            .expect("Failed to get function");
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
         let effect = Effect::from_context(context);
-        let effect_bs = effect.try_to_vec().unwrap();
-        let event_bs = event.try_to_vec().unwrap();
+        let effect_bs = effect
+            .try_to_vec()
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+        let event_bs = event
+            .try_to_vec()
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mut offset = 1u64;
         mem_view
             .write(offset as _, &effect_bs)
-            .expect("Failed to write effect");
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         offset += effect_bs.len() as u64;
         mem_view
             .write(offset as _, &event_bs)
-            .expect("Failed to write event");
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let len = handle_event
             .call(&mut self.store, effect_bs.len() as _, event_bs.len() as _)
-            .map_err(|e| {
-                error!("An error occurred in game handler: {:?}", e);
-                e
-            })
-            .expect("Handle event error");
+            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mut buf = vec![0; len as _];
         mem_view.read(1u64, &mut buf).unwrap();
-        let effect = Effect::try_from_slice(&buf).unwrap();
-        context.apply_effect(effect)?;
-        if let Some(e) = context.get_error() {
-            Err(e.clone())
+        let mut effect = Effect::try_from_slice(&buf).unwrap();
+        if let Some(e) = effect.__take_error() {
+            Err(e)
         } else {
-            Ok(())
+            context.apply_effect(effect)
         }
     }
 

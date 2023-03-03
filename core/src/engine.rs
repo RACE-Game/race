@@ -17,8 +17,18 @@ pub struct InitAccount {
     pub data: Vec<u8>,
 }
 
-impl From<GameAccount> for InitAccount {
-    fn from(value: GameAccount) -> Self {
+impl Default for InitAccount {
+    fn default() -> Self {
+        Self {
+            addr: "".into(),
+            players: Vec::new(),
+            data: Vec::new(),
+        }
+    }
+}
+
+impl From<&GameAccount> for InitAccount {
+    fn from(value: &GameAccount) -> Self {
         let players = value
             .players
             .iter()
@@ -29,14 +39,14 @@ impl From<GameAccount> for InitAccount {
         Self {
             addr: value.addr.clone(),
             players,
-            data: value.data,
+            data: value.data.clone(),
         }
     }
 }
 
 pub trait GameHandler: Sized + BorshDeserialize + BorshSerialize {
     /// Initialize handler state with on-chain game account data.
-    fn init_state(context: &mut Effect, init_account: GameAccount) -> Result<Self>;
+    fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self>;
 
     /// Handle event.
     fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()>;
@@ -84,15 +94,14 @@ pub fn general_handle_event(
             transactor_addr: _,
             access_version,
         } => {
-
             if *access_version <= context.access_version {
                 return Err(Error::EventIgnored);
             }
             for p in new_players.iter() {
-                context.add_pending_player(p.clone())?;
+                context.add_player(p)?;
             }
             for s in new_servers.iter() {
-                context.add_pending_server(s.clone())?;
+                context.add_server(s)?;
             }
             context.access_version = *access_version;
 
@@ -112,25 +121,7 @@ pub fn general_handle_event(
             }
         }
 
-        Event::GameStart { access_version } => {
-            let mut p_idxs = vec![];
-            let mut s_idxs = vec![];
-            for (p_idx, p) in context.pending_players.iter().enumerate() {
-                if p.access_version <= *access_version {
-                    p_idxs.push(p_idx);
-                }
-            }
-            for (s_idx, s) in context.pending_servers.iter().enumerate() {
-                if s.access_version <= *access_version {
-                    s_idxs.push(s_idx);
-                }
-            }
-            for p_idx in p_idxs.into_iter().rev() {
-                context.add_player(p_idx)?;
-            }
-            for s_idx in s_idxs.into_iter().rev() {
-                context.add_server(s_idx)?;
-            }
+        Event::GameStart { .. } => {
             context.set_game_status(GameStatus::Running);
             Ok(())
         }
@@ -190,11 +181,58 @@ pub fn post_handle_event(old_context: &GameContext, new_context: &mut GameContex
 #[cfg(test)]
 mod tests {
 
+    use crate::types::ServerJoin;
+    use crate::encryptor::tests::DummyEncryptor;
+
     use super::*;
 
     #[test]
-    fn test_handle_share_secrets() -> anyhow::Result<()> {
+    fn test_handle_game_start() -> anyhow::Result<()> {
+        let encryptor = DummyEncryptor::default();
+        let mut context = GameContext::default();
+        let event = Event::GameStart {
+            access_version: 1,
+        };
+        general_handle_event(&mut context, &event, &encryptor)?;
+        assert_eq!(context.status, GameStatus::Running);
+        Ok(())
+    }
 
+    #[test]
+    fn test_handle_sync() -> anyhow::Result<()> {
+        let encryptor = DummyEncryptor::default();
+        let mut context = GameContext::default();
+        let event = Event::Sync {
+            new_players: vec![
+                PlayerJoin {
+                    addr: "alice".into(),
+                    position: 0,
+                    balance: 100,
+                    access_version: 1,
+                    settle_version: 1,
+                },
+                PlayerJoin {
+                    addr: "bob".into(),
+                    position: 1,
+                    balance: 100,
+                    access_version: 1,
+                    settle_version: 1,
+                },
+            ],
+            new_servers: vec![ServerJoin {
+                addr: "foo".into(),
+                endpoint: "foo.endpoint".into(),
+                access_version: 1,
+                settle_version: 1,
+            }],
+            transactor_addr: "".into(),
+            access_version: 1,
+        };
+
+        general_handle_event(&mut context, &event, &encryptor)?;
+
+        assert_eq!(context.count_players(), 2);
+        assert_eq!(context.count_servers(), 1);
         Ok(())
     }
 }

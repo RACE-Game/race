@@ -46,7 +46,7 @@ impl TransactorHandle {
         let event_bus = EventBus::default();
 
         let (broadcaster, broadcaster_ctx) =
-            Broadcaster::init(&game_account, game_context.get_handler_state_json().into());
+            Broadcaster::init(&game_account, game_context.get_handler_state_raw().to_owned());
         let mut broadcaster_handle = broadcaster.start(broadcaster_ctx);
 
         let (event_loop, event_loop_ctx) =

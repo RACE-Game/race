@@ -165,14 +165,7 @@ pub struct GameContext {
     pub(crate) players: Vec<Player>,
     /// List of validators serving this game
     pub(crate) servers: Vec<Server>,
-    /// List of players those paid in the contract, but haven't been
-    /// collected by transactor.
-    pub(crate) pending_players: Vec<PlayerJoin>,
-    /// List of servers those attached in the contract, but haven't been
-    /// collected by transactor.
-    pub(crate) pending_servers: Vec<ServerJoin>,
     pub(crate) dispatch: Option<DispatchEvent>,
-    pub(crate) state_json: String,
     pub(crate) handler_state: Vec<u8>,
     pub(crate) timestamp: u64,
     /// Whether a player can leave or not
@@ -182,7 +175,6 @@ pub struct GameContext {
     pub(crate) decision_states: Vec<DecisionState>,
     /// Settles, if is not None, will be handled by event loop.
     pub(crate) settles: Option<Vec<Settle>>,
-    pub(crate) error: Option<Error>,
 }
 
 impl GameContext {
@@ -192,24 +184,44 @@ impl GameContext {
             .as_ref()
             .ok_or(Error::GameNotServed)?;
 
+        let players = game_account
+            .players
+            .iter()
+            .filter_map(|p| {
+                if p.settle_version <= game_account.settle_version {
+                    Some(Player::new(p.addr.clone(), p.balance, p.position))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let servers = game_account
+            .servers
+            .iter()
+            .filter_map(|s| {
+                if s.settle_version <= game_account.settle_version {
+                    Some(Server::new(s.addr.clone(), s.endpoint.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         Ok(Self {
             game_addr: game_account.addr.clone(),
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
             transactor_addr: transactor_addr.to_owned(),
             status: GameStatus::Uninit,
-            players: vec![],
-            servers: vec![],
-            pending_players: game_account.players.clone(),
-            pending_servers: game_account.servers.clone(),
+            players,
+            servers,
             dispatch: None,
-            state_json: "".into(),
             timestamp: 0,
             allow_exit: false,
             random_states: vec![],
             decision_states: vec![],
             settles: None,
-            error: None,
             handler_state: Vec::new(),
         })
     }
@@ -218,12 +230,12 @@ impl GameContext {
         self.timestamp = timestamp;
     }
 
-    pub fn get_handler_state_json(&self) -> &str {
-        &self.state_json
-    }
-
     pub fn is_allow_exit(&self) -> bool {
         self.allow_exit
+    }
+
+    pub fn get_handler_state_raw(&self) -> &[u8] {
+        &self.handler_state
     }
 
     pub fn get_handler_state<H>(&self) -> H
@@ -235,9 +247,9 @@ impl GameContext {
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
     where
-        H: Serialize,
+        H: BorshSerialize,
     {
-        self.state_json = serde_json::to_string(&handler).unwrap();
+        self.handler_state = handler.try_to_vec().unwrap()
     }
 
     pub fn get_servers(&self) -> &Vec<Server> {
@@ -269,11 +281,11 @@ impl GameContext {
     }
 
     pub fn count_players(&self) -> usize {
-        self.players.len() + self.pending_players.len()
+        self.players.len()
     }
 
     pub fn count_servers(&self) -> usize {
-        self.servers.len() + self.pending_servers.len()
+        self.servers.len()
     }
 
     pub fn gen_start_game_event(&self) -> Event {
@@ -337,10 +349,6 @@ impl GameContext {
 
     pub fn get_timestamp(&self) -> u64 {
         self.timestamp
-    }
-
-    pub fn get_pending_players(&self) -> &Vec<PlayerJoin> {
-        &self.pending_players
     }
 
     pub fn get_status(&self) -> GameStatus {
@@ -453,14 +461,6 @@ impl GameContext {
             .all(|st| st.status == RandomStatus::Ready)
     }
 
-    pub fn set_error(&mut self, error: Error) {
-        self.error = Some(error)
-    }
-
-    pub fn get_error(&self) -> &Option<Error> {
-        &self.error
-    }
-
     /// Set game status
     pub fn set_game_status(&mut self, status: GameStatus) {
         self.status = status;
@@ -477,68 +477,39 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn add_player(&mut self, index: usize) -> Result<()> {
-        let new_player = self.pending_players.remove(index);
-        if new_player.access_version > self.access_version {
-            self.access_version = new_player.access_version;
-        }
-        self.players.push(new_player.into());
-        Ok(())
-    }
-
-    pub fn add_pending_player(&mut self, new_player: PlayerJoin) -> Result<()> {
+    /// Add player to the game.
+    pub fn add_player(&mut self, player: &PlayerJoin) -> Result<()> {
         if self
-            .pending_players
+            .players
             .iter()
-            .find(|p| p.addr.eq(&new_player.addr))
+            .find(|p| p.addr.eq(&player.addr) || p.position == player.position)
             .is_some()
         {
-            return Err(Error::PlayerAlreadyJoined(new_player.addr));
+            Err(Error::PlayerAlreadyJoined(player.addr.clone()))
+        } else {
+            self.players.push(Player::new(
+                player.addr.clone(),
+                player.balance,
+                player.position,
+            ));
+            Ok(())
         }
-        self.pending_players.push(new_player);
-        Ok(())
-    }
-
-    /// Handle all pending players.
-    /// This function should be used in test only.
-    pub fn handle_pending_players(&mut self) -> Result<()> {
-        for i in (0..self.pending_players.len()).rev() {
-            self.add_player(i)?;
-        }
-        Ok(())
     }
 
     /// Add server to the game.
-    /// Using in custom event handler is not allowed.
-    pub fn add_server(&mut self, index: usize) -> Result<()> {
-        let new_server = self.pending_servers.remove(index);
-        if new_server.access_version > self.access_version {
-            self.access_version = new_server.access_version;
-        }
-        self.servers.push(new_server.into());
-        Ok(())
-    }
-
-    pub fn add_pending_server(&mut self, new_server: ServerJoin) -> Result<()> {
+    pub fn add_server(&mut self, server: &ServerJoin) -> Result<()> {
         if self
-            .pending_servers
+            .servers
             .iter()
-            .find(|p| p.addr.eq(&new_server.addr))
+            .find(|s| s.addr.eq(&server.addr))
             .is_some()
         {
-            return Err(Error::ServerAlreadyJoined(new_server.addr));
+            Err(Error::ServerAlreadyJoined(server.addr.clone()))
+        } else {
+            self.servers
+                .push(Server::new(server.addr.clone(), server.endpoint.clone()));
+            Ok(())
         }
-        self.pending_servers.push(new_server);
-        Ok(())
-    }
-
-    /// Handle all pending servers.
-    /// This function should be used in test only.
-    pub fn handle_pending_servers(&mut self) -> Result<()> {
-        for i in (0..self.pending_servers.len()).rev() {
-            self.add_server(i)?;
-        }
-        Ok(())
     }
 
     pub fn set_access_version(&mut self, access_version: u64) {
@@ -804,5 +775,26 @@ impl GameContext {
         }
 
         Ok(())
+    }
+}
+
+impl Default for GameContext {
+    fn default() -> Self {
+        Self {
+            game_addr: "".into(),
+            access_version: 0,
+            settle_version: 0,
+            transactor_addr: "".into(),
+            status: GameStatus::Uninit,
+            players: Vec::new(),
+            servers: Vec::new(),
+            dispatch: None,
+            handler_state: Vec::new(),
+            timestamp: 0,
+            allow_exit: false,
+            random_states: Vec::new(),
+            decision_states: Vec::new(),
+            settles: None,
+        }
     }
 }

@@ -121,7 +121,7 @@ impl ApplicationContext {
             .await
     }
 
-    pub async fn get_snapshot(&self, game_addr: &str) -> Result<String> {
+    pub async fn get_snapshot(&self, game_addr: &str) -> Result<Vec<u8>> {
         self.game_manager.get_snapshot(game_addr).await
     }
 

@@ -1,8 +1,5 @@
 #![allow(unused)]
-use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::{
-    effect::Effect, engine::GameHandler, error::Result, event::Event, types::GameAccount,
-};
+use race_core::prelude::*;
 use race_proc_macro::game_handler;
 
 #[game_handler]
@@ -10,7 +7,7 @@ use race_proc_macro::game_handler;
 struct S {}
 
 impl GameHandler for S {
-    fn init_state(context: &mut Effect, init_account: GameAccount) -> Result<Self> {
+    fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self> {
         Ok(Self {})
     }
 

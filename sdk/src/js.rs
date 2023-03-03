@@ -72,7 +72,6 @@ pub struct JsGameContext<'a> {
     pub status: String,
     pub allow_exit: bool,
     pub players: Vec<JsPlayer<'a>>,
-    pub pending_players: Vec<JsPlayerJoin<'a>>,
     pub servers: Vec<JsServer<'a>>,
 }
 
@@ -86,11 +85,6 @@ impl<'a> JsGameContext<'a> {
             allow_exit: context.is_allow_exit(),
             servers: context.get_servers().iter().map(Into::into).collect(),
             players: context.get_players().iter().map(Into::into).collect(),
-            pending_players: context
-                .get_pending_players()
-                .iter()
-                .map(Into::into)
-                .collect(),
         }
     }
 }

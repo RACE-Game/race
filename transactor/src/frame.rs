@@ -33,7 +33,7 @@ pub enum EventFrame {
         event: Event,
     },
     Broadcast {
-        state_json: String,
+        state: Vec<u8>,
         event: Event,
         access_version: u64,
         settle_version: u64,

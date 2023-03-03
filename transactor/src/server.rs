@@ -41,7 +41,7 @@ async fn submit_event(params: Params<'_>, context: Arc<ApplicationContext>) -> R
         .map_err(|e| Error::Call(CallError::Failed(e.into())))
 }
 
-async fn get_state(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<String> {
+async fn get_state(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<Vec<u8>> {
     let (game_addr, arg, sig) = params.parse::<(String, GetStateParams, Signature)>()?;
 
     context

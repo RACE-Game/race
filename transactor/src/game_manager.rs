@@ -106,7 +106,7 @@ impl GameManager {
         Ok((receiver, histories))
     }
 
-    pub async fn get_snapshot(&self, game_addr: &str) -> Result<String> {
+    pub async fn get_snapshot(&self, game_addr: &str) -> Result<Vec<u8>> {
         let games = self.games.lock().await;
         let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
         Ok(handle.broadcaster()?.get_snapshot().await)

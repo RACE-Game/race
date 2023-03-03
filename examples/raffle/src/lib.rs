@@ -4,18 +4,9 @@
 //! round, there's 5 seconds waiting to allow players join.  One of
 //! the player will be picked as winner, and receive all the tokens.
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::effect::Effect;
-use race_core::error::Result;
-use race_core::random::ShuffledList;
-use race_core::types::{PlayerJoin, Settle};
-use race_core::{
-    engine::GameHandler,
-    event::Event,
-    types::{GameAccount, RandomId},
-};
-use race_proc_macro::game_handler;
+use race_core::prelude::*;
 
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(BorshDeserialize, BorshSerialize)]
 struct Player {
     pub addr: String,
@@ -40,7 +31,7 @@ struct Raffle {
 }
 
 impl Raffle {
-    fn cleanup(&mut self, winner: Option<String>) {
+    fn cleanup(&mut self) {
         self.players.clear();
         self.random_id = 0;
     }
@@ -48,7 +39,7 @@ impl Raffle {
 
 impl GameHandler for Raffle {
     /// Initialize handler state with on-chain game account data.
-    fn init_state(context: &mut Effect, init_account: GameAccount) -> Result<Self> {
+    fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self> {
         let players = init_account.players.into_iter().map(Into::into).collect();
         let draw_time = context.timestamp() + 30_000;
         Ok(Self {
@@ -62,20 +53,19 @@ impl GameHandler for Raffle {
     fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()> {
         match event {
             Event::GameStart { .. } => {
-                // We need at least two players to start
-                // Otherwise we will schedule next round
+                // We need at least one player to start, otherwise we will skip this draw.
                 if context.count_players() >= 1 {
-                    self.options = players.iter().map(|p| p.addr.to_owned()).collect();
-                    let rnd_spec = ShuffledList::new(self.options.clone());
-                    self.random_id = context.init_random_state(&rnd_spec)?;
+                    let options = self.players.iter().map(|p| p.addr.to_owned()).collect();
+                    let rnd_spec = ShuffledList::new(options);
+                    self.random_id = context.init_random_state(&rnd_spec);
                 } else {
-                    self.next_draw = context.get_timestamp() + 10_000;
-                    context.wait_timeout(10_000);
+                    self.draw_time = context.timestamp() + 30_000;
+                    context.wait_timeout(30_000);
                 }
             }
 
             Event::Sync { new_players, .. } => {
-                let players = new_players.into_iter().map(Into::into).collect();
+                let players = new_players.into_iter().map(Into::into);
                 self.players.extend(players);
                 context.start_game();
             }
@@ -93,7 +83,7 @@ impl GameHandler for Raffle {
             // Eject all players when encryption failed.
             Event::OperationTimeout { .. } => {
                 context.wait_timeout(60_000);
-                self.cleanup(None);
+                self.cleanup();
             }
 
             Event::SecretsReady => {
@@ -102,23 +92,34 @@ impl GameHandler for Raffle {
                     .get(&0)
                     .unwrap()
                     .to_owned();
-                let mut settles = vec![];
 
-                for p in context.get_players().iter() {
+                for p in self.players.iter() {
                     if p.addr.ne(&winner) {
-                        settles.push(Settle::add(&winner, p.balance));
-                        settles.push(Settle::sub(&p.addr, p.balance));
+                        context.settle(Settle::add(&winner, p.balance));
+                        context.settle(Settle::sub(&p.addr, p.balance));
                     }
+                    context.settle(Settle::eject(&p.addr));
                 }
-                for p in context.get_players().iter() {
-                    settles.push(Settle::eject(&p.addr));
-                }
-                context.settle(settles);
                 context.wait_timeout(5_000);
-                self.cleanup(Some(winner));
+                self.cleanup();
             }
             _ => (),
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_init_state() {
+        let mut effect = Effect::default();
+        let init_account = InitAccount::default();
+        let state = Raffle::init_state(&mut effect, init_account).expect("Failed to init state");
+        assert_eq!(state.random_id, 0);
+        assert_eq!(state.players, Vec::new());
+        assert_eq!(state.draw_time, 30_000);
     }
 }

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+race-proc-macro = { path = "../proc-macro" }
 async-trait = "0.1.58"
 thiserror = "1.0.35"
 serde = { version = "1.0.144", features = ["derive"] }

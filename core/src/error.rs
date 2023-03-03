@@ -214,6 +214,9 @@ pub enum Error {
 
     #[error("Serialization error")]
     SerializationError,
+
+    #[error("Wasm execution error: {0}")]
+    WasmExecutionError(String),
 }
 
 impl From<serde_json::Error> for Error {

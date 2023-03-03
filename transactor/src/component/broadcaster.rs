@@ -27,7 +27,7 @@ pub struct EventBackup {
 
 pub struct BroadcasterContext {
     game_addr: String,
-    snapshot: Arc<Mutex<String>>,
+    snapshot: Arc<Mutex<Vec<u8>>>,
     event_backups: Arc<Mutex<LinkedList<EventBackup>>>,
     latest_access_version: u64,
     latest_settle_version: u64,
@@ -37,13 +37,13 @@ pub struct BroadcasterContext {
 /// A component that pushs event to clients.
 pub struct Broadcaster {
     game_addr: String,
-    snapshot: Arc<Mutex<String>>,
+    snapshot: Arc<Mutex<Vec<u8>>>,
     event_backups: Arc<Mutex<LinkedList<EventBackup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 impl Broadcaster {
-    pub fn init(game_account: &GameAccount, init_snapshot: String) -> (Self, BroadcasterContext) {
+    pub fn init(game_account: &GameAccount, init_snapshot: Vec<u8>) -> (Self, BroadcasterContext) {
         let snapshot = Arc::new(Mutex::new(init_snapshot));
         let event_backups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
@@ -66,7 +66,7 @@ impl Broadcaster {
         )
     }
 
-    pub async fn get_snapshot(&self) -> String {
+    pub async fn get_snapshot(&self) -> Vec<u8> {
         self.snapshot.lock().await.to_owned()
     }
 
@@ -106,7 +106,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
             match event {
                 EventFrame::Broadcast {
                     event,
-                    state_json,
+                    state,
                     access_version,
                     settle_version,
                     timestamp,
@@ -116,7 +116,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     let mut event_backups = ctx.event_backups.lock().await;
                     ctx.latest_access_version = access_version;
                     ctx.latest_settle_version = settle_version;
-                    *snapshot = state_json.clone();
+                    *snapshot = state.clone();
                     event_backups.push_back(EventBackup {
                         event: event.clone(),
                         settle_version,
@@ -166,7 +166,7 @@ mod tests {
             access_version: 10,
             settle_version: 10,
             timestamp: 0,
-            state_json: "STATE JSON".into(),
+            state: vec![],
             event: Event::Custom {
                 sender: "Alice".into(),
                 raw: "CUSTOM EVENT".into(),

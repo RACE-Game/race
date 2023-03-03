@@ -2,7 +2,7 @@
 
 use gloo::utils::format::JsValueSerdeExt;
 use js_sys::JSON::{parse, stringify};
-use js_sys::{Function, Object, Reflect};
+use js_sys::{Function, Object, Reflect, Uint8Array};
 use race_core::context::GameContext;
 use race_core::types::{BroadcastFrame, DecisionId, ExitGameParams, RandomId};
 use race_transport::TransportBuilder;
@@ -116,8 +116,7 @@ impl AppClient {
 
         handler.init_state(&mut game_context, &game_account)?;
 
-        let state_js =
-            parse(game_context.get_handler_state_json()).map_err(|_| Error::JsonParseError)?;
+        let state = Uint8Array::from(game_context.get_handler_state_raw());
 
         let context = JsGameContext::from_context(&game_context);
 
@@ -126,7 +125,7 @@ impl AppClient {
             &callback,
             &null,
             &JsValue::from_serde(&context).unwrap(),
-            &state_js,
+            &state,
             &null,
         )
         .expect("Init callback error");
@@ -175,8 +174,7 @@ impl AppClient {
             match self.handler.handle_event(&mut game_context, &event) {
                 Ok(_) => {
                     let event = JsEvent::from(event);
-                    let state_js = parse(game_context.get_handler_state_json())
-                        .map_err(|_| Error::JsonParseError)?;
+                    let state = Uint8Array::from(game_context.get_handler_state_raw());
 
                     let context = JsGameContext::from_context(&game_context);
 
@@ -185,7 +183,7 @@ impl AppClient {
                         &self.callback,
                         &null,
                         &JsValue::from_serde(&context).unwrap(),
-                        &state_js,
+                        &state,
                         &event.into(),
                     );
                     if let Err(e) = r {

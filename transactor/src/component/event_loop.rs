@@ -44,7 +44,7 @@ async fn handle(
         Ok(effects) => {
             ports
                 .send(EventFrame::Broadcast {
-                    state_json: game_context.get_handler_state_json().to_owned(),
+                    state: game_context.get_handler_state_raw().to_owned(),
                     event,
                     access_version: game_context.get_access_version(),
                     settle_version: game_context.get_settle_version(),

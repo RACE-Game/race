@@ -2507,6 +2507,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
+ "race-proc-macro",
  "serde",
  "serde_json",
  "thiserror",

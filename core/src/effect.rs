@@ -200,12 +200,12 @@ impl Effect {
     }
 
     /// Return the number of players, including both pending and joint.
-    pub fn count_all_players(&self) -> usize {
+    pub fn count_players(&self) -> usize {
         self.players_count
     }
 
     /// Return the number of servers, including both pending and joint.
-    pub fn count_all_servers(&self) -> usize {
+    pub fn count_servers(&self) -> usize {
         self.servers_count
     }
 
@@ -338,5 +338,9 @@ impl Effect {
     /// This is an internal function, DO NOT use in game handler.
     pub fn __set_error(&mut self, error: Error) {
         self.error = Some(error);
+    }
+
+    pub fn __take_error(&mut self) -> Option<Error> {
+        std::mem::replace(&mut self.error, None)
     }
 }

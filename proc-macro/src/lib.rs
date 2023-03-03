@@ -69,7 +69,7 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
         pub extern "C" fn init_state(effect_size: u32, init_account_size: u32) -> u32 {
             let mut ptr = 1 as *mut u8;
             let mut effect: race_core::effect::Effect = read_ptr(&mut ptr, effect_size);
-            let init_account: race_core::types::GameAccount = read_ptr(&mut ptr, init_account_size);
+            let init_account: race_core::engine::InitAccount = read_ptr(&mut ptr, init_account_size);
             match #s_idt::init_state(&mut effect, init_account) {
                 Ok(handler) => effect.__set_handler_state(&handler),
                 Err(e) => effect.__set_error(e),
