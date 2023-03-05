@@ -2,7 +2,7 @@ use crate::types::{
     Ciphertext, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 /// Game event structure
 #[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -12,7 +12,7 @@ pub enum Event {
     /// satisfies [`CustomEvent`].
     Custom {
         sender: String,
-        raw: String,
+        raw: Vec<u8>,
     },
 
     /// Sent by player clients.  Represent the ready status of a player client.
@@ -126,7 +126,7 @@ pub enum Event {
 impl std::fmt::Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {}", sender, raw),
+            Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {:?}", sender, raw),
             Event::Ready { sender } => write!(f, "Ready from {}", sender),
             Event::ShareSecrets { sender, shares } => {
                 let repr = shares
@@ -197,9 +197,9 @@ impl Event {
     pub fn custom<S: Into<String>, E: CustomEvent>(sender: S, e: &E) -> Self {
         Self::Custom {
             sender: sender.into(),
-            raw: serde_json::to_string(&e).unwrap(),
+            raw: e.try_to_vec().unwrap(),
         }
     }
 }
 
-pub trait CustomEvent: Serialize + DeserializeOwned + Sized {}
+pub trait CustomEvent: BorshSerialize + BorshDeserialize {}

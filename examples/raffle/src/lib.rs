@@ -56,8 +56,8 @@ impl GameHandler for Raffle {
                 // We need at least one player to start, otherwise we will skip this draw.
                 if context.count_players() >= 1 {
                     let options = self.players.iter().map(|p| p.addr.to_owned()).collect();
-                    let rnd_spec = ShuffledList::new(options);
-                    self.random_id = context.init_random_state(&rnd_spec);
+                    let rnd_spec = RandomSpec::shuffled_list(options);
+                    self.random_id = context.init_random_state(rnd_spec);
                 } else {
                     self.draw_time = context.timestamp() + 30_000;
                     context.wait_timeout(30_000);

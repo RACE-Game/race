@@ -90,11 +90,13 @@ impl WrappedHandler {
         let init_account_bs = init_account
             .try_to_vec()
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
-        let mut offset = 1u64;
+        let mut offset = 1u32;
         mem_view
             .write(offset as _, &effect_bs)
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
-        offset += effect_bs.len() as u64;
+        offset = offset
+            .checked_add(effect_bs.len() as _)
+            .ok_or(Error::WasmMemoryOverflow)?;
         mem_view
             .write(offset as _, &init_account_bs)
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
@@ -105,6 +107,11 @@ impl WrappedHandler {
                 init_account_bs.len() as _,
             )
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+
+        if len == 0 {
+            return Err(Error::WasmExecutionError("Internal error".into()));
+        }
+
         let mut buf = vec![0; len as _];
         mem_view
             .read(1u64, &mut buf)
@@ -137,17 +144,24 @@ impl WrappedHandler {
         let event_bs = event
             .try_to_vec()
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
-        let mut offset = 1u64;
+        let mut offset = 1u32;
         mem_view
             .write(offset as _, &effect_bs)
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
-        offset += effect_bs.len() as u64;
+        offset = offset
+            .checked_add(effect_bs.len() as _)
+            .ok_or(Error::WasmMemoryOverflow)?;
         mem_view
             .write(offset as _, &event_bs)
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let len = handle_event
             .call(&mut self.store, effect_bs.len() as _, event_bs.len() as _)
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+
+        if len == 0 {
+            return Err(Error::WasmExecutionError("Internal error".into()));
+        }
+
         let mut buf = vec![0; len as _];
         mem_view
             .read(1u64, &mut buf)
@@ -186,20 +200,25 @@ impl WrappedHandler {
 
 #[cfg(test)]
 mod tests {
-    use race_core::types::{GameAccount, PlayerJoin};
+    use race_core::{types::GameAccount, prelude::CustomEvent, context::GameStatus};
     use race_test::*;
 
     use super::*;
 
     #[derive(BorshSerialize)]
     pub struct MinimalAccountData {
-        counter_value_default: u64,
+        init_n: u64,
     }
 
+    #[derive(BorshDeserialize, BorshSerialize)]
+    enum MinimalEvent {
+        Increment(u64),
+    }
+
+    impl CustomEvent for MinimalEvent {}
+
     fn make_game_account() -> GameAccount {
-        let data = MinimalAccountData {
-            counter_value_default: 42,
-        };
+        let data = MinimalAccountData { init_n: 42 };
         TestGameAccountBuilder::default()
             .with_data(data)
             .add_servers(1)
@@ -207,10 +226,9 @@ mod tests {
     }
 
     fn make_wrapped_handler() -> WrappedHandler {
-        WrappedHandler::load_by_path(
-            "../target/wasm32-unknown-unknown/release/race_example_counter.wasm".into(),
-        )
-        .unwrap()
+        let proj_root = project_root::get_project_root().expect("No project root found");
+        let bundle_path = proj_root.join("target/race_example_minimal.wasm");
+        WrappedHandler::load_by_path(bundle_path).unwrap()
     }
 
     #[test]
@@ -219,7 +237,7 @@ mod tests {
         let game_account = make_game_account();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         hdlr.init_state(&mut ctx, &game_account).unwrap();
-        assert_ne!(&[] as &[u8], ctx.get_handler_state_raw());
+        assert_eq!(ctx.get_handler_state_raw(), &[42, 0, 0, 0, 0, 0, 0, 0]);
     }
 
     #[test]
@@ -227,21 +245,25 @@ mod tests {
         let mut hdlr = make_wrapped_handler();
         let game_account = make_game_account();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
-        let event = Event::Sync {
-            new_players: vec![PlayerJoin {
-                addr: "FAKE_ADDR".into(),
-                balance: 1000,
-                position: 0,
-                access_version: ctx.get_access_version() + 1,
-                settle_version: game_account.settle_version,
-            }],
-            new_servers: vec![],
-            transactor_addr: transactor_account_addr(),
-            access_version: ctx.get_access_version() + 1,
+        let event = Event::GameStart {
+            access_version: game_account.access_version,
         };
         hdlr.init_state(&mut ctx, &game_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
-        assert_ne!(&[] as &[u8], ctx.get_handler_state_raw());
+        assert_eq!(ctx.get_handler_state_raw(), &[42, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(ctx.get_status(), GameStatus::Running);
+    }
+
+    #[test]
+    fn test_handle_custom_event() {
+        let mut hdlr = make_wrapped_handler();
+        let game_account = make_game_account();
+        let mut ctx = GameContext::try_new(&game_account).unwrap();
+        let event = Event::custom("Alice", &MinimalEvent::Increment(1));
+        hdlr.init_state(&mut ctx, &game_account).unwrap();
+        println!("ctx: {:?}", ctx);
+        hdlr.handle_event(&mut ctx, &event).unwrap();
+        assert_eq!(ctx.get_handler_state_raw(), &[43, 0, 0, 0, 0, 0, 0, 0]);
     }
 }

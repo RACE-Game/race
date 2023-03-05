@@ -13,9 +13,10 @@ members = [
   "client",
   "test",
   # "examples/counter/core",
-  # "examples/minimal/core",
   # "examples/blackjack",
   # "examples/chat",
+  # "examples/draw-card", // Need fix
+  "examples/minimal",
   "examples/raffle",
   # "examples/console",
   # "examples/holdem",

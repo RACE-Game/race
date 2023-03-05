@@ -4,11 +4,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::Serialize;
 
 use crate::decision::DecisionState;
-use crate::effect::{Assign, Effect, InitRandomState, Prompt, Reveal};
+use crate::effect::{Assign, Effect, Prompt, Reveal};
 use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
-use crate::random::RandomStatus;
+use crate::random::{RandomSpec, RandomStatus};
 use crate::types::{
     Addr, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin, Settle, SettleOp,
 };
@@ -338,7 +338,7 @@ impl GameContext {
     {
         let event = Event::Custom {
             sender: self.transactor_addr.to_owned(),
-            raw: serde_json::to_string(e).unwrap(),
+            raw: e.try_to_vec().unwrap(),
         };
         self.dispatch_event(event, timeout);
     }
@@ -544,13 +544,13 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn init_random_state(&mut self, options: Vec<String>, size: usize) -> Result<RandomId> {
+    pub fn init_random_state(&mut self, spec: RandomSpec) -> Result<RandomId> {
         let random_id = self.random_states.len() + 1;
         let owners: Vec<String> = self.servers.iter().map(|v| v.addr.clone()).collect();
 
         // The only failure case is no enough owners.
         // Here we know the game is served, so the servers must not be empty.
-        let random_state = RandomState::try_new(random_id, options, size, &owners)?;
+        let random_state = RandomState::try_new(random_id, spec, &owners)?;
 
         self.random_states.push(random_state);
         Ok(random_id)
@@ -733,6 +733,7 @@ impl GameContext {
             reveals,
             init_random_states,
             settles,
+            handler_state,
             ..
         } = effect;
 
@@ -766,12 +767,16 @@ impl GameContext {
             self.prompt(player_addr);
         }
 
-        for InitRandomState { options, size } in init_random_states.into_iter() {
-            self.init_random_state(options, size)?;
+        for spec in init_random_states.into_iter() {
+            self.init_random_state(spec)?;
         }
 
         if !settles.is_empty() {
             self.settle(settles);
+        }
+
+        if let Some(state) = handler_state {
+            self.handler_state = state;
         }
 
         Ok(())

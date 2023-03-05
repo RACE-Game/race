@@ -1,20 +1,10 @@
 //! A minimal game to demonstrate how the protocol works.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::{
-    context::GameContext,
-    engine::GameHandler,
-    error::{Error, Result},
-    event::{CustomEvent, Event},
-    random::deck_of_cards,
-    types::{GameAccount, RandomId, Settle},
-};
-use race_proc_macro::game_handler;
-use serde::{Deserialize, Serialize};
+use race_core::prelude::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub enum GameEvent {
     Bet(u64),
     Call,
@@ -26,7 +16,7 @@ impl CustomEvent for GameEvent {}
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct MinimalAccountData {}
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, BorshSerialize, BorshDeserialize)]
 pub enum GameStage {
     #[default]
     Dealing,
@@ -34,7 +24,7 @@ pub enum GameStage {
 }
 
 #[game_handler]
-#[derive(Default, Serialize, Deserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct MinimalHandler {
     pub deck_random_id: RandomId,
 
@@ -42,7 +32,7 @@ pub struct MinimalHandler {
     pub dealer_idx: usize,
 
     // Real-time chips
-    pub chips: HashMap<String, u64>,
+    pub chips: BTreeMap<String, u64>,
 
     pub stage: GameStage,
 
@@ -53,7 +43,7 @@ pub struct MinimalHandler {
 impl MinimalHandler {
     fn custom_handle_event(
         &mut self,
-        context: &mut GameContext,
+        context: &mut Effect,
         _sender: String,
         event: GameEvent,
     ) -> Result<()> {
@@ -65,7 +55,7 @@ impl MinimalHandler {
                 self.bet = amount;
             }
             GameEvent::Call => {
-                context.reveal(self.deck_random_id, vec![0, 1])?;
+                context.reveal(self.deck_random_id, vec![0, 1]);
                 self.stage = GameStage::Revealing;
             }
             GameEvent::Fold => {}
@@ -90,26 +80,26 @@ fn is_better_than(card_a: &str, card_b: &str) -> bool {
 }
 
 impl GameHandler for MinimalHandler {
-    fn init_state(context: &mut GameContext, _init_account: GameAccount) -> Result<Self> {
+    fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self> {
         Ok(Self {
             deck_random_id: 0,
             dealer_idx: 0,
-            chips: context
-                .get_players()
+            chips: init_account
+                .players
                 .iter()
-                .map(|p| (p.addr.to_owned(), p.balance))
+                .map(|p| (p.addr, p.balance))
                 .collect(),
             bet: 0,
             stage: GameStage::Dealing,
         })
     }
 
-    fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
+    fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()> {
         match event {
             // Custom events are the events we defined for this game particularly
             // See [[GameEvent]].
             Event::Custom { sender, raw } => {
-                let event = serde_json::from_str(&raw).unwrap();
+                let event = GameEvent::try_from_slice(&raw)?;
                 self.custom_handle_event(context, sender, event)?;
             }
 
@@ -145,16 +135,8 @@ impl GameHandler for MinimalHandler {
                 GameStage::Revealing => {
                     let decryption = context.get_revealed(self.deck_random_id)?;
                     let player_idx: usize = if self.dealer_idx == 0 { 1 } else { 0 };
-                    let dealer_addr = context
-                        .get_player_by_index(self.dealer_idx)
-                        .unwrap()
-                        .addr
-                        .clone();
-                    let player_addr = context
-                        .get_player_by_index(player_idx)
-                        .unwrap()
-                        .addr
-                        .clone();
+                    let dealer_addr = self.chips.keys().nth(self.dealer_idx).unwrap().to_owned();
+                    let player_addr = self.chips.keys().nth(player_idx).unwrap().to_owned();
                     let dealer_card = decryption.get(&self.dealer_idx).unwrap();
                     let player_card = decryption.get(&player_idx).unwrap();
                     let (winner, loser) = if is_better_than(dealer_card, player_card) {
@@ -162,10 +144,8 @@ impl GameHandler for MinimalHandler {
                     } else {
                         (player_addr, dealer_addr)
                     };
-                    context.settle(vec![
-                        Settle::add(winner, self.bet),
-                        Settle::sub(loser, self.bet),
-                    ]);
+                    context.settle(Settle::add(winner, self.bet));
+                    context.settle(Settle::sub(loser, self.bet));
                 }
             },
             _ => (),

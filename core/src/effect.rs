@@ -35,13 +35,6 @@ pub(crate) struct Reveal {
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(BorshSerialize, BorshDeserialize)]
-pub(crate) struct InitRandomState {
-    pub(crate) options: Vec<String>,
-    pub(crate) size: usize,
-}
-
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(BorshSerialize, BorshDeserialize)]
 pub(crate) struct ActionTimeout {
     pub(crate) player_addr: String,
     pub(crate) timeout: u64,
@@ -63,11 +56,11 @@ pub(crate) struct ActionTimeout {
 /// To create a randomness, use [`Effect::init_random_state`] with a [`RandomSpec`].
 ///
 /// ```
-/// use race_core::random::deck_of_cards;
 /// # use race_core::effect::Effect;
+/// use race_core::random::RandomSpec;
 /// let mut effect = Effect::default();
-/// let random_spec = deck_of_cards();
-/// let random_id: usize = effect.init_random_state(&random_spec);
+/// let random_spec = RandomSpec::deck_of_cards();
+/// let random_id: usize = effect.init_random_state(random_spec);
 /// ```
 ///
 /// To assign some items of the randomness to a specific player, use [`Effect::assign`].
@@ -151,7 +144,7 @@ pub struct Effect {
     pub(crate) prompts: Vec<Prompt>,
     pub(crate) assigns: Vec<Assign>,
     pub(crate) reveals: Vec<Reveal>,
-    pub(crate) init_random_states: Vec<InitRandomState>,
+    pub(crate) init_random_states: Vec<RandomSpec>,
     pub(crate) revealed: BTreeMap<usize, BTreeMap<usize, String>>,
     pub(crate) answered: BTreeMap<usize, String>,
     pub(crate) settles: Vec<Settle>,
@@ -199,7 +192,7 @@ impl Effect {
             revealed,
             answered,
             settles: Vec::new(),
-            handler_state: None,
+            handler_state: Some(context.handler_state.clone()),
             error: None,
             allow_exit: context.allow_exit,
         }
@@ -216,11 +209,8 @@ impl Effect {
     }
 
     /// Initialize a random state with random spec, return random id.
-    pub fn init_random_state(&mut self, random_spec: &dyn RandomSpec) -> RandomId {
-        let options = random_spec.options().clone();
-        let size = random_spec.size();
-        self.init_random_states
-            .push(InitRandomState { options, size });
+    pub fn init_random_state(&mut self, spec: RandomSpec) -> RandomId {
+        self.init_random_states.push(spec);
         let random_id = self.curr_random_id;
         self.curr_random_id += 1;
         random_id
@@ -397,10 +387,7 @@ mod tests {
                 random_id: 1,
                 indexes: vec![0, 1, 2],
             }],
-            init_random_states: vec![InitRandomState {
-                options: vec!["a".into(), "b".into()],
-                size: 2,
-            }],
+            init_random_states: vec![RandomSpec::shuffled_list(vec!["a".into(), "b".into()])],
             revealed,
             answered,
             settles: vec![Settle::add("alice", 200), Settle::add("bob", 200)],
@@ -412,7 +399,6 @@ mod tests {
 
         let parsed = Effect::try_from_slice(&bs)?;
         assert_eq!(effect, parsed);
-        assert!(false);
         Ok(())
     }
 }

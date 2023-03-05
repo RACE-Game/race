@@ -217,6 +217,9 @@ pub enum Error {
 
     #[error("Wasm execution error: {0}")]
     WasmExecutionError(String),
+
+    #[error("Wasm memory overflow")]
+    WasmMemoryOverflow,
 }
 
 impl From<serde_json::Error> for Error {

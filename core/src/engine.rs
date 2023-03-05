@@ -17,6 +17,12 @@ pub struct InitAccount {
     pub data: Vec<u8>,
 }
 
+impl InitAccount {
+    pub fn data<S: BorshDeserialize>(&self) -> Result<S> {
+        S::try_from_slice(&self.data).or(Err(Error::DeserializeError))
+    }
+}
+
 impl Default for InitAccount {
     fn default() -> Self {
         Self {
@@ -46,10 +52,10 @@ impl From<&GameAccount> for InitAccount {
 
 pub trait GameHandler: Sized + BorshDeserialize + BorshSerialize {
     /// Initialize handler state with on-chain game account data.
-    fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self>;
+    fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self>;
 
     /// Handle event.
-    fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()>;
+    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<()>;
 }
 
 pub fn general_init_state(_context: &mut GameContext, _init_account: &GameAccount) -> Result<()> {
@@ -181,8 +187,8 @@ pub fn post_handle_event(old_context: &GameContext, new_context: &mut GameContex
 #[cfg(test)]
 mod tests {
 
-    use crate::types::ServerJoin;
     use crate::encryptor::tests::DummyEncryptor;
+    use crate::types::ServerJoin;
 
     use super::*;
 
@@ -190,9 +196,7 @@ mod tests {
     fn test_handle_game_start() -> anyhow::Result<()> {
         let encryptor = DummyEncryptor::default();
         let mut context = GameContext::default();
-        let event = Event::GameStart {
-            access_version: 1,
-        };
+        let event = Event::GameStart { access_version: 1 };
         general_handle_event(&mut context, &event, &encryptor)?;
         assert_eq!(context.status, GameStatus::Running);
         Ok(())

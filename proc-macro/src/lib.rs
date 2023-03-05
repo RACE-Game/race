@@ -8,18 +8,14 @@ use syn::{parse_macro_input, ItemStruct};
 /// A macro to generate boilerplate code for using in wasm.
 ///
 /// ```
-/// use borsh::{BorshDeserialize, BorshSerialize};
-/// use race_core::{
-///     effect::Effect, engine::GameHandler, error::Result, event::Event, types::GameAccount,
-/// };
-/// use race_proc_macro::game_handler;
+/// use race_core::prelude::*;
 ///
 /// #[game_handler]
 /// #[derive(BorshDeserialize, BorshSerialize)]
 /// struct S {}
 ///
 /// impl GameHandler for S {
-///     fn init_state(context: &mut Effect, init_account: GameAccount) -> Result<Self> {
+///     fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self> {
 ///         Ok(Self {})
 ///     }
 
@@ -45,9 +41,12 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
         }
 
         pub fn write_ptr<T: BorshSerialize>(ptr: &mut *mut u8, data: T) -> u32 {
-            let vec = data.try_to_vec().expect("Borsh serialize error");
-            unsafe { std::ptr::copy(vec.as_ptr(), *ptr, vec.len()) }
-            vec.len() as _
+            if let Ok(vec) = data.try_to_vec() {
+                unsafe { std::ptr::copy(vec.as_ptr(), *ptr, vec.len()) }
+                vec.len() as _
+            } else {
+                0
+            }
         }
 
         #[no_mangle]

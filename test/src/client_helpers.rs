@@ -94,7 +94,7 @@ impl TestClient {
     pub fn custom_event<E: CustomEvent>(&self, custom_event: E) -> Event {
         Event::Custom {
             sender: self.client.addr.to_owned(),
-            raw: serde_json::to_string(&custom_event).expect("Failed to serialize custom event"),
+            raw: custom_event.try_to_vec().unwrap(),
         }
     }
 }

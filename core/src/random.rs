@@ -2,7 +2,10 @@
 //!
 //! We use Mental Poker randomization between transactors.
 
-use std::collections::HashMap;
+use std::{
+    collections::{BTreeMap, HashMap},
+    iter::repeat,
+};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
@@ -78,36 +81,99 @@ pub enum RandomMode {
     Drawer,
 }
 
-/// An interface for randomness
-/// Since we are using P2P generated randomness, so this structure doesn't really hold the random result.
-/// `Randomness` holds the option of values, the identifiers and the generation status.
-pub trait RandomSpec {
-    /// Get the list of options for a random value.
-    fn options(&self) -> &Vec<String>;
-
-    fn size(&self) -> usize;
+#[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq)]
+pub enum RandomSpec {
+    ShuffledList {
+        options: Vec<String>,
+    },
+    Lottery {
+        options_and_weights: BTreeMap<String, u16>,
+    },
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ShuffledList {
-    pub options: Vec<String>,
-}
-
-impl ShuffledList {
-    pub fn new<S: Into<String>>(options: Vec<S>) -> Self {
-        Self {
-            options: options.into_iter().map(|o| o.into()).collect(),
+impl RandomSpec {
+    pub fn as_options(self) -> Vec<String> {
+        match self {
+            RandomSpec::ShuffledList { options } => options,
+            RandomSpec::Lottery {
+                options_and_weights,
+            } => options_and_weights
+                .into_iter()
+                .flat_map(|(o, w)| repeat(o).take(w as _))
+                .collect(),
         }
     }
-}
 
-impl RandomSpec for ShuffledList {
-    fn options(&self) -> &Vec<String> {
-        &self.options
+    /// Create a deck of cards.
+    /// Use A, 2-9, T, J, Q, K for kinds.
+    /// Use S(spade), D(diamond), C(club), H(heart) for suits.
+    pub fn deck_of_cards() -> Self {
+        RandomSpec::ShuffledList {
+            options: vec![
+                "ha".into(),
+                "h2".into(),
+                "h3".into(),
+                "h4".into(),
+                "h5".into(),
+                "h6".into(),
+                "h7".into(),
+                "h8".into(),
+                "h9".into(),
+                "ht".into(),
+                "hj".into(),
+                "hq".into(),
+                "hk".into(),
+                "sa".into(),
+                "s2".into(),
+                "s3".into(),
+                "s4".into(),
+                "s5".into(),
+                "s6".into(),
+                "s7".into(),
+                "s8".into(),
+                "s9".into(),
+                "st".into(),
+                "sj".into(),
+                "sq".into(),
+                "sk".into(),
+                "da".into(),
+                "d2".into(),
+                "d3".into(),
+                "d4".into(),
+                "d5".into(),
+                "d6".into(),
+                "d7".into(),
+                "d8".into(),
+                "d9".into(),
+                "dt".into(),
+                "dj".into(),
+                "dq".into(),
+                "dk".into(),
+                "ca".into(),
+                "c2".into(),
+                "c3".into(),
+                "c4".into(),
+                "c5".into(),
+                "c6".into(),
+                "c7".into(),
+                "c8".into(),
+                "c9".into(),
+                "ct".into(),
+                "cj".into(),
+                "cq".into(),
+                "ck".into(),
+            ],
+        }
     }
 
-    fn size(&self) -> usize {
-        self.options.len()
+    pub fn shuffled_list(options: Vec<String>) -> Self {
+        RandomSpec::ShuffledList { options }
+    }
+
+    pub fn lottery(options_and_weights: BTreeMap<String, u16>) -> Self {
+        RandomSpec::Lottery {
+            options_and_weights,
+        }
     }
 }
 
@@ -252,7 +318,10 @@ impl RandomState {
         self.ciphertexts.get_mut(index)
     }
 
-    pub fn try_new(id: RandomId, options: Vec<String>, size: usize, owners: &[String]) -> Result<Self> {
+    pub fn try_new(id: RandomId, spec: RandomSpec, owners: &[String]) -> Result<Self> {
+        let options = spec.as_options();
+        let size = options.len();
+
         let ciphertexts = options
             .iter()
             .map(|o| {
@@ -591,20 +660,6 @@ impl RandomState {
     }
 }
 
-// helpers for convenience
-
-/// Create a deck of cards.
-/// Use A, 2-9, T, J, Q, K for kinds.
-/// Use S(spade), D(diamond), C(club), H(heart) for suits.
-pub fn deck_of_cards() -> ShuffledList {
-    ShuffledList::new(vec![
-        "ha", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9", "ht", "hj", "hq", "hk", "sa", "s2",
-        "s3", "s4", "s5", "s6", "s7", "s8", "s9", "st", "sj", "sq", "sk", "da", "d2", "d3", "d4",
-        "d5", "d6", "d7", "d8", "d9", "dt", "dj", "dq", "dk", "ca", "c2", "c3", "c4", "c5", "c6",
-        "c7", "c8", "c9", "ct", "cj", "cq", "ck",
-    ])
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -612,12 +667,8 @@ mod tests {
 
     #[test]
     fn test_list_required_secrets() -> Result<()> {
-        let mut state = RandomState::try_new(
-            0,
-            vec!["a".into(), "b".into(), "c".into()],
-            3,
-            &["alice".into(), "bob".into()],
-        )?;
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        let mut state = RandomState::try_new(0, random, &["alice".into(), "bob".into()])?;
         state.mask("alice", vec![vec![1], vec![2], vec![3]])?;
         state.mask("bob", vec![vec![1], vec![2], vec![3]])?;
         state.lock(
@@ -645,12 +696,9 @@ mod tests {
 
     #[test]
     fn test_new_random_spec() -> Result<()> {
-        let state = RandomState::try_new(
-            0,
-            vec!["a".into(), "b".into(), "c".into()],
-            3,
-            &["alice".into(), "bob".into(), "charlie".into()],
-        )?;
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        let state =
+            RandomState::try_new(0, random, &["alice".into(), "bob".into(), "charlie".into()])?;
         assert_eq!(3, state.masks.len());
         Ok(())
     }
@@ -665,12 +713,8 @@ mod tests {
 
     #[test]
     fn test_mask() -> Result<()> {
-        let mut state = RandomState::try_new(
-            0,
-            vec!["a".into(), "b".into(), "c".into()],
-            3,
-            &["alice".into(), "bob".into()],
-        )?;
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        let mut state = RandomState::try_new(0, random, &["alice".into(), "bob".into()])?;
         assert_eq!(RandomStatus::Masking, state.status);
         state
             .mask("alice", vec![vec![1], vec![2], vec![3]])
@@ -688,12 +732,8 @@ mod tests {
 
     #[test]
     fn test_add_secret_share() -> Result<()> {
-        let mut state = RandomState::try_new(
-            0,
-            vec!["a".into(), "b".into(), "c".into()],
-            3,
-            &["alice".into(), "bob".into()],
-        )?;
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        let mut state = RandomState::try_new(0, random, &["alice".into(), "bob".into()])?;
         let share1 = Share {
             from_addr: "alice".into(),
             to_addr: None,
@@ -714,12 +754,8 @@ mod tests {
 
     #[test]
     fn test_lock() -> Result<()> {
-        let mut state = RandomState::try_new(
-            0,
-            vec!["a".into(), "b".into(), "c".into()],
-            3,
-            &["alice".into(), "bob".into()],
-        )?;
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        let mut state = RandomState::try_new(0, random, &["alice".into(), "bob".into()])?;
         state
             .mask("alice", vec![vec![1], vec![2], vec![3]])
             .expect("failed to mask");

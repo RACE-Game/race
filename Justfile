@@ -26,8 +26,11 @@ test-transactor:
     cargo test -p race-transactor
 
 
-examples: example-counter example-chat example-raffle
+examples: example-minimal example-counter example-chat example-raffle
 
+example-minimal:
+    cargo build -r -p race-example-minimal --target wasm32-unknown-unknown
+    wasm-opt -Oz target/wasm32-unknown-unknown/release/race_example_minimal.wasm -o target/race_example_minimal.wasm
 
 example-counter:
     cargo build -r -p race-example-counter --target wasm32-unknown-unknown

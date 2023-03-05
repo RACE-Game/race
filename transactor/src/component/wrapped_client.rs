@@ -125,7 +125,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
 #[cfg(test)]
 mod tests {
 
-    use race_core::{context::GameContext, event::Event, random::ShuffledList};
+    use race_core::{context::GameContext, event::Event, random::RandomSpec};
     use race_encryptor::Encryptor;
     use race_test::*;
 
@@ -155,7 +155,7 @@ mod tests {
             connection.clone(),
         );
         let handle = client.start(client_ctx);
-        let mut context = GameContext::try_new(&game_account).unwrap();
+        let context = GameContext::try_new(&game_account).unwrap();
         (client, context, handle, connection)
     }
 
@@ -164,8 +164,8 @@ mod tests {
         let (mut _client, mut ctx, handle, connection) = setup();
 
         // Mask the random_state
-        let random = ShuffledList::new(vec!["a", "b", "c"]);
-        let rid = ctx.init_random_state(random.options.clone(), random.options.len()).unwrap();
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        let rid = ctx.init_random_state(random).unwrap();
         let random_state = ctx.get_random_state_mut(rid).unwrap();
         random_state
             .mask(transactor_account_addr(), vec![vec![0], vec![0], vec![0]])
@@ -194,8 +194,8 @@ mod tests {
     async fn test_mask() {
         let (mut _client, mut ctx, handle, connection) = setup();
 
-        let random = ShuffledList::new(vec!["a", "b", "c"]);
-        let rid = ctx.init_random_state(random.options.clone(), random.options.len()).unwrap();
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        let rid = ctx.init_random_state(random).unwrap();
         println!("random inited");
 
         let event_frame = EventFrame::ContextUpdated { context: ctx };
