@@ -20,40 +20,19 @@ use crate::{
 
 const OPERATION_TIMEOUT: u64 = 15_000;
 
-#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Serialize)]
-pub enum PlayerStatus {
-    #[default]
-    Absent,
+#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Serialize)]
+pub enum NodeStatus {
+    Pending(u64),
     Ready,
     Disconnected,
-    DropOff,
 }
 
-impl std::fmt::Display for PlayerStatus {
+impl std::fmt::Display for NodeStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PlayerStatus::Absent => write!(f, "absent"),
-            PlayerStatus::Ready => write!(f, "ready"),
-            PlayerStatus::Disconnected => write!(f, "disconnected"),
-            PlayerStatus::DropOff => write!(f, "drop-off"),
-        }
-    }
-}
-
-#[derive(Debug, Default, Serialize, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
-pub enum ServerStatus {
-    #[default]
-    Absent,
-    Ready,
-    DropOff,
-}
-
-impl std::fmt::Display for ServerStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ServerStatus::Absent => write!(f, "absent"),
-            ServerStatus::Ready => write!(f, "ready"),
-            ServerStatus::DropOff => write!(f, "drop-off"),
+            NodeStatus::Pending(access_version) => write!(f, "pending[{}]", access_version),
+            NodeStatus::Ready => write!(f, "ready"),
+            NodeStatus::Disconnected => write!(f, "disconnected"),
         }
     }
 }
@@ -82,7 +61,7 @@ impl std::fmt::Display for GameStatus {
 pub struct Player {
     pub addr: String,
     pub position: usize,
-    pub status: PlayerStatus,
+    pub status: NodeStatus,
     pub balance: u64,
 }
 
@@ -91,17 +70,26 @@ impl From<PlayerJoin> for Player {
         Self {
             addr: new_player.addr,
             position: new_player.position,
-            status: PlayerStatus::Ready,
+            status: NodeStatus::Ready,
             balance: new_player.balance,
         }
     }
 }
 
 impl Player {
+    pub fn new_pending(addr: String, balance: u64, position: usize, access_version: u64) -> Self {
+        Self {
+            addr,
+            balance,
+            position,
+            status: NodeStatus::Pending(access_version),
+        }
+    }
+
     pub fn new<S: Into<String>>(addr: S, balance: u64, position: usize) -> Self {
         Self {
             addr: addr.into(),
-            status: PlayerStatus::Ready,
+            status: NodeStatus::Ready,
             balance,
             position,
         }
@@ -111,7 +99,7 @@ impl Player {
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct Server {
     pub addr: String,
-    pub status: ServerStatus,
+    pub status: NodeStatus,
     pub endpoint: String,
 }
 
@@ -119,7 +107,7 @@ impl From<ServerJoin> for Server {
     fn from(new_server: ServerJoin) -> Self {
         Self {
             addr: new_server.addr,
-            status: ServerStatus::Ready,
+            status: NodeStatus::Ready,
             endpoint: new_server.endpoint,
         }
     }
@@ -130,7 +118,7 @@ impl Server {
         Server {
             addr: addr.into(),
             endpoint,
-            status: ServerStatus::Ready,
+            status: NodeStatus::Ready,
         }
     }
 }
@@ -149,6 +137,29 @@ impl DispatchEvent {
 }
 
 /// The context for public data.
+///
+/// This information is not transmitted over the network, instead it's
+/// calculated independently at each node.  This struct will neither
+/// be passed into the WASM runtime, instead [`Effect`] will be used.
+///
+/// # Access Version and Settle Version
+///
+/// Version numbers used in synchronization with on-chain data.  Every
+/// time a settlement is made, the `settle_version` will increase by
+/// 1.
+///
+/// # Handler State
+///
+/// The state of game handler will be serialized as JSON string, and stored.
+/// It will be passed into the WASM runtime, and get deseralized inside.
+///
+/// # Player Exiting
+///
+/// Players are not always allowed to leave game.  By leaving game,
+/// the player will be ejected from the game account, and assets will
+/// be paid out.  The property `allow_exit` decides whether leaving is
+/// allowed at the moment.  If it's disabled, leaving event will be
+/// rejected.
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct GameContext {
     pub(crate) game_addr: Addr,
@@ -166,7 +177,7 @@ pub struct GameContext {
     /// List of validators serving this game
     pub(crate) servers: Vec<Server>,
     pub(crate) dispatch: Option<DispatchEvent>,
-    pub(crate) handler_state: Vec<u8>,
+    pub(crate) handler_state: String,
     pub(crate) timestamp: u64,
     /// Whether a player can leave or not
     pub(crate) allow_exit: bool,
@@ -184,45 +195,21 @@ impl GameContext {
             .as_ref()
             .ok_or(Error::GameNotServed)?;
 
-        let players = game_account
-            .players
-            .iter()
-            .filter_map(|p| {
-                if p.settle_version <= game_account.settle_version {
-                    Some(Player::new(p.addr.clone(), p.balance, p.position))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let servers = game_account
-            .servers
-            .iter()
-            .filter_map(|s| {
-                if s.settle_version <= game_account.settle_version {
-                    Some(Server::new(s.addr.clone(), s.endpoint.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
         Ok(Self {
             game_addr: game_account.addr.clone(),
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
             transactor_addr: transactor_addr.to_owned(),
             status: GameStatus::Uninit,
-            players,
-            servers,
+            players: vec![],
+            servers: vec![],
             dispatch: None,
             timestamp: 0,
             allow_exit: false,
             random_states: vec![],
             decision_states: vec![],
             settles: None,
-            handler_state: Vec::new(),
+            handler_state: "".into(),
         })
     }
 
@@ -234,7 +221,7 @@ impl GameContext {
         self.allow_exit
     }
 
-    pub fn get_handler_state_raw(&self) -> &[u8] {
+    pub fn get_handler_state_raw(&self) -> &str {
         &self.handler_state
     }
 
@@ -242,14 +229,14 @@ impl GameContext {
     where
         H: GameHandler,
     {
-        H::try_from_slice(&self.handler_state).unwrap()
+        serde_json::from_str(&self.handler_state).unwrap()
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
     where
-        H: BorshSerialize,
+        H: GameHandler,
     {
-        self.handler_state = handler.try_to_vec().unwrap()
+        self.handler_state = serde_json::to_string(&handler).unwrap()
     }
 
     pub fn get_servers(&self) -> &Vec<Server> {
@@ -338,7 +325,7 @@ impl GameContext {
     {
         let event = Event::Custom {
             sender: self.transactor_addr.to_owned(),
-            raw: e.try_to_vec().unwrap(),
+            raw: serde_json::to_string(&e).unwrap(),
         };
         self.dispatch_event(event, timeout);
     }
@@ -468,7 +455,7 @@ impl GameContext {
 
     /// Set player status by address.
     /// Using in custom event handler is not allowed.
-    pub fn set_player_status(&mut self, addr: &str, status: PlayerStatus) -> Result<()> {
+    pub fn set_player_status(&mut self, addr: &str, status: NodeStatus) -> Result<()> {
         if let Some(p) = self.players.iter_mut().find(|p| p.addr.eq(&addr)) {
             p.status = status;
         } else {
@@ -781,6 +768,26 @@ impl GameContext {
 
         Ok(())
     }
+
+    pub fn apply_checkpoint(&mut self, access_version: u64, settle_version: u64) -> Result<()> {
+        if self.settle_version != settle_version {
+            return Err(Error::InvalidCheckpoint);
+        }
+
+        self.players.retain(|p| match p.status {
+            NodeStatus::Pending(v) => v <= access_version,
+            NodeStatus::Ready => true,
+            NodeStatus::Disconnected => true,
+        });
+
+        self.servers.retain(|s| match s.status {
+            NodeStatus::Pending(v) => v <= access_version,
+            NodeStatus::Ready => true,
+            NodeStatus::Disconnected => true,
+        });
+
+        Ok(())
+    }
 }
 
 impl Default for GameContext {
@@ -794,7 +801,7 @@ impl Default for GameContext {
             players: Vec::new(),
             servers: Vec::new(),
             dispatch: None,
-            handler_state: Vec::new(),
+            handler_state: "".into(),
             timestamp: 0,
             allow_exit: false,
             random_states: Vec::new(),

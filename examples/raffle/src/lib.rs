@@ -5,9 +5,10 @@
 //! the player will be picked as winner, and receive all the tokens.
 
 use race_core::prelude::*;
+use serde::{Deserialize, Serialize};
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(Deserialize, Serialize)]
 struct Player {
     pub addr: String,
     pub balance: u64,
@@ -22,7 +23,7 @@ impl From<PlayerJoin> for Player {
     }
 }
 
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(Serialize, Deserialize)]
 #[game_handler]
 struct Raffle {
     players: Vec<Player>,
@@ -121,5 +122,32 @@ mod tests {
         assert_eq!(state.random_id, 0);
         assert_eq!(state.players, Vec::new());
         assert_eq!(state.draw_time, 30_000);
+    }
+
+    #[test]
+    fn test_game_start() {
+        let mut effect = Effect::default();
+        let init_account = InitAccount::default();
+        let mut state =
+            Raffle::init_state(&mut effect, init_account).expect("Failed to init state");
+        let event = Event::Sync {
+            new_players: vec![PlayerJoin {
+                addr: "alice".into(),
+                position: 0,
+                balance: 100,
+                access_version: 0,
+                settle_version: 0,
+            }],
+            new_servers: vec![ServerJoin {
+                addr: "foo".into(),
+                endpoint: "foo.endpoint".into(),
+                access_version: 0,
+                settle_version: 0,
+            }],
+            transactor_addr: "".into(),
+            access_version: 0,
+        };
+
+        state.handle_event(&mut effect, event).unwrap();
     }
 }

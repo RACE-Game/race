@@ -220,6 +220,9 @@ pub enum Error {
 
     #[error("Wasm memory overflow")]
     WasmMemoryOverflow,
+
+    #[error("Invalid checkpoint")]
+    InvalidCheckpoint,
 }
 
 impl From<serde_json::Error> for Error {

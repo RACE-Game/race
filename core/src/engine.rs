@@ -1,23 +1,56 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
-    context::{GameContext, GameStatus, PlayerStatus},
+    context::{GameContext, GameStatus, NodeStatus},
     effect::Effect,
     encryptor::EncryptorT,
     error::{Error, Result},
     event::Event,
+    prelude::ServerJoin,
     types::{GameAccount, PlayerJoin, Settle},
 };
 
-/// A subset of on-chain account, used for game handler initialization.
-#[derive(BorshSerialize, BorshDeserialize)]
+/// A subset of on-chain account, used for game handler
+/// initialization.  The `access_version` may refer to an old state
+/// when the game is started by transactor.
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub struct InitAccount {
     pub addr: String,
     pub players: Vec<PlayerJoin>,
+    pub servers: Vec<ServerJoin>,
     pub data: Vec<u8>,
+    pub access_version: u64,
+    pub settle_version: u64,
 }
 
 impl InitAccount {
+    pub fn from_game_account(
+        game_account: GameAccount,
+        transactor_access_version: u64,
+        transactor_settle_version: u64,
+    ) -> Self {
+        let players = game_account
+            .players
+            .into_iter()
+            .filter(|p| p.access_version <= transactor_access_version)
+            .collect();
+        let servers = game_account
+            .servers
+            .into_iter()
+            .filter(|s| s.access_version <= transactor_access_version)
+            .collect();
+
+        Self {
+            addr: game_account.addr,
+            players,
+            servers,
+            data: game_account.data.clone(),
+            access_version: transactor_access_version,
+            settle_version: transactor_settle_version,
+        }
+    }
+
     pub fn data<S: BorshDeserialize>(&self) -> Result<S> {
         S::try_from_slice(&self.data).or(Err(Error::DeserializeError))
     }
@@ -28,29 +61,15 @@ impl Default for InitAccount {
         Self {
             addr: "".into(),
             players: Vec::new(),
+            servers: Vec::new(),
             data: Vec::new(),
+            access_version: 0,
+            settle_version: 0,
         }
     }
 }
 
-impl From<&GameAccount> for InitAccount {
-    fn from(value: &GameAccount) -> Self {
-        let players = value
-            .players
-            .iter()
-            .filter(|p| p.access_version <= value.access_version)
-            .cloned()
-            .collect();
-
-        Self {
-            addr: value.addr.clone(),
-            players,
-            data: value.data.clone(),
-        }
-    }
-}
-
-pub trait GameHandler: Sized + BorshDeserialize + BorshSerialize {
+pub trait GameHandler: Sized + Serialize + DeserializeOwned {
     /// Initialize handler state with on-chain game account data.
     fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self>;
 
@@ -58,7 +77,7 @@ pub trait GameHandler: Sized + BorshDeserialize + BorshSerialize {
     fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<()>;
 }
 
-pub fn general_init_state(_context: &mut GameContext, _init_account: &GameAccount) -> Result<()> {
+pub fn general_init_state(_context: &mut GameContext, _init_account: &InitAccount) -> Result<()> {
     Ok(())
 }
 
@@ -70,7 +89,7 @@ pub fn general_handle_event(
 ) -> Result<()> {
     // General event handling
     match event {
-        Event::Ready { sender } => context.set_player_status(sender, PlayerStatus::Ready),
+        Event::Ready { sender } => context.set_player_status(sender, NodeStatus::Ready),
 
         Event::ShareSecrets { sender, shares } => {
             context.add_shared_secrets(sender, shares.clone())?;
@@ -213,21 +232,18 @@ mod tests {
                     position: 0,
                     balance: 100,
                     access_version: 1,
-                    settle_version: 1,
                 },
                 PlayerJoin {
                     addr: "bob".into(),
                     position: 1,
                     balance: 100,
                     access_version: 1,
-                    settle_version: 1,
                 },
             ],
             new_servers: vec![ServerJoin {
                 addr: "foo".into(),
                 endpoint: "foo.endpoint".into(),
                 access_version: 1,
-                settle_version: 1,
             }],
             transactor_addr: "".into(),
             access_version: 1,

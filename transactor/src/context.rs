@@ -121,10 +121,6 @@ impl ApplicationContext {
             .await
     }
 
-    pub async fn get_snapshot(&self, game_addr: &str) -> Result<Vec<u8>> {
-        self.game_manager.get_snapshot(game_addr).await
-    }
-
     pub fn get_signal_sender(&self) -> mpsc::Sender<SignalFrame> {
         self.signal_tx.clone()
     }

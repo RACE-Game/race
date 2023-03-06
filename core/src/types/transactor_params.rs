@@ -10,6 +10,12 @@ pub struct AttachGameParams {
     pub key: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AttachResponse {
+    pub access_version: u64,
+    pub settle_version: u64,
+}
+
 impl Display for AttachGameParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "AttachGameParams")
@@ -68,15 +74,37 @@ impl Display for SubscribeEventParams {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct BroadcastFrame {
-    pub game_addr: String,
-    pub event: Event,
-    pub timestamp: u64,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BroadcastFrame {
+    Event {
+        game_addr: String,
+        event: Event,
+        timestamp: u64,
+    },
+    Init {
+        game_addr: String,
+        access_version: u64,
+        settle_version: u64,
+    },
 }
 
 impl Display for BroadcastFrame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "BroadcastFrame: {}", self.event)
+        match self {
+            BroadcastFrame::Event { event, .. } => {
+                write!(f, "BroadcastFrame::Event: {}", event)
+            }
+            BroadcastFrame::Init {
+                access_version,
+                settle_version,
+                ..
+            } => {
+                write!(
+                    f,
+                    "BroadcastFrame::Init, access:{}, settle:{}",
+                    access_version, settle_version
+                )
+            }
+        }
     }
 }

@@ -38,15 +38,12 @@ impl TransactorHandle {
             game_account.addr
         );
 
-        let mut game_context = GameContext::try_new(&game_account)?;
-        let mut handler =
-            WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
-        handler.init_state(&mut game_context, game_account)?;
+        let game_context = GameContext::try_new(&game_account)?;
+        let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 
         let event_bus = EventBus::default();
 
-        let (broadcaster, broadcaster_ctx) =
-            Broadcaster::init(&game_account, game_context.get_handler_state_raw().to_owned());
+        let (broadcaster, broadcaster_ctx) = Broadcaster::init(&game_account);
         let mut broadcaster_handle = broadcaster.start(broadcaster_ctx);
 
         let (event_loop, event_loop_ctx) =
@@ -113,10 +110,10 @@ impl ValidatorHandle {
             "Start game handle for {} with Validator mode",
             game_account.addr
         );
-        let mut game_context = GameContext::try_new(&game_account)?;
-        let mut handler =
+        let game_context = GameContext::try_new(&game_account)?;
+        let handler =
             WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
-        handler.init_state(&mut game_context, game_account)?;
+
         let transactor_addr = game_account
             .transactor_addr
             .as_ref()

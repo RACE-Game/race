@@ -23,7 +23,7 @@ impl<H: GameHandler> TestHandler<H> {
     pub fn init_state(context: &mut GameContext, game_account: &GameAccount) -> Result<Self> {
         let mut new_context = context.clone();
         let init_account: InitAccount = game_account.into();
-        general_init_state(&mut new_context, game_account)?;
+        general_init_state(&mut new_context)?;
         let mut effect = Effect::from_context(&context);
         let handler = H::init_state(&mut effect, init_account)?;
         context.apply_effect(effect)?;

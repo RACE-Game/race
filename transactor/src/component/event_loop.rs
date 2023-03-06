@@ -44,7 +44,6 @@ async fn handle(
         Ok(effects) => {
             ports
                 .send(EventFrame::Broadcast {
-                    state: game_context.get_handler_state_raw().to_owned(),
                     event,
                     access_version: game_context.get_access_version(),
                     settle_version: game_context.get_settle_version(),
@@ -150,6 +149,19 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         while let Some(event_frame) = retrieve_event(&mut ports, &mut game_context, ctx.mode).await
         {
             match event_frame {
+                EventFrame::InitState { init_account } => {
+                    if let Err(e) = game_context
+                        .apply_checkpoint(init_account.access_version, init_account.settle_version)
+                    {
+                        ports.close(CloseReason::Fault(e));
+                        return;
+                    }
+
+                    if let Err(e) = handler.init_state(&mut game_context, &init_account) {
+                        ports.close(CloseReason::Fault(e));
+                        return;
+                    }
+                }
                 EventFrame::Sync {
                     new_players,
                     new_servers,

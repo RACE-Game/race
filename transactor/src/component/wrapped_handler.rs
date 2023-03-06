@@ -10,7 +10,7 @@ use race_core::encryptor::EncryptorT;
 use race_core::engine::{general_handle_event, general_init_state, post_handle_event, InitAccount};
 use race_core::error::{Error, Result};
 use race_core::event::Event;
-use race_core::types::{GameAccount, GameBundle, Settle};
+use race_core::types::{GameBundle, Settle};
 use race_encryptor::Encryptor;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
 
@@ -65,7 +65,7 @@ impl WrappedHandler {
     pub fn custom_init_state(
         &mut self,
         context: &mut GameContext,
-        game_account: &GameAccount,
+        init_account: &InitAccount,
     ) -> Result<()> {
         let memory = self
             .instance
@@ -86,7 +86,6 @@ impl WrappedHandler {
         let effect_bs = effect
             .try_to_vec()
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
-        let init_account: InitAccount = game_account.into();
         let init_account_bs = init_account
             .try_to_vec()
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
@@ -188,7 +187,7 @@ impl WrappedHandler {
     pub fn init_state(
         &mut self,
         context: &mut GameContext,
-        init_account: &GameAccount,
+        init_account: &InitAccount,
     ) -> Result<()> {
         let mut new_context = context.clone();
         general_init_state(&mut new_context, init_account)?;
@@ -200,7 +199,7 @@ impl WrappedHandler {
 
 #[cfg(test)]
 mod tests {
-    use race_core::{types::GameAccount, prelude::CustomEvent, context::GameStatus};
+    use race_core::{context::GameStatus, prelude::CustomEvent, types::GameAccount};
     use race_test::*;
 
     use super::*;

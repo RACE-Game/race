@@ -10,6 +10,10 @@ sdk:
     wasm-pack build --release --target web sdk
     patch ./sdk/pkg/package.json < ./sdk/package.json.patch
 
+dev-sdk:
+    wasm-pack build --dev --target web sdk
+    patch ./sdk/pkg/package.json < ./sdk/package.json.patch
+
 facade:
     cargo build -r -p race-facade
 

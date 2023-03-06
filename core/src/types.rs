@@ -22,5 +22,5 @@ pub use transport_params::{
 
 pub use transactor_params::{
     AttachGameParams, BroadcastFrame, ExitGameParams, GetStateParams, RetrieveEventsParams,
-    SubmitEventParams, SubscribeEventParams,
+    SubmitEventParams, SubscribeEventParams, AttachResponse
 };

@@ -11,10 +11,10 @@ const router = createBrowserRouter([
     path: "/",
     element: <App />,
     children: [
-      {
-        path: "chat/:addr",
-        element: <Chat />
-      },
+      // {
+      //   path: "chat/:addr",
+      //   element: <Chat />
+      // },
       {
         path: "raffle/:addr",
         element: <Raffle />,
@@ -24,7 +24,5 @@ const router = createBrowserRouter([
 ]);
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  // <React.StrictMode>
   <RouterProvider router={router} />
-  // </React.StrictMode>
 )

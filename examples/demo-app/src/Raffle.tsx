@@ -5,13 +5,16 @@ import { CHAIN, RPC } from "./constants";
 import ProfileContext from "./profile-context";
 import LogsContext from "./logs-context";
 
-interface State {
-  random_id: number,
-  options: string[],
-  previous_winner: string | null,
-  next_draw: number,
+interface Player {
+  addr: string,
+  balance: bigint,
 }
 
+interface State {
+  players: Player[],
+  random_id: number,
+  draw_time: bigint,
+}
 
 function Winner(props: { settle_version: number, previous_winner: string | null }) {
 
@@ -84,25 +87,25 @@ function Raffle() {
         </div>
         <div>
           Next draw: {
-            state.next_draw > 0 ? new Date(state.next_draw).toLocaleTimeString() : "N/A"
+            state.draw_time > 0 ? new Date(state.draw_time).toLocaleTimeString() : "N/A"
           }
         </div>
         <div>Players:</div>
         {
-          context.pending_players.map((p: any, i: number) => {
-            return <div key={i} className="m-2 p-2 border border-black">
-              {p.addr}
-            </div>
-          })
+          state.players.map((p, i) => <div key={i} className="m-2 p-2 border border-black">
+            {p.addr}
+          </div>)
         }
 
         <div className="flex-1"></div>
-        <Winner
-          previous_winner={state.previous_winner}
-          settle_version={context.settle_version} />
       </div>
     );
   }
 }
+
+// <Winner
+//   previous_winner={state.previous_winner}
+//   settle_version={context.settle_version} />
+
 
 export default Raffle;

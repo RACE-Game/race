@@ -144,7 +144,12 @@ impl From<race_core::event::Event> for Event {
             }
             OperationTimeout { addrs } => {
                 let data = Object::new();
-                Reflect::set(&data, &"addrs".into(), &JsValue::from_serde(&addrs).unwrap()).unwrap();
+                Reflect::set(
+                    &data,
+                    &"addrs".into(),
+                    &JsValue::from_serde(&addrs).unwrap(),
+                )
+                .unwrap();
                 Self {
                     kind: "operation-timeout".into(),
                     sender: None,

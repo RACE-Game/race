@@ -12,7 +12,6 @@ pub struct PlayerJoin {
     pub position: usize,
     pub balance: u64,
     pub access_version: u64,
-    pub settle_version: u64,
 }
 
 impl PlayerJoin {
@@ -21,14 +20,12 @@ impl PlayerJoin {
         position: usize,
         balance: u64,
         access_version: u64,
-        settle_version: u64,
     ) -> Self {
         Self {
             addr: addr.into(),
             position,
             balance,
             access_version,
-            settle_version,
         }
     }
 }
@@ -56,21 +53,14 @@ pub struct ServerJoin {
     pub addr: String,
     pub endpoint: String,
     pub access_version: u64,
-    pub settle_version: u64,
 }
 
 impl ServerJoin {
-    pub fn new<S: Into<String>>(
-        addr: S,
-        endpoint: String,
-        access_version: u64,
-        settle_version: u64,
-    ) -> Self {
+    pub fn new<S: Into<String>>(addr: S, endpoint: String, access_version: u64) -> Self {
         Self {
             addr: addr.into(),
             endpoint,
             access_version,
-            settle_version,
         }
     }
 }

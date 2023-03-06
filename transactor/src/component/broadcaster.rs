@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use race_core::event::Event;
 use race_core::types::{BroadcastFrame, GameAccount};
 use tokio::sync::{broadcast, Mutex};
-use tracing::{warn, debug};
+use tracing::{debug, warn};
 
 use crate::component::common::{Component, ConsumerPorts, Ports};
 use crate::component::event_bus::CloseReason;
@@ -27,47 +27,34 @@ pub struct EventBackup {
 
 pub struct BroadcasterContext {
     game_addr: String,
-    snapshot: Arc<Mutex<Vec<u8>>>,
     event_backups: Arc<Mutex<LinkedList<EventBackup>>>,
-    latest_access_version: u64,
-    latest_settle_version: u64,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 /// A component that pushs event to clients.
 pub struct Broadcaster {
     game_addr: String,
-    snapshot: Arc<Mutex<Vec<u8>>>,
     event_backups: Arc<Mutex<LinkedList<EventBackup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 impl Broadcaster {
-    pub fn init(game_account: &GameAccount, init_snapshot: Vec<u8>) -> (Self, BroadcasterContext) {
-        let snapshot = Arc::new(Mutex::new(init_snapshot));
+    pub fn init(game_account: &GameAccount) -> (Self, BroadcasterContext) {
         let event_backups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);
         (
             Self {
                 game_addr: game_account.addr.clone(),
-                snapshot: snapshot.clone(),
                 event_backups: event_backups.clone(),
                 broadcast_tx: broadcast_tx.clone(),
             },
             BroadcasterContext {
                 game_addr: game_account.addr.clone(),
-                snapshot,
                 event_backups,
-                latest_access_version: game_account.access_version,
-                latest_settle_version: game_account.settle_version,
                 broadcast_tx,
             },
         )
-    }
-
-    pub async fn get_snapshot(&self) -> Vec<u8> {
-        self.snapshot.lock().await.to_owned()
     }
 
     pub fn get_broadcast_rx(&self) -> broadcast::Receiver<BroadcastFrame> {
@@ -76,13 +63,17 @@ impl Broadcaster {
 
     /// Retrieve events those is handled with a specified `settle_version`.
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
-        self.event_backups
-            .lock()
-            .await
+        let event_backups = self.event_backups.lock().await;
+        let mut versions: Option<(u64, u64)> = None;
+
+        let mut histories: Vec<BroadcastFrame> = event_backups
             .iter()
             .filter_map(|event_backup| {
                 if event_backup.settle_version >= settle_version {
-                    Some(BroadcastFrame {
+                    if versions.is_none() {
+                        versions = Some((event_backup.access_version, event_backup.settle_version));
+                    }
+                    Some(BroadcastFrame::Event {
                         game_addr: self.game_addr.clone(),
                         event: event_backup.event.clone(),
                         timestamp: event_backup.timestamp,
@@ -91,7 +82,20 @@ impl Broadcaster {
                     None
                 }
             })
-            .collect()
+            .collect();
+
+        if let Some((access_version, settle_version)) = versions {
+            histories.insert(
+                0,
+                BroadcastFrame::Init {
+                    game_addr: self.game_addr.clone(),
+                    access_version,
+                    settle_version,
+                },
+            )
+        }
+
+        histories
     }
 }
 
@@ -101,22 +105,17 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
         "Broadcaster"
     }
 
-    async fn run(mut ports: ConsumerPorts, mut ctx: BroadcasterContext) {
+    async fn run(mut ports: ConsumerPorts, ctx: BroadcasterContext) {
         while let Some(event) = ports.recv().await {
             match event {
                 EventFrame::Broadcast {
                     event,
-                    state,
                     access_version,
                     settle_version,
                     timestamp,
                 } => {
-                    // info!("Broadcaster broadcast event: {:?}", event);
-                    let mut snapshot = ctx.snapshot.lock().await;
                     let mut event_backups = ctx.event_backups.lock().await;
-                    ctx.latest_access_version = access_version;
-                    ctx.latest_settle_version = settle_version;
-                    *snapshot = state.clone();
+
                     event_backups.push_back(EventBackup {
                         event: event.clone(),
                         settle_version,
@@ -128,7 +127,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         event_backups.pop_front();
                     }
 
-                    let r = ctx.broadcast_tx.send(BroadcastFrame {
+                    let r = ctx.broadcast_tx.send(BroadcastFrame::Event {
                         game_addr: ctx.game_addr.clone(),
                         event,
                         timestamp,
