@@ -164,20 +164,7 @@ pub fn general_handle_event(
 
         Event::GameStart { access_version } => {
             context.set_game_status(GameStatus::Running);
-            for s in context.servers.iter_mut() {
-                if let NodeStatus::Pending(a) = s.status {
-                    if a <= *access_version {
-                        s.status = NodeStatus::Ready
-                    }
-                }
-            }
-            for p in context.players.iter_mut() {
-                if let NodeStatus::Pending(a) = p.status {
-                    if a <= *access_version {
-                        p.status = NodeStatus::Ready
-                    }
-                }
-            }
+            context.set_node_ready(*access_version);
             Ok(())
         }
 

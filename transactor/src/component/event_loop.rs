@@ -32,6 +32,8 @@ async fn handle(
     game_context: &mut GameContext,
     event: Event,
     ports: &PipelinePorts,
+
+    #[allow(unused)]
     mode: ClientMode,
 ) {
     info!("Handle event: {}", event);

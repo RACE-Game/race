@@ -818,6 +818,23 @@ impl GameContext {
         Ok(())
     }
 
+    pub fn set_node_ready(&mut self, access_version: u64) {
+        for s in self.servers.iter_mut() {
+            if let NodeStatus::Pending(a) = s.status {
+                if a <= access_version {
+                    s.status = NodeStatus::Ready
+                }
+            }
+        }
+        for p in self.players.iter_mut() {
+            if let NodeStatus::Pending(a) = p.status {
+                if a <= access_version {
+                    p.status = NodeStatus::Ready
+                }
+            }
+        }
+    }
+
     pub fn apply_checkpoint(&mut self, access_version: u64, settle_version: u64) -> Result<()> {
         if self.settle_version != settle_version {
             return Err(Error::InvalidCheckpoint);
