@@ -114,6 +114,14 @@ impl From<ServerJoin> for Server {
 }
 
 impl Server {
+    pub fn new_pending<S: Into<String>>(addr: S, endpoint: String, access_version: u64) -> Self {
+        Server {
+            addr: addr.into(),
+            endpoint,
+            status: NodeStatus::Pending(access_version),
+        }
+    }
+
     pub fn new<S: Into<String>>(addr: S, endpoint: String) -> Self {
         Server {
             addr: addr.into(),
@@ -195,14 +203,39 @@ impl GameContext {
             .as_ref()
             .ok_or(Error::GameNotServed)?;
 
+        let players = game_account
+            .players
+            .iter()
+            .map(|p| {
+                Player::new_pending(
+                    p.addr.clone(),
+                    p.balance,
+                    p.position,
+                    game_account.access_version,
+                )
+            })
+            .collect();
+
+        let servers = game_account
+            .servers
+            .iter()
+            .map(|s| {
+                Server::new_pending(
+                    s.addr.clone(),
+                    s.endpoint.clone(),
+                    game_account.access_version,
+                )
+            })
+            .collect();
+
         Ok(Self {
             game_addr: game_account.addr.clone(),
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
             transactor_addr: transactor_addr.to_owned(),
             status: GameStatus::Uninit,
-            players: vec![],
-            servers: vec![],
+            players,
+            servers,
             dispatch: None,
             timestamp: 0,
             allow_exit: false,
@@ -533,7 +566,17 @@ impl GameContext {
 
     pub fn init_random_state(&mut self, spec: RandomSpec) -> Result<RandomId> {
         let random_id = self.random_states.len() + 1;
-        let owners: Vec<String> = self.servers.iter().map(|v| v.addr.clone()).collect();
+        let owners: Vec<String> = self
+            .servers
+            .iter()
+            .filter_map(|s| {
+                if s.status == NodeStatus::Ready {
+                    Some(s.addr.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         // The only failure case is no enough owners.
         // Here we know the game is served, so the servers must not be empty.
@@ -598,16 +641,22 @@ impl GameContext {
             RandomStatus::Ready => {
                 self.dispatch_event_instantly(Event::RandomnessReady { random_id });
             }
-            RandomStatus::Locking => {
+            RandomStatus::Locking(ref addr) => {
+                let addr = addr.to_owned();
                 if no_dispatch {
-                    let addrs = rnd_st.list_operating_addrs();
-                    self.dispatch_event(Event::OperationTimeout { addrs }, OPERATION_TIMEOUT);
+                    self.dispatch_event(
+                        Event::OperationTimeout { addrs: vec![addr] },
+                        OPERATION_TIMEOUT,
+                    );
                 }
             }
-            RandomStatus::Masking => {
+            RandomStatus::Masking(ref addr) => {
+                let addr = addr.to_owned();
                 if no_dispatch {
-                    let addrs = rnd_st.list_operating_addrs();
-                    self.dispatch_event(Event::OperationTimeout { addrs }, OPERATION_TIMEOUT);
+                    self.dispatch_event(
+                        Event::OperationTimeout { addrs: vec![addr] },
+                        OPERATION_TIMEOUT,
+                    );
                 }
             }
             RandomStatus::WaitingSecrets => {
@@ -785,6 +834,8 @@ impl GameContext {
             NodeStatus::Ready => true,
             NodeStatus::Disconnected => true,
         });
+
+        self.access_version = access_version;
 
         Ok(())
     }

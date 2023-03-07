@@ -3,8 +3,6 @@ use std::{
     sync::Arc,
 };
 
-use tracing::info;
-
 use race_core::{
     connection::ConnectionT,
     context::GameContext,
@@ -156,10 +154,7 @@ impl Client {
         }])
     }
 
-    pub fn handle_random_waiting(
-        &mut self,
-        random_state: &RandomState,
-    ) -> Result<Event> {
+    pub fn handle_random_waiting(&mut self, random_state: &RandomState) -> Result<Option<Event>> {
         let required_idents: Vec<SecretIdent> = random_state
             .list_required_secrets_by_from_addr(&self.addr)
             .into_iter()
@@ -177,12 +172,19 @@ impl Client {
             })
             .collect();
 
+        let mut op_hist = Vec::new();
+
         let shares = required_idents
             .into_iter()
             .map(|idt| {
                 let secret = self
                     .secret_state
                     .get_random_lock(idt.random_id, idt.index)?;
+                op_hist.push(OpIdent::RandomSecret {
+                    random_id: random_state.id,
+                    index: idt.index,
+                    to_addr: idt.to_addr.clone(),
+                });
                 Ok(SecretShare::new_for_random(
                     idt.random_id,
                     idt.index,
@@ -193,17 +195,27 @@ impl Client {
             })
             .collect::<Result<Vec<SecretShare>>>()?;
 
-        let event = Event::ShareSecrets {
-            sender: self.addr.clone(),
-            shares,
-        };
-        Ok(event)
+        if shares.is_empty() {
+            Ok(None)
+        } else {
+            let event = Event::ShareSecrets {
+                sender: self.addr.clone(),
+                shares,
+            };
+            self.op_hist.extend(op_hist);
+            Ok(Some(event))
+        }
     }
 
-    pub fn handle_random_masking(
-        &mut self,
-        random_state: &RandomState,
-    ) -> Result<Event> {
+    pub fn handle_random_masking(&mut self, random_state: &RandomState) -> Result<Option<Event>> {
+        let op_ident = OpIdent::Mask {
+            random_id: random_state.id,
+        };
+
+        if self.op_hist.contains(&op_ident) {
+            return Ok(None);
+        }
+
         let origin = random_state
             .ciphertexts
             .iter()
@@ -223,13 +235,20 @@ impl Client {
             ciphertexts: masked,
         };
 
-        Ok(event)
+        self.op_hist.insert(op_ident);
+
+        Ok(Some(event))
     }
 
-    pub fn handle_random_locking(
-        &mut self,
-        random_state: &RandomState,
-    ) -> Result<Event> {
+    pub fn handle_random_locking(&mut self, random_state: &RandomState) -> Result<Option<Event>> {
+        let op_ident = OpIdent::Lock {
+            random_id: random_state.id,
+        };
+
+        if self.op_hist.contains(&op_ident) {
+            return Ok(None);
+        }
+
         let origin = random_state
             .ciphertexts
             .iter()
@@ -252,7 +271,9 @@ impl Client {
             ciphertexts_and_digests: locked,
         };
 
-        Ok(event)
+        self.op_hist.insert(op_ident);
+
+        Ok(Some(event))
     }
 
     pub fn handle_randomization(&mut self, game_context: &GameContext) -> Result<Vec<Event>> {
@@ -261,13 +282,23 @@ impl Client {
             match random_state.status {
                 RandomStatus::Ready => (),
                 RandomStatus::WaitingSecrets => {
-                    events.push(self.handle_random_waiting(random_state)?);
+                    if let Some(event) = self.handle_random_waiting(random_state)? {
+                        events.push(event);
+                    }
                 }
-                RandomStatus::Locking => {
-                    events.push(self.handle_random_locking(random_state)?);
+                RandomStatus::Locking(ref addr) => {
+                    if self.addr.eq(addr) {
+                        if let Some(event) = self.handle_random_locking(random_state)? {
+                            events.push(event);
+                        }
+                    }
                 }
-                RandomStatus::Masking => {
-                    events.push(self.handle_random_masking(random_state)?);
+                RandomStatus::Masking(ref addr) => {
+                    if self.addr.eq(addr) {
+                        if let Some(event) = self.handle_random_masking(random_state)? {
+                            events.push(event);
+                        }
+                    }
                 }
             }
         }
@@ -287,15 +318,12 @@ impl Client {
                 self.handle_randomization(ctx)?
             }
         };
-        let count = events.len();
-        if count > 0 {
-            info!("Generated {} events", count);
-        }
         Ok(events)
     }
 
     pub fn flush_secret_states(&mut self) {
         self.secret_state.clear();
+        self.op_hist.clear();
     }
 
     /// Decrypt the ciphertexts with shared secrets.

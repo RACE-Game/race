@@ -223,6 +223,9 @@ pub enum Error {
 
     #[error("Invalid checkpoint")]
     InvalidCheckpoint,
+
+    #[error("Duplicated initialization")]
+    DuplicatedInitialization,
 }
 
 impl From<serde_json::Error> for Error {

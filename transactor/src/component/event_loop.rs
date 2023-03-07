@@ -57,21 +57,10 @@ async fn handle(
                 })
                 .await;
 
-            if mode == ClientMode::Transactor {
-                // We do optimistic updates here
-                if let Some(settles) = effects.settles {
-                    info!("Send settlements: {:?}", settles);
-                    ports.send(EventFrame::Settle { settles }).await;
-
-                    // The game should be restarted for next round.
-                    ports
-                        .send(EventFrame::SendServerEvent {
-                            event: Event::GameStart {
-                                access_version: game_context.get_access_version(),
-                            },
-                        })
-                        .await;
-                }
+            // We do optimistic updates here
+            if let Some(settles) = effects.settles {
+                info!("Send settlements: {:?}", settles);
+                ports.send(EventFrame::Settle { settles }).await;
             }
         }
         Err(e) => {
@@ -129,27 +118,15 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         let mut handler = ctx.handler;
         let mut game_context = ctx.game_context;
 
-        if ctx.mode == ClientMode::Transactor {
-            // Send the very first event to game handler
-            // This event doesn't have to be succeed.
-            let first_event = Event::GameStart {
-                access_version: game_context.get_access_version(),
-            };
-            handle(
-                &mut handler,
-                &mut game_context,
-                first_event,
-                &ports,
-                ctx.mode,
-            )
-            .await;
-        }
-
         // Read games from event bus
         while let Some(event_frame) = retrieve_event(&mut ports, &mut game_context, ctx.mode).await
         {
             match event_frame {
                 EventFrame::InitState { init_account } => {
+                    info!(
+                        "Initialize game state for {}, access_version = {}, settle_version = {}",
+                        init_account.addr, init_account.access_version, init_account.settle_version
+                    );
                     if let Err(e) = game_context
                         .apply_checkpoint(init_account.access_version, init_account.settle_version)
                     {

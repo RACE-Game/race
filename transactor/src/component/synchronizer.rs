@@ -55,7 +55,10 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
             let state = ctx.transport.get_game_account(&ctx.game_addr).await;
             if let Some(state) = state {
                 if access_version < state.access_version {
-                    info!("Synchronizer get new state: {:?}", state);
+                    info!(
+                        "Synchronizer get new state, access_version = {}",
+                        state.access_version
+                    );
                     let GameAccount {
                         access_version: av,
                         players,

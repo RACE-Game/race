@@ -74,7 +74,7 @@ impl Display for SubscribeEventParams {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum BroadcastFrame {
     Event {
         game_addr: String,

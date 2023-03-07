@@ -201,6 +201,7 @@ impl WrappedHandler {
 mod tests {
     use race_core::{context::GameStatus, prelude::CustomEvent, types::GameAccount};
     use race_test::*;
+    use serde::{Deserialize, Serialize};
 
     use super::*;
 
@@ -209,7 +210,7 @@ mod tests {
         init_n: u64,
     }
 
-    #[derive(BorshDeserialize, BorshSerialize)]
+    #[derive(Deserialize, Serialize)]
     enum MinimalEvent {
         Increment(u64),
     }
@@ -234,9 +235,10 @@ mod tests {
     fn test_init_state() {
         let mut hdlr = make_wrapped_handler();
         let game_account = make_game_account();
+        let init_account = InitAccount::from_game_account(&game_account);
         let mut ctx = GameContext::try_new(&game_account).unwrap();
-        hdlr.init_state(&mut ctx, &game_account).unwrap();
-        assert_eq!(ctx.get_handler_state_raw(), &[42, 0, 0, 0, 0, 0, 0, 0]);
+        hdlr.init_state(&mut ctx, &init_account).unwrap();
+        assert_eq!(ctx.get_handler_state_raw(), "{\"n\":42}");
     }
 
     #[test]
@@ -247,10 +249,11 @@ mod tests {
         let event = Event::GameStart {
             access_version: game_account.access_version,
         };
-        hdlr.init_state(&mut ctx, &game_account).unwrap();
+        let init_account = InitAccount::from_game_account(&game_account);
+        hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
-        assert_eq!(ctx.get_handler_state_raw(), &[42, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(ctx.get_handler_state_raw(), "{\"n\":42}");
         assert_eq!(ctx.get_status(), GameStatus::Running);
     }
 
@@ -260,9 +263,10 @@ mod tests {
         let game_account = make_game_account();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         let event = Event::custom("Alice", &MinimalEvent::Increment(1));
-        hdlr.init_state(&mut ctx, &game_account).unwrap();
+        let init_account = InitAccount::from_game_account(&game_account);
+        hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
-        assert_eq!(ctx.get_handler_state_raw(), &[43, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(ctx.get_handler_state_raw(), "{\"n\":43}");
     }
 }

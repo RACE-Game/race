@@ -1,6 +1,6 @@
 use race_core::prelude::*;
 
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(Deserialize, Serialize)]
 enum MinimalEvent {
     Increment(u64),
 }
@@ -12,7 +12,7 @@ struct MinimalAccountData {
     init_n: u64,
 }
 
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(Deserialize, Serialize)]
 #[game_handler]
 struct Minimal {
     n: u64,
@@ -38,7 +38,7 @@ impl GameHandler for Minimal {
     fn handle_event(&mut self, _effect: &mut Effect, event: Event) -> Result<()> {
         match event {
             Event::Custom { raw, .. } => {
-                let event = MinimalEvent::try_from_slice(&raw)?;
+                let event = serde_json::from_str(&raw)?;
                 self.handle_custom_event(event)
             }
             _ => Ok(()),

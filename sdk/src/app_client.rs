@@ -4,7 +4,8 @@ use gloo::utils::format::JsValueSerdeExt;
 use js_sys::JSON::{parse, stringify};
 use js_sys::{Function, Object, Reflect};
 use race_core::context::GameContext;
-use race_core::types::{BroadcastFrame, DecisionId, ExitGameParams, RandomId};
+use race_core::engine::InitAccount;
+use race_core::types::{BroadcastFrame, DecisionId, ExitGameParams, GameAccount, RandomId};
 use race_transport::TransportBuilder;
 use wasm_bindgen::prelude::*;
 
@@ -37,6 +38,7 @@ pub struct AppClient {
     transport: Arc<dyn TransportT>,
     connection: Arc<Connection>,
     game_context: RefCell<GameContext>,
+    init_game_account: RefCell<Option<GameAccount>>,
     callback: Function,
 }
 
@@ -112,25 +114,10 @@ impl AppClient {
 
         let handler = Handler::from_bundle(game_bundle, encryptor).await;
 
-        let mut game_context = GameContext::try_new(&game_account)?;
+        let game_context = RefCell::new(GameContext::try_new(&game_account)?);
 
-        handler.init_state(&mut game_context, &game_account)?;
+        info!(format!("game context 0: {:?}", game_context));
 
-        let state = parse(game_context.get_handler_state_raw()).unwrap();
-
-        let context = JsGameContext::from_context(&game_context);
-
-        let null = JsValue::null();
-        Function::call3(
-            &callback,
-            &null,
-            &JsValue::from_serde(&context).unwrap(),
-            &state,
-            &null,
-        )
-        .expect("Init callback error");
-
-        let game_context = RefCell::new(game_context);
         Ok(Self {
             addr: game_addr.to_owned(),
             client,
@@ -138,8 +125,33 @@ impl AppClient {
             connection,
             handler,
             game_context,
+            init_game_account: RefCell::new(Some(game_account)),
             callback,
         })
+    }
+
+    fn invoke_callback(&self, game_context: &GameContext, event: Option<Event>) -> Result<()> {
+        let state = parse(game_context.get_handler_state_raw()).or(Err(Error::JsonParseError))?;
+
+        let context = JsGameContext::from_context(&game_context);
+        let event_js: JsValue = if let Some(event) = event {
+            let event = JsEvent::from(event);
+            event.into()
+        } else {
+            JsValue::NULL
+        };
+
+        let r = Function::call3(
+            &self.callback,
+            &JsValue::NULL,
+            &JsValue::from_serde(&context).or(Err(Error::JsonParseError))?,
+            &state,
+            &event_js,
+        );
+        if let Err(e) = r {
+            error!(format!("Callback error, {:?}", e));
+        }
+        Ok(())
     }
 
     #[wasm_bindgen]
@@ -148,13 +160,18 @@ impl AppClient {
     /// checkpoint(settle_version).  We will receive event hhistories
     /// once the connection is established.
     pub async fn attach_game(&self) -> Result<()> {
+        let mut init_game_account = self.init_game_account.borrow_mut();
+        if init_game_account.is_none() {
+            return Err(Error::DuplicatedInitialization)?;
+        }
         info!("Attach to game");
         self.client.attach_game().await?;
         let settle_version = self.game_context.borrow().get_settle_version();
-        debug!(format!(
+
+        debug!(
             "Subscribe event stream, use settle_version = {} as check point",
             settle_version
-        ));
+        );
 
         let sub = self
             .connection
@@ -164,34 +181,46 @@ impl AppClient {
         debug!("Event stream connected");
 
         while let Some(frame) = sub.next().await {
-            let BroadcastFrame {
-                game_addr: _,
-                event,
-                timestamp,
-            } = frame;
-            let mut game_context = self.game_context.borrow_mut();
-            game_context.set_timestamp(timestamp);
-            match self.handler.handle_event(&mut game_context, &event) {
-                Ok(_) => {
-                    let event = JsEvent::from(event);
-                    let state = parse(game_context.get_handler_state_raw()).unwrap();
+            match frame {
+                BroadcastFrame::Init {
+                    access_version,
+                    settle_version,
+                    ..
+                } => {
+                    let mut game_context = self.game_context.borrow_mut();
 
-                    let context = JsGameContext::from_context(&game_context);
+                    let game_account = std::mem::replace(&mut *init_game_account, None)
+                        .ok_or(Error::DuplicatedInitialization)?;
 
-                    let null = JsValue::null();
-                    let r = Function::call3(
-                        &self.callback,
-                        &null,
-                        &JsValue::from_serde(&context).unwrap(),
-                        &state,
-                        &event.into(),
-                    );
-                    if let Err(e) = r {
-                        error!(format!("Callback error, {:?}", e));
+                    info!("access_version = {}, settle_version = {}", access_version, settle_version);
+
+                    game_context.apply_checkpoint(access_version, settle_version)?;
+
+                    info!(format!("game context: {:?}", *game_context));
+                    let init_account =
+                        InitAccount::new(game_account, access_version, settle_version);
+                    match self.handler.init_state(&mut game_context, &init_account) {
+                        Ok(_) => {
+                            self.invoke_callback(&game_context, None)?;
+                        }
+                        Err(e) => {
+                            warn!("Init state failed, {}", e.to_string())
+                        }
                     }
                 }
-                Err(e) => {
-                    warn!(format!("Discard event [{}] due to: [{:?}]", event, e));
+                BroadcastFrame::Event {
+                    event, timestamp, ..
+                } => {
+                    let mut game_context = self.game_context.borrow_mut();
+                    game_context.set_timestamp(timestamp);
+                    match self.handler.handle_event(&mut game_context, &event) {
+                        Ok(_) => {
+                            self.invoke_callback(&game_context, Some(event))?;
+                        }
+                        Err(e) => {
+                            warn!(format!("Discard event [{}] due to: [{:?}]", event, e));
+                        }
+                    }
                 }
             }
         }

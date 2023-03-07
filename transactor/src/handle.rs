@@ -4,9 +4,11 @@ use crate::component::{
     Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle,
     RemoteConnection, Submitter, Subscriber, Voter, WrappedClient, WrappedHandler,
 };
+use crate::frame::EventFrame;
 use race_core::context::GameContext;
 use race_core::encryptor::EncryptorT;
 use race_core::error::{Error, Result};
+use race_core::prelude::InitAccount;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount};
 use tokio::task::JoinHandle;
@@ -76,6 +78,13 @@ impl TransactorHandle {
         event_bus.attach(&mut client_handle).await;
         event_bus.attach(&mut synchronizer_handle).await;
 
+        // Dispatch init state
+        event_bus
+            .send(EventFrame::InitState {
+                init_account: InitAccount::from_game_account(game_account),
+            })
+            .await;
+
         Ok(Self {
             addr: game_account.addr.clone(),
             event_bus,
@@ -111,8 +120,7 @@ impl ValidatorHandle {
             game_account.addr
         );
         let game_context = GameContext::try_new(&game_account)?;
-        let handler =
-            WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
+        let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 
         let transactor_addr = game_account
             .transactor_addr

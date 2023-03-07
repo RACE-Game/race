@@ -96,6 +96,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                 EventFrame::ContextUpdated { ref context } => {
                     match client.handle_updated_context(context) {
                         Ok(events) => {
+                            info!("{} events generated", events.len());
                             for event in events.into_iter() {
                                 info!("Connection send event: {}", event);
                                 if let Err(_e) = client.submit_event(event).await {
@@ -195,6 +196,7 @@ mod tests {
         let (mut _client, mut ctx, handle, connection) = setup();
 
         let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        println!("context: {:?}", ctx);
         let rid = ctx.init_random_state(random).unwrap();
         println!("random inited");
 

@@ -148,13 +148,26 @@ impl std::fmt::Display for Event {
             Event::Sync {
                 new_players,
                 new_servers,
-                transactor_addr,
                 access_version,
-            } => write!(
-                f,
-                "Sync, new_players: {:?}, new_servers: {:?}, transactor: {}, access_version = {}",
-                new_players, new_servers, transactor_addr, access_version
-            ),
+                ..
+            } => {
+                let players = new_players
+                    .iter()
+                    .map(|p| p.addr.as_str())
+                    .collect::<Vec<&str>>()
+                    .join(",");
+                let servers = new_servers
+                    .iter()
+                    .map(|s| s.addr.as_str())
+                    .collect::<Vec<&str>>()
+                    .join(", ");
+
+                write!(
+                    f,
+                    "Sync, new_players: [{}], new_servers: [{}], access_version = {}",
+                    players, servers, access_version
+                )
+            }
             Event::Leave { player_addr } => write!(f, "Leave from {}", player_addr),
             Event::GameStart { access_version } => {
                 write!(f, "GameStart, access_version = {}", access_version)

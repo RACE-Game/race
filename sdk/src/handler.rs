@@ -14,7 +14,7 @@ use base64::Engine;
 use js_sys::WebAssembly::{Instance, Memory};
 use js_sys::{Function, Object, Reflect, Uint8Array, WebAssembly};
 use race_core::event::Event;
-use race_core::types::{GameAccount, GameBundle};
+use race_core::types::GameBundle;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
@@ -51,7 +51,7 @@ impl Handler {
     fn custom_init_state(
         &self,
         context: &mut GameContext,
-        game_account: &GameAccount,
+        init_account: &InitAccount,
     ) -> Result<()> {
         let exports = self.instance.exports();
         let mem = Reflect::get(exports.as_ref(), &"memory".into())
@@ -69,7 +69,6 @@ impl Handler {
         effect_arr.copy_from(&effect_vec);
 
         // serialize init_account
-        let init_account: InitAccount = game_account.into();
         let init_account_vec = init_account.try_to_vec().unwrap();
         let init_account_size = init_account_vec.len();
         let init_account_arr = Uint8Array::new_with_length(init_account_size as _);
@@ -175,9 +174,9 @@ impl Handler {
         Ok(())
     }
 
-    pub fn init_state(&self, context: &mut GameContext, init_account: &GameAccount) -> Result<()> {
+    pub fn init_state(&self, context: &mut GameContext, init_account: &InitAccount) -> Result<()> {
         let mut new_context = context.clone();
-        general_init_state(&mut new_context)?;
+        general_init_state(&mut new_context, init_account)?;
         self.custom_init_state(&mut new_context, init_account)?;
         swap(context, &mut new_context);
         Ok(())

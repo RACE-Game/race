@@ -25,7 +25,23 @@ pub struct InitAccount {
 }
 
 impl InitAccount {
-    pub fn from_game_account(
+    pub fn from_game_account(game_account: &GameAccount) -> Self {
+        let game_account = game_account.to_owned();
+        let access_version = game_account.access_version;
+        let settle_version = game_account.settle_version;
+        let players = game_account.players.clone();
+        let servers = game_account.servers.clone();
+        Self {
+            addr: game_account.addr,
+            players,
+            servers,
+            data: game_account.data.clone(),
+            access_version,
+            settle_version,
+        }
+    }
+
+    pub fn new(
         game_account: GameAccount,
         transactor_access_version: u64,
         transactor_settle_version: u64,
@@ -146,8 +162,22 @@ pub fn general_handle_event(
             }
         }
 
-        Event::GameStart { .. } => {
+        Event::GameStart { access_version } => {
             context.set_game_status(GameStatus::Running);
+            for s in context.servers.iter_mut() {
+                if let NodeStatus::Pending(a) = s.status {
+                    if a <= *access_version {
+                        s.status = NodeStatus::Ready
+                    }
+                }
+            }
+            for p in context.players.iter_mut() {
+                if let NodeStatus::Pending(a) = p.status {
+                    if a <= *access_version {
+                        p.status = NodeStatus::Ready
+                    }
+                }
+            }
             Ok(())
         }
 

@@ -193,7 +193,6 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                 position,
                 balance: amount,
                 access_version,
-                settle_version: game_account.settle_version,
             };
             game_account.players.push(player_join);
             game_account.access_version = access_version;
@@ -436,7 +435,6 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
                 server_addr,
                 server_account.endpoint.clone(),
                 account.access_version,
-                account.settle_version,
             ));
         }
     }

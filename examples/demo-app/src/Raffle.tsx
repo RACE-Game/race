@@ -11,12 +11,13 @@ interface Player {
 }
 
 interface State {
+  last_winner: string | null,
   players: Player[],
   random_id: number,
   draw_time: bigint,
 }
 
-function Winner(props: { settle_version: number, previous_winner: string | null }) {
+function Winner(props: { settle_version: number, last_winner: string | null }) {
 
   const [fade, setFade] = useState(false);
 
@@ -25,11 +26,11 @@ function Winner(props: { settle_version: number, previous_winner: string | null 
     setTimeout(() => setFade(true), 5000)
   }, [props.settle_version]);
 
-  if (props.previous_winner) {
+  if (props.last_winner) {
     return <div className={
       `bg-black text-white text-lg p-4 text-center animate-bounce transition-opacity duration-[3500ms]
        ${fade ? "opacity-0" : "opacity-100"}`}>
-      Winner: {props.previous_winner}
+      Winner: {props.last_winner}
     </div>
   } else {
     return <div></div>
@@ -46,6 +47,7 @@ function Raffle() {
 
   // Game event handler
   const onEvent = (context: any, state: State, event: Event | null) => {
+    console.log(event?.kind(), event?.data(), state);
     if (event !== null) {
       addLog(event);
     }
@@ -87,7 +89,7 @@ function Raffle() {
         </div>
         <div>
           Next draw: {
-            state.draw_time > 0 ? new Date(state.draw_time).toLocaleTimeString() : "N/A"
+            state.draw_time > 0 ? new Date(Number(state.draw_time)).toLocaleTimeString() : "N/A"
           }
         </div>
         <div>Players:</div>
@@ -98,14 +100,14 @@ function Raffle() {
         }
 
         <div className="flex-1"></div>
+
+        <Winner
+          last_winner={state.last_winner}
+          settle_version={context.settle_version} />
       </div>
     );
   }
 }
-
-// <Winner
-//   previous_winner={state.previous_winner}
-//   settle_version={context.settle_version} />
 
 
 export default Raffle;

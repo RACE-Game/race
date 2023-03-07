@@ -6,3 +6,4 @@ pub use crate::random::RandomSpec;
 pub use crate::types::{Addr, Amount, DecisionId, PlayerJoin, RandomId, ServerJoin, Settle};
 pub use race_proc_macro::game_handler;
 pub use borsh::{BorshDeserialize, BorshSerialize};
+pub use serde::{Deserialize, Serialize};

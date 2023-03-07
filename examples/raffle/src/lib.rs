@@ -26,6 +26,7 @@ impl From<PlayerJoin> for Player {
 #[derive(Serialize, Deserialize)]
 #[game_handler]
 struct Raffle {
+    last_winner: Option<String>,
     players: Vec<Player>,
     random_id: RandomId,
     draw_time: u64,
@@ -43,7 +44,9 @@ impl GameHandler for Raffle {
     fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self> {
         let players = init_account.players.into_iter().map(Into::into).collect();
         let draw_time = context.timestamp() + 30_000;
+        context.start_game();
         Ok(Self {
+            last_winner: None,
             players,
             random_id: 0,
             draw_time,
@@ -68,7 +71,6 @@ impl GameHandler for Raffle {
             Event::Sync { new_players, .. } => {
                 let players = new_players.into_iter().map(Into::into);
                 self.players.extend(players);
-                context.start_game();
             }
 
             // Reveal the first address when randomness is ready.
@@ -102,6 +104,7 @@ impl GameHandler for Raffle {
                     context.settle(Settle::eject(&p.addr));
                 }
                 context.wait_timeout(5_000);
+                self.last_winner = Some(winner);
                 self.cleanup();
             }
             _ => (),
@@ -136,13 +139,11 @@ mod tests {
                 position: 0,
                 balance: 100,
                 access_version: 0,
-                settle_version: 0,
             }],
             new_servers: vec![ServerJoin {
                 addr: "foo".into(),
                 endpoint: "foo.endpoint".into(),
                 access_version: 0,
-                settle_version: 0,
             }],
             transactor_addr: "".into(),
             access_version: 0,

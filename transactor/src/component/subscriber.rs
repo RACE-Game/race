@@ -111,7 +111,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                 } => {
                     ports
                         .send(EventFrame::InitState {
-                            init_account: InitAccount::from_game_account(
+                            init_account: InitAccount::new(
                                 init_game_account.clone(),
                                 access_version,
                                 settle_version,

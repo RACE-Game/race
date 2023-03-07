@@ -157,7 +157,7 @@ mod tests {
     #[tokio::test]
     async fn test_broadcast_event() {
         let game_account = TestGameAccountBuilder::default().add_players(2).build();
-        let (broadcaster, ctx) = Broadcaster::init(&game_account, "{}".into());
+        let (broadcaster, ctx) = Broadcaster::init(&game_account);
         let handle = broadcaster.start(ctx);
         let mut rx = broadcaster.get_broadcast_rx();
 
@@ -165,14 +165,13 @@ mod tests {
             access_version: 10,
             settle_version: 10,
             timestamp: 0,
-            state: vec![],
             event: Event::Custom {
                 sender: "Alice".into(),
                 raw: "CUSTOM EVENT".into(),
             },
         };
 
-        let broadcast_frame = BroadcastFrame {
+        let broadcast_frame = BroadcastFrame::Event {
             game_addr: game_account.addr,
             timestamp: 0,
             event: Event::Custom {

@@ -2552,6 +2552,8 @@ dependencies = [
  "borsh",
  "race-core",
  "race-proc-macro",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
