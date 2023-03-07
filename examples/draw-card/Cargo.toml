@@ -10,6 +10,8 @@ crate-type = ["cdylib"]
 race-core = { path = "../../core" }
 race-proc-macro = { path = "../../proc-macro" }
 borsh = "0.9.3"
+serde_json = "1.0.85"
+serde = "1.0.144"
 
 [dev-dependencies]
 race-test = { path = "../../test" }

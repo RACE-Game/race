@@ -1,12 +1,12 @@
 set dotenv-load
 
-build: sdk transactor cli
+build: build-sdk build-transactor build-cli
 
 dep:
     cargo fetch
     npm --prefix ./examples/demo-app i
 
-sdk:
+build-sdk:
     wasm-pack build --release --target web sdk
     patch ./sdk/pkg/package.json < ./sdk/package.json.patch
 
@@ -14,15 +14,17 @@ dev-sdk:
     wasm-pack build --dev --target web sdk
     patch ./sdk/pkg/package.json < ./sdk/package.json.patch
 
-facade:
+build-facade:
     cargo build -r -p race-facade
 
-transactor:
+build-transactor:
     cargo build -r -p race-transactor
 
-cli:
+build-cli:
     cargo build -r -p race-cli
 
+cli *ARGS:
+    cargo run -p race-cli -- {{ARGS}}
 
 test: test-transactor
 

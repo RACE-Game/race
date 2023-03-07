@@ -3,6 +3,7 @@
 use gloo::utils::format::JsValueSerdeExt;
 use js_sys::JSON::{parse, stringify};
 use js_sys::{Function, Object, Reflect};
+use jsonrpsee::core::client::Subscription;
 use race_core::context::GameContext;
 use race_core::engine::InitAccount;
 use race_core::types::{BroadcastFrame, DecisionId, ExitGameParams, GameAccount, RandomId};
@@ -39,6 +40,7 @@ pub struct AppClient {
     connection: Arc<Connection>,
     game_context: RefCell<GameContext>,
     init_game_account: RefCell<Option<GameAccount>>,
+    event_sub: RefCell<Option<Subscription<BroadcastFrame>>>,
     callback: Function,
 }
 
@@ -112,11 +114,9 @@ impl AppClient {
             connection.clone(),
         );
 
-        let handler = Handler::from_bundle(game_bundle, encryptor).await;
+        let handler = Handler::from_bundle(game_bundle, encryptor).await?;
 
         let game_context = RefCell::new(GameContext::try_new(&game_account)?);
-
-        info!(format!("game context 0: {:?}", game_context));
 
         Ok(Self {
             addr: game_addr.to_owned(),
@@ -127,6 +127,7 @@ impl AppClient {
             game_context,
             init_game_account: RefCell::new(Some(game_account)),
             callback,
+            event_sub: RefCell::new(None),
         })
     }
 
@@ -138,7 +139,7 @@ impl AppClient {
             let event = JsEvent::from(event);
             event.into()
         } else {
-            JsValue::NULL
+            JsValue::UNDEFINED
         };
 
         let r = Function::call3(
@@ -177,10 +178,11 @@ impl AppClient {
             .connection
             .subscribe_events(&self.addr, settle_version)
             .await?;
+
         pin_mut!(sub);
         debug!("Event stream connected");
 
-        while let Some(frame) = sub.next().await {
+        while let Some(Ok(frame)) = sub.next().await {
             match frame {
                 BroadcastFrame::Init {
                     access_version,
@@ -188,20 +190,24 @@ impl AppClient {
                     ..
                 } => {
                     let mut game_context = self.game_context.borrow_mut();
-
                     let game_account = std::mem::replace(&mut *init_game_account, None)
                         .ok_or(Error::DuplicatedInitialization)?;
 
-                    info!("access_version = {}, settle_version = {}", access_version, settle_version);
+                    info!(format!(
+                        "Apply checkpoint, access_version = {}, settle_version = {}",
+                        access_version, settle_version
+                    ));
 
                     game_context.apply_checkpoint(access_version, settle_version)?;
 
-                    info!(format!("game context: {:?}", *game_context));
                     let init_account =
                         InitAccount::new(game_account, access_version, settle_version);
                     match self.handler.init_state(&mut game_context, &init_account) {
                         Ok(_) => {
                             self.invoke_callback(&game_context, None)?;
+                        }
+                        Err(Error::WasmExecutionError(e)) => {
+                            error!(format!("Initiate state error: {:?}", e))
                         }
                         Err(e) => {
                             warn!("Init state failed, {}", e.to_string())
@@ -216,6 +222,9 @@ impl AppClient {
                     match self.handler.handle_event(&mut game_context, &event) {
                         Ok(_) => {
                             self.invoke_callback(&game_context, Some(event))?;
+                        }
+                        Err(Error::WasmExecutionError(e)) => {
+                            error!(format!("Handle event error: {:?}", e))
                         }
                         Err(e) => {
                             warn!(format!("Discard event [{}] due to: [{:?}]", event, e));
@@ -300,6 +309,16 @@ impl AppClient {
         self.connection
             .exit_game(&self.addr, ExitGameParams {})
             .await?;
+        Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub async fn close(&self) -> Result<()> {
+        self.exit().await?;
+        if let Some(event_sub) = self.event_sub.replace(None) {
+            event_sub.unsubscribe().await?;
+        }
+        info!("App client closed");
         Ok(())
     }
 }

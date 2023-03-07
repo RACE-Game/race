@@ -215,6 +215,9 @@ pub enum Error {
     #[error("Serialization error")]
     SerializationError,
 
+    #[error("Wasm initialization error: {0}")]
+    WasmInitializationError(String),
+
     #[error("Wasm execution error: {0}")]
     WasmExecutionError(String),
 

@@ -683,14 +683,14 @@ pub fn setup(ctx: &mut Context) {
 
     info!("path: {:?}", std::env::current_dir());
 
-    // add_bundle_and_game(
-    //     ctx,
-    //     "./target/race_example_chat.wasm",
-    //     CHAT_BUNDLE_ADDRESS,
-    //     EXAMPLE_CHAT_ADDRESS,
-    //     "Chat Room",
-    //     vec![],
-    // );
+    add_bundle_and_game(
+        ctx,
+        "./target/race_example_chat.wasm",
+        CHAT_BUNDLE_ADDRESS,
+        EXAMPLE_CHAT_ADDRESS,
+        "Chat Room",
+        vec![],
+    );
     add_bundle_and_game(
         ctx,
         "./target/race_example_raffle.wasm",

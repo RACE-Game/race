@@ -33,22 +33,20 @@ async fn handle(
     event: Event,
     ports: &PipelinePorts,
 
-    #[allow(unused)]
-    mode: ClientMode,
+    #[allow(unused)] mode: ClientMode,
 ) {
     info!("Handle event: {}", event);
 
-    // if matches!(event, Event::RandomnessReady) {
-    //     info!("random: {:?}", game_context.list_random_states())
-    // }
+    let access_version = game_context.get_access_version();
+    let settle_version = game_context.get_settle_version();
 
     match handler.handle_event(game_context, &event) {
         Ok(effects) => {
             ports
                 .send(EventFrame::Broadcast {
                     event,
-                    access_version: game_context.get_access_version(),
-                    settle_version: game_context.get_settle_version(),
+                    access_version,
+                    settle_version,
                     timestamp: game_context.get_timestamp(),
                 })
                 .await;

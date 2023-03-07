@@ -206,26 +206,13 @@ impl GameContext {
         let players = game_account
             .players
             .iter()
-            .map(|p| {
-                Player::new_pending(
-                    p.addr.clone(),
-                    p.balance,
-                    p.position,
-                    game_account.access_version,
-                )
-            })
+            .map(|p| Player::new_pending(p.addr.clone(), p.balance, p.position, p.access_version))
             .collect();
 
         let servers = game_account
             .servers
             .iter()
-            .map(|s| {
-                Server::new_pending(
-                    s.addr.clone(),
-                    s.endpoint.clone(),
-                    game_account.access_version,
-                )
-            })
+            .map(|s| Server::new_pending(s.addr.clone(), s.endpoint.clone(), s.access_version))
             .collect();
 
         Ok(Self {
@@ -677,6 +664,11 @@ impl GameContext {
         &self.settles
     }
 
+    pub fn bump_settle_version(&mut self) {
+        self.settle_version += 1;
+        self.random_states.clear();
+    }
+
     pub fn apply_and_take_settles(&mut self) -> Result<Option<Vec<Settle>>> {
         if self.settles.is_some() {
             let mut settles = None;
@@ -700,10 +692,7 @@ impl GameContext {
                     }
                 }
             }
-            // Bump the settle version
-            // We assume these settlements returned will be proceed
-            self.settle_version += 1;
-            self.random_states = vec![];
+            self.bump_settle_version();
             Ok(settles)
         } else {
             Ok(None)

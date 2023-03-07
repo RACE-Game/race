@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useParams } from 'react-router-dom';
 import { AppClient, Event } from 'race-sdk';
 import { CHAIN, RPC } from "./constants";
@@ -40,15 +40,15 @@ function Winner(props: { settle_version: number, last_winner: string | null }) {
 function Raffle() {
   let [state, setState] = useState<State | undefined>(undefined);
   let [context, setContext] = useState<any | undefined>(undefined);
-  let [client, setClient] = useState<AppClient | undefined>(undefined);
+  let client = useRef<AppClient | undefined>(undefined);
   let { addr } = useParams();
   let profile = useContext(ProfileContext);
   let { addLog } = useContext(LogsContext);
 
   // Game event handler
-  const onEvent = (context: any, state: State, event: Event | null) => {
+  const onEvent = (context: any, state: State, event: Event | undefined) => {
     console.log(event?.kind(), event?.data(), state);
-    if (event !== null) {
+    if (event !== undefined) {
       addLog(event);
     }
     setContext(context);
@@ -57,8 +57,8 @@ function Raffle() {
 
   // Button callback to join the raffle
   const onJoin = async () => {
-    if (client !== undefined) {
-      await client.join(0, 100n);
+    if (client.current !== undefined) {
+      await client.current.join(0, 100n);
     }
   }
 
@@ -67,9 +67,9 @@ function Raffle() {
     const initClient = async () => {
       if (profile !== undefined && addr !== undefined) {
         console.log("Create AppClient");
-        let client = await AppClient.try_init(CHAIN, RPC, profile.addr, addr, onEvent);
-        setClient(client);
-        await client.attach_game();
+        let c = await AppClient.try_init(CHAIN, RPC, profile.addr, addr, onEvent);
+        client.current = c;
+        await c.attach_game();
       }
     };
     initClient();
