@@ -6,4 +6,8 @@ Some additionaly means can be introduced to increase the fairness, for example, 
 
 ## Implementation
 
+The whole progress can be described as below:
+
+![Randomization](random.jpg)
+
 Currently, Chacha20 is used as item secrets, and RSA is used for encryption for private communication.
