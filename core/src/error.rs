@@ -11,6 +11,9 @@ pub enum Error {
     #[error("Player already joined: {0}")]
     PlayerAlreadyJoined(String),
 
+    #[error("Position Occupied: {0}")]
+    PositionOccupied(usize),
+
     #[error("Game is full: {0}")]
     GameIsFull(u32),
 

@@ -35,9 +35,9 @@ impl<H: GameHandler> TestHandler<H> {
         let mut new_context = context.clone();
         let encryptor = Encryptor::default();
         general_handle_event(&mut new_context, event, &encryptor)?;
-        let mut effect = Effect::from_context(&context);
+        let mut effect = Effect::from_context(&new_context);
         self.handler.handle_event(&mut effect, event.to_owned())?;
-        context.apply_effect(effect)?;
+        new_context.apply_effect(effect)?;
         swap(context, &mut new_context);
         Ok(())
     }

@@ -4,6 +4,7 @@ import { AppClient, Event } from 'race-sdk';
 import { CHAIN, RPC } from "./constants";
 import ProfileContext from "./profile-context";
 import LogsContext from "./logs-context";
+import Header from "./Header";
 
 interface Player {
   addr: string,
@@ -43,7 +44,7 @@ function Raffle() {
   let client = useRef<AppClient | undefined>(undefined);
   let { addr } = useParams();
   let profile = useContext(ProfileContext);
-  let { addLog } = useContext(LogsContext);
+  let { addLog, clearLog } = useContext(LogsContext);
 
   // Game event handler
   const onEvent = (context: any, state: State, event: Event | undefined) => {
@@ -73,13 +74,20 @@ function Raffle() {
       }
     };
     initClient();
+    return () => {
+      clearLog();
+      if (client.current) {
+        client.current.close();
+      }
+    }
   }, [profile, addr]);
 
-  if (state === undefined || context === undefined) {
+  if (addr == undefined || state === undefined || context === undefined) {
     return <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24"></svg>
   } else {
     return (
       <div className="h-full w-full flex flex-col">
+        <Header gameAddr={addr} />
         <div className="font-bold m-4 flex">
           <div>Raffle @ {addr}</div>
           <div className="flex-1"></div>

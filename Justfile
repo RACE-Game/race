@@ -32,7 +32,7 @@ test-transactor:
     cargo test -p race-transactor
 
 
-examples: example-minimal example-counter example-chat example-raffle
+examples: example-minimal example-chat example-raffle example-draw-card
 
 example-minimal:
     cargo build -r -p race-example-minimal --target wasm32-unknown-unknown
@@ -48,6 +48,10 @@ example-chat:
 example-raffle:
     cargo build -r -p race-example-raffle --target wasm32-unknown-unknown
     wasm-opt -Oz target/wasm32-unknown-unknown/release/race_example_raffle.wasm -o target/race_example_raffle.wasm
+
+example-draw-card:
+    cargo build -r -p race-example-draw-card --target wasm32-unknown-unknown
+    wasm-opt -Oz target/wasm32-unknown-unknown/release/race_example_draw_card.wasm -o target/race_example_draw_card.wasm
 
 dev-demo-app:
     npm --prefix ./examples/demo-app run dev

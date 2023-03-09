@@ -87,7 +87,7 @@ impl TestClient {
         self.client.decrypt(ctx, random_id)
     }
 
-    pub fn secret_states(&self) -> &SecretState {
+    pub fn secret_state(&self) -> &SecretState {
         &self.client.secret_state
     }
 

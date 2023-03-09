@@ -131,8 +131,7 @@ impl Server {
     }
 }
 
-#[cfg_attr(test, derive(PartialEq, Eq))]
-#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub struct DispatchEvent {
     pub timeout: u64,
     pub event: Event,
@@ -486,13 +485,16 @@ impl GameContext {
 
     /// Add player to the game.
     pub fn add_player(&mut self, player: &PlayerJoin) -> Result<()> {
-        if self
+        if let Some(p) = self
             .players
             .iter()
             .find(|p| p.addr.eq(&player.addr) || p.position == player.position)
-            .is_some()
         {
-            Err(Error::PlayerAlreadyJoined(player.addr.clone()))
+            if p.position == player.position {
+                Err(Error::PositionOccupied(p.position))
+            } else {
+                Err(Error::PlayerAlreadyJoined(player.addr.clone()))
+            }
         } else {
             self.players.push(Player::new(
                 player.addr.clone(),

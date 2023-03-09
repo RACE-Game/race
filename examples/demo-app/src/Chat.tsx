@@ -4,6 +4,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { CHAIN, RPC } from './constants';
 import LogsContext from './logs-context';
 import ProfileContext from './profile-context';
+import Header from './Header';
 
 interface Message {
   sender: string,
@@ -18,7 +19,7 @@ function Chat() {
 
   let [state, setState] = useState<State | undefined>(undefined);
   let client = useRef<AppClient | undefined>(undefined);
-  const { addLog } = useContext(LogsContext);
+  const { addLog, clearLog } = useContext(LogsContext);
   let { addr } = useParams();
   let profile = useContext(ProfileContext);
   const [text, setText] = useState<string>('');
@@ -43,6 +44,7 @@ function Chat() {
     };
     initClient();
     return () => {
+      clearLog();
       if (client.current) {
         client.current.close();
       }
@@ -66,12 +68,13 @@ function Chat() {
     }
   }
 
-  if (state === undefined) {
+  if (addr == undefined || state === undefined) {
     return null;
   }
 
   return <div className="h-full w-full flex flex-col p-4">
     <div className="flex-1 relative">
+      <Header gameAddr={addr} />
       <div className="absolute inset-0 overflow-scroll">
         {
           state.messages.map((msg, idx) => (

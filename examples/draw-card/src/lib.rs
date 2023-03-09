@@ -1,8 +1,17 @@
-//! A minimal game to demonstrate how the protocol works.
+//! A minimal poker game to demonstrate how the protocol works.
+//!
+//! The game for two players.  In the dealing, each player gets one
+//! random card as hand.  And each player put some assets into the
+//! pot.  Then player A can bet with an amount, player B can either
+//! call or fold.  If player B calls, both players' hands will be
+//! revealed.  The one with better hand win the pot(B wins if both got
+//! the same hands).  If player B folds, player A wins the pot.
+//! Players switch positions in each round.
 
-use std::collections::BTreeMap;
-
+use arrayref::{array_mut_ref, mut_array_refs};
 use race_core::prelude::*;
+
+const ACTION_TIMEOUT: u64 = 30_000;
 
 #[derive(Serialize, Deserialize)]
 pub enum GameEvent {
@@ -14,51 +23,113 @@ pub enum GameEvent {
 impl CustomEvent for GameEvent {}
 
 #[derive(BorshDeserialize, BorshSerialize)]
-pub struct MinimalAccountData {}
+pub struct AccountData {
+    pub blind_bet: u64,
+    pub min_bet: u64,
+    pub max_bet: u64,
+}
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum GameStage {
     #[default]
     Dealing,
+    Betting,
+    Reacting,
     Revealing,
+}
+
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
+#[derive(Serialize, Deserialize)]
+pub struct Player {
+    pub addr: String,
+    pub balance: u64,
+    pub bet: u64,
 }
 
 #[game_handler]
 #[derive(Serialize, Deserialize)]
 pub struct DrawCard {
-    pub deck_random_id: RandomId,
-
-    // Current dealer position
-    pub dealer_idx: usize,
-
-    // Real-time chips
-    pub chips: BTreeMap<String, u64>,
-
+    pub last_winner: Option<String>,
+    pub random_id: RandomId,
+    pub players: Vec<Player>,
     pub stage: GameStage,
-
-    // Bet amount
     pub bet: u64,
+    pub blind_bet: u64,
+    pub min_bet: u64,
+    pub max_bet: u64,
 }
 
 impl DrawCard {
+    fn set_winner(&mut self, effect: &mut Effect, winner_index: usize) -> Result<()> {
+        let players = array_mut_ref![self.players, 0, 2];
+        let (player_0, player_1) = mut_array_refs![players, 1, 1];
+        let player_0 = &mut player_0[0];
+        let player_1 = &mut player_1[0];
+
+        if winner_index == 0 {
+            effect.settle(Settle::add(&player_0.addr, player_1.bet));
+            effect.settle(Settle::sub(&player_1.addr, player_1.bet));
+            player_0.balance += self.bet;
+        } else {
+            effect.settle(Settle::add(&player_1.addr, player_0.bet));
+            effect.settle(Settle::sub(&player_0.addr, player_0.bet));
+            player_1.balance += self.bet;
+        }
+
+        Ok(())
+    }
+
     fn custom_handle_event(
         &mut self,
         effect: &mut Effect,
-        _sender: String,
+        sender: String,
         event: GameEvent,
     ) -> Result<()> {
         match event {
             GameEvent::Bet(amount) => {
-                if self.chips.values().any(|c| *c < amount) {
-                    return Err(Error::InvalidAmount);
+                if self.stage == GameStage::Betting {
+                    let player = self
+                        .players
+                        .get_mut(0)
+                        .ok_or(Error::Custom("Player not found".into()))?;
+                    if sender.ne(&player.addr) {
+                        return Err(Error::InvalidCustomEvent);
+                    }
+                    if amount < self.min_bet || amount > self.max_bet || amount > player.balance {
+                        return Err(Error::InvalidAmount);
+                    }
+                    player.bet += amount;
+                    player.balance -= amount;
+                    self.bet += amount;
+                    self.stage = GameStage::Reacting;
+                    effect.action_timeout(player.addr.clone(), ACTION_TIMEOUT);
+                } else {
+                    return Err(Error::Custom("Can't bet".into()));
                 }
-                self.bet = amount;
             }
             GameEvent::Call => {
-                effect.reveal(self.deck_random_id, vec![0, 1]);
-                self.stage = GameStage::Revealing;
+                if self.stage == GameStage::Reacting {
+                    let player = self
+                        .players
+                        .get_mut(1)
+                        .ok_or(Error::Custom("Player not found".into()))?;
+                    if sender.ne(&player.addr) {
+                        return Err(Error::InvalidCustomEvent);
+                    }
+                    if self.bet > player.balance {
+                        player.bet += player.balance;
+                        player.balance = 0;
+                    } else {
+                        player.bet += self.bet;
+                        player.balance -= self.bet;
+                    }
+                    self.stage = GameStage::Revealing;
+                    effect.reveal(self.random_id, vec![0, 1]);
+                } else {
+                    return Err(Error::Custom("Can't call".into()));
+                }
             }
-            GameEvent::Fold => {}
+            GameEvent::Fold => return self.set_winner(effect, 0),
         }
 
         Ok(())
@@ -81,17 +152,30 @@ fn is_better_than(card_a: &str, card_b: &str) -> bool {
 
 impl GameHandler for DrawCard {
     fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self> {
-        effect.wait_timeout(10_000);
+        let AccountData {
+            blind_bet,
+            min_bet,
+            max_bet,
+        } = init_account.data()?;
+        let players: Vec<Player> = init_account
+            .players
+            .into_iter()
+            .map(|p| Player {
+                addr: p.addr,
+                balance: p.balance,
+                bet: 0,
+            })
+            .collect();
+        effect.wait_timeout(1000);
         Ok(Self {
-            deck_random_id: 0,
-            dealer_idx: 0,
-            chips: init_account
-                .players
-                .iter()
-                .map(|p| (p.addr, p.balance))
-                .collect(),
+            last_winner: None,
+            random_id: 0,
+            players,
             bet: 0,
             stage: GameStage::Dealing,
+            min_bet,
+            max_bet,
+            blind_bet,
         })
     }
 
@@ -109,46 +193,59 @@ impl GameHandler for DrawCard {
                 if effect.count_players() < 2 {
                     return Err(Error::NoEnoughPlayers);
                 }
-                for p in effect.get_players().iter() {
-                    self.chips.insert(p.addr.clone(), p.balance);
-                }
-                let rnd_spec = deck_of_cards();
-                self.deck_random_id = effect.init_random_state(&rnd_spec)?;
+
+                let rnd_spec = RandomSpec::deck_of_cards();
                 self.stage = GameStage::Dealing;
+                self.random_id = effect.init_random_state(rnd_spec);
             }
 
             Event::RandomnessReady { .. } => {
-                let addr0 = effect.get_player_by_index(0).unwrap().addr.clone();
-                let addr1 = effect.get_player_by_index(1).unwrap().addr.clone();
-                effect.assign(self.deck_random_id, addr0, vec![0])?;
-                effect.assign(self.deck_random_id, addr1, vec![1])?;
+                effect.assign(self.random_id, &self.players[0].addr, vec![0]);
+                effect.assign(self.random_id, &self.players[1].addr, vec![1]);
             }
 
             // Start game when there are two players.
-            Event::Sync { .. } => {
-                if effect.count_players() == 2 {
+            Event::Sync { new_players, .. } => {
+                for p in new_players.into_iter() {
+                    self.players.push(Player {
+                        addr: p.addr,
+                        balance: p.balance,
+                        bet: 0,
+                    });
+                }
+                // Start the game when there're enough players
+                if self.players.len() == 2 {
                     effect.start_game();
                 }
             }
 
-            Event::SecretsReady => match self.stage {
-                GameStage::Dealing => {}
-                GameStage::Revealing => {
-                    let decryption = effect.get_revealed(self.deck_random_id)?;
-                    let player_idx: usize = if self.dealer_idx == 0 { 1 } else { 0 };
-                    let dealer_addr = self.chips.keys().nth(self.dealer_idx).unwrap().to_owned();
-                    let player_addr = self.chips.keys().nth(player_idx).unwrap().to_owned();
-                    let dealer_card = decryption.get(&self.dealer_idx).unwrap();
-                    let player_card = decryption.get(&player_idx).unwrap();
-                    let (winner, loser) = if is_better_than(dealer_card, player_card) {
-                        (dealer_addr, player_addr)
-                    } else {
-                        (player_addr, dealer_addr)
-                    };
-                    effect.settle(Settle::add(winner, self.bet));
-                    effect.settle(Settle::sub(loser, self.bet));
+            Event::SecretsReady => {
+                match self.stage {
+                    GameStage::Dealing => {
+                        // Now it's the first player's turn to act.
+                        // So we dispatch an action timeout event.
+                        self.stage = GameStage::Betting;
+                        effect.action_timeout(self.players[0].addr.clone(), ACTION_TIMEOUT);
+                    }
+                    GameStage::Revealing => {
+                        // Reveal and compare the hands to decide who is the winner
+                        let revealed = effect.get_revealed(self.random_id)?;
+                        println!("Revealed: {:?}", revealed);
+                        let card_0 = revealed
+                            .get(&0)
+                            .ok_or(Error::Custom("Can't get revealed card".into()))?;
+                        let card_1 = revealed
+                            .get(&1)
+                            .ok_or(Error::Custom("Can't get revealed card".into()))?;
+                        if is_better_than(card_0, card_1) {
+                            self.set_winner(effect, 0)?;
+                        } else {
+                            self.set_winner(effect, 1)?;
+                        }
+                    }
+                    _ => (),
                 }
-            },
+            }
             _ => (),
         }
 

@@ -156,6 +156,7 @@ pub struct Effect {
 
 impl Effect {
     pub fn from_context(context: &GameContext) -> Self {
+
         let revealed = context
             .list_random_states()
             .iter()

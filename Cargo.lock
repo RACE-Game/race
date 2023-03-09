@@ -2573,6 +2573,7 @@ dependencies = [
 name = "race-example-draw-card"
 version = "0.1.0"
 dependencies = [
+ "arrayref",
  "borsh",
  "env_logger 0.10.0",
  "log",

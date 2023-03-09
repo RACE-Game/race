@@ -4,6 +4,7 @@ import './index.css'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Raffle from './Raffle';
 import Chat from './Chat';
+import DrawCard from './DrawCard';
 
 const router = createBrowserRouter([
   {
@@ -17,6 +18,10 @@ const router = createBrowserRouter([
       {
         path: "raffle/:addr",
         element: <Raffle />,
+      },
+      {
+        path: 'draw-card/:addr',
+        element: <DrawCard />,
       }
     ]
   }

@@ -15,11 +15,14 @@ function GameItem(props: GameRegistration) {
 
   let game = undefined;
   switch (props.bundle_addr) {
-    case 'CHAT_BUNDLE_ADDRESS':
+    case 'CHAT_BUNDLE':
       game = 'chat';
       break;
-    case 'RAFFLE_BUNDLE_ADDRESS':
+    case 'RAFFLE_BUNDLE':
       game = 'raffle';
+      break;
+    case 'DRAW_CARD_BUNDLE':
+      game = 'draw-card';
       break;
   }
 
