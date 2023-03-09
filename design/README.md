@@ -2,6 +2,8 @@
 
 [Terminology](terminology.md)
 
+[WebAssembly Usages](web-assembly-usages.md)
+
 [Game Handler](game-handler.md)
 
 [Transactions](transactions.md)
