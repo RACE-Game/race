@@ -11,3 +11,7 @@
 [Transactor and Validator](transactor-and-validator.md)
 
 [On-chain Accounts](on-chain-accounts.md)
+
+[Synchronization](synchronization.md)
+
+[Payment](payment.md)
