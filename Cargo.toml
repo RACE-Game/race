@@ -12,6 +12,7 @@ members = [
   "sdk",
   "client",
   "test",
+  "contracts/solana",
   "examples/counter/core",
   "examples/minimal/core",
   "examples/chat",

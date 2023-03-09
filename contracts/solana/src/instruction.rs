@@ -1,5 +1,4 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Serialize, Deserialize};
 use solana_program::program_error::ProgramError;
 
 // CreateGameAccountParams can be here or in solana.rs and should be the same as that in types

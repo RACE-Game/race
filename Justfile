@@ -16,11 +16,13 @@ cli:
     cargo build -r -p race-cli
 
 
-test: test-transactor
+test: test-core test-transactor
 
 test-transactor:
     cargo test -p race-transactor
 
+test-core:
+    cargo test -p race-core
 
 examples: example-chat example-raffle preview-demo-app
 
@@ -49,6 +51,9 @@ dev-transactor-1:
 
 dev-transactor-2:
     cargo run -p race-transactor -- -c ./examples/conf/race_server_2.toml run
+
+solana:
+    cargo build-sbf -p race-solana
 
 alias fa := dev-facade
 alias t1 := dev-transactor-1

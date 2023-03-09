@@ -1,11 +1,8 @@
-pub mod instruction;
-pub mod entrypoint;
 pub mod error;
 pub mod evm;
 pub mod facade;
 pub mod signer;
 pub mod solana;
-pub mod processor;
 
 use error::{TransportError, TransportResult};
 use race_core::transport::TransportT;

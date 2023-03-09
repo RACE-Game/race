@@ -2850,6 +2850,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "race-solana"
+version = "0.1.0"
+dependencies = [
+ "arrayref",
+ "borsh",
+ "solana-program",
+]
+
+[[package]]
 name = "race-test"
 version = "0.1.0"
 dependencies = [
@@ -2910,7 +2919,6 @@ dependencies = [
  "race-env",
  "serde",
  "serde_json",
- "solana-program",
  "solana-sdk",
  "thiserror",
  "tracing",
