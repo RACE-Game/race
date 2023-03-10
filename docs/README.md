@@ -19,3 +19,5 @@
 [Payment](payment.md)
 
 [Testing](testing.md)
+
+[Command Line Tools](command-line.md)
