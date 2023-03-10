@@ -4,6 +4,6 @@ pub use crate::error::{Error, Result};
 pub use crate::event::{CustomEvent, Event};
 pub use crate::random::RandomSpec;
 pub use crate::types::{Addr, Amount, DecisionId, PlayerJoin, RandomId, ServerJoin, Settle};
-pub use race_proc_macro::game_handler;
 pub use borsh::{BorshDeserialize, BorshSerialize};
+pub use race_proc_macro::game_handler;
 pub use serde::{Deserialize, Serialize};

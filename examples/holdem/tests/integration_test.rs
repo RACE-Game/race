@@ -9,8 +9,6 @@ use race_core::{
 use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
 // use std::collections::HashMap;
 
-#[macro_use]
-extern crate log;
 use holdem::*;
 
 // In a game, there are generally two types of events:

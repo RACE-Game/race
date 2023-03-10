@@ -12,14 +12,11 @@ members = [
   "sdk",
   "client",
   "test",
-  # "examples/counter/core",
-  # "examples/blackjack",
   "examples/draw-card",
   "examples/chat",
   "examples/minimal",
   "examples/raffle",
-  # "examples/console",
-  # "examples/holdem",
+  "examples/holdem",
 ]
 
 [profile.release]

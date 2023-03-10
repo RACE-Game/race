@@ -1,8 +1,8 @@
-#![allow(unused_variables)]               // Remove these two later
+#![allow(unused_variables)] // Remove these two later
 #![allow(warnings)]
 use holdem::*;
-use race_core::context::GameContext;
-use std::collections::HashMap;
+use race_core::{context::GameContext, prelude::Effect};
+use std::collections::BTreeMap;
 
 // The unit tests in this file test Holdem specific single functions,
 // such as fns modifying pots, players, chips and so on.
@@ -25,14 +25,14 @@ pub fn test_fns() {
         stage: HoldemStage::Play,
         street: Street::Flop,
         street_bet: 20,
-        seats_map: HashMap::new(),
+        seats_map: BTreeMap::new(),
         bets: vec![
             Bet::new("Alice", 100),
             Bet::new("Bob", 45),
             Bet::new("Carol", 100),
             Bet::new("Gentoo", 50),
         ],
-        prize_map: HashMap::new(),
+        prize_map: BTreeMap::new(),
         players: vec![
             Player {
                 addr: String::from("Alice"),
@@ -151,7 +151,7 @@ pub fn test_fns() {
 #[test]
 #[ignore]
 pub fn test_blind_bets() {
-    let mut ctx = GameContext::default();
+    let mut effect = Effect::default();
     let mut holdem = Holdem {
         deck_random_id: 0,
         dealer_idx: 0,
@@ -164,9 +164,9 @@ pub fn test_blind_bets() {
         stage: HoldemStage::Play,
         street: Street::Preflop,
         street_bet: 0,
-        seats_map: HashMap::new(),
+        seats_map: BTreeMap::new(),
         bets: vec![],
-        prize_map: HashMap::new(),
+        prize_map: BTreeMap::new(),
         players: vec![
             Player {
                 addr: String::from("Alice"),
@@ -206,7 +206,7 @@ pub fn test_blind_bets() {
     assert_eq!(init_bet_map, holdem.bets);
 
     // After blind bets
-    assert_eq!((), holdem.blind_bets(&mut ctx).unwrap());
+    assert_eq!((), holdem.blind_bets(&mut effect).unwrap());
     assert_eq!(20, holdem.street_bet);
     assert_eq!(
         vec![Bet::new("Alice", 10), Bet::new("Bob", 20)],
@@ -230,14 +230,14 @@ pub fn test_single_player_wins() {
         stage: HoldemStage::Play,
         street: Street::Preflop,
         street_bet: 0,
-        seats_map: HashMap::new(),
+        seats_map: BTreeMap::new(),
         bets: vec![
             Bet::new("Alice", 40),
             Bet::new("Bob", 40),
             Bet::new("Carol", 40),
             Bet::new("Gentoo", 40),
         ],
-        prize_map: HashMap::new(),
+        prize_map: BTreeMap::new(),
         players: vec![
             Player {
                 addr: String::from("Alice"),
@@ -304,14 +304,14 @@ pub fn test_new_street() {
         stage: HoldemStage::Play,
         street: Street::Preflop,
         street_bet: 20,
-        seats_map: HashMap::new(),
+        seats_map: BTreeMap::new(),
         bets: vec![
             // Bet::new("Alice", 40),
             Bet::new("Bob", 40),
             Bet::new("Carol", 40),
             Bet::new("Gentoo", 40),
         ],
-        prize_map: HashMap::new(),
+        prize_map: BTreeMap::new(),
         players: vec![
             Player {
                 addr: String::from("Alice"),
@@ -359,7 +359,7 @@ pub fn test_new_street() {
 #[test]
 #[ignore]
 pub fn test_next_state() {
-    let mut ctx = GameContext::default();
+    let mut effect = Effect::default();
     // Modify the fields to fall into different states
     // Below is an example for tesing blind bets, similiar to test_blind_bets() above
     let mut holdem = Holdem {
@@ -374,14 +374,14 @@ pub fn test_next_state() {
         stage: HoldemStage::Play,
         street: Street::Preflop,
         street_bet: 0,
-        seats_map: HashMap::new(),
+        seats_map: BTreeMap::new(),
         bets: vec![
             // Bet::new("Alice", 40),
             // Bet::new("Bob", 40),
             // Bet::new("Carol", 40),
             // Bet::new("Gentoo", 40),
         ],
-        prize_map: HashMap::new(),
+        prize_map: BTreeMap::new(),
         players: vec![
             Player {
                 addr: String::from("Alice"),
@@ -412,5 +412,5 @@ pub fn test_next_state() {
         acting_player: None,
         pots: vec![],
     };
-    assert_eq!((), holdem.next_state(&mut ctx).unwrap());
+    assert_eq!((), holdem.next_state(&mut effect).unwrap());
 }

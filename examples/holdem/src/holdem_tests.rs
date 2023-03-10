@@ -1,18 +1,13 @@
 // use std::collections::HashMap;
-use race_core::{
-    context::{DispatchEvent, GameContext, GameStatus},
-    error::{Error, Result},
-    event::Event,
-    random::RandomStatus,
-    types::{ClientMode, PlayerJoin},
-};
-use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
 use super::*;
+use race_core::{types::ClientMode, random::RandomStatus, context::{GameStatus, DispatchEvent, GameContext}};
+use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
 
-type Game = (GameAccount, GameContext, TestHandler<Holdem>, TestClient);
+type Game = (InitAccount, GameContext, TestHandler<Holdem>, TestClient);
 
 fn set_up() -> Game {
     let game_account = TestGameAccountBuilder::default().add_servers(1).build();
+    let init_account = InitAccount::from_game_account(&game_account);
     let mut context = GameContext::try_new(&game_account).unwrap();
     let handler = TestHandler::<Holdem>::init_state(&mut context, &game_account).unwrap();
     let transactor_addr = game_account.transactor_addr.as_ref().unwrap().clone();
@@ -22,21 +17,19 @@ fn set_up() -> Game {
         ClientMode::Transactor,
     );
 
-    (game_account, context, handler, transactor)
+    (init_account, context, handler, transactor)
 }
 
 fn create_sync_event(ctx: &GameContext, players: Vec<String>) -> Event {
     let av = ctx.get_access_version() + 1;
     let mut new_players = Vec::new();
     for (i, p) in players.iter().enumerate() {
-        new_players.push(
-            PlayerJoin {
-                addr: p.into(),
-                balance: 10_000,
-                position: i,
-                access_version: av,
-            }
-        )
+        new_players.push(PlayerJoin {
+            addr: p.into(),
+            balance: 10_000,
+            position: i,
+            access_version: av,
+        })
     }
 
     Event::Sync {
@@ -45,7 +38,6 @@ fn create_sync_event(ctx: &GameContext, players: Vec<String>) -> Event {
         transactor_addr: transactor_account_addr(),
         access_version: av,
     }
-
 }
 
 #[test]
@@ -83,7 +75,6 @@ fn test_runner() -> Result<()> {
             *ctx.get_dispatch()
         );
         assert!(state.is_acting_player("Alice".to_string()));
-
     }
 
     // ------------------------- PREFLOP ------------------------
@@ -104,7 +95,6 @@ fn test_runner() -> Result<()> {
     )?;
 
     // ------------------------- RUNNER ------------------------
-
 
     Ok(())
 }
