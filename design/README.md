@@ -17,3 +17,5 @@
 [Synchronization](synchronization.md)
 
 [Payment](payment.md)
+
+[Testing](testing.md)
