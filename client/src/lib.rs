@@ -387,7 +387,6 @@ mod tests {
     use race_core::context::GameContext;
     use race_core::error::Result;
     use race_core::event::{CustomEvent, Event};
-    use race_core::random::deck_of_cards;
     use race_core::types::{ClientMode, GameAccount};
     use race_encryptor::Encryptor;
 
@@ -448,9 +447,8 @@ mod tests {
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         ctx.handle_pending_players()?;
         ctx.handle_pending_servers()?;
-        let rnd = deck_of_cards();
-        ctx.init_random_state(&rnd)?;
-        ctx.init_random_state(&rnd)?;
+        ctx.init_random_state(RandomSpec::deck_of_cards())?;
+        ctx.init_random_state(RandomSpec::deck_of_cards())?;
         client.handle_updated_context(&ctx)?;
         assert_eq!(client.secret_state.list_random_secrets().len(), 2);
         ctx.init_random_state(&rnd)?;

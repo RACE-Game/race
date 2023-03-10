@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 /// Cards can be sorted in two ways:
 /// 1. by their kinds, for finding straights;
 /// 2. by grouped kinds, for pairs, full house, or three/four of a kind.
-pub fn create_cards<'a>(community_cards: &[&'a str; 5], hole_cards: &[&'a str; 2]) -> Vec<&'a str> {
+pub fn create_cards<'a>(community_cards: &[&'a str], hole_cards: &[&'a str]) -> Vec<&'a str> {
     let mut cards: Vec<&str> = Vec::with_capacity(7);
     cards.extend_from_slice(community_cards);
     cards.extend_from_slice(hole_cards);
@@ -121,11 +121,19 @@ pub enum Category {
     HighCard,
 }
 
+#[derive(Debug)]
 pub struct PlayerHand<'a> {
     pub category: Category,  // ranking
     pub picks: Vec<&'a str>, // Best 5 of 7
     pub value: Vec<u8>,      // Values of Best 5 Kinds + category value
 }
+
+// // TODO: Try to impl eq for PlayerHand?
+// impl<'a> PartialEq for PlayerHand<'a> {
+//     fn eq(&self, other: PlayerHand<'a>) -> bool {
+//
+//     }
+// }
 
 /// Given the vec of kind orders, tag the category order value in the first place
 fn tag_value(picked: &Vec<&str>, catetogry_orderv: u8) -> Vec<u8> {
@@ -386,9 +394,9 @@ pub fn compare_hands(handv1: &Vec<u8>, handv2: &Vec<u8>) -> Ordering {
         .collect();
 
     if result.len() == 0 {
+        // Two hands are equal
         Ordering::Equal
     }
-    // Two hands are equal
     else if result[0] == 1 {
         Ordering::Greater
     } else {
