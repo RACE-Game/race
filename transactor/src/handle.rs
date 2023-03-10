@@ -4,9 +4,11 @@ use crate::component::{
     Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle,
     RemoteConnection, Submitter, Subscriber, Voter, WrappedClient, WrappedHandler,
 };
+use crate::frame::EventFrame;
 use race_core::context::GameContext;
 use race_core::encryptor::EncryptorT;
 use race_core::error::{Error, Result};
+use race_core::prelude::InitAccount;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount};
 use tokio::task::JoinHandle;
@@ -38,15 +40,12 @@ impl TransactorHandle {
             game_account.addr
         );
 
-        let mut game_context = GameContext::try_new(&game_account)?;
-        let mut handler =
-            WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
-        handler.init_state(&mut game_context, game_account)?;
+        let game_context = GameContext::try_new(&game_account)?;
+        let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 
         let event_bus = EventBus::default();
 
-        let (broadcaster, broadcaster_ctx) =
-            Broadcaster::init(&game_account, game_context.get_handler_state_json().into());
+        let (broadcaster, broadcaster_ctx) = Broadcaster::init(&game_account);
         let mut broadcaster_handle = broadcaster.start(broadcaster_ctx);
 
         let (event_loop, event_loop_ctx) =
@@ -58,7 +57,6 @@ impl TransactorHandle {
 
         let (synchronizer, synchronizer_ctx) =
             GameSynchronizer::init(transport.clone(), &game_account);
-        let mut synchronizer_handle = synchronizer.start(synchronizer_ctx);
 
         let mut connection = LocalConnection::new(encryptor.clone());
 
@@ -77,6 +75,15 @@ impl TransactorHandle {
         event_bus.attach(&mut submitter_handle).await;
         event_bus.attach(&mut event_loop_handle).await;
         event_bus.attach(&mut client_handle).await;
+
+        // Dispatch init state
+        event_bus
+            .send(EventFrame::InitState {
+                init_account: InitAccount::from_game_account(game_account),
+            })
+            .await;
+
+        let mut synchronizer_handle = synchronizer.start(synchronizer_ctx);
         event_bus.attach(&mut synchronizer_handle).await;
 
         Ok(Self {
@@ -113,10 +120,9 @@ impl ValidatorHandle {
             "Start game handle for {} with Validator mode",
             game_account.addr
         );
-        let mut game_context = GameContext::try_new(&game_account)?;
-        let mut handler =
-            WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
-        handler.init_state(&mut game_context, game_account)?;
+        let game_context = GameContext::try_new(&game_account)?;
+        let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
+
         let transactor_addr = game_account
             .transactor_addr
             .as_ref()

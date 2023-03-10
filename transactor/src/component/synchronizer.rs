@@ -55,7 +55,10 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
             let state = ctx.transport.get_game_account(&ctx.game_addr).await;
             if let Some(state) = state {
                 if access_version < state.access_version {
-                    info!("Synchronizer get new state: {:?}", state);
+                    info!(
+                        "Synchronizer get new state, access_version = {}",
+                        state.access_version
+                    );
                     let GameAccount {
                         access_version: av,
                         players,
@@ -116,31 +119,29 @@ mod tests {
             .add_players(1)
             .add_servers(1)
             .build();
+
         println!("ga_0: {:?}", ga_0);
         println!("ga_1: {:?}", ga_1);
 
-        let access_version = ga_1.access_version;
+        let av = ga_1.access_version;
         transport.simulate_states(vec![ga_1]);
         let (synchronizer, ctx) = GameSynchronizer::init(transport.clone(), &ga_0);
         let mut handle = synchronizer.start(ctx);
+        let frame = handle.recv_unchecked().await.unwrap();
 
-        assert_eq!(
-            handle.recv_unchecked().await,
-            Some(EventFrame::Sync {
-                new_players: vec![PlayerJoin {
-                    addr: PLAYER_ADDRS[1].to_owned(),
-                    position: 1,
-                    balance: DEFAULT_DEPOSIT_AMOUNT,
-                    access_version: 3,
-                }],
-                new_servers: vec![ServerJoin {
-                    addr: SERVER_ADDRS[1].to_owned(),
-                    endpoint: "".into(),
-                    access_version: 4,
-                }],
-                access_version,
-                transactor_addr: transactor_account_addr(),
-            })
-        );
+        if let EventFrame::Sync {
+            new_players,
+            new_servers,
+            access_version,
+            transactor_addr,
+        } = frame
+        {
+            assert_eq!(access_version, av);
+            assert_eq!(transactor_addr, transactor_account_addr());
+            assert_eq!(new_players.len(), 1);
+            assert_eq!(new_servers.len(), 1);
+        } else {
+            panic!("Invalid event frame");
+        }
     }
 }

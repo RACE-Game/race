@@ -38,18 +38,20 @@ const DEFAULT_VOTES_THRESHOLD: usize = 2;
 const DEFAULT_BALANCE: u64 = 10000;
 
 const HTTP_HOST: &str = "0.0.0.0:12002";
-const DEFAULT_REGISTRATION_ADDRESS: &str = "DEFAULT_REGISTRATION_ADDRESS";
+const DEFAULT_REGISTRATION_ADDRESS: &str = "DEFAULT_REGISTRATION";
 // const COUNTER_GAME_ADDRESS: &str = "COUNTER_GAME_ADDRESS";
 // const COUNTER_BUNDLE_ADDRESS: &str = "COUNTER_BUNDLE_ADDRESS";
 const SERVER_ADDRESS_1: &str = "SERVER_ADDRESS_1";
 const SERVER_ADDRESS_2: &str = "SERVER_ADDRESS_2";
-const DEFAULT_OWNER_ADDRESS: &str = "DEFAULT_OWNER_ADDRESS";
+const DEFAULT_OWNER_ADDRESS: &str = "DEFAULT_OWNER";
 
 // Addresses for examples
-const CHAT_BUNDLE_ADDRESS: &str = "CHAT_BUNDLE_ADDRESS";
-const EXAMPLE_CHAT_ADDRESS: &str = "EXAMPLE_CHAT_ADDRESS";
-const RAFFLE_BUNDLE_ADDRESS: &str = "RAFFLE_BUNDLE_ADDRESS";
-const EXAMPLE_RAFFLE_ADDRESS: &str = "EXAMPLE_RAFFLE_ADDRESS";
+const CHAT_BUNDLE_ADDRESS: &str = "CHAT_BUNDLE";
+const EXAMPLE_CHAT_ADDRESS: &str = "EXAMPLE_CHAT";
+const RAFFLE_BUNDLE_ADDRESS: &str = "RAFFLE_BUNDLE";
+const EXAMPLE_RAFFLE_ADDRESS: &str = "EXAMPLE_RAFFLE";
+const DRAW_CARD_BUNDLE_ADDRESS: &str = "DRAW_CARD_BUNDLE";
+const EXAMPLE_DRAW_CARD_ADDRESS: &str = "EXAMPLE_DRAW_CARD";
 
 #[derive(Clone)]
 pub struct PlayerInfo {
@@ -347,7 +349,7 @@ async fn vote(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
             .find(|v| v.voter.eq(&voter_addr))
             .is_some()
         {
-            return Err(custom_error(Error::DuplicateVote));
+            return Err(custom_error(Error::DuplicatedVote));
         }
 
         game_account.votes.push(Vote {
@@ -681,23 +683,29 @@ pub fn setup(ctx: &mut Context) {
     );
     ctx.registrations = HashMap::from([(DEFAULT_REGISTRATION_ADDRESS.into(), def_reg)]);
 
-    info!("path: {:?}", std::env::current_dir());
-
+    // add_bundle_and_game(
+    //     ctx,
+    //     "./target/race_example_chat.wasm",
+    //     CHAT_BUNDLE_ADDRESS,
+    //     EXAMPLE_CHAT_ADDRESS,
+    //     "Chat Room",
+    //     vec![],
+    // );
+    // add_bundle_and_game(
+    //     ctx,
+    //     "./target/race_example_raffle.wasm",
+    //     RAFFLE_BUNDLE_ADDRESS,
+    //     EXAMPLE_RAFFLE_ADDRESS,
+    //     "Raffle",
+    //     vec![],
+    // );
     add_bundle_and_game(
         ctx,
-        "./target/race_example_chat.wasm",
-        CHAT_BUNDLE_ADDRESS,
-        EXAMPLE_CHAT_ADDRESS,
-        "Chat Room",
-        vec![],
-    );
-    add_bundle_and_game(
-        ctx,
-        "./target/race_example_raffle.wasm",
-        RAFFLE_BUNDLE_ADDRESS,
-        EXAMPLE_RAFFLE_ADDRESS,
-        "Raffle",
-        vec![],
+        "./target/race_example_draw_card.wasm",
+        DRAW_CARD_BUNDLE_ADDRESS,
+        EXAMPLE_DRAW_CARD_ADDRESS,
+        "Draw Card",
+        vec![100, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0],
     );
 
     let server1 = ServerAccount {

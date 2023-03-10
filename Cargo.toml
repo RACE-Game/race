@@ -12,11 +12,10 @@ members = [
   "sdk",
   "client",
   "test",
-  "examples/counter/core",
-  "examples/minimal/core",
+  "examples/draw-card",
   "examples/chat",
+  "examples/minimal",
   "examples/raffle",
-  "examples/console",
   "examples/holdem",
 ]
 

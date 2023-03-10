@@ -1,9 +1,10 @@
 import { AppClient, Event } from 'race-sdk';
 import { useParams } from 'react-router-dom';
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { CHAIN, RPC } from './constants';
 import LogsContext from './logs-context';
 import ProfileContext from './profile-context';
+import Header from './Header';
 
 interface Message {
   sender: string,
@@ -12,32 +13,23 @@ interface Message {
 
 interface State {
   messages: Message[],
-  num_of_clients: number,
-  num_of_servers: number,
 }
 
 function Chat() {
 
   let [state, setState] = useState<State | undefined>(undefined);
-  let [client, setClient] = useState<AppClient | undefined>(undefined);
-  const { addLog } = useContext(LogsContext);
+  let client = useRef<AppClient | undefined>(undefined);
+  const { addLog, clearLog } = useContext(LogsContext);
   let { addr } = useParams();
   let profile = useContext(ProfileContext);
   const [text, setText] = useState<string>('');
 
   // Game event handler
-  const onEvent = (_context: any, state: State, event: Event | null) => {
-    if (event !== null) {
+  const onEvent = (context: any, state: State, event: Event | undefined) => {
+    if (event !== undefined) {
       addLog(event);
     }
     setState(state);
-  }
-
-  // Button callback to join the raffle
-  const onJoin = async () => {
-    if (client !== undefined) {
-      await client.join(0, 1n);
-    }
   }
 
   // Initialize app client
@@ -45,18 +37,23 @@ function Chat() {
     const initClient = async () => {
       if (profile !== undefined && addr !== undefined) {
         console.log("Create AppClient");
-        let client = await AppClient.try_init(CHAIN, RPC, profile.addr, addr, onEvent);
-        setClient(client);
-        await client.attach_game();
+        let c = await AppClient.try_init(CHAIN, RPC, profile.addr, addr, onEvent);
+        client.current = c;
+        await c.attach_game();
       }
     };
     initClient();
+    return () => {
+      clearLog();
+      if (client.current) {
+        client.current.close();
+      }
+    }
   }, [profile, addr]);
-
 
   const sendMessage = async () => {
     if (text.length > 0) {
-      client && await client.submit_event({ PublicMessage: { text } });
+      client.current && await client.current.submit_event({ Message: { text } });
       setText('');
     }
   }
@@ -71,10 +68,13 @@ function Chat() {
     }
   }
 
-  if (state === undefined) return null;
+  if (addr == undefined || state === undefined) {
+    return null;
+  }
 
   return <div className="h-full w-full flex flex-col p-4">
     <div className="flex-1 relative">
+      <Header gameAddr={addr} />
       <div className="absolute inset-0 overflow-scroll">
         {
           state.messages.map((msg, idx) => (

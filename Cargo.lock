@@ -2462,6 +2462,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "project-root"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bccbff07d5ed689c4087d20d7307a52ab6141edeedf487c3876a55b86cf63df"
+
+[[package]]
 name = "ptr_meta"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2531,8 +2537,10 @@ dependencies = [
 name = "race-core"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "borsh",
+ "race-proc-macro",
  "serde",
  "serde_json",
  "thiserror",
@@ -2576,30 +2584,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "race-example-console"
+name = "race-example-draw-card"
 version = "0.1.0"
 dependencies = [
+ "arrayref",
  "borsh",
- "race-core",
- "race-sdk",
- "race-transport",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "race-example-counter"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "borsh",
+ "env_logger 0.10.0",
+ "log",
  "race-core",
  "race-proc-macro",
  "race-test",
  "serde",
  "serde_json",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -2607,11 +2603,8 @@ name = "race-example-minimal"
 version = "0.1.0"
 dependencies = [
  "borsh",
- "env_logger 0.10.0",
- "log",
  "race-core",
  "race-proc-macro",
- "race-test",
  "serde",
  "serde_json",
 ]
@@ -2720,6 +2713,7 @@ dependencies = [
  "hex",
  "hyper",
  "jsonrpsee",
+ "project-root",
  "race-client",
  "race-core",
  "race-encryptor",

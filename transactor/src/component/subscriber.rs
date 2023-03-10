@@ -5,6 +5,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::pin_mut;
 use futures::StreamExt;
+use race_core::prelude::InitAccount;
 use race_core::types::BroadcastFrame;
 use race_core::types::VoteType;
 use race_core::types::{GameAccount, ServerAccount};
@@ -22,6 +23,7 @@ pub struct SubscriberContext {
     server_addr: String,
     transactor_addr: String,
     start_settle_version: u64,
+    init_game_account: GameAccount,
     connection: Arc<RemoteConnection>,
 }
 
@@ -36,6 +38,7 @@ impl Subscriber {
         (
             Self {},
             SubscriberContext {
+                init_game_account: game_account.clone(),
                 game_addr: game_account.addr.clone(),
                 server_addr: server_account.addr.clone(),
                 transactor_addr: game_account.transactor_addr.as_ref().unwrap().clone(),
@@ -48,7 +51,6 @@ impl Subscriber {
 
 #[async_trait]
 impl Component<ProducerPorts, SubscriberContext> for Subscriber {
-
     fn name(&self) -> &str {
         "Subscriber"
     }
@@ -60,6 +62,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
             transactor_addr,
             start_settle_version,
             connection,
+            init_game_account,
         } = ctx;
 
         let mut retries = 0;
@@ -99,13 +102,34 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
 
         while let Some(frame) = sub.next().await {
             info!("Subscriber received: {}", frame);
-            let BroadcastFrame { event, .. } = frame;
-            if ports
-                .try_send(EventFrame::SendServerEvent { event })
-                .await
-                .is_err()
-            {
-                break;
+
+            match frame {
+                BroadcastFrame::Init {
+                    access_version,
+                    settle_version,
+                    ..
+                } => {
+                    ports
+                        .send(EventFrame::InitState {
+                            init_account: InitAccount::new(
+                                init_game_account.clone(),
+                                access_version,
+                                settle_version,
+                            ),
+                        })
+                        .await;
+                }
+
+                // Forward event to event bus
+                BroadcastFrame::Event { event, .. } => {
+                    if ports
+                        .try_send(EventFrame::SendServerEvent { event })
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
             }
         }
 

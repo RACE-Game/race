@@ -1,30 +1,33 @@
-use crate::types::{Ciphertext, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin};
+use crate::types::{
+    Ciphertext, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin,
+};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-#[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq, Serialize, Deserialize, Clone)]
+/// Game event structure
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Event {
-    /// Custom game event sent by players.
+    /// Sent by player clients.  Represent game specific events, the `raw`
+    /// parts is the serialized data from a custom game event which
+    /// satisfies [`CustomEvent`].
     Custom {
         sender: String,
         raw: String,
     },
 
-    /// Client marks itself as ready for the next game
-    /// This event is sent by client.
-    Ready {
-        sender: String,
-    },
+    /// A event sent by system, the first event sent by transactor
+    /// when game is loaded.
+    Ready,
 
     /// Transactor shares its secert to specific player.
     /// The `secret_data` is encrypted with the receiver's public key.
     ShareSecrets {
         sender: String,
-        secrets: Vec<SecretShare>,
+        shares: Vec<SecretShare>,
     },
 
     OperationTimeout {
-        addr: String,
+        addrs: Vec<String>,
     },
 
     /// Randomize items.
@@ -98,6 +101,12 @@ pub enum Event {
         player_addr: String,
     },
 
+    /// Answer the decision question with encrypted ciphertext
+    AnswerDecision {
+        decision_id: DecisionId,
+        ciphertext: Ciphertext,
+    },
+
     /// All required secrets are shared
     SecretsReady,
 
@@ -108,10 +117,10 @@ pub enum Event {
 impl std::fmt::Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {}", sender, raw),
-            Event::Ready { sender } => write!(f, "Ready from {}", sender),
-            Event::ShareSecrets { sender, secrets } => {
-                let repr = secrets
+            Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {:?}", sender, raw),
+            Event::Ready => write!(f, "Ready"),
+            Event::ShareSecrets { sender, shares } => {
+                let repr = shares
                     .iter()
                     .map(|s| format!("{}", s))
                     .collect::<Vec<String>>()
@@ -130,13 +139,26 @@ impl std::fmt::Display for Event {
             Event::Sync {
                 new_players,
                 new_servers,
-                transactor_addr,
                 access_version,
-            } => write!(
-                f,
-                "Sync, new_players: {:?}, new_servers: {:?}, transactor: {}, access_version = {}",
-                new_players, new_servers, transactor_addr, access_version
-            ),
+                ..
+            } => {
+                let players = new_players
+                    .iter()
+                    .map(|p| p.addr.as_str())
+                    .collect::<Vec<&str>>()
+                    .join(",");
+                let servers = new_servers
+                    .iter()
+                    .map(|s| s.addr.as_str())
+                    .collect::<Vec<&str>>()
+                    .join(", ");
+
+                write!(
+                    f,
+                    "Sync, new_players: [{}], new_servers: [{}], access_version = {}",
+                    players, servers, access_version
+                )
+            }
             Event::Leave { player_addr } => write!(f, "Leave from {}", player_addr),
             Event::GameStart { access_version } => {
                 write!(f, "GameStart, access_version = {}", access_version)
@@ -162,8 +184,11 @@ impl std::fmt::Display for Event {
                 "ServerLeave {}, current transactor: {}",
                 server_addr, transactor_addr
             ),
-            Event::OperationTimeout { addr } => {
-                write!(f, "OperationTimeout for {}", addr)
+            Event::AnswerDecision { decision_id, .. } => {
+                write!(f, "AnswerDecision for {}", decision_id)
+            }
+            Event::OperationTimeout { addrs } => {
+                write!(f, "OperationTimeout for {:?}", addrs)
             }
             Event::Shutdown => {
                 write!(f, "Shutdown")
@@ -181,4 +206,4 @@ impl Event {
     }
 }
 
-pub trait CustomEvent: Serialize + DeserializeOwned + Sized {}
+pub trait CustomEvent: Sized + Serialize + DeserializeOwned {}

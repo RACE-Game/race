@@ -7,8 +7,7 @@ use race_core::{
     context::GameContext,
     error::Result,
     event::{CustomEvent, Event},
-    secret::SecretState,
-    types::{AttachGameParams, ClientMode, ExitGameParams, SubmitEventParams},
+    types::{AttachGameParams, ClientMode, ExitGameParams, SubmitEventParams}, secret::SecretState,
 };
 use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, Mutex};
@@ -88,14 +87,14 @@ impl TestClient {
         self.client.decrypt(ctx, random_id)
     }
 
-    pub fn secret_states(&self) -> &Vec<SecretState> {
-        &self.client.secret_states
+    pub fn secret_state(&self) -> &SecretState {
+        &self.client.secret_state
     }
 
     pub fn custom_event<E: CustomEvent>(&self, custom_event: E) -> Event {
         Event::Custom {
             sender: self.client.addr.to_owned(),
-            raw: serde_json::to_string(&custom_event).expect("Failed to serialize custom event"),
+            raw: serde_json::to_string(&custom_event).unwrap()
         }
     }
 }

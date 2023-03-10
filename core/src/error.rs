@@ -2,12 +2,17 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::types::DecisionId;
+
 #[derive(
     Error, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq,
 )]
 pub enum Error {
     #[error("Player already joined: {0}")]
     PlayerAlreadyJoined(String),
+
+    #[error("Position Occupied: {0}")]
+    PositionOccupied(usize),
 
     #[error("Game is full: {0}")]
     GameIsFull(u32),
@@ -177,14 +182,56 @@ pub enum Error {
     #[error("Invalid votee: {0}")]
     InvalidVotee(String),
 
-    #[error("Duplicate vote")]
-    DuplicateVote,
+    #[error("Duplicated vote")]
+    DuplicatedVote,
 
     #[error("Transaction expired")]
     TransactionExpired,
 
     #[error("Event ignored")]
     EventIgnored,
+
+    #[error("Invalid custom event")]
+    InvalidCustomEvent,
+
+    #[error("Invalid decision id")]
+    InvalidDecisionId,
+
+    #[error("Answer not available")]
+    AnswerNotAvailable,
+
+    #[error("Missing decision secret: {0}")]
+    MissingDecisionSecret(DecisionId),
+
+    #[error("Invalid decision answer")]
+    InvalidDecisionAnswer,
+
+    #[error("Invalid decision owner")]
+    InvalidDecisionOwner,
+
+    #[error("Invalid decision status")]
+    InvalidDecisionStatus,
+
+    #[error("Duplicated secret share")]
+    DuplicatedSecretShare,
+
+    #[error("Serialization error")]
+    SerializationError,
+
+    #[error("Wasm initialization error: {0}")]
+    WasmInitializationError(String),
+
+    #[error("Wasm execution error: {0}")]
+    WasmExecutionError(String),
+
+    #[error("Wasm memory overflow")]
+    WasmMemoryOverflow,
+
+    #[error("Invalid checkpoint")]
+    InvalidCheckpoint,
+
+    #[error("Duplicated initialization")]
+    DuplicatedInitialization,
 }
 
 impl From<serde_json::Error> for Error {

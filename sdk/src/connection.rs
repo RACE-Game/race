@@ -2,12 +2,11 @@
 
 use std::sync::Arc;
 
-use async_stream::stream;
 use async_trait::async_trait;
-use futures::{lock::Mutex, Stream};
+use futures::lock::Mutex;
 use gloo::console::{info, warn};
 use jsonrpsee::{
-    core::client::{Client, ClientT, SubscriptionClientT},
+    core::client::{Client, ClientT, Subscription, SubscriptionClientT},
     rpc_params,
     wasm_client::WasmClientBuilder,
 };
@@ -137,7 +136,8 @@ impl Connection {
         &self,
         game_addr: &str,
         settle_version: u64,
-    ) -> Result<impl Stream<Item = BroadcastFrame>> {
+        // ) -> Result<impl Stream<Item = BroadcastFrame>> {
+    ) -> Result<Subscription<BroadcastFrame>> {
         let params = SubscribeEventParams { settle_version };
         let message = format!("{}{}", game_addr, params.to_string());
         let signature = self
@@ -156,14 +156,15 @@ impl Connection {
             .await
             .map_err(|e| Error::RpcError(e.to_string()))?;
 
-        Ok(stream! {
-            for await frame in sub {
-                if let Ok(frame) = frame {
-                    yield frame;
-                } else {
-                    break;
-                }
-            }
-        })
+        Ok(sub)
+        // Ok(stream! {
+        //     for await frame in sub {
+        //         if let Ok(frame) = frame {
+        //             yield frame;
+        //         } else {
+        //             break;
+        //         }
+        //     }
+        // })
     }
 }

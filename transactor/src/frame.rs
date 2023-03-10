@@ -1,6 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::{
     context::GameContext,
+    engine::InitAccount,
     event::Event,
     types::{PlayerJoin, ServerJoin, Settle, VoteType},
 };
@@ -10,7 +11,7 @@ pub enum SignalFrame {
     StartGame { game_addr: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub enum EventFrame {
     Empty,
     Sync {
@@ -26,6 +27,9 @@ pub enum EventFrame {
     PlayerLeaving {
         player_addr: String,
     },
+    InitState {
+        init_account: InitAccount,
+    },
     SendEvent {
         event: Event,
     },
@@ -33,7 +37,6 @@ pub enum EventFrame {
         event: Event,
     },
     Broadcast {
-        state_json: String,
         event: Event,
         access_version: u64,
         settle_version: u64,
@@ -59,6 +62,11 @@ impl std::fmt::Display for EventFrame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EventFrame::Empty => write!(f, "Empty"),
+            EventFrame::InitState { init_account } => write!(
+                f,
+                "InitState, access_version = {}, settle_version = {}",
+                init_account.access_version, init_account.settle_version
+            ),
             EventFrame::Sync {
                 new_players,
                 new_servers,

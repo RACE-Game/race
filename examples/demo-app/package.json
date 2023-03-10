@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/bn.js": "^5.1.1",
+    "bn.js": "^5.2.1",
+    "borsh": "^0.7.0",
     "race-sdk": "file:../../sdk/pkg",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

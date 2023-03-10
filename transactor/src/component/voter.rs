@@ -62,7 +62,7 @@ impl Component<PipelinePorts, VoterContext> for Voter {
                     loop {
                         let r = ctx.transport.vote(params.clone()).await;
                         match r {
-                            Ok(_) | Err(Error::DuplicateVote) => {
+                            Ok(_) | Err(Error::DuplicatedVote) => {
                                 info!("Vote sent");
                                 ports.send(EventFrame::Shutdown).await;
                                 break;

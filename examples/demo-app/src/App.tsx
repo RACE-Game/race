@@ -26,6 +26,10 @@ function App() {
     });
   }
 
+  const clearLog = () => {
+    setLogs([]);
+  }
+
   useEffect(() => {
     const initHelper = async () => {
       await init();
@@ -39,18 +43,15 @@ function App() {
   return (
     <HelperContext.Provider value={helper}>
       <ProfileContext.Provider value={profile}>
-        <LogsContext.Provider value={{ addLog }}>
+        <LogsContext.Provider value={{ addLog, clearLog }}>
           <div className="w-screen max-w-7xl min-h-screen grid grid-cols-4 grid-rows-6 p-4 gap-2">
             <div className="row-span-6">
               <Sidemenu />
             </div>
-            <div className="col-span-2">
-              <Header />
-            </div>
-            <Profile updateProfile={setProfile} />
             <div className="row-span-6 col-span-2">
               <Outlet />
             </div>
+            <Profile updateProfile={setProfile} />
             <div className="row-span-5">
               <Logs logs={logs} />
             </div>

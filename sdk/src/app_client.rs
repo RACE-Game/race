@@ -3,8 +3,10 @@
 use gloo::utils::format::JsValueSerdeExt;
 use js_sys::JSON::{parse, stringify};
 use js_sys::{Function, Object, Reflect};
+use jsonrpsee::core::client::Subscription;
 use race_core::context::GameContext;
-use race_core::types::{BroadcastFrame, ExitGameParams, RandomId};
+use race_core::engine::InitAccount;
+use race_core::types::{BroadcastFrame, DecisionId, ExitGameParams, GameAccount, RandomId};
 use race_transport::TransportBuilder;
 use wasm_bindgen::prelude::*;
 
@@ -37,6 +39,8 @@ pub struct AppClient {
     transport: Arc<dyn TransportT>,
     connection: Arc<Connection>,
     game_context: RefCell<GameContext>,
+    init_game_account: RefCell<Option<GameAccount>>,
+    event_sub: RefCell<Option<Subscription<BroadcastFrame>>>,
     callback: Function,
 }
 
@@ -110,28 +114,10 @@ impl AppClient {
             connection.clone(),
         );
 
-        let handler = Handler::from_bundle(game_bundle, encryptor).await;
+        let handler = Handler::from_bundle(game_bundle, encryptor).await?;
 
-        let mut game_context = GameContext::try_new(&game_account)?;
+        let game_context = RefCell::new(GameContext::try_new(&game_account)?);
 
-        handler.init_state(&mut game_context, &game_account)?;
-
-        let state_js =
-            parse(game_context.get_handler_state_json()).map_err(|_| Error::JsonParseError)?;
-
-        let context = JsGameContext::from_context(&game_context);
-
-        let null = JsValue::null();
-        Function::call3(
-            &callback,
-            &null,
-            &JsValue::from_serde(&context).unwrap(),
-            &state_js,
-            &null,
-        )
-        .expect("Init callback error");
-
-        let game_context = RefCell::new(game_context);
         Ok(Self {
             addr: game_addr.to_owned(),
             client,
@@ -139,8 +125,34 @@ impl AppClient {
             connection,
             handler,
             game_context,
+            init_game_account: RefCell::new(Some(game_account)),
             callback,
+            event_sub: RefCell::new(None),
         })
+    }
+
+    fn invoke_callback(&self, game_context: &GameContext, event: Option<Event>) -> Result<()> {
+        let state = parse(game_context.get_handler_state_raw()).or(Err(Error::JsonParseError))?;
+
+        let context = JsGameContext::from_context(&game_context);
+        let event_js: JsValue = if let Some(event) = event {
+            let event = JsEvent::from(event);
+            event.into()
+        } else {
+            JsValue::UNDEFINED
+        };
+
+        let r = Function::call3(
+            &self.callback,
+            &JsValue::NULL,
+            &JsValue::from_serde(&context).or(Err(Error::JsonParseError))?,
+            &state,
+            &event_js,
+        );
+        if let Err(e) = r {
+            error!(format!("Callback error, {:?}", e));
+        }
+        Ok(())
     }
 
     #[wasm_bindgen]
@@ -149,51 +161,75 @@ impl AppClient {
     /// checkpoint(settle_version).  We will receive event hhistories
     /// once the connection is established.
     pub async fn attach_game(&self) -> Result<()> {
+        let mut init_game_account = self.init_game_account.borrow_mut();
+        if init_game_account.is_none() {
+            return Err(Error::DuplicatedInitialization)?;
+        }
         info!("Attach to game");
         self.client.attach_game().await?;
         let settle_version = self.game_context.borrow().get_settle_version();
-        debug!(format!(
+
+        debug!(
             "Subscribe event stream, use settle_version = {} as check point",
             settle_version
-        ));
+        );
 
         let sub = self
             .connection
             .subscribe_events(&self.addr, settle_version)
             .await?;
+
         pin_mut!(sub);
         debug!("Event stream connected");
 
-        while let Some(frame) = sub.next().await {
-            let BroadcastFrame {
-                game_addr: _,
-                event,
-                timestamp,
-            } = frame;
-            let mut game_context = self.game_context.borrow_mut();
-            game_context.set_timestamp(timestamp);
-            match self.handler.handle_event(&mut game_context, &event) {
-                Ok(_) => {
-                    let event = JsEvent::from(event);
-                    let state_js = parse(game_context.get_handler_state_json())
-                        .map_err(|_| Error::JsonParseError)?;
+        while let Some(Ok(frame)) = sub.next().await {
+            match frame {
+                BroadcastFrame::Init {
+                    access_version,
+                    settle_version,
+                    ..
+                } => {
+                    let mut game_context = self.game_context.borrow_mut();
+                    let game_account = std::mem::replace(&mut *init_game_account, None)
+                        .ok_or(Error::DuplicatedInitialization)?;
 
-                    let context = JsGameContext::from_context(&game_context);
+                    info!(format!(
+                        "Apply checkpoint, access_version = {}, settle_version = {}",
+                        access_version, settle_version
+                    ));
 
-                    let null = JsValue::null();
-                    let r = Function::call3(
-                        &self.callback,
-                        &null,
-                        &JsValue::from_serde(&context).unwrap(),
-                        &state_js,
-                        &event.into(),
-                    );
-                    if let Err(e) = r {
-                        error!(format!("Callback error, {:?}", e));
+                    game_context.apply_checkpoint(access_version, settle_version)?;
+
+                    let init_account =
+                        InitAccount::new(game_account, access_version, settle_version);
+                    match self.handler.init_state(&mut game_context, &init_account) {
+                        Ok(_) => {
+                            self.invoke_callback(&game_context, None)?;
+                        }
+                        Err(Error::WasmExecutionError(e)) => {
+                            error!(format!("Initiate state error: {:?}", e))
+                        }
+                        Err(e) => {
+                            warn!("Init state failed, {}", e.to_string())
+                        }
                     }
                 }
-                Err(e) => {
-                    warn!(format!("Discard event [{}] due to: [{:?}]", event, e));
+                BroadcastFrame::Event {
+                    event, timestamp, ..
+                } => {
+                    let mut game_context = self.game_context.borrow_mut();
+                    game_context.set_timestamp(timestamp);
+                    match self.handler.handle_event(&mut game_context, &event) {
+                        Ok(_) => {
+                            self.invoke_callback(&game_context, Some(event))?;
+                        }
+                        Err(Error::WasmExecutionError(e)) => {
+                            error!(format!("Handle event error: {:?}", e))
+                        }
+                        Err(e) => {
+                            warn!(format!("Discard event [{}] due to: [{:?}]", event, e));
+                        }
+                    }
                 }
             }
         }
@@ -202,7 +238,7 @@ impl AppClient {
 
     #[wasm_bindgen]
     pub async fn submit_event(&self, val: JsValue) -> Result<()> {
-        // info!(format!("Submit event: {:?}", val));
+        info!(format!("Submit event: {:?}", val));
         let raw = stringify(&val)
             .or(Err(Error::JsonParseError))?
             .as_string()
@@ -227,6 +263,12 @@ impl AppClient {
             }
             JsValue::from(obj)
         })?)
+    }
+
+    #[wasm_bindgen]
+    pub async fn answer(&mut self, decision_id: DecisionId, value: String) -> Result<()> {
+        self.client.answer(decision_id, value).await?;
+        Ok(())
     }
 
     /// Get current game state.
@@ -267,6 +309,16 @@ impl AppClient {
         self.connection
             .exit_game(&self.addr, ExitGameParams {})
             .await?;
+        Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub async fn close(&self) -> Result<()> {
+        self.exit().await?;
+        if let Some(event_sub) = self.event_sub.replace(None) {
+            event_sub.unsubscribe().await?;
+        }
+        info!("App client closed");
         Ok(())
     }
 }

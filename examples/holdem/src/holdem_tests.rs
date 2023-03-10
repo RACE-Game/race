@@ -9,10 +9,11 @@ use race_core::{
 use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
 use super::*;
 
-type Game = (GameAccount, GameContext, TestHandler<Holdem>, TestClient);
+type Game = (InitAccount, GameContext, TestHandler<Holdem>, TestClient);
 
 fn set_up() -> Game {
     let game_account = TestGameAccountBuilder::default().add_servers(1).build();
+    let init_account = InitAccount::from_game_account(&game_account);
     let mut context = GameContext::try_new(&game_account).unwrap();
     let handler = TestHandler::<Holdem>::init_state(&mut context, &game_account).unwrap();
     let transactor_addr = game_account.transactor_addr.as_ref().unwrap().clone();
@@ -22,7 +23,7 @@ fn set_up() -> Game {
         ClientMode::Transactor,
     );
 
-    (game_account, context, handler, transactor)
+    (init_account, context, handler, transactor)
 }
 
 fn create_sync_event(ctx: &GameContext, players: Vec<String>) -> Event {

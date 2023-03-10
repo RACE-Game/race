@@ -8,8 +8,7 @@ use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
 use race_core::types::{
-    AttachGameParams, ExitGameParams, GetStateParams, Signature, SubmitEventParams,
-    SubscribeEventParams,
+    AttachGameParams, ExitGameParams, Signature, SubmitEventParams, SubscribeEventParams,
 };
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::{error, info, warn};
@@ -39,21 +38,6 @@ async fn submit_event(params: Params<'_>, context: Arc<ApplicationContext>) -> R
         .send_event(&game_addr, arg.event)
         .await
         .map_err(|e| Error::Call(CallError::Failed(e.into())))
-}
-
-async fn get_state(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<String> {
-    let (game_addr, arg, sig) = params.parse::<(String, GetStateParams, Signature)>()?;
-
-    context
-        .verify(&game_addr, &arg, &sig)
-        .await
-        .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
-
-    let snapshot = context
-        .get_snapshot(&game_addr)
-        .await
-        .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
-    Ok(snapshot)
 }
 
 async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<()> {
@@ -98,8 +82,8 @@ fn subscribe_event(
                     }
                 };
 
-            let rx = BroadcastStream::new(receiver);
             info!("Subscribe event stream: {:?}", game_addr);
+            let rx = BroadcastStream::new(receiver);
 
             histories.into_iter().for_each(|x| {
                 sink.send(&x)
@@ -143,7 +127,6 @@ pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
 
     module.register_async_method("attach_game", attach_game)?;
     module.register_async_method("submit_event", submit_event)?;
-    module.register_async_method("get_state", get_state)?;
     module.register_async_method("exit_game", exit_game)?;
     module.register_subscription(
         "subscribe_event",
