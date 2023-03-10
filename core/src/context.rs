@@ -544,6 +544,12 @@ impl GameContext {
         }
     }
 
+    pub fn dispatch_safe(&mut self, event: Event, timeout: u64) {
+        if self.dispatch.is_none() {
+            self.dispatch = Some(DispatchEvent::new(event, timeout));
+        }
+    }
+
     /// Dispatch event after timeout.
     pub fn dispatch(&mut self, event: Event, timeout: u64) -> Result<()> {
         if self.dispatch.is_some() {

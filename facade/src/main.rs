@@ -691,22 +691,22 @@ pub fn setup(ctx: &mut Context) {
     //     "Chat Room",
     //     vec![],
     // );
-    add_bundle_and_game(
-        ctx,
-        "./target/race_example_raffle.wasm",
-        RAFFLE_BUNDLE_ADDRESS,
-        EXAMPLE_RAFFLE_ADDRESS,
-        "Raffle",
-        vec![],
-    );
     // add_bundle_and_game(
     //     ctx,
-    //     "./target/race_example_draw_card.wasm",
-    //     DRAW_CARD_BUNDLE_ADDRESS,
-    //     EXAMPLE_DRAW_CARD_ADDRESS,
-    //     "Draw Card",
+    //     "./target/race_example_raffle.wasm",
+    //     RAFFLE_BUNDLE_ADDRESS,
+    //     EXAMPLE_RAFFLE_ADDRESS,
+    //     "Raffle",
     //     vec![],
     // );
+    add_bundle_and_game(
+        ctx,
+        "./target/race_example_draw_card.wasm",
+        DRAW_CARD_BUNDLE_ADDRESS,
+        EXAMPLE_DRAW_CARD_ADDRESS,
+        "Draw Card",
+        vec![100, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0],
+    );
 
     let server1 = ServerAccount {
         addr: SERVER_ADDRESS_1.into(),

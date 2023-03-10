@@ -166,7 +166,6 @@ impl GameHandler for DrawCard {
                 bet: 0,
             })
             .collect();
-        effect.wait_timeout(1000);
         Ok(Self {
             last_winner: None,
             random_id: 0,
@@ -250,6 +249,24 @@ impl GameHandler for DrawCard {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_account_data() {
+        let account_data = AccountData {
+            blind_bet: 100,
+            min_bet: 100,
+            max_bet: 1000,
+        };
+
+        let data = account_data.try_to_vec().unwrap();
+        println!("data: {:?}", data);
+        println!("data len: {}", data.len());
     }
 }
 

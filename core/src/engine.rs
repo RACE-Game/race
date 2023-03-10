@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
-    context::{GameContext, GameStatus, NodeStatus},
+    context::{GameContext, GameStatus},
     effect::Effect,
     encryptor::EncryptorT,
     error::{Error, Result},
@@ -105,7 +105,7 @@ pub fn general_handle_event(
 ) -> Result<()> {
     // General event handling
     match event {
-        Event::Ready { sender } => context.set_player_status(sender, NodeStatus::Ready),
+        Event::Ready => Ok(()),
 
         Event::ShareSecrets { sender, shares } => {
             context.add_shared_secrets(sender, shares.clone())?;

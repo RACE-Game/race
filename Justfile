@@ -65,13 +65,12 @@ preview-demo-app: demo-app
 dev-facade:
     cargo run -p race-facade
 
-dev-transactor-1:
-    cargo run -p race-transactor -- -c ./examples/conf/race_server_1.toml run
-
-dev-transactor-2:
-    cargo run -p race-transactor -- -c ./examples/conf/race_server_2.toml run
+dev-transactor CONF:
+    cargo run -p race-transactor -- -c {{CONF}} run
 
 alias fa := dev-facade
-alias t1 := dev-transactor-1
-alias t2 := dev-transactor-2
+t1:
+    cargo run -p race-transactor -- -c ./examples/conf/server1.toml run
+t2:
+    cargo run -p race-transactor -- -c ./examples/conf/server2.toml run
 alias da := dev-demo-app

@@ -123,9 +123,9 @@ impl From<race_core::event::Event> for Event {
                 sender: Some(sender),
                 data: parse(&raw).unwrap(),
             },
-            Ready { sender } => Self {
+            Ready => Self {
                 kind: "ready".into(),
-                sender: Some(sender),
+                sender: None,
                 data: JsValue::null(),
             },
             ShareSecrets { sender, shares } => {

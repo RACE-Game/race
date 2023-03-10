@@ -15,18 +15,9 @@ pub enum Event {
         raw: String,
     },
 
-    /// Sent by player clients.  Represent the ready status of a player client.
-    ///
-    /// TODO: All player clients should be asked to send this event to
-    /// indicate they are ready for the next game.  The game can be
-    /// started either when all players are ready or the timeout is
-    /// reached.  The [`Event::GameStart`] should ship all players' ready
-    /// status, a non-ready player should be considered as
-    /// disconnected due to network issue.  It's game's responsibility
-    /// to handle these players.
-    Ready {
-        sender: String,
-    },
+    /// A event sent by system, the first event sent by transactor
+    /// when game is loaded.
+    Ready,
 
     /// Transactor shares its secert to specific player.
     /// The `secret_data` is encrypted with the receiver's public key.
@@ -127,7 +118,7 @@ impl std::fmt::Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {:?}", sender, raw),
-            Event::Ready { sender } => write!(f, "Ready from {}", sender),
+            Event::Ready => write!(f, "Ready"),
             Event::ShareSecrets { sender, shares } => {
                 let repr = shares
                     .iter()

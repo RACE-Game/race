@@ -5,7 +5,7 @@ use race_core::context::GameContext;
 use race_core::error::Error;
 use race_core::event::Event;
 use tokio::select;
-use tracing::{info, warn};
+use tracing::{info, warn, error};
 
 use crate::component::common::{Component, PipelinePorts, Ports};
 use crate::component::event_bus::CloseReason;
@@ -71,6 +71,8 @@ async fn handle(
 }
 
 /// Take the event from clients or the pending dispatched event.
+/// Transactor will retrieve events from both dispatching event and
+/// ports, while Validator will retrieve events from only ports.
 async fn retrieve_event(
     ports: &mut PipelinePorts,
     game_context: &mut GameContext,
@@ -123,20 +125,27 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         {
             match event_frame {
                 EventFrame::InitState { init_account } => {
-                    info!(
-                        "Initialize game state for {}, access_version = {}, settle_version = {}",
-                        init_account.addr, init_account.access_version, init_account.settle_version
-                    );
                     if let Err(e) = game_context
                         .apply_checkpoint(init_account.access_version, init_account.settle_version)
                     {
+                        error!("Failed to apply checkpoint: {:?}", e);
                         ports.close(CloseReason::Fault(e));
                         return;
                     }
 
                     if let Err(e) = handler.init_state(&mut game_context, &init_account) {
+                        error!("Failed to initiaze state: {:?}", e);
                         ports.close(CloseReason::Fault(e));
                         return;
+                    }
+
+                    info!(
+                        "Initialize game state for {}, access_version = {}, settle_version = {}",
+                        init_account.addr, init_account.access_version, init_account.settle_version
+                    );
+
+                    if game_context.get_dispatch().is_none() {
+                        game_context.dispatch_safe(Event::Ready, 0);
                     }
                 }
                 EventFrame::Sync {

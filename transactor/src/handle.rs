@@ -57,7 +57,6 @@ impl TransactorHandle {
 
         let (synchronizer, synchronizer_ctx) =
             GameSynchronizer::init(transport.clone(), &game_account);
-        let mut synchronizer_handle = synchronizer.start(synchronizer_ctx);
 
         let mut connection = LocalConnection::new(encryptor.clone());
 
@@ -76,7 +75,6 @@ impl TransactorHandle {
         event_bus.attach(&mut submitter_handle).await;
         event_bus.attach(&mut event_loop_handle).await;
         event_bus.attach(&mut client_handle).await;
-        event_bus.attach(&mut synchronizer_handle).await;
 
         // Dispatch init state
         event_bus
@@ -84,6 +82,9 @@ impl TransactorHandle {
                 init_account: InitAccount::from_game_account(game_account),
             })
             .await;
+
+        let mut synchronizer_handle = synchronizer.start(synchronizer_ctx);
+        event_bus.attach(&mut synchronizer_handle).await;
 
         Ok(Self {
             addr: game_account.addr.clone(),

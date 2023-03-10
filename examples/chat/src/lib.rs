@@ -20,7 +20,6 @@ struct Chat {
 impl GameHandler for Chat {
     /// Initialize handler state with on-chain game account data.
     fn init_state(context: &mut Effect, _init_account: InitAccount) -> Result<Self> {
-        context.start_game();
         Ok(Self { messages: vec![] })
     }
 
