@@ -1,175 +1,53 @@
-use std::mem::size_of;
-
-use arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs};
+use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     program_pack::{IsInitialized, Pack, Sealed},
-    pubkey::Pubkey,
+    pubkey::Pubkey, borsh::get_instance_packed_len, program_memory::sol_memcpy, program_error::ProgramError, msg,
 };
 
-use super::{misc::REG_SIZE, PackOption};
-
-pub const TOURNAMENT_REG_ACCOUNT_LEN: usize = (1 + TournamentReg::LEN) * REG_SIZE;
-
-#[derive(Debug)]
-pub struct TournamentReg {
-    pub pubkey: Pubkey,
-    pub mint: Pubkey,
-    pub reg_time: u32,
-    pub start_time: u32,
-    pub is_hidden: bool,
-}
-
-impl PackOption for TournamentReg {}
-
-impl Sealed for TournamentReg {}
-
-impl Pack for TournamentReg {
-    const LEN: usize = size_of::<Pubkey>()
-        + size_of::<Pubkey>()
-        + size_of::<u32>()
-        + size_of::<u32>()
-        + size_of::<bool>();
-
-    fn pack_into_slice(&self, dst: &mut [u8]) {
-        let dst = array_mut_ref![dst, 0, TournamentReg::LEN];
-        let (pubkey, mint, reg_time, start_time, is_hidden) = mut_array_refs![
-            dst,
-            size_of::<Pubkey>(),
-            size_of::<Pubkey>(),
-            size_of::<u32>(),
-            size_of::<u32>(),
-            size_of::<bool>()
-        ];
-        pubkey.copy_from_slice(self.pubkey.as_ref());
-        mint.copy_from_slice(self.mint.as_ref());
-        *reg_time = u32::to_le_bytes(self.reg_time);
-        *start_time = u32::to_le_bytes(self.start_time);
-        is_hidden[0] = self.is_hidden as u8;
-    }
-
-    fn unpack_from_slice(src: &[u8]) -> Result<Self, solana_program::program_error::ProgramError> {
-        let src = array_ref![src, 0, TournamentReg::LEN];
-        let (pubkey, mint, reg_time, start_time, is_hidden) = array_refs![
-            src,
-            size_of::<Pubkey>(),
-            size_of::<Pubkey>(),
-            size_of::<u32>(),
-            size_of::<u32>(),
-            size_of::<bool>()
-        ];
-        Ok(Self {
-            pubkey: Pubkey::new_from_array(*pubkey),
-            mint: Pubkey::new_from_array(*mint),
-            reg_time: u32::from_le_bytes(*reg_time),
-            start_time: u32::from_le_bytes(*start_time),
-            is_hidden: is_hidden[0] == 1,
-        })
-    }
-}
-
-pub const GAME_REG_ACCOUNT_LEN: usize = (1 + GameReg::LEN) * REG_SIZE;
-
-#[derive(Debug)]
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
+#[derive(Default, BorshDeserialize, BorshSerialize, Clone)]
 pub struct GameReg {
-    pub pubkey: Pubkey,
-    pub mint: Pubkey,
-    pub is_hidden: bool,
+    pub addr: Pubkey,
 }
 
-impl Sealed for GameReg {}
-
-impl PackOption for GameReg {}
-
-impl Pack for GameReg {
-    const LEN: usize = size_of::<Pubkey>() + size_of::<Pubkey>() + size_of::<bool>();
-
-    fn pack_into_slice(&self, dst: &mut [u8]) {
-        let dst = array_mut_ref![dst, 0, GameReg::LEN];
-        let (pubkey, mint, is_hidden) = mut_array_refs![
-            dst,
-            size_of::<Pubkey>(),
-            size_of::<Pubkey>(),
-            size_of::<bool>()
-        ];
-        pubkey.copy_from_slice(self.pubkey.as_ref());
-        mint.copy_from_slice(self.mint.as_ref());
-        is_hidden[0] = self.is_hidden as u8;
-    }
-
-    fn unpack_from_slice(src: &[u8]) -> Result<Self, solana_program::program_error::ProgramError> {
-        let src = array_ref![src, 0, GameReg::LEN];
-        let (pubkey, mint, is_hidden) = array_refs![
-            src,
-            size_of::<Pubkey>(),
-            size_of::<Pubkey>(),
-            size_of::<bool>()
-        ];
-        Ok(Self {
-            pubkey: Pubkey::new_from_array(*pubkey),
-            mint: Pubkey::new_from_array(*mint),
-            is_hidden: is_hidden[0] == 1,
-        })
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct RegCenter {
+#[cfg_attr(test, derive(Debug, PartialEq, Eq, Clone))]
+#[derive(Default, BorshDeserialize, BorshSerialize)]
+pub struct RegistryState {
     pub is_initialized: bool,
-    pub is_private: bool,
     pub owner: Pubkey,
-    pub tournament_reg: Pubkey,
-    pub game_reg: Pubkey,
+    pub games: Box<Vec<GameReg>>,
+    pub padding: Box<Vec<u8>>,
 }
 
-impl IsInitialized for RegCenter {
+impl RegistryState {
+    pub fn update_padding(&mut self) {
+        let len = get_instance_packed_len(self).unwrap();
+        let padding_len = Self::LEN - len;
+        msg!("Padding len: {}", padding_len);
+        self.padding = Box::new(vec![0; padding_len]);
+    }
+}
+
+impl IsInitialized for RegistryState {
     fn is_initialized(&self) -> bool {
         self.is_initialized
     }
 }
 
-impl Sealed for RegCenter {}
-
-impl Pack for RegCenter {
-    const LEN: usize = size_of::<bool>()
-        + size_of::<bool>()
-        + size_of::<Pubkey>()
-        + size_of::<Pubkey>()
-        + size_of::<Pubkey>();
+impl Sealed for RegistryState {}
+impl Pack for RegistryState {
+    const LEN: usize = 2000;
 
     fn pack_into_slice(&self, dst: &mut [u8]) {
-        let dst = array_mut_ref![dst, 0, RegCenter::LEN];
-        let (is_initialized, is_private, owner, tournament_reg, game_reg) = mut_array_refs![
-            dst,
-            1,
-            1,
-            size_of::<Pubkey>(),
-            size_of::<Pubkey>(),
-            size_of::<Pubkey>()
-        ];
-        is_initialized[0] = self.is_initialized as u8;
-        is_private[0] = self.is_private as u8;
-        owner.copy_from_slice(self.owner.as_ref());
-        tournament_reg.copy_from_slice(self.tournament_reg.as_ref());
-        game_reg.copy_from_slice(self.game_reg.as_ref());
+        let data = self.try_to_vec().unwrap();
+        sol_memcpy(dst, &data, data.len());
     }
 
-    fn unpack_from_slice(src: &[u8]) -> Result<Self, solana_program::program_error::ProgramError> {
-        let src = array_ref![src, 0, RegCenter::LEN];
-        let (is_initialized, is_private, owner, tournament_reg, game_reg) = array_refs![
-            src,
-            1,
-            1,
-            size_of::<Pubkey>(),
-            size_of::<Pubkey>(),
-            size_of::<Pubkey>()
-        ];
-        Ok(Self {
-            is_initialized: is_initialized[0] == 1,
-            is_private: is_private[0] == 1,
-            owner: Pubkey::new_from_array(*owner),
-            tournament_reg: Pubkey::new_from_array(*tournament_reg),
-            game_reg: Pubkey::new_from_array(*game_reg),
-        })
+    fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
+        match RegistryState::try_from_slice(src) {
+            Ok(r) => Ok(r),
+            Err(_) => Ok(RegistryState::default())
+        }
     }
 }
 
@@ -178,28 +56,41 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_tournament_reg() {
-        let pubkey = Pubkey::new_unique();
-        let mint = Pubkey::new_unique();
-        let is_hidden = true;
-        let start_time = 200;
-        let reg_time = 200;
-        let state = TournamentReg {
-            pubkey,
-            mint,
-            reg_time,
-            start_time,
-            is_hidden,
-        };
-        let mut buf = [0; TournamentReg::LEN];
-        TournamentReg::pack(state, &mut buf).unwrap();
+    pub fn make_registry_state() -> RegistryState {
+        let mut state = RegistryState::default();
+        state.is_initialized = true;
+        for _i in 0..16 {
+            let g = GameReg::default();
+            state.games.push(g);
+        }
+        state
+    }
 
-        let unpacked = TournamentReg::unpack_unchecked(&buf).unwrap();
-        assert_eq!(pubkey, unpacked.pubkey);
-        assert_eq!(mint, unpacked.mint);
-        assert_eq!(is_hidden, unpacked.is_hidden);
-        assert_eq!(reg_time, unpacked.reg_time);
-        assert_eq!(start_time, unpacked.start_time);
+    #[test]
+    pub fn test_ser() -> anyhow::Result<()> {
+        let mut state = make_registry_state();
+        state.update_padding();
+        let mut buf = [0u8; RegistryState::LEN];
+        RegistryState::pack(state, &mut buf)?;
+        println!("{:?}", buf);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_deser() -> anyhow::Result<()> {
+        let mut state = make_registry_state();
+        state.update_padding();
+        let mut buf = [0u8; RegistryState::LEN];
+        RegistryState::pack(state.clone(), &mut buf)?;
+        let deser = RegistryState::unpack(&buf)?;
+        assert_eq!(deser, state);
+        Ok(())
+    }
+
+    #[test]
+    pub fn foo() -> anyhow::Result<()> {
+        let buf = [0u8; RegistryState::LEN];
+        let state = RegistryState::unpack_unchecked(&buf)?;
+        Ok(())
     }
 }

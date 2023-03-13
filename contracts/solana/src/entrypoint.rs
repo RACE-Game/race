@@ -1,10 +1,8 @@
 use solana_program::{
-    account_info::AccountInfo,
-    entrypoint,
-    entrypoint::ProgramResult,
-    pubkey::Pubkey,
-    msg,
+    account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, pubkey::Pubkey,
 };
+
+use crate::processor;
 
 entrypoint!(process_instruction);
 
@@ -13,6 +11,5 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
-
-    Ok(())
+    processor::process(program_id, accounts, instruction_data)
 }

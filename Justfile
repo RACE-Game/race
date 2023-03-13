@@ -53,7 +53,8 @@ dev-transactor-2:
     cargo run -p race-transactor -- -c ./examples/conf/race_server_2.toml run
 
 solana:
-    cargo build-sbf -p race-solana
+    (cd contracts/solana; cargo build-sbf)
+    solana program deploy ./target/deploy/race_solana.so
 
 alias fa := dev-facade
 alias t1 := dev-transactor-1
