@@ -19,11 +19,11 @@ impl Processor {
         accounts: &[AccountInfo],
         instruction_data: &[u8]
     ) -> ProgramResult {
-        let instruction = RaceInstruction::try_from_slice(instruction_data)?;
+        let instruction = RaceInstruction::unpack(instruction_data)?;
         match instruction {
-            RaceInstruction::CreateGameAccount { params } => {
-                msg!("Creating Game Account on Chain");
-                create_game::process(programe_id, accounts, instruction_data)
+            RaceInstruction::RegGame { params } => {
+                msg!("Register Game Account on Chain");
+                register_game::process(programe_id, accounts, params)
             }
             _ => Ok(())
         }

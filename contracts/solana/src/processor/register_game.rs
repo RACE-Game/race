@@ -5,13 +5,21 @@ use solana_program::{
     entrypoint::ProgramResult,
     msg,
     program_error::ProgramError,
+    program_pack::Pack,
     pubkey::Pubkey,
 };
 
+use crate::{
+    instruction::RegGameParams,
+    state::{GameReg, GameState, PackOption, RegCenter},
+    error::RaceError,
+};
+
+#[inline(never)]
 pub fn process(
     programe_id: &Pubkey,
     accounts: &[AccountInfo],
-    instruction_data: &[u8]
+    params: RegGameParams
 ) -> ProgramResult {
     let account_iter = &mut accounts.iter();
     let owner_account = next_account_info(account_iter)?;
@@ -26,13 +34,13 @@ pub fn process(
     let game_state = GameState::unpack(&game_account.try_borrow_data()?)?;
 
     if game_state.owner_pubkey.ne(owner_account.key) {
-        return Err(DealerError::InvalidOwner)?;
+        return Err(RaceError::InvalidOwner)?;
     }
 
     let reg_center_state = RegCenter::unpack(&reg_center_account.try_borrow_data()?)?;
 
     if reg_center_state.is_private && reg_center_state.owner.ne(owner_account.key) {
-        return Err(DealerError::InvalidOwner)?;
+        return Err(RaceError::InvalidOwner)?;
     }
 
     let mut reg_data = game_reg_account.try_borrow_mut_data()?;
@@ -44,7 +52,7 @@ pub fn process(
         let reg = GameReg::unpack_option(reg_src)?;
         if let Some(reg) = reg {
             if reg.pubkey.eq(game_account.key) {
-                return Err(DealerError::GameAlreadyRegistered)?;
+                return Err(RaceError::GameAlreadyRegistered)?;
             }
         } else if !added {
             added = true;
@@ -62,7 +70,7 @@ pub fn process(
     }
 
     if !added {
-        return Err(DealerError::RegistrationIsFull)?;
+        return Err(RaceError::RegistrationIsFull)?;
     }
 
     Ok(())

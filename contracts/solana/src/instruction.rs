@@ -19,7 +19,7 @@ pub struct CloseGameAccountParams {
 
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub struct RegisterGameParams {
+pub struct RegGameParams {
     pub game_addr: String,
     pub reg_addr: String,
 }
@@ -38,7 +38,7 @@ pub enum RaceInstruction {
     /// 5. `[]` The mint account.
     /// 6. `[]` The scene NFT account.
     /// 7. `[]` The token program.
-    CreateGameAccount { params: CreateGameAccountParams },
+    // CreateGameAccount { params: CreateGameAccountParams },
 
     /// #1 Create a new game
     ///
@@ -51,7 +51,7 @@ pub enum RaceInstruction {
     /// 5. `[]` The mint account.
     /// 6. `[]` The scene NFT account.
     /// 7. `[]` The token program.
-    CloseGameAccount { params: CloseGameAccountParams },
+    // CloseGameAccount { params: CloseGameAccountParams },
 
     /// #2 Register a game in lobby/center
     ///
@@ -60,11 +60,11 @@ pub enum RaceInstruction {
     /// 1. `[]` The registration center account.
     /// 2. `[]` The account of game account.
     /// 3. `[writable]` The game reg account.
-    RegisterGame { params: RegisterGameParams },
+    RegGame { params: RegGameParams },
 }
 
 impl RaceInstruction {
-    pub fn new(src: &[u8]) -> Self {
-        RaceInstruction::try_from_slice(src).unwrap()
+    pub fn unpack(src: &[u8]) -> Result<Self, ProgramError> {
+        Ok(RaceInstruction::try_from_slice(src).unwrap())
     }
 }
