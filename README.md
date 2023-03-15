@@ -1,56 +1,47 @@
-Race Protocol is for builders, to easily create web3 asymmetric information competitive games.
+# Race Protocol
+
+Race Protocol is a multi-chain infrastructure for asymmetric competitive games.
+
+Race Protocol is made for web3 builders, because it eliminates the barrier of developing blockchain games.
+
+It is shipped with game-related smart contracts. Out of the box, these contracts provide developers with reliable and convenient utilities such as real time, transparent token settlements, programmable game management, affiliation and referral system.
+
+The community hosted servers offer developers a delightful serverless solution, so that they can focus on the core game logic, without wrestling against various server-side difficulties. Thus, the development experience is considerably improved.
+
+It offers excellent extensibility by decoupling game core and frontend. On the one hand, the game logic is published as NFTs and can be reused effortlessly. On the other hand, frontends can be built as either traditional dApps or metaverse applications, enabling the developers to connect players from different platforms.
+
+Race Protocol is also designed for web3 players, because it assures them a fair and safe gaming experience.
+
+All games built on top of Race will by default inherit a series of essential traits, such as P2P randomization and encrypted communication. This design guarantees hidden knowledge in asymmetric competition is well protected. No one can rig the game by knowing all the game information.
+
+Users' assets are secured as the funds flow is controlled exclusively by the smart contracts. Since the funds will never be sent  to a centralised service, every penny of commission and deposit is 100% transparent to the public.
+
+"Race" represents "Redefining the best".
 
 # Project Status
 
 Work in progress, not ready to accept contributions yet.
 
-# Architecture Overview
+# Core Concepts
 
-## Game bundle
+[Terminology](terminology.md)
 
-Games are built as a side-effect free state machine for core logic,
-compiled to WebAssembly, and loaded by both servers and clients.
+[WebAssembly Usages](web-assembly-usages.md)
 
-## Server
+[Game Handler](game-handler.md)
 
-The servers are standardized and generalized, serving game bundles.
-Each game on each server can be executed in two modes: `Transactor` or
-`Validator`.
+[Transactions](transactions.md)
 
-With `Transactor` mode, the server sends transactions.  With
-`Validator` mode, the server validates game progress and contributes
-to randomization.
+[Randomization](randomization.md)
 
-Game must be served by a cluster of independent servers that
-confirm the consensus reached in a decentralized way.
+[Transactor and Validator](transactor-and-validator.md)
 
-## Hidden Knowledge
+[On-chain Accounts](on-chain-accounts.md)
 
-Race Protocol provides Peer-to-Peer, Server-to-Server, Server-to-Peer
-cryptographically encrypted randomization and commuinication tools
-required to build single-player or multi-player hidden knowledge games and apps.
+[Synchronization](synchronization.md)
 
-## Smart Contract
+[Payment](payment.md)
 
-The smart contract handles all deposits and withdraws in a transparent way.
-The assets must be either in user wallet or in game account.
+[Testing](testing.md)
 
-## What about Database
-
-No centralized database is ever involved, we emphasize a database-free solution.
-
-# Features
-
-- The settlement system and corresponding contracts.
-- Blockchain-based storage solution, no database required.
-- RSA-based encrypted communication between server and clients.
-- NFT-based game core bundle (in wasm format) publishing.
-- The genereal game server that can be hosted by communties.
-- P2P randomness generator,  fairness guaranteed.
-- Multi-chain support.
-
-# About the name "RACE"
-> RACE = R + ACE
-
-- *R* stands for REDEFINING
-- *ACE* stands for the BEST
+[Command Line Tools](command-line.md)
