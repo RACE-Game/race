@@ -24,24 +24,24 @@ Work in progress, not ready to accept contributions yet.
 
 # Core Concepts
 
-[Terminology](terminology.md)
+[Terminology](docs/terminology.md)
 
-[WebAssembly Usages](web-assembly-usages.md)
+[WebAssembly Usages](docs/web-assembly-usages.md)
 
-[Game Handler](game-handler.md)
+[Game Handler](docs/game-handler.md)
 
-[Transactions](transactions.md)
+[Transactions](docs/transactions.md)
 
-[Randomization](randomization.md)
+[Randomization](docs/randomization.md)
 
-[Transactor and Validator](transactor-and-validator.md)
+[Transactor and Validator](docs/transactor-and-validator.md)
 
-[On-chain Accounts](on-chain-accounts.md)
+[On-chain Accounts](docs/on-chain-accounts.md)
 
-[Synchronization](synchronization.md)
+[Synchronization](docs/synchronization.md)
 
-[Payment](payment.md)
+[Payment](docs/payment.md)
 
-[Testing](testing.md)
+[Testing](docs/testing.md)
 
-[Command Line Tools](command-line.md)
+[Command Line Tools](docs/command-line.md)
