@@ -9,8 +9,15 @@ use super::common::VoteType;
 pub struct CreateGameAccountParams {
     pub title: String,
     pub bundle_addr: String,
+    // pub token: TokenInfo,
     pub max_players: u8,
     pub data: Vec<u8>,
+}
+
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+pub struct TokenInfo {
+    name: String,
+    addr: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]

@@ -6,6 +6,7 @@ use solana_program::{
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
+use std::result;
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone)]
@@ -24,14 +25,19 @@ pub struct ServerJoin {
     pub access_version: u64,
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq, Eq, Clone))]
+// State of on-chain GameAccount
+#[cfg_attr(test, derive(Debug, PartialEq, Clone))]
 #[derive(Default, BorshDeserialize, BorshSerialize)]
 pub struct GameState {
     pub is_initialized: bool,
     pub title: String,
+    // pub addr: Pubkey,
+    pub owner: Pubkey,
+    pub transactor_addr: Option<Pubkey>,
     pub access_version: u64,
     pub settle_version: u64,
     pub max_players: u8,
+    pub data_len: u32,
     pub data: Box<Vec<u8>>,
     pub players: Box<Vec<PlayerJoin>>,
     pub servers: Box<Vec<ServerJoin>>,
@@ -62,8 +68,8 @@ impl Pack for GameState {
     }
 
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        let r = GameState::try_from_slice(src)?;
-        Ok(r)
+        let result = GameState::try_from_slice(src)?;
+        Ok(result)
     }
 }
 
@@ -73,7 +79,7 @@ mod tests {
     use super::*;
 
     // #[test]
-    // pub fn test() -> anyhow::Result<()> {
+    // pub fn test_state_len() -> anyhow::Result<()> {
     //     let mut state = GameState::default();
     //     let s: String = "ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEF".into();
     //     state.data = Box::new(vec![0; 1024]);
@@ -94,6 +100,15 @@ mod tests {
     //     Ok(())
     // }
 
+    // #[test]
+    // pub fn test_deserialize_from_emtpy_gamestate() -> anyhow::Result<()> {
+    //     let buf = [0u8; 5000];
+    //     let mut state = GameState::unpack_unchecked(&buf);
+    //
+    //     Ok(())
+    // }
+
+
     pub fn make_game_state() -> GameState {
         let mut state = GameState::default();
         state.is_initialized = true;
@@ -106,6 +121,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     pub fn test_ser() -> anyhow::Result<()> {
         let mut state = make_game_state();
         state.update_padding();

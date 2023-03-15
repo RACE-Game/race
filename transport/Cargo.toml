@@ -14,6 +14,8 @@ serde_json = "1.0.85"
 serde = "1.0.144"
 solana-client = "1.15.2"
 solana-sdk = "1.15.2"
+spl-token = "3.5.0"
+spl-associated-token-account = "1.1.2"
 tracing = "0.1.36"
 borsh = "0.9.3"
 

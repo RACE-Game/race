@@ -18,7 +18,7 @@ pub trait TransportT: Send + Sync {
     /// and holds basic game properties.  Check [`GameAccount`] for
     /// description of the layout. The implementation should contain
     /// the check for transaction signature, make sure that Ok is
-    /// returned only when the transaction is succeed and finalized.
+    /// returned only when the transaction succeeds and finalized.
     ///
     /// # Arguments
     /// * `max_players` - The maximum number of players in this game. Please note,

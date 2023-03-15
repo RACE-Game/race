@@ -5,33 +5,36 @@ use solana_program::{
     entrypoint::ProgramResult,
     program_error::ProgramError,
     program_pack::Pack,
-    pubkey::Pubkey, rent::Rent, sysvar::Sysvar,
+    pubkey::Pubkey,
+    rent::Rent,
+    sysvar::Sysvar,
 };
 
 use crate::{instruction::CreateRegistryParams, state::RegistryState};
 
+#[inline(never)]
 pub fn process(
     _programe_id: &Pubkey,
     accounts: &[AccountInfo],
-    _params: CreateRegistryParams
+    _params: CreateRegistryParams,
 ) -> ProgramResult {
     let account_iter = &mut accounts.iter();
     let payer = next_account_info(account_iter)?;
     let registry_account = next_account_info(account_iter)?;
 
     if !payer.is_signer {
-        return Err(ProgramError::MissingRequiredSignature)
+        return Err(ProgramError::MissingRequiredSignature);
     }
 
     let rent = Rent::get()?;
     if !rent.is_exempt(registry_account.lamports(), RegistryState::LEN) {
-        return Err(ProgramError::AccountNotRentExempt)
+        return Err(ProgramError::AccountNotRentExempt);
     }
 
     let mut registry = RegistryState::unpack_unchecked(&registry_account.try_borrow_data()?)?;
 
     if registry.is_initialized {
-        return Err(ProgramError::AccountAlreadyInitialized)
+        return Err(ProgramError::AccountAlreadyInitialized);
     }
 
     registry.is_initialized = true;

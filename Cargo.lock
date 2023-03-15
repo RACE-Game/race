@@ -3499,6 +3499,8 @@ dependencies = [
  "arrayref",
  "borsh",
  "solana-program",
+ "spl-associated-token-account",
+ "spl-token",
 ]
 
 [[package]]
@@ -3565,6 +3567,8 @@ dependencies = [
  "serde_json",
  "solana-client",
  "solana-sdk",
+ "spl-associated-token-account",
+ "spl-token",
  "thiserror",
  "tokio",
  "tracing",

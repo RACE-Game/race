@@ -1,77 +1,92 @@
-use arrayref::array_mut_ref;
+// use arrayref::array_mut_ref;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
-    account_info::{AccountInfo, next_account_info},
+    account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
     program_error::ProgramError,
     program_pack::Pack,
     pubkey::Pubkey,
+    rent::Rent,
 };
+use std::time::{SystemTime, SystemTimeError};
 
 use crate::{
+    error::RaceError,
     instruction::RegGameParams,
-    state::{GameReg, GameState, RegistryState},
-    // error::RaceError,
+    state::{GameReg, GameState, PackOption, RegistryState},
 };
 
 #[inline(never)]
 pub fn process(
-    programe_id: &Pubkey,
+    _programe_id: &Pubkey,
     accounts: &[AccountInfo],
-    params: RegGameParams
+    params: RegGameParams,
 ) -> ProgramResult {
- //    let account_iter = &mut accounts.iter();
- //    let owner_account = next_account_info(account_iter)?;
- //    let reg_center_account = next_account_info(account_iter)?;
- //    let game_account = next_account_info(account_iter)?;
- //    let game_reg_account = next_account_info(account_iter)?;
+    let account_iter = &mut accounts.iter();
+    let payer = next_account_info(account_iter)?;
+    let reg_center_account = next_account_info(account_iter)?;
+    let game_account = next_account_info(account_iter)?;
+    // let reg_game_account = next_account_info(account_iter)?;
 
- // if !owner_account.is_signer {
- //        return Err(ProgramError::MissingRequiredSignature);
- //    }
+    if !payer.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
 
- //    let game_state = GameState::unpack(&game_account.try_borrow_data()?)?;
+    let mut reg_center_state = RegistryState::unpack(&reg_center_account.try_borrow_data()?)?;
+    if !reg_center_state.is_initialized {
+        return Err(ProgramError::UninitializedAccount);
+    }
 
- //    if game_state.owner_pubkey.ne(owner_account.key) {
- //        return Err(RaceError::InvalidOwner)?;
- //    }
+    let rent = Rent::default();
+    if !rent.is_exempt(reg_center_account.lamports(), RegistryState::LEN) {
+        return Err(ProgramError::AccountNotRentExempt);
+    }
 
- //    let reg_center_state = RegCenter::unpack(&reg_center_account.try_borrow_data()?)?;
+    if reg_center_state.is_private && reg_center_state.owner.ne(payer.key) {
+        // TODO: Improve the error
+        return Err(RaceError::InvalidOwner)?;
+    }
+    if reg_center_state.games.len() as u16 == reg_center_state.size {
+        // TODO: Implement error "Registration center is already full"
+        return Err(ProgramError::Custom(1));
+    }
 
- //    if reg_center_state.is_private && reg_center_state.owner.ne(owner_account.key) {
- //        return Err(RaceError::InvalidOwner)?;
- //    }
+    let game_state = GameState::unpack(&game_account.try_borrow_data()?)?;
+    if game_state.owner.ne(payer.key) {
+        return Err(RaceError::InvalidOwner)?;
+    }
 
- //    let mut reg_data = game_reg_account.try_borrow_mut_data()?;
+    let mut added = false;
+    if let Some(reg_game) = reg_center_state
+        .games
+        .iter()
+        .find(|gr| gr.addr.eq(&game_account.key))
+    {
+        return Err(ProgramError::Custom(2));
+    } else if !added {
+        added = true;
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("Timestamp")
+            .as_secs() as u64;
+        let reg_game = GameReg {
+            title: "RACE DREAM".to_string(),
+            addr: game_account.key.clone(),
+            reg_time: timestamp,
+            // mint: game_state.mint_pubkey.clone(),
+            // is_hidden: params.is_hidden,
+        };
 
- //    let mut added = false;
+        reg_center_state.games.push(reg_game);
+        reg_center_state.update_padding();
+        let mut buf = [0u8; RegistryState::LEN];
+        RegistryState::pack(reg_center_state, &mut buf)?;
+    }
 
- //    for i in 0..100 {
- //        let reg_src = array_mut_ref![reg_data, i * GameReg::OPT_LEN, GameReg::OPT_LEN];
- //        let reg = GameReg::unpack_option(reg_src)?;
- //        if let Some(reg) = reg {
- //            if reg.pubkey.eq(game_account.key) {
- //                return Err(RaceError::GameAlreadyRegistered)?;
- //            }
- //        } else if !added {
- //            added = true;
-
- //            let reg_state = GameReg {
- //                pubkey: game_account.key.clone(),
- //                mint: game_state.mint_pubkey.clone(),
- //                is_hidden: params.is_hidden,
- //            };
-
- //            GameReg::pack_option(Some(reg_state), reg_src)?;
-
- //            break;
- //        }
- //    }
-
- //    if !added {
- //        return Err(RaceError::RegistrationIsFull)?;
- //    }
+    if !added {
+        return Err(RaceError::RegistrationIsFull)?;
+    }
 
     Ok(())
 }

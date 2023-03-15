@@ -1,19 +1,49 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
+    borsh::get_instance_packed_len,
+    msg,
+    program_error::ProgramError,
+    program_memory::sol_memcpy,
     program_pack::{IsInitialized, Pack, Sealed},
-    pubkey::Pubkey, borsh::get_instance_packed_len, program_memory::sol_memcpy, program_error::ProgramError, msg,
+    pubkey::Pubkey,
 };
+
+use super::misc::PackOption;
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone)]
 pub struct GameReg {
+    pub title: String,
     pub addr: Pubkey,
+    // pub bundle_addr: Pubkey,
+    pub reg_time: u64,
+}
+
+impl Sealed for GameReg {}
+impl PackOption for GameReg {}
+impl Pack for GameReg {
+    // 24 + 32 + 32 + 8 = 96 <= 100
+    const LEN: usize = 100;
+
+    fn pack_into_slice(&self, dst: &mut [u8]) {
+        let data = self.try_to_vec().unwrap();
+        sol_memcpy(dst, &data, data.len());
+    }
+
+    fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
+        match GameReg::try_from_slice(src) {
+            Ok(r) => Ok(r),
+            Err(_) => Ok(GameReg::default()),
+        }
+    }
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq, Clone))]
 #[derive(Default, BorshDeserialize, BorshSerialize)]
 pub struct RegistryState {
     pub is_initialized: bool,
+    pub is_private: bool,
+    pub size: u16, // capacity of the registration center
     pub owner: Pubkey,
     pub games: Box<Vec<GameReg>>,
     pub padding: Box<Vec<u8>>,
@@ -45,8 +75,8 @@ impl Pack for RegistryState {
 
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
         match RegistryState::try_from_slice(src) {
-            Ok(r) => Ok(r),
-            Err(_) => Ok(RegistryState::default())
+            Ok(result) => Ok(result),
+            Err(_) => Ok(RegistryState::default()),
         }
     }
 }

@@ -1,5 +1,5 @@
 mod entrypoint;
-mod processor;
+mod error;
 mod instruction;
+mod processor;
 mod state;
-// mod error;
