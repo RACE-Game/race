@@ -1,16 +1,6 @@
 //! A blackjack demo
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::{
-    context::GameContext,
-    engine::GameHandler,
-    error::{Error, Result},
-    event::Event,
-    random::deck_of_cards,
-    types::{Addr, Amount, GameAccount, RandomId},
-};
-use race_proc_macro::game_handler;
-use serde::{Deserialize, Serialize};
+use race_core::prelude::*;
 
 #[derive(Serialize, Deserialize)]
 enum GameEvent {
@@ -36,8 +26,7 @@ enum Stage {
  struct AccountData {
     min_bet: Amount,
     max_bet: Amount,
-}
-
+ }
 
 #[derive(Serialize, Deserialize)]
  struct Player {
@@ -80,7 +69,7 @@ struct Handler {
 impl Handler {
     fn handle_custom_event(
         &mut self,
-        context: &mut GameContext,
+        effect: &mut Effect,
         sender: String,
         event: GameEvent,
     ) -> Result<()> {
@@ -95,7 +84,7 @@ impl Handler {
 }
 
 impl GameHandler for Handler {
-    fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
+    fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self> {
         let account_data = AccountData::try_from_slice(&init_account.data)
             .map_err(|_| Error::MalformedData("Failed to deseralize account data".into()))?;
 
@@ -113,7 +102,7 @@ impl GameHandler for Handler {
         })
     }
 
-    fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
+    fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()> {
         match event {
             Event::Custom { sender, raw } => {
                 let event = serde_json::from_str(&raw)?;
@@ -146,8 +135,8 @@ impl GameHandler for Handler {
                 // Dealer: 0, 1 - 1 will be revealed by default
                 // Player: 2, 3 - both will be revealed.
                 let dealer_addr = &self.get_player(self.dealer_pos)?.addr;
-                context.reveal(self.random_id, vec![1, 2, 3])?;
-                context.assign(self.random_id, dealer_addr, vec![0])?;
+                effect.reveal(self.random_id, vec![1, 2, 3])?;
+                effect.assign(self.random_id, dealer_addr, vec![0])?;
                 Ok(())
             }
             Event::SecretsReady => {
@@ -156,9 +145,12 @@ impl GameHandler for Handler {
             Event::ActionTimeout { player_addr } => {
                 Ok(())
             }
-            Event::OperationTimeout { addr } => todo!(),
+            Event::OperationTimeout  => todo!(),
             Event::Leave { player_addr } => todo!(),
             _ => Ok(()),
         }
     }
 }
+
+#[cfg(test)]
+mod test;

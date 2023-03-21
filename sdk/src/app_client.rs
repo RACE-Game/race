@@ -254,15 +254,16 @@ impl AppClient {
     }
 
     #[wasm_bindgen]
-    pub async fn get_revealed(&self, random_id: RandomId) -> Result<JsValue> {
+    /// Get all revealed information.  This function contains the
+    /// decryption, so it's better to cache the result somewhere.
+    pub fn get_revealed(&self, random_id: RandomId) -> Result<JsValue> {
         let context = self.game_context.borrow();
-        Ok(context.get_revealed(random_id).map(|r| {
-            let obj = Object::new();
-            for (k, v) in r.iter() {
-                Reflect::set(&obj, &(*k as u32).into(), &v.into()).unwrap();
-            }
-            JsValue::from(obj)
-        })?)
+        let decrypted = self.client.decrypt(&context, random_id)?;
+        let obj = Object::new();
+        for (k, v) in decrypted.iter() {
+            Reflect::set(&obj, &(*k as u32).into(), &v.into()).unwrap();
+        }
+        Ok(JsValue::from(obj))
     }
 
     #[wasm_bindgen]
@@ -282,13 +283,32 @@ impl AppClient {
 
     /// Join the game.
     #[wasm_bindgen]
-    pub async fn join(&self, position: u8, amount: u64) -> Result<()> {
+    pub async fn join(&self, amount: u64) -> Result<()> {
         info!("Join game");
         let game_account = self
             .transport
             .get_game_account(&self.addr)
             .await
             .ok_or(Error::GameAccountNotFound)?;
+        let count: u8 = game_account.players.len() as _;
+
+        if game_account.max_players <= count {
+            return Err(Error::GameIsFull(count as _))?;
+        }
+
+        let mut position: Option<u8> = None;
+        for i in 0..game_account.max_players {
+            if game_account
+                .players
+                .iter()
+                .all(|p| p.position != i as usize)
+            {
+                position = Some(i as _);
+                break;
+            }
+        }
+
+        let position = position.ok_or(Error::GameIsFull(count as _))?;
 
         self.transport
             .join(JoinParams {

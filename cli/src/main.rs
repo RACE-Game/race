@@ -101,6 +101,7 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             println!("Access version: {}", game_account.access_version);
             println!("Settle version: {}", game_account.settle_version);
             println!("Data size: {}", game_account.data.len());
+            println!("Max players: {}", game_account.max_players);
             println!("Players:");
             for p in game_account.players.iter() {
                 println!(

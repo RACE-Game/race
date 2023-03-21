@@ -181,7 +181,6 @@ pub fn general_handle_event(
         }
 
         Event::SecretsReady => {
-            // let decryption = transactor.decrypt(&ctx, 0)?;
             let mut res = vec![];
             for random_state in context.list_random_states() {
                 let options = &random_state.options;

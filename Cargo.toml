@@ -12,6 +12,7 @@ members = [
   "sdk",
   "client",
   "test",
+  # "examples/blackjack",
   "examples/draw-card",
   "examples/chat",
   "examples/minimal",

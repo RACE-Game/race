@@ -329,7 +329,7 @@ impl Client {
     /// Decrypt the ciphertexts with shared secrets.
     /// Return a mapping from mapping from indexes to decrypted value.
     pub fn decrypt(
-        &mut self,
+        &self,
         ctx: &GameContext,
         random_id: RandomId,
     ) -> Result<HashMap<usize, String>> {

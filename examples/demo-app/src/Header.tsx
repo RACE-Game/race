@@ -18,7 +18,7 @@ function Header(props: {gameAddr: string}) {
 
   if (account === undefined) {
     return (
-      <div> Loading </div>
+      <div className="w-full h-32 p-2 flex flex-wrap"> Loading </div>
     );
   } else {
     return (

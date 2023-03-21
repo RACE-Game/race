@@ -17,3 +17,4 @@ borsh = "0.9.3"
 race-test = { path = "../../test" }
 log = "0.4.17"
 env_logger = "0.10.0"
+anyhow = "1.0.64"

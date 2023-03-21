@@ -1,6 +1,6 @@
 //! A minimal poker game to demonstrate how the protocol works.
 //!
-//! The game for two players.  In the dealing, each player gets one
+//! The game is for two players.  In the dealing, each player gets one
 //! random card as hand.  And each player put some assets into the
 //! pot.  Then player A can bet with an amount, player B can either
 //! call or fold.  If player B calls, both players' hands will be
@@ -12,6 +12,7 @@ use arrayref::{array_mut_ref, mut_array_refs};
 use race_core::prelude::*;
 
 const ACTION_TIMEOUT: u64 = 30_000;
+const NEXT_GAME_TIMEOUT: u64 = 15_000;
 
 #[derive(Serialize, Deserialize)]
 pub enum GameEvent {
@@ -53,6 +54,7 @@ pub struct DrawCard {
     pub random_id: RandomId,
     pub players: Vec<Player>,
     pub stage: GameStage,
+    pub pot: u64,
     pub bet: u64,
     pub blind_bet: u64,
     pub min_bet: u64,
@@ -67,15 +69,16 @@ impl DrawCard {
         let player_1 = &mut player_1[0];
 
         if winner_index == 0 {
-            effect.settle(Settle::add(&player_0.addr, player_1.bet));
+            effect.settle(Settle::add(&player_0.addr, self.pot - player_0.bet));
             effect.settle(Settle::sub(&player_1.addr, player_1.bet));
-            player_0.balance += self.bet;
+            player_0.balance += self.pot;
         } else {
-            effect.settle(Settle::add(&player_1.addr, player_0.bet));
+            effect.settle(Settle::add(&player_1.addr, self.pot - player_1.bet));
             effect.settle(Settle::sub(&player_0.addr, player_0.bet));
-            player_1.balance += self.bet;
+            player_1.balance += self.pot;
         }
 
+        effect.wait_timeout(NEXT_GAME_TIMEOUT);
         Ok(())
     }
 
@@ -100,9 +103,10 @@ impl DrawCard {
                     }
                     player.bet += amount;
                     player.balance -= amount;
-                    self.bet += amount;
+                    self.bet = amount;
+                    self.pot += amount;
                     self.stage = GameStage::Reacting;
-                    effect.action_timeout(player.addr.clone(), ACTION_TIMEOUT);
+                    // effect.action_timeout(player.addr.clone(), ACTION_TIMEOUT);
                 } else {
                     return Err(Error::Custom("Can't bet".into()));
                 }
@@ -119,9 +123,11 @@ impl DrawCard {
                     if self.bet > player.balance {
                         player.bet += player.balance;
                         player.balance = 0;
+                        self.pot += player.balance;
                     } else {
                         player.bet += self.bet;
                         player.balance -= self.bet;
+                        self.pot += self.bet;
                     }
                     self.stage = GameStage::Revealing;
                     effect.reveal(self.random_id, vec![0, 1]);
@@ -151,7 +157,7 @@ fn is_better_than(card_a: &str, card_b: &str) -> bool {
 }
 
 impl GameHandler for DrawCard {
-    fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self> {
+    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self> {
         let AccountData {
             blind_bet,
             min_bet,
@@ -171,6 +177,7 @@ impl GameHandler for DrawCard {
             random_id: 0,
             players,
             bet: 0,
+            pot: 0,
             stage: GameStage::Dealing,
             min_bet,
             max_bet,
@@ -187,6 +194,14 @@ impl GameHandler for DrawCard {
                 self.custom_handle_event(effect, sender, event)?;
             }
 
+            // Waiting timeout usually sent after each game.  Here we
+            // can trigger the next game.
+            Event::WaitingTimeout => {
+                if effect.count_players() == 2 {
+                    effect.start_game();
+                }
+            }
+
             // Reset current game state.  Set up randomness
             Event::GameStart { .. } => {
                 if effect.count_players() < 2 {
@@ -194,6 +209,12 @@ impl GameHandler for DrawCard {
                 }
 
                 let rnd_spec = RandomSpec::deck_of_cards();
+                // Reset the state when starting
+                self.pot = 0;
+                self.bet = 0;
+                for p in self.players.iter_mut() {
+                    p.bet = 0;
+                }
                 self.stage = GameStage::Dealing;
                 self.random_id = effect.init_random_state(rnd_spec);
             }
@@ -224,7 +245,7 @@ impl GameHandler for DrawCard {
                         // Now it's the first player's turn to act.
                         // So we dispatch an action timeout event.
                         self.stage = GameStage::Betting;
-                        effect.action_timeout(self.players[0].addr.clone(), ACTION_TIMEOUT);
+                        // effect.action_timeout(self.players[0].addr.clone(), ACTION_TIMEOUT);
                     }
                     GameStage::Revealing => {
                         // Reveal and compare the hands to decide who is the winner
