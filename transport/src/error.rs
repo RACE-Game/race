@@ -2,23 +2,26 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum TransportError {
-    #[error("unspecified chain")]
+    #[error("Unspecified chain")]
     UnspecifiedChain,
 
-    #[error("unspecified signer")]
+    #[error("Unspecified signer")]
     UnspecifiedSigner,
 
-    #[error("unspecified rpc")]
+    #[error("Unspecified rpc")]
     UnspecifiedRpc,
 
-    #[error("invalid config")]
+    #[error("Invalid config")]
     InvalidConfig,
 
-    #[error("invalid chain name")]
+    #[error("Invalid chain name")]
     InvalidChainName(String),
 
-    #[error("initialization failed")]
+    #[error("Initialization failed")]
     InitializationFailed(String),
+
+    #[error("Invalid keyfile: {0}")]
+    InvalidKeyfile(String),
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

@@ -1,13 +1,13 @@
 pub mod error;
 pub mod evm;
 pub mod facade;
-pub mod signer;
 pub mod solana;
+
+use std::path::PathBuf;
 
 use error::{TransportError, TransportResult};
 use race_core::transport::TransportT;
 use race_env::Config;
-use signer::Signer;
 use tracing::info;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -34,7 +34,7 @@ impl TryFrom<&str> for ChainType {
 pub struct TransportBuilder {
     chain: Option<ChainType>,
     rpc: Option<String>,
-    signer: Option<Box<dyn Signer>>,
+    keyfile: Option<PathBuf>,
 }
 
 impl TransportBuilder {
@@ -56,8 +56,8 @@ impl TransportBuilder {
         self
     }
 
-    pub fn with_signer(mut self, signer: Box<dyn Signer>) -> Self {
-        self.signer = Some(signer);
+    pub fn with_keyfile<S: Into<PathBuf>>(mut self, keyfile: S) -> Self {
+        self.keyfile = Some(keyfile.into());
         self
     }
 
@@ -106,8 +106,8 @@ impl TransportBuilder {
             match chain {
                 ChainType::Solana => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
-                    // let signer = self.signer.ok_or(TransportError::UnspecifiedSigner)?;
-                    Ok(Box::new(solana::SolanaTransport::new(rpc)))
+                    let keyfile = self.keyfile.ok_or(TransportError::UnspecifiedSigner)?;
+                    Ok(Box::new(solana::SolanaTransport::try_new(rpc, keyfile)?))
                 }
                 ChainType::Bnb => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;

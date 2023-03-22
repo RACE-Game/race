@@ -1,7 +1,5 @@
 #![allow(unused_variables, unused_imports)]
-use std::str::FromStr;
-use std::fs::File;
-use serde_json;
+use crate::error::{TransportError, TransportResult};
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::error::Result;
@@ -17,6 +15,10 @@ use race_core::{
         PlayerProfile, SettleParams,
     },
 };
+use serde_json;
+use std::fs::File;
+use std::path::PathBuf;
+use std::str::FromStr;
 
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::instruction::{AccountMeta, Instruction};
@@ -93,39 +95,33 @@ pub struct GameState {
     pub padding: Box<Vec<u8>>,
 }
 
-// KEYPAIR from a local file like ~/.config/solana/keypairdev-id.json
-pub fn read_loca_keypair() -> Keypair {
-    let file = File::open("$HOME/.config/solana/id.json").unwrap();
-    let data: serde_json::Value = serde_json::from_reader(file).unwrap();
-    let key_bytes: Vec<u8> = serde_json::from_value(
-        data.get("keypairs").unwrap().get("keypair1").unwrap().clone()
-    ).unwrap();
-
-    let pair = Keypair::from_bytes(&key_bytes).unwrap();
-    pair
+fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
+    let keypair = solana_sdk::signature::read_keypair_file(path)
+        .map_err(|e| TransportError::InvalidKeyfile(e.to_string()))?;
+    Ok(keypair)
 }
 
 const PROGRAM_ID: &str = "ID";
 const SOL: &str = "So11111111111111111111111111111111111111112";
 
-#[derive(Debug)]
 pub struct SolanaTransport {
-    rpc: String,
+    client: RpcClient,
+    keypair: Keypair,
 }
 
 #[async_trait]
 #[allow(unused_variables)]
 impl TransportT for SolanaTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
-        let client = RpcClient::new(&self.rpc);
         let program_id = Pubkey::from_str(PROGRAM_ID).unwrap();
-        let payer = read_loca_keypair();
+        let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
         let game_account = Keypair::new();
         let game_account_pubkey = game_account.pubkey();
         let game_account_len = 5000;
-        let lamports = client
+        let lamports = self
+            .client
             .get_minimum_balance_for_rent_exemption(game_account_len)
             .unwrap();
         let create_game_account_ix = create_account(
@@ -141,7 +137,8 @@ impl TransportT for SolanaTransport {
         let temp_account = Keypair::new();
         let temp_account_pubkey = temp_account.pubkey();
         let temp_account_len = Account::LEN;
-        let temp_lamports = client
+        let temp_lamports = self
+            .client
             .get_minimum_balance_for_rent_exemption(temp_account_len)
             .unwrap();
         let create_temp_account_ix = create_account(
@@ -181,9 +178,9 @@ impl TransportT for SolanaTransport {
             Some(&payer.pubkey()),
         );
         let mut tx = Transaction::new_unsigned(message);
-        let blockhash = client.get_latest_blockhash().unwrap();
+        let blockhash = self.client.get_latest_blockhash().unwrap();
         tx.sign(&[&payer, &game_account, &temp_account], blockhash);
-        client.send_and_confirm_transaction(&tx).unwrap();
+        self.client.send_and_confirm_transaction(&tx).unwrap();
 
         Ok(game_account_pubkey.to_string())
     }
@@ -224,13 +221,13 @@ impl TransportT for SolanaTransport {
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
-        let client = RpcClient::new(&self.rpc);
-        let payer = read_loca_keypair();
+        let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
         let registry_account = Keypair::new();
         let registry_account_pubkey = registry_account.pubkey();
         let registry_data_len = 2000;
-        let lamports = client
+        let lamports = self
+            .client
             .get_minimum_balance_for_rent_exemption(registry_data_len)
             .unwrap();
         let program_id = Pubkey::from_str(PROGRAM_ID).unwrap();
@@ -262,10 +259,10 @@ impl TransportT for SolanaTransport {
             &[create_account_ix, create_registry_ix],
             Some(&payer.pubkey()),
         );
-        let blockhash = client.get_latest_blockhash().unwrap();
+        let blockhash = self.client.get_latest_blockhash().unwrap();
         let mut tx = Transaction::new_unsigned(message);
         tx.sign(&[&payer, &registry_account], blockhash);
-        client.send_and_confirm_transaction(&tx).unwrap();
+        self.client.send_and_confirm_transaction(&tx).unwrap();
         Ok(registry_account_pubkey.to_string())
     }
 
@@ -278,9 +275,8 @@ impl TransportT for SolanaTransport {
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
-        let client = RpcClient::new(&self.rpc);
         let game_account_pubkey = Pubkey::from_str(addr).unwrap();
-        let data = client.get_account_data(&game_account_pubkey).unwrap();
+        let data = self.client.get_account_data(&game_account_pubkey).unwrap();
         let state = GameState::try_from_slice(&data).unwrap();
         let transactor_addr = match state.transactor_addr {
             Some(pubkey) => Some(pubkey.to_string()),
@@ -335,9 +331,11 @@ impl TransportT for SolanaTransport {
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
-        let client = RpcClient::new(&self.rpc);
         let registry_account_pubkey = Pubkey::from_str(addr).unwrap();
-        let data = client.get_account_data(&registry_account_pubkey).unwrap();
+        let data = self
+            .client
+            .get_account_data(&registry_account_pubkey)
+            .unwrap();
         let state = RegistryState::try_from_slice(&data).unwrap();
         Some(RegistrationAccount {
             addr: addr.to_owned(),
@@ -359,8 +357,10 @@ impl TransportT for SolanaTransport {
 }
 
 impl SolanaTransport {
-    pub fn new(rpc: String) -> Self {
-        Self { rpc }
+    pub fn try_new(rpc: String, keyfile: PathBuf) -> TransportResult<Self> {
+        let client = RpcClient::new(rpc);
+        let keypair = read_keypair(keyfile)?;
+        Ok(Self { client, keypair })
     }
 }
 
@@ -368,9 +368,29 @@ impl SolanaTransport {
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_read_keypair() -> anyhow::Result<()> {
+        let keypair = read_keypair(
+            shellexpand::tilde("~/.config/solana/id.json")
+                .to_string()
+                .into(),
+        )?;
+        Ok(())
+    }
+
+    fn get_transport() -> anyhow::Result<SolanaTransport> {
+        let transport = SolanaTransport::try_new(
+            "http://localhost:8899".into(),
+            shellexpand::tilde("~/.config/solana/id.json")
+                .to_string()
+                .into(),
+        )?;
+        Ok(transport)
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn test_create_registration() -> anyhow::Result<()> {
-        let transport = SolanaTransport::new("http://localhost:8899".into());
+        let transport = get_transport()?;
         let addr = transport
             .create_registration(CreateRegistrationParams {
                 is_private: true,
@@ -385,8 +405,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_create_game() -> anyhow::Result<()> {
-        let transport = SolanaTransport::new("http://localhost:8899".into());
-        println!("Transport {:?}", transport);
+        let transport = get_transport()?;
         let addr = transport
             .create_game_account(CreateGameAccountParams {
                 title: "Texas Holdem".to_string(),
