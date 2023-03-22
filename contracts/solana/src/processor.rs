@@ -1,11 +1,14 @@
-use borsh::{BorshDeserialize, BorshSerialize};
+// use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
-
+// use race_core::types::{
+//     CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameRegistration,
+//     PlayerJoin, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
+//     ServerAccount, ServerJoin, UnregisterGameParams, VoteParams,
+// };
+use race_instructions::instruction::RaceInstruction;
 mod create_game;
 mod create_registry;
 mod register_game;
-
-use crate::instruction::RaceInstruction;
 
 pub fn process(
     program_id: &Pubkey,
@@ -17,7 +20,7 @@ pub fn process(
     match instruction {
         RaceInstruction::CreateGameAccount { params } => {
             create_game::process(program_id, accounts, params)
-        },
+        }
         RaceInstruction::CreateRegistry { params } => {
             msg!("Create a game center for registering games");
             create_registry::process(program_id, accounts, params)
@@ -25,7 +28,6 @@ pub fn process(
         RaceInstruction::RegGame { params } => {
             msg!("Register Game Account on Chain");
             register_game::process(program_id, accounts, params)
-        }
-        // _ => Ok(()),
+        } // _ => Ok(()),
     }
 }

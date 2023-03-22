@@ -6,7 +6,7 @@ use solana_program::{
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
-use std::result;
+// use std::result;
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone)]
@@ -31,7 +31,7 @@ pub struct ServerJoin {
 pub struct GameState {
     pub is_initialized: bool,
     pub title: String,
-    // pub addr: Pubkey,
+    // pub bundle_addr: Pubkey,
     pub owner: Pubkey,
     pub transactor_addr: Option<Pubkey>,
     pub access_version: u64,
@@ -100,14 +100,13 @@ mod tests {
     //     Ok(())
     // }
 
-    // #[test]
-    // pub fn test_deserialize_from_emtpy_gamestate() -> anyhow::Result<()> {
-    //     let buf = [0u8; 5000];
-    //     let mut state = GameState::unpack_unchecked(&buf);
-    //
-    //     Ok(())
-    // }
-
+    #[test]
+    pub fn test_deserialize_empty_gamestate() -> anyhow::Result<()> {
+        let buf = [0u8; 5000];
+        let mut state = GameState::unpack_unchecked(&buf)?;
+        // assert_eq!(false, state.is_initialized);
+        Ok(())
+    }
 
     pub fn make_game_state() -> GameState {
         let mut state = GameState::default();

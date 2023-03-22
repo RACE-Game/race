@@ -1,5 +1,5 @@
 [package]
-name = "race-solana"
+name = "race-instructions"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,13 +10,13 @@ no-entrypoint = []
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+race-core = { path = "../core" }
 solana-program = "1.15.2"
 spl-token = {version = "3.5.0", features = ["no-entrypoint"]}
 spl-associated-token-account = "1.1.2"
 borsh = "0.9.3"
 arrayref = "0.3.6"
-race-core = { path = "../../core" }
-race-instructions = { path = "../../instructions" }
+thiserror = "1.0.35"
 
 [dev-dependencies]
 anyhow = "1.0.64"

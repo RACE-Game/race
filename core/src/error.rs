@@ -129,6 +129,9 @@ pub enum Error {
     #[error("Initialization transport failed: {0}")]
     InitializationTransportFailed(String),
 
+    #[error("Initializing instruction failed: {0}")]
+    InitInstructionFailed(String),
+
     #[error("Initialize rpc client error: {0}")]
     InitializeRpcClientError(String),
 

@@ -13,6 +13,7 @@ members = [
   "client",
   "test",
   "contracts/solana",
+  "instructions",
   "examples/counter/core",
   "examples/minimal/core",
   "examples/chat",

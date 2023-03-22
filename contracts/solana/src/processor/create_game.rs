@@ -1,4 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
+// use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -9,12 +9,15 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
+use crate::{
+    error::RaceError,
+    state::{GameState, PlayerJoin},
+};
+use race_core::types::CreateGameAccountParams;
 use spl_token::{
     instruction::{set_authority, AuthorityType},
     state::Mint,
 };
-
-use crate::{state::{GameState, PlayerJoin}, instruction::CreateGameAccountParams};
 
 #[inline(never)]
 pub fn process(
@@ -24,11 +27,9 @@ pub fn process(
 ) -> ProgramResult {
     let account_iter = &mut accounts.iter();
     let payer = next_account_info(account_iter)?;
-    // let transactor_account = next_account_info(account_iter)?;
     let game_account = next_account_info(account_iter)?;
     let temp_stake_account = next_account_info(account_iter)?;
     let token_account = next_account_info(account_iter)?;
-    // let owner_account = next_account_info(account_iter)?;
     let token_program = next_account_info(account_iter)?;
 
     if !payer.is_signer {
@@ -53,41 +54,41 @@ pub fn process(
             token_program.clone(),
         ],
     )?;
-    msg!("1");
-    msg!("Game acct len {}", game_account.data_len());
-    msg!("Game acct data {:?}", game_account.try_borrow_data()?);
-    let mut game_state = GameState::unpack_unchecked(&game_account.try_borrow_data()?)?;
-    msg!("2");
-    if game_state.is_initialized {
-        msg!("The game already exists on chain!");
-        return Err(ProgramError::AccountAlreadyInitialized);
-    }
 
+    msg!("1");
     let token_state = Mint::unpack_unchecked(&token_account.data.borrow())?;
     if !token_state.is_initialized {
         return Err(ProgramError::UninitializedAccount);
     }
-    msg!("3");
 
-    game_state.is_initialized = true;
-    game_state.title = params.title;
-    game_state.owner = payer.key.clone();
-    game_state.transactor_addr = None;
-    game_state.settle_version = 0;
-    game_state.access_version = 0;
-    game_state.players = Box::new(Vec::<PlayerJoin>::with_capacity(params.max_players as usize));
-    game_state.servers = Box::new(vec![]);
-    game_state.max_players = params.max_players;
-    game_state.data_len = params.data.len() as u32;
-    game_state.data = Box::new(params.data);
+    // let bundle_addr = Pubkey::try_from(params.bundle_addr.as_bytes())
+    //     .map_err(|_| RaceError::UnpackOptionFailed)
+    //     .unwrap();
+
+    let mut game_state = GameState {
+        is_initialized: true,
+        title: params.title,
+        // bundle_addr,
+        owner: payer.key.clone(),
+        transactor_addr: None,
+        access_version: 0,
+        settle_version: 0,
+        max_players: params.max_players,
+        data_len: params.data.len() as u32,
+        data: Box::new(params.data),
+        players: Box::new(Vec::<PlayerJoin>::with_capacity(
+            params.max_players as usize,
+        )),
+        servers: Box::new(vec![]),
+        padding: Box::new(vec![]),
+    };
+
+    msg!("2");
 
     game_state.update_padding();
-    msg!("4");
 
-    // let test_vec = game_state.try_to_vec().unwrap();
-    // msg!("Game state len {}", test_vec.len());
     GameState::pack(game_state, &mut game_account.try_borrow_mut_data()?)?;
-    msg!("5");
+    msg!("On chain game account sucessfully created and initialized!");
 
     Ok(())
 }

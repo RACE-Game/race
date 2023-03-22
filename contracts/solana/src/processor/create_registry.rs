@@ -1,5 +1,7 @@
-use arrayref::array_mut_ref;
+// use arrayref::array_mut_ref;
+use crate::state::RegistryState;
 use borsh::{BorshDeserialize, BorshSerialize};
+use race_core::types::CreateRegistrationParams;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -10,13 +12,11 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-use crate::{instruction::CreateRegistryParams, state::RegistryState};
-
 #[inline(never)]
 pub fn process(
     _programe_id: &Pubkey,
     accounts: &[AccountInfo],
-    _params: CreateRegistryParams,
+    _params: CreateRegistrationParams,
 ) -> ProgramResult {
     let account_iter = &mut accounts.iter();
     let payer = next_account_info(account_iter)?;

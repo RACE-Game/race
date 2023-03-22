@@ -12,7 +12,7 @@ pub fn process_instruction(
     instruction_data: &[u8],
 ) -> ProgramResult {
     msg!(
-        "{}: {} accounts, data={:?}",
+        "Process Instruction {}: {} accounts, data={:?}",
         program_id,
         accounts.len(),
         instruction_data

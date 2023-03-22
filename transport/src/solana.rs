@@ -15,6 +15,9 @@ use race_core::{
         PlayerProfile, SettleParams,
     },
 };
+use race_instructions::error::InstructionError;
+use race_instructions::instruction::RaceInstruction;
+
 use serde_json;
 use std::fs::File;
 use std::path::PathBuf;
@@ -33,9 +36,6 @@ use spl_associated_token_account::get_associated_token_address;
 use spl_token::{
     check_id, check_program_account, id, instruction::initialize_account, state::Account, ID,
 };
-
-// Account to hold a token (like USDC)
-// Mint (metadata of a token, like decimals, owners)
 
 // TODO: Move the following structs to a separate module
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
@@ -82,7 +82,7 @@ pub struct TokenInfo {
 pub struct GameState {
     pub is_initialized: bool,
     pub title: String,
-    // pub addr: Pubkey,
+    // pub bundle_addr: Pubkey,
     pub owner: Pubkey,
     pub transactor_addr: Option<Pubkey>,
     pub access_version: u64,
@@ -101,7 +101,7 @@ fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
     Ok(keypair)
 }
 
-const PROGRAM_ID: &str = "ID";
+const PROGRAM_ID: &str = "8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu";
 const SOL: &str = "So11111111111111111111111111111111111111112";
 
 pub struct SolanaTransport {
@@ -113,7 +113,8 @@ pub struct SolanaTransport {
 #[allow(unused_variables)]
 impl TransportT for SolanaTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
-        let program_id = Pubkey::from_str(PROGRAM_ID).unwrap();
+        let program_id = Pubkey::from_str(PROGRAM_ID)
+            .map_err(|_| TransportError::InvalidConfig)?;
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
@@ -123,6 +124,7 @@ impl TransportT for SolanaTransport {
         let lamports = self
             .client
             .get_minimum_balance_for_rent_exemption(game_account_len)
+            .map_err(|_| TransportError::NoEnoughLamports)
             .unwrap();
         let create_game_account_ix = create_account(
             &payer_pubkey,
@@ -140,6 +142,7 @@ impl TransportT for SolanaTransport {
         let temp_lamports = self
             .client
             .get_minimum_balance_for_rent_exemption(temp_account_len)
+            .map_err(|_| TransportError::NoEnoughLamports)
             .unwrap();
         let create_temp_account_ix = create_account(
             &payer_pubkey,
@@ -150,15 +153,15 @@ impl TransportT for SolanaTransport {
         );
 
         let init_temp_account_ix =
-            initialize_account(&ID, &temp_account_pubkey, &token_pubkey, &payer_pubkey).unwrap();
+            initialize_account(&ID, &temp_account_pubkey, &token_pubkey, &payer_pubkey)
+                .map_err(|e| InstructionError::InitInstructionFailed(e.to_string()))
+                .unwrap();
 
-        let mut game_init_data = params.try_to_vec().unwrap();
-        game_init_data.insert(0usize, 0u8);
-        println!("Gmae init data {:?}", game_init_data);
+        let ix_data = RaceInstruction::pack(RaceInstruction::CreateGameAccount { params }).unwrap();
 
         let create_game_ix = Instruction::new_with_bytes(
             program_id.clone(),
-            &game_init_data,
+            &ix_data,
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new(game_account_pubkey, false),
@@ -178,9 +181,15 @@ impl TransportT for SolanaTransport {
             Some(&payer.pubkey()),
         );
         let mut tx = Transaction::new_unsigned(message);
-        let blockhash = self.client.get_latest_blockhash().unwrap();
+        let blockhash = self
+            .client
+            .get_latest_blockhash()
+            .map_err(|_| TransportError::GetBlockhashFailed)
+            .unwrap();
         tx.sign(&[&payer, &game_account, &temp_account], blockhash);
-        self.client.send_and_confirm_transaction(&tx).unwrap();
+        self.client
+            .send_and_confirm_transaction(&tx)
+            .map_err(|_| TransportError::ClientSendTransactionFailed)?;
 
         Ok(game_account_pubkey.to_string())
     }
@@ -229,8 +238,11 @@ impl TransportT for SolanaTransport {
         let lamports = self
             .client
             .get_minimum_balance_for_rent_exemption(registry_data_len)
+            .map_err(|_| TransportError::NoEnoughLamports)
             .unwrap();
-        let program_id = Pubkey::from_str(PROGRAM_ID).unwrap();
+        let program_id = Pubkey::from_str(PROGRAM_ID)
+            .map_err(|_| TransportError::InvalidConfig)
+            .unwrap();
         let create_account_ix = create_account(
             &payer_pubkey,
             &registry_account_pubkey,
@@ -259,10 +271,16 @@ impl TransportT for SolanaTransport {
             &[create_account_ix, create_registry_ix],
             Some(&payer.pubkey()),
         );
-        let blockhash = self.client.get_latest_blockhash().unwrap();
+        let blockhash = self
+            .client
+            .get_latest_blockhash()
+            .map_err(|_| TransportError::GetBlockhashFailed)
+            .unwrap();
         let mut tx = Transaction::new_unsigned(message);
         tx.sign(&[&payer, &registry_account], blockhash);
-        self.client.send_and_confirm_transaction(&tx).unwrap();
+        self.client
+            .send_and_confirm_transaction(&tx)
+            .map_err(|_| TransportError::ClientSendTransactionFailed)?;
         Ok(registry_account_pubkey.to_string())
     }
 
@@ -275,18 +293,26 @@ impl TransportT for SolanaTransport {
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
-        let game_account_pubkey = Pubkey::from_str(addr).unwrap();
-        let data = self.client.get_account_data(&game_account_pubkey).unwrap();
-        let state = GameState::try_from_slice(&data).unwrap();
+        let game_account_pubkey = Pubkey::from_str(addr)
+            .map_err(|_| TransportError::InvalidConfig)
+            .unwrap();
+        let data = self
+            .client
+            .get_account_data(&game_account_pubkey)
+            .map_err(|_| TransportError::ClientGetDataFailed)
+            .unwrap();
+        let state = GameState::try_from_slice(&data).map_err(|_| TransportError::ClientGetDataFailed).unwrap();
+        // let bundle_addr = state.bundle_addr.to_string();
         let transactor_addr = match state.transactor_addr {
             Some(pubkey) => Some(pubkey.to_string()),
             None => None,
         };
+
         Some(GameAccount {
             addr: addr.to_owned(),
             title: state.title,
             settle_version: state.settle_version,
-            bundle_addr: "FAKE BUNDLE".into(),
+            bundle_addr: "FAKE".into(),
             access_version: state.access_version,
             players: state
                 .players
@@ -408,8 +434,8 @@ mod tests {
         let transport = get_transport()?;
         let addr = transport
             .create_game_account(CreateGameAccountParams {
-                title: "Texas Holdem".to_string(),
-                bundle_addr: "FAKE BUNDLE".to_string(),
+                title: "HHHHH".to_string(),
+                bundle_addr: "FAKE".to_string(),
                 max_players: 9,
                 data: Vec::<u8>::new(),
             })
@@ -417,8 +443,8 @@ mod tests {
 
         let game = transport.get_game_account(&addr).await.unwrap();
         assert_eq!(game.addr, addr);
-        assert_eq!(game.bundle_addr, "FAKE BUNDLE".to_string());
-        assert_eq!(game.title, "Texas Holdem".to_string());
+        assert_eq!(game.bundle_addr, "FAKE".to_string());
+        assert_eq!(game.title, "HHHHH".to_string());
 
         Ok(())
     }
