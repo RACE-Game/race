@@ -70,6 +70,23 @@ impl InitAccount {
     pub fn data<S: BorshDeserialize>(&self) -> Result<S> {
         S::try_from_slice(&self.data).or(Err(Error::DeserializeError))
     }
+
+    /// Add a new player.  This function is only available in tests.
+    /// This function will panic when a duplicated position is
+    /// specified.
+    pub fn add_player<S: Into<String>>(&mut self, addr: S, position: usize, balance: u64) {
+        self.access_version += 1;
+        let access_version = self.access_version;
+        if self.players.iter().any(|p| p.position == position) {
+            panic!("Failed to add player, duplicated position");
+        }
+        self.players.push(PlayerJoin {
+            position,
+            balance,
+            addr: addr.into(),
+            access_version,
+        })
+    }
 }
 
 impl Default for InitAccount {
@@ -114,6 +131,13 @@ pub fn general_handle_event(
             }
             Ok(())
         }
+
+        Event::AnswerDecision {
+            sender,
+            decision_id,
+            ciphertext,
+            digest,
+        } => context.answer_decision(*decision_id, sender, ciphertext.clone(), digest.clone()),
 
         Event::Mask {
             sender,
@@ -193,6 +217,23 @@ pub fn general_handle_event(
             }
             for (random_id, revealed) in res.into_iter() {
                 context.add_revealed_random(random_id, revealed)?;
+            }
+            let mut res = vec![];
+            for decision_state in context.list_decision_states() {
+                let secret = decision_state.get_secret()?;
+                let mut buf = decision_state
+                    .get_answer()
+                    .ok_or(Error::InvalidDecisionAnswer)?
+                    .ciphertext
+                    .clone();
+                encryptor.apply(secret, &mut buf);
+                res.push((
+                    decision_state.id,
+                    String::from_utf8(buf).or(Err(Error::DecryptionFailed))?,
+                ));
+            }
+            for (decision_id, revealed) in res.into_iter() {
+                context.add_revealed_answer(decision_id, revealed)?;
             }
             Ok(())
         }

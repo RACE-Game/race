@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::Serialize;
 
 use crate::decision::DecisionState;
-use crate::effect::{Assign, Effect, Prompt, Reveal};
+use crate::effect::{Ask, Assign, Effect, Reveal, Release};
 use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
@@ -448,6 +448,12 @@ impl GameContext {
         Ok(())
     }
 
+    pub fn release(&mut self, decision_id: DecisionId) -> Result<()> {
+        let state = self.get_decision_state_mut(decision_id)?;
+        state.release()?;
+        Ok(())
+    }
+
     pub fn is_random_ready(&self, random_id: RandomId) -> bool {
         match self.get_random_state(random_id) {
             Ok(rnd) => matches!(
@@ -730,11 +736,11 @@ impl GameContext {
 
     pub fn add_revealed_answer(&mut self, decision_id: DecisionId, revealed: String) -> Result<()> {
         let st = self.get_decision_state_mut(decision_id)?;
-        st.add_revealed(revealed)
+        st.add_released(revealed)
     }
 
-    pub fn prompt(&mut self, owner: String) -> DecisionId {
-        let id = self.decision_states.len();
+    pub fn ask(&mut self, owner: String) -> DecisionId {
+        let id = self.decision_states.len() + 1;
         let st = DecisionState::new(id, owner);
         self.decision_states.push(st);
         id
@@ -763,9 +769,10 @@ impl GameContext {
             start_game,
             stop_game,
             cancel_dispatch,
-            prompts,
+            asks,
             assigns,
             reveals,
+            releases,
             init_random_states,
             settles,
             handler_state,
@@ -798,8 +805,12 @@ impl GameContext {
             self.reveal(random_id, indexes)?;
         }
 
-        for Prompt { player_addr } in prompts.into_iter() {
-            self.prompt(player_addr);
+        for Release { decision_id } in releases.into_iter() {
+            self.release(decision_id)?;
+        }
+
+        for Ask { player_addr } in asks.into_iter() {
+            self.ask(player_addr);
         }
 
         for spec in init_random_states.into_iter() {

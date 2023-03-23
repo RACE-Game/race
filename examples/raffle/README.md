@@ -30,8 +30,7 @@ Now, we are going to write the game logic.  Open `src/lib.rs` in your code edito
 ## Define Game State
 
 ```rust
-use race::proc_macro::game_handler;
-use borsh::{BorshSerialize, BorshDeserialize};
+use race::core::prelude::*;
 
 #[derive(BorshDeserialize, BorshSerialize)]
 struct Player {
@@ -101,6 +100,7 @@ impl GameHandler for Raffle {
             draw_time,
         })
     }
+
     ...
 }
 ```
@@ -111,7 +111,67 @@ information from account, and set a draw time at 30 seconds later.
 ### handle_event
 
 ```rust
+impl GameHandler for Raffle {
+    ...
 
+    fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()> {
+        match event {
+            Event::GameStart { .. } => {
+                // We need at least one player to start, otherwise we will skip this draw.
+                if context.count_players() >= 1 {
+                    let options = self.players.iter().map(|p| p.addr.to_owned()).collect();
+                    let rnd_spec = RandomSpec::shuffled_list(options);
+                    self.random_id = context.init_random_state(rnd_spec);
+                } else {
+                    self.draw_time = context.timestamp() + 30_000;
+                    context.wait_timeout(30_000);
+                }
+            }
+
+            Event::Sync { new_players, .. } => {
+                let players = new_players.into_iter().map(Into::into);
+                self.players.extend(players);
+            }
+
+            // Reveal the first address when randomness is ready.
+            Event::RandomnessReady { .. } => {
+                context.reveal(self.random_id, vec![0]);
+            }
+
+            // Start game when we have enough players.
+            Event::WaitingTimeout => {
+                context.start_game();
+            }
+
+            // Eject all players when encryption failed.
+            Event::OperationTimeout { .. } => {
+                context.wait_timeout(60_000);
+                self.cleanup();
+            }
+
+            Event::SecretsReady => {
+                let winner = context
+                    .get_revealed(self.random_id)?
+                    .get(&0)
+                    .unwrap()
+                    .to_owned();
+
+                for p in self.players.iter() {
+                    if p.addr.ne(&winner) {
+                        context.settle(Settle::add(&winner, p.balance));
+                        context.settle(Settle::sub(&p.addr, p.balance));
+                    }
+                    context.settle(Settle::eject(&p.addr));
+                }
+                context.wait_timeout(5_000);
+                self.last_winner = Some(winner);
+                self.cleanup();
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+}
 ```
 
 Here we are at the most difficult part.  There are a lot of events we

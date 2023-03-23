@@ -103,8 +103,10 @@ pub enum Event {
 
     /// Answer the decision question with encrypted ciphertext
     AnswerDecision {
+        sender: String,
         decision_id: DecisionId,
         ciphertext: Ciphertext,
+        digest: SecretDigest,
     },
 
     /// All required secrets are shared

@@ -7,7 +7,8 @@ use race_core::{
     context::GameContext,
     error::Result,
     event::{CustomEvent, Event},
-    types::{AttachGameParams, ClientMode, ExitGameParams, SubmitEventParams}, secret::SecretState,
+    secret::SecretState,
+    types::{AttachGameParams, ClientMode, DecisionId, ExitGameParams, SubmitEventParams},
 };
 use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, Mutex};
@@ -94,8 +95,12 @@ impl TestClient {
     pub fn custom_event<E: CustomEvent>(&self, custom_event: E) -> Event {
         Event::Custom {
             sender: self.client.addr.to_owned(),
-            raw: serde_json::to_string(&custom_event).unwrap()
+            raw: serde_json::to_string(&custom_event).unwrap(),
         }
+    }
+
+    pub fn answer(&mut self, decision_id: DecisionId, answer: String) -> Result<Event> {
+        self.client.answer_event(decision_id, answer)
     }
 }
 

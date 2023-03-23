@@ -12,16 +12,16 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 pub enum DecisionStatus {
-    Prompted,
+    Asked,
     Answered,
-    Revealing,
-    Revealed,
+    Releasing,
+    Released,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 pub struct Answer {
-    digest: SecretDigest,
-    ciphertext: Ciphertext,
+    pub digest: SecretDigest,
+    pub ciphertext: Ciphertext,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
@@ -39,7 +39,7 @@ impl DecisionState {
         Self {
             id,
             owner,
-            status: DecisionStatus::Prompted,
+            status: DecisionStatus::Asked,
             answer: None,
             secret: None,
             value: None,
@@ -55,7 +55,7 @@ impl DecisionState {
         if self.owner.ne(owner) {
             return Err(Error::InvalidDecisionOwner);
         }
-        if self.status.ne(&DecisionStatus::Prompted) {
+        if self.status.ne(&DecisionStatus::Asked) {
             return Err(Error::InvalidDecisionStatus);
         }
         self.answer = Some(Answer { ciphertext, digest });
@@ -63,17 +63,21 @@ impl DecisionState {
         Ok(())
     }
 
-    pub fn reveal(&mut self) -> Result<()> {
+    pub fn release(&mut self) -> Result<()> {
+        println!("Release");
         if self.status != DecisionStatus::Answered {
             Err(Error::InvalidDecisionStatus)
         } else {
-            self.status = DecisionStatus::Revealing;
+            self.status = DecisionStatus::Releasing;
             Ok(())
         }
     }
 
-    pub fn add_revealed(&mut self, value: String) -> Result<()> {
-        if self.status != DecisionStatus::Answered {
+    /// Add the decryption result.
+    ///
+    /// So that it can be read inside the game handler.
+    pub fn add_released(&mut self, value: String) -> Result<()> {
+        if self.status != DecisionStatus::Released {
             Err(Error::InvalidDecisionStatus)
         } else {
             self.value = Some(value);
@@ -81,15 +85,25 @@ impl DecisionState {
         }
     }
 
+    /// Add the shared secret and update the status.
+    ///
+    /// The secret will be used to decrypt the answer.
     pub fn add_secret(&mut self, owner: &str, secret: SecretKey) -> Result<()> {
-        if self.status != DecisionStatus::Revealing {
+        if self.status != DecisionStatus::Releasing {
             Err(Error::InvalidDecisionStatus)
         } else if self.owner.ne(owner) {
             Err(Error::InvalidDecisionOwner)
         } else {
             self.secret = Some(secret);
-            self.status = DecisionStatus::Revealed;
+            self.status = DecisionStatus::Released;
             Ok(())
+        }
+    }
+
+    pub fn get_secret(&self) -> Result<&SecretKey> {
+        match self.secret.as_ref() {
+            Some(secret) => Ok(secret),
+            None => Err(Error::InvalidDecisionStatus),
         }
     }
 
@@ -98,15 +112,15 @@ impl DecisionState {
     }
 
     pub fn is_prompted(&self) -> bool {
-        self.status == DecisionStatus::Prompted
+        self.status == DecisionStatus::Asked
     }
 
     pub fn is_revealed(&self) -> bool {
-        self.status == DecisionStatus::Revealed
+        self.status == DecisionStatus::Released
     }
 
     pub fn is_revealing(&self) -> bool {
-        self.status == DecisionStatus::Revealing
+        self.status == DecisionStatus::Releasing
     }
 
     pub fn get_answer(&self) -> Option<&Answer> {
@@ -114,7 +128,11 @@ impl DecisionState {
     }
 
     pub fn get_revealed(&self) -> Option<&String> {
-       self.value.as_ref()
+        self.value.as_ref()
+    }
+
+    pub fn get_owner(&self) -> &str {
+        self.owner.as_ref()
     }
 }
 
@@ -132,7 +150,13 @@ mod tests {
     fn test_answer() -> anyhow::Result<()> {
         let mut st = DecisionState::new(1, "Alice".into());
         st.answer("Alice", vec![1], vec![2])?;
-        assert_eq!(st.answer, Some(Answer { digest: vec![2], ciphertext: vec![1] }));
+        assert_eq!(
+            st.answer,
+            Some(Answer {
+                digest: vec![2],
+                ciphertext: vec![1]
+            })
+        );
         assert!(st.is_answered());
         Ok(())
     }
@@ -141,9 +165,9 @@ mod tests {
     fn test_reveal() -> anyhow::Result<()> {
         let mut st = DecisionState::new(1, "Alice".into());
         st.answer("Alice", vec![1], vec![2])?;
-        st.reveal()?;
+        st.release()?;
         assert!(st.is_revealing());
-        assert_eq!(st.reveal(), Err(Error::InvalidDecisionStatus));
+        assert_eq!(st.release(), Err(Error::InvalidDecisionStatus));
         Ok(())
     }
 
@@ -151,9 +175,15 @@ mod tests {
     fn test_add_secret() -> anyhow::Result<()> {
         let mut st = DecisionState::new(1, "Alice".into());
         st.answer("Alice", vec![1], vec![2])?;
-        assert_eq!(st.add_secret("Alice", vec![0]), Err(Error::InvalidDecisionStatus));
-        st.reveal()?;
-        assert_eq!(st.add_secret("Bob", vec![0]), Err(Error::InvalidDecisionOwner));
+        assert_eq!(
+            st.add_secret("Alice", vec![0]),
+            Err(Error::InvalidDecisionStatus)
+        );
+        st.release()?;
+        assert_eq!(
+            st.add_secret("Bob", vec![0]),
+            Err(Error::InvalidDecisionOwner)
+        );
         st.add_secret("Alice", vec![0])?;
         assert!(st.is_revealed());
         Ok(())

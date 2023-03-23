@@ -2621,6 +2621,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "race-example-roshambo"
+version = "0.1.0"
+dependencies = [
+ "arrayref",
+ "borsh",
+ "race-core",
+ "race-test",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "race-facade"
 version = "0.1.0"
 dependencies = [

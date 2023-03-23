@@ -85,7 +85,7 @@ impl SecretState {
         }
     }
 
-    pub fn get_answer_secret(&self, decision_id: DecisionId) -> Option<SecretKey> {
+    pub fn get_decision_secret(&self, decision_id: DecisionId) -> Option<SecretKey> {
         self.decision_secrets
             .get(&decision_id)
             .map(|s| s.to_owned())
@@ -163,12 +163,13 @@ impl SecretState {
         &mut self,
         decision_id: DecisionId,
         answer: String,
-    ) -> Result<Ciphertext> {
+    ) -> Result<(Ciphertext, SecretDigest)> {
         let secret = self.encryptor.gen_secret();
         let mut ciphertext = answer.as_bytes().to_owned();
         self.encryptor.apply(&secret, &mut ciphertext);
+        let digest = self.encryptor.digest(&secret);
         self.decision_secrets.insert(decision_id, secret);
-        Ok(ciphertext)
+        Ok((ciphertext, digest))
     }
 
     pub fn list_random_secrets(&self) -> Vec<&RandomSecretGroup> {

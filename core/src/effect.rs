@@ -13,32 +13,33 @@ use crate::{
     types::{DecisionId, RandomId, Settle},
 };
 
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(BorshSerialize, BorshDeserialize)]
-pub(crate) struct Prompt {
-    pub(crate) player_addr: String,
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+pub struct Ask {
+    pub player_addr: String,
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(BorshSerialize, BorshDeserialize)]
-pub(crate) struct Assign {
-    pub(crate) random_id: RandomId,
-    pub(crate) player_addr: String,
-    pub(crate) indexes: Vec<usize>,
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+pub struct Assign {
+    pub random_id: RandomId,
+    pub player_addr: String,
+    pub indexes: Vec<usize>,
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(BorshSerialize, BorshDeserialize)]
-pub(crate) struct Reveal {
-    pub(crate) random_id: RandomId,
-    pub(crate) indexes: Vec<usize>,
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+pub struct Reveal {
+    pub random_id: RandomId,
+    pub indexes: Vec<usize>,
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(BorshSerialize, BorshDeserialize)]
-pub(crate) struct ActionTimeout {
-    pub(crate) player_addr: String,
-    pub(crate) timeout: u64,
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+pub struct Release {
+    pub decision_id: DecisionId,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+pub struct ActionTimeout {
+    pub player_addr: String,
+    pub timeout: u64,
 }
 
 /// An effect used in game handler, provide reading and mutating to
@@ -88,7 +89,7 @@ pub(crate) struct ActionTimeout {
 /// ```
 /// # use race_core::effect::Effect;
 /// let mut effect = Effect::default();
-/// let decision_id: usize = effect.prompt("Alice");
+/// let decision_id: usize = effect.ask("Alice");
 /// ```
 ///
 /// To reveal the answer, use [`Effect::reveal_answer`].
@@ -96,7 +97,7 @@ pub(crate) struct ActionTimeout {
 /// ```
 /// # use race_core::effect::Effect;
 /// let mut effect = Effect::default();
-/// effect.reveal_answer(1 /* decision_id */);
+/// effect.release(1 /* decision_id */);
 /// ```
 ///
 /// # Timeouts
@@ -132,31 +133,31 @@ pub(crate) struct ActionTimeout {
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Default, BorshSerialize, BorshDeserialize)]
 pub struct Effect {
-    pub(crate) action_timeout: Option<ActionTimeout>,
-    pub(crate) wait_timeout: Option<u64>,
-    pub(crate) start_game: bool,
-    pub(crate) stop_game: bool,
-    pub(crate) cancel_dispatch: bool,
-    pub(crate) timestamp: u64,
-    pub(crate) curr_random_id: RandomId,
-    pub(crate) curr_decision_id: DecisionId,
-    pub(crate) players_count: usize,
-    pub(crate) servers_count: usize,
-    pub(crate) prompts: Vec<Prompt>,
-    pub(crate) assigns: Vec<Assign>,
-    pub(crate) reveals: Vec<Reveal>,
-    pub(crate) init_random_states: Vec<RandomSpec>,
-    pub(crate) revealed: BTreeMap<usize, BTreeMap<usize, String>>,
-    pub(crate) answered: BTreeMap<usize, String>,
-    pub(crate) settles: Vec<Settle>,
-    pub(crate) handler_state: Option<String>,
-    pub(crate) error: Option<Error>,
-    pub(crate) allow_exit: bool,
+    pub action_timeout: Option<ActionTimeout>,
+    pub wait_timeout: Option<u64>,
+    pub start_game: bool,
+    pub stop_game: bool,
+    pub cancel_dispatch: bool,
+    pub timestamp: u64,
+    pub curr_random_id: RandomId,
+    pub curr_decision_id: DecisionId,
+    pub players_count: usize,
+    pub servers_count: usize,
+    pub asks: Vec<Ask>,
+    pub assigns: Vec<Assign>,
+    pub reveals: Vec<Reveal>,
+    pub releases: Vec<Release>,
+    pub init_random_states: Vec<RandomSpec>,
+    pub revealed: BTreeMap<usize, BTreeMap<usize, String>>,
+    pub answered: BTreeMap<usize, String>,
+    pub settles: Vec<Settle>,
+    pub handler_state: Option<String>,
+    pub error: Option<Error>,
+    pub allow_exit: bool,
 }
 
 impl Effect {
     pub fn from_context(context: &GameContext) -> Self {
-
         let revealed = context
             .list_random_states()
             .iter()
@@ -187,9 +188,10 @@ impl Effect {
             curr_decision_id: context.list_decision_states().len() + 1,
             players_count: context.count_players(),
             servers_count: context.count_servers(),
-            prompts: Vec::new(),
+            asks: Vec::new(),
             assigns: Vec::new(),
             reveals: Vec::new(),
+            releases: Vec::new(),
             init_random_states: Vec::new(),
             revealed,
             answered,
@@ -256,9 +258,9 @@ impl Effect {
         }
     }
 
-    /// Prompt a player for a decision, return the new decision id.
-    pub fn prompt<S: Into<String>>(&mut self, player_addr: S) -> DecisionId {
-        self.prompts.push(Prompt {
+    /// Ask a player for a decision, return the new decision id.
+    pub fn ask<S: Into<String>>(&mut self, player_addr: S) -> DecisionId {
+        self.asks.push(Ask {
             player_addr: player_addr.into(),
         });
         let decision_id = self.curr_decision_id;
@@ -266,8 +268,9 @@ impl Effect {
         decision_id
     }
 
-    /// Reveal an answer of a decision by id.
-    pub fn reveal_answer(&mut self, _decision_id: DecisionId) {}
+    pub fn release(&mut self, decision_id: DecisionId) {
+        self.releases.push(Release { decision_id })
+    }
 
     /// Dispatch action timeout event for a player after certain milliseconds.
     pub fn action_timeout<S: Into<String>>(&mut self, player_addr: S, timeout: u64) {
@@ -377,7 +380,7 @@ mod tests {
             curr_decision_id: 1,
             players_count: 4,
             servers_count: 4,
-            prompts: vec![Prompt {
+            asks: vec![Ask {
                 player_addr: "bob".into(),
             }],
             assigns: vec![Assign {
@@ -389,6 +392,7 @@ mod tests {
                 random_id: 1,
                 indexes: vec![0, 1, 2],
             }],
+            releases: vec![Release { decision_id: 1 }],
             init_random_states: vec![RandomSpec::shuffled_list(vec!["a".into(), "b".into()])],
             revealed,
             answered,
