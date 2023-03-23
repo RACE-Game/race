@@ -1,7 +1,6 @@
 // use arrayref::array_mut_ref;
 use crate::state::RegistryState;
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::types::CreateRegistrationParams;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -11,6 +10,8 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
+use race_solana_types::types::CreateRegistrationParams;
+
 
 #[inline(never)]
 pub fn process(

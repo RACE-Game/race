@@ -3473,20 +3473,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "race-instructions"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arrayref",
- "borsh",
- "race-core",
- "solana-program",
- "spl-associated-token-account",
- "spl-token",
- "thiserror",
-]
-
-[[package]]
 name = "race-proc-macro"
 version = "0.1.0"
 dependencies = [
@@ -3532,11 +3518,22 @@ dependencies = [
  "anyhow",
  "arrayref",
  "borsh",
- "race-core",
- "race-instructions",
+ "race-solana-types",
  "solana-program",
  "spl-associated-token-account",
  "spl-token",
+]
+
+[[package]]
+name = "race-solana-types"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "solana-program",
+ "spl-associated-token-account",
+ "spl-token",
+ "thiserror",
 ]
 
 [[package]]
@@ -3599,7 +3596,7 @@ dependencies = [
  "jsonrpsee",
  "race-core",
  "race-env",
- "race-instructions",
+ "race-solana-types",
  "serde",
  "serde_json",
  "shellexpand",

@@ -15,8 +15,10 @@ use race_core::{
         PlayerProfile, SettleParams,
     },
 };
-use race_instructions::error::InstructionError;
-use race_instructions::instruction::RaceInstruction;
+
+use race_solana_types::error::InstructionError;
+use race_solana_types::types as solana_types;
+use race_solana_types::instruction::RaceInstruction;
 
 use serde_json;
 use std::fs::File;
@@ -82,7 +84,7 @@ pub struct TokenInfo {
 pub struct GameState {
     pub is_initialized: bool,
     pub title: String,
-    // pub bundle_addr: Pubkey,
+    pub bundle_addr: Pubkey,
     pub owner: Pubkey,
     pub transactor_addr: Option<Pubkey>,
     pub access_version: u64,
@@ -113,11 +115,11 @@ pub struct SolanaTransport {
 #[allow(unused_variables)]
 impl TransportT for SolanaTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
-        let program_id = Pubkey::from_str(PROGRAM_ID)
-            .map_err(|_| TransportError::InvalidConfig)?;
+        let program_id = Pubkey::from_str(PROGRAM_ID).map_err(|_| TransportError::InvalidConfig)?;
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
-
+        let bundle_pubkey =
+            Pubkey::from_str(&params.bundle_addr).map_err(|_| TransportError::InvalidConfig)?;
         let game_account = Keypair::new();
         let game_account_pubkey = game_account.pubkey();
         let game_account_len = 5000;
@@ -134,7 +136,6 @@ impl TransportT for SolanaTransport {
             &program_id,
         );
 
-        // let token_pubkey = get_associated_token_address(&payer, SOL)
         let token_pubkey = Pubkey::from_str(SOL).unwrap();
         let temp_account = Keypair::new();
         let temp_account_pubkey = temp_account.pubkey();
@@ -154,10 +155,19 @@ impl TransportT for SolanaTransport {
 
         let init_temp_account_ix =
             initialize_account(&ID, &temp_account_pubkey, &token_pubkey, &payer_pubkey)
-                .map_err(|e| InstructionError::InitInstructionFailed(e.to_string()))
+                .map_err(|e| InstructionError::InitAccountFailed)
                 .unwrap();
 
-        let ix_data = RaceInstruction::pack(RaceInstruction::CreateGameAccount { params }).unwrap();
+        let ix_data = RaceInstruction::pack(
+            RaceInstruction::CreateGameAccount {
+                params: solana_types::CreateGameAccountParams {
+                    title: params.title,
+                    max_players: params.max_players,
+                    data: params.data
+                }
+            })
+            .map_err(|_| InstructionError::PackingInstructionDataError)
+            .unwrap();
 
         let create_game_ix = Instruction::new_with_bytes(
             program_id.clone(),
@@ -168,6 +178,7 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new(temp_account_pubkey, true),
                 AccountMeta::new_readonly(token_pubkey, false),
                 AccountMeta::new_readonly(ID, false),
+                AccountMeta::new_readonly(bundle_pubkey, false),
                 // TODO: scene pubkey
             ],
         );
@@ -301,7 +312,9 @@ impl TransportT for SolanaTransport {
             .get_account_data(&game_account_pubkey)
             .map_err(|_| TransportError::ClientGetDataFailed)
             .unwrap();
-        let state = GameState::try_from_slice(&data).map_err(|_| TransportError::ClientGetDataFailed).unwrap();
+        let state = GameState::try_from_slice(&data)
+            .map_err(|_| TransportError::ClientGetDataFailed)
+            .unwrap();
         // let bundle_addr = state.bundle_addr.to_string();
         let transactor_addr = match state.transactor_addr {
             Some(pubkey) => Some(pubkey.to_string()),

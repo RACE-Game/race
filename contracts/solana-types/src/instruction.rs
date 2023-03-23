@@ -1,9 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::program_error::ProgramError;
-use race_core::types::{
-    CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameRegistration,
-    PlayerJoin, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-    ServerAccount, ServerJoin, UnregisterGameParams, VoteParams,
+use crate::types::{
+    CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams,    RegisterGameParams
 };
 
 
@@ -15,13 +13,12 @@ pub enum RaceInstruction {
     ///
     /// Accounts expected:
     /// 0. `[signer]` The account of transactor.
-    /// 1. `[]` The transactor account.
-    /// 2. `[writable]` The game account, hold all necessary info about the game.
-    /// 3. `[writable]` The temp stake account.
-    /// 4. `[]` The owner's account.
-    /// 5. `[]` The mint account.
-    /// 6. `[]` The scene NFT account.
-    /// 7. `[]` The token program.
+    /// 1. `[writable]` The game account, hold all necessary info about the game.
+    /// 2. `[writable]` The temp stake account.
+    /// 3. `[]` The mint account.
+    /// 4. `[]` The scene NFT account.
+    /// 5. `[]` The bundled data account
+    // TODO: add Game scene NFT to this ix
     CreateGameAccount { params: CreateGameAccountParams },
 
     /// #1 Create an on-chain "lobby" for game registration

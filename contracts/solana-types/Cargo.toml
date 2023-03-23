@@ -1,21 +1,16 @@
 [package]
-name = "race-instructions"
+name = "race-solana-types"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-no-entrypoint = []
-
-[lib]
-crate-type = ["cdylib", "rlib"]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-race-core = { path = "../core" }
 solana-program = "1.15.2"
 spl-token = {version = "3.5.0", features = ["no-entrypoint"]}
 spl-associated-token-account = "1.1.2"
 borsh = "0.9.3"
-arrayref = "0.3.6"
+# arrayref = "0.3.6"
 thiserror = "1.0.35"
 
 [dev-dependencies]

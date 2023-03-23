@@ -9,14 +9,14 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{
-    error::RaceError,
-    state::{GameState, PlayerJoin},
-};
-use race_core::types::CreateGameAccountParams;
 use spl_token::{
     instruction::{set_authority, AuthorityType},
     state::Mint,
+};
+use race_solana_types::types::CreateGameAccountParams;
+use crate::{
+    error::RaceError,
+    state::{GameState, PlayerJoin},
 };
 
 #[inline(never)]
@@ -31,6 +31,7 @@ pub fn process(
     let temp_stake_account = next_account_info(account_iter)?;
     let token_account = next_account_info(account_iter)?;
     let token_program = next_account_info(account_iter)?;
+    let bundle_account = next_account_info(account_iter)?;
 
     if !payer.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
@@ -61,14 +62,10 @@ pub fn process(
         return Err(ProgramError::UninitializedAccount);
     }
 
-    // let bundle_addr = Pubkey::try_from(params.bundle_addr.as_bytes())
-    //     .map_err(|_| RaceError::UnpackOptionFailed)
-    //     .unwrap();
-
     let mut game_state = GameState {
         is_initialized: true,
         title: params.title,
-        // bundle_addr,
+        bundle_addr: bundle_account.key.clone(),
         owner: payer.key.clone(),
         transactor_addr: None,
         access_version: 0,
@@ -82,8 +79,6 @@ pub fn process(
         servers: Box::new(vec![]),
         padding: Box::new(vec![]),
     };
-
-    msg!("2");
 
     game_state.update_padding();
 

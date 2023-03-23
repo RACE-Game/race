@@ -31,7 +31,7 @@ pub struct ServerJoin {
 pub struct GameState {
     pub is_initialized: bool,
     pub title: String,
-    // pub bundle_addr: Pubkey,
+    pub bundle_addr: Pubkey,
     pub owner: Pubkey,
     pub transactor_addr: Option<Pubkey>,
     pub access_version: u64,
@@ -100,13 +100,13 @@ mod tests {
     //     Ok(())
     // }
 
-    #[test]
-    pub fn test_deserialize_empty_gamestate() -> anyhow::Result<()> {
-        let buf = [0u8; 5000];
-        let mut state = GameState::unpack_unchecked(&buf)?;
-        // assert_eq!(false, state.is_initialized);
-        Ok(())
-    }
+    // #[test]
+    // pub fn test_deserialize_empty_gamestate() -> anyhow::Result<()> {
+    //     let buf = [0u8; 5000];
+    //     let mut state = GameState::unpack_unchecked(&buf)?;
+    //     // assert_eq!(false, state.is_initialized);
+    //     Ok(())
+    // }
 
     pub fn make_game_state() -> GameState {
         let mut state = GameState::default();

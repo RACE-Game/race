@@ -4,7 +4,7 @@ use crate::{
     state::{GameReg, GameState, RegistryState},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::types::RegisterGameParams;
+use race_solana_types::types::RegisterGameParams;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,

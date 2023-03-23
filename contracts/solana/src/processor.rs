@@ -1,11 +1,6 @@
-// use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
-// use race_core::types::{
-//     CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameRegistration,
-//     PlayerJoin, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-//     ServerAccount, ServerJoin, UnregisterGameParams, VoteParams,
-// };
-use race_instructions::instruction::RaceInstruction;
+use race_solana_types::instruction::RaceInstruction;
+
 mod create_game;
 mod create_registry;
 mod register_game;
