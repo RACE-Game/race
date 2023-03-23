@@ -116,8 +116,6 @@ function DrawCard() {
     }
   }, [profile, addr]);
 
-  console.log(addr, state);
-
   if (addr === undefined || state === undefined || profile === undefined || client.current === undefined) {
     return renderWaitingConnecting();
   }
@@ -134,7 +132,7 @@ function DrawCard() {
     try {
       revealed_cards = client.current.get_revealed(state.random_id);
       console.log("revealed_cards: ", revealed_cards);
-    } catch (e) { }
+    } catch (e) {}
   }
 
   if (player === undefined || opponent === undefined) {

@@ -188,8 +188,9 @@ pub struct GameContext {
     pub(crate) timestamp: u64,
     /// Whether a player can leave or not
     pub(crate) allow_exit: bool,
-    /// All runtime random state, each stores the ciphers and assignments.
+    /// All runtime random states, each stores the ciphers and assignments.
     pub(crate) random_states: Vec<RandomState>,
+    /// All runtime decision states, each stores the answer.
     pub(crate) decision_states: Vec<DecisionState>,
     /// Settles, if is not None, will be handled by event loop.
     pub(crate) settles: Option<Vec<Settle>>,
@@ -331,6 +332,8 @@ impl GameContext {
     }
 
     pub fn start_game(&mut self) {
+        self.random_states.clear();
+        self.decision_states.clear();
         self.dispatch = Some(DispatchEvent::new(self.gen_start_game_event(), 0));
     }
 
@@ -674,7 +677,6 @@ impl GameContext {
 
     pub fn bump_settle_version(&mut self) {
         self.settle_version += 1;
-        self.random_states.clear();
     }
 
     pub fn apply_and_take_settles(&mut self) -> Result<Option<Vec<Settle>>> {
