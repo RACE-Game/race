@@ -32,6 +32,7 @@ pub struct GameState {
     pub is_initialized: bool,
     pub title: String,
     pub bundle_addr: Pubkey,
+    pub stake_addr: Pubkey,
     pub owner: Pubkey,
     pub transactor_addr: Option<Pubkey>,
     pub access_version: u64,

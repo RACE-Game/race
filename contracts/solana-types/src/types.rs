@@ -3,17 +3,17 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub struct TokenInfo {
+    name: String,
+    addr: String,
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct CreateGameAccountParams {
     pub title: String,
     // pub token: TokenInfo,
     pub max_players: u8,
     pub data: Vec<u8>,
-}
-
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub struct TokenInfo {
-    name: String,
-    addr: String,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -56,15 +56,14 @@ pub struct GetTransactorInfoParams {
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub struct CloseGameAccountParams {
-    pub addr: String,
-}
-
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct CreatePlayerProfileParams {
     pub addr: String,
     pub nick: String,
     pub pfp: Option<String>,
+}
+
+impl CreateGameAccountParams {
+
 }
 
 /// The player status in settlement.

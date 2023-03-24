@@ -14,6 +14,9 @@ pub enum TransportError {
     #[error("Invalid config")]
     InvalidConfig,
 
+    #[error("Invalid bundle address")]
+    InvalidBundleAddress,
+
     #[error("Invalid chain name")]
     InvalidChainName(String),
 
@@ -22,6 +25,21 @@ pub enum TransportError {
 
     #[error("Invalid keyfile: {0}")]
     InvalidKeyfile(String),
+
+    #[error("Invalid pubkey: {0}")]
+    InvalidPubkey(String),
+
+    #[error("Failed to get balance for pubkey: {0}")]
+    InvalidBalance(String),
+
+    #[error("mesg")]
+    GameAccountNotFound,
+
+    #[error("Failed to get game account data")]
+    GameAccountDataNotFound,
+
+    #[error("Failed to pack instruction data")]
+    InstructionDataError,
 
     #[error("Lamports insufficient for rent exemption")]
     NoEnoughLamports,
@@ -34,6 +52,9 @@ pub enum TransportError {
 
     #[error("Client failed to get data from on chain account")]
     ClientGetDataFailed,
+
+    #[error("Failed to deserialize game account data")]
+    GameStateDersError,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

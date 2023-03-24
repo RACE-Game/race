@@ -1,6 +1,6 @@
 // use arrayref::array_mut_ref;
 use crate::{
-    error::RaceError,
+    error::ProcessError,
     state::{GameReg, GameState, RegistryState},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -44,16 +44,15 @@ pub fn process(
 
     if reg_center_state.is_private && reg_center_state.owner.ne(payer.key) {
         // TODO: Improve the error
-        return Err(RaceError::InvalidOwner)?;
+        return Err(ProcessError::InvalidOwner)?;
     }
     if reg_center_state.games.len() as u16 == reg_center_state.size {
-        // TODO: Implement error "Registration center is already full"
-        return Err(ProgramError::Custom(1));
+        return Err(ProcessError::RegistrationIsFull)?;
     }
 
     let game_state = GameState::unpack(&game_account.try_borrow_data()?)?;
     if game_state.owner.ne(payer.key) {
-        return Err(RaceError::InvalidOwner)?;
+        return Err(ProcessError::InvalidOwner)?;
     }
 
     let mut added = false;
@@ -62,7 +61,7 @@ pub fn process(
         .iter()
         .find(|gr| gr.addr.eq(&game_account.key))
     {
-        return Err(ProgramError::Custom(2));
+        return Err(ProcessError::GameAlreadyRegistered)?;
     } else if !added {
         added = true;
         let timestamp = SystemTime::now()
@@ -84,7 +83,7 @@ pub fn process(
     }
 
     if !added {
-        return Err(RaceError::RegistrationIsFull)?;
+        return Err(ProcessError::RegistrationIsFull)?;
     }
 
     Ok(())

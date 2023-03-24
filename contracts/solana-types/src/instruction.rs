@@ -7,7 +7,7 @@ use crate::types::{
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub enum RaceInstruction {
-    /// #0 Create a new game
+    /// # Create a new game
     ///
     /// TODO: pass bundle_addr as account
     ///
@@ -21,14 +21,26 @@ pub enum RaceInstruction {
     // TODO: add Game scene NFT to this ix
     CreateGameAccount { params: CreateGameAccountParams },
 
-    /// #1 Create an on-chain "lobby" for game registration
+    /// # Close a new game
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The account of game owner
+    /// 1. `[]` The account of game account.
+    /// 2. `[writable]` The game reg account.
+    /// 3. `[writable]` The stake account of game.
+    /// 4. `[]` PDA account.
+    /// 5. `[]` Token program.
+    // TODO: add registration center account to this ix?
+    CloseGameAccount,
+
+    /// # Create an on-chain "lobby" for game registration
     ///
     /// Accounts expected:
     /// 0. `[signer]` The account of game owner
     /// 1. `[writable]` The registry account.
     CreateRegistry { params: CreateRegistrationParams },
 
-    /// #2 Register a game in lobby/center
+    /// # Register a game in lobby/center
     ///
     /// Accounts expected:
     /// 0. `[signer]` The account of game owner
@@ -49,11 +61,16 @@ impl RaceInstruction {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
     fn test_ser() -> anyhow::Result<()> {
-        let ix = RaceInstruction::CreateGameAccount{params: CreateGameAccountParams{ title: "Holdem".to_string(), bundle_addr: "JJJJJJ".to_string(), max_players: 8, data: vec![] }};
+        let ix = RaceInstruction::CreateGameAccount{
+            params: CreateGameAccountParams{
+                title: "Holdem".to_string(),
+                max_players: 8,
+                data: vec![] }};
         let data = ix.try_to_vec()?;
         println!("data: {:?}", data);
         assert_eq!(1, 2);

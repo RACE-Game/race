@@ -15,7 +15,7 @@ use spl_token::{
 };
 use race_solana_types::types::CreateGameAccountParams;
 use crate::{
-    error::RaceError,
+    error::ProcessError,
     state::{GameState, PlayerJoin},
 };
 
@@ -26,21 +26,27 @@ pub fn process(
     params: CreateGameAccountParams,
 ) -> ProgramResult {
     let account_iter = &mut accounts.iter();
-    let payer = next_account_info(account_iter)?;
-    let game_account = next_account_info(account_iter)?;
-    let temp_stake_account = next_account_info(account_iter)?;
-    let token_account = next_account_info(account_iter)?;
-    let token_program = next_account_info(account_iter)?;
-    let bundle_account = next_account_info(account_iter)?;
 
+    let payer = next_account_info(account_iter)?;
     if !payer.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
+    let game_account = next_account_info(account_iter)?;
+    let stake_account = next_account_info(account_iter)?;
+    let token_account = next_account_info(account_iter)?;
+    let token_program_account = next_account_info(account_iter)?;
+    let bundle_account = next_account_info(account_iter)?;
+
+    let token_state = Mint::unpack_unchecked(&token_account.data.borrow())?;
+    if !token_state.is_initialized {
+        return Err(ProgramError::UninitializedAccount);
+    }
+
     let (pda, _bump_seed) = Pubkey::find_program_address(&[game_account.key.as_ref()], program_id);
     let set_authority_ix = set_authority(
-        token_program.key,
-        temp_stake_account.key,
+        token_program_account.key,
+        stake_account.key,
         Some(&pda),
         AuthorityType::AccountOwner,
         payer.key,
@@ -50,27 +56,29 @@ pub fn process(
     invoke(
         &set_authority_ix,
         &[
-            temp_stake_account.clone(),
+            stake_account.clone(),
             payer.clone(),
-            token_program.clone(),
+            token_program_account.clone(),
         ],
     )?;
 
-    msg!("1");
-    let token_state = Mint::unpack_unchecked(&token_account.data.borrow())?;
-    if !token_state.is_initialized {
-        return Err(ProgramError::UninitializedAccount);
-    }
+    // msg!("1");
 
     let mut game_state = GameState {
         is_initialized: true,
+        // TODO: limit title length
         title: params.title,
+        // TODO: invalid bundle account
         bundle_addr: bundle_account.key.clone(),
+        // TODO: use user's stake_account from client
+        stake_addr: stake_account.key.clone(),
+        // TODO: invalid owner
         owner: payer.key.clone(),
         transactor_addr: None,
         access_version: 0,
         settle_version: 0,
         max_players: params.max_players,
+        // data exceeds max len
         data_len: params.data.len() as u32,
         data: Box::new(params.data),
         players: Box::new(Vec::<PlayerJoin>::with_capacity(
@@ -83,7 +91,8 @@ pub fn process(
     game_state.update_padding();
 
     GameState::pack(game_state, &mut game_account.try_borrow_mut_data()?)?;
-    msg!("On chain game account sucessfully created and initialized!");
+    msg!("Game account sucessfully created and initialized!");
+    msg!("Game account: {:?}", game_account.key);
 
     Ok(())
 }

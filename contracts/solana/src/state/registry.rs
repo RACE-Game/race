@@ -8,8 +8,6 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use super::misc::PackOption;
-
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone)]
 pub struct GameReg {
@@ -20,7 +18,6 @@ pub struct GameReg {
 }
 
 impl Sealed for GameReg {}
-impl PackOption for GameReg {}
 impl Pack for GameReg {
     // 24 + 32 + 32 + 8 = 96 <= 100
     const LEN: usize = 100;
