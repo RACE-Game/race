@@ -118,7 +118,7 @@ impl TransportT for FacadeTransport {
             .ok()
     }
 
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()> {
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String> {
         self.client
             .request("create_profile", rpc_params![params])
             .await

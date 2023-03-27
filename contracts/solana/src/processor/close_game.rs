@@ -11,7 +11,7 @@ use solana_program::{
 use spl_token::instruction::close_account;
 use crate::{
     error::ProcessError,
-    state::{GameState, PlayerJoin},
+    state::GameState,
 };
 
 #[inline(never)]
@@ -47,11 +47,6 @@ pub fn process(
     }
 
     // TODO: unregister game from reg center?
-    msg!("{:?}", owner_account.key);
-    msg!("{:?}", game_account.key);
-    msg!("{:?}", stake_account.key);
-    msg!("{:?}", pda);
-    msg!("{:?}",token_program.key);
 
     let close_ix = close_account(
         token_program.key,
@@ -61,8 +56,6 @@ pub fn process(
         &[pda_account.key],
     )?;
 
-    msg!("4");
-    // FIXME: stake account data may be wrong in one of the follwing accounts
     invoke_signed(
         &close_ix,
         &[
@@ -73,7 +66,6 @@ pub fn process(
         &[&[game_account.key.as_ref(), &[bump_seed]]],
     )?;
 
-    msg!("5");
 
     **owner_account.lamports.borrow_mut() = owner_account
         .lamports()

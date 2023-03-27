@@ -3,8 +3,10 @@ use race_solana_types::instruction::RaceInstruction;
 
 mod create_game;
 mod create_registry;
+mod create_profile;
 mod register_game;
 mod close_game;
+mod register_server;
 
 pub fn process(
     program_id: &Pubkey,
@@ -32,6 +34,16 @@ pub fn process(
         RaceInstruction::CloseGameAccount => {
             msg!("Close a game account on chain");
             close_game::process(program_id, accounts)
+        }
+
+        RaceInstruction::CreatePlayerProfile { params } => {
+            msg!("Create a player profile on chain");
+            create_profile::process(program_id, accounts, params)
+        }
+
+        RaceInstruction::RegisterServer { params } => {
+            msg!("Create a server account on chain");
+            register_server::process(program_id, accounts, params)
         }
     }
 }

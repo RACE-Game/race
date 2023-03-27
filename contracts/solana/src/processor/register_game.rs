@@ -3,7 +3,7 @@ use crate::{
     error::ProcessError,
     state::{GameReg, GameState, RegistryState},
 };
-use borsh::{BorshDeserialize, BorshSerialize};
+
 use race_solana_types::types::RegisterGameParams;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -26,7 +26,7 @@ pub fn process(
     let payer = next_account_info(account_iter)?;
     let reg_center_account = next_account_info(account_iter)?;
     let game_account = next_account_info(account_iter)?;
-    // let reg_game_account = next_account_info(account_iter)?;
+    let reg_game_account = next_account_info(account_iter)?;
 
     if !payer.is_signer {
         return Err(ProgramError::MissingRequiredSignature);

@@ -23,6 +23,9 @@ pub enum TransportError {
     #[error("Initialization failed")]
     InitializationFailed(String),
 
+    #[error("Failed to init the instruction")]
+    InitInstructionFailed,
+
     #[error("Invalid keyfile: {0}")]
     InvalidKeyfile(String),
 
@@ -32,17 +35,23 @@ pub enum TransportError {
     #[error("Failed to get balance for pubkey: {0}")]
     InvalidBalance(String),
 
-    #[error("mesg")]
+    #[error("Game account not found")]
     GameAccountNotFound,
 
     #[error("Failed to get game account data")]
     GameAccountDataNotFound,
 
+    #[error("Player profile already exists")]
+    DuplicatePlayerProfile,
+
     #[error("Failed to pack instruction data")]
     InstructionDataError,
 
-    #[error("Lamports insufficient for rent exemption")]
+    #[error("Lamports not enough for rent exemption")]
     NoEnoughLamports,
+
+    #[error("Failed to create a pubkey")]
+    PubkeyCreationFailed,
 
     #[error("Failed to get lasted blockhash")]
     GetBlockhashFailed,

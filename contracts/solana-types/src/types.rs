@@ -57,14 +57,10 @@ pub struct GetTransactorInfoParams {
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct CreatePlayerProfileParams {
-    pub addr: String,
     pub nick: String,
-    pub pfp: Option<String>,
+    // pub pfp: Option<String>,
 }
 
-impl CreateGameAccountParams {
-
-}
 
 /// The player status in settlement.
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]

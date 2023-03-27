@@ -110,7 +110,11 @@ pub trait TransportT: Send + Sync {
     /// * `addr` - The address of the wallet, should be the same with signer.
     /// * `nick` - The display name in the game, can't be empty.
     /// * `pfp` - The address of the NFT token to be used.  `None` means using default pfp.
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()>;
+    ///
+    /// # Returns
+    /// * [`Error::PlayerProfileAccountNotFound`] when invalid `addr` is provided.
+    /// * [`Error::RpcError`] when the RPC invocation failed.
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String>;
 
     async fn publish_game(&self, bundle: GameBundle) -> Result<String>;
 

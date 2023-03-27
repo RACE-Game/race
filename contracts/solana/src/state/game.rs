@@ -74,40 +74,145 @@ impl Pack for GameState {
     }
 }
 
+#[cfg_attr(test, derive(PartialEq, Clone))]
+#[derive(BorshDeserialize, BorshSerialize, Default, Debug)]
+pub struct PlayerState {
+    pub is_initialized: bool,
+    pub addr: Pubkey,
+    pub chips: u64,
+    pub nick: String,               // max: 16 chars
+    pub pfp: Option<Pubkey>,
+    pub padding: Vec<u8>,
+}
+
+impl PlayerState {
+    pub fn update_padding(&mut self) {
+        let len = get_instance_packed_len(self).unwrap();
+        let padding_len = Self::LEN - len;
+        self.padding = vec![0; padding_len];
+    }
+}
+
+impl IsInitialized for PlayerState {
+    fn is_initialized(&self) -> bool {
+        self.is_initialized
+    }
+}
+
+impl Sealed for PlayerState {}
+impl Pack for PlayerState {
+    const LEN: usize = 98;
+
+    fn pack_into_slice(&self, dst: &mut [u8]) {
+        let data = self.try_to_vec().unwrap();
+        sol_memcpy(dst, &data, data.len());
+    }
+
+    fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
+        let result = PlayerState::try_from_slice(src)?;
+        Ok(result)
+    }
+}
+
+#[cfg_attr(test, derive(PartialEq, Clone))]
+#[derive(BorshDeserialize, BorshSerialize, Default, Debug)]
+pub struct ServerState {
+    pub is_initialized: bool,
+    pub addr: Pubkey,
+    pub owner: Pubkey,
+    pub endpoint: String,               // max: 50 chars
+    pub padding: Vec<u8>,
+}
+
+impl ServerState {
+    pub fn update_padding(&mut self) {
+        let len = get_instance_packed_len(self).unwrap();
+        let padding_len = Self::LEN - len;
+        self.padding = vec![0; padding_len];
+    }
+}
+
+
+impl IsInitialized for ServerState {
+    fn is_initialized(&self) -> bool {
+        self.is_initialized
+    }
+}
+
+impl Sealed for ServerState {}
+impl Pack for ServerState {
+    const LEN: usize = 108;
+
+    fn pack_into_slice(&self, dst: &mut [u8]) {
+        let data = self.try_to_vec().unwrap();
+        sol_memcpy(dst, &data, data.len());
+    }
+
+    fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
+        let result = ServerState::try_from_slice(src)?;
+        Ok(result)
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
 
-    // #[test]
-    // pub fn test_state_len() -> anyhow::Result<()> {
-    //     let mut state = GameState::default();
-    //     let s: String = "ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEF".into();
-    //     state.data = Box::new(vec![0; 1024]);
-    //     state.title = s.clone();
-    //     for i in 0..32 {
-    //         state.players.push(PlayerJoin::default());
-    //     }
-    //     for i in 0..10 {
-    //         let s = ServerJoin {
-    //             addr: Pubkey::default(),
-    //             endpoint: s.clone(),
-    //             access_version: 0,
-    //         };
-    //         state.servers.push(s);
-    //     }
-    //     println!("len: {}", get_instance_packed_len(&state)?);
-    //     assert_eq!(1, 2);
-    //     Ok(())
-    // }
+    fn create_player() -> PlayerState {
+        let mut player = PlayerState::default();
+        player.nick = "a_16-char_nicknm".to_string();
+        player.pfp = Some(Pubkey::new_unique());
+        player
+    }
 
-    // #[test]
-    // pub fn test_deserialize_empty_gamestate() -> anyhow::Result<()> {
-    //     let buf = [0u8; 5000];
-    //     let mut state = GameState::unpack_unchecked(&buf)?;
-    //     // assert_eq!(false, state.is_initialized);
-    //     Ok(())
-    // }
+    #[test]
+    pub fn test_player_account_len() -> anyhow::Result<()> {
+        let player = create_player();
+        println!("Player account len {}", get_instance_packed_len(&player)?); // 94
+        assert_eq!(1, 2);
+        Ok(())
+    }
+
+    fn create_server() -> ServerState {
+        let mut server = ServerState::default();
+        server.addr = Pubkey::new_unique();
+        server.owner = Pubkey::new_unique();
+        server.endpoint = "https------------------------------".to_string();
+        server.update_padding();
+        server
+    }
+
+    #[test]
+    pub fn test_server_account_len() -> anyhow::Result<()> {
+        let server = create_server();
+        println!("Server account len {}", get_instance_packed_len(&server)?); // 104
+        assert_eq!(1, 2);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_state_len() -> anyhow::Result<()> {
+        let mut state = GameState::default();
+        let s: String = "ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDE".into();
+        state.data = Box::new(vec![0; 1024]);
+        state.title = s.clone();
+        for _ in 0..32 {
+            state.players.push(PlayerJoin::default());
+        }
+        for _ in 0..10 {
+            let s = ServerJoin {
+                addr: Pubkey::default(),
+                endpoint: s.clone(),
+                access_version: 0,
+            };
+            state.servers.push(s);
+        }
+        println!("len: {}", get_instance_packed_len(&state)?);
+        assert_eq!(1, 2);
+        Ok(())
+    }
 
     pub fn make_game_state() -> GameState {
         let mut state = GameState::default();

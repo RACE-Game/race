@@ -62,8 +62,6 @@ pub fn process(
         ],
     )?;
 
-    // msg!("1");
-
     let mut game_state = GameState {
         is_initialized: true,
         // TODO: limit title length
@@ -78,7 +76,7 @@ pub fn process(
         access_version: 0,
         settle_version: 0,
         max_players: params.max_players,
-        // data exceeds max len
+        // TODO: check if data exceeds max len
         data_len: params.data.len() as u32,
         data: Box::new(params.data),
         players: Box::new(Vec::<PlayerJoin>::with_capacity(

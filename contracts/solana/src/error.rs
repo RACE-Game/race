@@ -34,6 +34,15 @@ pub enum ProcessError {
     /// 7
     #[error("Account stake amount overflows")]
     StakeAmountOverflow,
+
+    /// 8
+    #[error("Expect writable player profile, found read-only")]
+    InvalidAccountStatus,
+
+    /// 9
+    #[error("Account pubkey is not the same as that from transport")]
+    InvalidAccountPubkey,
+
 }
 
 impl From<ProcessError> for ProgramError {

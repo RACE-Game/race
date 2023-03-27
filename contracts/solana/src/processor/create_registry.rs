@@ -10,7 +10,6 @@ use solana_program::{
 };
 use race_solana_types::types::CreateRegistrationParams;
 
-
 #[inline(never)]
 pub fn process(
     _programe_id: &Pubkey,

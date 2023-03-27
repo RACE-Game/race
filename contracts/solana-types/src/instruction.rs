@@ -1,7 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::program_error::ProgramError;
 use crate::types::{
-    CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams,    RegisterGameParams
+    CreateGameAccountParams, RegisterServerParams, CreateRegistrationParams,
+    RegisterGameParams, CreatePlayerProfileParams,
 };
 
 
@@ -47,6 +48,21 @@ pub enum RaceInstruction {
     /// 1. `[]` The registration center account.
     /// 2. `[]` The game account (extract all the important info)
     RegGame { params: RegisterGameParams },
+
+    /// # Create a player profile
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The owner of the player profile
+    /// 1. `[]` The player profile account to be created
+    /// 2. `[]` The pfp account
+    CreatePlayerProfile { params: CreatePlayerProfileParams },
+
+    /// # Register (Create) a server profile
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The owner of the player profile
+    /// 1. `[]` The server profile account to be created
+    RegisterServer { params: RegisterServerParams },
 }
 
 impl RaceInstruction {
