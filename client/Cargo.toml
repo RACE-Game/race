@@ -12,6 +12,6 @@ tracing = "0.1.36"
 [dev-dependencies]
 race-test = { path = "../test" }
 race-encryptor = { path = "../encryptor" }
-serde_json = "1.0.85"
-serde = "1.0.144"
-tokio = { version = "1.21.0", features = ["full"] }
+serde_json = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true, features = ["full"] }

@@ -7,6 +7,8 @@ mod create_profile;
 mod register_game;
 mod close_game;
 mod register_server;
+mod settle;
+mod misc;
 
 pub fn process(
     program_id: &Pubkey,
@@ -30,20 +32,21 @@ pub fn process(
             msg!("Register a game account on chain");
             register_game::process(program_id, accounts, params)
         }
-
         RaceInstruction::CloseGameAccount => {
             msg!("Close a game account on chain");
             close_game::process(program_id, accounts)
         }
-
         RaceInstruction::CreatePlayerProfile { params } => {
             msg!("Create a player profile on chain");
             create_profile::process(program_id, accounts, params)
         }
-
         RaceInstruction::RegisterServer { params } => {
             msg!("Create a server account on chain");
             register_server::process(program_id, accounts, params)
+        }
+        RaceInstruction::Settle { params } => {
+            msg!("Settle game");
+            settle::process(program_id, accounts, params)
         }
     }
 }

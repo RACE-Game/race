@@ -10,13 +10,13 @@ no-entrypoint = []
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-solana-program = "1.15.2"
-spl-token = {version = "3.5.0", features = ["no-entrypoint"]}
-spl-associated-token-account = "1.1.2"
-borsh = "0.9.3"
-arrayref = "0.3.6"
+solana-program = { workspace = true }
+spl-token = { workspace = true, features = ["no-entrypoint"]}
+spl-associated-token-account = { workspace = true }
+borsh = { workspace = true }
+arrayref = { workspace = true }
 race-solana-types = { path = "../solana-types" }
-thiserror = "1.0.35"
+thiserror = { workspace = true }
 
 [dev-dependencies]
-anyhow = "1.0.64"
+anyhow = { workspace = true }

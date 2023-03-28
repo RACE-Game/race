@@ -9,24 +9,24 @@ edition = "2021"
 race-core = { path = "../core" }
 race-env = { path = "../env" }
 race-solana-types = { path = "../contracts/solana-types" }
-async-trait = "0.1.58"
-thiserror = "1.0.35"
-serde_json = "1.0.85"
-serde = "1.0.144"
-solana-client = "1.15.2"
-solana-sdk = "1.15.2"
-spl-token = "3.5.0"
-spl-associated-token-account = "1.1.2"
-tracing = "0.1.36"
-borsh = "0.9.3"
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+solana-client = { workspace = true }
+solana-sdk = { workspace = true }
+spl-token = { workspace = true }
+spl-associated-token-account = { workspace = true }
+tracing = { workspace = true }
+borsh = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-jsonrpsee = { version = "0.16.2", features = ["wasm-client"]}
+jsonrpsee = { workspace = true, features = ["wasm-client"]}
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-jsonrpsee = { version = "0.16.2", features = ["http-client"]}
+jsonrpsee = { workspace = true, features = ["http-client"]}
 
 [dev-dependencies]
-anyhow = "1.0.64"
-tokio = { version = "1.21.0", features = ["full"] }
-shellexpand = "3.0.0"
+anyhow = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+shellexpand = { workspace = true }

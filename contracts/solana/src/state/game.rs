@@ -34,6 +34,7 @@ pub struct GameState {
     pub bundle_addr: Pubkey,
     pub stake_addr: Pubkey,
     pub owner: Pubkey,
+    pub token_addr: Pubkey,
     pub transactor_addr: Option<Pubkey>,
     pub access_version: u64,
     pub settle_version: u64,

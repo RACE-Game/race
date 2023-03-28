@@ -8,13 +8,12 @@ use race_solana_types::types::RegisterGameParams;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
-    msg,
     program_error::ProgramError,
     program_pack::Pack,
     pubkey::Pubkey,
     rent::Rent,
 };
-use std::time::{SystemTime, SystemTimeError};
+use std::time::SystemTime;
 
 #[inline(never)]
 pub fn process(

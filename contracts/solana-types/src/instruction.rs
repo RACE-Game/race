@@ -2,9 +2,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::program_error::ProgramError;
 use crate::types::{
     CreateGameAccountParams, RegisterServerParams, CreateRegistrationParams,
-    RegisterGameParams, CreatePlayerProfileParams,
+    RegisterGameParams, CreatePlayerProfileParams, SettleParams
 };
-
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub enum RaceInstruction {
@@ -63,6 +62,19 @@ pub enum RaceInstruction {
     /// 0. `[signer]` The owner of the player profile
     /// 1. `[]` The server profile account to be created
     RegisterServer { params: RegisterServerParams },
+
+    /// # Settle game result
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The game transactor account
+    /// 1. `[writable]` The game account
+    /// 2. `[writable]` The stake account, must match the one in game account
+    /// 3. `[]` PDA account
+    /// 4. `[]` The token program
+    /// 5. `[]` The system program
+    /// Following:
+    /// `[]` Every leaving players account, must be in the same order with Eject settles
+    Settle { params: SettleParams },
 }
 
 impl RaceInstruction {

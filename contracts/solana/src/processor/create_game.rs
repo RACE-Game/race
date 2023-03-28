@@ -9,14 +9,11 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
+use crate::state::{GameState, PlayerJoin};
+use race_solana_types::types::CreateGameAccountParams;
 use spl_token::{
     instruction::{set_authority, AuthorityType},
     state::Mint,
-};
-use race_solana_types::types::CreateGameAccountParams;
-use crate::{
-    error::ProcessError,
-    state::{GameState, PlayerJoin},
 };
 
 #[inline(never)]
@@ -67,12 +64,13 @@ pub fn process(
         // TODO: limit title length
         title: params.title,
         // TODO: invalid bundle account
-        bundle_addr: bundle_account.key.clone(),
+        bundle_addr: *bundle_account.key,
         // TODO: use user's stake_account from client
-        stake_addr: stake_account.key.clone(),
+        stake_addr: *stake_account.key,
         // TODO: invalid owner
         owner: payer.key.clone(),
         transactor_addr: None,
+        token_addr: *token_account.key,
         access_version: 0,
         settle_version: 0,
         max_players: params.max_players,

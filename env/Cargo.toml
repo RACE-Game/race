@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-toml = "0.5.9"
-serde = { version = "1.0.144", features = ["derive"] }
-tracing = "0.1.36"
+toml = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tracing = { workspace = true }

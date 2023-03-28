@@ -3,16 +3,14 @@ name = "race-test"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 race-core = { path = "../core" }
 race-client = { path = "../client" }
 race-encryptor = { path = "../encryptor" }
-borsh = "0.9.3"
-async-trait = "0.1.58"
-rand = "0.8.5"
-serde_json = "1.0.85"
-serde = "1.0.144"
-base64 = "0.21.0"
-tokio = { version = "1.21.0", features = ["full"] }
+borsh = { workspace = true }
+async-trait = { workspace = true }
+rand = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+base64 = { workspace = true }
+tokio = { workspace = true, features = ["full"] }

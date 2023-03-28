@@ -1,6 +1,7 @@
 //! Parameters for sonala contracts
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::pubkey::Pubkey;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct TokenInfo {
@@ -87,34 +88,12 @@ pub enum SettleOp {
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Settle {
-    pub addr: String,
+    pub addr: Pubkey,
     pub op: SettleOp,
-}
-
-impl Settle {
-    pub fn add<S: Into<String>>(addr: S, amount: u64) -> Self {
-        Self {
-            addr: addr.into(),
-            op: SettleOp::Add(amount),
-        }
-    }
-    pub fn sub<S: Into<String>>(addr: S, amount: u64) -> Self {
-        Self {
-            addr: addr.into(),
-            op: SettleOp::Sub(amount),
-        }
-    }
-    pub fn eject<S: Into<String>>(addr: S) -> Self {
-        Self {
-            addr: addr.into(),
-            op: SettleOp::Eject,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct SettleParams {
-    pub addr: String,
     pub settles: Vec<Settle>,
 }
 

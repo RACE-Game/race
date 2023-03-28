@@ -43,6 +43,21 @@ pub enum ProcessError {
     #[error("Account pubkey is not the same as that from transport")]
     InvalidAccountPubkey,
 
+    /// A
+    #[error("Settle amounts are not sum up to zero")]
+    InvalidSettleAmounts,
+
+    /// B
+    #[error("Invalid settle player address")]
+    InvalidSettlePlayerAddress,
+
+    /// C
+    #[error("Unhandled eliminated player")]
+    UnhandledEliminatedPlayer,
+
+    /// D
+    #[error("Invalid receiver address, wallet and ATA mismatch")]
+    InvalidRecevierAddress,
 }
 
 impl From<ProcessError> for ProgramError {
