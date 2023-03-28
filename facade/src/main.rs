@@ -7,6 +7,8 @@
 //! DEFAULT_TRANSACTOR_ADDRESS - The address for a transactor
 //! DEFAULT_OWNER_ADDRESS - The address of the owner
 
+mod database;
+
 use base64::Engine;
 use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
@@ -19,6 +21,8 @@ use race_core::types::{
     ServerAccount, ServerJoin, SettleOp, SettleParams, UnregisterGameParams, Vote, VoteParams,
     VoteType,
 };
+use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::{Pool, Sqlite};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
@@ -26,7 +30,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Instant, UNIX_EPOCH};
 use tokio::sync::Mutex;
-use tracing::{info, debug};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 type RpcResult<T> = std::result::Result<T, RpcError>;
@@ -59,13 +63,27 @@ pub struct PlayerInfo {
     balance: u64,
 }
 
-#[derive(Default)]
+// #[derive(Default)]
 pub struct Context {
     players: HashMap<String, PlayerInfo>,
     accounts: HashMap<String, GameAccount>,
     registrations: HashMap<String, RegistrationAccount>,
     transactors: HashMap<String, ServerAccount>,
     bundles: HashMap<String, GameBundle>,
+    db_pool: Pool<Sqlite>,
+}
+
+impl Context {
+    fn new(pool: Pool<Sqlite>) -> Context {
+        Context {
+            players: HashMap::default(),
+            accounts: HashMap::default(),
+            registrations: HashMap::default(),
+            transactors: HashMap::default(),
+            bundles: HashMap::default(),
+            db_pool: pool,
+        }
+    }
 }
 
 fn random_addr() -> String {
@@ -83,7 +101,8 @@ async fn publish_game_bundle(
     let bundle: GameBundle = params.one()?;
     let addr = bundle.addr.clone();
     let mut context = context.lock().await;
-    context.bundles.insert(addr.clone(), bundle);
+    context.bundles.insert(addr.clone(), bundle.clone());
+    database::context::create_game_bundle(&context.db_pool, bundle.clone()).await?;
     Ok(addr)
 }
 
@@ -94,11 +113,17 @@ async fn get_game_bundle(
     let addr: String = params.one()?;
     debug!("Get game bundle: {:?}", addr);
     let context = context.lock().await;
-    if let Some(bundle) = context.bundles.get(&addr) {
+    if let Some(bundle) = database::context::get_game_bundle_by_addr(&context.db_pool, &addr).await {
         Ok(bundle.to_owned())
     } else {
         Err(custom_error(Error::GameBundleNotFound))
     }
+
+    // if let Some(bundle) = context.bundles.get(&addr) {
+    //     Ok(bundle.to_owned())
+    // } else {
+    //     Err(custom_error(Error::GameBundleNotFound))
+    // }
 }
 
 async fn get_registration_info(
@@ -579,7 +604,13 @@ async fn run_server() -> anyhow::Result<ServerHandle> {
     let http_server = ServerBuilder::default()
         .build(HTTP_HOST.parse::<SocketAddr>()?)
         .await?;
-    let mut context = Context::default();
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect("sqlite::memory:")
+        .await?;
+
+    let mut context = Context::new(pool);
     setup(&mut context);
     let context = Mutex::new(context);
     let mut module = RpcModule::new(context);
@@ -705,7 +736,9 @@ pub fn setup(ctx: &mut Context) {
         DRAW_CARD_BUNDLE_ADDRESS,
         EXAMPLE_DRAW_CARD_ADDRESS,
         "Draw Card",
-        vec![100, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0],
+        vec![
+            100, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0,
+        ],
     );
 
     let server1 = ServerAccount {
