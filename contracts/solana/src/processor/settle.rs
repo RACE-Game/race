@@ -7,6 +7,7 @@
 //! 1. All changes are sum up to zero.
 //! 2. Player without assets must be ejected.
 
+use crate::{error::ProcessError, state::GameState};
 use race_solana_types::types::{SettleOp, SettleParams};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -15,9 +16,8 @@ use solana_program::{
     program_pack::Pack,
     pubkey::Pubkey,
 };
-use crate::{error::ProcessError, state::GameState};
 
-use super::misc::{TransferSource, validate_receiver_account};
+use super::misc::{validate_receiver_account, TransferSource};
 
 pub fn process(
     program_id: &Pubkey,
@@ -50,13 +50,9 @@ pub fn process(
     // Collect the payouts.
     let mut payouts: Vec<(Pubkey, u64)> = Vec::new();
 
-    // We should sort the settles in order: add < sub < eject
-    settles.sort_by_key(|s| match s.op {
-        SettleOp::Eject => 2,
-        SettleOp::Add(_) => 0,
-        SettleOp::Sub(_) => 1,
-    });
-
+    // We should check the order of settles: add < sub < ejec
+    // 0 for add, 1 for sub, 2 for eject.
+    let mut op_type = 0;
     let mut game_state = GameState::unpack(&game_account.try_borrow_mut_data()?)?;
 
     if stake_account.key.ne(&game_state.stake_addr) {
@@ -66,30 +62,46 @@ pub fn process(
     for settle in settles.into_iter() {
         match settle.op {
             SettleOp::Add(amt) => {
+                if op_type != 0 {
+                    return Err(ProcessError::InvalidOrderOfSettles)?;
+                }
                 if let Some(player) = game_state
                     .players
                     .iter_mut()
                     .find(|p| p.addr.eq(&settle.addr))
                 {
-                    player.balance += amt;
+                    player.balance = player
+                        .balance
+                        .checked_add(amt)
+                        .ok_or(ProcessError::PlayerBalanceOverflow)?;
                 } else {
                     return Err(ProcessError::InvalidSettlePlayerAddress)?;
                 }
                 sum += amt as i64;
             }
             SettleOp::Sub(amt) => {
+                if op_type == 2 {
+                    return Err(ProcessError::InvalidOrderOfSettles)?;
+                }
                 if let Some(player) = game_state
                     .players
                     .iter_mut()
                     .find(|p| p.addr.eq(&settle.addr))
                 {
-                    player.balance -= amt;
+                    player.balance = player
+                        .balance
+                        .checked_sub(amt)
+                        .ok_or(ProcessError::PlayerBalanceOverflow)?;
                 } else {
                     return Err(ProcessError::InvalidSettlePlayerAddress)?;
                 }
                 sum -= amt as i64;
+                op_type = 1;
             }
             SettleOp::Eject => {
+                if op_type == 0 {
+                    return Err(ProcessError::InvalidOrderOfSettles)?;
+                }
                 let idx = game_state
                     .players
                     .iter()
@@ -100,6 +112,7 @@ pub fn process(
                 } else {
                     return Err(ProcessError::InvalidSettlePlayerAddress)?;
                 }
+                op_type = 2;
             }
         }
     }

@@ -58,6 +58,14 @@ pub enum ProcessError {
     /// D
     #[error("Invalid receiver address, wallet and ATA mismatch")]
     InvalidRecevierAddress,
+
+    /// C
+    #[error("Settles are not in correct order")]
+    InvalidOrderOfSettles,
+
+    /// D
+    #[error("Player balance amount overflows")]
+    PlayerBalanceOverflow,
 }
 
 impl From<ProcessError> for ProgramError {

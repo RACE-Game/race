@@ -63,7 +63,10 @@ pub enum TransportError {
     ClientGetDataFailed,
 
     #[error("Failed to deserialize game account data")]
-    GameStateDersError,
+    GameStateDeserializeError,
+
+    #[error("Failed to parse string address")]
+    ParseAddressError,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

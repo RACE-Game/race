@@ -13,9 +13,9 @@ crate-type = ["cdylib", "rlib"]
 solana-program = { workspace = true }
 spl-token = { workspace = true, features = ["no-entrypoint"]}
 spl-associated-token-account = { workspace = true }
+race-solana-types = { path = "../solana-types", features = ["program"] }
 borsh = { workspace = true }
 arrayref = { workspace = true }
-race-solana-types = { path = "../solana-types" }
 thiserror = { workspace = true }
 
 [dev-dependencies]

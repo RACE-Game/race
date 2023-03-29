@@ -1,12 +1,14 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "program")]
 use solana_program::{
     borsh::get_instance_packed_len,
-    msg,
     program_error::ProgramError,
     program_memory::sol_memcpy,
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
+#[cfg(feature = "sdk")]
+use solana_sdk::pubkey::Pubkey;
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone)]
@@ -17,7 +19,9 @@ pub struct GameReg {
     pub reg_time: u64,
 }
 
+#[cfg(feature = "program")]
 impl Sealed for GameReg {}
+#[cfg(feature = "program")]
 impl Pack for GameReg {
     // 24 + 32 + 32 + 8 = 96 <= 100
     const LEN: usize = 100;
@@ -46,22 +50,25 @@ pub struct RegistryState {
     pub padding: Box<Vec<u8>>,
 }
 
+#[cfg(feature = "program")]
 impl RegistryState {
     pub fn update_padding(&mut self) {
         let len = get_instance_packed_len(self).unwrap();
         let padding_len = Self::LEN - len;
-        msg!("Padding len: {}", padding_len);
         self.padding = Box::new(vec![0; padding_len]);
     }
 }
 
+#[cfg(feature = "program")]
 impl IsInitialized for RegistryState {
     fn is_initialized(&self) -> bool {
         self.is_initialized
     }
 }
 
+#[cfg(feature = "program")]
 impl Sealed for RegistryState {}
+#[cfg(feature = "program")]
 impl Pack for RegistryState {
     const LEN: usize = 2000;
 

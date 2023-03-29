@@ -1,9 +1,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::program_error::ProgramError;
 use crate::types::{
     CreateGameAccountParams, RegisterServerParams, CreateRegistrationParams,
     RegisterGameParams, CreatePlayerProfileParams, SettleParams
 };
+#[cfg(feature = "program")]
+use solana_program::program_error::ProgramError;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub enum RaceInstruction {
@@ -77,6 +78,7 @@ pub enum RaceInstruction {
     Settle { params: SettleParams },
 }
 
+#[cfg(feature = "program")]
 impl RaceInstruction {
     pub fn pack(instruction: RaceInstruction) -> Result<Vec<u8>, ProgramError> {
         Ok(instruction.try_to_vec()?)

@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "program")]
 use solana_program::{
     borsh::get_instance_packed_len,
     program_error::ProgramError,
@@ -6,7 +7,8 @@ use solana_program::{
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
-// use std::result;
+#[cfg(feature = "sdk")]
+use solana_sdk::pubkey::Pubkey;
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone)]
@@ -46,6 +48,7 @@ pub struct GameState {
     pub padding: Box<Vec<u8>>,
 }
 
+#[cfg(feature = "program")]
 impl GameState {
     pub fn update_padding(&mut self) {
         let len = get_instance_packed_len(self).unwrap();
@@ -54,13 +57,17 @@ impl GameState {
     }
 }
 
+#[cfg(feature = "program")]
 impl IsInitialized for GameState {
     fn is_initialized(&self) -> bool {
         self.is_initialized
     }
 }
 
+#[cfg(feature = "program")]
 impl Sealed for GameState {}
+
+#[cfg(feature = "program")]
 impl Pack for GameState {
     const LEN: usize = 5000;
 
@@ -86,6 +93,7 @@ pub struct PlayerState {
     pub padding: Vec<u8>,
 }
 
+#[cfg(feature = "program")]
 impl PlayerState {
     pub fn update_padding(&mut self) {
         let len = get_instance_packed_len(self).unwrap();
@@ -94,13 +102,17 @@ impl PlayerState {
     }
 }
 
+#[cfg(feature = "program")]
 impl IsInitialized for PlayerState {
     fn is_initialized(&self) -> bool {
         self.is_initialized
     }
 }
 
+#[cfg(feature = "program")]
 impl Sealed for PlayerState {}
+
+#[cfg(feature = "program")]
 impl Pack for PlayerState {
     const LEN: usize = 98;
 
@@ -125,6 +137,7 @@ pub struct ServerState {
     pub padding: Vec<u8>,
 }
 
+#[cfg(feature = "program")]
 impl ServerState {
     pub fn update_padding(&mut self) {
         let len = get_instance_packed_len(self).unwrap();
@@ -134,13 +147,17 @@ impl ServerState {
 }
 
 
+#[cfg(feature = "program")]
 impl IsInitialized for ServerState {
     fn is_initialized(&self) -> bool {
         self.is_initialized
     }
 }
 
+#[cfg(feature = "program")]
 impl Sealed for ServerState {}
+
+#[cfg(feature = "program")]
 impl Pack for ServerState {
     const LEN: usize = 108;
 

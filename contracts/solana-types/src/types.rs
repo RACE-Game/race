@@ -1,7 +1,10 @@
 //! Parameters for sonala contracts
 
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "program")]
 use solana_program::pubkey::Pubkey;
+#[cfg(feature = "sdk")]
+use solana_sdk::pubkey::Pubkey;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct TokenInfo {

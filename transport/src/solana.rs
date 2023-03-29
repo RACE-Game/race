@@ -1,6 +1,5 @@
 #![allow(unused_variables, unused_imports)]
 use crate::error::{TransportError, TransportResult};
-use crate::states::{GameReg, RegistryState, GameState, PlayerState, ServerState};
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use jsonrpsee::core::Error;
@@ -11,10 +10,11 @@ use race_core::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration,
         JoinParams, PlayerJoin, PlayerProfile, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServeParams, ServerAccount, ServerJoin, SettleParams,
+        RegistrationAccount, ServeParams, ServerAccount, ServerJoin, SettleOp, SettleParams,
         UnregisterGameParams, VoteParams,
     },
 };
+use race_solana_types::state::{GameReg, GameState, PlayerState, RegistryState, ServerState};
 
 use race_solana_types::constants::{
     PROFILE_ACCOUNT_LEN, PROFILE_SEED, PROGRAM_ID, SERVER_ACCOUNT_LEN, SOL,
@@ -28,7 +28,6 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
-use solana_sdk::message::Message;
 use solana_sdk::program_pack::Pack;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
@@ -36,10 +35,13 @@ use solana_sdk::signer::Signer;
 use solana_sdk::system_instruction::{create_account, create_account_with_seed};
 use solana_sdk::transaction::Transaction;
 use solana_sdk::{
+    hash::Hash,
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
-    vote::state::serde_compact_vote_state_update,
+    pubkey::ParsePubkeyError,
+    signature::Signature,
 };
+use solana_sdk::{message::Message, system_program};
 use spl_associated_token_account::get_associated_token_address;
 use spl_token::{
     check_id, check_program_account, id, instruction::initialize_account, state::Account, ID,
@@ -101,18 +103,16 @@ impl TransportT for SolanaTransport {
                 .map_err(|_| TransportError::InitInstructionFailed)?;
 
         // FIXME: limit title to 16 or 30 chars
-        let ix_data = RaceInstruction::pack(RaceInstruction::CreateGameAccount {
-            params: solana_types::CreateGameAccountParams {
-                title: params.title,
-                max_players: params.max_players,
-                data: params.data,
-            },
-        })
-        .map_err(|_| TransportError::InstructionDataError)?;
 
-        let create_game_ix = Instruction::new_with_bytes(
+        let create_game_ix = Instruction::new_with_borsh(
             program_id.clone(),
-            &ix_data,
+            &RaceInstruction::CreateGameAccount {
+                params: solana_types::CreateGameAccountParams {
+                    title: params.title,
+                    max_players: params.max_players,
+                    data: params.data,
+                },
+            },
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new(game_account_pubkey, false),
@@ -163,12 +163,9 @@ impl TransportT for SolanaTransport {
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &program_id);
 
-        let ix_data = RaceInstruction::pack(RaceInstruction::CloseGameAccount)
-            .map_err(|_| TransportError::InstructionDataError)?;
-
-        let close_game_ix = Instruction::new_with_bytes(
+        let close_game_ix = Instruction::new_with_borsh(
             program_id,
-            &ix_data,
+            &RaceInstruction::CloseGameAccount,
             vec![
                 AccountMeta::new(payer_pubkey, true),
                 AccountMeta::new(game_account_pubkey, false),
@@ -246,16 +243,13 @@ impl TransportT for SolanaTransport {
             &program_id,
         );
 
-        let ix_data = RaceInstruction::pack(RaceInstruction::RegisterServer {
-            params: solana_types::RegisterServerParams {
-                endpoint: params.endpoint,
-            },
-        })
-        .map_err(|_| TransportError::InstructionDataError)?;
-
-        let init_account_ix = Instruction::new_with_bytes(
+        let init_account_ix = Instruction::new_with_borsh(
             program_id,
-            &ix_data,
+            &RaceInstruction::RegisterServer {
+                params: solana_types::RegisterServerParams {
+                    endpoint: params.endpoint,
+                },
+            },
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new(server_account_pubkey, false),
@@ -363,14 +357,11 @@ impl TransportT for SolanaTransport {
             Pubkey::from_str(&addr).map_err(|_| TransportError::InvalidPubkey(addr.to_string()))?
         };
 
-        let ix_data = RaceInstruction::pack(RaceInstruction::CreatePlayerProfile {
-            params: solana_types::CreatePlayerProfileParams { nick: params.nick },
-        })
-        .map_err(|_| TransportError::InstructionDataError)?;
-
-        let init_profile_ix = Instruction::new_with_bytes(
+        let init_profile_ix = Instruction::new_with_borsh(
             program_id,
-            &ix_data,
+            &RaceInstruction::CreatePlayerProfile {
+                params: solana_types::CreatePlayerProfileParams { nick: params.nick },
+            },
             vec![
                 AccountMeta::new_readonly(player_pubkey, true),
                 AccountMeta::new(profile_account_pubkey, false),
@@ -404,8 +395,68 @@ impl TransportT for SolanaTransport {
     }
 
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
-        // TODO: test fn settle with non-trans add failed
-        todo!()
+        let SettleParams { addr, mut settles } = params;
+        let payer = &self.keypair;
+        let payer_pubkey = payer.pubkey();
+        let game_account_pubkey = Self::parse_pubkey(&addr)?;
+        let game_state = self.internal_get_game_account(&game_account_pubkey).await?;
+        let program_id = Self::program_id();
+        let (pda, _bump_seed) =
+            Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &program_id);
+
+        // The settles are required to be in correct order: add < sub < eject.
+        // And the sum of settles must be zero.
+        settles.sort_by_key(|s| match s.op {
+            SettleOp::Eject => 2,
+            SettleOp::Add(_) => 0,
+            SettleOp::Sub(_) => 1,
+        });
+
+        let settles: TransportResult<Vec<race_solana_types::types::Settle>> = settles
+            .into_iter()
+            .map(|s| {
+                Ok(match s.op {
+                    SettleOp::Eject => race_solana_types::types::Settle {
+                        addr: Pubkey::from_str(&s.addr)?,
+                        op: race_solana_types::types::SettleOp::Eject,
+                    },
+                    SettleOp::Add(amt) => race_solana_types::types::Settle {
+                        addr: Pubkey::from_str(&s.addr)?,
+                        op: race_solana_types::types::SettleOp::Add(amt),
+                    },
+                    SettleOp::Sub(amt) => race_solana_types::types::Settle {
+                        addr: Pubkey::from_str(&s.addr)?,
+                        op: race_solana_types::types::SettleOp::Sub(amt),
+                    },
+                })
+            })
+            .collect();
+        let settles = settles?;
+
+        let accounts = vec![
+            AccountMeta::new_readonly(payer_pubkey, true),
+            AccountMeta::new(Pubkey::from_str(&addr).unwrap(), false),
+            AccountMeta::new_readonly(Pubkey::new_unique(), false),
+            AccountMeta::new_readonly(pda, false),
+            AccountMeta::new_readonly(spl_token::id(), false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ];
+
+        let settle_ix = Instruction::new_with_borsh(
+            program_id,
+            &RaceInstruction::Settle {
+                params: race_solana_types::types::SettleParams { settles },
+            },
+            accounts,
+        );
+
+        let message = Message::new(&[settle_ix], Some(&payer.pubkey()));
+        let mut tx = Transaction::new_unsigned(message);
+        let blockhash = self.get_blockhash()?;
+        tx.sign(&[payer], blockhash);
+        self.send_transaction(tx)?;
+
+        Ok(())
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
@@ -472,175 +523,84 @@ impl TransportT for SolanaTransport {
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
-        match Pubkey::from_str(addr) {
-            Ok(game_account_pubkey) => {
-                match self.client.get_account_data(&game_account_pubkey) {
-                    Ok(game_account_data) => {
-                        match GameState::try_from_slice(&game_account_data) {
-                            Ok(state) => {
-                                let bundle_addr = state.bundle_addr.to_string();
-                                let transactor_addr = match state.transactor_addr {
-                                    Some(pubkey) => Some(pubkey.to_string()),
-                                    None => None,
-                                };
+        let game_account_pubkey = Self::parse_pubkey(addr).ok()?;
+        let state = self
+            .internal_get_game_account(&game_account_pubkey)
+            .await
+            .ok()?;
+        let bundle_addr = state.bundle_addr.to_string();
+        let transactor_addr = match state.transactor_addr {
+            Some(pubkey) => Some(pubkey.to_string()),
+            None => None,
+        };
 
-                                Some(GameAccount {
-                                    addr: addr.to_owned(),
-                                    title: state.title,
-                                    settle_version: state.settle_version,
-                                    bundle_addr,
-                                    access_version: state.access_version,
-                                    players: state
-                                        .players
-                                        .into_iter()
-                                        .map(|p| PlayerJoin {
-                                            addr: p.addr.to_string(),
-                                            position: p.position as usize,
-                                            balance: p.balance,
-                                            access_version: p.access_version,
-                                        })
-                                        .collect(),
-                                    servers: state
-                                        .servers
-                                        .into_iter()
-                                        .map(|s| ServerJoin {
-                                            addr: s.addr.to_string(),
-                                            endpoint: s.endpoint,
-                                            access_version: s.access_version,
-                                        })
-                                        .collect(),
-                                    transactor_addr,
-                                    max_players: state.max_players,
-                                    data_len: state.data_len,
-                                    data: *state.data,
-                                    // TODO: impl the following fields
-                                    deposits: Vec::new(),
-                                    votes: Vec::new(),
-                                    unlock_time: None,
-                                })
-                            }
-                            Err(e) => {
-                                eprintln!("Game State Error {}", e);
-                                None
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Game Account Data Error {}", e);
-                        None
-                    }
-                }
-            }
-            Err(e) => {
-                eprintln!("Game Account Pubkey Error {}", e);
-                None
-            }
-        }
+        Some(GameAccount {
+            addr: addr.to_owned(),
+            title: state.title,
+            settle_version: state.settle_version,
+            bundle_addr,
+            access_version: state.access_version,
+            players: state
+                .players
+                .into_iter()
+                .map(|p| PlayerJoin {
+                    addr: p.addr.to_string(),
+                    position: p.position as usize,
+                    balance: p.balance,
+                    access_version: p.access_version,
+                })
+                .collect(),
+            servers: state
+                .servers
+                .into_iter()
+                .map(|s| ServerJoin {
+                    addr: s.addr.to_string(),
+                    endpoint: s.endpoint,
+                    access_version: s.access_version,
+                })
+                .collect(),
+            transactor_addr,
+            max_players: state.max_players,
+            data_len: state.data_len,
+            data: *state.data,
+            // TODO: impl the following fields
+            deposits: Vec::new(),
+            votes: Vec::new(),
+            unlock_time: None,
+        })
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
-        match Pubkey::from_str(addr) {
-            Ok(game_account_pubkey) => {
-                match &self.client.get_account_data(&game_account_pubkey) {
-                    Ok(game_account_data) => {
-                        match GameState::try_from_slice(&game_account_data) {
-                            Ok(game_state) => {
-                                // FIXME: implement GameBundle as NFT and use its metadata
-                                let addr = game_state.bundle_addr.to_string();
-                                let data = "ARWEAVE BASE64 ADDRESS".to_string();
-
-                                Some(GameBundle {
-                                    addr,
-                                    data,
-                                })
-                            }
-                            Err(e) => {
-                                eprintln!("Game state error: {}", e);
-                                None
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Game account data error {}", e);
-                        None
-                    }
-                }
-            }
-            Err(e) => {
-                eprintln!("Game account pubkey error {}", e);
-                None
-            }
-        }
+        let game_bundle_pubkey = Self::parse_pubkey(addr).ok()?;
+        let bundle_data = self.client.get_account_data(&game_bundle_pubkey).ok()?;
+        let bundle_state = GameBundle::try_from_slice(&bundle_data).ok()?;
+        let addr = bundle_state.addr.to_string();
+        let data = "ARWEAVE BASE64 ADDRESS".to_string();
+        Some(GameBundle { addr, data })
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
-        match Pubkey::from_str(addr) {
-            Ok(player_pubkey) => {
-                match self.client.get_account_data(&player_pubkey) {
-                    Ok(profile_account_data) => {
-                        println!("Account data to deserialize {:?}", profile_account_data);
-                        match PlayerState::try_from_slice(&profile_account_data) {
-                            Ok(player_state) => {
-                                let addr = player_state.addr.to_string();
-                                let pfp = if player_state.pfp.is_some() {
-                                    Some(player_state.pfp.unwrap().to_string())
-                                } else {
-                                    None
-                                };
-                                Some(PlayerProfile {
-                                    addr,
-                                    nick: player_state.nick,
-                                    pfp,
-                                })
-                            }
-                            Err(e) => {
-                                eprintln!("Profile account data error: {}", e);
-                                None
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Profile account error: {}", e);
-                        None
-                    }
-                }
-            }
-            Err(e) => {
-                eprintln!("Player profile pubkey error {}", e);
-                None
-            }
-        }
+        let profile_pubkey = Self::parse_pubkey(addr).ok()?;
+        let profile_data = self.client.get_account_data(&profile_pubkey).ok()?;
+        let profile_state = PlayerState::try_from_slice(&profile_data).ok()?;
+        let addr = profile_state.addr.to_string();
+        let pfp = profile_state.pfp.map(|x| x.to_string());
+        Some(PlayerProfile {
+            addr,
+            nick: profile_state.nick,
+            pfp,
+        })
     }
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
-        match Pubkey::from_str(addr) {
-            Ok(server_account_pubkey) => {
-                match self.client.get_account_data(&server_account_pubkey) {
-                    Ok(server_account_data) => {
-                        println!("Account data to deserialize {:?}", server_account_data);
-                        match ServerState::try_from_slice(&server_account_data) {
-                            Ok(server_state) => Some(ServerAccount {
-                                addr: server_state.addr.to_string(),
-                                owner_addr: server_state.owner.to_string(),
-                                endpoint: server_state.endpoint,
-                            }),
-                            Err(e) => {
-                                eprintln!("Server account data error: {}", e);
-                                None
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Server account error: {}", e);
-                        None
-                    }
-                }
-            }
-            Err(e) => {
-                eprintln!("Server pubkey error {}", e);
-                None
-            }
-        }
+        let server_account_pubkey = Self::parse_pubkey(addr).ok()?;
+        let server_account_data = self.client.get_account_data(&server_account_pubkey).ok()?;
+        let server_state = ServerState::try_from_slice(&server_account_data).ok()?;
+        Some(ServerAccount {
+            addr: server_state.addr.to_string(),
+            owner_addr: server_state.owner.to_string(),
+            endpoint: server_state.endpoint,
+        })
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
@@ -675,6 +635,52 @@ impl SolanaTransport {
 
         let keypair = read_keypair(keyfile)?;
         Ok(Self { client, keypair })
+    }
+
+    fn parse_pubkey(addr: &str) -> TransportResult<Pubkey> {
+        Pubkey::from_str(addr).map_err(|_| TransportError::InvalidConfig)
+    }
+
+    fn program_id() -> Pubkey {
+        Self::parse_pubkey(PROGRAM_ID).unwrap()
+    }
+
+    fn get_blockhash(&self) -> TransportResult<Hash> {
+        self.client
+            .get_latest_blockhash()
+            .map_err(|_| TransportError::GetBlockhashFailed)
+    }
+
+    fn send_transaction(&self, tx: Transaction) -> TransportResult<Signature> {
+        let skip_preflight = if cfg!(test) { true } else { false };
+
+        let config = RpcSendTransactionConfig {
+            skip_preflight,
+            ..RpcSendTransactionConfig::default()
+        };
+
+        self.client
+            .send_transaction_with_config(&tx, config)
+            .map_err(|_| TransportError::ClientSendTransactionFailed)
+    }
+
+    /// Get the state of an on-chain game account by its public key.
+    async fn internal_get_game_account(
+        &self,
+        game_account_pubkey: &Pubkey,
+    ) -> TransportResult<GameState> {
+        let data = self
+            .client
+            .get_account_data(&game_account_pubkey)
+            .or(Err(TransportError::GameAccountNotFound))?;
+
+        GameState::try_from_slice(&data).or(Err(TransportError::GameStateDeserializeError))
+    }
+}
+
+impl From<ParsePubkeyError> for TransportError {
+    fn from(value: ParsePubkeyError) -> Self {
+        TransportError::ParseAddressError
     }
 }
 
@@ -766,11 +772,12 @@ mod tests {
     async fn test_player_profile() -> anyhow::Result<()> {
         let transport = get_transport()?;
         // Create a player profile
-        let profile_addr = transport.create_player_profile(CreatePlayerProfileParams {
-            addr: "HHHHHJJJJKKKKLLLLPPPPOOOOIIIIUUUU".to_string(),
-            nick: "Jackson".to_owned(),
-            pfp: None
-        })
+        let profile_addr = transport
+            .create_player_profile(CreatePlayerProfileParams {
+                addr: "HHHHHJJJJKKKKLLLLPPPPOOOOIIIIUUUU".to_string(),
+                nick: "Jackson".to_owned(),
+                pfp: None,
+            })
             .await?;
 
         println!("Created profile is {}", profile_addr);
@@ -803,7 +810,9 @@ mod tests {
             "https://api.testnet.solana.com".to_string(),
             server_state.endpoint
         );
+    }
 
+    async fn test_settle() -> anyhow::Result<()> {
         Ok(())
     }
 }

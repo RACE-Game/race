@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 race-core = { path = "../core" }
 race-env = { path = "../env" }
-race-solana-types = { path = "../contracts/solana-types" }
+race-solana-types = { path = "../contracts/solana-types", features = ["sdk"], default-features = false }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 serde_json = { workspace = true }
