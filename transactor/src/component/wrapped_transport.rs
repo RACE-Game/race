@@ -42,7 +42,7 @@ impl TransportT for WrappedTransport {
         self.inner.create_game_account(params).await
     }
 
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()> {
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String> {
         self.inner.create_player_profile(params).await
     }
 
