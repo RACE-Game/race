@@ -8,6 +8,7 @@ mod register_game;
 mod close_game;
 mod register_server;
 mod settle;
+mod serve;
 mod vote;
 mod misc;
 
@@ -52,6 +53,10 @@ pub fn process(
         RaceInstruction::Vote { params } => {
             msg!("Vote");
             vote::process(program_id, accounts, params)
+        }
+        RaceInstruction::ServeGame => {
+            msg!("Server joins a game");
+            serve::process(program_id, accounts)
         }
     }
 }

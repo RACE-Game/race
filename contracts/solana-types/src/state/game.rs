@@ -9,11 +9,10 @@ use solana_program::{
 };
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
-
 use crate::types::VoteType;
 
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(Default, BorshDeserialize, BorshSerialize, Clone)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Default, BorshDeserialize, BorshSerialize, Clone, Debug)]
 pub struct PlayerJoin {
     pub addr: Pubkey,
     pub balance: u64,
@@ -21,16 +20,16 @@ pub struct PlayerJoin {
     pub access_version: u64,
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(Default, BorshDeserialize, BorshSerialize, Clone)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Default, BorshDeserialize, BorshSerialize, Clone, Debug)]
 pub struct ServerJoin {
     pub addr: Pubkey,
     pub endpoint: String,
     pub access_version: u64,
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(BorshDeserialize, BorshSerialize, Clone)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(BorshDeserialize, BorshSerialize, Clone, Debug)]
 pub struct Vote {
     pub voter: Pubkey,
     pub votee: Pubkey,
@@ -38,8 +37,8 @@ pub struct Vote {
 }
 
 // State of on-chain GameAccount
-#[cfg_attr(test, derive(Debug, PartialEq, Clone))]
-#[derive(Default, BorshDeserialize, BorshSerialize)]
+#[cfg_attr(test, derive(PartialEq, Clone))]
+#[derive(Default, BorshDeserialize, BorshSerialize, Debug)]
 pub struct GameState {
     pub is_initialized: bool,
     pub title: String,

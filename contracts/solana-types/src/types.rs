@@ -20,12 +20,6 @@ pub struct CreateGameAccountParams {
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
-pub struct ServeParams {
-    pub game_addr: String,
-    pub server_addr: String,
-}
-
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone)]
 pub struct RegisterServerParams {
     pub endpoint: String,
@@ -62,7 +56,6 @@ pub struct GetTransactorInfoParams {
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct CreatePlayerProfileParams {
     pub nick: String,
-    // pub pfp: Option<String>,
 }
 
 /// The player status in settlement.

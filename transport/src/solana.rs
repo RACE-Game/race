@@ -14,16 +14,15 @@ use race_core::{
         UnregisterGameParams, VoteParams,
     },
 };
-use race_solana_types::state::{GameReg, GameState, PlayerState, RegistryState, ServerState};
-
+use race_solana_types::state::{GameReg, GameState, PlayerState, RegistryState, ServerState, self};
 use race_solana_types::constants::{
-    PROFILE_ACCOUNT_LEN, PROFILE_SEED, PROGRAM_ID, SERVER_ACCOUNT_LEN, SOL,
+    GAME_ACCOUNT_LEN, MAX_SERVER_NUM, NAME_LEN, PROFILE_ACCOUNT_LEN, PROFILE_SEED, PROGRAM_ID, SERVER_ACCOUNT_LEN, SOL,
 };
 use race_solana_types::instruction::RaceInstruction;
 use race_solana_types::types as solana_types;
 
 use serde_json;
-use std::fs::File;
+use std::fs::{File, read_to_string};
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -47,6 +46,12 @@ use spl_token::{
     check_id, check_program_account, id, instruction::initialize_account, state::Account, ID,
 };
 
+fn read_program_id(root_path: PathBuf, file_path: &str) -> TransportResult<String> {
+    let id_file = root_path.join(file_path);
+    let id = read_to_string(id_file).map_err(|e| TransportError::InvalidProgramID)?;
+    Ok(String::from(id.trim()))
+}
+
 fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
     let keypair = solana_sdk::signature::read_keypair_file(path)
         .map_err(|e| TransportError::InvalidKeyfile(e.to_string()))?;
@@ -69,16 +74,15 @@ impl TransportT for SolanaTransport {
             .map_err(|_| TransportError::InvalidBundleAddress)?;
         let game_account = Keypair::new();
         let game_account_pubkey = game_account.pubkey();
-        let game_account_len = 5000;
         let lamports = self
             .client
-            .get_minimum_balance_for_rent_exemption(game_account_len)
+            .get_minimum_balance_for_rent_exemption(GAME_ACCOUNT_LEN)
             .map_err(|_| TransportError::NoEnoughLamports)?;
         let create_game_account_ix = create_account(
             &payer_pubkey,
             &game_account_pubkey,
             lamports,
-            game_account_len as u64,
+            GAME_ACCOUNT_LEN as u64,
             &program_id,
         );
 
@@ -206,7 +210,7 @@ impl TransportT for SolanaTransport {
         if params.endpoint.len() > 50 {
             // FIXME: Use TransportError
             return Err(race_core::error::Error::Custom(
-                "Endpoint too long".to_string(),
+                "Endpoint length exceeds 50 chars".to_string(),
             ));
         }
         // Create server profile on chain (like creation of a player profile)
@@ -279,7 +283,7 @@ impl TransportT for SolanaTransport {
     async fn join(&self, params: JoinParams) -> Result<()> {
         // Player Join
         // 1. check max player (must be <= max player)
-        // 2. check position 0 to max_ply - 1
+        // 2. check player position 0 to max_ply - 1
         // 3. access_version == current access_version; if different, fail
         // each
         todo!()
@@ -290,22 +294,51 @@ impl TransportT for SolanaTransport {
     }
 
     async fn serve(&self, params: ServeParams) -> Result<()> {
-        // Server joins a game
-        // 1. check Max server num (use a const)
-        // 2. access_v += 1
-        // 3. 1st-joine server becomes transactor (if there is no one currently)
-        todo!()
+        let program_id = Pubkey::from_str(PROGRAM_ID).map_err(|_| TransportError::InvalidConfig)?;
+        let payer = &self.keypair;
+        let payer_pubkey = payer.pubkey();
+
+        let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
+        let server_account_pubkey = Self::parse_pubkey(&params.server_addr)?;
+
+        let game_state = self.internal_get_game_account(&game_account_pubkey).await?;
+
+        // Check max server num
+        if game_state.servers.len() == MAX_SERVER_NUM {
+            return Err(race_core::error::Error::Custom(
+                "Server number exceeds the limit!".to_string())
+            )
+        }
+
+        let serve_game_ix = Instruction::new_with_borsh(
+            program_id,
+            &RaceInstruction::ServeGame,
+            vec![
+                AccountMeta::new_readonly(payer_pubkey, true),
+                AccountMeta::new(game_account_pubkey, false),
+                AccountMeta::new_readonly(server_account_pubkey, false),
+            ],
+        );
+
+        let message = Message::new(&[serve_game_ix], Some(&payer_pubkey));
+        let mut tx = Transaction::new_unsigned(message);
+        let blockhash = self.get_blockhash()?;
+        tx.sign(&[payer], blockhash);
+        self.send_transaction(tx)?;
+
+        Ok(())
     }
+
     async fn vote(&self, params: VoteParams) -> Result<()> {
         todo!()
     }
 
     async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String> {
-        // Check if nick name exceeds the max len (16 chars)
-        if params.nick.len() > 16 {
+        // Check if nick name exceeds 16 chars
+        if params.nick.len() > NAME_LEN {
             // FIXME: Transfer transport error to race error
             return Err(race_core::error::Error::Custom(
-                "Nick name length should not exceed 16 characters!".to_string(),
+                "Nick name should not exceed 16 characters!".to_string(),
             ));
         }
         let program_id = Pubkey::from_str(PROGRAM_ID).map_err(|_| TransportError::InvalidConfig)?;
@@ -320,7 +353,6 @@ impl TransportT for SolanaTransport {
             Pubkey::create_with_seed(&player_pubkey, PROFILE_SEED, &program_id)
                 .map_err(|_| TransportError::PubkeyCreationFailed)?;
 
-        println!("1");
         let lamports = self
             .client
             .get_minimum_balance_for_rent_exemption(PROFILE_ACCOUNT_LEN)
@@ -388,6 +420,8 @@ impl TransportT for SolanaTransport {
 
         Ok(profile_account_pubkey.to_string())
     }
+
+    // TODO: add close_player_profile
 
     async fn publish_game(&self, bundle: GameBundle) -> Result<String> {
         // Publish game bundle (similar to minting NFTs)
@@ -665,6 +699,7 @@ impl SolanaTransport {
     }
 
     /// Get the state of an on-chain game account by its public key.
+    /// Not for public API usage
     async fn internal_get_game_account(
         &self,
         game_account_pubkey: &Pubkey,
@@ -675,6 +710,20 @@ impl SolanaTransport {
             .or(Err(TransportError::GameAccountNotFound))?;
 
         GameState::try_from_slice(&data).or(Err(TransportError::GameStateDeserializeError))
+    }
+
+    /// Get the state of an on-chain server account
+    /// Not for public API usage
+    async fn get_server_state(
+        &self,
+        server_account_pubkey: &Pubkey,
+    ) -> TransportResult<ServerState> {
+        let data = self
+            .client
+            .get_account_data(&server_account_pubkey)
+            .or(Err(TransportError::ServerAccountDataNotFound))?;
+
+        ServerState::try_from_slice(&data).or(Err(TransportError::ServerStateDeserializeError))
     }
 }
 
@@ -689,6 +738,24 @@ mod tests {
     use solana_client::rpc_config::RpcProgramAccountsConfig;
 
     use super::*;
+
+    #[test]
+    fn test_project_root() -> anyhow::Result<()> {
+        let root = project_root::get_project_root()?;
+        println!("Current project root is {:?}", root);
+        Ok(())
+    }
+
+    #[test]
+    fn test_read_prog_id() -> anyhow::Result<()> {
+        let id_file = "contracts/solana-types/prog_id";
+        let root = project_root::get_project_root()?;
+        let id = read_program_id(root, id_file)?;
+        assert_eq!(
+            "8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu",
+            id);
+        Ok(())
+    }
 
     #[test]
     fn test_read_keypair() -> anyhow::Result<()> {
@@ -793,7 +860,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_server_account() -> anyhow::Result<()> {
-        let transport = get_transport()?;
+        let transport = get_transport().unwrap();
         // Create a player profile
         let server_addr = transport
             .register_server(RegisterServerParams {
@@ -810,6 +877,9 @@ mod tests {
             "https://api.testnet.solana.com".to_string(),
             server_state.endpoint
         );
+
+        Ok(())
+
     }
 
     async fn test_settle() -> anyhow::Result<()> {

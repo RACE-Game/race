@@ -3225,6 +3225,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "project-root"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bccbff07d5ed689c4087d20d7307a52ab6141edeedf487c3876a55b86cf63df"
+
+[[package]]
 name = "ptr_meta"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3596,6 +3602,7 @@ dependencies = [
  "async-trait",
  "borsh",
  "jsonrpsee",
+ "project-root",
  "race-core",
  "race-env",
  "race-solana-types",

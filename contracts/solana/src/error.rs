@@ -81,7 +81,12 @@ pub enum ProcessError {
 
     /// 11
     #[error("Feature is unimplemented")]
-    Unimplemented
+    Unimplemented,
+
+    /// 12
+    #[error("Duplicate joining not allowed as the server already joined")]
+    DuplicateServerJoin
+
 }
 
 impl From<ProcessError> for ProgramError {

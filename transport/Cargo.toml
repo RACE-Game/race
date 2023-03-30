@@ -28,3 +28,4 @@ jsonrpsee = { workspace = true, features = ["http-client"]}
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 shellexpand = { workspace = true }
+project-root = { workspace = true }

@@ -17,6 +17,9 @@ pub enum TransportError {
     #[error("Invalid bundle address")]
     InvalidBundleAddress,
 
+    #[error("Invalid program id")]
+    InvalidProgramID,
+
     #[error("Invalid chain name")]
     InvalidChainName(String),
 
@@ -41,6 +44,9 @@ pub enum TransportError {
     #[error("Failed to get game account data")]
     GameAccountDataNotFound,
 
+    #[error("Failed to get server account data")]
+    ServerAccountDataNotFound,
+
     #[error("Player profile already exists")]
     DuplicatePlayerProfile,
 
@@ -64,6 +70,9 @@ pub enum TransportError {
 
     #[error("Failed to deserialize game account data")]
     GameStateDeserializeError,
+
+    #[error("Failed to deserialize server account data")]
+    ServerStateDeserializeError,
 
     #[error("Failed to parse string address")]
     ParseAddressError,

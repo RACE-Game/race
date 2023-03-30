@@ -84,6 +84,13 @@ pub enum RaceInstruction {
     /// 1. `[writable]` The game account.
     /// 2. `[]` The votee account.
     Vote { params: VoteParams },
+    /// # Serve a game
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The payer acount (the server itself)
+    /// 1. `[writable]` The game account to be served
+    /// 2. `[]` The server account
+    ServeGame,
 }
 
 #[cfg(feature = "program")]
