@@ -10,6 +10,8 @@ use solana_program::{
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
 
+use crate::types::VoteType;
+
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone)]
 pub struct PlayerJoin {
@@ -25,6 +27,14 @@ pub struct ServerJoin {
     pub addr: Pubkey,
     pub endpoint: String,
     pub access_version: u64,
+}
+
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
+#[derive(BorshDeserialize, BorshSerialize, Clone)]
+pub struct Vote {
+    pub voter: Pubkey,
+    pub votee: Pubkey,
+    pub vote_type: VoteType,
 }
 
 // State of on-chain GameAccount
@@ -45,6 +55,8 @@ pub struct GameState {
     pub data: Box<Vec<u8>>,
     pub players: Box<Vec<PlayerJoin>>,
     pub servers: Box<Vec<ServerJoin>>,
+    pub votes: Box<Vec<Vote>>,
+    pub unlock_time: Option<u64>,
     pub padding: Box<Vec<u8>>,
 }
 
@@ -88,7 +100,7 @@ pub struct PlayerState {
     pub is_initialized: bool,
     pub addr: Pubkey,
     pub chips: u64,
-    pub nick: String,               // max: 16 chars
+    pub nick: String, // max: 16 chars
     pub pfp: Option<Pubkey>,
     pub padding: Vec<u8>,
 }
@@ -133,7 +145,7 @@ pub struct ServerState {
     pub is_initialized: bool,
     pub addr: Pubkey,
     pub owner: Pubkey,
-    pub endpoint: String,               // max: 50 chars
+    pub endpoint: String, // max: 50 chars
     pub padding: Vec<u8>,
 }
 
@@ -145,7 +157,6 @@ impl ServerState {
         self.padding = vec![0; padding_len];
     }
 }
-
 
 #[cfg(feature = "program")]
 impl IsInitialized for ServerState {
@@ -172,7 +183,6 @@ impl Pack for ServerState {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
@@ -187,9 +197,10 @@ mod tests {
 
     #[test]
     pub fn test_player_account_len() -> anyhow::Result<()> {
-        let player = create_player();
+        let mut player = create_player();
         println!("Player account len {}", get_instance_packed_len(&player)?); // 94
-        assert_eq!(1, 2);
+        player.update_padding();
+        assert_eq!(get_instance_packed_len(&player)?, PlayerState::LEN); // 98
         Ok(())
     }
 
@@ -228,7 +239,6 @@ mod tests {
             state.servers.push(s);
         }
         println!("len: {}", get_instance_packed_len(&state)?);
-        assert_eq!(1, 2);
         Ok(())
     }
 

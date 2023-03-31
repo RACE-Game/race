@@ -65,7 +65,6 @@ pub struct CreatePlayerProfileParams {
     // pub pfp: Option<String>,
 }
 
-
 /// The player status in settlement.
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub enum PlayerStatus {
@@ -117,10 +116,13 @@ pub struct DepositParams {
     pub settle_version: u64,
 }
 
-// #[derive(Debug, Clone, PartialEq, Eq)]
-// pub struct VoteParams {
-//     pub game_addr: String,
-//     pub vote_type: VoteType,
-//     pub voter_addr: String,
-//     pub votee_addr: String,
-// }
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub enum VoteType {
+    ServerVoteTransactorDropOff,
+    ClientVoteTransactorDropOff,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct VoteParams {
+    pub vote_type: VoteType,
+}

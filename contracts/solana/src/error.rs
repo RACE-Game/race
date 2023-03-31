@@ -66,6 +66,22 @@ pub enum ProcessError {
     /// D
     #[error("Player balance amount overflows")]
     PlayerBalanceOverflow,
+
+    /// E
+    #[error("Invalid voter account")]
+    InvalidVoterAccount,
+
+    /// F
+    #[error("Invalid votee account")]
+    InvalidVoteeAccount,
+
+    /// 10
+    #[error("Game is not served")]
+    GameNotServed,
+
+    /// 11
+    #[error("Feature is unimplemented")]
+    Unimplemented
 }
 
 impl From<ProcessError> for ProgramError {

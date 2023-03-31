@@ -8,6 +8,7 @@ mod register_game;
 mod close_game;
 mod register_server;
 mod settle;
+mod vote;
 mod misc;
 
 pub fn process(
@@ -47,6 +48,10 @@ pub fn process(
         RaceInstruction::Settle { params } => {
             msg!("Settle game");
             settle::process(program_id, accounts, params)
+        }
+        RaceInstruction::Vote { params } => {
+            msg!("Vote");
+            vote::process(program_id, accounts, params)
         }
     }
 }

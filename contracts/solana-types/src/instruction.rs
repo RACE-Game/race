@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use crate::types::{
     CreateGameAccountParams, RegisterServerParams, CreateRegistrationParams,
-    RegisterGameParams, CreatePlayerProfileParams, SettleParams
+    RegisterGameParams, CreatePlayerProfileParams, SettleParams, VoteParams
 };
 #[cfg(feature = "program")]
 use solana_program::program_error::ProgramError;
@@ -76,6 +76,14 @@ pub enum RaceInstruction {
     /// Following:
     /// `[]` Every leaving players account, must be in the same order with Eject settles
     Settle { params: SettleParams },
+
+    /// # Vote
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The voter account, could be the wallet address of a server or a player.
+    /// 1. `[writable]` The game account.
+    /// 2. `[]` The votee account.
+    Vote { params: VoteParams },
 }
 
 #[cfg(feature = "program")]
