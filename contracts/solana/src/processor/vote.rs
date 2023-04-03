@@ -5,10 +5,12 @@ use race_solana_types::{
 };
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
+    clock::Clock,
     entrypoint::ProgramResult,
     program_error::ProgramError,
     program_pack::Pack,
-    pubkey::Pubkey, clock::{UnixTimestamp, Clock},
+    pubkey::Pubkey,
+    sysvar::Sysvar,
 };
 
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: VoteParams) -> ProgramResult {
@@ -23,14 +25,14 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: VoteParams
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    let game_state = GameState::unpack(&game_account.try_borrow_data()?)?;
+    let mut game_state = GameState::unpack(&game_account.try_borrow_data()?)?;
 
     // Validate voter identity
 
     let transactor_addr = game_state
         .transactor_addr
         .as_ref()
-        .ok_or(Err(ProcessError::GameNotServed))?;
+        .ok_or(ProcessError::GameNotServed)?;
 
     if voter_account.key.ne(transactor_addr) || votee_account.key.eq(voter_account.key) {
         return Err(ProcessError::InvalidVoteeAccount)?;
@@ -52,13 +54,13 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: VoteParams
                 vote_type,
             });
 
-            let clock = Clock::get()?;
+            let clock = Clock::get()?.epoch;
 
-            if game_state.votes.len() >= game_state.servers.len().div_floor(2) {
+            if game_state.votes.len() >= game_state.servers.len() / 2 {
                 game_state.unlock_time = Some(clock + 10_000);
             }
         }
-        VoteType::ClientVoteTransactorDropOff => return Err(ProcessError::Unimplemented),
+        VoteType::ClientVoteTransactorDropOff => return Err(ProcessError::Unimplemented)?,
     }
 
     GameState::pack(game_state, &mut game_account.try_borrow_mut_data()?)?;

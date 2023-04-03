@@ -14,15 +14,16 @@ use race_core::{
         UnregisterGameParams, VoteParams,
     },
 };
-use race_solana_types::state::{GameReg, GameState, PlayerState, RegistryState, ServerState, self};
 use race_solana_types::constants::{
-    GAME_ACCOUNT_LEN, MAX_SERVER_NUM, NAME_LEN, PROFILE_ACCOUNT_LEN, PROFILE_SEED, PROGRAM_ID, SERVER_ACCOUNT_LEN, SOL,
+    GAME_ACCOUNT_LEN, MAX_SERVER_NUM, NAME_LEN, PROFILE_ACCOUNT_LEN, PROFILE_SEED, PROGRAM_ID,
+    SERVER_ACCOUNT_LEN, SOL,
 };
 use race_solana_types::instruction::RaceInstruction;
+use race_solana_types::state::{self, GameReg, GameState, PlayerState, RegistryState, ServerState};
 use race_solana_types::types as solana_types;
 
 use serde_json;
-use std::fs::{File, read_to_string};
+use std::fs::{read_to_string, File};
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -45,12 +46,6 @@ use spl_associated_token_account::get_associated_token_address;
 use spl_token::{
     check_id, check_program_account, id, instruction::initialize_account, state::Account, ID,
 };
-
-fn read_program_id(root_path: PathBuf, file_path: &str) -> TransportResult<String> {
-    let id_file = root_path.join(file_path);
-    let id = read_to_string(id_file).map_err(|e| TransportError::InvalidProgramID)?;
-    Ok(String::from(id.trim()))
-}
 
 fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
     let keypair = solana_sdk::signature::read_keypair_file(path)
@@ -306,8 +301,8 @@ impl TransportT for SolanaTransport {
         // Check max server num
         if game_state.servers.len() == MAX_SERVER_NUM {
             return Err(race_core::error::Error::Custom(
-                "Server number exceeds the limit!".to_string())
-            )
+                "Server number exceeds the limit!".to_string(),
+            ));
         }
 
         let serve_game_ix = Instruction::new_with_borsh(
@@ -739,21 +734,18 @@ mod tests {
 
     use super::*;
 
+    fn read_program_id() -> anyhow::Result<Pubkey> {
+        let program_keypair = read_keypair(
+            project_root::get_project_root()?
+                .join("./target/deplay/race_solana-keypair.json".into()),
+        )?;
+        Ok(program_keypair.pubkey())
+    }
+
     #[test]
     fn test_project_root() -> anyhow::Result<()> {
         let root = project_root::get_project_root()?;
         println!("Current project root is {:?}", root);
-        Ok(())
-    }
-
-    #[test]
-    fn test_read_prog_id() -> anyhow::Result<()> {
-        let id_file = "contracts/solana-types/prog_id";
-        let root = project_root::get_project_root()?;
-        let id = read_program_id(root, id_file)?;
-        assert_eq!(
-            "8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu",
-            id);
         Ok(())
     }
 
@@ -879,7 +871,6 @@ mod tests {
         );
 
         Ok(())
-
     }
 
     async fn test_settle() -> anyhow::Result<()> {

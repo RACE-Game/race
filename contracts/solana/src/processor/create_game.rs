@@ -80,8 +80,10 @@ pub fn process(
         players: Box::new(Vec::<PlayerJoin>::with_capacity(
             params.max_players as usize,
         )),
-        servers: Box::new(vec![]),
-        padding: Box::new(vec![]),
+        unlock_time: None,
+        votes: Default::default(),
+        servers: Default::default(),
+        padding: Default::default(),
     };
 
     game_state.update_padding();

@@ -7,8 +7,6 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use race_solana_types::types::ServeParams;
-// use race_solana_types::constants::PROFILE_SEED;
 use crate::{state::{GameState, ServerState, ServerJoin}, error::ProcessError};
 
 #[inline(never)]
@@ -25,21 +23,23 @@ pub fn process(
     msg!("1");
     let game_account = next_account_info(account_iter)?;
     if !game_account.is_writable {
-        return Err(ProcessError::InvalidAccountStatus);
+        return Err(ProcessError::InvalidAccountStatus)?;
     }
     msg!("2");
     let server_account = next_account_info(account_iter)?;
 
     let mut game_state = GameState::unpack(&game_account.try_borrow_mut_data()?)?;
-    if game_state.servers.iter().any(|s| s.addr == server_account.key) {
-        return Err(ProcessError::DuplicateServerJoin);
+    if game_state.servers.iter().any(|s| s.addr.eq(server_account.key)) {
+        return Err(ProcessError::DuplicateServerJoin)?;
     }
     msg!("3");
+
+    let server_state = ServerState::unpack(&server_account.try_borrow_data()?)?;
 
     let new_access_version = game_state.access_version + 1;
     let server_to_join = ServerJoin {
         addr: *server_account.key,
-        endpoint: server_account.endpoint.clone(),
+        endpoint: server_state.endpoint.clone(),
         access_version: new_access_version,
     };
     msg!("4");
