@@ -13,3 +13,4 @@ clap = { workspace = true, features = ["derive"] }
 jsonrpsee = { workspace = true, features = ["http-client"] }
 anyhow = { workspace = true }
 base64 = { workspace = true }
+shellexpand = { workspace = true }

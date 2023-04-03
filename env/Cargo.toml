@@ -7,3 +7,4 @@ edition = "2021"
 toml = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
+shellexpand = { workspace = true }

@@ -4,7 +4,7 @@ use race_core::{
     transport::TransportT,
     types::{CreateRegistrationParams, GameBundle, ServerAccount},
 };
-use race_env::default_rpc;
+use race_env::{default_keyfile, default_rpc};
 use race_transport::TransportBuilder;
 use std::{fs::File, io::Read, sync::Arc};
 
@@ -15,6 +15,7 @@ fn cli() -> Command {
         .arg_required_else_help(true)
         .arg(arg!(-r <rpc> "The endpoint of RPC service"))
         .arg(arg!(-k <keyfile> "The path to keyfile"))
+        .arg(arg!(-e <env> "The environment"))
         .subcommand(
             Command::new("publish")
                 .about("Publish a game bundle")
@@ -58,14 +59,22 @@ fn cli() -> Command {
         )
 }
 
-async fn create_transport(chain: &str, rpc: Option<&str>) -> Arc<dyn TransportT> {
-    let transport = TransportBuilder::default()
+async fn create_transport(
+    chain: &str,
+    rpc: Option<&str>,
+    keyfile: Option<String>,
+    env: Option<&str>,
+) -> Arc<dyn TransportT> {
+    let mut builder = TransportBuilder::default()
         .try_with_chain(chain)
         .expect("Invalid chain")
-        .with_rpc(rpc.unwrap_or(default_rpc(chain)))
-        .build()
-        .await
-        .expect("Failed to create transport");
+        .with_rpc(rpc.unwrap_or(default_rpc(chain, env)));
+
+    if let Some(keyfile) = keyfile.or(default_keyfile(chain)) {
+        builder = builder.with_keyfile(keyfile);
+    }
+
+    let transport = builder.build().await.expect("Failed to create transport");
     Arc::from(transport)
 }
 
@@ -180,41 +189,49 @@ async fn main() {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
             let bundle = sub_matches.get_one::<String>("BUNDLE").expect("required");
             let rpc = matches.get_one::<String>("rpc").map(String::as_ref);
-            let transport = create_transport(&chain, rpc.as_deref()).await;
+            let keyfile = matches.get_one::<String>("keyfile");
+            let env = matches.get_one::<String>("env").map(String::as_ref);
+            let transport = create_transport(&chain, rpc.as_deref(), keyfile.cloned(), env.as_deref()).await;
             publish(bundle, transport).await;
         }
         Some(("bundle-info", sub_matches)) => {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
             let rpc = matches.get_one::<String>("rpc").map(String::as_ref);
-            let transport = create_transport(&chain, rpc.as_deref()).await;
+            let env = matches.get_one::<String>("env").map(String::as_ref);
+            let transport = create_transport(&chain, rpc.as_deref(), None, env.as_deref()).await;
             bundle_info(addr, transport).await;
         }
         Some(("game-info", sub_matches)) => {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
             let rpc = matches.get_one::<String>("rpc").map(String::as_ref);
-            let transport = create_transport(&chain, rpc.as_deref()).await;
+            let env = matches.get_one::<String>("env").map(String::as_ref);
+            let transport = create_transport(&chain, rpc.as_deref(), None, env.as_deref()).await;
             game_info(addr, transport).await;
         }
         Some(("server-info", sub_matches)) => {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
             let rpc = matches.get_one::<String>("rpc").map(String::as_ref);
-            let transport = create_transport(&chain, rpc.as_deref()).await;
+            let env = matches.get_one::<String>("env").map(String::as_ref);
+            let transport = create_transport(&chain, rpc.as_deref(), None, env.as_deref()).await;
             server_info(addr, transport).await;
         }
         Some(("create-reg", sub_matches)) => {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
             let rpc = matches.get_one::<String>("rpc").map(String::as_ref);
-            let transport = create_transport(&chain, rpc.as_deref()).await;
+            let keyfile = matches.get_one::<String>("keyfile");
+            let env = matches.get_one::<String>("env").map(String::as_ref);
+            let transport = create_transport(&chain, rpc.as_deref(), keyfile.cloned(), env.as_deref()).await;
             create_reg(transport).await;
         }
         Some(("reg-info", sub_matches)) => {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
             let rpc = matches.get_one::<String>("rpc").map(String::as_ref);
-            let transport = create_transport(&chain, rpc.as_deref()).await;
+            let env = matches.get_one::<String>("env").map(String::as_ref);
+            let transport = create_transport(&chain, rpc.as_deref(), None, env.as_deref()).await;
             reg_info(addr, transport).await;
         }
         _ => unreachable!(),
