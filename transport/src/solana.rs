@@ -27,7 +27,10 @@ use std::fs::{read_to_string, File};
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
+use solana_client::{
+    rpc_client::{RpcClient, RpcClientConfig},
+    rpc_config::RpcSendTransactionConfig,
+};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
@@ -279,7 +282,7 @@ impl TransportT for SolanaTransport {
         // Check max server num
         if game_state.servers.len() == MAX_SERVER_NUM {
             return Err(race_core::error::Error::Custom(
-                "Server number exceeds the limit!".to_string(),
+                "Server number exceeds the limit".to_string(),
             ));
         }
 
@@ -311,7 +314,7 @@ impl TransportT for SolanaTransport {
         if params.nick.len() > NAME_LEN {
             // FIXME: Transfer transport error to race error
             return Err(race_core::error::Error::Custom(
-                "Nick name should not exceed 16 characters!".to_string(),
+                "Nick name should not exceed 16 characters".to_string(),
             ));
         }
         let player = &self.keypair;
@@ -480,9 +483,14 @@ impl TransportT for SolanaTransport {
             registry_data_len as _,
             &self.program_id,
         );
-        let create_registry_ix = Instruction::new_with_bytes(
+        let create_registry_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
-            &[2],
+            &RaceInstruction::CreateRegistry {
+                params: race_solana_types::types::CreateRegistrationParams {
+                    is_private: false,
+                    size: 100,
+                },
+            },
             vec![
                 AccountMeta {
                     pubkey: payer_pubkey,
@@ -640,7 +648,10 @@ impl SolanaTransport {
         keyfile: PathBuf,
         program_id: Pubkey,
     ) -> TransportResult<Self> {
-        println!("Create Solana transport: RPC: {}, program_id: {:?}", rpc, program_id);
+        println!(
+            "Create Solana transport: RPC: {}, program_id: {:?}",
+            rpc, program_id
+        );
         let commitment = if cfg!(test) {
             CommitmentConfig::confirmed()
         } else {
@@ -668,15 +679,21 @@ impl SolanaTransport {
     fn send_transaction(&self, tx: Transaction) -> TransportResult<Signature> {
         let skip_preflight = if cfg!(test) { true } else { false };
 
-        let config = RpcSendTransactionConfig {
-            skip_preflight,
-            ..RpcSendTransactionConfig::default()
-        };
-
         let sig = self
             .client
             .send_and_confirm_transaction(&tx)
             .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
+
+        // let sig = self
+        //     .client
+        //     .send_transaction_with_config(
+        //         &tx,
+        //         RpcSendTransactionConfig {
+        //             skip_preflight: true,
+        //             ..RpcSendTransactionConfig::default()
+        //         },
+        //     )
+        //     .unwrap();
 
         Ok(sig)
     }
