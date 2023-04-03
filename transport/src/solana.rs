@@ -28,12 +28,12 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
-use solana_sdk::program_pack::Pack;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::system_instruction::{create_account, create_account_with_seed};
 use solana_sdk::transaction::Transaction;
+use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack};
 use solana_sdk::{
     hash::Hash,
     instruction::{AccountMeta, Instruction},
@@ -54,6 +54,7 @@ fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
 }
 
 pub struct SolanaTransport {
+    program_id: Pubkey,
     client: RpcClient,
     keypair: Keypair,
 }
@@ -62,7 +63,6 @@ pub struct SolanaTransport {
 #[allow(unused_variables)]
 impl TransportT for SolanaTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
-        let program_id = Pubkey::from_str(PROGRAM_ID).map_err(|_| TransportError::InvalidConfig)?;
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
         let bundle_pubkey = Pubkey::from_str(&params.bundle_addr)
@@ -78,7 +78,7 @@ impl TransportT for SolanaTransport {
             &game_account_pubkey,
             lamports,
             GAME_ACCOUNT_LEN as u64,
-            &program_id,
+            &self.program_id,
         );
 
         let token_pubkey = Pubkey::from_str(SOL).unwrap();
@@ -104,7 +104,7 @@ impl TransportT for SolanaTransport {
         // FIXME: limit title to 16 or 30 chars
 
         let create_game_ix = Instruction::new_with_borsh(
-            program_id.clone(),
+            self.program_id.clone(),
             &RaceInstruction::CreateGameAccount {
                 params: solana_types::CreateGameAccountParams {
                     title: params.title,
@@ -137,10 +137,7 @@ impl TransportT for SolanaTransport {
             .get_latest_blockhash()
             .map_err(|_| TransportError::GetBlockhashFailed)?;
         tx.sign(&[payer, &game_account, &stake_account], blockhash);
-        self.client
-            .send_and_confirm_transaction(&tx)
-            .map_err(|_| TransportError::ClientSendTransactionFailed)?;
-
+        self.send_transaction(tx)?;
         Ok(game_account_pubkey.to_string())
     }
 
@@ -148,7 +145,6 @@ impl TransportT for SolanaTransport {
         // payer is initializer/owner of the to-be-closed game
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
-        let program_id = Pubkey::from_str(PROGRAM_ID).map_err(|_| TransportError::InvalidConfig)?;
 
         let game_account_pubkey = Pubkey::from_str(&params.addr)
             .map_err(|_| TransportError::InvalidPubkey(params.addr))?;
@@ -160,10 +156,10 @@ impl TransportT for SolanaTransport {
         let stake_account_pubkey = game_state.stake_addr.clone();
 
         let (pda, _bump_seed) =
-            Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &program_id);
+            Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
 
         let close_game_ix = Instruction::new_with_borsh(
-            program_id,
+            self.program_id.clone(),
             &RaceInstruction::CloseGameAccount,
             vec![
                 AccountMeta::new(payer_pubkey, true),
@@ -183,20 +179,7 @@ impl TransportT for SolanaTransport {
             .map_err(|_| TransportError::GetBlockhashFailed)?;
         tx.sign(&[payer], blockhash);
 
-        // TODO: move this to test
-        let config = RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        };
-        let signature = &self
-            .client
-            .send_transaction_with_config(&tx, config)
-            .map_err(|_| TransportError::ClientSendTransactionFailed)?;
-
-        // self.client
-        //     .send_and_confirm_transaction(&tx)
-        //     // .map_err(|_| TransportError::ClientSendTransactionFailed)?;
-        //     .unwrap();
+        self.send_transaction(tx)?;
         Ok(())
     }
 
@@ -209,12 +192,11 @@ impl TransportT for SolanaTransport {
             ));
         }
         // Create server profile on chain (like creation of a player profile)
-        let program_id = Pubkey::from_str(PROGRAM_ID).map_err(|_| TransportError::InvalidConfig)?;
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
         let server_account_pubkey =
-            Pubkey::create_with_seed(&payer_pubkey, PROFILE_SEED, &program_id)
+            Pubkey::create_with_seed(&payer_pubkey, PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::PubkeyCreationFailed)?;
 
         let lamports = self
@@ -239,11 +221,11 @@ impl TransportT for SolanaTransport {
             PROFILE_SEED,
             lamports,
             SERVER_ACCOUNT_LEN as u64,
-            &program_id,
+            &self.program_id,
         );
 
         let init_account_ix = Instruction::new_with_borsh(
-            program_id,
+            self.program_id.clone(),
             &RaceInstruction::RegisterServer {
                 params: solana_types::RegisterServerParams {
                     endpoint: params.endpoint,
@@ -268,10 +250,7 @@ impl TransportT for SolanaTransport {
 
         tx.sign(&[payer], blockhash);
 
-        self.client
-            .send_and_confirm_transaction(&tx)
-            .map_err(|_| TransportError::ClientSendTransactionFailed)?;
-
+        self.send_transaction(tx)?;
         Ok(server_account_pubkey.to_string())
     }
 
@@ -289,7 +268,6 @@ impl TransportT for SolanaTransport {
     }
 
     async fn serve(&self, params: ServeParams) -> Result<()> {
-        let program_id = Pubkey::from_str(PROGRAM_ID).map_err(|_| TransportError::InvalidConfig)?;
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
@@ -306,7 +284,7 @@ impl TransportT for SolanaTransport {
         }
 
         let serve_game_ix = Instruction::new_with_borsh(
-            program_id,
+            self.program_id.clone(),
             &RaceInstruction::ServeGame,
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
@@ -336,7 +314,6 @@ impl TransportT for SolanaTransport {
                 "Nick name should not exceed 16 characters!".to_string(),
             ));
         }
-        let program_id = Pubkey::from_str(PROGRAM_ID).map_err(|_| TransportError::InvalidConfig)?;
         let player = &self.keypair;
         let player_pubkey = player.pubkey();
         let balance = self
@@ -345,7 +322,7 @@ impl TransportT for SolanaTransport {
             .map_err(|_| TransportError::InvalidBalance(player_pubkey.to_string()))?;
 
         let profile_account_pubkey =
-            Pubkey::create_with_seed(&player_pubkey, PROFILE_SEED, &program_id)
+            Pubkey::create_with_seed(&player_pubkey, PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::PubkeyCreationFailed)?;
 
         let lamports = self
@@ -371,7 +348,7 @@ impl TransportT for SolanaTransport {
             PROFILE_SEED,
             lamports,
             PROFILE_ACCOUNT_LEN as u64,
-            &program_id,
+            &self.program_id,
         );
 
         // TODO: Add Racetoken ATA
@@ -385,7 +362,7 @@ impl TransportT for SolanaTransport {
         };
 
         let init_profile_ix = Instruction::new_with_borsh(
-            program_id,
+            self.program_id.clone(),
             &RaceInstruction::CreatePlayerProfile {
                 params: solana_types::CreatePlayerProfileParams { nick: params.nick },
             },
@@ -409,9 +386,7 @@ impl TransportT for SolanaTransport {
 
         tx.sign(&[player], blockhash);
 
-        self.client
-            .send_and_confirm_transaction(&tx)
-            .map_err(|_| TransportError::ClientSendTransactionFailed)?;
+        self.send_transaction(tx)?;
 
         Ok(profile_account_pubkey.to_string())
     }
@@ -429,9 +404,8 @@ impl TransportT for SolanaTransport {
         let payer_pubkey = payer.pubkey();
         let game_account_pubkey = Self::parse_pubkey(&addr)?;
         let game_state = self.internal_get_game_account(&game_account_pubkey).await?;
-        let program_id = Self::program_id();
         let (pda, _bump_seed) =
-            Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &program_id);
+            Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
 
         // The settles are required to be in correct order: add < sub < eject.
         // And the sum of settles must be zero.
@@ -472,7 +446,7 @@ impl TransportT for SolanaTransport {
         ];
 
         let settle_ix = Instruction::new_with_borsh(
-            program_id,
+            self.program_id.clone(),
             &RaceInstruction::Settle {
                 params: race_solana_types::types::SettleParams { settles },
             },
@@ -499,18 +473,15 @@ impl TransportT for SolanaTransport {
             .get_minimum_balance_for_rent_exemption(registry_data_len)
             .map_err(|_| TransportError::NoEnoughLamports)
             .unwrap();
-        let program_id = Pubkey::from_str(PROGRAM_ID)
-            .map_err(|_| TransportError::InvalidConfig)
-            .unwrap();
         let create_account_ix = create_account(
             &payer_pubkey,
             &registry_account_pubkey,
             lamports,
             registry_data_len as _,
-            &program_id,
+            &self.program_id,
         );
         let create_registry_ix = Instruction::new_with_bytes(
-            program_id,
+            self.program_id.clone(),
             &[2],
             vec![
                 AccountMeta {
@@ -537,10 +508,10 @@ impl TransportT for SolanaTransport {
             .unwrap();
         let mut tx = Transaction::new_unsigned(message);
         tx.sign(&[&payer, &registry_account], blockhash);
-        self.client
-            .send_and_confirm_transaction(&tx)
-            .map_err(|_| TransportError::ClientSendTransactionFailed)?;
-        Ok(registry_account_pubkey.to_string())
+        self.send_transaction(tx)?;
+        let addr = registry_account_pubkey.to_string();
+        println!("Registration account created at: {}", addr);
+        Ok(addr)
     }
 
     async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
@@ -660,18 +631,32 @@ impl TransportT for SolanaTransport {
 
 impl SolanaTransport {
     pub fn try_new(rpc: String, keyfile: PathBuf) -> TransportResult<Self> {
-        let client = RpcClient::new(rpc);
+        let program_id = Pubkey::from_str(PROGRAM_ID)?;
+        SolanaTransport::try_new_with_program_id(rpc, keyfile, program_id)
+    }
 
+    pub(crate) fn try_new_with_program_id(
+        rpc: String,
+        keyfile: PathBuf,
+        program_id: Pubkey,
+    ) -> TransportResult<Self> {
+        println!("Create Solana transport: RPC: {}, program_id: {:?}", rpc, program_id);
+        let commitment = if cfg!(test) {
+            CommitmentConfig::confirmed()
+        } else {
+            CommitmentConfig::finalized()
+        };
+        let client = RpcClient::new_with_commitment(rpc, commitment);
         let keypair = read_keypair(keyfile)?;
-        Ok(Self { client, keypair })
+        Ok(Self {
+            client,
+            keypair,
+            program_id,
+        })
     }
 
     fn parse_pubkey(addr: &str) -> TransportResult<Pubkey> {
         Pubkey::from_str(addr).map_err(|_| TransportError::InvalidConfig)
-    }
-
-    fn program_id() -> Pubkey {
-        Self::parse_pubkey(PROGRAM_ID).unwrap()
     }
 
     fn get_blockhash(&self) -> TransportResult<Hash> {
@@ -688,9 +673,12 @@ impl SolanaTransport {
             ..RpcSendTransactionConfig::default()
         };
 
-        self.client
-            .send_transaction_with_config(&tx, config)
-            .map_err(|_| TransportError::ClientSendTransactionFailed)
+        let sig = self
+            .client
+            .send_and_confirm_transaction(&tx)
+            .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
+
+        Ok(sig)
     }
 
     /// Get the state of an on-chain game account by its public key.
@@ -735,17 +723,17 @@ mod tests {
     use super::*;
 
     fn read_program_id() -> anyhow::Result<Pubkey> {
-        let program_keypair = read_keypair(
-            project_root::get_project_root()?
-                .join("./target/deplay/race_solana-keypair.json".into()),
-        )?;
-        Ok(program_keypair.pubkey())
+        let proj_root = project_root::get_project_root()?;
+        let keyfile_path = proj_root.join("target/deploy/race_solana-keypair.json".to_string());
+        let program_keypair = read_keypair(keyfile_path)?;
+        let program_id = program_keypair.pubkey();
+        println!("program id: {}", program_id);
+        Ok(program_id)
     }
 
     #[test]
-    fn test_project_root() -> anyhow::Result<()> {
-        let root = project_root::get_project_root()?;
-        println!("Current project root is {:?}", root);
+    fn test_read_program_id() -> anyhow::Result<()> {
+        read_program_id()?;
         Ok(())
     }
 
@@ -760,13 +748,20 @@ mod tests {
     }
 
     fn get_transport() -> anyhow::Result<SolanaTransport> {
-        let transport = SolanaTransport::try_new(
+        let transport = SolanaTransport::try_new_with_program_id(
             "http://localhost:8899".into(),
             shellexpand::tilde("~/.config/solana/id.json")
                 .to_string()
                 .into(),
+            read_program_id()?,
         )?;
         Ok(transport)
+    }
+
+    #[test]
+    fn test_get_transport() -> anyhow::Result<()> {
+        get_transport()?;
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]

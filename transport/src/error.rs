@@ -62,8 +62,8 @@ pub enum TransportError {
     #[error("Failed to get lasted blockhash")]
     GetBlockhashFailed,
 
-    #[error("Failed to send transaction from client")]
-    ClientSendTransactionFailed,
+    #[error("Failed to send transaction from client: {0}")]
+    ClientSendTransactionFailed(String),
 
     #[error("Client failed to get data from on chain account")]
     ClientGetDataFailed,
@@ -76,12 +76,15 @@ pub enum TransportError {
 
     #[error("Failed to parse string address")]
     ParseAddressError,
+
+    #[error("Transaction is not confirmed")]
+    TransactionNotConfirmed,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;
 
 impl From<TransportError> for race_core::error::Error {
     fn from(value: TransportError) -> Self {
-        Self::InitializationTransportFailed(value.to_string())
+        Self::TransportError(value.to_string())
     }
 }

@@ -127,7 +127,7 @@ pub enum Error {
     ServerAccountMissing,
 
     #[error("Initialization transport failed: {0}")]
-    InitializationTransportFailed(String),
+    TransportError(String),
 
     #[error("Initializing instruction failed: {0}")]
     InitInstructionFailed(String),
