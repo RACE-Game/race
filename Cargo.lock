@@ -3338,6 +3338,7 @@ dependencies = [
  "race-core",
  "race-env",
  "race-transport",
+ "shellexpand",
  "tokio",
  "uuid",
 ]
@@ -3388,6 +3389,7 @@ name = "race-env"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "shellexpand",
  "toml",
  "tracing",
 ]
@@ -3601,6 +3603,8 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
+ "gloo",
+ "js-sys",
  "jsonrpsee",
  "project-root",
  "race-core",
@@ -3616,6 +3620,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]

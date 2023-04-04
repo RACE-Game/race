@@ -20,10 +20,10 @@ pub enum TransportError {
     #[error("Invalid program id")]
     InvalidProgramID,
 
-    #[error("Invalid chain name")]
+    #[error("Invalid chain name: {0}")]
     InvalidChainName(String),
 
-    #[error("Initialization failed")]
+    #[error("Initialization failed: {0}")]
     InitializationFailed(String),
 
     #[error("Failed to init the instruction")]

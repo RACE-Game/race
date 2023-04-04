@@ -84,6 +84,7 @@ pub enum RaceInstruction {
     /// 1. `[writable]` The game account.
     /// 2. `[]` The votee account.
     Vote { params: VoteParams },
+
     /// # Serve a game
     ///
     /// Accounts expected:

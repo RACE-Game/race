@@ -18,8 +18,8 @@ pub struct ApplicationContext {
     pub config: TransactorConfig,
     pub chain: ChainType,
     pub account: ServerAccount,
-    pub transport: Arc<dyn TransportT>,
-    pub encryptor: Arc<dyn EncryptorT>,
+    pub transport: Arc<WrappedTransport>,
+    pub encryptor: Arc<Encryptor>,
     pub game_manager: Arc<GameManager>,
     pub signal_tx: mpsc::Sender<SignalFrame>,
 }

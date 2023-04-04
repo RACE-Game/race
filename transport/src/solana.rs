@@ -714,6 +714,7 @@ impl SolanaTransport {
 
     /// Get the state of an on-chain server account
     /// Not for public API usage
+    #[allow(unused)]
     async fn get_server_state(
         &self,
         server_account_pubkey: &Pubkey,

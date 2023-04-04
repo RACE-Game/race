@@ -1,7 +1,11 @@
 pub mod error;
 pub mod evm;
 pub mod facade;
+
+#[cfg(not(target_arch = "wasm32"))]
 pub mod solana;
+#[cfg(target_arch = "wasm32")]
+pub mod solana_wasm;
 
 use std::path::PathBuf;
 
@@ -9,6 +13,12 @@ use error::{TransportError, TransportResult};
 use race_core::transport::TransportT;
 use race_env::Config;
 use tracing::info;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub type BoxedTransport = Box<dyn TransportT>;
+
+#[cfg(target_arch = "wasm32")]
+pub type BoxedTransport = Box<dyn TransportT + Send + Sync>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ChainType {
@@ -101,13 +111,21 @@ impl TransportBuilder {
         }
     }
 
-    pub async fn build(self) -> TransportResult<Box<dyn TransportT>> {
+    pub async fn build(self) -> TransportResult<Box<dyn TransportT + Send + Sync>> {
         if let Some(chain) = self.chain {
             match chain {
                 ChainType::Solana => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
-                    let keyfile = self.keyfile.ok_or(TransportError::UnspecifiedSigner)?;
-                    Ok(Box::new(solana::SolanaTransport::try_new(rpc, keyfile)?))
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        // Ok(Box::new(solana_wasm::SolanaWasmTransport::try_new(rpc)?))
+                        panic!("")
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let keyfile = self.keyfile.ok_or(TransportError::UnspecifiedSigner)?;
+                        Ok(Box::new(solana::SolanaTransport::try_new(rpc, keyfile)?))
+                    }
                 }
                 ChainType::Bnb => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;

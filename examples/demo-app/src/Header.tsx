@@ -9,18 +9,22 @@ function Header() {
   useEffect(() => {
     let t = setInterval(async () => {
       if (helper !== undefined) {
-        let account = await helper.get_game_account("EXAMPLE_RAFFLE_ADDRESS");
-        setAccount(account);
+        // let account = await helper.get_game_account("EXAMPLE_RAFFLE_ADDRESS");
+        // setAccount(account);
       }
     }, 1000);
     return () => clearInterval(t);
   });
 
-  if (account === undefined) {
+  if (account === null) {
+    return (
+      <div> Not connected! </div>
+    );
+  } else if (account === undefined) {
     return (
       <div> Loading </div>
     );
-  } else {
+  }else {
     return (
       <div className="w-full h-full p-2 flex flex-wrap">
         <div className="m-2"> <span className="font-bold">Address:</span> {account.game_addr}</div>

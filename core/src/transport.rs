@@ -10,7 +10,6 @@ use crate::{
     },
 };
 use async_trait::async_trait;
-use std::marker::Send;
 
 #[async_trait]
 pub trait TransportT: Send + Sync {

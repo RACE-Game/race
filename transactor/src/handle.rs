@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use crate::component::{
     Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle,
-    RemoteConnection, Submitter, Subscriber, Voter, WrappedClient, WrappedHandler,
+    RemoteConnection, Submitter, Subscriber, Voter, WrappedClient, WrappedHandler, WrappedTransport,
 };
 use race_core::context::GameContext;
-use race_core::encryptor::EncryptorT;
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount};
+use race_encryptor::Encryptor;
 use tokio::task::JoinHandle;
 use tracing::info;
 
@@ -30,8 +30,8 @@ impl TransactorHandle {
         game_account: &GameAccount,
         server_account: &ServerAccount,
         bundle_account: &GameBundle,
-        encryptor: Arc<dyn EncryptorT>,
-        transport: Arc<dyn TransportT>,
+        encryptor: Arc<Encryptor>,
+        transport: Arc<dyn TransportT + Send + Sync>,
     ) -> Result<Self> {
         info!(
             "Start game handle for {} with Transactor mode",
@@ -106,8 +106,8 @@ impl ValidatorHandle {
         game_account: &GameAccount,
         server_account: &ServerAccount,
         bundle_account: &GameBundle,
-        encryptor: Arc<dyn EncryptorT>,
-        transport: Arc<dyn TransportT>,
+        encryptor: Arc<Encryptor>,
+        transport: Arc<WrappedTransport>,
     ) -> Result<Self> {
         info!(
             "Start game handle for {} with Validator mode",
@@ -188,8 +188,8 @@ impl ValidatorHandle {
 impl Handle {
     /// Create game handle.
     pub async fn try_new(
-        transport: Arc<dyn TransportT>,
-        encryptor: Arc<dyn EncryptorT>,
+        transport: Arc<WrappedTransport>,
+        encryptor: Arc<Encryptor>,
         server_account: &ServerAccount,
         addr: &str,
     ) -> Result<Self> {

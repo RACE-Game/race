@@ -2,6 +2,10 @@ set dotenv-load
 
 build: sdk transactor cli
 
+dev-sdk:
+    wasm-pack build --debug --target web sdk
+    patch ./sdk/pkg/package.json < ./sdk/package.json.patch
+
 sdk:
     wasm-pack build --release --target web sdk
     patch ./sdk/pkg/package.json < ./sdk/package.json.patch

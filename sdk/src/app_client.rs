@@ -34,7 +34,7 @@ pub struct AppClient {
     addr: String,
     client: Client,
     handler: Handler,
-    transport: Arc<dyn TransportT>,
+    transport: Arc<dyn TransportT + Send + Sync>,
     connection: Arc<Connection>,
     game_context: RefCell<GameContext>,
     callback: Function,
@@ -65,11 +65,12 @@ impl AppClient {
             .with_rpc(rpc)
             .build()
             .await?;
+        let transport = transport as Box<dyn TransportT + Send + Sync>;
         AppClient::try_new(Arc::from(transport), player_addr, game_addr, callback).await
     }
 
     async fn try_new(
-        transport: Arc<dyn TransportT>,
+        transport: Arc<dyn TransportT + Send + Sync>,
         player_addr: &str,
         game_addr: &str,
         callback: Function,

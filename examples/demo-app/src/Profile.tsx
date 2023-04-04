@@ -1,6 +1,7 @@
 import React, { useContext, useState } from 'react';
 import HelperContext from './helper-context';
 import ProfileContext, { ProfileData } from './profile-context';
+import { WalletDisconnectButton, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 
 function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
   let [nick, setNick] = useState<string>("");

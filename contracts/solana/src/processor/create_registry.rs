@@ -6,7 +6,7 @@ use solana_program::{
     program_pack::Pack,
     pubkey::Pubkey,
     rent::Rent,
-    sysvar::Sysvar,
+    sysvar::Sysvar, msg,
 };
 use race_solana_types::types::CreateRegistrationParams;
 
@@ -34,6 +34,8 @@ pub fn process(
     if registry.is_initialized {
         return Err(ProgramError::AccountAlreadyInitialized);
     }
+
+    msg!("Registry address: {:?}", registry_account.key);
 
     registry.is_initialized = true;
     registry.owner = payer.key.clone();
