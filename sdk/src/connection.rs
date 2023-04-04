@@ -38,7 +38,7 @@ async fn build_rpc_client(endpoint: &str) -> Result<Client> {
         .map_err(|e| Error::RpcError(e.to_string()))
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl ConnectionT for Connection {
     async fn attach_game(&self, game_addr: &str, params: AttachGameParams) -> Result<()> {
         self.request("attach_game", game_addr, params).await

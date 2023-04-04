@@ -4,6 +4,7 @@ use gloo::console::info;
 use gloo::{console::warn, utils::format::JsValueSerdeExt};
 use js_sys::Array;
 use js_sys::Uint8Array;
+use race_core::transport::TransportLocalT;
 use race_core::types::CreatePlayerProfileParams;
 use race_transport::TransportBuilder;
 use wasm_bindgen::prelude::*;
@@ -17,7 +18,7 @@ use race_core::{
 
 #[wasm_bindgen]
 pub struct AppHelper {
-    transport: Box<dyn TransportT>,
+    transport: Box<dyn TransportLocalT>,
 }
 
 #[wasm_bindgen]

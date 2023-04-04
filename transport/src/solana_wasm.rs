@@ -11,7 +11,7 @@ use gloo::console::{error, info};
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use race_core::{
     error::Result,
-    transport::TransportT,
+    transport::{TransportT, TransportLocalT},
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
@@ -29,6 +29,9 @@ pub struct SolanaWasmTransport {
 pub struct Connection {
     inner: Object, // js_sys::Object
 }
+
+unsafe impl Send for Connection {}
+unsafe impl Sync for Connection {}
 
 impl Connection {
     pub fn new(rpc: &str) -> Self {
@@ -107,9 +110,9 @@ impl Connection {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 #[allow(unused)]
-impl TransportT for SolanaWasmTransport {
+impl TransportLocalT for SolanaWasmTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
         todo!()
     }

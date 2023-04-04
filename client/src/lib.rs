@@ -10,12 +10,16 @@ use race_core::{
     event::{CustomEvent, Event},
     random::{RandomMode, RandomStatus},
     secret::SecretState,
-    transport::TransportT,
     types::{
         AttachGameParams, Ciphertext, ClientMode, RandomId, SecretKey, SecretShare,
         SubmitEventParams,
     },
 };
+
+#[cfg(target_arch = "wasm32")]
+use race_core::transport::TransportLocalT as TransportT;
+#[cfg(not(target_arch = "wasm32"))]
+use race_core::transport::TransportT;
 
 pub struct Client {
     pub encryptor: Arc<dyn EncryptorT>,

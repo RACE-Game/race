@@ -10,7 +10,7 @@ pub mod solana_wasm;
 use std::path::PathBuf;
 
 use error::{TransportError, TransportResult};
-use race_core::transport::TransportT;
+use race_core::transport::{TransportT, TransportLocalT};
 use race_env::Config;
 use tracing::info;
 
@@ -18,7 +18,7 @@ use tracing::info;
 pub type BoxedTransport = Box<dyn TransportT>;
 
 #[cfg(target_arch = "wasm32")]
-pub type BoxedTransport = Box<dyn TransportT + Send + Sync>;
+pub type BoxedTransport = Box<dyn TransportLocalT>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ChainType {
@@ -111,7 +111,7 @@ impl TransportBuilder {
         }
     }
 
-    pub async fn build(self) -> TransportResult<Box<dyn TransportT + Send + Sync>> {
+    pub async fn build(self) -> TransportResult<BoxedTransport> {
         if let Some(chain) = self.chain {
             match chain {
                 ChainType::Solana => {
@@ -127,16 +127,17 @@ impl TransportBuilder {
                         Ok(Box::new(solana::SolanaTransport::try_new(rpc, keyfile)?))
                     }
                 }
-                ChainType::Bnb => {
-                    let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
-                    // let signer = self.signer.ok_or(TransportError::UnspecifiedSigner)?;
-                    Ok(Box::new(evm::EvmTransport::new(rpc)))
-                }
+                // ChainType::Bnb => {
+                //     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
+                //     // let signer = self.signer.ok_or(TransportError::UnspecifiedSigner)?;
+                //     Ok(Box::new(evm::EvmTransport::new(rpc)))
+                // }
                 ChainType::Facade => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
                     info!("Build FacadeTransport for {:?}", rpc);
                     Ok(Box::new(facade::FacadeTransport::try_new(&rpc).await?))
                 }
+                _ => unimplemented!()
             }
         } else {
             Err(TransportError::UnspecifiedChain)

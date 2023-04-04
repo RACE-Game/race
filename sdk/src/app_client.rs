@@ -4,6 +4,7 @@ use gloo::utils::format::JsValueSerdeExt;
 use js_sys::JSON::{parse, stringify};
 use js_sys::{Function, Object, Reflect};
 use race_core::context::GameContext;
+use race_core::transport::TransportLocalT;
 use race_core::types::{BroadcastFrame, ExitGameParams, RandomId};
 use race_transport::TransportBuilder;
 use wasm_bindgen::prelude::*;
@@ -34,7 +35,7 @@ pub struct AppClient {
     addr: String,
     client: Client,
     handler: Handler,
-    transport: Arc<dyn TransportT + Send + Sync>,
+    transport: Arc<dyn TransportLocalT>,
     connection: Arc<Connection>,
     game_context: RefCell<GameContext>,
     callback: Function,
@@ -65,12 +66,11 @@ impl AppClient {
             .with_rpc(rpc)
             .build()
             .await?;
-        let transport = transport as Box<dyn TransportT + Send + Sync>;
         AppClient::try_new(Arc::from(transport), player_addr, game_addr, callback).await
     }
 
     async fn try_new(
-        transport: Arc<dyn TransportT + Send + Sync>,
+        transport: Arc<dyn TransportLocalT>,
         player_addr: &str,
         game_addr: &str,
         callback: Function,

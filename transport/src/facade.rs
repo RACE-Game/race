@@ -11,7 +11,12 @@ use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBu
 use jsonrpsee::wasm_client::WasmClientBuilder as ClientBuilder;
 
 use race_core::error::{Error, Result};
+
+#[cfg(target_arch = "wasm32")]
+use race_core::transport::TransportLocalT as TransportT;
+#[cfg(not(target_arch = "wasm32"))]
 use race_core::transport::TransportT;
+
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
@@ -40,7 +45,8 @@ impl FacadeTransport {
     }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch="wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[allow(unused_variables)]
 impl TransportT for FacadeTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
