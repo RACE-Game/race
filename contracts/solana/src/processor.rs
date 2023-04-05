@@ -1,16 +1,17 @@
-use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
 use race_solana_types::instruction::RaceInstruction;
+use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
 
-mod create_game;
-mod create_registry;
-mod create_profile;
-mod register_game;
 mod close_game;
-mod register_server;
-mod settle;
-mod serve;
-mod vote;
+mod create_game;
+mod create_profile;
+mod create_registry;
 mod misc;
+mod register_game;
+mod register_server;
+mod serve;
+mod settle;
+mod unregister_game;
+mod vote;
 
 pub fn process(
     program_id: &Pubkey,
@@ -24,15 +25,9 @@ pub fn process(
         RaceInstruction::CreateGameAccount { params } => {
             create_game::process(program_id, accounts, params)
         }
-
         RaceInstruction::CreateRegistry { params } => {
             msg!("Create a game center for registering games");
             create_registry::process(program_id, accounts, params)
-        }
-
-        RaceInstruction::RegGame { params } => {
-            msg!("Register a game account on chain");
-            register_game::process(program_id, accounts, params)
         }
         RaceInstruction::CloseGameAccount => {
             msg!("Close a game account on chain");
@@ -57,6 +52,14 @@ pub fn process(
         RaceInstruction::ServeGame => {
             msg!("Server joins a game");
             serve::process(program_id, accounts)
+        }
+        RaceInstruction::RegisterGame => {
+            msg!("Register a game");
+            register_game::process(program_id, accounts)
+        }
+        RaceInstruction::UnregisterGame => {
+            msg!("Unregister a game");
+            unregister_game::process(program_id, accounts)
         }
     }
 }

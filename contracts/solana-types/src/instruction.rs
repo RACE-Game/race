@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use crate::types::{
     CreateGameAccountParams, RegisterServerParams, CreateRegistrationParams,
-    RegisterGameParams, CreatePlayerProfileParams, SettleParams, VoteParams
+    CreatePlayerProfileParams, SettleParams, VoteParams
 };
 #[cfg(feature = "program")]
 use solana_program::program_error::ProgramError;
@@ -40,14 +40,6 @@ pub enum RaceInstruction {
     /// 0. `[signer]` The account of game owner
     /// 1. `[writable]` The registry account.
     CreateRegistry { params: CreateRegistrationParams },
-
-    /// # Register a game in lobby/center
-    ///
-    /// Accounts expected:
-    /// 0. `[signer]` The account of game owner
-    /// 1. `[]` The registration center account.
-    /// 2. `[]` The game account (extract all the important info)
-    RegGame { params: RegisterGameParams },
 
     /// # Create a player profile
     ///
@@ -92,6 +84,22 @@ pub enum RaceInstruction {
     /// 1. `[writable]` The game account to be served
     /// 2. `[]` The server account
     ServeGame,
+
+    /// # Register a game to the registry
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The payer acount (game account onwer?)
+    /// 1. `[writable]` The registry account
+    /// 2. `[]` The game account to be registered
+    RegisterGame,
+
+    /// # Unregister a game to the registry
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The payer acount (game account onwer?)
+    /// 1. `[writable]` The registry account
+    /// 2. `[]` The game account to be unregistered
+    UnregisterGame,
 }
 
 #[cfg(feature = "program")]

@@ -9,7 +9,7 @@ use solana_program::{
 };
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
-use crate::types::VoteType;
+use crate::{constants::{GAME_ACCOUNT_LEN, SERVER_ACCOUNT_LEN}, types::VoteType};
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone, Debug)]
@@ -80,7 +80,7 @@ impl Sealed for GameState {}
 
 #[cfg(feature = "program")]
 impl Pack for GameState {
-    const LEN: usize = 5000;
+    const LEN: usize = GAME_ACCOUNT_LEN;
 
     fn pack_into_slice(&self, dst: &mut [u8]) {
         let data = self.try_to_vec().unwrap();
@@ -169,7 +169,7 @@ impl Sealed for ServerState {}
 
 #[cfg(feature = "program")]
 impl Pack for ServerState {
-    const LEN: usize = 108;
+    const LEN: usize = SERVER_ACCOUNT_LEN;
 
     fn pack_into_slice(&self, dst: &mut [u8]) {
         let data = self.try_to_vec().unwrap();
@@ -197,9 +197,11 @@ mod tests {
     #[test]
     pub fn test_player_account_len() -> anyhow::Result<()> {
         let mut player = create_player();
-        println!("Player account len {}", get_instance_packed_len(&player)?); // 94
+        println!("Player account non-aligned len {}", get_instance_packed_len(&player)?);
         player.update_padding();
+        println!("Player account aligned len {}", get_instance_packed_len(&player)?);
         assert_eq!(get_instance_packed_len(&player)?, PlayerState::LEN); // 98
+        assert_eq!(1, 2);
         Ok(())
     }
 

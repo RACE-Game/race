@@ -1,5 +1,5 @@
-use thiserror::Error;
 use solana_program::program_error::ProgramError;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ProcessError {
@@ -85,8 +85,11 @@ pub enum ProcessError {
 
     /// 12
     #[error("Duplicate joining not allowed as the server already joined")]
-    DuplicateServerJoin
+    DuplicateServerJoin,
 
+    /// 13
+    #[error("Can't unregister the game as it has not been registered yet")]
+    InvalidUnregistration,
 }
 
 impl From<ProcessError> for ProgramError {

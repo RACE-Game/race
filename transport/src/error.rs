@@ -47,6 +47,9 @@ pub enum TransportError {
     #[error("Failed to get server account data")]
     ServerAccountDataNotFound,
 
+    #[error("Failed to get registry account data")]
+    RegistryAccountDataNotFound,
+
     #[error("Player profile already exists")]
     DuplicatePlayerProfile,
 
@@ -73,6 +76,9 @@ pub enum TransportError {
 
     #[error("Failed to deserialize server account data")]
     ServerStateDeserializeError,
+
+    #[error("Failed to deserialize registry account data")]
+    RegistryStateDeserializeError,
 
     #[error("Failed to parse string address")]
     ParseAddressError,

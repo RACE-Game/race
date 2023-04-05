@@ -7,6 +7,8 @@ use solana_program::{
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
+use crate::constants::SERVER_ACCOUNT_LEN;
+
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
 
@@ -42,7 +44,7 @@ impl Sealed for ServerState {}
 
 #[cfg(feature = "program")]
 impl Pack for ServerState {
-    const LEN: usize = 108;
+    const LEN: usize = SERVER_ACCOUNT_LEN;
 
     fn pack_into_slice(&self, dst: &mut [u8]) {
         let data = self.try_to_vec().unwrap();

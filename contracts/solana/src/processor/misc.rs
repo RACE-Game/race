@@ -180,11 +180,7 @@ impl<'a> TransferSource<'a> {
 
     /// Transfer SPL tokens from src(token account) to dest(token account).
     #[inline(never)]
-    fn transfer_token(
-        &self,
-        dest: &AccountInfo<'a>,
-        amount: u64,
-    ) -> ProgramResult {
+    fn transfer_token(&self, dest: &AccountInfo<'a>, amount: u64) -> ProgramResult {
         msg!("Send {:?} SPL to {:?}", amount, dest.key);
 
         if Account::unpack(&dest.try_borrow_data()?).is_ok() {

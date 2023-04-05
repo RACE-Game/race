@@ -89,8 +89,7 @@ pub fn process(
     game_state.update_padding();
 
     GameState::pack(game_state, &mut game_account.try_borrow_mut_data()?)?;
-    msg!("Game account sucessfully created and initialized!");
-    msg!("Game account: {:?}", game_account.key);
+    msg!("Game account {:?}", game_account.key);
 
     Ok(())
 }

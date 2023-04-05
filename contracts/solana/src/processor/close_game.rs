@@ -8,17 +8,11 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
+use crate::{error::ProcessError, state::GameState};
 use spl_token::instruction::close_account;
-use crate::{
-    error::ProcessError,
-    state::GameState,
-};
 
 #[inline(never)]
-pub fn process(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-) -> ProgramResult {
+pub fn process(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let account_iter = &mut accounts.iter();
     let owner_account = next_account_info(account_iter)?;
     if !owner_account.is_signer {
@@ -65,7 +59,6 @@ pub fn process(
         ],
         &[&[game_account.key.as_ref(), &[bump_seed]]],
     )?;
-
 
     **owner_account.lamports.borrow_mut() = owner_account
         .lamports()

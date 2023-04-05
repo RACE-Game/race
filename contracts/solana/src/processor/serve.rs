@@ -7,13 +7,13 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{state::{GameState, ServerState, ServerJoin}, error::ProcessError};
+use crate::{
+    error::ProcessError,
+    state::{GameState, ServerJoin, ServerState},
+};
 
 #[inline(never)]
-pub fn process(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-) -> ProgramResult {
+pub fn process(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let account_iter = &mut accounts.iter();
 
     let owner_account = next_account_info(account_iter)?;
@@ -29,7 +29,11 @@ pub fn process(
     let server_account = next_account_info(account_iter)?;
 
     let mut game_state = GameState::unpack(&game_account.try_borrow_mut_data()?)?;
-    if game_state.servers.iter().any(|s| s.addr.eq(server_account.key)) {
+    if game_state
+        .servers
+        .iter()
+        .any(|s| s.addr.eq(server_account.key))
+    {
         return Err(ProcessError::DuplicateServerJoin)?;
     }
     msg!("3");

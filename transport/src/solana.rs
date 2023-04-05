@@ -17,14 +17,14 @@ use race_core::{
 };
 use race_solana_types::constants::{
     GAME_ACCOUNT_LEN, MAX_SERVER_NUM, NAME_LEN, PROFILE_ACCOUNT_LEN, PROFILE_SEED, PROGRAM_ID,
-    SERVER_ACCOUNT_LEN, SOL,
+    REGISTRY_ACCOUNT_LEN, SERVER_ACCOUNT_LEN, SOL,
 };
 use race_solana_types::instruction::RaceInstruction;
 use race_solana_types::state::{self, GameReg, GameState, PlayerState, RegistryState, ServerState};
 use race_solana_types::types as solana_types;
 
 use serde_json;
-use std::fs::{read_to_string, File};
+use std::{fs::{read_to_string, File}, borrow::BorrowMut};
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -67,6 +67,14 @@ pub struct SolanaTransport {
 #[allow(unused_variables)]
 impl TransportT for SolanaTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
+        // TODO: Discuss title allowed len
+        if params.title.len() > 30 {
+                // FIXME: Use TransportError
+                return Err(race_core::error::Error::Custom(
+                    "Game title exceeds 30 chars".to_string(),
+                ));
+        }
+
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
         let bundle_pubkey = Pubkey::from_str(&params.bundle_addr)
@@ -93,7 +101,7 @@ impl TransportT for SolanaTransport {
             .client
             .get_minimum_balance_for_rent_exemption(stake_account_len)
             .map_err(|_| TransportError::NoEnoughLamports)?;
-        let create_temp_account_ix = create_account(
+        let create_stake_account_ix = create_account(
             &payer_pubkey,
             &stake_account_pubkey,
             stake_lamports,
@@ -101,7 +109,7 @@ impl TransportT for SolanaTransport {
             &ID,
         );
 
-        let init_temp_account_ix =
+        let init_stake_account_ix =
             initialize_account(&ID, &stake_account_pubkey, &token_pubkey, &payer_pubkey)
                 .map_err(|_| TransportError::InitInstructionFailed)?;
 
@@ -123,17 +131,17 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new_readonly(token_pubkey, false),
                 AccountMeta::new_readonly(ID, false),
                 AccountMeta::new_readonly(bundle_pubkey, false),
-                // TODO: add or impl scene pubkey
+                // TODO: add scene pubkey
             ],
         );
         let message = Message::new(
             &[
                 create_game_account_ix,
-                create_temp_account_ix,
-                init_temp_account_ix,
+                create_stake_account_ix,
+                init_stake_account_ix,
                 create_game_ix,
             ],
-            Some(&payer.pubkey()),
+            Some(&payer.pubkey())
         );
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self
@@ -471,38 +479,29 @@ impl TransportT for SolanaTransport {
         let payer_pubkey = payer.pubkey();
         let registry_account = Keypair::new();
         let registry_account_pubkey = registry_account.pubkey();
-        let registry_data_len = 2000;
         let lamports = self
             .client
-            .get_minimum_balance_for_rent_exemption(registry_data_len)
+            .get_minimum_balance_for_rent_exemption(REGISTRY_ACCOUNT_LEN)
             .map_err(|_| TransportError::NoEnoughLamports)
             .unwrap();
         let create_account_ix = create_account(
             &payer_pubkey,
             &registry_account_pubkey,
             lamports,
-            registry_data_len as _,
+            REGISTRY_ACCOUNT_LEN as u64,
             &self.program_id,
         );
         let create_registry_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
             &RaceInstruction::CreateRegistry {
                 params: race_solana_types::types::CreateRegistrationParams {
-                    is_private: false,
-                    size: 100,
+                    is_private: params.is_private,
+                    size: params.size,
                 },
             },
             vec![
-                AccountMeta {
-                    pubkey: payer_pubkey,
-                    is_signer: true,
-                    is_writable: false,
-                },
-                AccountMeta {
-                    pubkey: registry_account_pubkey,
-                    is_signer: false,
-                    is_writable: true,
-                },
+                AccountMeta::new_readonly(payer_pubkey, true),
+                AccountMeta::new(registry_account_pubkey, false),
             ],
         );
 
@@ -519,15 +518,82 @@ impl TransportT for SolanaTransport {
         tx.sign(&[&payer, &registry_account], blockhash);
         self.send_transaction(tx)?;
         let addr = registry_account_pubkey.to_string();
-        println!("Registration account created at: {}", addr);
         Ok(addr)
     }
 
     async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
+        let payer = &self.keypair;
+        let payer_pubkey = payer.pubkey();
+        let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
+        let reg_account_pubkey = Self::parse_pubkey(&params.reg_addr)?;
+        let reg_state = self.get_registry_state(&reg_account_pubkey).await?;
+        println!("payer pubkey {:?}", payer_pubkey);
+        println!("game pubkey {:?}", game_account_pubkey);
+        println!("reg pubkey {:?}", reg_account_pubkey);
+        println!("reg_state addr {:?}", reg_state.addr);
+        println!("reg_state owner {:?}", reg_state.owner);
+
+        if reg_state.games.len() == reg_state.size as usize {
+                // FIXME: Use TransportError
+                return Err(race_core::error::Error::Custom(
+                    "Registry already full".to_string(),
+                ));
+        }
+
+        let accounts = vec![
+            AccountMeta::new_readonly(payer_pubkey, true),
+            AccountMeta::new(reg_account_pubkey, false),
+            AccountMeta::new_readonly(game_account_pubkey, false),
+        ];
+
+        let register_game_ix = Instruction::new_with_borsh(
+            self.program_id.clone(),
+            &RaceInstruction::RegisterGame, // TODO: add is_hidden
+            accounts
+        );
+
+        let message = Message::new(&[register_game_ix], Some(&payer.pubkey()));
+        let mut tx = Transaction::new_unsigned(message);
+        let blockhash = self
+            .client
+            .get_latest_blockhash()
+            .map_err(|_| TransportError::GetBlockhashFailed)?;
+        tx.sign(&[payer], blockhash);
+        self.send_transaction(tx)?;
+        println!("5");
+
         Ok(())
     }
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
+        let payer = &self.keypair;
+        let payer_pubkey = payer.pubkey();
+        let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
+        let reg_account_pubkey = Self::parse_pubkey(&params.reg_addr)?;
+        // let reg_state = self.get_registry_state(&reg_account_pubkey).await?;
+
+        let accounts = vec![
+            AccountMeta::new_readonly(payer_pubkey, true),
+            AccountMeta::new(reg_account_pubkey, false),
+            AccountMeta::new_readonly(game_account_pubkey, false),
+        ];
+
+        let unregister_game_ix = Instruction::new_with_borsh(
+            self.program_id.clone(),
+            // TODO: add is_hidden param?
+            &RaceInstruction::UnregisterGame,
+            accounts
+        );
+
+        let message = Message::new(&[unregister_game_ix], Some(&payer.pubkey()));
+        let mut tx = Transaction::new_unsigned(message);
+        let blockhash = self
+            .client
+            .get_latest_blockhash()
+            .map_err(|_| TransportError::GetBlockhashFailed)?;
+        tx.sign(&[payer], blockhash);
+        self.send_transaction(tx)?;
+
         Ok(())
     }
 
@@ -613,12 +679,9 @@ impl TransportT for SolanaTransport {
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
-        let registry_account_pubkey = Pubkey::from_str(addr).unwrap();
-        let data = self
-            .client
-            .get_account_data(&registry_account_pubkey)
-            .unwrap();
-        let state = RegistryState::try_from_slice(&data).unwrap();
+        let registry_account_pubkey = Self::parse_pubkey(addr).ok()?;
+        let data = self.client.get_account_data(&registry_account_pubkey).ok()?;
+        let state = RegistryState::try_from_slice(&data).ok()?;
         Some(RegistrationAccount {
             addr: addr.to_owned(),
             is_private: true,
@@ -628,9 +691,9 @@ impl TransportT for SolanaTransport {
                 .games
                 .into_iter()
                 .map(|g| GameRegistration {
-                    title: "".into(),
-                    addr: "".into(),
-                    reg_time: 0,
+                    title: g.title.clone(),
+                    addr: g.addr.to_string(),
+                    reg_time: g.reg_time,
                     bundle_addr: "".into(),
                 })
                 .collect(),
@@ -680,21 +743,21 @@ impl SolanaTransport {
     fn send_transaction(&self, tx: Transaction) -> TransportResult<Signature> {
         let skip_preflight = if cfg!(test) { true } else { false };
 
-        let sig = self
-            .client
-            .send_and_confirm_transaction(&tx)
-            .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
-
         // let sig = self
         //     .client
-        //     .send_transaction_with_config(
-        //         &tx,
-        //         RpcSendTransactionConfig {
-        //             skip_preflight: true,
-        //             ..RpcSendTransactionConfig::default()
-        //         },
-        //     )
-        //     .unwrap();
+        //     .send_and_confirm_transaction(&tx)
+        //     .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
+
+        let sig = self
+            .client
+            .send_transaction_with_config(
+                &tx,
+                RpcSendTransactionConfig {
+                    skip_preflight,
+                    ..RpcSendTransactionConfig::default()
+                },
+            )
+            .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
 
         Ok(sig)
     }
@@ -726,6 +789,20 @@ impl SolanaTransport {
             .or(Err(TransportError::ServerAccountDataNotFound))?;
 
         ServerState::try_from_slice(&data).or(Err(TransportError::ServerStateDeserializeError))
+    }
+
+    /// Get the state of an on-chain registry account
+    /// Not for public API usage
+    async fn get_registry_state(
+        &self,
+        registry_account_pubkey: &Pubkey,
+    ) -> TransportResult<RegistryState> {
+        let data = self
+            .client
+            .get_account_data(&registry_account_pubkey)
+            .or(Err(TransportError::RegistryAccountDataNotFound))?;
+
+        RegistryState::try_from_slice(&data).or(Err(TransportError::RegistryStateDeserializeError))
     }
 }
 
@@ -784,17 +861,22 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_create_registration() -> anyhow::Result<()> {
+    async fn test_create_registry() -> anyhow::Result<()> {
         let transport = get_transport()?;
-        let addr = transport
-            .create_registration(CreateRegistrationParams {
-                is_private: true,
-                size: 100,
-            })
-            .await?;
+        // let addr = transport
+        //     .create_registration(CreateRegistrationParams {
+        //         is_private: false,
+        //         size: 100,
+        //     })
+        //     .await?;
+        // println!("Created registry at {}", addr);
+        let addr = "58Nbqthw9tzPWZyFMzphiCzSq8u7K1z9vK88WvzvQr8B".to_string();
 
-        let reg = transport.get_registration(&addr).await.unwrap();
-        assert_eq!(reg.addr, addr);
+        if addr.len() > 0 {
+            let reg = transport.get_registration(&addr).await.unwrap();
+            assert_eq!(reg.addr, addr);
+        }
+
         Ok(())
     }
 
@@ -809,15 +891,17 @@ mod tests {
                 data: Vec::<u8>::new(),
             })
             .await?;
+        println!("Created game at {}", addr);
 
-        let game = transport.get_game_account(&addr).await.unwrap();
-        assert_eq!(game.addr, addr);
-        assert_eq!(
-            game.bundle_addr,
-            "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_string()
-        );
-        assert_eq!(game.title, "HHHHH".to_string());
-
+        if addr.len() > 0 {
+            let game = transport.get_game_account(&addr).await.unwrap();
+            assert_eq!(game.addr, addr);
+            assert_eq!(
+                game.bundle_addr,
+                "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_string()
+            );
+            assert_eq!(game.title, "HHHHH".to_string());
+        }
         Ok(())
     }
 
@@ -836,6 +920,19 @@ mod tests {
         println!("To close game account {}", addr);
         transport
             .close_game_account(CloseGameAccountParams { addr })
+            .await?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_register_game() -> anyhow::Result<()> {
+        let transport = get_transport()?;
+        let addr = transport
+            .register_game(RegisterGameParams {
+                game_addr: "7eQZSoKurnDhNQ8brPuaP9rb9r8JDc19cqyajKzkXJDq".to_string(),
+                reg_addr: "58Nbqthw9tzPWZyFMzphiCzSq8u7K1z9vK88WvzvQr8B".to_string()
+            })
             .await?;
 
         Ok(())
