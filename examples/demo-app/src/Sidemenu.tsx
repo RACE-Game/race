@@ -41,6 +41,7 @@ function Sidemenu(props: SidemenuProps) {
 
     useEffect(() => {
         if (helper !== undefined) {
+            console.info("Fetch registration", [CHAIN_TO_REG_ADDR[chain]]);
             helper.list_games([CHAIN_TO_REG_ADDR[chain]]).then(r => {
                 console.log("Games: ", r);
                 setGames(r);

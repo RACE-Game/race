@@ -129,6 +129,8 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
+        let pubkey = self.make_public_key(addr);
+        let data = self.get_account_data(&pubkey);
         None
     }
 }
@@ -159,6 +161,7 @@ impl SolanaWasmTransport {
                 TransportError::InitializationFailed("Failed to initiate a Connection".into())
             })?
             .into();
+        info!("Solana Web3 Connection created:", &conn);
         Ok(Self { conn, sol })
     }
 
@@ -166,7 +169,15 @@ impl SolanaWasmTransport {
         Reflect::get(obj, &key.into()).unwrap().dyn_into::<Function>().unwrap()
     }
 
-    fn make_public_key(&self, addr: String) -> JsValue {
+    fn construct(ctor: &Function, args: &[&JsValue]) -> JsValue {
+        let args = js_sys::Array::new();
+        for arg in args.iter() {
+            args.push(&arg);
+        }
+        Reflect::construct(ctor, &args).unwrap()
+    }
+
+    fn make_public_key(&self, addr: &str) -> JsValue {
         let pubkey_ctor = Self::get_function(&self.sol, "PublicKey");
         let new_pubkey_args = js_sys::Array::new();
         new_pubkey_args.push(&addr.clone().into());
@@ -174,11 +185,15 @@ impl SolanaWasmTransport {
         pubkey
     }
 
+    // async fn resolve_promise(p: &Object) -> JsValue {
+
+    // }
+
     async fn get_account_data(&self, pubkey: &JsValue) -> Vec<u8> {
-        let get_account_data = Reflect::get(&self.conn, &"getAccountData".into())
-            .unwrap()
-            .dyn_into::<Function>()
-            .unwrap();
+        let get_account_info = Self::get_function(&self.conn, "getAccountInfo");
+        let p = get_account_info.call1(&self.conn, pubkey).unwrap().dyn_into::<Promise>().unwrap();
+        let account_info = JsFuture::from(p).await.unwrap();
+        info!("Account info:", account_info);
         vec![]
     }
 }

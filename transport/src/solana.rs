@@ -741,12 +741,12 @@ impl SolanaTransport {
     }
 
     fn send_transaction(&self, tx: Transaction) -> TransportResult<Signature> {
-        let skip_preflight = if cfg!(test) { true } else { false };
-
         // let sig = self
         //     .client
         //     .send_and_confirm_transaction(&tx)
         //     .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
+
+        let skip_preflight = if cfg!(test) { true } else { false };
 
         let sig = self
             .client
@@ -758,6 +758,8 @@ impl SolanaTransport {
                 },
             )
             .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
+
+        self.client.poll_for_signature_confirmation(&sig, 32);
 
         Ok(sig)
     }
@@ -870,14 +872,11 @@ mod tests {
             })
             .await?;
         println!("Created registry at {}", addr);
-        // let addr = "Dk4bP7t8hBq5BuhUbEVkuo8yongCVRQ1ySXDoDLPJZgW".to_string();
 
-        // if addr.len() > 0 {
-        //     let reg = transport.get_registration(&addr).await.unwrap();
-        //     assert_eq!(reg.addr, addr);
-        //     assert_eq!(reg.is_private, false);
-        //     assert_eq!(reg.size, 100);
-        // }
+        let reg = transport.get_registration(&addr).await.unwrap();
+        assert_eq!(reg.addr, addr);
+        assert_eq!(reg.is_private, false);
+        assert_eq!(reg.size, 100);
 
         Ok(())
     }
