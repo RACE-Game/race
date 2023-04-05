@@ -17,7 +17,7 @@ use solana_sdk::pubkey::Pubkey;
 pub struct GameReg {
     pub title: String,          // max: 30 chars
     pub addr: Pubkey,
-    // pub bundle_addr: Pubkey,
+    pub bundle_addr: Pubkey,
     pub reg_time: u64,
 }
 
@@ -37,9 +37,7 @@ pub struct RegistryState {
 impl RegistryState {
     pub fn update_padding(&mut self) {
         let data_len = get_instance_packed_len(self).unwrap();
-        println!("Date len {}", data_len);
         let padding_len = Self::LEN - data_len;
-        println!("Padding len {}", padding_len);
         self.padding = Box::new(vec![0u8; padding_len]);
     }
 }
@@ -78,9 +76,9 @@ mod tests {
     fn make_registry_state() -> RegistryState {
         let mut state = RegistryState::default();
         state.is_initialized = true;
-        for _i in 0..98 {
-            let mut g = GameReg::default();
-            g.title = "gametitle_16_cha".to_string();
+        for _i in 0..100 {
+            let g = GameReg::default();
+            // g.title = "gametitle_16_cha".to_string();
             state.games.push(g);
         }
         state

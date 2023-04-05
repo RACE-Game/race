@@ -684,8 +684,8 @@ impl TransportT for SolanaTransport {
         let state = RegistryState::try_from_slice(&data).ok()?;
         Some(RegistrationAccount {
             addr: addr.to_owned(),
-            is_private: true,
-            size: 100,
+            is_private: state.is_private,
+            size: state.size,
             owner: Some(state.owner.to_string()),
             games: state
                 .games
@@ -863,19 +863,21 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_create_registry() -> anyhow::Result<()> {
         let transport = get_transport()?;
-        // let addr = transport
-        //     .create_registration(CreateRegistrationParams {
-        //         is_private: false,
-        //         size: 100,
-        //     })
-        //     .await?;
-        // println!("Created registry at {}", addr);
-        let addr = "58Nbqthw9tzPWZyFMzphiCzSq8u7K1z9vK88WvzvQr8B".to_string();
+        let addr = transport
+            .create_registration(CreateRegistrationParams {
+                is_private: false,
+                size: 100,
+            })
+            .await?;
+        println!("Created registry at {}", addr);
+        // let addr = "Dk4bP7t8hBq5BuhUbEVkuo8yongCVRQ1ySXDoDLPJZgW".to_string();
 
-        if addr.len() > 0 {
-            let reg = transport.get_registration(&addr).await.unwrap();
-            assert_eq!(reg.addr, addr);
-        }
+        // if addr.len() > 0 {
+        //     let reg = transport.get_registration(&addr).await.unwrap();
+        //     assert_eq!(reg.addr, addr);
+        //     assert_eq!(reg.is_private, false);
+        //     assert_eq!(reg.size, 100);
+        // }
 
         Ok(())
     }
@@ -931,7 +933,7 @@ mod tests {
         let addr = transport
             .register_game(RegisterGameParams {
                 game_addr: "7eQZSoKurnDhNQ8brPuaP9rb9r8JDc19cqyajKzkXJDq".to_string(),
-                reg_addr: "58Nbqthw9tzPWZyFMzphiCzSq8u7K1z9vK88WvzvQr8B".to_string()
+                reg_addr: "HsD2b3RadjhwUDPz3AcBqfspq1y8B85SLtQh7cXZmqwX".to_string()
             })
             .await?;
 

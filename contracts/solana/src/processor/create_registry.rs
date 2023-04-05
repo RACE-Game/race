@@ -8,7 +8,7 @@ use solana_program::{
     program_pack::Pack,
     pubkey::Pubkey,
     rent::Rent,
-    sysvar::Sysvar, msg,
+    sysvar::Sysvar,
 };
 
 #[inline(never)]
@@ -47,8 +47,6 @@ pub fn process(
         padding: Default::default(),
     };
 
-    registry.is_initialized = true;
-    registry.owner = payer.key.clone();
     registry_state.update_padding();
 
     RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;

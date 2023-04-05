@@ -88,6 +88,7 @@ pub fn process(
             title: game_state.title.clone(),
             addr: game_account.key.clone(),
             reg_time: timestamp,
+            bundle_addr: game_state.bundle_addr.clone(),
             // is_hidden: params.is_hidden,
         };
         msg!("9");
