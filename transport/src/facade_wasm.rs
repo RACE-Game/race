@@ -1,21 +1,22 @@
-#![cfg(not(target_arch = "wasm32"))]
+#![cfg(target_arch = "wasm32")]
 
 use async_trait::async_trait;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
 use tracing::{debug, error};
 
-use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBuilder};
+use jsonrpsee::core::client::Client;
+use jsonrpsee::wasm_client::WasmClientBuilder as ClientBuilder;
 
 use race_core::error::{Error, Result};
 
-use race_core::transport::TransportT;
+use race_core::transport::TransportLocalT;
 
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-    RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount,
-    SettleParams, UnregisterGameParams, VoteParams,
+    RegisterGameParams, RegistrationAccount, ServerAccount,
+    UnregisterGameParams, VoteParams,
 };
 
 use crate::error::{TransportError, TransportResult};
@@ -28,14 +29,15 @@ impl FacadeTransport {
     pub async fn try_new(url: &str) -> TransportResult<Self> {
         let client = ClientBuilder::default()
             .build(url)
+            .await
             .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
         Ok(Self { client })
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 #[allow(unused_variables)]
-impl TransportT for FacadeTransport {
+impl TransportLocalT for FacadeTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
         self.client
             .request("create_game", rpc_params![params])
@@ -50,23 +52,9 @@ impl TransportT for FacadeTransport {
             .map_err(|e| Error::RpcError(e.to_string()))
     }
 
-    async fn register_server(&self, params: RegisterServerParams) -> Result<String> {
-        self.client
-            .request("register_server", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
-    }
-
     async fn join(&self, params: JoinParams) -> Result<()> {
         self.client
             .request("join", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
-    }
-
-    async fn serve(&self, params: ServeParams) -> Result<()> {
-        self.client
-            .request("serve", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
     }
@@ -151,13 +139,6 @@ impl TransportT for FacadeTransport {
     async fn publish_game(&self, bundle: GameBundle) -> Result<String> {
         self.client
             .request("publish_game_bundle", rpc_params![bundle])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
-    }
-
-    async fn settle_game(&self, params: SettleParams) -> Result<()> {
-        self.client
-            .request("settle", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
     }

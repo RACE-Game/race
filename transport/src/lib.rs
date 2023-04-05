@@ -1,16 +1,14 @@
 pub mod error;
-pub mod evm;
 pub mod facade;
-
-#[cfg(not(target_arch = "wasm32"))]
+pub mod facade_wasm;
 pub mod solana;
-#[cfg(target_arch = "wasm32")]
 pub mod solana_wasm;
 
 use std::path::PathBuf;
 
 use error::{TransportError, TransportResult};
-use race_core::transport::{TransportT, TransportLocalT};
+#[allow(unused_imports)]
+use race_core::transport::{TransportLocalT, TransportT};
 use race_env::Config;
 use tracing::info;
 
@@ -118,8 +116,7 @@ impl TransportBuilder {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
                     #[cfg(target_arch = "wasm32")]
                     {
-                        // Ok(Box::new(solana_wasm::SolanaWasmTransport::try_new(rpc)?))
-                        panic!("")
+                        Ok(Box::new(solana_wasm::SolanaWasmTransport::try_new(rpc)?))
                     }
                     #[cfg(not(target_arch = "wasm32"))]
                     {
@@ -127,17 +124,19 @@ impl TransportBuilder {
                         Ok(Box::new(solana::SolanaTransport::try_new(rpc, keyfile)?))
                     }
                 }
-                // ChainType::Bnb => {
-                //     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
-                //     // let signer = self.signer.ok_or(TransportError::UnspecifiedSigner)?;
-                //     Ok(Box::new(evm::EvmTransport::new(rpc)))
-                // }
                 ChainType::Facade => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
                     info!("Build FacadeTransport for {:?}", rpc);
-                    Ok(Box::new(facade::FacadeTransport::try_new(&rpc).await?))
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        Ok(Box::new(facade::FacadeTransport::try_new(&rpc).await?))
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        Ok(Box::new(facade_wasm::FacadeTransport::try_new(&rpc).await?))
+                    }
                 }
-                _ => unimplemented!()
+                _ => unimplemented!(),
             }
         } else {
             Err(TransportError::UnspecifiedChain)

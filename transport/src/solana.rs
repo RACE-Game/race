@@ -1,3 +1,4 @@
+#![cfg(not(target_arch = "wasm32"))]
 #![allow(unused_variables, unused_imports)]
 use crate::error::{TransportError, TransportResult};
 use async_trait::async_trait;

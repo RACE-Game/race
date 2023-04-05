@@ -4,111 +4,70 @@
 //! We assume the module is exported as `window.solanaWeb3`.
 //!
 //! The wasm implementation is for using in `solana-sdk`.
+#![cfg(target_arch = "wasm32")]
+#![allow(unused)]
 
 use crate::error::{TransportError, TransportResult};
 use async_trait::async_trait;
 use gloo::console::{error, info};
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
+
 use race_core::{
     error::Result,
-    transport::{TransportT, TransportLocalT},
+    transport::TransportLocalT,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-        ServerAccount, SettleParams, UnregisterGameParams, VoteParams,
+        PlayerProfile, RegisterGameParams, RegistrationAccount, ServerAccount,
+        UnregisterGameParams, VoteParams,
     },
 };
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
 pub struct SolanaWasmTransport {
-    rpc: String,
+    conn: Object,
+    sol: Object,
 }
 
-pub struct Connection {
-    inner: Object, // js_sys::Object
-}
-
-unsafe impl Send for Connection {}
-unsafe impl Sync for Connection {}
-
-impl Connection {
-    pub fn new(rpc: &str) -> Self {
-        match Self::try_new(rpc) {
-            Ok(x) => x,
-            Err(e) => {
-                error!("Failed to get connection:", e.to_string());
-                panic!("Failed to get connection");
-            }
-        }
-    }
-
-    pub fn try_new(rpc: &str) -> TransportResult<Self> {
-        let rpc = rpc.to_owned().into();
-        let window = gloo::utils::window();
-        let sol = window
-            .get("solanaWeb3")
-            .ok_or(TransportError::InitializationFailed(
-                "solanaWeb3 not found".into(),
-            ))?;
-        let conn_type = Reflect::get(&sol, &"Connection".into())
-            .map_err(|e| {
-                TransportError::InitializationFailed("Failed to get the ctor of Connection".into())
-            })?
-            .dyn_into::<Function>()
-            .map_err(|e| {
-                TransportError::InitializationFailed(
-                    "Failed to cast the ctor of Connection to type Function".into(),
-                )
-            })?;
-        let conn_new_args = js_sys::Array::new();
-        conn_new_args.push(&rpc);
-        let conn = Reflect::construct(&conn_type, &conn_new_args)
-            .map_err(|_| {
-                TransportError::InitializationFailed("Failed to initiate a Connection".into())
-            })?
-            .into();
-        Ok(Self { inner: conn })
-    }
-
-    pub async fn get_account_data(&self, addr: &str) -> TransportResult<Vec<u8>> {
-        let sol = gloo::utils::window().get("solanaWeb3").unwrap();
-        let inner = &self.inner;
-        info!("Sol get");
-        let api = Reflect::get(&inner, &"getAccountInfo".into())
-            .unwrap() // unreachable
-            .dyn_into::<Function>()
-            .unwrap();
-        info!("api get");
-        let pubkey_type = Reflect::get(&sol, &"PublicKey".into())
-            .unwrap()
-            .dyn_into::<Function>()
-            .unwrap();
-        info!("pubkey get");
-        let pubkey_init_args = js_sys::Array::new();
-        info!("pubkey args");
-        pubkey_init_args.push(&addr.into());
-        let pubkey = Reflect::construct(&pubkey_type, &pubkey_init_args).unwrap();
-        info!("pubkey created");
-        api.bind(&self.inner);
-        let account_info = JsFuture::from(
-            api.call1(&JsValue::undefined(), &pubkey)
-                .unwrap()
-                .dyn_into::<Promise>()
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-        info!("account info get");
-        let data = Reflect::get(&account_info, &"data".into())
-            .unwrap()
-            .dyn_into::<Uint8Array>()
-            .unwrap();
-        info!("data get");
-        Ok(data.to_vec())
-    }
-}
+// impl Connection {
+//     pub async fn get_account_data(&self, addr: &str) -> TransportResult<Vec<u8>> {
+//         let sol = gloo::utils::window().get("solanaWeb3").unwrap();
+//         let inner = &self.inner;
+//         info!("Sol get");
+//         let api = Reflect::get(&inner, &"getAccountInfo".into())
+//             .unwrap() // unreachable
+//             .dyn_into::<Function>()
+//             .unwrap();
+//         info!("api get");
+//         let pubkey_type = Reflect::get(&sol, &"PublicKey".into())
+//             .unwrap()
+//             .dyn_into::<Function>()
+//             .unwrap();
+//         info!("pubkey get");
+//         let pubkey_init_args = js_sys::Array::new();
+//         info!("pubkey args");
+//         pubkey_init_args.push(&addr.into());
+//         let pubkey = Reflect::construct(&pubkey_type, &pubkey_init_args).unwrap();
+//         info!("pubkey created");
+//         api.bind(&self.inner);
+//         let account_info = JsFuture::from(
+//             api.call1(&JsValue::undefined(), &pubkey)
+//                 .unwrap()
+//                 .dyn_into::<Promise>()
+//                 .unwrap(),
+//         )
+//         .await
+//         .unwrap();
+//         info!("account info get");
+//         let data = Reflect::get(&account_info, &"data".into())
+//             .unwrap()
+//             .dyn_into::<Uint8Array>()
+//             .unwrap();
+//         info!("data get");
+//         Ok(data.to_vec())
+//     }
+// }
 
 #[async_trait(?Send)]
 #[allow(unused)]
@@ -121,19 +80,11 @@ impl TransportLocalT for SolanaWasmTransport {
         todo!()
     }
 
-    async fn register_server(&self, params: RegisterServerParams) -> Result<String> {
-        todo!()
-    }
-
     async fn join(&self, params: JoinParams) -> Result<()> {
         todo!()
     }
 
     async fn deposit(&self, params: DepositParams) -> Result<()> {
-        todo!()
-    }
-
-    async fn serve(&self, params: ServeParams) -> Result<()> {
         todo!()
     }
 
@@ -146,10 +97,6 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn publish_game(&self, bundle: GameBundle) -> Result<String> {
-        todo!()
-    }
-
-    async fn settle_game(&self, params: SettleParams) -> Result<()> {
         todo!()
     }
 
@@ -182,15 +129,56 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
-        // Error
-        let conn = Connection::new("abc");
-        let data = conn.get_account_data("abc").await.unwrap();
         None
     }
 }
 
 impl SolanaWasmTransport {
     pub fn try_new(rpc: String) -> TransportResult<Self> {
-        Ok(Self { rpc })
+        let rpc = rpc.to_owned().into();
+        let window = gloo::utils::window();
+        let sol = window
+            .get("solanaWeb3")
+            .ok_or(TransportError::InitializationFailed(
+                "solanaWeb3 not found".into(),
+            ))?;
+        let conn_type = Reflect::get(&sol, &"Connection".into())
+            .map_err(|e| {
+                TransportError::InitializationFailed("Failed to get the ctor of Connection".into())
+            })?
+            .dyn_into::<Function>()
+            .map_err(|e| {
+                TransportError::InitializationFailed(
+                    "Failed to cast the ctor of Connection to type Function".into(),
+                )
+            })?;
+        let conn_new_args = js_sys::Array::new();
+        conn_new_args.push(&rpc);
+        let conn = Reflect::construct(&conn_type, &conn_new_args)
+            .map_err(|_| {
+                TransportError::InitializationFailed("Failed to initiate a Connection".into())
+            })?
+            .into();
+        Ok(Self { conn, sol })
+    }
+
+    fn get_function(obj: &JsValue, key: &str) -> Function {
+        Reflect::get(obj, &key.into()).unwrap().dyn_into::<Function>().unwrap()
+    }
+
+    fn make_public_key(&self, addr: String) -> JsValue {
+        let pubkey_ctor = Self::get_function(&self.sol, "PublicKey");
+        let new_pubkey_args = js_sys::Array::new();
+        new_pubkey_args.push(&addr.clone().into());
+        let pubkey = Reflect::construct(&pubkey_ctor, &new_pubkey_args).unwrap();
+        pubkey
+    }
+
+    async fn get_account_data(&self, pubkey: &JsValue) -> Vec<u8> {
+        let get_account_data = Reflect::get(&self.conn, &"getAccountData".into())
+            .unwrap()
+            .dyn_into::<Function>()
+            .unwrap();
+        vec![]
     }
 }
