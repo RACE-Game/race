@@ -1,4 +1,9 @@
-use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "program")]
+use crate::state::Padded;
+use crate::{
+    constants::{GAME_ACCOUNT_LEN, PROFILE_ACCOUNT_LEN},
+    types::VoteType,
+};
 #[cfg(feature = "program")]
 use solana_program::{
     borsh::get_instance_packed_len,
@@ -9,8 +14,11 @@ use solana_program::{
 };
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
-use crate::{constants::{GAME_ACCOUNT_LEN, SERVER_ACCOUNT_LEN}, types::VoteType};
+use borsh::{BorshDeserialize, BorshSerialize};
 
+// =======================================================
+// ====================== GAME ACCOUNT ===================
+// =======================================================
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone, Debug)]
 pub struct PlayerJoin {
@@ -60,11 +68,13 @@ pub struct GameState {
 }
 
 #[cfg(feature = "program")]
-impl GameState {
-    pub fn update_padding(&mut self) {
-        let len = get_instance_packed_len(self).unwrap();
-        let padding_len = Self::LEN - len;
-        self.padding = Box::new(vec![0; padding_len]);
+impl Padded for GameState {
+    fn get_padding_mut(&mut self) -> Result<(usize, &mut Box<Vec<u8>>), ProgramError> {
+        let packed_len = get_instance_packed_len(self)?;
+        let current_padding_len = self.padding.len();
+        let data_len = packed_len - current_padding_len;
+        let needed_padding_len = Self::LEN - data_len;
+        Ok((needed_padding_len, &mut self.padding))
     }
 }
 
@@ -93,6 +103,9 @@ impl Pack for GameState {
     }
 }
 
+// =======================================================
+// ====================== PLAYER ACCOUNT =================
+// =======================================================
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(BorshDeserialize, BorshSerialize, Default, Debug)]
 pub struct PlayerState {
@@ -101,15 +114,17 @@ pub struct PlayerState {
     pub chips: u64,
     pub nick: String, // max: 16 chars
     pub pfp: Option<Pubkey>,
-    pub padding: Vec<u8>,
+    pub padding: Box<Vec<u8>>,
 }
 
 #[cfg(feature = "program")]
-impl PlayerState {
-    pub fn update_padding(&mut self) {
-        let len = get_instance_packed_len(self).unwrap();
-        let padding_len = Self::LEN - len;
-        self.padding = vec![0; padding_len];
+impl Padded for PlayerState {
+    fn get_padding_mut(&mut self) -> Result<(usize, &mut Box<Vec<u8>>), ProgramError> {
+        let packed_len = get_instance_packed_len(self)?;
+        let current_padding_len = self.padding.len();
+        let data_len = packed_len - current_padding_len;
+        let needed_padding_len = Self::LEN - data_len;
+        Ok((needed_padding_len, &mut self.padding))
     }
 }
 
@@ -125,7 +140,7 @@ impl Sealed for PlayerState {}
 
 #[cfg(feature = "program")]
 impl Pack for PlayerState {
-    const LEN: usize = 98;
+    const LEN: usize = PROFILE_ACCOUNT_LEN;
 
     fn pack_into_slice(&self, dst: &mut [u8]) {
         let data = self.try_to_vec().unwrap();
@@ -138,50 +153,6 @@ impl Pack for PlayerState {
     }
 }
 
-#[cfg_attr(test, derive(PartialEq, Clone))]
-#[derive(BorshDeserialize, BorshSerialize, Default, Debug)]
-pub struct ServerState {
-    pub is_initialized: bool,
-    pub addr: Pubkey,
-    pub owner: Pubkey,
-    pub endpoint: String, // max: 50 chars
-    pub padding: Vec<u8>,
-}
-
-#[cfg(feature = "program")]
-impl ServerState {
-    pub fn update_padding(&mut self) {
-        let len = get_instance_packed_len(self).unwrap();
-        let padding_len = Self::LEN - len;
-        self.padding = vec![0; padding_len];
-    }
-}
-
-#[cfg(feature = "program")]
-impl IsInitialized for ServerState {
-    fn is_initialized(&self) -> bool {
-        self.is_initialized
-    }
-}
-
-#[cfg(feature = "program")]
-impl Sealed for ServerState {}
-
-#[cfg(feature = "program")]
-impl Pack for ServerState {
-    const LEN: usize = SERVER_ACCOUNT_LEN;
-
-    fn pack_into_slice(&self, dst: &mut [u8]) {
-        let data = self.try_to_vec().unwrap();
-        sol_memcpy(dst, &data, data.len());
-    }
-
-    fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        let result = ServerState::try_from_slice(src)?;
-        Ok(result)
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -189,7 +160,7 @@ mod tests {
 
     fn create_player() -> PlayerState {
         let mut player = PlayerState::default();
-        player.nick = "a_16-char_nicknm".to_string();
+        player.nick = "16-char_nickname".to_string();
         player.pfp = Some(Pubkey::new_unique());
         player
     }
@@ -197,27 +168,16 @@ mod tests {
     #[test]
     pub fn test_player_account_len() -> anyhow::Result<()> {
         let mut player = create_player();
-        println!("Player account non-aligned len {}", get_instance_packed_len(&player)?);
+        println!(
+            "Player account non-aligned len {}",
+            get_instance_packed_len(&player)?
+        );
         player.update_padding();
-        println!("Player account aligned len {}", get_instance_packed_len(&player)?);
+        println!(
+            "Player account aligned len {}",
+            get_instance_packed_len(&player)?
+        );
         assert_eq!(get_instance_packed_len(&player)?, PlayerState::LEN); // 98
-        assert_eq!(1, 2);
-        Ok(())
-    }
-
-    fn create_server() -> ServerState {
-        let mut server = ServerState::default();
-        server.addr = Pubkey::new_unique();
-        server.owner = Pubkey::new_unique();
-        server.endpoint = "https------------------------------".to_string();
-        server.update_padding();
-        server
-    }
-
-    #[test]
-    pub fn test_server_account_len() -> anyhow::Result<()> {
-        let server = create_server();
-        println!("Server account len {}", get_instance_packed_len(&server)?); // 104
         assert_eq!(1, 2);
         Ok(())
     }
@@ -239,7 +199,8 @@ mod tests {
             };
             state.servers.push(s);
         }
-        println!("len: {}", get_instance_packed_len(&state)?);
+        println!("Game state len: {}", get_instance_packed_len(&state)?);
+        assert_eq!(1, 2);
         Ok(())
     }
 

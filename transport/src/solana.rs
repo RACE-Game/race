@@ -68,17 +68,16 @@ pub struct SolanaTransport {
 impl TransportT for SolanaTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
         // TODO: Discuss title allowed len
-        if params.title.len() > 30 {
+        if params.title.len() > NAME_LEN {
                 // FIXME: Use TransportError
                 return Err(race_core::error::Error::Custom(
-                    "Game title exceeds 30 chars".to_string(),
+                    "Game title exceeds 16 chars".to_string(),
                 ));
         }
 
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
-        let bundle_pubkey = Pubkey::from_str(&params.bundle_addr)
-            .map_err(|_| TransportError::InvalidBundleAddress)?;
+        let bundle_pubkey = Self::parse_pubkey(&params.bundle_addr)?;
         let game_account = Keypair::new();
         let game_account_pubkey = game_account.pubkey();
         let lamports = self
@@ -93,7 +92,7 @@ impl TransportT for SolanaTransport {
             &self.program_id,
         );
 
-        let token_pubkey = Pubkey::from_str(SOL).unwrap();
+        let token_pubkey = Self::parse_pubkey(SOL)?;
         let stake_account = Keypair::new();
         let stake_account_pubkey = stake_account.pubkey();
         let stake_account_len = Account::LEN;
@@ -112,8 +111,6 @@ impl TransportT for SolanaTransport {
         let init_stake_account_ix =
             initialize_account(&ID, &stake_account_pubkey, &token_pubkey, &payer_pubkey)
                 .map_err(|_| TransportError::InitInstructionFailed)?;
-
-        // FIXME: limit title to 16 or 30 chars
 
         let create_game_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
@@ -144,10 +141,7 @@ impl TransportT for SolanaTransport {
             Some(&payer.pubkey())
         );
         let mut tx = Transaction::new_unsigned(message);
-        let blockhash = self
-            .client
-            .get_latest_blockhash()
-            .map_err(|_| TransportError::GetBlockhashFailed)?;
+        let blockhash = self.get_blockhash()?;
         tx.sign(&[payer, &game_account, &stake_account], blockhash);
         self.send_transaction(tx)?;
         Ok(game_account_pubkey.to_string())
@@ -158,8 +152,7 @@ impl TransportT for SolanaTransport {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
-        let game_account_pubkey = Pubkey::from_str(&params.addr)
-            .map_err(|_| TransportError::InvalidPubkey(params.addr))?;
+        let game_account_pubkey = Self::parse_pubkey(&params.addr)?;
         let game_account_data = &self
             .client
             .get_account_data(&game_account_pubkey)
@@ -184,13 +177,8 @@ impl TransportT for SolanaTransport {
 
         let message = Message::new(&[close_game_ix], Some(&payer.pubkey()));
         let mut tx = Transaction::new_unsigned(message);
-
-        let blockhash = self
-            .client
-            .get_latest_blockhash()
-            .map_err(|_| TransportError::GetBlockhashFailed)?;
+        let blockhash = self.get_blockhash()?;
         tx.sign(&[payer], blockhash);
-
         self.send_transaction(tx)?;
         Ok(())
     }
@@ -328,6 +316,7 @@ impl TransportT for SolanaTransport {
         }
         let player = &self.keypair;
         let player_pubkey = player.pubkey();
+        // TODO: either use this balance or remove it
         let balance = self
             .client
             .get_balance(&player_pubkey)
@@ -337,6 +326,7 @@ impl TransportT for SolanaTransport {
             Pubkey::create_with_seed(&player_pubkey, PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::PubkeyCreationFailed)?;
 
+        // TODO: put this into a fn?
         let lamports = self
             .client
             .get_minimum_balance_for_rent_exemption(PROFILE_ACCOUNT_LEN)
@@ -367,10 +357,10 @@ impl TransportT for SolanaTransport {
 
         let pfp_pubkey = if params.pfp.is_some() {
             let addr = params.pfp.unwrap();
-            Pubkey::from_str(&addr).map_err(|_| TransportError::InvalidPubkey(addr.to_string()))?
+            Self::parse_pubkey(&addr)?
         } else {
             let addr = "11111111111111111111111111111111";
-            Pubkey::from_str(&addr).map_err(|_| TransportError::InvalidPubkey(addr.to_string()))?
+            Self::parse_pubkey(&addr)?
         };
 
         let init_profile_ix = Instruction::new_with_borsh(
@@ -391,15 +381,9 @@ impl TransportT for SolanaTransport {
         );
 
         let mut tx = Transaction::new_unsigned(message);
-        let blockhash = self
-            .client
-            .get_latest_blockhash()
-            .map_err(|_| TransportError::GetBlockhashFailed)?;
-
+        let blockhash = self.get_blockhash()?;
         tx.sign(&[player], blockhash);
-
         self.send_transaction(tx)?;
-
         Ok(profile_account_pubkey.to_string())
     }
 
@@ -521,6 +505,8 @@ impl TransportT for SolanaTransport {
         Ok(addr)
     }
 
+    // TODO: add close_registry?
+
     async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
@@ -638,7 +624,6 @@ impl TransportT for SolanaTransport {
             max_players: state.max_players,
             data_len: state.data_len,
             data: *state.data,
-            // TODO: impl the following fields
             deposits: Vec::new(),
             votes: Vec::new(),
             unlock_time: None,
@@ -682,13 +667,13 @@ impl TransportT for SolanaTransport {
         let registry_account_pubkey = Self::parse_pubkey(addr).ok()?;
         let data = self.client.get_account_data(&registry_account_pubkey).ok()?;
         let state = RegistryState::try_from_slice(&data).ok()?;
+
         Some(RegistrationAccount {
             addr: addr.to_owned(),
             is_private: state.is_private,
             size: state.size,
             owner: Some(state.owner.to_string()),
-            games: state
-                .games
+            games: state.games
                 .into_iter()
                 .map(|g| GameRegistration {
                     title: g.title.clone(),
@@ -696,7 +681,7 @@ impl TransportT for SolanaTransport {
                     reg_time: g.reg_time,
                     bundle_addr: "".into(),
                 })
-                .collect(),
+                .collect()
         })
     }
 }
@@ -780,7 +765,6 @@ impl SolanaTransport {
 
     /// Get the state of an on-chain server account
     /// Not for public API usage
-    #[allow(unused)]
     async fn get_server_state(
         &self,
         server_account_pubkey: &Pubkey,
@@ -862,6 +846,67 @@ mod tests {
         Ok(())
     }
 
+    // Addresses for tests
+    fn give_addrs() -> anyhow::Result<(String, String, String, String)> {
+        let game_addr = "DDnaGdYA8UFSiYpRnRJtCThnrh4bSVVg5Pbro4XDdLvh".to_string();
+        let server_addr = "DucxwwEf2vNH8bg7WcrN2GgXRV48frVAhTo9Wb6B2jMA".to_string();
+        let reg_addr = "FEk7mEVoCReNfogwKvUvQ3v54H5GKCiS8P4yC4zinb1a".to_string();
+        let player_addr = "EhZ25XJrWkbRbwKvGrxCWsn6Ez9Cac9W1Wu1pQWRLpHM".to_string();
+        Ok(
+            (game_addr, server_addr, reg_addr, player_addr)
+        )
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_create_game() -> anyhow::Result<()> {
+        let transport = get_transport()?;
+        let addr = transport
+            .create_game_account(CreateGameAccountParams {
+                title: "16-CHAR_GAME_TIL".to_string(),
+                bundle_addr: "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_owned(),
+                max_players: 9,
+                data: Vec::<u8>::new(),
+            })
+            .await?;
+        println!("Created game at {}", addr);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_game() -> anyhow::Result<()> {
+        let (addr, ..) = give_addrs()?;
+        let transport = get_transport()?;
+        let game = transport.get_game_account(&addr).await.unwrap();
+        println!("Game has {} players now", game.players.len());
+        println!("Game has {} servers now", game.servers.len());
+        if game.transactor_addr.is_some() {
+            println!(
+                "Game has one transactor in service at {}",
+                game.transactor_addr.unwrap().clone().to_string()
+            );
+        }
+        assert_eq!(game.addr, addr.to_string());
+        assert_eq!(
+            game.bundle_addr,
+            "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_string()
+        );
+        assert_eq!(game.title,  "16-CHAR_GAME_TIL".to_string(),);
+        assert_eq!(game.max_players, 9);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_close_game() -> anyhow::Result<()> {
+        let (addr, ..) = give_addrs()?;
+        println!("To close game account {}", addr);
+        let transport = get_transport()?;
+        transport
+            .close_game_account(CloseGameAccountParams { addr })
+            .await?;
+
+        Ok(())
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn test_create_registry() -> anyhow::Result<()> {
         let transport = get_transport()?;
@@ -882,46 +927,14 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_create_game() -> anyhow::Result<()> {
+    async fn test_get_registry() -> anyhow::Result<()> {
+        let (.., addr, _) = give_addrs()?;
         let transport = get_transport()?;
-        let addr = transport
-            .create_game_account(CreateGameAccountParams {
-                title: "HHHHH".to_string(),
-                bundle_addr: "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_owned(),
-                max_players: 9,
-                data: Vec::<u8>::new(),
-            })
-            .await?;
-        println!("Created game at {}", addr);
-
-        if addr.len() > 0 {
-            let game = transport.get_game_account(&addr).await.unwrap();
-            assert_eq!(game.addr, addr);
-            assert_eq!(
-                game.bundle_addr,
-                "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_string()
-            );
-            assert_eq!(game.title, "HHHHH".to_string());
-        }
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_close_game() -> anyhow::Result<()> {
-        let transport = get_transport()?;
-        let addr = transport
-            .create_game_account(CreateGameAccountParams {
-                title: "HHHHH".to_string(),
-                bundle_addr: "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_owned(),
-                max_players: 9,
-                data: Vec::<u8>::new(),
-            })
-            .await?;
-
-        println!("To close game account {}", addr);
-        transport
-            .close_game_account(CloseGameAccountParams { addr })
-            .await?;
+        let reg = transport.get_registration(&addr).await.unwrap();
+        assert_eq!(reg.addr, addr);
+        assert_eq!(reg.is_private, false);
+        assert_eq!(reg.size, 100);
+        assert_eq!(1, reg.games.len());
 
         Ok(())
     }
@@ -929,61 +942,83 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_register_game() -> anyhow::Result<()> {
         let transport = get_transport()?;
+        let (game_addr, _, reg_addr, _) = give_addrs()?;
         let addr = transport
             .register_game(RegisterGameParams {
-                game_addr: "7eQZSoKurnDhNQ8brPuaP9rb9r8JDc19cqyajKzkXJDq".to_string(),
-                reg_addr: "HsD2b3RadjhwUDPz3AcBqfspq1y8B85SLtQh7cXZmqwX".to_string()
+                game_addr,
+                reg_addr,
             })
             .await?;
-
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_player_profile() -> anyhow::Result<()> {
+    async fn test_register_server() -> anyhow::Result<()> {
         let transport = get_transport()?;
-        // Create a player profile
-        let profile_addr = transport
-            .create_player_profile(CreatePlayerProfileParams {
-                addr: "HHHHHJJJJKKKKLLLLPPPPOOOOIIIIUUUU".to_string(),
-                nick: "Jackson".to_owned(),
-                pfp: None,
-            })
-            .await?;
-
-        println!("Created profile is {}", profile_addr);
-
-        // Try to get it
-        // let profile_addr: &str = "FEZ6ki7Jy1fG4sYLwEiDZQm1bk5H7v4JpLc3EHKs355K";
-        let profile = transport.get_player_profile(&profile_addr).await.unwrap();
-        assert_eq!("Jackson".to_string(), profile.nick);
-        assert_eq!(None, profile.pfp);
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_server_account() -> anyhow::Result<()> {
-        let transport = get_transport().unwrap();
-        // Create a player profile
         let server_addr = transport
             .register_server(RegisterServerParams {
                 endpoint: "https://api.testnet.solana.com".to_string(),
             })
             .await?;
-
-        println!("Created profile is {}", server_addr);
-
-        // Try to get it
-        // let addr = "8BUgJXM54YbiLSFf9pYjUejSej39G8U9VeAimQdmd43u";
-        let server_state = transport.get_server_account(&server_addr).await.unwrap();
-        assert_eq!(
-            "https://api.testnet.solana.com".to_string(),
-            server_state.endpoint
-        );
-
+        println!("Created server account at {}", server_addr);
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_server() -> anyhow::Result<()> {
+        let (_, addr, ..) = give_addrs()?;
+        let transport = get_transport()?;
+        let server = transport.get_server_account(&addr).await.unwrap();
+        println!("Server {:?}", server);
+        assert_eq!(
+            "https://api.testnet.solana.com".to_string(),
+            server.endpoint
+        );
+        assert_eq!(server.addr, addr);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_serve_game() -> anyhow::Result<()> {
+        let transport = get_transport()?;
+        let server_addr = transport
+            .serve(ServeParams {
+                game_addr: "DDnaGdYA8UFSiYpRnRJtCThnrh4bSVVg5Pbro4XDdLvh".to_string(),
+                server_addr: "DucxwwEf2vNH8bg7WcrN2GgXRV48frVAhTo9Wb6B2jMA".to_string()
+            })
+            .await?;
+
+        println!("Served the game");
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_create_player_profile() -> anyhow::Result<()> {
+        let transport = get_transport()?;
+        // Create a player profile
+        let profile_addr = transport
+            .create_player_profile(CreatePlayerProfileParams {
+                // TODO: remove this field since player addr is to be created
+                addr: "RaceAAA1111111111111111111".to_string(),
+                nick: "RacePoker".to_owned(),
+                pfp: None,
+            })
+            .await?;
+        println!("Created profile is {}", profile_addr);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_player_profile() -> anyhow::Result<()> {
+        let (.., addr) = give_addrs()?;
+        let transport = get_transport()?;
+        let profile = transport.get_player_profile(&addr).await.unwrap();
+        assert_eq!(addr, profile.addr);
+        assert_eq!("RacePoker".to_string(), profile.nick);
+        // assert_eq!(None, profile.pfp);
+        Ok(())
+    }
+
 
     async fn test_settle() -> anyhow::Result<()> {
         Ok(())

@@ -1,3 +1,6 @@
+#[cfg(feature = "program")]
+use crate::state::Padded;
+use crate::constants::REGISTRY_ACCOUNT_LEN;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::{
@@ -7,7 +10,6 @@ use solana_program::{
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
-use crate::constants::REGISTRY_ACCOUNT_LEN;
 
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
@@ -15,7 +17,7 @@ use solana_sdk::pubkey::Pubkey;
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone)]
 pub struct GameReg {
-    pub title: String,          // max: 30 chars
+    pub title: String, // max: 16 chars
     pub addr: Pubkey,
     pub bundle_addr: Pubkey,
     pub reg_time: u64,
@@ -30,15 +32,18 @@ pub struct RegistryState {
     pub size: u16, // capacity of the registration center
     pub owner: Pubkey,
     pub games: Box<Vec<GameReg>>,
+    // pub padding: Box<Vec<u8>>,
     pub padding: Box<Vec<u8>>,
 }
 
 #[cfg(feature = "program")]
-impl RegistryState {
-    pub fn update_padding(&mut self) {
-        let data_len = get_instance_packed_len(self).unwrap();
-        let padding_len = Self::LEN - data_len;
-        self.padding = Box::new(vec![0u8; padding_len]);
+impl Padded for RegistryState {
+    fn get_padding_mut(&mut self) -> Result<(usize, &mut Box<Vec<u8>>), ProgramError> {
+        let packed_len = get_instance_packed_len(self)?;
+        let current_padding_len = self.padding.len();
+        let data_len = packed_len - current_padding_len;
+        let needed_padding_len = Self::LEN - data_len;
+        Ok((needed_padding_len, &mut self.padding))
     }
 }
 
@@ -74,21 +79,45 @@ mod tests {
     use super::*;
 
     fn make_registry_state() -> RegistryState {
-        let mut state = RegistryState::default();
-        state.is_initialized = true;
-        for _i in 0..100 {
-            let g = GameReg::default();
-            // g.title = "gametitle_16_cha".to_string();
-            state.games.push(g);
-        }
+        let mut state = RegistryState {
+            is_initialized: true,
+            is_private: false,
+            addr: Pubkey::new_unique(),
+            size: 100,
+            owner: Pubkey::new_unique(),
+            games: Box::new(Vec::<GameReg>::with_capacity(100)),
+            padding: Default::default(),
+        };
+
+        state.update_padding();
         state
     }
     #[test]
     pub fn test_registry_account_len() -> anyhow::Result<()> {
         let mut registry = make_registry_state();
-        println!("Registry account non-alighed len {}", get_instance_packed_len(&registry)?);
+        println!("Current padding len {}", registry.padding.len());
+        println!("Current padding cap {}", registry.padding.capacity());
+        println!(
+            "Registry account len {}",
+            get_instance_packed_len(&registry)?
+        );
+        for i in 0..100 {
+            let reg_game = GameReg {
+                title: "gametitle_16_cha".to_string(),
+                addr: Pubkey::new_unique(),
+                reg_time: 1111111111111u64 + (i as u64),
+                bundle_addr: Pubkey::new_unique(),
+                // is_hidden: params.is_hidden,
+            };
+            registry.games.push(reg_game);
+        }
         registry.update_padding();
-        println!("Registry account aligned len {}", get_instance_packed_len(&registry)?);
+        println!(
+            "Registry account aligned len {}",
+            get_instance_packed_len(&registry)?
+        );
+        println!("Aligned padding len {}", registry.padding.len());
+        println!("Aligned padding cap {}", registry.padding.capacity());
         assert_eq!(1, 2);
         Ok(())
     }

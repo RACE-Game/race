@@ -1,9 +1,8 @@
 use crate::{
     error::ProcessError,
-    state::{GameReg, GameState, RegistryState},
+    state::{GameReg, GameState, RegistryState, Padded},
 };
 
-// use race_solana_types::types::RegisterGameParams;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -33,17 +32,14 @@ pub fn process(
     if !payer.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
-    msg!("1");
+
     let mut registry_state = RegistryState::unpack(&registry_account.try_borrow_data()?)?;
     msg!("owner pubkey {}", registry_state.owner.clone());
-    msg!("111");
 
     if !registry_state.is_initialized {
         return Err(ProgramError::UninitializedAccount);
     }
-    msg!("112");
 
-    // TODO: Check whether accounts all is_initialized?
     let rent = Rent::get()?;
     if !rent.is_exempt(registry_account.lamports(), RegistryState::LEN) {
         return Err(ProgramError::AccountNotRentExempt);
@@ -52,12 +48,11 @@ pub fn process(
     if registry_state.is_private && registry_state.owner.ne(payer.key) {
         return Err(ProcessError::InvalidOwner)?;
     }
-    msg!("4");
+
     // TODO: Check on transport side?
     if registry_state.games.len() as u16 == registry_state.size {
         return Err(ProcessError::RegistrationIsFull)?;
     }
-    msg!("5");
 
     let game_state = GameState::unpack(&game_account.try_borrow_data()?)?;
     if !game_state.is_initialized {
@@ -67,10 +62,8 @@ pub fn process(
     if game_state.owner.ne(payer.key) {
         return Err(ProcessError::InvalidOwner)?;
     }
-    msg!("6");
 
     let mut added = false;
-    msg!("7");
     if registry_state.games.len() > 0 {
         if registry_state.games.iter().any(|reg| reg.addr.eq(game_account.key)) {
             msg!("0");
@@ -78,12 +71,12 @@ pub fn process(
         }
     }
     else if registry_state.games.len() == 0 {
+        // FIXME
+        let timestamp = 1680971620u64;
         // let timestamp = SystemTime::now()
         //     .duration_since(SystemTime::UNIX_EPOCH)
         //     .expect("Timestamp")
         //     .as_secs() as u64;
-        msg!("8");
-        let timestamp = 11111u64;
         let reg_game = GameReg {
             title: game_state.title.clone(),
             addr: game_account.key.clone(),
@@ -91,12 +84,9 @@ pub fn process(
             bundle_addr: game_state.bundle_addr.clone(),
             // is_hidden: params.is_hidden,
         };
-        msg!("9");
 
         registry_state.games.push(reg_game);
-        msg!("10");
-        registry_state.update_padding();
-        msg!("11");
+        registry_state.update_padding()?;
 
         RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;
 

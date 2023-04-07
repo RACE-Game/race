@@ -1,8 +1,8 @@
-use borsh::{BorshDeserialize, BorshSerialize};
 use crate::types::{
-    CreateGameAccountParams, RegisterServerParams, CreateRegistrationParams,
-    CreatePlayerProfileParams, SettleParams, VoteParams
+    CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams,
+    RegisterServerParams, SettleParams, VoteParams,
 };
+use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::program_error::ProgramError;
 
@@ -120,11 +120,13 @@ mod tests {
 
     #[test]
     fn test_ser() -> anyhow::Result<()> {
-        let ix = RaceInstruction::CreateGameAccount{
-            params: CreateGameAccountParams{
+        let ix = RaceInstruction::CreateGameAccount {
+            params: CreateGameAccountParams {
                 title: "Holdem".to_string(),
                 max_players: 8,
-                data: vec![] }};
+                data: vec![],
+            },
+        };
         let data = ix.try_to_vec()?;
         println!("data: {:?}", data);
         assert_eq!(1, 2);

@@ -1,10 +1,9 @@
 // use arrayref::array_mut_ref;
 use crate::{
     error::ProcessError,
-    state::{GameReg, GameState, RegistryState},
+    state::{GameState, RegistryState, Padded},
 };
 
-use race_solana_types::types::RegisterGameParams;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -15,8 +14,6 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
-
-use std::time::SystemTime;
 
 #[inline(never)]
 pub fn process(
@@ -74,7 +71,7 @@ pub fn process(
         let unreg_game = registry_state.games.remove(unreg_idx);
         msg!("Unregitered game {}", unreg_game.addr);
 
-        registry_state.update_padding();
+        registry_state.update_padding()?;
         RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;
 
         removed = true;

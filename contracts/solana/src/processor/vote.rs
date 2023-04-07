@@ -13,7 +13,7 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: VoteParams) -> ProgramResult {
+pub fn process(_program_id: &Pubkey, accounts: &[AccountInfo], params: VoteParams) -> ProgramResult {
     let VoteParams { vote_type } = params;
     let account_iter = &mut accounts.iter();
 

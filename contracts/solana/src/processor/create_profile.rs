@@ -7,7 +7,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{error::ProcessError, state::PlayerState};
+use crate::{error::ProcessError, state::{PlayerState, Padded}};
 use race_solana_types::constants::PROFILE_SEED;
 use race_solana_types::types::CreatePlayerProfileParams;
 
@@ -19,17 +19,16 @@ pub fn process(
 ) -> ProgramResult {
     let account_iter = &mut accounts.iter();
 
-    let player_account = next_account_info(account_iter)?;
-    if !player_account.is_signer {
+    let owner_account = next_account_info(account_iter)?;
+    if !owner_account.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
-
     let profile_account = next_account_info(account_iter)?;
     if !profile_account.is_writable {
         return Err(ProcessError::InvalidAccountStatus)?;
     }
 
-    let profile_pubkey = Pubkey::create_with_seed(player_account.key, PROFILE_SEED, program_id)?;
+    let profile_pubkey = Pubkey::create_with_seed(owner_account.key, PROFILE_SEED, program_id)?;
     if profile_pubkey != *profile_account.key {
         return Err(ProcessError::InvalidAccountPubkey)?;
     }
@@ -38,23 +37,23 @@ pub fn process(
     let pfp_pubkey = Some(pfp_account.key.clone());
 
     // TODO: Check rent exemption?
-
+    // TODO: add owner to the account?
     let mut player_state = PlayerState {
         is_initialized: true,
-        addr: *player_account.key,
+        addr: *profile_account.key,
         chips: 0u64,
         nick: params.nick,
         pfp: pfp_pubkey,
-        padding: Vec::<u8>::new(),
+        padding: Default::default(),
     };
 
-    player_state.update_padding();
+    player_state.update_padding()?;
 
     msg!("player profile state: {:?}", &player_state);
 
     PlayerState::pack(player_state, &mut profile_account.try_borrow_mut_data()?)?;
 
-    msg!("Newly created prrofile addr: {:?}", profile_account.key);
+    msg!("Profile addr: {:?}", profile_account.key);
 
     Ok(())
 }

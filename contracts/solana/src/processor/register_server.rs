@@ -7,7 +7,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{error::ProcessError, state::ServerState};
+use crate::{error::ProcessError, state::{ServerState, Padded}};
 use race_solana_types::constants::PROFILE_SEED;
 use race_solana_types::types::RegisterServerParams;
 
@@ -34,17 +34,15 @@ pub fn process(
         return Err(ProcessError::InvalidAccountPubkey)?;
     }
 
-    // TODO: register the server in a reg center?
-
     let mut server_state = ServerState {
         is_initialized: true,
         addr: server_account.key.clone(),
         owner: *owner_account.key,
         endpoint: params.endpoint,
-        padding: Vec::<u8>::new(),
+        padding: Default::default(),
     };
 
-    server_state.update_padding();
+    server_state.update_padding()?;
 
     msg!("Server state: {:?}", &server_state);
 

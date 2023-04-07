@@ -166,7 +166,10 @@ impl SolanaWasmTransport {
     }
 
     fn get_function(obj: &JsValue, key: &str) -> Function {
-        Reflect::get(obj, &key.into()).unwrap().dyn_into::<Function>().unwrap()
+        Reflect::get(obj, &key.into())
+            .unwrap()
+            .dyn_into::<Function>()
+            .unwrap()
     }
 
     fn construct(ctor: &Function, args: &[&JsValue]) -> JsValue {
@@ -191,7 +194,11 @@ impl SolanaWasmTransport {
 
     async fn get_account_data(&self, pubkey: &JsValue) -> Vec<u8> {
         let get_account_info = Self::get_function(&self.conn, "getAccountInfo");
-        let p = get_account_info.call1(&self.conn, pubkey).unwrap().dyn_into::<Promise>().unwrap();
+        let p = get_account_info
+            .call1(&self.conn, pubkey)
+            .unwrap()
+            .dyn_into::<Promise>()
+            .unwrap();
         let account_info = JsFuture::from(p).await.unwrap();
         info!("Account info:", account_info);
         vec![]

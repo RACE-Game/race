@@ -15,8 +15,7 @@ use race_core::transport::TransportLocalT;
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-    RegisterGameParams, RegistrationAccount, ServerAccount,
-    UnregisterGameParams, VoteParams,
+    RegisterGameParams, RegistrationAccount, ServerAccount, UnregisterGameParams, VoteParams,
 };
 
 use crate::error::{TransportError, TransportResult};

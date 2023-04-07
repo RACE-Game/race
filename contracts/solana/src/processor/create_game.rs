@@ -9,7 +9,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::state::{GameState, PlayerJoin};
+use crate::state::{GameState, PlayerJoin, Padded};
 use race_solana_types::types::CreateGameAccountParams;
 use spl_token::{
     instruction::{set_authority, AuthorityType},
@@ -61,7 +61,6 @@ pub fn process(
 
     let mut game_state = GameState {
         is_initialized: true,
-        // TODO: limit title length
         title: params.title,
         // TODO: invalid bundle account
         bundle_addr: *bundle_account.key,
@@ -86,7 +85,7 @@ pub fn process(
         padding: Default::default(),
     };
 
-    game_state.update_padding();
+    game_state.update_padding()?;
 
     GameState::pack(game_state, &mut game_account.try_borrow_mut_data()?)?;
     msg!("Game account {:?}", game_account.key);
