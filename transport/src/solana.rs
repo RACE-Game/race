@@ -744,7 +744,8 @@ impl SolanaTransport {
             )
             .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
 
-        self.client.poll_for_signature_confirmation(&sig, 32);
+        self.client.poll_for_signature_confirmation(&sig, 32)
+            .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
 
         Ok(sig)
     }

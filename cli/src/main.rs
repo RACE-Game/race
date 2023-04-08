@@ -174,10 +174,11 @@ async fn create_reg(transport: Arc<dyn TransportT>) {
         is_private: false,
         size: 100,
     };
-    transport
+    let addr = transport
         .create_registration(params)
         .await
         .expect("Create registration falied");
+    println!("Registration created at: {}", addr);
 }
 
 #[tokio::main]

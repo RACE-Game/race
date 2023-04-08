@@ -9,7 +9,8 @@
 
 use crate::error::{TransportError, TransportResult};
 use async_trait::async_trait;
-use gloo::console::{error, info};
+use borsh::BorshDeserialize;
+use gloo::console::{debug, error, info, warn};
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 
 use race_core::{
@@ -17,16 +18,17 @@ use race_core::{
     transport::TransportLocalT,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
-        CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, RegisterGameParams, RegistrationAccount, ServerAccount,
-        UnregisterGameParams, VoteParams,
+        CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration,
+        JoinParams, PlayerJoin, PlayerProfile, RegisterGameParams, RegistrationAccount,
+        ServerAccount, ServerJoin, UnregisterGameParams, VoteParams,
     },
 };
+use race_solana_types::state::{GameState, PlayerState, RegistryState, ServerState};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
 pub struct SolanaWasmTransport {
-    conn: Object,
+    conn: JsValue,
     sol: Object,
 }
 
@@ -113,7 +115,48 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
-        todo!()
+        let pubkey = self.make_public_key(addr);
+        debug!(format!("Get game account at {}", addr));
+        let state: GameState = self.get_account_state(&pubkey).await?;
+        let bundle_addr = state.bundle_addr.to_string();
+        let transactor_addr = match state.transactor_addr {
+            Some(pubkey) => Some(pubkey.to_string()),
+            None => None,
+        };
+        Some(GameAccount {
+            addr: addr.to_owned(),
+            title: state.title,
+            settle_version: state.settle_version,
+            bundle_addr,
+            access_version: state.access_version,
+            players: state
+                .players
+                .into_iter()
+                .map(|p| PlayerJoin {
+                    addr: p.addr.to_string(),
+                    position: p.position as usize,
+                    balance: p.balance,
+                    access_version: p.access_version,
+                })
+                .collect(),
+            servers: state
+                .servers
+                .into_iter()
+                .map(|s| ServerJoin {
+                    addr: s.addr.to_string(),
+                    endpoint: s.endpoint,
+                    access_version: s.access_version,
+                })
+                .collect(),
+            transactor_addr,
+            max_players: state.max_players,
+            data_len: state.data_len,
+            data: *state.data,
+            // TODO: impl the following fields
+            deposits: Vec::new(),
+            votes: Vec::new(),
+            unlock_time: None,
+        })
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
@@ -121,17 +164,49 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
-        todo!()
+        let pubkey = self.make_public_key(addr);
+        debug!(format!("Get player profile at {}", addr));
+        let state: PlayerState = self.get_account_state(&pubkey).await?;
+        Some(PlayerProfile {
+            addr: addr.to_owned(),
+            nick: state.nick,
+            pfp: state.pfp.map(|p| p.to_string()),
+        })
     }
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
-        todo!()
+        let pubkey = self.make_public_key(addr);
+        debug!(format!("Get server profile at {}", addr));
+        let state: ServerState = self.get_account_state(&pubkey).await?;
+        Some(ServerAccount {
+            addr: addr.to_owned(),
+            owner_addr: state.owner.to_string(),
+            endpoint: state.endpoint,
+        })
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
         let pubkey = self.make_public_key(addr);
-        let data = self.get_account_data(&pubkey);
-        None
+        debug!(format!("Get registration at {}", addr));
+        let state: RegistryState = self.get_account_state(&pubkey).await?;
+        let games: Vec<GameRegistration> = state
+            .games
+            .into_iter()
+            .map(|r| GameRegistration {
+                title: r.title,
+                addr: r.addr.to_string(),
+                reg_time: r.reg_time,
+                bundle_addr: r.bundle_addr.to_string(),
+            })
+            .collect();
+        debug!(format!("Found {} games at {}", games.len(), addr));
+        Some(RegistrationAccount {
+            addr: addr.to_owned(),
+            is_private: state.is_private,
+            size: state.size,
+            owner: Some(state.owner.to_string()),
+            games,
+        })
     }
 }
 
@@ -144,23 +219,8 @@ impl SolanaWasmTransport {
             .ok_or(TransportError::InitializationFailed(
                 "solanaWeb3 not found".into(),
             ))?;
-        let conn_type = Reflect::get(&sol, &"Connection".into())
-            .map_err(|e| {
-                TransportError::InitializationFailed("Failed to get the ctor of Connection".into())
-            })?
-            .dyn_into::<Function>()
-            .map_err(|e| {
-                TransportError::InitializationFailed(
-                    "Failed to cast the ctor of Connection to type Function".into(),
-                )
-            })?;
-        let conn_new_args = js_sys::Array::new();
-        conn_new_args.push(&rpc);
-        let conn = Reflect::construct(&conn_type, &conn_new_args)
-            .map_err(|_| {
-                TransportError::InitializationFailed("Failed to initiate a Connection".into())
-            })?
-            .into();
+        let conn_ctor = Self::get_function(&sol, "Connection");
+        let conn = Self::construct(&conn_ctor, &[&rpc]);
         info!("Solana Web3 Connection created:", &conn);
         Ok(Self { conn, sol })
     }
@@ -188,19 +248,53 @@ impl SolanaWasmTransport {
         pubkey
     }
 
-    // async fn resolve_promise(p: &Object) -> JsValue {
+    async fn resolve_promise(p: JsValue) -> Option<JsValue> {
+        let p = match p.dyn_into::<Promise>() {
+            Ok(p) => p,
+            Err(e) => {
+                warn!("Failed to resolve promise:", e);
+                return None;
+            }
+        };
+        match JsFuture::from(p).await {
+            Ok(x) => Some(x),
+            Err(e) => {
+                warn!("Failed to resolve promise:", e);
+                return None;
+            }
+        }
+    }
 
-    // }
+    async fn get_account_state<T: BorshDeserialize>(&self, pubkey: &JsValue) -> Option<T> {
+        let data = self.get_account_data(pubkey).await?;
+        T::try_from_slice(&data).ok()
+    }
 
-    async fn get_account_data(&self, pubkey: &JsValue) -> Vec<u8> {
+    async fn get_account_data(&self, pubkey: &JsValue) -> Option<Vec<u8>> {
         let get_account_info = Self::get_function(&self.conn, "getAccountInfo");
-        let p = get_account_info
-            .call1(&self.conn, pubkey)
-            .unwrap()
-            .dyn_into::<Promise>()
-            .unwrap();
-        let account_info = JsFuture::from(p).await.unwrap();
-        info!("Account info:", account_info);
-        vec![]
+        let p = match get_account_info.call1(&self.conn, pubkey) {
+            Ok(p) => p,
+            Err(e) => {
+                warn!("Error when getting account data", e);
+                return None;
+            }
+        };
+        let account_info = Self::resolve_promise(p).await?;
+        let data = match Reflect::get(&account_info, &"data".into()) {
+            Ok(d) => d,
+            Err(e) => {
+                warn!("Error when getting account data, promise error", e);
+                return None;
+            }
+        };
+
+        let data = match data.dyn_into::<Uint8Array>() {
+            Ok(d) => d,
+            Err(e) => {
+                warn!("Error when getting account data, promise error", e);
+                return None;
+            }
+        };
+        Some(data.to_vec())
     }
 }
