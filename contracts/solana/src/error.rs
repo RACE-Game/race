@@ -90,6 +90,10 @@ pub enum ProcessError {
     /// 13
     #[error("Can't unregister the game as it has not been registered yet")]
     InvalidUnregistration,
+
+    /// 14
+    #[error("Server number exceeds the max of 10")]
+    ServerNumberExceedsLimit,
 }
 
 impl From<ProcessError> for ProgramError {

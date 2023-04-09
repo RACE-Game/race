@@ -1,7 +1,5 @@
 #[cfg(feature = "program")]
 use crate::state::Padded;
-use crate::types::VoteType;
-use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::{
     borsh::get_instance_packed_len,
@@ -12,6 +10,8 @@ use solana_program::{
 };
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
+use crate::{constants::{GAME_ACCOUNT_LEN, PROFILE_ACCOUNT_LEN}, types::VoteType};
+use borsh::{BorshDeserialize, BorshSerialize};
 
 // =======================================================
 // ====================== GAME ACCOUNT ===================
@@ -46,21 +46,37 @@ pub struct Vote {
 #[derive(Default, BorshDeserialize, BorshSerialize, Debug)]
 pub struct GameState {
     pub is_initialized: bool,
+    // game name displayed on chain
     pub title: String,
+    // addr to the game core logic program on Arweave
     pub bundle_addr: Pubkey,
-    pub stake_addr: Pubkey,
+    // account that holds all players' buyin assets
+    pub stake_account: Pubkey,
+    // aame owner who created this game account
     pub owner: Pubkey,
-    pub token_addr: Pubkey,
+    // token used for buyin
+    pub token_mint: Pubkey,
+    // addr of the first server joined the game
     pub transactor_addr: Option<Pubkey>,
+    // a serial number, increased by 1 after each PlayerJoin or ServerJoin
     pub access_version: u64,
+    // a serial number, increased by 1 after each settlement
     pub settle_version: u64,
+    // game size
     pub max_players: u8,
+    // length of game details such as buyin, small blind, etc
     pub data_len: u32,
+    // serialized data of game details
     pub data: Box<Vec<u8>>,
+    // game players
     pub players: Box<Vec<PlayerJoin>>,
+    // game servers (max: 10)
     pub servers: Box<Vec<ServerJoin>>,
+    // game votes
     pub votes: Box<Vec<Vote>>,
+    // unlock time
     pub unlock_time: Option<u64>,
+    // padding needed to filled the fixed game account length
     pub padding: Box<Vec<u8>>,
 }
 

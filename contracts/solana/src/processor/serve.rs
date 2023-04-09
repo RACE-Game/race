@@ -14,6 +14,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
+use race_solana_types::constants::MAX_SERVER_NUM;
 use crate::{
     error::ProcessError,
     state::{GameState, ServerJoin, ServerState, Padded},
@@ -42,6 +43,9 @@ pub fn process(_program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult 
     let server_state = ServerState::unpack(&server_account.try_borrow_data()?)?;
     if !server_state.is_initialized {
         return Err(ProcessError::DuplicateServerJoin)?;
+    }
+    if game_state.servers.len() == MAX_SERVER_NUM {
+        return Err(ProcessError::ServerNumberExceedsLimit)?;
     }
 
     if game_state.servers.iter().any(|s| s.addr.eq(server_account.key)) {

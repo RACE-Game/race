@@ -5,6 +5,7 @@ mod close_game;
 mod create_game;
 mod create_profile;
 mod create_registry;
+mod join;
 mod misc;
 mod register_game;
 mod register_server;
@@ -60,6 +61,10 @@ pub fn process(
         RaceInstruction::UnregisterGame => {
             msg!("Unregister a game");
             unregister_game::process(program_id, accounts)
+        }
+        RaceInstruction::JoinGame { params } => {
+            msg!("Player joins game");
+            join::process(program_id, accounts, params)
         }
     }
 }

@@ -9,6 +9,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
+
 use crate::state::{GameState, PlayerJoin, Padded};
 use race_solana_types::types::CreateGameAccountParams;
 use spl_token::{
@@ -30,9 +31,9 @@ pub fn process(
     }
 
     let game_account = next_account_info(account_iter)?;
-    let stake_account = next_account_info(account_iter)?;
+    let temp_stake_account = next_account_info(account_iter)?;
     let token_account = next_account_info(account_iter)?;
-    let token_program_account = next_account_info(account_iter)?;
+    let token_program = next_account_info(account_iter)?;
     let bundle_account = next_account_info(account_iter)?;
 
     let token_state = Mint::unpack_unchecked(&token_account.data.borrow())?;
@@ -42,8 +43,8 @@ pub fn process(
 
     let (pda, _bump_seed) = Pubkey::find_program_address(&[game_account.key.as_ref()], program_id);
     let set_authority_ix = set_authority(
-        token_program_account.key,
-        stake_account.key,
+        token_program.key,
+        temp_stake_account.key,
         Some(&pda),
         AuthorityType::AccountOwner,
         payer.key,
@@ -53,9 +54,9 @@ pub fn process(
     invoke(
         &set_authority_ix,
         &[
-            stake_account.clone(),
+            temp_stake_account.clone(),
             payer.clone(),
-            token_program_account.clone(),
+            token_program.clone(),
         ],
     )?;
 
@@ -65,11 +66,11 @@ pub fn process(
         // TODO: invalid bundle account
         bundle_addr: *bundle_account.key,
         // TODO: use user's stake_account from client
-        stake_addr: *stake_account.key,
+        stake_account: *temp_stake_account.key,
         // TODO: invalid owner
         owner: payer.key.clone(),
         transactor_addr: None,
-        token_addr: *token_account.key,
+        token_mint: *token_account.key,
         access_version: 0,
         settle_version: 0,
         max_players: params.max_players,

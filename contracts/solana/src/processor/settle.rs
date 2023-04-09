@@ -55,7 +55,7 @@ pub fn process(
     let mut op_type = 0;
     let mut game_state = GameState::unpack(&game_account.try_borrow_mut_data()?)?;
 
-    if stake_account.key.ne(&game_state.stake_addr) {
+    if stake_account.key.ne(&game_state.stake_account) {
         return Err(ProcessError::InvalidStakeAccount)?;
     }
 
@@ -140,7 +140,7 @@ pub fn process(
 
     for (addr, amount) in payouts.into_iter() {
         let receiver_ata = next_account_info(account_iter)?;
-        validate_receiver_account(&addr, &game_state.token_addr, receiver_ata.key)?;
+        validate_receiver_account(&addr, &game_state.token_mint, receiver_ata.key)?;
         transfer_source.transfer(receiver_ata, amount)?;
     }
 

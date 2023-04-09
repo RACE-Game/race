@@ -1,5 +1,6 @@
 #[cfg(feature = "program")]
 use crate::state::Padded;
+use crate::constants::REGISTRY_ACCOUNT_LEN;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::{

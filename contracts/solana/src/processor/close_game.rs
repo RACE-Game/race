@@ -31,7 +31,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     if game_state.owner.ne(&owner_account.key) {
         return Err(ProcessError::InvalidOwner)?;
     }
-    if game_state.stake_addr.ne(stake_account.key) {
+    if game_state.stake_account.ne(stake_account.key) {
         return Err(ProcessError::InvalidStakeAccount)?;
     }
 

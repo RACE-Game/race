@@ -92,19 +92,15 @@ pub struct SettleParams {
     pub settles: Vec<Settle>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct JoinParams {
-    pub player_addr: String,
-    pub game_addr: String,
     pub amount: u64,
     pub access_version: u64,
     pub position: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct DepositParams {
-    pub player_addr: String,
-    pub game_addr: String,
     pub amount: u64,
     pub settle_version: u64,
 }
