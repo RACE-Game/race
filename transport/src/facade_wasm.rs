@@ -8,10 +8,6 @@ use tracing::{debug, error};
 use jsonrpsee::core::client::Client;
 use jsonrpsee::wasm_client::WasmClientBuilder as ClientBuilder;
 
-use race_core::error::{Error, Result};
-
-use race_core::transport::TransportLocalT;
-
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
@@ -19,6 +15,7 @@ use race_core::types::{
 };
 
 use crate::error::{TransportError, TransportResult};
+use crate::wasm_trait::TransportLocalT;
 
 pub struct FacadeTransport {
     client: Client,
@@ -37,28 +34,31 @@ impl FacadeTransport {
 #[async_trait(?Send)]
 #[allow(unused_variables)]
 impl TransportLocalT for FacadeTransport {
-    async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
+    async fn create_game_account(
+        &self,
+        params: CreateGameAccountParams,
+    ) -> TransportResult<String> {
         self.client
             .request("create_game", rpc_params![params])
             .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+            .map_err(|e| TransportError::NetworkError(e.to_string()))
     }
 
-    async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
+    async fn close_game_account(&self, params: CloseGameAccountParams) -> TransportResult<()> {
         self.client
             .request("close_game", rpc_params![params])
             .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+            .map_err(|e| TransportError::NetworkError(e.to_string()))
     }
 
-    async fn join(&self, params: JoinParams) -> Result<()> {
+    async fn join(&self, params: JoinParams) -> TransportResult<()> {
         self.client
             .request("join", rpc_params![params])
             .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+            .map_err(|e| TransportError::NetworkError(e.to_string()))
     }
 
-    async fn vote(&self, params: VoteParams) -> Result<()> {
+    async fn vote(&self, params: VoteParams) -> TransportResult<()> {
         if let Some(game_account) = self.get_game_account(&params.game_addr).await {
             if game_account
                 .votes
@@ -66,15 +66,15 @@ impl TransportLocalT for FacadeTransport {
                 .find(|v| v.voter.eq(&params.voter_addr))
                 .is_some()
             {
-                Err(Error::DuplicateVote)
+                Err(TransportError::DuplicatedVote)
             } else {
                 self.client
                     .request("vote", rpc_params![params])
                     .await
-                    .map_err(|e| Error::RpcError(e.to_string()))
+                    .map_err(|e| TransportError::NetworkError(e.to_string()))
             }
         } else {
-            Err(Error::GameAccountNotFound)
+            Err(TransportError::GameAccountNotFound)
         }
     }
 
@@ -98,11 +98,14 @@ impl TransportLocalT for FacadeTransport {
             .ok()
     }
 
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String> {
+    async fn create_player_profile(
+        &self,
+        params: CreatePlayerProfileParams,
+    ) -> TransportResult<String> {
         self.client
             .request("create_profile", rpc_params![params])
             .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+            .map_err(|e| TransportError::NetworkError(e.to_string()))
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
@@ -135,38 +138,41 @@ impl TransportLocalT for FacadeTransport {
             .ok()
     }
 
-    async fn publish_game(&self, bundle: GameBundle) -> Result<String> {
+    async fn publish_game(&self, bundle: GameBundle) -> TransportResult<String> {
         self.client
             .request("publish_game_bundle", rpc_params![bundle])
             .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+            .map_err(|e| TransportError::NetworkError(e.to_string()))
     }
 
-    async fn deposit(&self, params: DepositParams) -> Result<()> {
+    async fn deposit(&self, params: DepositParams) -> TransportResult<()> {
         self.client
             .request("deposit", rpc_params![params])
             .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+            .map_err(|e| TransportError::NetworkError(e.to_string()))
     }
 
-    async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
+    async fn create_registration(
+        &self,
+        params: CreateRegistrationParams,
+    ) -> TransportResult<String> {
         self.client
             .request("create_registration", rpc_params![params])
             .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+            .map_err(|e| TransportError::NetworkError(e.to_string()))
     }
 
-    async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
+    async fn register_game(&self, params: RegisterGameParams) -> TransportResult<()> {
         self.client
             .request("register_game", rpc_params![params])
             .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+            .map_err(|e| TransportError::NetworkError(e.to_string()))
     }
 
-    async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
+    async fn unregister_game(&self, params: UnregisterGameParams) -> TransportResult<()> {
         self.client
             .request("unregister_game", rpc_params![params])
             .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+            .map_err(|e| TransportError::NetworkError(e.to_string()))
     }
 }

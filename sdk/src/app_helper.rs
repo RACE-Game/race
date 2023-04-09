@@ -4,9 +4,8 @@ use gloo::console::info;
 use gloo::{console::warn, utils::format::JsValueSerdeExt};
 use js_sys::Array;
 use js_sys::Uint8Array;
-use race_core::transport::TransportLocalT;
 use race_core::types::CreatePlayerProfileParams;
-use race_transport::TransportBuilder;
+use race_transport::{TransportBuilder, TransportLocalT};
 use wasm_bindgen::prelude::*;
 
 use crate::error::Result;

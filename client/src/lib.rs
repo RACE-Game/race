@@ -17,7 +17,7 @@ use race_core::{
 };
 
 #[cfg(target_arch = "wasm32")]
-use race_core::transport::TransportLocalT as TransportT;
+use race_transport::wasm_trait::TransportLocalT as TransportT;
 #[cfg(not(target_arch = "wasm32"))]
 use race_core::transport::TransportT;
 

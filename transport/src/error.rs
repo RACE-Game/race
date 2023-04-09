@@ -85,6 +85,12 @@ pub enum TransportError {
 
     #[error("Transaction is not confirmed")]
     TransactionNotConfirmed,
+
+    #[error("Network error: {0}")]
+    NetworkError(String),
+
+    #[error("Duplicated vote")]
+    DuplicatedVote,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

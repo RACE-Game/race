@@ -5,48 +5,11 @@ use crate::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, RegisterGameParams, RegistrationAccount, ServeParams,
-        ServerAccount, SettleParams, UnregisterGameParams, VoteParams, RegisterServerParams,
+        PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
+        ServerAccount, SettleParams, UnregisterGameParams, VoteParams,
     },
 };
 use async_trait::async_trait;
-
-/// The Transport API for client side.
-///
-/// This trait should be used in WASM context, in SDK.
-/// Check [`TransportT`] for more information.
-#[async_trait(?Send)]
-pub trait TransportLocalT {
-    async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String>;
-
-    async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()>;
-
-    async fn join(&self, params: JoinParams) -> Result<()>;
-
-    async fn deposit(&self, params: DepositParams) -> Result<()>;
-
-    async fn vote(&self, params: VoteParams) -> Result<()>;
-
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String>;
-
-    async fn publish_game(&self, bundle: GameBundle) -> Result<String>;
-
-    async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String>;
-
-    async fn register_game(&self, params: RegisterGameParams) -> Result<()>;
-
-    async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()>;
-
-    async fn get_game_account(&self, addr: &str) -> Option<GameAccount>;
-
-    async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle>;
-
-    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile>;
-
-    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount>;
-
-    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount>;
-}
 
 #[async_trait]
 pub trait TransportT: Send + Sync {

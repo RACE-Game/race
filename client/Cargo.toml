@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 race-core = { path = "../core" }
+race-transport = { path = "../transport" }
 tracing = "0.1.36"
 
 [dev-dependencies]

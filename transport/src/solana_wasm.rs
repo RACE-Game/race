@@ -9,6 +9,7 @@
 
 use self::types::*;
 use crate::error::{TransportError, TransportResult};
+use crate::wasm_trait::TransportLocalT;
 use crate::wasm_utils::*;
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
@@ -16,8 +17,6 @@ use gloo::console::{debug, error, info, warn};
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 
 use race_core::{
-    error::Result,
-    transport::TransportLocalT,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration,
@@ -41,11 +40,13 @@ mod types;
 #[async_trait(?Send)]
 #[allow(unused)]
 impl TransportLocalT for SolanaWasmTransport {
-    async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
+    async fn create_game_account(&self, params: CreateGameAccountParams) -> TransportResult<String> {
         let bundle_pubkey = Pubkey::new(&params.bundle_addr);
         let game_account = Keypair::new();
         let game_account_pubkey = game_account.public_key();
-        let lamports = self.conn.get_minimum_balance_for_rent_exemption(GAME_ACCOUNT_LEN);
+        let lamports = self
+            .conn
+            .get_minimum_balance_for_rent_exemption(GAME_ACCOUNT_LEN);
         let create_game_ix = Instruction::create_account(
             &game_account_pubkey,
             &game_account_pubkey,
@@ -57,39 +58,39 @@ impl TransportLocalT for SolanaWasmTransport {
         Ok(game_account_pubkey.to_base58())
     }
 
-    async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
+    async fn close_game_account(&self, params: CloseGameAccountParams) -> TransportResult<()> {
         todo!()
     }
 
-    async fn join(&self, params: JoinParams) -> Result<()> {
+    async fn join(&self, params: JoinParams) -> TransportResult<()> {
         todo!()
     }
 
-    async fn deposit(&self, params: DepositParams) -> Result<()> {
+    async fn deposit(&self, params: DepositParams) -> TransportResult<()> {
         todo!()
     }
 
-    async fn vote(&self, params: VoteParams) -> Result<()> {
+    async fn vote(&self, params: VoteParams) -> TransportResult<()> {
         todo!()
     }
 
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String> {
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> TransportResult<String> {
         todo!()
     }
 
-    async fn publish_game(&self, bundle: GameBundle) -> Result<String> {
+    async fn publish_game(&self, bundle: GameBundle) -> TransportResult<String> {
         todo!()
     }
 
-    async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
+    async fn create_registration(&self, params: CreateRegistrationParams) -> TransportResult<String> {
         todo!()
     }
 
-    async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
+    async fn register_game(&self, params: RegisterGameParams) -> TransportResult<()> {
         todo!()
     }
 
-    async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
+    async fn unregister_game(&self, params: UnregisterGameParams) -> TransportResult<()> {
         todo!()
     }
 

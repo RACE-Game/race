@@ -71,6 +71,15 @@ impl Connection {
         v as u64
     }
 
+    pub async fn send_transaction(&self) -> Signature {
+        let serialize = get_function(&self.value, "serialize");
+        let serialized = serialize.call0(&self.value).unwrap();
+        let f = get_function(&self.value, "sendRawTransaction");
+        let sig_p = f.call1(&self.value, &serialized).unwrap();
+        let sig = resolve_promise(sig_p).await.unwrap();
+        Signature { value: sig }
+    }
+
     pub async fn get_account_state<T: BorshDeserialize>(&self, pubkey: &Pubkey) -> Option<T> {
         let data = self.get_account_data(pubkey).await?;
         T::try_from_slice(&data).ok()
@@ -149,4 +158,8 @@ impl Instruction {
         let value = f.call1(&JsValue::undefined(), &params).unwrap();
         Self { value }
     }
+}
+
+pub(crate) struct Signature {
+    pub(crate) value: JsValue,
 }

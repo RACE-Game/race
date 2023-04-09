@@ -4,9 +4,8 @@ use gloo::utils::format::JsValueSerdeExt;
 use js_sys::JSON::{parse, stringify};
 use js_sys::{Function, Object, Reflect};
 use race_core::context::GameContext;
-use race_core::transport::TransportLocalT;
 use race_core::types::{BroadcastFrame, ExitGameParams, RandomId};
-use race_transport::TransportBuilder;
+use race_transport::{TransportBuilder, TransportLocalT};
 use wasm_bindgen::prelude::*;
 
 use futures::pin_mut;

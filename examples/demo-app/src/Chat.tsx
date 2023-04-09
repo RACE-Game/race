@@ -1,7 +1,7 @@
 import { AppClient, Event } from 'race-sdk';
 import { useParams } from 'react-router-dom';
 import { useContext, useEffect, useState } from 'react';
-import { CHAIN, CHAIN_TO_RPC, RPC } from './constants';
+import { CHAIN_TO_RPC } from './constants';
 import LogsContext from './logs-context';
 import ProfileContext from './profile-context';
 import { useGameContext } from './App';

@@ -3350,6 +3350,7 @@ dependencies = [
  "race-core",
  "race-encryptor",
  "race-test",
+ "race-transport",
  "serde",
  "serde_json",
  "tokio",
