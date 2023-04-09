@@ -3,6 +3,7 @@ pub mod facade;
 pub mod facade_wasm;
 pub mod solana;
 pub mod solana_wasm;
+pub mod wasm_utils;
 
 use std::path::PathBuf;
 

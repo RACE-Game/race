@@ -1,6 +1,5 @@
 #[cfg(feature = "program")]
 use crate::state::Padded;
-use crate::constants::SERVER_ACCOUNT_LEN;
 #[cfg(feature = "program")]
 use solana_program::{
     borsh::get_instance_packed_len,

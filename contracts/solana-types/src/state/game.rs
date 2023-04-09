@@ -1,9 +1,7 @@
 #[cfg(feature = "program")]
 use crate::state::Padded;
-use crate::{
-    constants::{GAME_ACCOUNT_LEN, PROFILE_ACCOUNT_LEN},
-    types::VoteType,
-};
+use crate::types::VoteType;
+use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::{
     borsh::get_instance_packed_len,
@@ -14,7 +12,6 @@ use solana_program::{
 };
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
-use borsh::{BorshDeserialize, BorshSerialize};
 
 // =======================================================
 // ====================== GAME ACCOUNT ===================
