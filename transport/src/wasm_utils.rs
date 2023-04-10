@@ -1,9 +1,18 @@
 #![cfg(target_arch = "wasm32")]
 
-use gloo::console::warn;
-use js_sys::{Function, Object, Reflect, Promise};
+use gloo::console::{warn, error};
+use js_sys::{Function, Object, Promise, Reflect};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
+
+use crate::error::{TransportError, TransportResult};
+
+impl From<JsValue> for TransportError {
+    fn from(value: JsValue) -> Self {
+        error!("Interop error:", &value);
+        TransportError::InteropError
+    }
+}
 
 pub(crate) fn rget(obj: &JsValue, key: &str) -> JsValue {
     Reflect::get(obj, &key.into()).unwrap()
@@ -24,12 +33,12 @@ pub(crate) fn create_object(entries: &[(&str, &JsValue)]) -> Object {
     obj
 }
 
-pub(crate) fn construct(ctor: &Function, vargs: &[&JsValue]) -> JsValue {
+pub(crate) fn construct(ctor: &Function, vargs: &[&JsValue]) -> TransportResult<JsValue> {
     let args = js_sys::Array::new();
     for arg in vargs.iter() {
         args.push(&arg);
     }
-    Reflect::construct(ctor, &args).unwrap()
+    Reflect::construct(ctor, &args).map_err(TransportError::from)
 }
 
 pub(crate) async fn resolve_promise(p: JsValue) -> Option<JsValue> {

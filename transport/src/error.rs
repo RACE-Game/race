@@ -91,6 +91,9 @@ pub enum TransportError {
 
     #[error("Duplicated vote")]
     DuplicatedVote,
+
+    #[error("InteropError")]
+    InteropError,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

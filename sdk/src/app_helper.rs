@@ -4,14 +4,13 @@ use gloo::console::info;
 use gloo::{console::warn, utils::format::JsValueSerdeExt};
 use js_sys::Array;
 use js_sys::Uint8Array;
-use race_core::types::CreatePlayerProfileParams;
+use race_core::types::{CreatePlayerProfileParams, TokenInfo};
 use race_transport::{TransportBuilder, TransportLocalT};
 use wasm_bindgen::prelude::*;
 
 use crate::error::Result;
 use race_core::{
     error::Error,
-    transport::TransportT,
     types::{CreateGameAccountParams, RegisterGameParams},
 };
 
@@ -46,48 +45,78 @@ impl AppHelper {
     #[wasm_bindgen]
     pub async fn create_game_account(
         &self,
+        wallet: &JsValue,
         title: &str,
         bundle_addr: &str,
+        token_addr: &str,
         max_players: u8,
         data: Uint8Array,
     ) -> Result<String> {
         let addr = self
             .transport
-            .create_game_account(CreateGameAccountParams {
-                title: title.to_owned(),
-                bundle_addr: bundle_addr.to_owned(),
-                max_players,
-                data: data.to_vec(),
-            })
+            .create_game_account(
+                wallet,
+                CreateGameAccountParams {
+                    title: title.to_owned(),
+                    bundle_addr: bundle_addr.to_owned(),
+                    token: "".to_string(),
+                    max_players,
+                    data: data.to_vec(),
+                },
+            )
             .await?;
         Ok(addr)
     }
 
     #[wasm_bindgen]
-    pub async fn register_game(&self, game_addr: &str, reg_addr: &str) -> Result<()> {
+    pub async fn register_game(
+        &self,
+        wallet: &JsValue,
+        game_addr: &str,
+        reg_addr: &str,
+    ) -> Result<()> {
         self.transport
-            .register_game(RegisterGameParams {
-                game_addr: game_addr.to_owned(),
-                reg_addr: reg_addr.to_owned(),
-            })
+            .register_game(
+                wallet,
+                RegisterGameParams {
+                    game_addr: game_addr.to_owned(),
+                    reg_addr: reg_addr.to_owned(),
+                },
+            )
             .await?;
         Ok(())
     }
 
     #[wasm_bindgen]
-    pub async fn create_profile(&self, addr: &str, nick: &str, pfp: &str) -> Result<()> {
+    pub async fn create_profile(
+        &self,
+        wallet: JsValue,
+        addr: &str,
+        nick: &str,
+        pfp: &str,
+    ) -> Result<String> {
+        let pfp = if pfp.eq("") {
+            None
+        } else {
+            Some(pfp.to_owned())
+        };
         info!(format!(
-            "Create profile, address: {}, nick: {}, pfp: {}",
+            "Create profile, address: {}, nick: {}, pfp: {:?}",
             addr, nick, pfp
         ));
-        self.transport
-            .create_player_profile(CreatePlayerProfileParams {
-                addr: addr.to_owned(),
-                nick: nick.to_owned(),
-                pfp: Some(pfp.to_owned()),
-            })
+        let addr = self
+            .transport
+            .create_player_profile(
+                &wallet,
+                CreatePlayerProfileParams {
+                    addr: addr.to_owned(),
+                    nick: nick.to_owned(),
+                    pfp,
+                },
+            )
             .await?;
-        Ok(())
+        info!(format!("Profile created at address: {}", addr));
+        Ok(addr)
     }
 
     #[wasm_bindgen]

@@ -16,14 +16,14 @@ use borsh::BorshDeserialize;
 use gloo::console::{debug, error, info, warn};
 use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 
-use race_core::{
-    types::{
-        CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
-        CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration,
-        JoinParams, PlayerJoin, PlayerProfile, RegisterGameParams, RegistrationAccount,
-        ServerAccount, ServerJoin, UnregisterGameParams, VoteParams,
-    },
+use race_core::types::{
+    CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
+    CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration, JoinParams,
+    PlayerJoin, PlayerProfile, RegisterGameParams, RegistrationAccount, ServerAccount, ServerJoin,
+    UnregisterGameParams, VoteParams,
 };
+use race_solana_types::constants::{EMPTY_PUBKEY, PROFILE_ACCOUNT_LEN, PROFILE_SEED, PROGRAM_ID};
+use race_solana_types::instruction::RaceInstruction;
 use race_solana_types::{
     constants::GAME_ACCOUNT_LEN,
     state::{GameState, PlayerState, RegistryState, ServerState},
@@ -32,6 +32,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
 pub struct SolanaWasmTransport {
+    program_id: Pubkey,
     conn: Connection,
 }
 
@@ -40,62 +41,143 @@ mod types;
 #[async_trait(?Send)]
 #[allow(unused)]
 impl TransportLocalT for SolanaWasmTransport {
-    async fn create_game_account(&self, params: CreateGameAccountParams) -> TransportResult<String> {
-        let bundle_pubkey = Pubkey::new(&params.bundle_addr);
+    async fn create_game_account(
+        &self,
+        wallet: &JsValue,
+        params: CreateGameAccountParams,
+    ) -> TransportResult<String> {
+        let bundle_pubkey = Pubkey::try_new(&params.bundle_addr)?;
         let game_account = Keypair::new();
         let game_account_pubkey = game_account.public_key();
         let lamports = self
             .conn
-            .get_minimum_balance_for_rent_exemption(GAME_ACCOUNT_LEN);
+            .get_minimum_balance_for_rent_exemption(GAME_ACCOUNT_LEN)
+            .await;
         let create_game_ix = Instruction::create_account(
             &game_account_pubkey,
             &game_account_pubkey,
             lamports,
             GAME_ACCOUNT_LEN,
+            &self.program_id,
         );
         let tx = Transaction::new(&self.conn, &game_account_pubkey);
         tx.add(&create_game_ix);
         Ok(game_account_pubkey.to_base58())
     }
 
-    async fn close_game_account(&self, params: CloseGameAccountParams) -> TransportResult<()> {
+    async fn close_game_account(
+        &self,
+        wallet: &JsValue,
+        params: CloseGameAccountParams,
+    ) -> TransportResult<()> {
         todo!()
     }
 
-    async fn join(&self, params: JoinParams) -> TransportResult<()> {
+    async fn join(&self, wallet: &JsValue, params: JoinParams) -> TransportResult<()> {
         todo!()
     }
 
-    async fn deposit(&self, params: DepositParams) -> TransportResult<()> {
+    async fn deposit(&self, wallet: &JsValue, params: DepositParams) -> TransportResult<()> {
         todo!()
     }
 
-    async fn vote(&self, params: VoteParams) -> TransportResult<()> {
+    async fn vote(&self, wallet: &JsValue, params: VoteParams) -> TransportResult<()> {
         todo!()
     }
 
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> TransportResult<String> {
+    async fn create_player_profile(
+        &self,
+        wallet: &JsValue,
+        params: CreatePlayerProfileParams,
+    ) -> TransportResult<String> {
+        debug!("Create profile, wallet:", wallet);
+        let wallet_pubkey = Self::wallet_pubkey(wallet);
+        debug!("Wallet pubkey:", wallet_pubkey.to_base58());
+        let CreatePlayerProfileParams { addr, nick, pfp } = params;
+        debug!(format!("Nick: {} , Pfp: {:?}", nick, pfp));
+        let profile_account_pubkey =
+            Pubkey::create_with_seed(&wallet_pubkey, PROFILE_SEED, &self.program_id).await;
+        debug!(
+            "Profile account pubkey:",
+            profile_account_pubkey.to_base58()
+        );
+        let pfp_pubkey = pfp
+            .and_then(|pfp| Pubkey::try_new(&pfp).ok())
+            .unwrap_or_else(|| Pubkey::try_new(EMPTY_PUBKEY).unwrap());
+
+        let lamports = self
+            .conn
+            .get_minimum_balance_for_rent_exemption(PROFILE_ACCOUNT_LEN)
+            .await;
+        let tx = Transaction::new(&self.conn, &wallet_pubkey);
+
+        // Only create account when profile doesn't exist
+        if self
+            .conn
+            .get_account_data(&profile_account_pubkey)
+            .await
+            .is_none()
+        {
+            debug!("Create profile account, spend lamports:", lamports);
+            let create_account_ix = Instruction::create_account_with_seed(
+                &wallet_pubkey,
+                &profile_account_pubkey,
+                &wallet_pubkey,
+                PROFILE_SEED,
+                lamports,
+                PROFILE_ACCOUNT_LEN,
+                &self.program_id,
+            );
+            tx.add(&create_account_ix);
+        }
+
+        let init_profile_ix = Instruction::new_with_borsh(
+            &self.program_id,
+            &RaceInstruction::CreatePlayerProfile {
+                params: race_solana_types::types::CreatePlayerProfileParams { nick },
+            },
+            vec![
+                AccountMeta::new_readonly(&wallet_pubkey, true),
+                AccountMeta::new(&profile_account_pubkey, false, true),
+                AccountMeta::new_readonly(&pfp_pubkey, false),
+            ],
+        );
+        tx.add(&init_profile_ix);
+        self.conn.send_transaction(&wallet, &tx).await;
+        debug!("Transaction sent");
+        Ok(profile_account_pubkey.to_base58())
+    }
+
+    async fn publish_game(&self, wallet: &JsValue, bundle: GameBundle) -> TransportResult<String> {
         todo!()
     }
 
-    async fn publish_game(&self, bundle: GameBundle) -> TransportResult<String> {
+    async fn create_registration(
+        &self,
+        wallet: &JsValue,
+        params: CreateRegistrationParams,
+    ) -> TransportResult<String> {
         todo!()
     }
 
-    async fn create_registration(&self, params: CreateRegistrationParams) -> TransportResult<String> {
+    async fn register_game(
+        &self,
+        wallet: &JsValue,
+        params: RegisterGameParams,
+    ) -> TransportResult<()> {
         todo!()
     }
 
-    async fn register_game(&self, params: RegisterGameParams) -> TransportResult<()> {
-        todo!()
-    }
-
-    async fn unregister_game(&self, params: UnregisterGameParams) -> TransportResult<()> {
+    async fn unregister_game(
+        &self,
+        wallet: &JsValue,
+        params: UnregisterGameParams,
+    ) -> TransportResult<()> {
         todo!()
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
-        let pubkey = Pubkey::new(addr);
+        let pubkey = Pubkey::try_new(addr).ok()?;
         debug!(format!("Get game account at {}", addr));
         let state: GameState = self.conn.get_account_state(&pubkey).await?;
         let bundle_addr = state.bundle_addr.to_string();
@@ -144,8 +226,7 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
-        let pubkey = Pubkey::new(addr);
-        debug!(format!("Get player profile at {}", addr));
+        let pubkey = Pubkey::try_new(addr).ok()?;
         let state: PlayerState = self.conn.get_account_state(&pubkey).await?;
         Some(PlayerProfile {
             addr: addr.to_owned(),
@@ -155,7 +236,7 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
-        let pubkey = Pubkey::new(addr);
+        let pubkey = Pubkey::try_new(addr).ok()?;
         debug!(format!("Get server profile at {}", addr));
         let state: ServerState = self.conn.get_account_state(&pubkey).await?;
         Some(ServerAccount {
@@ -166,7 +247,7 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
-        let pubkey = Pubkey::new(addr);
+        let pubkey = Pubkey::try_new(addr).ok()?;
         debug!(format!("Get registration at {}", addr));
         let state: RegistryState = self.conn.get_account_state(&pubkey).await?;
         let games: Vec<GameRegistration> = state
@@ -193,6 +274,12 @@ impl TransportLocalT for SolanaWasmTransport {
 impl SolanaWasmTransport {
     pub fn try_new(rpc: String) -> TransportResult<Self> {
         let conn = Connection::new(&rpc);
-        Ok(Self { conn })
+        let program_id = Pubkey::try_new(PROGRAM_ID).unwrap();
+        Ok(Self { conn, program_id })
+    }
+
+    fn wallet_pubkey(wallet: &JsValue) -> Pubkey {
+        let value = rget(wallet, "publicKey");
+        Pubkey { value }
     }
 }

@@ -1106,6 +1106,16 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_pubkey_seed() -> anyhow::Result<()> {
+        let owner = Pubkey::from_str("DfgtACV9VzRUKUqRjuzxRHmeycyomcCzfRHgVyDPha9F")?;
+        let pubkey = Pubkey::from_str("EcYmEnnKrdQpe5wA4YuYxKLJwydAE88pBek6PFUCLbeo")?;
+        let program_id = Pubkey::from_str(PROGRAM_ID)?;
+        let created = Pubkey::create_with_seed(&owner, PROFILE_SEED, &program_id)?;
+        assert_eq!(pubkey, created);
+        Ok(())
+    }
+
     async fn test_settle() -> anyhow::Result<()> {
         Ok(())
     }

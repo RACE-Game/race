@@ -24,7 +24,6 @@ use race_core::{
     connection::ConnectionT,
     error::Error,
     event::Event,
-    transport::TransportT,
     types::{ClientMode, GetStateParams, JoinParams, SubmitEventParams},
 };
 use race_encryptor::Encryptor;
@@ -240,7 +239,7 @@ impl AppClient {
 
     /// Join the game.
     #[wasm_bindgen]
-    pub async fn join(&self, position: u8, amount: u64) -> Result<()> {
+    pub async fn join(&self, wallet: &JsValue, position: u8, amount: u64) -> Result<()> {
         info!("Join game");
         let game_account = self
             .transport
@@ -249,13 +248,16 @@ impl AppClient {
             .ok_or(Error::GameAccountNotFound)?;
 
         self.transport
-            .join(JoinParams {
-                player_addr: self.client.addr.clone(),
-                game_addr: self.addr.clone(),
-                amount,
-                access_version: game_account.access_version,
-                position: position as _,
-            })
+            .join(
+                wallet,
+                JoinParams {
+                    player_addr: self.client.addr.clone(),
+                    game_addr: self.addr.clone(),
+                    amount,
+                    access_version: game_account.access_version,
+                    position: position as _,
+                },
+            )
             .await?;
 
         Ok(())

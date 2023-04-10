@@ -1,6 +1,7 @@
 pub const ID_FILE: &str = "contracts/solana-types/prog_id";
 pub const PROGRAM_ID: &str = "8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu";
 pub const SOL: &str = "So11111111111111111111111111111111111111112";
+pub const EMPTY_PUBKEY: &str = "11111111111111111111111111111111";
 pub const PROFILE_SEED: &str = "race-1000";
 pub const PROFILE_ACCOUNT_LEN: usize = 98;
 pub const SERVER_ACCOUNT_LEN: usize = 108;
