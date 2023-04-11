@@ -10,7 +10,9 @@ use solana_program::{
 };
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
-use crate::{constants::{GAME_ACCOUNT_LEN, PROFILE_ACCOUNT_LEN}, types::VoteType};
+use crate::types::VoteType;
+#[cfg(feature = "program")]
+use crate::constants::{GAME_ACCOUNT_LEN, PROFILE_ACCOUNT_LEN};
 use borsh::{BorshDeserialize, BorshSerialize};
 
 // =======================================================

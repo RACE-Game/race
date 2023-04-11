@@ -143,8 +143,8 @@ impl TransportLocalT for SolanaWasmTransport {
             ],
         );
         tx.add(&init_profile_ix);
-        self.conn.send_transaction(&wallet, &tx).await;
-        debug!("Transaction sent");
+        self.conn.send_transaction_and_confirm(&wallet, &tx).await;
+        debug!("Transaction confirmed");
         Ok(profile_account_pubkey.to_base58())
     }
 

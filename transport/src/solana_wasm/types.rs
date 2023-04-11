@@ -99,19 +99,32 @@ impl Connection {
         v.as_f64().unwrap() as u32
     }
 
-    pub async fn send_transaction(&self, wallet: &JsValue, tx: &Transaction) -> Signature {
+    pub async fn send_transaction_and_confirm(&self, wallet: &JsValue, tx: &Transaction) -> Signature {
         let blockhash_and_context_p = self.get_latest_blockhash_and_context();
         let blockhash_and_context = resolve_promise(blockhash_and_context_p).await.unwrap();
         let context = rget(&blockhash_and_context, "context");
+        let value = rget(&blockhash_and_context, "value");
         let min_context_slot = rget(&context, "slot");
-        debug!("min context slot:", &min_context_slot);
+        let blockhash = rget(&value, "blockhash");
+        let last_valid_block_height = rget(&value, "lastValidBlockHeight");
         let f = get_function(wallet, "sendTransaction");
         let send_opts = create_object(&[("minContextSlot", &min_context_slot)]);
-        debug!(&tx.value);
         let sig_p = f
             .call3(&wallet, &tx.value, &self.value, &send_opts)
             .unwrap();
         let sig = resolve_promise(sig_p).await.unwrap();
+        let f = get_function(&self.value, "confirmTransaction");
+        let p = f
+            .call1(
+                &self.value,
+                &create_object(&[
+                    ("blockhash", &blockhash),
+                    ("lastValidBlockHeight", &last_valid_block_height),
+                    ("signature", &sig),
+                ]),
+            )
+            .unwrap();
+        resolve_promise(p).await.unwrap();
         Signature { value: sig }
     }
 

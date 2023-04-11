@@ -11,6 +11,7 @@ use solana_program::{
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "program")]
 use crate::constants::SERVER_ACCOUNT_LEN;
 
 #[cfg_attr(test, derive(PartialEq, Clone))]
