@@ -5,6 +5,7 @@ import { CHAIN_TO_RPC } from "./constants";
 import ProfileContext from "./profile-context";
 import LogsContext from "./logs-context";
 import { useGameContext } from "./App";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 interface State {
     random_id: number,
@@ -41,6 +42,7 @@ function Raffle() {
     let { addr } = useParams();
     let { chain } = useGameContext();
     let profile = useContext(ProfileContext);
+    let wallet = useWallet();
     let { addLog } = useContext(LogsContext);
 
     // Game event handler
@@ -55,7 +57,7 @@ function Raffle() {
     // Button callback to join the raffle
     const onJoin = async () => {
         if (client !== undefined) {
-            await client.join(0, 100n);
+            await client.join(wallet, 0, 100n);
         }
     }
 

@@ -46,6 +46,15 @@ impl TransportLocalT for SolanaWasmTransport {
         wallet: &JsValue,
         params: CreateGameAccountParams,
     ) -> TransportResult<String> {
+        let CreateGameAccountParams {
+            title,
+            bundle_addr,
+            token,
+            max_players,
+            data,
+        } = params;
+        let wallet_pubkey = Self::wallet_pubkey(wallet);
+        let tx = Transaction::new(&self.conn, &game_account_pubkey);
         let bundle_pubkey = Pubkey::try_new(&params.bundle_addr)?;
         let game_account = Keypair::new();
         let game_account_pubkey = game_account.public_key();
@@ -53,15 +62,59 @@ impl TransportLocalT for SolanaWasmTransport {
             .conn
             .get_minimum_balance_for_rent_exemption(GAME_ACCOUNT_LEN)
             .await;
-        let create_game_ix = Instruction::create_account(
+        let create_game_account_ix = Instruction::create_account(
             &game_account_pubkey,
             &game_account_pubkey,
             lamports,
             GAME_ACCOUNT_LEN,
             &self.program_id,
         );
-        let tx = Transaction::new(&self.conn, &game_account_pubkey);
+        tx.add(&create_game_account_ix);
+
+        let token_pubkey = Pubkey::try_new(&token)?;
+        let temp_stake_account = Keypair::new();
+        let temp_stake_account_pubkey = temp_stake_account.public_key();
+        let temp_stake_account_lamports = self
+            .conn
+            .get_minimum_balance_for_rent_exempt_account()
+            .await;
+        let create_temp_stake_account_ix = Instruction::create_account(
+            &wallet_pubkey,
+            &temp_stake_account_pubkey,
+            temp_stake_account_lamports,
+            &spl_token_program_id(),
+        );
+        tx.add(&create_temp_stake_account_ix);
+
+        let init_temp_stake_account_ix = Instruction::create_initialize_account_instruction(
+            &temp_stake_account_pubkey,
+            &token_pubkey,
+            &wallet_pubkey,
+        );
+        tx.add(&init_temp_stake_account_ix);
+
+        let create_game_ix = Instruction::new_with_borsh(
+            &self.program_id,
+            &RaceInstruction::CreateGameAccount {
+                params: solana_types::CreateGameAccountParams {
+                    title: params.title,
+                    max_players: params.max_players,
+                    data: params.data,
+                },
+            },
+            vec![
+                AccountMeta::new_readonly(&wallet_pubkey, true),
+                AccountMeta::new(&game_account_pubkey, false, true),
+                AccountMeta::new(&temp_stake_account_pubkey, true, true),
+                AccountMeta::new_readonly(&token_pubkey, false),
+                AccountMeta::new_readonly(&spl_token_program_id(), false),
+                AccountMeta::new_readonly(&bundle_pubkey, false),
+            ],
+        );
         tx.add(&create_game_ix);
+
+        self.conn.send_transaction_and_confirm(wallet, &tx).await;
+
         Ok(game_account_pubkey.to_base58())
     }
 
@@ -279,6 +332,9 @@ impl SolanaWasmTransport {
     }
 
     fn wallet_pubkey(wallet: &JsValue) -> Pubkey {
+        if wallet.is_falsy() {
+            panic!("Wallet is not connected");
+        }
         let value = rget(wallet, "publicKey");
         Pubkey { value }
     }

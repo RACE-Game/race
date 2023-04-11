@@ -10,7 +10,24 @@ use wasm_bindgen::{JsCast, JsValue};
 
 fn get_sol() -> Object {
     let window = gloo::utils::window();
-    window.get("solanaWeb3").unwrap()
+    match window.get("solanaWeb3") {
+        Some(x) => x,
+        None => {
+            error!("window.solanaWeb3 is not available");
+            panic!("solanaWeb3 is missing");
+        }
+    }
+}
+
+fn get_spl() -> Object {
+    let window = gloo::utils::window();
+    match window.get("SPL") {
+        Some(x) => x,
+        None => {
+            error!("window.SPL is not available");
+            panic!("SPL is missing");
+        }
+    }
 }
 
 pub(crate) struct Pubkey {
@@ -92,6 +109,7 @@ impl Connection {
         blockhash
     }
 
+    /// The wrapper for Connection.getMinimumBalanceForRentExemption
     pub async fn get_minimum_balance_for_rent_exemption(&self, len: usize) -> u32 {
         let f = get_function(&self.value, "getMinimumBalanceForRentExemption");
         let v_p = f.call1(&self.value, &len.into()).unwrap();
@@ -99,7 +117,21 @@ impl Connection {
         v.as_f64().unwrap() as u32
     }
 
-    pub async fn send_transaction_and_confirm(&self, wallet: &JsValue, tx: &Transaction) -> Signature {
+    /// The wrapper for SPL.getMinimumBalanceForRentExemptAccount
+    pub async fn get_minimum_balance_for_rent_exempt_account(&self) -> u32 {
+        let f = get_function(&get_spl(), "getMinimumBalanceForRentExemption");
+        let v_p = f
+            .call2(&JsValue::undefined(), &self.value, &"finalized".into())
+            .unwrap();
+        let v = resolve_promise(v_p).await.unwrap();
+        v.as_f64().unwrap() as u32
+    }
+
+    pub async fn send_transaction_and_confirm(
+        &self,
+        wallet: &JsValue,
+        tx: &Transaction,
+    ) -> Signature {
         let blockhash_and_context_p = self.get_latest_blockhash_and_context();
         let blockhash_and_context = resolve_promise(blockhash_and_context_p).await.unwrap();
         let context = rget(&blockhash_and_context, "context");
@@ -276,6 +308,41 @@ impl Instruction {
             .unwrap();
         Self { value }
     }
+
+    /// Wrapper for SPL.createInitializeAccountInstruction.
+    pub fn create_initialize_account_instruction(
+        account: &Pubkey,
+        mint: &Pubkey,
+        owner: Pubkey,
+    ) -> Instruction {
+        let f = get_function(&get_spl(), "createInitializeAccountInstruction");
+        let value = f
+            .call3(
+                &JsValue::undefined(),
+                &account.value,
+                &mint.value,
+                &owner.value,
+            )
+            .unwrap();
+        Self { value }
+    }
+
+    /// Wrapper for SPL.createTransferInstruction
+    pub fn create_transfer_instruction(
+        source: &Pubkey,
+        destination: &Pubkey,
+        owner: &Pubkey,
+        amount: u64,
+    ) -> Instruction {
+        let f = get_function(&get_spl(), "createTransferInstruction");
+        let args = Array::new();
+        args.push(&source.value);
+        args.push(&destination.value);
+        args.push(&owner.value);
+        args.push(&amount.into());
+        let value = f.apply(&JsValue::undefined(), &args).unwrap();
+        Self { value }
+    }
 }
 
 pub(crate) struct Signature {
@@ -299,4 +366,19 @@ impl AccountMeta {
     pub fn new_readonly(pubkey: &Pubkey, is_signer: bool) -> Self {
         Self::new(pubkey, is_signer, false)
     }
+}
+pub(crate) struct Account {
+    pub(crate) value: JsValue,
+}
+
+impl Account {
+    pub fn len() -> u32 {
+        let account = rget(&get_spl(), "Account");
+        let l = rget(&account, "LEN");
+        l.as_f64().unwrap() as _
+    }
+}
+
+pub fn spl_token_program_id() -> Pubkey {
+    rget(&get_spl(), "TOKEN_PROGRAM_ID")
 }

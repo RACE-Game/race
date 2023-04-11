@@ -6,6 +6,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Raffle from './Raffle';
 import Chat from './Chat';
 import * as solanaWeb3 from '@solana/web3.js';
+import * as SPL from '@solana/spl-token';
 
 declare global {
     interface Window {
@@ -13,6 +14,7 @@ declare global {
     }
 }
 window.solanaWeb3 = solanaWeb3;
+window.SPL = SPL;
 
 const router = createBrowserRouter([
   {
