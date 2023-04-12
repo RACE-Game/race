@@ -53,11 +53,17 @@ pub enum TransportError {
     #[error("Failed to get server account data")]
     ServerAccountDataNotFound,
 
+    #[error("Endpoint length exceeds 50 chars")]
+    EndpointTooLong,
+
     #[error("Failed to get registry account data")]
     RegistryAccountDataNotFound,
 
     #[error("Player profile already exists")]
     DuplicatePlayerProfile,
+
+    #[error("Server account already exists")]
+    DuplicateServerAccount,
 
     #[error("Failed to pack instruction data")]
     InstructionDataError,

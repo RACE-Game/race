@@ -1,6 +1,5 @@
 pub const ID_FILE: &str = "contracts/solana-types/prog_id";
 pub const PROGRAM_ID: &str = "8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu";
-pub const SOL: &str = "So11111111111111111111111111111111111111112";
 pub const NATIVE_MINT: &str = "So11111111111111111111111111111111111111112";
 pub const EMPTY_PUBKEY: &str = "11111111111111111111111111111111";
 pub const RACE_MINT: &str = "RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ";
