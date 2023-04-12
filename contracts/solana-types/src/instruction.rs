@@ -136,6 +136,8 @@ mod tests {
         let ix = RaceInstruction::CreateGameAccount {
             params: CreateGameAccountParams {
                 title: "Holdem".to_string(),
+                max_deposit: 100,
+                min_deposit: 10,
                 max_players: 8,
                 data: vec![],
             },

@@ -1,11 +1,14 @@
 pub const ID_FILE: &str = "contracts/solana-types/prog_id";
 pub const PROGRAM_ID: &str = "8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu";
 pub const SOL: &str = "So11111111111111111111111111111111111111112";
+pub const NATIVE_MINT: &str = "So11111111111111111111111111111111111111112";
 pub const EMPTY_PUBKEY: &str = "11111111111111111111111111111111";
-pub const PROFILE_SEED: &str = "race-1000";
-pub const PROFILE_ACCOUNT_LEN: usize = 98;
+pub const RACE_MINT: &str = "RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ";
+pub const RACE_ATA: &str = "2E9nn1D8rMC4fuKiavJz2iwP89pszHbM92WzcETZKr2E";
+pub const PROFILE_SEED: &str = "race-1001";
+pub const PROFILE_ACCOUNT_LEN: usize = 130;
 pub const SERVER_ACCOUNT_LEN: usize = 108;
-pub const GAME_ACCOUNT_LEN: usize = 5000;
+pub const GAME_ACCOUNT_LEN: usize = 4000;
 pub const REGISTRY_ACCOUNT_LEN: usize = 9276;
 pub const PUBKEY_LEN: usize = 32;
 pub const NAME_LEN: usize = 16; // Max len of player nickname | game title

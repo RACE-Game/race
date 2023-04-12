@@ -23,6 +23,9 @@ pub enum TransportError {
     #[error("Invalid chain name: {0}")]
     InvalidChainName(String),
 
+    #[error("Nick name exceeds 16 characters: {0}")]
+    InvalidNickName(String),
+
     #[error("Initialization failed: {0}")]
     InitializationFailed(String),
 
@@ -40,6 +43,9 @@ pub enum TransportError {
 
     #[error("Game account not found")]
     GameAccountNotFound,
+
+    #[error("Account not found: {0}")]
+    AccountNotFound(String),
 
     #[error("Failed to get game account data")]
     GameAccountDataNotFound,
@@ -94,6 +100,12 @@ pub enum TransportError {
 
     #[error("InteropError")]
     InteropError,
+
+    #[error("Failed to create instruction: {0}")]
+    InstructionCreationError(String),
+
+    #[error("Access versions not matched")]
+    AccessVersionNotMatched,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

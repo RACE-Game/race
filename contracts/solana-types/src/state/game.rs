@@ -8,11 +8,10 @@ use solana_program::{
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
+use crate::constants::{GAME_ACCOUNT_LEN, PROFILE_ACCOUNT_LEN};
+use crate::types::VoteType;
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
-use crate::types::VoteType;
-#[cfg(feature = "program")]
-use crate::constants::{GAME_ACCOUNT_LEN, PROFILE_ACCOUNT_LEN};
 use borsh::{BorshDeserialize, BorshSerialize};
 
 // =======================================================
@@ -23,7 +22,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub struct PlayerJoin {
     pub addr: Pubkey,
     pub balance: u64,
-    pub position: u32,
+    pub position: usize,
     pub access_version: u64,
 }
 
@@ -52,12 +51,16 @@ pub struct GameState {
     pub title: String,
     // addr to the game core logic program on Arweave
     pub bundle_addr: Pubkey,
-    // account that holds all players' buyin assets
+    // addr to the account that holds all players' deposits
     pub stake_account: Pubkey,
-    // aame owner who created this game account
+    // game owner who created this game account
     pub owner: Pubkey,
-    // token used for buyin
+    // mint id of the token used for game
     pub token_mint: Pubkey,
+    // minimum deposit for joining the game
+    pub min_deposit: u64,
+    // maximum deposit allowed in game
+    pub max_deposit: u64,
     // addr of the first server joined the game
     pub transactor_addr: Option<Pubkey>,
     // a serial number, increased by 1 after each PlayerJoin or ServerJoin
@@ -66,14 +69,14 @@ pub struct GameState {
     pub settle_version: u64,
     // game size
     pub max_players: u8,
-    // length of game details such as buyin, small blind, etc
-    pub data_len: u32,
-    // serialized data of game details
-    pub data: Box<Vec<u8>>,
     // game players
     pub players: Box<Vec<PlayerJoin>>,
     // game servers (max: 10)
     pub servers: Box<Vec<ServerJoin>>,
+    // length of game-specific data
+    pub data_len: u32,
+    // serialized data of game-specific data such as sb/bb in Texas Holdem
+    pub data: Box<Vec<u8>>,
     // game votes
     pub votes: Box<Vec<Vote>>,
     // unlock time
@@ -125,9 +128,10 @@ impl Pack for GameState {
 #[derive(BorshDeserialize, BorshSerialize, Default, Debug)]
 pub struct PlayerState {
     pub is_initialized: bool,
+    pub owner: Pubkey,          // player wallet pubkey or transport pubkey
     pub addr: Pubkey,
     pub chips: u64,
-    pub nick: String, // max: 16 chars
+    pub nick: String,           // max: 16 chars
     pub pfp: Option<Pubkey>,
     pub padding: Box<Vec<u8>>,
 }
@@ -192,7 +196,7 @@ mod tests {
             "Player account aligned len {}",
             get_instance_packed_len(&player)?
         );
-        assert_eq!(get_instance_packed_len(&player)?, PlayerState::LEN); // 98
+        assert_eq!(get_instance_packed_len(&player)?, PlayerState::LEN);
         assert_eq!(1, 2);
         Ok(())
     }
@@ -200,6 +204,7 @@ mod tests {
     #[test]
     pub fn test_state_len() -> anyhow::Result<()> {
         let mut state = GameState::default();
+        state.is_initialized = true;
         let s: String = "ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDE".into();
         state.data = Box::new(vec![0; 1024]);
         state.title = s.clone();

@@ -94,6 +94,27 @@ pub enum ProcessError {
     /// 14
     #[error("Server number exceeds the max of 10")]
     ServerNumberExceedsLimit,
+
+    /// 15
+    #[error("Position already taken by another player")]
+    PositionTakenAlready,
+
+    /// 16
+    #[error("Can't join game because game is already full")]
+    GameFullAlready,
+
+    /// 17
+    #[error("Can't join game because player already joined")]
+    JoinedGameAlready,
+
+    /// 18
+    #[error("Token's mint must be the same as that used in the game")]
+    InvalidMint,
+
+    /// 19
+    #[error("Can't join game because deposit is invalid")]
+    InvalidDeposit,
+
 }
 
 impl From<ProcessError> for ProgramError {

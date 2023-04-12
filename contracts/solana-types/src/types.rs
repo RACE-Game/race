@@ -17,6 +17,8 @@ pub struct CreateGameAccountParams {
     pub title: String,
     // pub token: TokenInfo,
     pub max_players: u8,
+    pub min_deposit: u64,
+    pub max_deposit: u64,
     pub data: Vec<u8>,
 }
 
