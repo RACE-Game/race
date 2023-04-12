@@ -59,9 +59,40 @@ impl Pubkey {
         Self { value }
     }
 
+    /// Wrapper for PublicKey.findProgramAddress
+    pub fn find_program_address(seed: &[&JsValue], program_id: &Pubkey) -> (Self, JsValue) {
+        let pubkey = rget(&get_sol(), "PublicKey");
+        let f = get_function(&pubkey, "findProgramAddress");
+        let seeds = Array::new();
+        for s in seed.iter() {
+            seeds.push(s);
+        }
+        let r = f
+            .call2(&JsValue::undefined(), &seeds, &program_id.value)
+            .unwrap()
+            .dyn_into::<Array>()
+            .unwrap();
+        (Pubkey { value: r.get(0) }, r.get(1))
+    }
+
     pub fn to_base58(&self) -> String {
         let f = get_function(&self.value, "toBase58");
         f.call0(&self.value).unwrap().as_string().unwrap()
+    }
+
+    pub fn to_buffer(&self) -> JsValue {
+        let f = get_function(&self.value, "toBuffer");
+        f.call0(&self.value).unwrap()
+    }
+}
+
+impl PartialEq for Pubkey {
+    fn eq(&self, other: &Self) -> bool {
+        let f = get_function(&self.value, "eq");
+        f.call1(&self.value, &other.value)
+            .unwrap()
+            .as_bool()
+            .unwrap()
     }
 }
 
@@ -282,6 +313,21 @@ impl Instruction {
         Self { value }
     }
 
+    pub fn transfer(from_pubkey: &Pubkey, to_pubkey: &Pubkey, amount: u64) -> Self {
+        let system_program = rget(&get_sol(), "SystemProgram");
+        let f = get_function(&system_program, "transfer");
+        let params = create_object(&[
+            ("fromPubkey", &from_pubkey.value),
+            ("toPubkey", &to_pubkey.value),
+            ("lamports", &amount.into()),
+        ]);
+        let value = f
+            .call1(&system_program, &params)
+            .map_err(|e| error!(e))
+            .unwrap();
+        Self { value }
+    }
+
     pub fn create_account_with_seed(
         from_pubkey: &Pubkey,
         new_account_pubkey: &Pubkey,
@@ -309,11 +355,17 @@ impl Instruction {
         Self { value }
     }
 
+    pub fn create_sync_native_instruction(account: &Pubkey) -> Instruction {
+        let f = get_function(&get_spl(), "createSyncNativeInstruction");
+        let value = f.call1(&JsValue::undefined(), &account.value).unwrap();
+        Self { value }
+    }
+
     /// Wrapper for SPL.createInitializeAccountInstruction.
     pub fn create_initialize_account_instruction(
         account: &Pubkey,
         mint: &Pubkey,
-        owner: Pubkey,
+        owner: &Pubkey,
     ) -> Instruction {
         let f = get_function(&get_spl(), "createInitializeAccountInstruction");
         let value = f
@@ -354,7 +406,7 @@ pub(crate) struct AccountMeta {
 }
 
 impl AccountMeta {
-    pub fn new(pubkey: &Pubkey, is_signer: bool, is_writable: bool) -> Self {
+    fn internal_new(pubkey: &Pubkey, is_signer: bool, is_writable: bool) -> Self {
         let value = create_object(&[
             ("pubkey", &pubkey.value),
             ("isSigner", &JsValue::from_bool(is_signer)),
@@ -363,8 +415,12 @@ impl AccountMeta {
         Self { value }
     }
 
+    pub fn new(pubkey: &Pubkey, is_signer: bool) -> Self {
+        Self::internal_new(pubkey, is_signer, true)
+    }
+
     pub fn new_readonly(pubkey: &Pubkey, is_signer: bool) -> Self {
-        Self::new(pubkey, is_signer, false)
+        Self::internal_new(pubkey, is_signer, false)
     }
 }
 pub(crate) struct Account {
@@ -372,13 +428,21 @@ pub(crate) struct Account {
 }
 
 impl Account {
-    pub fn len() -> u32 {
+    pub fn len() -> usize {
         let account = rget(&get_spl(), "Account");
         let l = rget(&account, "LEN");
         l.as_f64().unwrap() as _
     }
 }
 
-pub fn spl_token_program_id() -> Pubkey {
-    rget(&get_spl(), "TOKEN_PROGRAM_ID")
+pub(crate) fn spl_token_program_id() -> Pubkey {
+    Pubkey {
+        value: rget(&get_spl(), "TOKEN_PROGRAM_ID"),
+    }
+}
+
+pub(crate) fn spl_native_mint() -> Pubkey {
+    Pubkey {
+        value: rget(&get_spl(), "NATIVE_MINT"),
+    }
 }

@@ -54,10 +54,10 @@ impl TransportLocalT for SolanaWasmTransport {
             data,
         } = params;
         let wallet_pubkey = Self::wallet_pubkey(wallet);
-        let tx = Transaction::new(&self.conn, &game_account_pubkey);
-        let bundle_pubkey = Pubkey::try_new(&params.bundle_addr)?;
+        let bundle_pubkey = Pubkey::try_new(&bundle_addr)?;
         let game_account = Keypair::new();
         let game_account_pubkey = game_account.public_key();
+        let tx = Transaction::new(&self.conn, &wallet_pubkey);
         let lamports = self
             .conn
             .get_minimum_balance_for_rent_exemption(GAME_ACCOUNT_LEN)
@@ -82,6 +82,7 @@ impl TransportLocalT for SolanaWasmTransport {
             &wallet_pubkey,
             &temp_stake_account_pubkey,
             temp_stake_account_lamports,
+            Account::len() as _,
             &spl_token_program_id(),
         );
         tx.add(&create_temp_stake_account_ix);
@@ -96,16 +97,16 @@ impl TransportLocalT for SolanaWasmTransport {
         let create_game_ix = Instruction::new_with_borsh(
             &self.program_id,
             &RaceInstruction::CreateGameAccount {
-                params: solana_types::CreateGameAccountParams {
-                    title: params.title,
-                    max_players: params.max_players,
-                    data: params.data,
+                params: race_solana_types::types::CreateGameAccountParams {
+                    title,
+                    max_players,
+                    data,
                 },
             },
             vec![
                 AccountMeta::new_readonly(&wallet_pubkey, true),
-                AccountMeta::new(&game_account_pubkey, false, true),
-                AccountMeta::new(&temp_stake_account_pubkey, true, true),
+                AccountMeta::new(&game_account_pubkey, false),
+                AccountMeta::new(&temp_stake_account_pubkey, true),
                 AccountMeta::new_readonly(&token_pubkey, false),
                 AccountMeta::new_readonly(&spl_token_program_id(), false),
                 AccountMeta::new_readonly(&bundle_pubkey, false),
@@ -127,7 +128,85 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn join(&self, wallet: &JsValue, params: JoinParams) -> TransportResult<()> {
-        todo!()
+        let JoinParams {
+            player_addr,
+            game_addr,
+            amount,
+            access_version,
+            position,
+        } = params;
+        let wallet_pubkey = Self::wallet_pubkey(wallet);
+        let player_profile_pubkey =
+            Pubkey::create_with_seed(&wallet_pubkey, PROFILE_SEED, &self.program_id).await;
+        let game_account_pubkey = Pubkey::try_new(&game_addr)?;
+        let game_state: GameState = self
+            .conn
+            .get_account_state(&game_account_pubkey)
+            .await
+            .unwrap();
+
+        let mint_pubkey = Pubkey::try_new(&game_state.token_mint.to_string())?;
+        let stake_account_pubkey = Pubkey::try_new(&game_state.stake_account.to_string())?;
+        let is_wsol = mint_pubkey.eq(&spl_native_mint());
+        let (pda, _) =
+            Pubkey::find_program_address(&[&game_account_pubkey.to_buffer()], &self.program_id);
+
+        let tx = Transaction::new(&self.conn, &wallet_pubkey);
+
+        let temp_account = Keypair::new();
+        let temp_account_pubkey = temp_account.public_key();
+        let temp_account_lamports = self
+            .conn
+            .get_minimum_balance_for_rent_exempt_account()
+            .await;
+
+        let create_temp_account_ix = Instruction::create_account(
+            &wallet_pubkey,
+            &temp_account_pubkey,
+            temp_account_lamports,
+            Account::len(),
+            &spl_token_program_id(),
+        );
+        tx.add(&create_temp_account_ix);
+
+        let sync_native_ix = Instruction::create_sync_native_instruction(&temp_account_pubkey);
+        if is_wsol {
+            let amount = amount - temp_account_lamports as u64;
+            let transfer_sol_ix =
+                Instruction::transfer(&wallet_pubkey, &temp_account_pubkey, amount);
+            tx.add(&transfer_sol_ix);
+        } else {
+            let init_temp_account_ix = Instruction::create_initialize_account_instruction(
+                &temp_account_pubkey,
+                &mint_pubkey,
+                &wallet_pubkey,
+            );
+            tx.add(&init_temp_account_ix);
+        }
+
+        let join_ix = Instruction::new_with_borsh(
+            &self.program_id,
+            &RaceInstruction::JoinGame {
+                params: race_solana_types::types::JoinParams {
+                    amount,
+                    access_version,
+                    position,
+                },
+            },
+            vec![
+                AccountMeta::new_readonly(&wallet_pubkey, true),
+                AccountMeta::new(&temp_account_pubkey, false),
+                AccountMeta::new(&game_account_pubkey, false),
+                AccountMeta::new_readonly(&mint_pubkey, false),
+                AccountMeta::new(&stake_account_pubkey, false),
+                AccountMeta::new(&pda, false),
+                AccountMeta::new_readonly(&spl_token_program_id(), false),
+            ],
+        );
+        tx.add(&join_ix);
+        self.conn.send_transaction_and_confirm(&wallet, &tx).await;
+        debug!("Transaction confirmed");
+        Ok(())
     }
 
     async fn deposit(&self, wallet: &JsValue, params: DepositParams) -> TransportResult<()> {
@@ -191,7 +270,7 @@ impl TransportLocalT for SolanaWasmTransport {
             },
             vec![
                 AccountMeta::new_readonly(&wallet_pubkey, true),
-                AccountMeta::new(&profile_account_pubkey, false, true),
+                AccountMeta::new(&profile_account_pubkey, false),
                 AccountMeta::new_readonly(&pfp_pubkey, false),
             ],
         );
@@ -210,7 +289,7 @@ impl TransportLocalT for SolanaWasmTransport {
         wallet: &JsValue,
         params: CreateRegistrationParams,
     ) -> TransportResult<String> {
-        todo!()
+        unimplemented!()
     }
 
     async fn register_game(
@@ -218,7 +297,7 @@ impl TransportLocalT for SolanaWasmTransport {
         wallet: &JsValue,
         params: RegisterGameParams,
     ) -> TransportResult<()> {
-        todo!()
+        unimplemented!()
     }
 
     async fn unregister_game(
@@ -226,7 +305,7 @@ impl TransportLocalT for SolanaWasmTransport {
         wallet: &JsValue,
         params: UnregisterGameParams,
     ) -> TransportResult<()> {
-        todo!()
+        unimplemented!()
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
