@@ -52,6 +52,8 @@ impl TransportLocalT for SolanaWasmTransport {
             token,
             max_players,
             data,
+            min_deposit,
+            max_deposit,
         } = params;
         let wallet_pubkey = Self::wallet_pubkey(wallet);
         let bundle_pubkey = Pubkey::try_new(&bundle_addr)?;
@@ -101,6 +103,8 @@ impl TransportLocalT for SolanaWasmTransport {
                     title,
                     max_players,
                     data,
+                    min_deposit,
+                    max_deposit,
                 },
             },
             vec![

@@ -3,12 +3,13 @@
 use gloo::console::info;
 use gloo::{console::warn, utils::format::JsValueSerdeExt};
 use js_sys::Array;
-use js_sys::Uint8Array;
+use js_sys::{Object, Uint8Array};
 use race_core::types::{CreatePlayerProfileParams, TokenInfo};
 use race_transport::{TransportBuilder, TransportLocalT};
 use wasm_bindgen::prelude::*;
 
 use crate::error::Result;
+use crate::js::{rget, rget_string, rget_u64, rget_u8};
 use race_core::{
     error::Error,
     types::{CreateGameAccountParams, RegisterGameParams},
@@ -43,25 +44,26 @@ impl AppHelper {
     }
 
     #[wasm_bindgen]
-    pub async fn create_game_account(
-        &self,
-        wallet: &JsValue,
-        title: &str,
-        bundle_addr: &str,
-        token_addr: &str,
-        max_players: u8,
-        data: Uint8Array,
-    ) -> Result<String> {
+    pub async fn create_game_account(&self, wallet: &JsValue, opts: &Object) -> Result<String> {
+        let title = rget_string(opts, "title")?;
+        let token_addr = rget_string(opts, "token_addr")?;
+        let bundle_addr = rget_string(opts, "bundle_addr")?;
+        let max_players = rget_u8(opts, "max_players")?;
+        let data: Uint8Array = rget(opts, "data")?;
+        let min_deposit = rget_u64(opts, "min_deposit")?;
+        let max_deposit = rget_u64(opts, "max_deposit")?;
         let addr = self
             .transport
             .create_game_account(
                 wallet,
                 CreateGameAccountParams {
-                    title: title.to_owned(),
-                    bundle_addr: bundle_addr.to_owned(),
-                    token: "".to_string(),
+                    title,
+                    bundle_addr,
+                    token: token_addr,
                     max_players,
                     data: data.to_vec(),
+                    max_deposit,
+                    min_deposit,
                 },
             )
             .await?;

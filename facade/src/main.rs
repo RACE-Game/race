@@ -121,6 +121,7 @@ async fn create_game(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcRes
         max_players,
         bundle_addr,
         data,
+        ..
     } = params.one()?;
 
     if !context.bundles.contains_key(&bundle_addr) {
@@ -264,17 +265,18 @@ async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rp
     Ok(addr)
 }
 
-async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
-    let CreatePlayerProfileParams { addr, nick, pfp } = params.one()?;
+async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {
+    let CreatePlayerProfileParams { nick, pfp, .. } = params.one()?;
     let mut context = context.lock().await;
+    let addr = random_addr();
     context.players.insert(
         addr.clone(),
         PlayerInfo {
             balance: DEFAULT_BALANCE,
-            profile: PlayerProfile { addr, nick, pfp },
+            profile: PlayerProfile { addr: addr.clone(), nick, pfp },
         },
     );
-    Ok(())
+    Ok(addr)
 }
 
 async fn get_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<PlayerProfile> {
