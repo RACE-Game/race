@@ -25,7 +25,6 @@ pub struct TokenInfo {
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct ServeParams {
     pub game_addr: String,
-    pub server_addr: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
@@ -68,7 +67,6 @@ pub struct CloseGameAccountParams {
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct CreatePlayerProfileParams {
-    pub addr: String,
     pub nick: String,
     pub pfp: Option<String>,
 }
@@ -131,7 +129,6 @@ pub struct SettleParams {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JoinParams {
-    pub player_addr: String,
     pub game_addr: String,
     pub amount: u64,
     pub access_version: u64,

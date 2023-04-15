@@ -49,7 +49,7 @@ impl TransportLocalT for SolanaWasmTransport {
         let CreateGameAccountParams {
             title,
             bundle_addr,
-            token,
+            token_addr,
             max_players,
             data,
             min_deposit,
@@ -73,7 +73,7 @@ impl TransportLocalT for SolanaWasmTransport {
         );
         tx.add(&create_game_account_ix);
 
-        let token_pubkey = Pubkey::try_new(&token)?;
+        let token_pubkey = Pubkey::try_new(&token_addr)?;
         let temp_stake_account = Keypair::new();
         let temp_stake_account_pubkey = temp_stake_account.public_key();
         let temp_stake_account_lamports = self

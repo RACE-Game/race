@@ -59,7 +59,7 @@ impl AppHelper {
                 CreateGameAccountParams {
                     title,
                     bundle_addr,
-                    token: token_addr,
+                    token_addr,
                     max_players,
                     data: data.to_vec(),
                     max_deposit,

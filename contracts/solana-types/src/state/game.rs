@@ -8,6 +8,7 @@ use solana_program::{
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
+#[cfg(feature = "program")]
 use crate::constants::{GAME_ACCOUNT_LEN, PROFILE_ACCOUNT_LEN};
 use crate::types::VoteType;
 #[cfg(feature = "sdk")]

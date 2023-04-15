@@ -1,5 +1,6 @@
 #[cfg(feature = "program")]
 use crate::state::Padded;
+#[cfg(feature = "program")]
 use crate::constants::SERVER_ACCOUNT_LEN;
 #[cfg(feature = "program")]
 use solana_program::{

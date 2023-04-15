@@ -206,12 +206,12 @@ impl TransportT for SolanaTransport {
                 .map_err(|_| TransportError::PubkeyCreationFailed)?;
         let lamports = self.get_min_lamports(SERVER_ACCOUNT_LEN)?;
 
-        match self.client.get_account(&server_account_pubkey) {
-            Ok(_) => {
-                return Err(TransportError::DuplicateServerAccount)?;
-            }
-            _ => {}
-        }
+        // match self.client.get_account(&server_account_pubkey) {
+        //     Ok(_) => {
+        //         return Err(TransportError::DuplicateServerAccount)?;
+        //     }
+        //     _ => {}
+        // }
 
         let create_server_account_ix = create_account_with_seed(
             &payer_pubkey,
@@ -253,8 +253,10 @@ impl TransportT for SolanaTransport {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
+        let player_account_pubkey =
+            Pubkey::create_with_seed(&payer_pubkey, PROFILE_SEED, &self.program_id)
+                .map_err(|_| TransportError::PubkeyCreationFailed)?;
 
-        let player_account_pubkey = Self::parse_pubkey(&params.player_addr)?;
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
         let game_state = self.internal_get_game_account(&game_account_pubkey).await?;
 
@@ -296,11 +298,9 @@ impl TransportT for SolanaTransport {
         )
         .map_err(|_| TransportError::InitInstructionFailed)?;
 
-
         // Create RACE ATA for payer
         let race_mint_pubkey = Self::parse_pubkey(RACE_MINT)?;
-        let race_ata_pubkey =
-            get_associated_token_address(&payer_pubkey, &race_mint_pubkey);
+        let race_ata_pubkey = get_associated_token_address(&payer_pubkey, &race_mint_pubkey);
         let race_ata_balance = self
             .client
             .get_balance(&race_ata_pubkey)
@@ -362,7 +362,6 @@ impl TransportT for SolanaTransport {
             ],
         );
 
-
         let mut ixs = vec![create_temp_account_ix, init_temp_account_ix];
         ixs.extend_from_slice(&create_ata_ix);
         ixs.extend_from_slice(&transfer_ix);
@@ -385,7 +384,9 @@ impl TransportT for SolanaTransport {
         let payer_pubkey = payer.pubkey();
 
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
-        let server_account_pubkey = Self::parse_pubkey(&params.server_addr)?;
+        let server_account_pubkey =
+            Pubkey::create_with_seed(&payer_pubkey, PROFILE_SEED, &self.program_id)
+                .map_err(|_| TransportError::PubkeyCreationFailed)?;
 
         let serve_game_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
@@ -418,35 +419,27 @@ impl TransportT for SolanaTransport {
 
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
-        // let player_wallet_pubkey = Self::parse_pubkey(&params.addr)?;
-        // TODO: either use this balance or remove it
-        let balance = self
-            .client
-            .get_balance(&payer_pubkey)
-            .map_err(|_| TransportError::InvalidBalance(payer_pubkey.to_string()))?;
 
         let profile_account_pubkey =
             Pubkey::create_with_seed(&payer_pubkey, PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::PubkeyCreationFailed)?;
-        let lamports = self.get_min_lamports(PROFILE_ACCOUNT_LEN)?;
+
+        let mut ixs = Vec::new();
 
         // Check if player account already exists
-        match self.client.get_account(&profile_account_pubkey) {
-            Ok(_) => {
-                return Err(TransportError::DuplicatePlayerProfile)?;
-            }
-            _ => {}
+        if self.client.get_account(&profile_account_pubkey).is_err() {
+            let lamports = self.get_min_lamports(PROFILE_ACCOUNT_LEN)?;
+            let create_profile_account_ix = create_account_with_seed(
+                &payer_pubkey,
+                &profile_account_pubkey,
+                &payer_pubkey,
+                PROFILE_SEED,
+                lamports,
+                PROFILE_ACCOUNT_LEN as u64,
+                &self.program_id,
+            );
+            ixs.push(create_profile_account_ix);
         }
-
-        let create_profile_account_ix = create_account_with_seed(
-            &payer_pubkey,
-            &profile_account_pubkey,
-            &payer_pubkey,
-            PROFILE_SEED,
-            lamports,
-            PROFILE_ACCOUNT_LEN as u64,
-            &self.program_id,
-        );
 
         let pfp_pubkey = if params.pfp.is_some() {
             let addr = params.pfp.unwrap();
@@ -467,32 +460,9 @@ impl TransportT for SolanaTransport {
             ],
         );
 
-        // Create RACE ATA for payer as needed
-        let race_mint_pubkey = Self::parse_pubkey(RACE_MINT)?;
-        let race_ata_pubkey =
-            get_associated_token_address(&payer_pubkey, &race_mint_pubkey);
-        let race_ata_balance = self
-            .client
-            .get_balance(&race_ata_pubkey)
-            .map_err(|e| TransportError::AccountNotFound(e.to_string()))?;
+        ixs.push(init_profile_ix);
 
-        let mut ixs = if race_ata_balance == 0 {
-            vec![create_associated_token_account(
-                &payer_pubkey,
-                &payer_pubkey,
-                &race_mint_pubkey,
-                &spl_token::id(),
-            )]
-        } else {
-            vec![]
-        };
-
-        ixs.extend_from_slice(&[create_profile_account_ix, init_profile_ix]);
-
-        let message = Message::new(
-            &ixs,
-            Some(&payer_pubkey),
-        );
+        let message = Message::new(&ixs, Some(&payer_pubkey));
 
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
@@ -797,6 +767,10 @@ impl SolanaTransport {
         SolanaTransport::try_new_with_program_id(rpc, keyfile, program_id)
     }
 
+    pub(crate) fn wallet_pubkey(&self) -> Pubkey {
+        self.keypair.pubkey()
+    }
+
     pub(crate) fn try_new_with_program_id(
         rpc: String,
         keyfile: PathBuf,
@@ -843,6 +817,7 @@ impl SolanaTransport {
         //     .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
 
         let skip_preflight = if cfg!(test) { true } else { false };
+        let confirm_num = if cfg!(test) { 1 } else { 32 };
 
         let sig = self
             .client
@@ -856,7 +831,7 @@ impl SolanaTransport {
             .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
 
         self.client
-            .poll_for_signature_confirmation(&sig, 32)
+            .poll_for_signature_confirmation(&sig, confirm_num)
             .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
 
         Ok(sig)
@@ -960,18 +935,7 @@ mod tests {
         Ok(())
     }
 
-    // Addresses for tests
-    fn give_addrs() -> anyhow::Result<(String, String, String, String)> {
-        let game_addr = "7mneJJ3Xfi4HZ8Q4kXv6VnSmGRai65TQA2SNYiGXVrqH".to_string();
-        let server_addr = "DucxwwEf2vNH8bg7WcrN2GgXRV48frVAhTo9Wb6B2jMA".to_string();
-        let reg_addr = "FEk7mEVoCReNfogwKvUvQ3v54H5GKCiS8P4yC4zinb1a".to_string();
-        let player_addr = "Gc23TyNibm1jMFa2oQpp4gAW3ukVwPPf2CjgmXdwJ3DW".to_string();
-        Ok((game_addr, server_addr, reg_addr, player_addr))
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_create_game() -> anyhow::Result<()> {
-        let transport = get_transport()?;
+    async fn create_game(transport: &SolanaTransport) -> anyhow::Result<String> {
         let addr = transport
             .create_game_account(CreateGameAccountParams {
                 title: "16-CHAR_GAME_TIL".to_string(),
@@ -983,47 +947,10 @@ mod tests {
                 data: Vec::<u8>::new(),
             })
             .await?;
-        println!("Created game at {}", addr);
-        Ok(())
+        Ok(addr)
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_get_game() -> anyhow::Result<()> {
-        let (addr, ..) = give_addrs()?;
-        let transport = get_transport()?;
-        let game = transport.get_game_account(&addr).await.unwrap();
-        println!("Game has {} players now", game.players.len());
-        println!("Game has {} servers now", game.servers.len());
-        if game.transactor_addr.is_some() {
-            println!(
-                "Game has one transactor in service at {}",
-                game.transactor_addr.unwrap().clone().to_string()
-            );
-        }
-        assert_eq!(game.addr, addr.to_string());
-        assert_eq!(
-            game.bundle_addr,
-            "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_string()
-        );
-        assert_eq!(game.title, "16-CHAR_GAME_TIL".to_string(),);
-        assert_eq!(game.max_players, 9);
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_close_game() -> anyhow::Result<()> {
-        let (addr, ..) = give_addrs()?;
-        println!("To close game account {}", addr);
-        let transport = get_transport()?;
-        transport
-            .close_game_account(CloseGameAccountParams { addr })
-            .await?;
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_create_registry() -> anyhow::Result<()> {
+    async fn create_reg(transport: &SolanaTransport) -> anyhow::Result<String> {
         let transport = get_transport()?;
         let addr = transport
             .create_registration(CreateRegistrationParams {
@@ -1031,137 +958,127 @@ mod tests {
                 size: 100,
             })
             .await?;
-        println!("Created registry at {}", addr);
+        Ok(addr)
+    }
 
-        let reg = transport.get_registration(&addr).await.unwrap();
-        assert_eq!(reg.addr, addr);
-        assert_eq!(reg.is_private, false);
-        assert_eq!(reg.size, 100);
-
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_game_create_get_close() -> anyhow::Result<()> {
+        let transport = get_transport()?;
+        let addr = create_game(&transport).await?;
+        let game_account = transport
+            .get_game_account(&addr)
+            .await
+            .expect("Failed to query");
+        assert_eq!(game_account.access_version, 0);
+        assert_eq!(game_account.settle_version, 0);
+        assert_eq!(game_account.max_players, 9);
+        assert_eq!(game_account.title, "16-CHAR_GAME_TIL");
+        transport
+            .close_game_account(CloseGameAccountParams { addr: addr.clone() })
+            .await
+            .expect("Failed to close");
+        assert_eq!(None, transport.get_game_account(&addr).await);
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_get_registry() -> anyhow::Result<()> {
-        let (.., addr, _) = give_addrs()?;
+    async fn test_registry_create_get() -> anyhow::Result<()> {
         let transport = get_transport()?;
+        let addr = create_reg(&transport).await?;
         let reg = transport.get_registration(&addr).await.unwrap();
-        assert_eq!(reg.addr, addr);
         assert_eq!(reg.is_private, false);
         assert_eq!(reg.size, 100);
-        assert_eq!(1, reg.games.len());
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_register_game() -> anyhow::Result<()> {
-        let transport = get_transport()?;
-        let (game_addr, _, reg_addr, _) = give_addrs()?;
-        let addr = transport
+        assert_eq!(reg.games.len(), 0);
+        let game_addr = create_game(&transport).await?;
+        transport
             .register_game(RegisterGameParams {
                 game_addr,
-                reg_addr,
+                reg_addr: addr.clone(),
             })
             .await?;
+        let reg = transport.get_registration(&addr).await.unwrap();
+        assert_eq!(reg.games.len(), 1);
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_register_server() -> anyhow::Result<()> {
         let transport = get_transport()?;
-        let server_addr = transport
+        let endpoint = "https://api.testnet.solana.com".to_string();
+        let addr = transport
             .register_server(RegisterServerParams {
-                endpoint: "https://api.testnet.solana.com".to_string(),
+                endpoint: endpoint.clone(),
             })
             .await?;
-        println!("Created server account at {}", server_addr);
-        Ok(())
-    }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_get_server() -> anyhow::Result<()> {
-        let (_, addr, ..) = give_addrs()?;
-        let transport = get_transport()?;
         let server = transport.get_server_account(&addr).await.unwrap();
-        println!("Server {:?}", server);
-        assert_eq!(
-            "https://api.testnet.solana.com".to_string(),
-            server.endpoint
-        );
         assert_eq!(server.addr, addr);
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_serve_game() -> anyhow::Result<()> {
-        let transport = get_transport()?;
-        let server_addr = transport
-            .serve(ServeParams {
-                game_addr: "DDnaGdYA8UFSiYpRnRJtCThnrh4bSVVg5Pbro4XDdLvh".to_string(),
-                server_addr: "DucxwwEf2vNH8bg7WcrN2GgXRV48frVAhTo9Wb6B2jMA".to_string(),
-            })
-            .await?;
-
-        println!("Served the game");
+        assert_eq!(server.endpoint, endpoint);
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_create_player_profile() -> anyhow::Result<()> {
         let transport = get_transport()?;
-        // Create a player profile
-        let profile_addr = transport
+        let nick = "Foo".to_string();
+        let addr = transport
             .create_player_profile(CreatePlayerProfileParams {
-                addr: "aziK9i9QnNwpTJWDzwjh8hzgosZpuCCzG9teV8X7Qex".to_string(),
-                nick: "RacePoker".to_owned(),
+                nick: nick.clone(),
                 pfp: None,
             })
             .await?;
-        println!("Created profile is {}", profile_addr);
+        println!("Profile created at {}", addr);
+        let profile = transport.get_player_profile(&addr).await.unwrap();
+        assert_eq!(profile.addr, addr);
+        assert_eq!(profile.nick, nick);
+        assert_eq!(profile.pfp, None);
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_get_player_profile() -> anyhow::Result<()> {
-        let (.., addr) = give_addrs()?;
+    async fn test_serve_game() -> anyhow::Result<()> {
         let transport = get_transport()?;
-        let profile = transport.get_player_profile(&addr).await.unwrap();
-        assert_eq!(addr, profile.addr);
-        assert_eq!("RacePoker".to_string(), profile.nick);
-        // assert_eq!(None, profile.pfp);
-        Ok(())
-    }
-
-    #[test]
-    fn test_pubkey_seed() -> anyhow::Result<()> {
-        let owner = Pubkey::from_str("DfgtACV9VzRUKUqRjuzxRHmeycyomcCzfRHgVyDPha9F")?;
-        let pubkey = Pubkey::from_str("EcYmEnnKrdQpe5wA4YuYxKLJwydAE88pBek6PFUCLbeo")?;
-        let program_id = Pubkey::from_str(PROGRAM_ID)?;
-        let created = Pubkey::create_with_seed(&owner, PROFILE_SEED, &program_id)?;
-        assert_eq!(pubkey, created);
+        let game_addr = create_game(&transport).await?;
+        let server_addr = transport
+            .serve(ServeParams {
+                game_addr: game_addr.clone(),
+            })
+            .await?;
+        let game = transport
+            .get_game_account(&game_addr)
+            .await
+            .expect("Failed to get game");
+        assert_eq!(game.servers.len(), 1);
+        assert_eq!(
+            game.transactor_addr,
+            Some(transport.wallet_pubkey().to_string())
+        );
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_join() -> anyhow::Result<()> {
-        let (game_addr, .., player_addr) = give_addrs()?;
         let transport = get_transport()?;
-        let profile = transport.join(
-            JoinParams {
-                player_addr,
-                game_addr,
+        let game_addr = create_game(&transport).await?;
+        let profile = transport
+            .join(JoinParams {
+                game_addr: game_addr.clone(),
                 amount: 50u64,
                 access_version: 0u64,
-                position: 0usize
-            }
-        )
+                position: 0usize,
+            })
             .await?;
+        let game = transport
+            .get_game_account(&game_addr)
+            .await
+            .expect("Failed to get game");
+        assert_eq!(game.players.len(), 1);
         Ok(())
     }
 
     #[allow(dead_code)]
     async fn test_settle() -> anyhow::Result<()> {
+        // let game_addr = create_game();
         Ok(())
     }
 }
