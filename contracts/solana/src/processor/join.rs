@@ -190,6 +190,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
         )?;
     }
 
+    game_state.update_padding()?;
     GameState::pack(game_state, &mut game_account.try_borrow_mut_data()?)?;
 
     msg!(

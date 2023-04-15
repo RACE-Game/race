@@ -661,6 +661,7 @@ impl TransportT for SolanaTransport {
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let game_account_pubkey = Self::parse_pubkey(addr).ok()?;
+        println!("pubkey: {}", game_account_pubkey.to_string());
         let state = self
             .internal_get_game_account(&game_account_pubkey)
             .await
@@ -862,8 +863,9 @@ impl SolanaTransport {
             .client
             .get_account_data(&game_account_pubkey)
             .or(Err(TransportError::GameAccountNotFound))?;
-
-        GameState::try_from_slice(&data).or(Err(TransportError::GameStateDeserializeError))
+        println!("1");
+        // GameState::try_from_slice(&data).or(Err(TransportError::GameStateDeserializeError))
+        Ok(GameState::try_from_slice(&data).unwrap())
     }
 
     /// Get the state of an on-chain server account
@@ -972,6 +974,7 @@ mod tests {
                 data: Vec::<u8>::new(),
             })
             .await?;
+        println!("Create game at {}", addr);
         Ok(addr)
     }
 
@@ -1092,6 +1095,7 @@ mod tests {
         let transport = get_transport()?;
         create_player(&transport).await?;
         let game_addr = create_game(&transport).await?;
+        println!("Join game: {}", game_addr);
         transport
             .join(JoinParams {
                 game_addr: game_addr.clone(),
