@@ -719,7 +719,8 @@ impl TransportT for SolanaTransport {
         let wallet_pubkey = Self::parse_pubkey(addr).ok()?;
         let profile_pubkey =
             Pubkey::create_with_seed(&wallet_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
-                .map_err(|_| TransportError::PubkeyCreationFailed).ok()?;
+                .map_err(|_| TransportError::PubkeyCreationFailed)
+                .ok()?;
 
         let profile_data = self.client.get_account_data(&profile_pubkey).ok()?;
         let profile_state = PlayerState::try_from_slice(&profile_data).ok()?;
@@ -736,7 +737,8 @@ impl TransportT for SolanaTransport {
         let wallet_pubkey = Self::parse_pubkey(addr).ok()?;
         let server_account_pubkey =
             Pubkey::create_with_seed(&wallet_pubkey, SERVER_PROFILE_SEED, &self.program_id)
-                .map_err(|_| TransportError::PubkeyCreationFailed).ok()?;
+                .map_err(|_| TransportError::PubkeyCreationFailed)
+                .ok()?;
 
         let server_account_data = self.client.get_account_data(&server_account_pubkey).ok()?;
         let server_state = ServerState::try_from_slice(&server_account_data).ok()?;
@@ -948,6 +950,16 @@ mod tests {
         Ok(())
     }
 
+    async fn create_player(transport: &SolanaTransport) -> anyhow::Result<String> {
+        let player = transport
+            .create_player_profile(CreatePlayerProfileParams {
+                nick: "Alice".to_string(),
+                pfp: None,
+            })
+            .await?;
+        Ok(player)
+    }
+
     async fn create_game(transport: &SolanaTransport) -> anyhow::Result<String> {
         let addr = transport
             .create_game_account(CreateGameAccountParams {
@@ -1024,7 +1036,10 @@ mod tests {
             })
             .await?;
 
-        let server = transport.get_server_account(&transport.wallet_pubkey().to_string()).await.unwrap();
+        let server = transport
+            .get_server_account(&transport.wallet_pubkey().to_string())
+            .await
+            .unwrap();
         assert_eq!(server.addr, addr);
         assert_eq!(server.endpoint, endpoint);
         Ok(())
@@ -1041,7 +1056,10 @@ mod tests {
             })
             .await?;
         println!("Profile created at {}", addr);
-        let profile = transport.get_player_profile(&transport.wallet_pubkey().to_string()).await.unwrap();
+        let profile = transport
+            .get_player_profile(&transport.wallet_pubkey().to_string())
+            .await
+            .unwrap();
         assert_eq!(profile.addr, addr);
         assert_eq!(profile.nick, nick);
         assert_eq!(profile.pfp, None);
@@ -1072,6 +1090,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_join() -> anyhow::Result<()> {
         let transport = get_transport()?;
+        create_player(&transport).await?;
         let game_addr = create_game(&transport).await?;
         transport
             .join(JoinParams {
