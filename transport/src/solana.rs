@@ -95,7 +95,7 @@ impl TransportT for SolanaTransport {
             &self.program_id,
         );
 
-        let token_mint_pubkey = Self::parse_pubkey(&params.token)?;
+        let token_mint_pubkey = Self::parse_pubkey(&params.token_addr)?;
 
         // TODO: Use RACE ATA?
         // Create an account and transfer its ownership to PDA in contract
@@ -976,7 +976,7 @@ mod tests {
             .create_game_account(CreateGameAccountParams {
                 title: "16-CHAR_GAME_TIL".to_string(),
                 bundle_addr: "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_owned(),
-                token: RACE_MINT.to_string(),
+                token_addr: RACE_MINT.to_string(),
                 min_deposit: 10,
                 max_deposit: 100,
                 max_players: 9,

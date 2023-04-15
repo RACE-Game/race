@@ -2,11 +2,30 @@ use base64::Engine;
 use clap::{arg, Command};
 use race_core::{
     transport::TransportT,
-    types::{CreateRegistrationParams, GameBundle, ServerAccount},
+    types::{CreateGameAccountParams, CreateRegistrationParams, GameBundle, ServerAccount},
 };
 use race_env::{default_keyfile, default_rpc};
 use race_transport::TransportBuilder;
-use std::{fs::File, io::Read, sync::Arc};
+use serde::{Deserialize, Serialize};
+use std::{fs::File, io::Read, path::PathBuf, sync::Arc};
+
+#[derive(Serialize, Deserialize)]
+pub struct CreateGameSpecs {
+    title: String,
+    token_addr: String,
+    bundle_addr: String,
+    max_players: u8,
+    min_deposit: u64,
+    max_deposit: u64,
+    data: Vec<u8>,
+}
+
+impl CreateGameSpecs {
+    pub fn from_file(path: PathBuf) -> Self {
+        let f = File::open(path).expect("Spec file not found");
+        serde_json::from_reader(f).expect("Invalid spec file")
+    }
+}
 
 fn cli() -> Command {
     Command::new("cli")
@@ -55,6 +74,13 @@ fn cli() -> Command {
                 .about("Query registration center")
                 .arg(arg!(<CHAIN> "The chain to interact"))
                 .arg(arg!(<ADDRESS> "The address of registration account"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
+            Command::new("create-game")
+                .about("Create game account")
+                .arg(arg!(<CHAIN> "The chain to interact"))
+                .arg(arg!(<SPEC_FILE> "The path to specification file"))
                 .arg_required_else_help(true),
         )
 }
@@ -177,8 +203,25 @@ async fn create_reg(transport: Arc<dyn TransportT>) {
     let addr = transport
         .create_registration(params)
         .await
-        .expect("Create registration falied");
+        .expect("Create registration failed");
     println!("Registration created at: {}", addr);
+}
+
+async fn create_game(transport: Arc<dyn TransportT>, specs: CreateGameSpecs) {
+    let params = CreateGameAccountParams {
+        title: specs.title,
+        bundle_addr: specs.bundle_addr,
+        token_addr: specs.token_addr,
+        max_players: specs.max_players,
+        min_deposit: specs.min_deposit,
+        max_deposit: specs.max_deposit,
+        data: specs.data,
+    };
+    let addr = transport
+        .create_game_account(params)
+        .await
+        .expect("Create game account failed");
+    println!("Game account created at: {}", addr);
 }
 
 #[tokio::main]
@@ -192,7 +235,8 @@ async fn main() {
             let rpc = matches.get_one::<String>("rpc").map(String::as_ref);
             let keyfile = matches.get_one::<String>("keyfile");
             let env = matches.get_one::<String>("env").map(String::as_ref);
-            let transport = create_transport(&chain, rpc.as_deref(), keyfile.cloned(), env.as_deref()).await;
+            let transport =
+                create_transport(&chain, rpc.as_deref(), keyfile.cloned(), env.as_deref()).await;
             publish(bundle, transport).await;
         }
         Some(("bundle-info", sub_matches)) => {
@@ -224,8 +268,22 @@ async fn main() {
             let rpc = matches.get_one::<String>("rpc").map(String::as_ref);
             let keyfile = matches.get_one::<String>("keyfile");
             let env = matches.get_one::<String>("env").map(String::as_ref);
-            let transport = create_transport(&chain, rpc.as_deref(), keyfile.cloned(), env.as_deref()).await;
+            let transport =
+                create_transport(&chain, rpc.as_deref(), keyfile.cloned(), env.as_deref()).await;
             create_reg(transport).await;
+        }
+        Some(("create-game", sub_matches)) => {
+            let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
+            let spec_file = sub_matches
+                .get_one::<String>("SPEC_FILE")
+                .expect("required");
+            let keyfile = matches.get_one::<String>("keyfile");
+            let rpc = matches.get_one::<String>("rpc").map(String::as_ref);
+            let env = matches.get_one::<String>("env").map(String::as_ref);
+            let specs = CreateGameSpecs::from_file(spec_file.into());
+            let transport =
+                create_transport(&chain, rpc.as_deref(), keyfile.cloned(), env.as_deref()).await;
+            create_game(transport, specs).await;
         }
         Some(("reg-info", sub_matches)) => {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");

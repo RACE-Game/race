@@ -11,6 +11,7 @@ import * as SPL from '@solana/spl-token';
 declare global {
     interface Window {
         solanaWeb3: any;
+        SPL: any;
     }
 }
 window.solanaWeb3 = solanaWeb3;

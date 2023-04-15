@@ -143,6 +143,15 @@ impl AppClient {
     }
 
     #[wasm_bindgen]
+    pub async fn get_profile(&self, addr: &str) -> Option<JsValue> {
+        if let Some(p) = self.transport.get_player_profile(addr).await {
+            Some(JsValue::from_serde(&p).unwrap())
+        } else {
+            None
+        }
+    }
+
+    #[wasm_bindgen]
     /// Attach to game account on chain and connect to the event
     /// streams.  The event stream will start from a
     /// checkpoint(settle_version).  We will receive event hhistories

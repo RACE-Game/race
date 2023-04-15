@@ -9,7 +9,7 @@ use super::common::VoteType;
 pub struct CreateGameAccountParams {
     pub title: String,
     pub bundle_addr: String,
-    pub token: String,
+    pub token_addr: String,
     pub max_players: u8,
     pub min_deposit: u64,
     pub max_deposit: u64,
