@@ -218,7 +218,7 @@ impl TransportT for SolanaTransport {
             &payer_pubkey,
             &server_account_pubkey,
             &payer_pubkey,
-            PLAYER_PROFILE_SEED,
+            SERVER_PROFILE_SEED,
             lamports,
             SERVER_ACCOUNT_LEN as u64,
             &self.program_id,
