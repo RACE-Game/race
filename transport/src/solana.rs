@@ -386,7 +386,7 @@ impl TransportT for SolanaTransport {
 
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
         let server_account_pubkey =
-            Pubkey::create_with_seed(&payer_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
+            Pubkey::create_with_seed(&payer_pubkey, SERVER_PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::PubkeyCreationFailed)?;
 
         let serve_game_ix = Instruction::new_with_borsh(
@@ -1073,7 +1073,7 @@ mod tests {
     async fn test_join() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let game_addr = create_game(&transport).await?;
-        let profile = transport
+        transport
             .join(JoinParams {
                 game_addr: game_addr.clone(),
                 amount: 50u64,
