@@ -16,8 +16,9 @@ use race_core::{
     },
 };
 use race_solana_types::constants::{
-    GAME_ACCOUNT_LEN, MAX_SERVER_NUM, NAME_LEN, NATIVE_MINT, PROFILE_ACCOUNT_LEN, PROFILE_SEED,
-    PROGRAM_ID, RACE_ATA, RACE_MINT, REGISTRY_ACCOUNT_LEN, SERVER_ACCOUNT_LEN,
+    GAME_ACCOUNT_LEN, MAX_SERVER_NUM, NAME_LEN, NATIVE_MINT, PLAYER_PROFILE_SEED,
+    PROFILE_ACCOUNT_LEN, PROGRAM_ID, RACE_ATA, RACE_MINT, REGISTRY_ACCOUNT_LEN, SERVER_ACCOUNT_LEN,
+    SERVER_PROFILE_SEED,
 };
 use race_solana_types::instruction::RaceInstruction;
 use race_solana_types::state::{self, GameReg, GameState, PlayerState, RegistryState, ServerState};
@@ -202,7 +203,7 @@ impl TransportT for SolanaTransport {
         let payer_pubkey = payer.pubkey();
 
         let server_account_pubkey =
-            Pubkey::create_with_seed(&payer_pubkey, PROFILE_SEED, &self.program_id)
+            Pubkey::create_with_seed(&payer_pubkey, SERVER_PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::PubkeyCreationFailed)?;
         let lamports = self.get_min_lamports(SERVER_ACCOUNT_LEN)?;
 
@@ -217,7 +218,7 @@ impl TransportT for SolanaTransport {
             &payer_pubkey,
             &server_account_pubkey,
             &payer_pubkey,
-            PROFILE_SEED,
+            PLAYER_PROFILE_SEED,
             lamports,
             SERVER_ACCOUNT_LEN as u64,
             &self.program_id,
@@ -254,7 +255,7 @@ impl TransportT for SolanaTransport {
         let payer_pubkey = payer.pubkey();
 
         let player_account_pubkey =
-            Pubkey::create_with_seed(&payer_pubkey, PROFILE_SEED, &self.program_id)
+            Pubkey::create_with_seed(&payer_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::PubkeyCreationFailed)?;
 
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
@@ -385,7 +386,7 @@ impl TransportT for SolanaTransport {
 
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
         let server_account_pubkey =
-            Pubkey::create_with_seed(&payer_pubkey, PROFILE_SEED, &self.program_id)
+            Pubkey::create_with_seed(&payer_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::PubkeyCreationFailed)?;
 
         let serve_game_ix = Instruction::new_with_borsh(
@@ -421,9 +422,13 @@ impl TransportT for SolanaTransport {
         let payer_pubkey = payer.pubkey();
 
         let profile_account_pubkey =
-            Pubkey::create_with_seed(&payer_pubkey, PROFILE_SEED, &self.program_id)
+            Pubkey::create_with_seed(&payer_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::PubkeyCreationFailed)?;
 
+        println!(
+            "Profile account pubkey: {}",
+            profile_account_pubkey.to_string()
+        );
         let mut ixs = Vec::new();
 
         // Check if player account already exists
@@ -433,7 +438,7 @@ impl TransportT for SolanaTransport {
                 &payer_pubkey,
                 &profile_account_pubkey,
                 &payer_pubkey,
-                PROFILE_SEED,
+                PLAYER_PROFILE_SEED,
                 lamports,
                 PROFILE_ACCOUNT_LEN as u64,
                 &self.program_id,
@@ -711,7 +716,11 @@ impl TransportT for SolanaTransport {
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
-        let profile_pubkey = Self::parse_pubkey(addr).ok()?;
+        let wallet_pubkey = Self::parse_pubkey(addr).ok()?;
+        let profile_pubkey =
+            Pubkey::create_with_seed(&wallet_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
+                .map_err(|_| TransportError::PubkeyCreationFailed).ok()?;
+
         let profile_data = self.client.get_account_data(&profile_pubkey).ok()?;
         let profile_state = PlayerState::try_from_slice(&profile_data).ok()?;
         let addr = profile_state.addr.to_string();
@@ -724,7 +733,11 @@ impl TransportT for SolanaTransport {
     }
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
-        let server_account_pubkey = Self::parse_pubkey(addr).ok()?;
+        let wallet_pubkey = Self::parse_pubkey(addr).ok()?;
+        let server_account_pubkey =
+            Pubkey::create_with_seed(&wallet_pubkey, SERVER_PROFILE_SEED, &self.program_id)
+                .map_err(|_| TransportError::PubkeyCreationFailed).ok()?;
+
         let server_account_data = self.client.get_account_data(&server_account_pubkey).ok()?;
         let server_state = ServerState::try_from_slice(&server_account_data).ok()?;
         Some(ServerAccount {
@@ -1011,7 +1024,7 @@ mod tests {
             })
             .await?;
 
-        let server = transport.get_server_account(&addr).await.unwrap();
+        let server = transport.get_server_account(&transport.wallet_pubkey().to_string()).await.unwrap();
         assert_eq!(server.addr, addr);
         assert_eq!(server.endpoint, endpoint);
         Ok(())
@@ -1028,7 +1041,7 @@ mod tests {
             })
             .await?;
         println!("Profile created at {}", addr);
-        let profile = transport.get_player_profile(&addr).await.unwrap();
+        let profile = transport.get_player_profile(&transport.wallet_pubkey().to_string()).await.unwrap();
         assert_eq!(profile.addr, addr);
         assert_eq!(profile.nick, nick);
         assert_eq!(profile.pfp, None);

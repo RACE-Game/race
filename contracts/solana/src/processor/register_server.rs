@@ -8,7 +8,7 @@ use solana_program::{
 };
 
 use crate::{error::ProcessError, state::{ServerState, Padded}};
-use race_solana_types::constants::PROFILE_SEED;
+use race_solana_types::constants::SERVER_PROFILE_SEED;
 use race_solana_types::types::RegisterServerParams;
 
 #[inline(never)]
@@ -29,7 +29,7 @@ pub fn process(
         return Err(ProcessError::InvalidAccountStatus)?;
     }
 
-    let server_pubkey = Pubkey::create_with_seed(owner_account.key, PROFILE_SEED, program_id)?;
+    let server_pubkey = Pubkey::create_with_seed(owner_account.key, SERVER_PROFILE_SEED, program_id)?;
     if server_pubkey != *server_account.key {
         return Err(ProcessError::InvalidAccountPubkey)?;
     }
