@@ -6,7 +6,7 @@ use race_core::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
+        PlayerProfile, PublishParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
         ServerAccount, SettleParams, UnregisterGameParams, VoteParams,
     },
 };
@@ -60,7 +60,7 @@ impl TransportT for EvmTransport {
         todo!()
     }
 
-    async fn publish_game(&self, bundle: GameBundle) -> Result<String> {
+    async fn publish_game(&self, params: PublishParams) -> Result<String> {
         todo!()
     }
 

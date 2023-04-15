@@ -17,6 +17,7 @@ race-solana-types = { path = "../solana-types", features = ["program"] }
 borsh = { workspace = true }
 arrayref = { workspace = true }
 thiserror = { workspace = true }
+mpl-token-metadata = { workspace = true, features = ["no-entrypoint"] }
 
 [dev-dependencies]
 anyhow = { workspace = true }

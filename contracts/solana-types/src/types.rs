@@ -117,3 +117,11 @@ pub enum VoteType {
 pub struct VoteParams {
     pub vote_type: VoteType,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct PublishParams {
+    // Arweave IDX pointing to bundled game data
+    pub uri: String,
+    pub name: String,
+    pub symbol: String,
+}

@@ -150,3 +150,11 @@ pub struct VoteParams {
     pub voter_addr: String,
     pub votee_addr: String,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublishParams {
+    // Arweave URI
+    pub uri: String,
+    pub name: String,
+    pub symbol: String,
+}

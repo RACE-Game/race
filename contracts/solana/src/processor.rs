@@ -7,6 +7,7 @@ mod create_profile;
 mod create_registry;
 mod join;
 mod misc;
+mod publish_game;
 mod register_game;
 mod register_server;
 mod serve;
@@ -65,6 +66,10 @@ pub fn process(
         RaceInstruction::JoinGame { params } => {
             msg!("Player joins game");
             join::process(program_id, accounts, params)
+        }
+        RaceInstruction::PublishGame { params }=> {
+            msg!("Publish a game as NFT");
+            publish_game::process(program_id, accounts, params)
         }
     }
 }

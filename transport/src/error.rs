@@ -112,6 +112,9 @@ pub enum TransportError {
 
     #[error("Access versions not matched")]
     AccessVersionNotMatched,
+
+    #[error("Failed to mint NFT: {0}")]
+    MintNFTError(String),
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

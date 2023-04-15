@@ -5,7 +5,7 @@ use crate::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
+        PlayerProfile, PublishParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
         ServerAccount, SettleParams, UnregisterGameParams, VoteParams,
     },
 };
@@ -115,7 +115,7 @@ pub trait TransportT: Send + Sync {
     /// * [`Error::RpcError`] when the RPC invocation failed.
     async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String>;
 
-    async fn publish_game(&self, bundle: GameBundle) -> Result<String>;
+    async fn publish_game(&self, params: PublishParams) -> Result<String>;
 
     async fn settle_game(&self, params: SettleParams) -> Result<()>;
 

@@ -22,23 +22,23 @@ pub fn process(
     accounts: &[AccountInfo],
     params: CreateGameAccountParams,
 ) -> ProgramResult {
-    let account_iter = &mut accounts.iter();
+    let accounts_iter = &mut accounts.iter();
 
-    let payer = next_account_info(account_iter)?;
+    let payer = next_account_info(accounts_iter)?;
 
     if !payer.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    let game_account = next_account_info(account_iter)?;
+    let game_account = next_account_info(accounts_iter)?;
 
-    let stake_account = next_account_info(account_iter)?;
+    let stake_account = next_account_info(accounts_iter)?;
 
-    let token_account = next_account_info(account_iter)?;
+    let token_account = next_account_info(accounts_iter)?;
 
-    let token_program = next_account_info(account_iter)?;
+    let token_program = next_account_info(accounts_iter)?;
 
-    let bundle_account = next_account_info(account_iter)?;
+    let bundle_account = next_account_info(accounts_iter)?;
 
     let token_state = Mint::unpack_unchecked(&token_account.data.borrow())?;
 

@@ -1,6 +1,6 @@
 use crate::types::{
     CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams,
-    JoinParams, RegisterServerParams, SettleParams, VoteParams,
+    JoinParams, PublishParams, RegisterServerParams, SettleParams, VoteParams,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
@@ -111,8 +111,18 @@ pub enum RaceInstruction {
     /// 4. `[writable]` The stake account that holds players' buyin assets
     /// 5. `[writable]` The pda account
     /// 6. `[]` The SPL token program
-    JoinGame { params: JoinParams }
+    JoinGame { params: JoinParams },
 
+    /// # Publish a game
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The payer account
+    /// 1. `[]` The mint account.
+    /// 2. `[writable]` The metadata account
+    /// 3. `[]` The mint account.
+    /// 4. `[]` The token metadata program
+    /// 5. `[]` The SPL token program
+    PublishGame { params: PublishParams },
 }
 
 #[cfg(feature = "program")]
