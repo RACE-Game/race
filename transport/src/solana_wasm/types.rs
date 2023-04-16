@@ -5,29 +5,25 @@ use crate::{
 use borsh::{BorshDeserialize, BorshSerialize};
 use gloo::console::{debug, error, info, warn};
 use js_sys::{Array, ArrayBuffer, Object, Reflect, Uint8Array};
-use race_solana_types::constants::PROFILE_SEED;
 use wasm_bindgen::{JsCast, JsValue};
 
-fn get_sol() -> Object {
+fn get_global_object(key: &str) -> Object {
     let window = gloo::utils::window();
-    match window.get("solanaWeb3") {
+    match window.get(key) {
         Some(x) => x,
         None => {
-            error!("window.solanaWeb3 is not available");
-            panic!("solanaWeb3 is missing");
+            error!("window.%s is not available", key);
+            panic!("Dependency missing");
         }
     }
 }
 
+fn get_sol() -> Object {
+    get_global_object("solanaWeb3")
+}
+
 fn get_spl() -> Object {
-    let window = gloo::utils::window();
-    match window.get("SPL") {
-        Some(x) => x,
-        None => {
-            error!("window.SPL is not available");
-            panic!("SPL is missing");
-        }
-    }
+    get_global_object("SPL")
 }
 
 pub(crate) struct Pubkey {
@@ -445,4 +441,37 @@ pub(crate) fn spl_native_mint() -> Pubkey {
     Pubkey {
         value: rget(&get_spl(), "NATIVE_MINT"),
     }
+}
+
+pub(crate) struct Metaplex {
+    pub(crate) value: JsValue,
+}
+
+impl Metaplex {
+    pub fn new(conn: &Connection) -> Self {
+        let metaplex = get_global_object("Metaplex");
+        let ctor = get_function(&metaplex, "Metaplex");
+        let value = construct(&ctor, &[&conn.value]).unwrap();
+        Self { value }
+    }
+
+    fn get_nfts(&self) -> JsValue {
+        get_function(&self.value, "nfts")
+            .call0(&self.value)
+            .unwrap()
+    }
+
+    pub async fn find_by_mint(&self, mint_addr: &Pubkey) -> Option<Nft> {
+        let nfts = self.get_nfts();
+        let f = get_function(&nfts, "findByMint");
+        let r = f.call1(&nfts, &mint_addr.value).unwrap();
+        let f = get_function(&r, "run");
+        let p = f.call0(&r).unwrap();
+        let v = resolve_promise(p).await.or(None);
+        v.map(|value| Nft { value })
+    }
+}
+
+pub(crate) struct Nft {
+    pub(crate) value: JsValue,
 }

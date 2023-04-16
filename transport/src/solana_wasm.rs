@@ -22,7 +22,9 @@ use race_core::types::{
     PlayerJoin, PlayerProfile, RegisterGameParams, RegistrationAccount, ServerAccount, ServerJoin,
     UnregisterGameParams, VoteParams,
 };
-use race_solana_types::constants::{EMPTY_PUBKEY, PROFILE_ACCOUNT_LEN, PROFILE_SEED, PROGRAM_ID};
+use race_solana_types::constants::{
+    EMPTY_PUBKEY, PLAYER_PROFILE_SEED, PROFILE_ACCOUNT_LEN, PROGRAM_ID,
+};
 use race_solana_types::instruction::RaceInstruction;
 use race_solana_types::{
     constants::GAME_ACCOUNT_LEN,
@@ -34,6 +36,7 @@ use wasm_bindgen_futures::JsFuture;
 pub struct SolanaWasmTransport {
     program_id: Pubkey,
     conn: Connection,
+    metaplex: Metaplex,
 }
 
 mod types;
@@ -133,7 +136,6 @@ impl TransportLocalT for SolanaWasmTransport {
 
     async fn join(&self, wallet: &JsValue, params: JoinParams) -> TransportResult<()> {
         let JoinParams {
-            player_addr,
             game_addr,
             amount,
             access_version,
@@ -141,7 +143,7 @@ impl TransportLocalT for SolanaWasmTransport {
         } = params;
         let wallet_pubkey = Self::wallet_pubkey(wallet);
         let player_profile_pubkey =
-            Pubkey::create_with_seed(&wallet_pubkey, PROFILE_SEED, &self.program_id).await;
+            Pubkey::create_with_seed(&wallet_pubkey, PLAYER_PROFILE_SEED, &self.program_id).await;
         let game_account_pubkey = Pubkey::try_new(&game_addr)?;
         let game_state: GameState = self
             .conn
@@ -229,10 +231,10 @@ impl TransportLocalT for SolanaWasmTransport {
         debug!("Create profile, wallet:", wallet);
         let wallet_pubkey = Self::wallet_pubkey(wallet);
         debug!("Wallet pubkey:", wallet_pubkey.to_base58());
-        let CreatePlayerProfileParams { addr, nick, pfp } = params;
+        let CreatePlayerProfileParams { nick, pfp } = params;
         debug!(format!("Nick: {} , Pfp: {:?}", nick, pfp));
         let profile_account_pubkey =
-            Pubkey::create_with_seed(&wallet_pubkey, PROFILE_SEED, &self.program_id).await;
+            Pubkey::create_with_seed(&wallet_pubkey, PLAYER_PROFILE_SEED, &self.program_id).await;
         debug!(
             "Profile account pubkey:",
             profile_account_pubkey.to_base58()
@@ -259,7 +261,7 @@ impl TransportLocalT for SolanaWasmTransport {
                 &wallet_pubkey,
                 &profile_account_pubkey,
                 &wallet_pubkey,
-                PROFILE_SEED,
+                PLAYER_PROFILE_SEED,
                 lamports,
                 PROFILE_ACCOUNT_LEN,
                 &self.program_id,
@@ -285,7 +287,7 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn publish_game(&self, wallet: &JsValue, bundle: GameBundle) -> TransportResult<String> {
-        todo!()
+        unimplemented!()
     }
 
     async fn create_registration(
@@ -358,7 +360,6 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
-        todo!()
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
@@ -411,7 +412,12 @@ impl SolanaWasmTransport {
     pub fn try_new(rpc: String) -> TransportResult<Self> {
         let conn = Connection::new(&rpc);
         let program_id = Pubkey::try_new(PROGRAM_ID).unwrap();
-        Ok(Self { conn, program_id })
+        let metaplex = Metaplex::new(&conn);
+        Ok(Self {
+            conn,
+            program_id,
+            metaplex,
+        })
     }
 
     fn wallet_pubkey(wallet: &JsValue) -> Pubkey {
