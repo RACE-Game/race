@@ -2,7 +2,9 @@ use base64::Engine;
 use clap::{arg, Command};
 use race_core::{
     transport::TransportT,
-    types::{CreateGameAccountParams, CreateRegistrationParams, GameBundle, ServerAccount},
+    types::{
+        CreateGameAccountParams, CreateRegistrationParams, GameBundle, PublishParams, ServerAccount,
+    },
 };
 use race_env::{default_keyfile, default_rpc};
 use race_transport::TransportBuilder;
@@ -39,6 +41,7 @@ fn cli() -> Command {
             Command::new("publish")
                 .about("Publish a game bundle")
                 .arg(arg!(<CHAIN> "The chain to interact"))
+                .arg(arg!(<NAME> "The name of game"))
                 .arg(arg!(<BUNDLE> "The path to the WASM bundle"))
                 .arg_required_else_help(true),
         )
@@ -104,15 +107,22 @@ async fn create_transport(
     Arc::from(transport)
 }
 
-async fn publish(bundle: &str, transport: Arc<dyn TransportT>) {
-    let mut file = File::open(bundle).unwrap();
-    let mut buf = Vec::with_capacity(0x4000);
-    file.read_to_end(&mut buf).unwrap();
-    let addr = "facade-program-addr".into();
-    let base64 = base64::prelude::BASE64_STANDARD;
-    let data = base64.encode(&buf);
-    let bundle = GameBundle { addr, data };
-    let resp = transport.publish_game(bundle).await.expect("RPC error");
+async fn publish(name: String, bundle: String, transport: Arc<dyn TransportT>) {
+    // let mut file = File::open(bundle).unwrap();
+    // let mut buf = Vec::with_capacity(0x4000);
+    // file.read_to_end(&mut buf).unwrap();
+    // let addr = "facade-program-addr".into();
+    // let base64 = base64::prelude::BASE64_STANDARD;
+    // let data = base64.encode(&buf);
+    // let bundle = GameBundle { addr, data };
+    // let resp = transport.publish_game(bundle).await.expect("RPC error");
+    // println!("Address: {:?}", &resp);
+    let params = PublishParams {
+        uri: bundle,
+        name,
+        symbol: "RACE".into(),
+    };
+    let resp = transport.publish_game(params).await.expect("RPC error");
     println!("Address: {:?}", &resp);
 }
 
@@ -231,13 +241,14 @@ async fn main() {
     match matches.subcommand() {
         Some(("publish", sub_matches)) => {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
+            let name = sub_matches.get_one::<String>("NAME").expect("required");
             let bundle = sub_matches.get_one::<String>("BUNDLE").expect("required");
             let rpc = matches.get_one::<String>("rpc").map(String::as_ref);
             let keyfile = matches.get_one::<String>("keyfile");
             let env = matches.get_one::<String>("env").map(String::as_ref);
             let transport =
                 create_transport(&chain, rpc.as_deref(), keyfile.cloned(), env.as_deref()).await;
-            publish(bundle, transport).await;
+            publish(name.to_owned(), bundle.to_owned(), transport).await;
         }
         Some(("bundle-info", sub_matches)) => {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");

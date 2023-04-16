@@ -15,9 +15,9 @@ use race_core::error::Error;
 use race_core::types::{
     CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams,
     GameAccount, GameBundle, GameRegistration, JoinParams, PlayerDeposit, PlayerJoin,
-    PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-    ServerAccount, ServerJoin, SettleOp, SettleParams, UnregisterGameParams, Vote, VoteParams,
-    VoteType,
+    PlayerProfile, PublishParams, RegisterGameParams, RegisterServerParams, RegistrationAccount,
+    ServeParams, ServerAccount, ServerJoin, SettleOp, SettleParams, UnregisterGameParams, Vote,
+    VoteParams, VoteType,
 };
 use std::collections::HashMap;
 use std::fs::File;
@@ -26,7 +26,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Instant, UNIX_EPOCH};
 use tokio::sync::Mutex;
-use tracing::{info, debug};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 type RpcResult<T> = std::result::Result<T, RpcError>;
@@ -78,8 +78,12 @@ async fn publish_game_bundle(
     params: Params<'_>,
     context: Arc<Mutex<Context>>,
 ) -> RpcResult<String> {
-    let bundle: GameBundle = params.one()?;
-    let addr = bundle.addr.clone();
+    let PublishParams { uri, .. } = params.one()?;
+    let addr = random_addr();
+    let bundle = GameBundle {
+        data: uri,
+        addr: addr.clone(),
+    };
     let mut context = context.lock().await;
     context.bundles.insert(addr.clone(), bundle);
     Ok(addr)
@@ -273,7 +277,11 @@ async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
         addr.clone(),
         PlayerInfo {
             balance: DEFAULT_BALANCE,
-            profile: PlayerProfile { addr: addr.clone(), nick, pfp },
+            profile: PlayerProfile {
+                addr: addr.clone(),
+                nick,
+                pfp,
+            },
         },
     );
     Ok(addr)

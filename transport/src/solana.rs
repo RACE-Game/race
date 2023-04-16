@@ -526,7 +526,7 @@ impl TransportT for SolanaTransport {
             &token_mint,
             &payer_pubkey,
         )
-        .map_err(|_| TransportError::InitInstructionFailed)?;
+            .map_err(|_| TransportError::InitInstructionFailed)?;
 
         // Generate two PDAs from mint_account:
         // one for metadata account and the other for master edition account
@@ -602,7 +602,7 @@ impl TransportT for SolanaTransport {
         tx.sign(&[payer, &new_token, &token_account], blockhash);
         self.send_transaction(tx)?;
 
-        Ok("".to_string())
+        Ok(token_mint.to_string())
     }
 
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
