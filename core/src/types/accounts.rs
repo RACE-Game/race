@@ -188,11 +188,20 @@ pub struct RegistrationAccount {
     pub games: Vec<GameRegistration>,
 }
 
+// #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
+// pub struct GameBundle {
+//     pub addr: String,
+//     pub data: String, // In Base64
+// }
+
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
 pub struct GameBundle {
-    pub addr: String,
-    pub data: String, // In Base64
+    pub uri: String,
+    pub name: String,
+    pub symbol: String,
+
 }
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PlayerProfile {

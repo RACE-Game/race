@@ -59,7 +59,8 @@ pub fn process(
 
 
     // Mint 1 token to token account
-    msg!("Minting 1 token to token account ...");
+    msg!("Token mint: {}", mint_account.key);
+    msg!("Minting 1 token to account: {}", token_account.key);
     invoke(
         &mint_to(
             &token_program.key,
@@ -92,7 +93,7 @@ pub fn process(
             },
         ];
     // Create metadata account
-    msg!("Creating metadata account ...");
+    msg!("Creating metadata account: {}", metadata_pda.key);
     let create_metadata_account_ix = create_metadata_accounts_v3(
         metaplex_program.key.clone(),
         metadata_pda.key.clone(),
@@ -128,7 +129,7 @@ pub fn process(
 
     // Create master edition account
     // mint_authority and freeze_authority will be transfer to this account
-    msg!("Creating master edition account ... ");
+    msg!("Creating master edition account: {}", edition_pda.key);
     let create_master_edition_account_ix = create_master_edition_v3(
         metaplex_program.key.clone(),
         edition_pda.key.clone(),

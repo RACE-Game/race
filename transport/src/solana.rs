@@ -33,6 +33,8 @@ use std::{
     fs::{read_to_string, File},
 };
 
+use mpl_token_metadata::pda::find_metadata_account;
+use mpl_token_metadata::state::Metadata;
 use mpl_token_metadata as metaplex_program;
 use solana_client::{
     rpc_client::{RpcClient, RpcClientConfig},
@@ -830,12 +832,25 @@ impl TransportT for SolanaTransport {
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
-        let game_bundle_pubkey = Self::parse_pubkey(addr).ok()?;
-        let bundle_data = self.client.get_account_data(&game_bundle_pubkey).ok()?;
-        let bundle_state = GameBundle::try_from_slice(&bundle_data).ok()?;
-        let addr = bundle_state.addr.to_string();
-        let data = "ARWEAVE BASE64 ADDRESS".to_string();
-        Some(GameBundle { addr, data })
+        let mint_pubkey = Self::parse_pubkey(addr).ok()?;
+        println!("1");
+        let (metadata_account_pubkey, _) =
+            metaplex_program::pda::find_metadata_account(&mint_pubkey);
+        println!("Metadata account (PDA of MINT) {:?}", metadata_account_pubkey);
+        println!("2");
+        let metadata_account_data = self.client.get_account_data(&metadata_account_pubkey).ok()?;
+        println!("MT account data: {:?}", metadata_account_data);
+        println!("3");
+        let metadata_account_state = Metadata::try_from_slice(&metadata_account_data).unwrap();
+        println!("4");
+        let metadata_data = metadata_account_state.data;
+        println!("5");
+
+        Some(GameBundle {
+            uri: metadata_data.uri,
+            name: metadata_data.name,
+            symbol: metadata_data.symbol
+        })
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
@@ -1236,14 +1251,24 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_publish_game() -> anyhow::Result<()> {
         let transport = get_transport()?;
-        let game_addr = create_game(&transport).await?;
         let params = PublishParams {
             uri: "https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E".to_string(),
             name: "RACE raffle".to_string(),
             symbol: "RACE".to_string(),
         };
-        transport.publish_game(params).await?;
+        let token_mint = transport.publish_game(params).await?;
+        println!("Publish game mint {}", token_mint);
 
+        let bundle = transport
+            .get_game_bundle(&token_mint)
+            .await
+            .expect("Failed to get game bundle");
+
+        assert_eq!(bundle.name, "RACE_raffle".to_string());
+        assert_eq!(bundle.symbol, "RACE".to_string());
+        assert_eq!(
+            bundle.uri,
+            "https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E".to_string());
         Ok(())
     }
 
