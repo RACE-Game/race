@@ -66,7 +66,6 @@ pub async fn start_reg_task(context: &ApplicationContext) {
                                 if let Ok(_) = transport
                                     .serve(ServeParams {
                                         game_addr: game_account.addr.clone(),
-                                        server_addr: server_addr.clone(),
                                     })
                                     .await
                                 {
