@@ -4,6 +4,7 @@
   "include": ["src/**/*"],
   "compilerOptions": {
     "target": "es2020",
+    "experimentalDecorators": true,
     "moduleResolution": "node",
     "outDir": "./lib",
     "forceConsistentCasingInFileNames": true,

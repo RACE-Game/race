@@ -7,18 +7,17 @@ import {
   option
 } from "@dao-xyz/borsh";
 
-abstract class Instruction {};
+abstract class Instruction { };
 
 @variant(3)
 export class CreatePlayerProfile extends Instruction {
   @field({ type: 'string' })
-  public nick: string
+  public nick: string;
 
   constructor(nick: string) {
     super();
     this.nick = nick;
   }
-
 }
 
 // export enum Instruction {
