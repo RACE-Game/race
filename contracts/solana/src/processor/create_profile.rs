@@ -8,7 +8,10 @@ use solana_program::{
     sysvar::{rent::Rent, Sysvar},
 };
 
-use crate::{error::ProcessError, state::{PlayerState, Padded}};
+use crate::{
+    error::ProcessError,
+    state::{Padded, PlayerState},
+};
 use race_solana_types::constants::PLAYER_PROFILE_SEED;
 use race_solana_types::types::CreatePlayerProfileParams;
 
@@ -24,7 +27,8 @@ pub fn process(
 
     let profile_account = next_account_info(account_iter)?;
 
-    let profile_pubkey = Pubkey::create_with_seed(owner_account.key, PLAYER_PROFILE_SEED, program_id)?;
+    let profile_pubkey =
+        Pubkey::create_with_seed(owner_account.key, PLAYER_PROFILE_SEED, program_id)?;
 
     let pfp_account = next_account_info(account_iter)?;
 

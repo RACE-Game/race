@@ -140,7 +140,6 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
             ],
         )?;
 
-
         let close_temp_account_ix = close_account(
             token_program.key,
             temp_account.key,
@@ -157,12 +156,10 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
                 payer_account.clone(),
             ],
         )?;
-
     } else {
         // For native mint, just close the account
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[game_account.key.as_ref()], program_id);
-
 
         if pda_account.key.ne(&pda) {
             return Err(ProcessError::InvalidPDA)?;

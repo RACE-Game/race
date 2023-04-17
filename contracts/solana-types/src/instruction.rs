@@ -1,6 +1,6 @@
 use crate::types::{
-    CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams,
-    JoinParams, PublishParams, RegisterServerParams, SettleParams, VoteParams,
+    CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, JoinParams,
+    PublishParams, RegisterServerParams, SettleParams, VoteParams,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]

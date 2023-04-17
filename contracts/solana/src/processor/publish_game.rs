@@ -1,3 +1,5 @@
+use mpl_token_metadata::instruction::{create_master_edition_v3, create_metadata_accounts_v3};
+use race_solana_types::types::PublishParams;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -8,10 +10,8 @@ use solana_program::{
     pubkey::Pubkey,
     system_program,
 };
-use mpl_token_metadata::instruction::{create_master_edition_v3, create_metadata_accounts_v3};
-use race_solana_types::types::PublishParams;
 use spl_token::{
-    instruction::{set_authority, mint_to, AuthorityType},
+    instruction::{mint_to, set_authority, AuthorityType},
     state::{Account, Mint},
 };
 
@@ -57,7 +57,6 @@ pub fn process(
     //     return Err(ProgramError::UninitializedAccount);
     // }
 
-
     // Mint 1 token to token account
     msg!("Token mint: {}", mint_account.key);
     msg!("Minting 1 token to account: {}", token_account.key);
@@ -68,30 +67,30 @@ pub fn process(
             &token_account.key,
             &payer.key,
             &[&payer.key],
-            1
+            1,
         )?,
         &[
             mint_account.clone(),
             payer.clone(),
             token_account.clone(),
             token_program.clone(),
-            sys_rent.clone()
-        ]
+            sys_rent.clone(),
+        ],
     )?;
 
     // TODO: Creator
     let creator = vec![
-            mpl_token_metadata::state::Creator {
-                address: payer.key.clone(),
-                verified: false,
-                share: 100,
-            },
-            mpl_token_metadata::state::Creator {
-                address: mint_account.key.clone(),
-                verified: false,
-                share: 0,
-            },
-        ];
+        mpl_token_metadata::state::Creator {
+            address: payer.key.clone(),
+            verified: false,
+            share: 100,
+        },
+        mpl_token_metadata::state::Creator {
+            address: mint_account.key.clone(),
+            verified: false,
+            share: 0,
+        },
+    ];
     // Create metadata account
     msg!("Creating metadata account: {}", metadata_pda.key);
     let create_metadata_account_ix = create_metadata_accounts_v3(
@@ -101,16 +100,16 @@ pub fn process(
         payer.key.clone(),
         payer.key.clone(),
         payer.key.clone(),
-        params.name,            // name
-        params.symbol,          // symbol
+        params.name,   // name
+        params.symbol, // symbol
         params.uri,
-        Some(creator),          // creator
-        1,                      // fee basis point
-        true,                   // update authority to signer
-        false,                  // is mutable?
-        None,                   // optional collection
-        None,                   // optional use
-        None,                   // optional collection detail
+        Some(creator), // creator
+        1,             // fee basis point
+        true,          // update authority to signer
+        false,         // is mutable?
+        None,          // optional collection
+        None,          // optional use
+        None,          // optional collection detail
     );
 
     invoke(
@@ -124,7 +123,7 @@ pub fn process(
             token_program.clone(),
             system_program.clone(),
             sys_rent.clone(),
-        ]
+        ],
     )?;
 
     // Create master edition account
@@ -134,11 +133,11 @@ pub fn process(
         metaplex_program.key.clone(),
         edition_pda.key.clone(),
         mint_account.key.clone(),
-        payer.key.clone(),       // update authority
-        payer.key.clone(),       // mint authority
+        payer.key.clone(), // update authority
+        payer.key.clone(), // mint authority
         metadata_pda.key.clone(),
         payer.key.clone(),
-        Some(0)                 // max_supply because token has been minted once
+        Some(0), // max_supply because token has been minted once
     );
 
     invoke(
@@ -153,7 +152,7 @@ pub fn process(
             token_program.clone(),
             system_program.clone(),
             sys_rent.clone(),
-        ]
+        ],
     )?;
 
     msg!("Minted NFT successfully");

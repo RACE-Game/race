@@ -1,6 +1,6 @@
 use crate::{
     error::ProcessError,
-    state::{GameReg, GameState, RegistryState, Padded},
+    state::{GameReg, GameState, Padded, RegistryState},
 };
 
 use solana_program::{
@@ -17,10 +17,7 @@ use solana_program::{
 use std::time::SystemTime;
 
 #[inline(never)]
-pub fn process(
-    _programe_id: &Pubkey,
-    accounts: &[AccountInfo],
-) -> ProgramResult {
+pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let account_iter = &mut accounts.iter();
     let payer = next_account_info(account_iter)?;
     let registry_account = next_account_info(account_iter)?;
@@ -65,12 +62,15 @@ pub fn process(
 
     let mut added = false;
     if registry_state.games.len() > 0 {
-        if registry_state.games.iter().any(|reg| reg.addr.eq(game_account.key)) {
+        if registry_state
+            .games
+            .iter()
+            .any(|reg| reg.addr.eq(game_account.key))
+        {
             msg!("0");
             return Err(ProcessError::GameAlreadyRegistered)?;
         }
-    }
-    else if registry_state.games.len() == 0 {
+    } else if registry_state.games.len() == 0 {
         // FIXME
         let timestamp = 1680971620u64;
         // let timestamp = SystemTime::now()

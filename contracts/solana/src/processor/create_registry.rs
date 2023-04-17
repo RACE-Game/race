@@ -1,4 +1,4 @@
-use crate::state::{GameReg, RegistryState, Padded};
+use crate::state::{GameReg, Padded, RegistryState};
 use race_solana_types::types::CreateRegistrationParams;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},

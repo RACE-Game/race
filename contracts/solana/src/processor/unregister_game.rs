@@ -1,7 +1,7 @@
 // use arrayref::array_mut_ref;
 use crate::{
     error::ProcessError,
-    state::{GameState, RegistryState, Padded},
+    state::{GameState, Padded, RegistryState},
 };
 
 use solana_program::{
@@ -16,10 +16,7 @@ use solana_program::{
 };
 
 #[inline(never)]
-pub fn process(
-    _programe_id: &Pubkey,
-    accounts: &[AccountInfo],
-) -> ProgramResult {
+pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let account_iter = &mut accounts.iter();
     let payer = next_account_info(account_iter)?;
     let registry_account = next_account_info(account_iter)?;
@@ -57,12 +54,17 @@ pub fn process(
     msg!("6");
 
     let mut removed = false;
-    if registry_state.games.iter().find(|reg| reg.addr.eq(game_account.key)).is_none() {
+    if registry_state
+        .games
+        .iter()
+        .find(|reg| reg.addr.eq(game_account.key))
+        .is_none()
+    {
         msg!("0");
         return Err(ProcessError::InvalidUnregistration)?;
     } else if !removed {
         let mut unreg_idx = 0usize;
-        for (idx, game) in registry_state.games.iter().enumerate()  {
+        for (idx, game) in registry_state.games.iter().enumerate() {
             if game.addr.eq(game_account.key) {
                 unreg_idx = idx;
                 break;

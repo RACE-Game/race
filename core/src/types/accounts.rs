@@ -199,9 +199,7 @@ pub struct GameBundle {
     pub uri: String,
     pub name: String,
     pub symbol: String,
-
 }
-
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PlayerProfile {

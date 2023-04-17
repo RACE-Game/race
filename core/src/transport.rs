@@ -5,8 +5,9 @@ use crate::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, PublishParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-        ServerAccount, SettleParams, UnregisterGameParams, VoteParams,
+        PlayerProfile, PublishParams, RegisterGameParams, RegisterServerParams,
+        RegistrationAccount, ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
+        VoteParams,
     },
 };
 use async_trait::async_trait;

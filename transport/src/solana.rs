@@ -11,9 +11,9 @@ use race_core::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration,
-        JoinParams, PlayerJoin, PlayerProfile, PublishParams, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServeParams, ServerAccount, ServerJoin, SettleOp, SettleParams,
-        UnregisterGameParams, VoteParams,
+        JoinParams, PlayerJoin, PlayerProfile, PublishParams, RegisterGameParams,
+        RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount, ServerJoin,
+        SettleOp, SettleParams, UnregisterGameParams, VoteParams,
     },
 };
 use race_solana_types::constants::{
@@ -26,6 +26,7 @@ use race_solana_types::state::{self, GameReg, GameState, PlayerState, RegistrySt
 use race_solana_types::types as solana_types;
 
 use serde_json;
+// use core::slice::SlicePattern;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::{
@@ -33,9 +34,9 @@ use std::{
     fs::{read_to_string, File},
 };
 
+use mpl_token_metadata as metaplex_program;
 use mpl_token_metadata::pda::find_metadata_account;
 use mpl_token_metadata::state::Metadata;
-use mpl_token_metadata as metaplex_program;
 use solana_client::{
     rpc_client::{RpcClient, RpcClientConfig},
     rpc_config::RpcSendTransactionConfig,
@@ -528,7 +529,7 @@ impl TransportT for SolanaTransport {
             &token_mint,
             &payer_pubkey,
         )
-            .map_err(|_| TransportError::InitInstructionFailed)?;
+        .map_err(|_| TransportError::InitInstructionFailed)?;
 
         // Generate two PDAs from mint_account:
         // one for metadata account and the other for master edition account
@@ -571,7 +572,7 @@ impl TransportT for SolanaTransport {
             AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(metaplex_program::id(), false),
             AccountMeta::new_readonly(rent::id(), false),
-            AccountMeta::new_readonly(system_program::id(), false)
+            AccountMeta::new_readonly(system_program::id(), false),
         ];
 
         let publish_game_ix = Instruction::new_with_borsh(
@@ -580,10 +581,10 @@ impl TransportT for SolanaTransport {
                 params: race_solana_types::types::PublishParams {
                     uri: params.uri,
                     name: params.name,
-                    symbol: params.symbol
-                }
+                    symbol: params.symbol,
+                },
             },
-            accounts
+            accounts,
         );
 
         let message = Message::new(
@@ -833,23 +834,26 @@ impl TransportT for SolanaTransport {
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
         let mint_pubkey = Self::parse_pubkey(addr).ok()?;
-        println!("1");
+
         let (metadata_account_pubkey, _) =
             metaplex_program::pda::find_metadata_account(&mint_pubkey);
-        println!("Metadata account (PDA of MINT) {:?}", metadata_account_pubkey);
-        println!("2");
-        let metadata_account_data = self.client.get_account_data(&metadata_account_pubkey).ok()?;
-        println!("MT account data: {:?}", metadata_account_data);
-        println!("3");
-        let metadata_account_state = Metadata::try_from_slice(&metadata_account_data).unwrap();
-        println!("4");
+        println!(
+            "Metadata account (PDA of MINT) {:?}",
+            metadata_account_pubkey
+        );
+
+        let metadata_account_data = self
+            .client
+            .get_account_data(&metadata_account_pubkey)
+            .ok()?;
+        let metadata_account_state =
+            Metadata::deserialize(&mut metadata_account_data.as_slice()).unwrap();
         let metadata_data = metadata_account_state.data;
-        println!("5");
 
         Some(GameBundle {
-            uri: metadata_data.uri,
-            name: metadata_data.name,
-            symbol: metadata_data.symbol
+            uri: metadata_data.uri.trim_end_matches('\0').to_string(),
+            name: metadata_data.name.trim_end_matches('\0').to_string(),
+            symbol: metadata_data.symbol.trim_end_matches('\0').to_string(),
         })
     }
 
@@ -1253,7 +1257,7 @@ mod tests {
         let transport = get_transport()?;
         let params = PublishParams {
             uri: "https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E".to_string(),
-            name: "RACE raffle".to_string(),
+            name: "RACE_raffle".to_string(),
             symbol: "RACE".to_string(),
         };
         let token_mint = transport.publish_game(params).await?;
@@ -1268,7 +1272,8 @@ mod tests {
         assert_eq!(bundle.symbol, "RACE".to_string());
         assert_eq!(
             bundle.uri,
-            "https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E".to_string());
+            "https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E".to_string()
+        );
         Ok(())
     }
 

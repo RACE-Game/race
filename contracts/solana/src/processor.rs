@@ -67,7 +67,7 @@ pub fn process(
             msg!("Player joins game");
             join::process(program_id, accounts, params)
         }
-        RaceInstruction::PublishGame { params }=> {
+        RaceInstruction::PublishGame { params } => {
             msg!("Publish a game as NFT");
             publish_game::process(program_id, accounts, params)
         }

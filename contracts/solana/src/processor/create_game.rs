@@ -59,11 +59,7 @@ pub fn process(
 
     invoke(
         &set_authority_ix,
-        &[
-            stake_account.clone(),
-            payer.clone(),
-            token_program.clone(),
-        ],
+        &[stake_account.clone(), payer.clone(), token_program.clone()],
     )?;
 
     let mut game_state = GameState {

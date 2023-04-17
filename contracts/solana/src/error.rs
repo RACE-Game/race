@@ -118,7 +118,6 @@ pub enum ProcessError {
     /// 1A
     #[error("Given position falls out the range of 0 to player_num - 1")]
     InvalidPosition,
-
 }
 
 impl From<ProcessError> for ProgramError {

@@ -1,7 +1,8 @@
 #[cfg(feature = "program")]
-use crate::state::Padded;
-#[cfg(feature = "program")]
 use crate::constants::SERVER_ACCOUNT_LEN;
+#[cfg(feature = "program")]
+use crate::state::Padded;
+use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::{
     borsh::get_instance_packed_len,
@@ -12,7 +13,6 @@ use solana_program::{
 };
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
-use borsh::{BorshDeserialize, BorshSerialize};
 
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(BorshDeserialize, BorshSerialize, Default, Debug)]
