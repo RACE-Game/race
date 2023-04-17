@@ -19,4 +19,15 @@ describe('Test account data serialization', () => {
     let deserialized = borsh.deserializeUnchecked(playerStateSchema, PlayerState, Buffer.from(buf), ExtendedReader);
     assert.deepStrictEqual(state, deserialized);
   })
+
+  it('PlayerState with no pfp', () => {
+    let state = new PlayerState({
+      isInitialized: true,
+      nick: 'Alice',
+      pfp: undefined,
+    });
+    let buf = borsh.serialize(playerStateSchema, state, ExtendedWriter)
+    let deserialized = borsh.deserializeUnchecked(playerStateSchema, PlayerState, Buffer.from(buf), ExtendedReader);
+    assert.deepStrictEqual(state, deserialized);
+  })
 })
