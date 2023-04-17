@@ -188,6 +188,9 @@ pub enum Error {
 
     #[error("Event ignored")]
     EventIgnored,
+
+    #[error("Wallet not connected")]
+    WalletNotConnected,
 }
 
 impl From<serde_json::Error> for Error {

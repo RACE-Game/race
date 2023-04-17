@@ -19,8 +19,8 @@ use js_sys::{Function, Object, Promise, Reflect, Uint8Array};
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration, JoinParams,
-    PlayerJoin, PlayerProfile, RegisterGameParams, RegistrationAccount, ServerAccount, ServerJoin,
-    UnregisterGameParams, VoteParams,
+    PlayerJoin, PlayerProfile, PublishGameParams, RegisterGameParams, RegistrationAccount,
+    ServerAccount, ServerJoin, UnregisterGameParams, VoteParams,
 };
 use race_solana_types::constants::{
     EMPTY_PUBKEY, PLAYER_PROFILE_SEED, PROFILE_ACCOUNT_LEN, PROGRAM_ID,
@@ -286,7 +286,11 @@ impl TransportLocalT for SolanaWasmTransport {
         Ok(profile_account_pubkey.to_base58())
     }
 
-    async fn publish_game(&self, wallet: &JsValue, bundle: GameBundle) -> TransportResult<String> {
+    async fn publish_game(
+        &self,
+        wallet: &JsValue,
+        params: PublishGameParams,
+    ) -> TransportResult<String> {
         unimplemented!()
     }
 
@@ -360,6 +364,7 @@ impl TransportLocalT for SolanaWasmTransport {
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
+        unimplemented!()
     }
 
     async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {

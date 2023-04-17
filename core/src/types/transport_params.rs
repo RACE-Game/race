@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::common::VoteType;
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateGameAccountParams {
     pub title: String,
     pub bundle_addr: String,
@@ -17,55 +18,65 @@ pub struct CreateGameAccountParams {
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TokenInfo {
     pub name: String,
     pub mint: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ServeParams {
     pub game_addr: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct RegisterServerParams {
     pub endpoint: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UnregisterTransactorParams {
     pub addr: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateRegistrationParams {
     pub is_private: bool,
     pub size: u16,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RegisterGameParams {
     pub game_addr: String,
     pub reg_addr: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UnregisterGameParams {
     pub game_addr: String,
     pub reg_addr: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetTransactorInfoParams {
     pub addr: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CloseGameAccountParams {
     pub addr: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreatePlayerProfileParams {
     pub nick: String,
     pub pfp: Option<String>,
@@ -122,12 +133,14 @@ impl Settle {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SettleParams {
     pub addr: String,
     pub settles: Vec<Settle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct JoinParams {
     pub game_addr: String,
     pub amount: u64,
@@ -136,6 +149,7 @@ pub struct JoinParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DepositParams {
     pub player_addr: String,
     pub game_addr: String,
@@ -144,6 +158,7 @@ pub struct DepositParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VoteParams {
     pub game_addr: String,
     pub vote_type: VoteType,
@@ -152,8 +167,8 @@ pub struct VoteParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PublishGameParams {
-    // Arweave URI
     pub uri: String,
     pub name: String,
     pub symbol: String,

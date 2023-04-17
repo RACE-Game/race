@@ -11,7 +11,8 @@ use jsonrpsee::wasm_client::WasmClientBuilder as ClientBuilder;
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-    RegisterGameParams, RegistrationAccount, ServerAccount, UnregisterGameParams, VoteParams,
+    PublishGameParams, RegisterGameParams, RegistrationAccount, ServerAccount,
+    UnregisterGameParams, VoteParams,
 };
 use wasm_bindgen::JsValue;
 
@@ -145,9 +146,13 @@ impl TransportLocalT for FacadeTransport {
             .ok()
     }
 
-    async fn publish_game(&self, _wallet: &JsValue, bundle: GameBundle) -> TransportResult<String> {
+    async fn publish_game(
+        &self,
+        _wallet: &JsValue,
+        params: PublishGameParams,
+    ) -> TransportResult<String> {
         self.client
-            .request("publish_game_bundle", rpc_params![bundle])
+            .request("publish_game_bundle", rpc_params![params])
             .await
             .map_err(|e| TransportError::NetworkError(e.to_string()))
     }

@@ -26,7 +26,7 @@ impl Handler {
     pub async fn from_bundle(game_bundle: GameBundle, encryptor: Arc<dyn EncryptorT>) -> Self {
         let mut buffer = Vec::with_capacity(1024);
         let base64 = base64::prelude::BASE64_STANDARD;
-        base64.decode_vec(&game_bundle.data, &mut buffer).unwrap();
+        base64.decode_vec(&game_bundle.uri, &mut buffer).unwrap();
         let mem_descriptor = Object::new();
         Reflect::set(&mem_descriptor, &"shared".into(), &true.into()).unwrap();
         Reflect::set(&mem_descriptor, &"maximum".into(), &100.into()).unwrap();

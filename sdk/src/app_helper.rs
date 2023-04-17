@@ -4,12 +4,13 @@ use gloo::console::info;
 use gloo::{console::warn, utils::format::JsValueSerdeExt};
 use js_sys::Array;
 use js_sys::{Object, Uint8Array};
-use race_core::types::{CreatePlayerProfileParams, TokenInfo};
-use race_transport::{TransportBuilder, TransportLocalT};
+use race_core::types::CreatePlayerProfileParams;
+use race_transport::TransportLocalT;
 use wasm_bindgen::prelude::*;
 
 use crate::error::Result;
 use crate::js::{rget, rget_string, rget_u64, rget_u8};
+use crate::transport::Transport;
 use race_core::{
     error::Error,
     types::{CreateGameAccountParams, RegisterGameParams},
@@ -17,7 +18,7 @@ use race_core::{
 
 #[wasm_bindgen]
 pub struct AppHelper {
-    transport: Box<dyn TransportLocalT>,
+    transport: Transport
 }
 
 #[wasm_bindgen]
@@ -28,12 +29,8 @@ impl AppHelper {
     /// * `chain`, The name of blockchain, currently only `facade` is supported.
     /// * `rpc`, The endpoint of blockchain RPC.
     #[wasm_bindgen]
-    pub async fn try_init(chain: &str, rpc: &str) -> Result<AppHelper> {
-        let transport = TransportBuilder::default()
-            .try_with_chain(chain)?
-            .with_rpc(rpc)
-            .build()
-            .await?;
+    pub async fn try_init(transport: JsValue) -> Result<AppHelper> {
+        let transport = Transport::new(transport);
         Ok(AppHelper { transport })
     }
 
@@ -111,7 +108,6 @@ impl AppHelper {
             .create_player_profile(
                 &wallet,
                 CreatePlayerProfileParams {
-                    addr: addr.to_owned(),
                     nick: nick.to_owned(),
                     pfp,
                 },

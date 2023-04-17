@@ -5,7 +5,7 @@ use crate::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, PublishParams, RegisterGameParams, RegisterServerParams,
+        PlayerProfile, PublishGameParams, RegisterGameParams, RegisterServerParams,
         RegistrationAccount, ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
         VoteParams,
     },

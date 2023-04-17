@@ -1,6 +1,7 @@
 #![cfg(target_arch = "wasm32")]
 use crate::error::TransportResult;
 use async_trait::async_trait;
+use race_core::types::PublishGameParams;
 #[allow(unused_imports)]
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
@@ -42,7 +43,11 @@ pub trait TransportLocalT {
         params: CreatePlayerProfileParams,
     ) -> TransportResult<String>;
 
-    async fn publish_game(&self, wallet: &JsValue, bundle: GameBundle) -> TransportResult<String>;
+    async fn publish_game(
+        &self,
+        wallet: &JsValue,
+        params: PublishGameParams,
+    ) -> TransportResult<String>;
 
     async fn create_registration(
         &self,

@@ -5,7 +5,7 @@ use js_sys::JSON::{parse, stringify};
 use js_sys::{Function, Object, Reflect};
 use race_core::context::GameContext;
 use race_core::types::{BroadcastFrame, ExitGameParams, RandomId};
-use race_transport::{TransportBuilder, TransportLocalT};
+use race_transport::TransportLocalT;
 use wasm_bindgen::prelude::*;
 
 use futures::pin_mut;
@@ -15,6 +15,8 @@ use std::sync::Arc;
 
 use crate::connection::Connection;
 use crate::handler::Handler;
+use crate::transport::Transport;
+use crate::utils::get_function;
 use gloo::console::{debug, error, info, warn};
 
 use crate::error::Result;
@@ -33,7 +35,7 @@ pub struct AppClient {
     addr: String,
     client: Client,
     handler: Handler,
-    transport: Arc<dyn TransportLocalT>,
+    transport: Arc<Transport>,
     connection: Arc<Connection>,
     game_context: RefCell<GameContext>,
     callback: Function,
@@ -53,27 +55,27 @@ impl AppClient {
     ///   The `addr` can be one of either the game or its sub game.
     #[wasm_bindgen]
     pub async fn try_init(
-        chain: &str,
-        rpc: &str,
-        player_addr: &str,
+        transport: JsValue,
+        wallet: JsValue,
         game_addr: &str,
         callback: Function,
     ) -> Result<AppClient> {
-        let transport = TransportBuilder::default()
-            .try_with_chain(chain)?
-            .with_rpc(rpc)
-            .build()
-            .await?;
-        AppClient::try_new(Arc::from(transport), player_addr, game_addr, callback).await
+        let transport = Arc::new(Transport::new(transport));
+        AppClient::try_new(transport, wallet, game_addr, callback).await
     }
 
     async fn try_new(
-        transport: Arc<dyn TransportLocalT>,
-        player_addr: &str,
+        transport: Arc<Transport>,
+        wallet: JsValue,
         game_addr: &str,
         callback: Function,
     ) -> Result<Self> {
         let encryptor = Arc::new(Encryptor::default());
+        let player_addr = get_function(&wallet, "walletAddr")
+            .call0(&wallet)
+            .unwrap()
+            .as_string()
+            .ok_or(Error::WalletNotConnected)?;
 
         let game_account = transport
             .get_game_account(game_addr)
@@ -96,7 +98,7 @@ impl AppClient {
             .ok_or(Error::CantFindTransactor)?;
 
         let connection = Arc::new(
-            Connection::try_new(player_addr, &transactor_account.endpoint, encryptor.clone())
+            Connection::try_new(&player_addr, &transactor_account.endpoint, encryptor.clone())
                 .await?,
         );
 
@@ -260,7 +262,6 @@ impl AppClient {
             .join(
                 wallet,
                 JoinParams {
-                    player_addr: self.client.addr.clone(),
                     game_addr: self.addr.clone(),
                     amount,
                     access_version: game_account.access_version,
