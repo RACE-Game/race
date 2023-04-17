@@ -17,7 +17,7 @@ export enum Instruction {
   UnregisterGame = 9,
   JoinGame = 10,
   PublishGame = 11,
-};
+}
 
 export class CreatePlayerProfileData {
   instruction = Instruction.CreatePlayerProfile;
@@ -28,44 +28,46 @@ export class CreatePlayerProfileData {
   }
 }
 
-export const createPlayerProfileDataScheme =
-  new Map([[CreatePlayerProfileData, {
-    kind: 'struct',
-    fields: [
-      ['instruction', 'u8'],
-      ['nick', 'string']]
-  }]]);
+export const createPlayerProfileDataScheme = new Map([
+  [
+    CreatePlayerProfileData,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['nick', 'string'],
+      ],
+    },
+  ],
+]);
 
 export function createCreatePlayerProfile(
   ownerKey: PublicKey,
   profileKey: PublicKey,
   nick: string,
-  pfpKey?: PublicKey,
+  pfpKey?: PublicKey
 ): TransactionInstruction {
-
-  const data =
-    borsh.serialize(createPlayerProfileDataScheme,
-      new CreatePlayerProfileData(nick));
+  const data = borsh.serialize(createPlayerProfileDataScheme, new CreatePlayerProfileData(nick));
 
   return new TransactionInstruction({
     keys: [
       {
         pubkey: ownerKey,
         isSigner: true,
-        isWritable: false
+        isWritable: false,
       },
       {
         pubkey: profileKey,
         isSigner: true,
-        isWritable: false
+        isWritable: false,
       },
       {
         pubkey: pfpKey || PublicKey.default,
         isSigner: false,
-        isWritable: false
-      }
+        isWritable: false,
+      },
     ],
     programId: PROGRAM_ID,
-    data: Buffer.from(data)
+    data: Buffer.from(data),
   });
 }
