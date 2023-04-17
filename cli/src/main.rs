@@ -3,7 +3,7 @@ use clap::{arg, Command};
 use race_core::{
     transport::TransportT,
     types::{
-        CreateGameAccountParams, CreateRegistrationParams, GameBundle, PublishParams, ServerAccount,
+        CreateGameAccountParams, CreateRegistrationParams, GameBundle, PublishGameParams, ServerAccount,
     },
 };
 use race_env::{default_keyfile, default_rpc};
@@ -117,7 +117,7 @@ async fn publish(name: String, bundle: String, transport: Arc<dyn TransportT>) {
     // let bundle = GameBundle { addr, data };
     // let resp = transport.publish_game(bundle).await.expect("RPC error");
     // println!("Address: {:?}", &resp);
-    let params = PublishParams {
+    let params = PublishGameParams {
         uri: bundle,
         name,
         symbol: "RACE".into(),

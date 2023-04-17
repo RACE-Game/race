@@ -152,7 +152,7 @@ pub struct VoteParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PublishParams {
+pub struct PublishGameParams {
     // Arweave URI
     pub uri: String,
     pub name: String,

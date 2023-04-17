@@ -4,7 +4,7 @@ use jsonrpsee::core::async_trait;
 use race_core::error::Result;
 use race_core::types::{
     CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, RegisterGameParams,
-    ServeParams, UnregisterGameParams, VoteParams, PublishParams,
+    ServeParams, UnregisterGameParams, VoteParams, PublishGameParams,
 };
 use race_core::{
     transport::TransportT,
@@ -82,7 +82,7 @@ impl TransportT for WrappedTransport {
         self.inner.get_player_profile(addr).await
     }
 
-    async fn publish_game(&self, params: PublishParams) -> Result<String> {
+    async fn publish_game(&self, params: PublishGameParams) -> Result<String> {
         self.inner.publish_game(params).await
     }
 

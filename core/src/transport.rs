@@ -116,7 +116,7 @@ pub trait TransportT: Send + Sync {
     /// * [`Error::RpcError`] when the RPC invocation failed.
     async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String>;
 
-    async fn publish_game(&self, params: PublishParams) -> Result<String>;
+    async fn publish_game(&self, params: PublishGameParams) -> Result<String>;
 
     async fn settle_game(&self, params: SettleParams) -> Result<()>;
 

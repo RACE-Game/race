@@ -1,0 +1,13 @@
+{
+  /* Visit https://aka.ms/tsconfig to read more about this file */
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "include": ["src/**/*"],
+  "compilerOptions": {
+    "target": "es2020",
+    "moduleResolution": "node",
+    "outDir": "./lib",
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+  }
+}

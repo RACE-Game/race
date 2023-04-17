@@ -15,7 +15,7 @@ use race_core::error::Error;
 use race_core::types::{
     CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams,
     GameAccount, GameBundle, GameRegistration, JoinParams, PlayerDeposit, PlayerJoin,
-    PlayerProfile, PublishParams, RegisterGameParams, RegisterServerParams, RegistrationAccount,
+    PlayerProfile, PublishGameParams, RegisterGameParams, RegisterServerParams, RegistrationAccount,
     ServeParams, ServerAccount, ServerJoin, SettleOp, SettleParams, UnregisterGameParams, Vote,
     VoteParams, VoteType,
 };
@@ -78,7 +78,7 @@ async fn publish_game_bundle(
     params: Params<'_>,
     context: Arc<Mutex<Context>>,
 ) -> RpcResult<String> {
-    let PublishParams { uri, .. } = params.one()?;
+    let PublishGameParams { uri, .. } = params.one()?;
     let addr = random_addr();
     let bundle = GameBundle {
         data: uri,
