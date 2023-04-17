@@ -1,5 +1,6 @@
-import { countCandyMachineV2Items } from '@metaplex-foundation/js';
-import { Connection, PublicKey, clusterApiUrl } from '@solana/web3.js';
+import { SystemProgram, Connection, PublicKey, Transaction, clusterApiUrl, TransactionInstruction, sendAndConfirmTransaction } from '@solana/web3.js';
+import { serialize } from '@dao-xyz/borsh';
+import os from 'os';
 import {
   IWallet,
   ITransport,
@@ -19,8 +20,9 @@ import {
   ServerAccount,
   RegistrationAccount,
 } from 'race-sdk-core';
+import {CreatePlayerProfile} from './instruction';
 
-const PLAYER_PROFILE_SEED = "race-0001";
+const PLAYER_PROFILE_SEED = "race-player-1000";
 const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
 
 class SolanaTransport implements ITransport {
@@ -47,34 +49,69 @@ class SolanaTransport implements ITransport {
   async vote(wallet: IWallet, params: VoteParams): Promise<void> {}
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<string> {
-    const transport = new SolanaTransport("https://localhost:8899");
-    const connection = transport.#conn;
 
-    if (params.nick.length > 16) {
+    const { nick, pfp } = params;
+    if (nick.length > 16) {
       // FIXME: better error message?
-      return 'Player nick name exceeds 16 chars';
+      throw new Error('Player nick name exceeds 16 chars');
     }
 
-    const payerPublickey = wallet.walletAddr;
-    const payerPublickKey = new PublicKey(payerPublickey);
+    const payer = wallet.walletAddr;
+    const payerPublicKey = new PublicKey(payer);
 
-    const profileAccountPublicKey = await PublicKey.createWithSeed(payerPublickKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
+    const profileAccountPublicKey = await PublicKey.createWithSeed(payerPublicKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
 
     console.log("Player profile public key: ", profileAccountPublicKey);
+    let tx = new Transaction();
 
     // Check if player account already exists
-    if (await connection.getAccountInfo(profileAccountPublicKey)) {
+    if (!await this.#conn.getAccountInfo(profileAccountPublicKey)) {
       console.log("Profile account already exists: ", profileAccountPublicKey);
-      return '';
+      // FIXME: replace dataLength
+      let lamports = await this.#conn.getMinimumBalanceForRentExemption(dataLength);
+
+      const create_profile_account_ix = SystemProgram.createAccountWithSeed({
+          fromPubkey: payerPublicKey,
+          newAccountPubkey: profileAccountPublicKey,
+          basePubkey: payerPublicKey,
+          seed: PLAYER_PROFILE_SEED,
+          lamports: lamports,
+          space: dataLength,
+          programId: PROGRAM_ID,
+      });
+
+      tx.add(create_profile_account_ix);
     }
 
     // Get pfp ready
-    if (params.pfp?.length > 0) {
-      const pfpPublicKey = new PublicKey(params.pfp?);
-    } else {
+    const pfpPublicKey = pfp === undefined ? PublicKey.default : new PublicKey(pfp);
+    const ix_data = serialize(new CreatePlayerProfile(nick));
+    const init_profile_ix = new TransactionInstruction ({
+      keys: [
+        {
+          pubkey: payerPublicKey,
+          isSigner: true,
+          isWritable: false
+        },
+        {
+          pubkey: profileAccountPublicKey,
+          isSigner: true,
+          isWritable: false
+        },
+        {
+          pubkey: pfpPublicKey,
+          isSigner: false,
+          isWritable: false
+        }
+      ],
+      programId: PROGRAM_ID,
+      data: Buffer.from(ix_data)
+    });
 
-    }
-    // const connection = new Connection(clusterApiUrl(params.url));
+    tx.add(init_profile_ix);
+
+    wallet.sendTransaction(tx);
+
     return '';
   }
 
