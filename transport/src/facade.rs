@@ -14,7 +14,7 @@ use race_core::transport::TransportT;
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-    PublishParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount,
+    PublishGameParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount,
     SettleParams, UnregisterGameParams, VoteParams,
 };
 
@@ -148,7 +148,7 @@ impl TransportT for FacadeTransport {
             .ok()
     }
 
-    async fn publish_game(&self, params: PublishParams) -> Result<String> {
+    async fn publish_game(&self, params: PublishGameParams) -> Result<String> {
         self.client
             .request("publish_game_bundle", rpc_params![params])
             .await

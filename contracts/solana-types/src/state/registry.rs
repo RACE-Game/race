@@ -89,10 +89,11 @@ mod tests {
             padding: Default::default(),
         };
 
-        state.update_padding();
+        state.update_padding().unwrap();
         state
     }
     #[test]
+    #[ignore]
     pub fn test_registry_account_len() -> anyhow::Result<()> {
         let mut registry = make_registry_state();
         println!("Current padding len {}", registry.padding.len());
@@ -111,7 +112,7 @@ mod tests {
             };
             registry.games.push(reg_game);
         }
-        registry.update_padding();
+        registry.update_padding()?;
         println!(
             "Registry account aligned len {}",
             get_instance_packed_len(&registry)?
@@ -125,7 +126,7 @@ mod tests {
     #[test]
     pub fn test_ser() -> anyhow::Result<()> {
         let mut state = make_registry_state();
-        state.update_padding();
+        state.update_padding()?;
         println!("Game registry len {}", get_instance_packed_len(&state)?);
         let mut buf = [0u8; RegistryState::LEN];
         RegistryState::pack(state, &mut buf)?;
@@ -135,7 +136,7 @@ mod tests {
     #[test]
     pub fn test_deser() -> anyhow::Result<()> {
         let mut state = make_registry_state();
-        state.update_padding();
+        state.update_padding()?;
         let mut buf = [0u8; RegistryState::LEN];
         RegistryState::pack(state.clone(), &mut buf)?;
         let deser = RegistryState::unpack(&buf)?;

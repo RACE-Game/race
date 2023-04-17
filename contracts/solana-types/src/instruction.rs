@@ -142,16 +142,14 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_ser() -> anyhow::Result<()> {
-        let ix = RaceInstruction::CreateGameAccount {
-            params: CreateGameAccountParams {
-                title: "Holdem".to_string(),
-                max_deposit: 100,
-                min_deposit: 10,
-                max_players: 8,
-                data: vec![],
-            },
+        let ix = RaceInstruction::CreatePlayerProfile {
+            params: CreatePlayerProfileParams {
+                nick: "Alice".into(),
+            }
         };
+
         let data = ix.try_to_vec()?;
         println!("data: {:?}", data);
         assert_eq!(1, 2);

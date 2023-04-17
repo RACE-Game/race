@@ -11,7 +11,7 @@ use race_core::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration,
-        JoinParams, PlayerJoin, PlayerProfile, PublishParams, RegisterGameParams,
+        JoinParams, PlayerJoin, PlayerProfile, PublishGameParams, RegisterGameParams,
         RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount, ServerJoin,
         SettleOp, SettleParams, UnregisterGameParams, VoteParams,
     },
@@ -485,7 +485,7 @@ impl TransportT for SolanaTransport {
 
     // TODO: add close_player_profile
 
-    async fn publish_game(&self, params: PublishParams) -> Result<String> {
+    async fn publish_game(&self, params: PublishGameParams) -> Result<String> {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
@@ -866,10 +866,9 @@ impl TransportT for SolanaTransport {
 
         let profile_data = self.client.get_account_data(&profile_pubkey).ok()?;
         let profile_state = PlayerState::try_from_slice(&profile_data).ok()?;
-        let addr = profile_state.addr.to_string();
         let pfp = profile_state.pfp.map(|x| x.to_string());
         Some(PlayerProfile {
-            addr,
+            addr: addr.to_owned(),
             nick: profile_state.nick,
             pfp,
         })
@@ -924,6 +923,7 @@ impl SolanaTransport {
         SolanaTransport::try_new_with_program_id(rpc, keyfile, program_id)
     }
 
+    #[allow(unused)]
     pub(crate) fn wallet_pubkey(&self) -> Pubkey {
         self.keypair.pubkey()
     }

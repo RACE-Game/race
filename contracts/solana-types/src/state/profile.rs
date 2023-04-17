@@ -1,5 +1,5 @@
 #[cfg(feature = "program")]
-use crate::constants::SERVER_ACCOUNT_LEN;
+use crate::constants::PROFILE_ACCOUNT_LEN;
 #[cfg(feature = "program")]
 use crate::state::Padded;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -14,18 +14,20 @@ use solana_program::{
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
 
+// =======================================================
+// ====================== PLAYER ACCOUNT =================
+// =======================================================
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(BorshDeserialize, BorshSerialize, Default, Debug)]
-pub struct ServerState {
+pub struct PlayerState {
     pub is_initialized: bool,
-    pub addr: Pubkey,
-    pub owner: Pubkey,
-    pub endpoint: String, // max: 50 chars
+    pub nick: String, // max: 16 chars
+    pub pfp: Option<Pubkey>,
     pub padding: Box<Vec<u8>>,
 }
 
 #[cfg(feature = "program")]
-impl Padded for ServerState {
+impl Padded for PlayerState {
     fn get_padding_mut(&mut self) -> Result<(usize, &mut Box<Vec<u8>>), ProgramError> {
         let packed_len = get_instance_packed_len(self)?;
         let current_padding_len = self.padding.len();
@@ -36,18 +38,18 @@ impl Padded for ServerState {
 }
 
 #[cfg(feature = "program")]
-impl IsInitialized for ServerState {
+impl IsInitialized for PlayerState {
     fn is_initialized(&self) -> bool {
         self.is_initialized
     }
 }
 
 #[cfg(feature = "program")]
-impl Sealed for ServerState {}
+impl Sealed for PlayerState {}
 
 #[cfg(feature = "program")]
-impl Pack for ServerState {
-    const LEN: usize = SERVER_ACCOUNT_LEN;
+impl Pack for PlayerState {
+    const LEN: usize = PROFILE_ACCOUNT_LEN;
 
     fn pack_into_slice(&self, dst: &mut [u8]) {
         let data = self.try_to_vec().unwrap();
@@ -55,24 +57,36 @@ impl Pack for ServerState {
     }
 
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        let result = ServerState::try_from_slice(src)?;
+        let result = PlayerState::try_from_slice(src)?;
         Ok(result)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+     use super::*;
+
+    fn create_player() -> PlayerState {
+        let mut player = PlayerState::default();
+        player.nick = "16-char_nickname".to_string();
+        player.pfp = Some(Pubkey::new_unique());
+        player
+    }
 
     #[test]
     #[ignore]
-    pub fn test_server_account_len() -> anyhow::Result<()> {
-        let mut server = ServerState::default();
-        server.addr = Pubkey::new_unique();
-        server.owner = Pubkey::new_unique();
-        server.endpoint = "https------------------------------".to_string();
-        server.update_padding()?;
-        println!("Server account len {}", get_instance_packed_len(&server)?); // 104
+    pub fn test_player_account_len() -> anyhow::Result<()> {
+        let mut player = create_player();
+        println!(
+            "Player account non-aligned len {}",
+            get_instance_packed_len(&player)?
+        );
+        player.update_padding()?;
+        println!(
+            "Player account aligned len {}",
+            get_instance_packed_len(&player)?
+        );
+        assert_eq!(get_instance_packed_len(&player)?, PlayerState::LEN);
         assert_eq!(1, 2);
         Ok(())
     }
