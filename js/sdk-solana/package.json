@@ -34,9 +34,11 @@
     "typescript": "^5.0.3"
   },
   "peerDependencies": {
-    "@dao-xyz/borsh": "^5.1.5",
     "@metaplex-foundation/js": "^0.18.3",
+    "@solana/buffer-layout": "^4.0.1",
+    "@solana/buffer-layout-utils": "^0.2.0",
     "@solana/spl-token": "^0.3.7",
-    "@solana/web3.js": "^1.75.0"
+    "@solana/web3.js": "^1.75.0",
+    "borsh": "^0.7.0"
   }
 }
