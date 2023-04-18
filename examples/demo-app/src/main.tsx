@@ -5,20 +5,7 @@ import './index.css'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Raffle from './Raffle';
 import Chat from './Chat';
-import * as solanaWeb3 from '@solana/web3.js';
-import * as SPL from '@solana/spl-token';
-import * as Metaplex from '@metaplex-foundation/js';
-
-declare global {
-    interface Window {
-        solanaWeb3: any;
-        SPL: any;
-        Metaplex: any;
-    }
-}
-window.solanaWeb3 = solanaWeb3;
-window.SPL = SPL;
-window.Metaplex = Metaplex;
+import { SolanaTransport } from 'race-sdk-solana';
 
 const router = createBrowserRouter([
   {

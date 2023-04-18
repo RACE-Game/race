@@ -7,7 +7,8 @@
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
-    "build": "tsc",
+    "build:js": "tsc",
+    "build:typedefs": "tsc -p tsconfig.d.json",
     "format": "prettier \"src/**/*.ts\" -w",
     "lint": "tslint -p tsconfig.json"
   },
