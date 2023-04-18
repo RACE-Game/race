@@ -39,7 +39,7 @@ import {
 
 const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
 
-class SolanaTransport implements ITransport {
+export class SolanaTransport implements ITransport {
   #conn: Connection;
 
   constructor(endpoint: string) {
@@ -150,5 +150,3 @@ class SolanaTransport implements ITransport {
     return undefined;
   }
 }
-
-export default SolanaTransport;

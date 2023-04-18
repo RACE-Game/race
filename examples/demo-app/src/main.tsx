@@ -5,7 +5,6 @@ import './index.css'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Raffle from './Raffle';
 import Chat from './Chat';
-import { SolanaTransport } from 'race-sdk-solana';
 
 const router = createBrowserRouter([
   {

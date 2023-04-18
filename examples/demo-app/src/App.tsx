@@ -11,6 +11,7 @@ import Header from './Header';
 import Logs from './Logs';
 import SolanaWalletWrapper from './SolanaWalletWrapper';
 import FacadeWalletWrapper from './FacadeWalletWrapper';
+import { SolanaTransport } from 'race-sdk-solana';
 
 type Chain = 'solana' | 'facade';
 
@@ -79,7 +80,8 @@ function App() {
             let endpoint = getRpc(chain);
             const initHelper = async () => {
                 await init();
-                let client = await AppHelper.try_init(chain, endpoint);
+                let transport = new SolanaTransport(endpoint);
+                let client = await AppHelper.try_init(transport);
                 console.log("AppHelper initialized");
                 setHelper(client);
             }

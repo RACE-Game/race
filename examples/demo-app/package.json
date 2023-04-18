@@ -1,8 +1,8 @@
 {
   "name": "demo-app",
+  "type": "module",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
   "scripts": {
     "wasm": "wasm-pack build ../../sdk --target web",
     "dev": "vite",
@@ -23,6 +23,7 @@
     "react-router-dom": "^6.8.1"
   },
   "devDependencies": {
+    "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@types/react": "^18.0.27",
     "@types/react-dom": "^18.0.10",
     "@vitejs/plugin-react": "^3.1.0",

@@ -12,13 +12,13 @@ import { assert } from 'chai';
 //   PlayerState,
 // } from '../src/accounts'
 import { Connection } from '@solana/web3.js';
-import SolanaTransport from '../src/SolanaTransport';
+import SolanaTransport from '../src/solana-transport';
 
 describe('Test transport', () => {
   it('create player profile and get', () => {
     const transport = new SolanaTransport('http://localhost:8899');
 
-    console.log(`Successfully connected to Solana dev net.`);
+    // console.log(`Successfully connected to Solana dev net.`);
 
   })
 

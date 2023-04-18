@@ -1,2 +1,2 @@
 export * from './instruction';
-export * from './SolanaTransport';
+export * from './solana-transport';
