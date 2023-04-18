@@ -60,6 +60,13 @@ solana:
     (cd contracts/solana; cargo build-sbf)
     solana program deploy ./target/deploy/race_solana.so
 
+ts-sdk:
+    npm --prefix ./js/sdk-core run build:js
+    npm --prefix ./js/sdk-core run build:typedefs
+    npm --prefix ./js/sdk-solana run build:js
+    npm --prefix ./js/sdk-solana run build:typedefs
+
+
 alias fa := dev-facade
 alias t1 := dev-transactor-1
 alias t2 := dev-transactor-2
