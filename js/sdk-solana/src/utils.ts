@@ -1,4 +1,5 @@
 import { PublicKey } from '@solana/web3.js';
+import { Buffer } from 'buffer';
 import * as borsh from 'borsh';
 
 export class ExtendedWriter extends borsh.BinaryWriter {
