@@ -15,6 +15,10 @@ export class ExtendedWriter extends borsh.BinaryWriter {
     this.writeU32(value.length)
     this.writeFixedArray(value)
   }
+
+  writeU64(value: bigint) {
+    super.writeU64(value)
+  }
 }
 
 export class ExtendedReader extends borsh.BinaryReader {
@@ -26,6 +30,10 @@ export class ExtendedReader extends borsh.BinaryReader {
   readBool() {
     const value = this.readU8();
     return value === 1;
+  }
+
+  readU64() {
+    return Buffer.from(this.readFixedArray(8)).readBigUInt64LE(0)
   }
 
   readBytes() {
