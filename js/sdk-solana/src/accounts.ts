@@ -127,7 +127,7 @@ export class PlayerJoin implements IPlayerJoin {
 
 
 export class GameState {
-  isInitalized!: boolean;
+  isInitialized!: boolean;
   title!: string;
   bundleAddr!: PublicKey;
   stakeAddr!: PublicKey;
@@ -178,7 +178,11 @@ const gameStateSchema = new Map<Function, any>([
       fields: [
         ['voter', 'publicKey'],
         ['votee', 'publicKey'],
-        ['voteType', { kind: 'enum', values: voteTypes }]
+        // ['voteType', {
+        //   kind: 'enum',
+        //   values: [['ServerVoteTransactorDropOff', 0],
+        //     ['ClientVoteTransactorDropOff', 1]]
+        // }]
       ]
     }
   ],
@@ -207,7 +211,26 @@ const gameStateSchema = new Map<Function, any>([
     GameState, {
       kind: 'struct',
       fields: [
-        ['players', [PlayerJoin]]
+        ['isInitialized', 'bool'],
+        ['title', 'string'],
+        ['bundleAddr', 'publicKey'],
+        ['stakeAddr', 'publicKey'],
+        ['ownerAddr', 'publicKey'],
+        ['tokenAddr', 'publicKey'],
+        ['minDeposit', 'u64'],
+        ['maxDeposit', 'u64'],
+        ['transactorAddr',
+          { kind: 'option', type: 'publicKey' }],
+        ['accessVersion', 'u64'],
+        ['settleVersion', 'u64'],
+        ['maxPlayers', 'u32'],
+        ['players', [PlayerJoin]],
+        ['servers', [ServerJoin]],
+        ['dataLen', 'u32'],
+        ['data', 'bytes'],
+        ['votes', [Vote]],
+        ['unlockTime',
+          { kind: 'option', type: 'u64' }]
       ]
     }
   ]
