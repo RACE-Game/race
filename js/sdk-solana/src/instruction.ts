@@ -1,10 +1,14 @@
-import { PublicKey, TransactionInstruction } from '@solana/web3.js';
+import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } from '@solana/web3.js';
 import { Buffer } from 'buffer';
 import * as borsh from 'borsh';
 import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import { ExtendedWriter } from './utils';
+import { Metaplex } from '@metaplex-foundation/js';
 
 const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
+const METAPLEX_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
+
+// Instruction types
 
 export enum Instruction {
   CreateGameAccount = 0,
@@ -20,6 +24,8 @@ export enum Instruction {
   JoinGame = 10,
   PublishGame = 11,
 }
+
+// Instruction data definitations
 
 abstract class Serialize {
   schema: Map<any, any>
@@ -83,29 +89,85 @@ export class CreateGameAccountData extends Serialize {
   data: Uint8Array = Uint8Array.from([]);
 
   constructor(params: Partial<CreateGameAccountData>) {
-    super(createGameAccountDataSchema(params.data?.length || 0))
+    super(createGameAccountDataSchema)
     Object.assign(this, params)
   }
 }
 
-function createGameAccountDataSchema(len: number) {
-  return new Map([
-    [
-      CreateGameAccountData,
-      {
-        kind: 'struct',
-        fields: [
-          ['instruction', 'u8'],
-          ['title', 'string'],
-          ['maxPlayers', 'u8'],
-          ['minDeposit', 'u64'],
-          ['maxDeposit', 'u64'],
-          ['data', 'bytes']
-        ]
-      }
-    ]
-  ])
-};
+const createGameAccountDataSchema = new Map([
+  [
+    CreateGameAccountData,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['title', 'string'],
+        ['maxPlayers', 'u8'],
+        ['minDeposit', 'u64'],
+        ['maxDeposit', 'u64'],
+        ['data', 'bytes']
+      ]
+    }
+  ]
+]);
+
+export class JoinGameData extends Serialize {
+  instruction = Instruction.JoinGame;
+  amount: bigint;
+  accessVersion: bigint;
+  position: number;
+
+  constructor(amount: bigint, accessVersion: bigint, position: number) {
+    super(joinGameDataSchema);
+    this.amount = amount;
+    this.accessVersion = accessVersion;
+    this.position = position;
+  }
+}
+
+const joinGameDataSchema = new Map([
+  [
+    JoinGameData,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['amount', 'u64'],
+        ['accessVersion', 'u64'],
+        ['position', 'u32'],
+      ],
+    },
+  ],
+]);
+
+export class PublishGameData extends Serialize {
+  instruction = Instruction.PublishGame;
+  uri: string;
+  name: string;
+  symbol: string;
+
+  constructor(uri: string, name: string, symbol: string) {
+    super(publishGameDataSchema);
+    this.uri = uri;
+    this.name = name;
+    this.symbol = symbol;
+  }
+}
+
+const publishGameDataSchema = new Map([
+  [
+    PublishGameData,
+    {
+      kind: 'struct',
+      fields: [
+        ['uri', 'string'],
+        ['name', 'string'],
+        ['symbol', 'string'],
+      ]
+    }
+  ]]);
+
+// Instruction helpers
 
 export function createPlayerProfile(
   ownerKey: PublicKey,
@@ -139,6 +201,11 @@ export function createPlayerProfile(
 }
 
 export type CreateGameOptions = {
+  ownerKey: PublicKey,
+  gameAccountKey: PublicKey,
+  stakeAccountKey: PublicKey,
+  mint: PublicKey,
+  gameBundleKey: PublicKey,
   title: string
   maxPlayers: number
   minDeposit: bigint
@@ -146,33 +213,28 @@ export type CreateGameOptions = {
 };
 
 export function createGameAccount(
-  ownerKey: PublicKey,
-  gameAccountKey: PublicKey,
-  stakeAccountKey: PublicKey,
-  mint: PublicKey,
-  gameBundleKey: PublicKey,
   opts: CreateGameOptions
 ): TransactionInstruction {
   const data = new CreateGameAccountData(opts).serialize();
   return new TransactionInstruction({
     keys: [
       {
-        pubkey: ownerKey,
+        pubkey: opts.ownerKey,
         isSigner: true,
         isWritable: false,
       },
       {
-        pubkey: gameAccountKey,
+        pubkey: opts.gameAccountKey,
         isSigner: false,
         isWritable: true,
       },
       {
-        pubkey: stakeAccountKey,
+        pubkey: opts.stakeAccountKey,
         isSigner: false,
         isWritable: true,
       },
       {
-        pubkey: mint,
+        pubkey: opts.mint,
         isSigner: false,
         isWritable: false,
       },
@@ -182,7 +244,7 @@ export function createGameAccount(
         isWritable: false,
       },
       {
-        pubkey: gameBundleKey,
+        pubkey: opts.gameBundleKey,
         isSigner: false,
         isWritable: false,
       }
@@ -192,12 +254,17 @@ export function createGameAccount(
   });
 }
 
-export function closeGameAccount(
+export type CloseGameAccountOptions = {
   ownerKey: PublicKey,
   gameAccountKey: PublicKey,
   regAccountKey: PublicKey,
   gameStakeKey: PublicKey
+};
+
+export function closeGameAccount(
+  opts: CloseGameAccountOptions
 ): TransactionInstruction {
+  const { ownerKey, gameAccountKey, regAccountKey, gameStakeKey } = opts;
   const data = new CloseGameAccountData().serialize();
   let [pda, _] = PublicKey.findProgramAddressSync(
     [gameAccountKey.toBuffer()],
@@ -239,4 +306,154 @@ export function closeGameAccount(
     programId: PROGRAM_ID,
     data,
   })
+}
+
+export type JoinOptions = {
+  playerKey: PublicKey;
+  paymentKey: PublicKey;
+  gameAccountKey: PublicKey;
+  mint: PublicKey;
+  stakeAccountKey: PublicKey;
+  amount: bigint,
+  accessVersion: bigint,
+  position: number,
+};
+
+export function join(
+  opts: JoinOptions
+): TransactionInstruction {
+  const {
+    playerKey,
+    paymentKey,
+    gameAccountKey,
+    mint,
+    stakeAccountKey,
+    amount,
+    accessVersion,
+    position
+  } = opts;
+
+  let [pda, _] = PublicKey.findProgramAddressSync(
+    [gameAccountKey.toBuffer()],
+    PROGRAM_ID,
+  );
+  const data = new JoinGameData(amount, accessVersion, position).serialize();
+
+  return new TransactionInstruction({
+    keys: [
+      {
+        pubkey: playerKey,
+        isSigner: true,
+        isWritable: false,
+      },
+      {
+        pubkey: paymentKey,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: gameAccountKey,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: mint,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: stakeAccountKey,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: pda,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: TOKEN_2022_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      }
+    ],
+    programId: PROGRAM_ID,
+    data
+  })
+}
+
+export type PublishGameOptions = {
+  ownerKey: PublicKey,
+  mint: PublicKey,
+  tokenAccountKey: PublicKey,
+  ataAccountKey: PublicKey,
+  metaplex: Metaplex,
+  uri: string,
+  name: string,
+  symbol: string,
+};
+
+export function publishGame(
+  opts: PublishGameOptions
+): TransactionInstruction {
+  const {
+    ownerKey, mint, tokenAccountKey, metaplex, uri, name, symbol
+  } = opts;
+
+  let metadataPda = metaplex.nfts().pdas().metadata({ mint });
+  let editonPda = metaplex.nfts().pdas().masterEdition({ mint });
+  let data = new PublishGameData(uri, name, symbol).serialize();
+
+  return new TransactionInstruction({
+    keys: [
+      {
+        pubkey: ownerKey,
+        isSigner: true,
+        isWritable: false,
+      },
+      {
+        pubkey: mint,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: tokenAccountKey,
+        isSigner: false,
+        isWritable: true,
+      },
+      // TODO, ATA key
+      {
+        pubkey: metadataPda,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: editonPda,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: TOKEN_2022_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: METAPLEX_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: SYSVAR_RENT_PUBKEY,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: PublicKey.default,
+        isSigner: false,
+        isWritable: false,
+      }
+    ],
+    programId: PROGRAM_ID,
+    data
+  });
 }
