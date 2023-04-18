@@ -166,8 +166,8 @@ const gameStateSchema = new Map<Function, any>([
       kind: 'struct',
       fields: [
         ['addr', 'publicKey'],
-        ['balance', 'u64'],
-        ['accessVersion', 'u64'],
+        ['balance', 'bigint'],
+        ['accessVersion', 'bigint'],
         ['position', 'u32']
       ]
     }
@@ -187,9 +187,9 @@ const gameStateSchema = new Map<Function, any>([
       kind: 'struct',
       fields: [
         ['addr', 'publicKey'],
-        ['balance', 'u64'],
+        ['balance', 'bigint'],
         ['position', 'u32'],
-        ['accessVersion', 'u64'],
+        ['accessVersion', 'bigint'],
       ]
     }
   ],
@@ -199,7 +199,7 @@ const gameStateSchema = new Map<Function, any>([
       fields: [
         ['addr', 'publicKey'],
         ['endpoint', 'string'],
-        ['accessVersion', 'u64'],
+        ['accessVersion', 'bigint'],
       ]
     }
   ],
@@ -213,12 +213,12 @@ const gameStateSchema = new Map<Function, any>([
         ['stakeAddr', 'publicKey'],
         ['ownerAddr', 'publicKey'],
         ['tokenAddr', 'publicKey'],
-        ['minDeposit', 'u64'],
-        ['maxDeposit', 'u64'],
+        ['minDeposit', 'bigint'],
+        ['maxDeposit', 'bigint'],
         ['transactorAddr',
           { kind: 'option', type: 'publicKey' }],
-        ['accessVersion', 'u64'],
-        ['settleVersion', 'u64'],
+        ['accessVersion', 'bigint'],
+        ['settleVersion', 'bigint'],
         ['maxPlayers', 'u32'],
         ['players', [PlayerJoin]],
         ['servers', [ServerJoin]],
@@ -226,7 +226,7 @@ const gameStateSchema = new Map<Function, any>([
         ['data', 'bytes'],
         ['votes', [Vote]],
         ['unlockTime',
-          { kind: 'option', type: 'u64' }]
+          { kind: 'option', type: 'bigint' }]
       ]
     }
   ]
@@ -270,7 +270,7 @@ const registryStateSchema = new Map<Function, any>([
         ['title', 'string'],
         ['addr', 'publicKey'],
         ['bundleAddr', 'publicKey'],
-        ['regTime', 'u64'],
+        ['regTime', 'bigint'],
       ]
     }
   ],

@@ -103,8 +103,8 @@ const createGameAccountDataSchema = new Map([
         ['instruction', 'u8'],
         ['title', 'string'],
         ['maxPlayers', 'u8'],
-        ['minDeposit', 'u64'],
-        ['maxDeposit', 'u64'],
+        ['minDeposit', 'bigint'],
+        ['maxDeposit', 'bigint'],
         ['data', 'bytes']
       ]
     }
@@ -132,8 +132,8 @@ const joinGameDataSchema = new Map([
       kind: 'struct',
       fields: [
         ['instruction', 'u8'],
-        ['amount', 'u64'],
-        ['accessVersion', 'u64'],
+        ['amount', 'bigint'],
+        ['accessVersion', 'bigint'],
         ['position', 'u32'],
       ],
     },
