@@ -6,7 +6,7 @@
   "main": "lib/index.js",
   "scripts": {
     "test": "jest",
-    "test:watch": "TS_NODE_COMPILER_OPTIONS='{ \"module\": \"commonjs\", \"target\": \"es2020\" }' ts-mocha ./tests/**/*.spec.ts --watch --watch-files ./src, ./tests",
+    "test:watch": "jest --watch",
     "build": "tsc",
     "format": "prettier \"src/**/*.ts\" -w",
     "lint": "tslint -p tsconfig.json"

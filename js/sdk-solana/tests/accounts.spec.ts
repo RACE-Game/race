@@ -1,8 +1,10 @@
 import { assert } from 'chai';
 import {
+  GameReg,
   GameState,
   PlayerJoin,
   PlayerState,
+  RegistryState,
   ServerJoin,
   Vote,
 } from '../src/accounts';
@@ -29,6 +31,32 @@ describe('Test account data serialization', () => {
     });
     let buf = state.serialize();
     let deserialized = PlayerState.deserialize(buf);
+    assert.deepStrictEqual(state, deserialized);
+  })
+
+  it('RegistryState', () => {
+    let state = new RegistryState({
+      isInitialized: true,
+      isPrivate: false,
+      size: 100,
+      owner: PublicKey.unique(),
+      games: [
+        new GameReg({
+          addr: PublicKey.unique(),
+          title: 'Game A',
+          bundleAddr: PublicKey.unique(),
+          regTime: 1000n
+        }),
+        new GameReg({
+          addr: PublicKey.unique(),
+          title: 'Game B',
+          bundleAddr: PublicKey.unique(),
+          regTime: 2000n
+        })
+      ]
+    });
+    let buf = state.serialize();
+    let deserialized = RegistryState.deserialize(buf);
     assert.deepStrictEqual(state, deserialized);
   })
 
