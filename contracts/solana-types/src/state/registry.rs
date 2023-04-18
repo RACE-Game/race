@@ -28,7 +28,6 @@ pub struct GameReg {
 pub struct RegistryState {
     pub is_initialized: bool,
     pub is_private: bool,
-    pub addr: Pubkey,
     pub size: u16, // capacity of the registration center
     pub owner: Pubkey,
     pub games: Box<Vec<GameReg>>,

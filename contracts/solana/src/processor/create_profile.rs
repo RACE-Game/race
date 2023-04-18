@@ -57,9 +57,6 @@ pub fn process(
 
     let mut player_state = PlayerState {
         is_initialized: true,
-        owner: *owner_account.key,
-        addr: *profile_account.key,
-        chips: 0u64,
         nick: params.nick,
         pfp: pfp_pubkey,
         padding: Default::default(),

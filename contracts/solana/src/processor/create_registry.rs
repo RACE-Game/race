@@ -33,7 +33,6 @@ pub fn process(
     let mut registry_state = RegistryState {
         is_initialized: true,
         is_private: params.is_private,
-        addr: registry_account.key.clone(),
         size: params.size,
         owner: payer.key.clone(),
         games: Box::new(Vec::<GameReg>::with_capacity(params.size as usize)),
