@@ -3,6 +3,8 @@ import {
   GameState,
   PlayerJoin,
   PlayerState,
+  ServerJoin,
+  Vote,
 } from '../src/accounts';
 import { PublicKey } from '@solana/web3.js';
 
@@ -31,14 +33,43 @@ describe('Test account data serialization', () => {
 
   it('GameState', () => {
     let state = new GameState({
+      isInitalized: true,
+      title: 'test game name',
+      bundleAddr: PublicKey.unique(),
+      stakeAddr: PublicKey.unique(),
+      ownerAddr: PublicKey.unique(),
+      tokenAddr: PublicKey.unique(),
+      minDeposit: 100n,
+      maxDeposit: 100n,
+      transactorAddr: PublicKey.unique(),
+      accessVersion: 1n,
+      settleVersion: 2n,
+      maxPlayers: 10,
       players: [
         new PlayerJoin({
-          addr: PublicKey.default,
+          addr: PublicKey.unique(),
           balance: 100n,
           accessVersion: 1n,
           position: 0,
         })
-      ]
+      ],
+      servers: [
+        new ServerJoin({
+          addr: PublicKey.unique(),
+          endpoint: 'http://foo.bar',
+          accessVersion: 2n,
+        })
+      ],
+      dataLen: 10,
+      data: Uint8Array.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+      votes: [
+        new Vote({
+          voter: PublicKey.unique(),
+          votee: PublicKey.unique(),
+          voteType: 'ServerVoteTransactorDropOff'
+        })
+      ],
+      unlockTime: undefined
     });
     let buf = state.serialize();
     let deserialized = GameState.deserialize(buf);

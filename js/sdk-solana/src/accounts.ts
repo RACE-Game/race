@@ -28,6 +28,42 @@ export interface IVote {
   voteType: VoteType
 }
 
+export interface IGameReg {
+  title: string;
+  addr: PublicKey;
+  bundleAddr: PublicKey;
+  regTime: bigint;
+}
+
+export interface IRegistryState {
+  isInitialized: boolean;
+  isPrivate: boolean;
+  size: number,
+  owner: PublicKey,
+  games: IGameReg[];
+}
+
+export interface IGameState {
+  isInitalized: boolean;
+  title: string;
+  bundleAddr: PublicKey;
+  stakeAddr: PublicKey;
+  ownerAddr: PublicKey;
+  tokenAddr: PublicKey;
+  minDeposit: bigint;
+  maxDeposit: bigint;
+  transactorAddr: PublicKey | undefined;
+  accessVersion: bigint;
+  settleVersion: bigint;
+  maxPlayers: number;
+  players: IPlayerJoin[];
+  servers: IServerJoin[];
+  dataLen: number;
+  data: Uint8Array;
+  votes: IVote[];
+  unlockTime: bigint | undefined;
+};
+
 export class PlayerState implements IPlayerState {
   isInitialized!: boolean;
   nick!: string;
@@ -89,29 +125,26 @@ export class PlayerJoin implements IPlayerJoin {
   }
 }
 
-export interface IGameState {
-  isInitalized: boolean;
-  title: string;
-  bundle: PublicKey;
-  stake: PublicKey;
-  owner: PublicKey;
-  token: PublicKey;
-  minDeposit: bigint;
-  maxDeposit: bigint;
-  transactorAddr: PublicKey | undefined;
-  accessVersion: bigint;
-  settleVersion: bigint;
-  maxPlayers: number;
-  players: IPlayerJoin[];
-  servers: IServerJoin[];
-  dataLen: number;
-  data: Uint8Array;
-  votes: IVote[];
-  unlockTime: bigint | undefined;
-};
 
 export class GameState {
-  players!: PlayerJoin[]
+  isInitalized!: boolean;
+  title!: string;
+  bundleAddr!: PublicKey;
+  stakeAddr!: PublicKey;
+  ownerAddr!: PublicKey;
+  tokenAddr!: PublicKey;
+  minDeposit!: bigint;
+  maxDeposit!: bigint;
+  transactorAddr: PublicKey | undefined;
+  accessVersion!: bigint;
+  settleVersion!: bigint;
+  maxPlayers!: number;
+  players!: IPlayerJoin[];
+  servers!: IServerJoin[];
+  dataLen!: number;
+  data!: Uint8Array;
+  votes!: IVote[];
+  unlockTime: bigint | undefined;
 
   constructor(fields: IGameState) {
     Object.assign(this, fields)
@@ -179,3 +212,58 @@ const gameStateSchema = new Map<Function, any>([
     }
   ]
 ]);
+
+export class GameReg implements IGameReg {
+  title!: string;
+  addr!: PublicKey;
+  bundleAddr!: PublicKey;
+  regTime!: bigint;
+  constructor(fields: IGameReg) {
+    Object.assign(this, fields)
+  }
+}
+
+export class RegistryState implements IRegistryState {
+  isInitialized!: boolean;
+  isPrivate!: boolean;
+  size!: number;
+  owner!: PublicKey;
+  games!: IGameReg[];
+  constructor(fields: IRegistryState) {
+    Object.assign(this, fields)
+  }
+
+  serialize(): Buffer {
+    return Buffer.from(
+      borsh.serialize(registryStateSchema, this, ExtendedWriter))
+  }
+
+  static deserialize(data: Uint8Array): RegistryState {
+    return borsh.deserializeUnchecked(registryStateSchema, RegistryState, Buffer.from(data), ExtendedReader)
+  }
+}
+
+const registryStateSchema = new Map<Function, any>([
+  [
+    GameReg, {
+      kind: 'struct',
+      fields: [
+        ['title', 'string'],
+        ['addr', 'publicKey'],
+        ['bundleAddr', 'publicKey'],
+        ['regTime', 'u64'],
+      ]
+    }
+  ],
+  [
+    RegistryState, {
+      kind: 'struct',
+      fields: [
+        ['isInitialized', 'bool'],
+        ['isPrivate', 'bool'],
+        ['size', 'u16'],
+        ['owner', 'publicKey'],
+        ['games', [GameReg]]
+      ]
+    }
+  ]]);

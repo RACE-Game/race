@@ -1,1 +1,1 @@
-export {};
+export const voteTypes = ['ServerVoteTransactorDropOff', 'ClientVoteTransactorDropOff'];
