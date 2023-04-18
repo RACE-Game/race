@@ -119,7 +119,6 @@ class SolanaTransport implements ITransport {
   }
 
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
-    const profileKey =
     return undefined;
   }
 

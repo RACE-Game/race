@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.0.1",
   "description": "The Solana support for Race SDK",
-  "main": "index.js",
+  "main": "lib/index.js",
   "scripts": {
     "test": "TS_NODE_COMPILER_OPTIONS='{ \"module\": \"commonjs\", \"target\": \"es2020\" }' ts-mocha ./tests/**/*.spec.ts",
     "test:watch": "TS_NODE_COMPILER_OPTIONS='{ \"module\": \"commonjs\", \"target\": \"es2020\" }' ts-mocha ./tests/**/*.spec.ts --watch --watch-files ./src, ./tests",
