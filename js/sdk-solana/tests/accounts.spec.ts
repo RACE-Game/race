@@ -7,6 +7,7 @@ import {
   Vote,
 } from '../src/accounts';
 import { PublicKey } from '@solana/web3.js';
+import { VoteType, voteTypes } from 'race-sdk-core';
 
 describe('Test account data serialization', () => {
   it('PlayerState', () => {
@@ -33,7 +34,7 @@ describe('Test account data serialization', () => {
 
   it('GameState', () => {
     let state = new GameState({
-      isInitalized: true,
+      isInitialized: true,
       title: 'test game name',
       bundleAddr: PublicKey.unique(),
       stakeAddr: PublicKey.unique(),
@@ -66,7 +67,7 @@ describe('Test account data serialization', () => {
         new Vote({
           voter: PublicKey.unique(),
           votee: PublicKey.unique(),
-          voteType: 'ServerVoteTransactorDropOff'
+          voteType: 0,
         })
       ],
       unlockTime: undefined

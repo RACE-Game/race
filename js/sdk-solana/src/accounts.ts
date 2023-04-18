@@ -1,7 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 import * as borsh from 'borsh';
 import { ExtendedReader, ExtendedWriter } from './utils'
-import { voteTypes, VoteType } from 'race-sdk-core';
+import { VoteType } from 'race-sdk-core';
 
 export interface IPlayerState {
   isInitialized: boolean;
@@ -44,7 +44,7 @@ export interface IRegistryState {
 }
 
 export interface IGameState {
-  isInitalized: boolean;
+  isInitialized: boolean;
   title: string;
   bundleAddr: PublicKey;
   stakeAddr: PublicKey;
@@ -178,11 +178,7 @@ const gameStateSchema = new Map<Function, any>([
       fields: [
         ['voter', 'publicKey'],
         ['votee', 'publicKey'],
-        // ['voteType', {
-        //   kind: 'enum',
-        //   values: [['ServerVoteTransactorDropOff', 0],
-        //     ['ClientVoteTransactorDropOff', 1]]
-        // }]
+        ['voteType', 'u8']
       ]
     }
   ],

@@ -17,7 +17,12 @@ export type ServerJoin = {
   readonly accessVersion: bigint;
 };
 
-export type VoteType = 'ServerVoteTransactorDropOff' | 'ClientVoteTransactorDropOff';
+export const voteTypes = {
+  ServerVoteTransactorDropOff: 0,
+  ClientVoteTransactorDropOff: 1,
+};
+
+export type VoteType = 0 | 1;
 
 export type Vote = {
   readonly voter: string;

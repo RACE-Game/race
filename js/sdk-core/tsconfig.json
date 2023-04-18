@@ -3,8 +3,9 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "include": ["src/**/*"],
   "compilerOptions": {
+    "module": "esnext",
     "target": "es2020",
-    "moduleResolution": "node",
+    "esModuleInterop": true,
     "outDir": "./lib",
     "forceConsistentCasingInFileNames": true,
     "strict": true,
