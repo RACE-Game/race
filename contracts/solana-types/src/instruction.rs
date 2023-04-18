@@ -118,14 +118,13 @@ pub enum RaceInstruction {
     /// Accounts expected:
     /// 0. `[signer]` The payer account
     /// 1. `[]` The mint account.
-    /// 2. `[writable]` The token account
-    /// 3. `[]` The ata account.
-    /// 4. `[]` The metadata PDA.
-    /// 5. `[]` The edition PDA.
-    /// 6. `[]` The token program.
-    /// 7. `[]` The metaplex program.
-    /// 8. `[]` The sys rent program.
-    /// 9. `[]` The system program.
+    /// 2. `[writable]` The ata account.
+    /// 3. `[]` The metadata PDA.
+    /// 4. `[]` The edition PDA.
+    /// 5. `[]` The token program.
+    /// 6. `[]` The metaplex program.
+    /// 7. `[]` The sys rent program.
+    /// 8. `[]` The system program.
     PublishGame { params: PublishParams },
 }
 

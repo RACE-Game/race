@@ -490,12 +490,12 @@ impl TransportT for SolanaTransport {
         let payer_pubkey = payer.pubkey();
 
         // Create token and initialize its mint
-        let new_token = Keypair::new();
-        let token_mint = new_token.pubkey();
+        let new_mint = Keypair::new();
+        let mint_pubkey = new_mint.pubkey();
         let mint_account_lamports = self.get_min_lamports(Mint::LEN)?;
         let create_mint_account_ix = create_account(
             &payer_pubkey,
-            &token_mint,
+            &mint_pubkey,
             mint_account_lamports,
             Mint::LEN as u64,
             &spl_token::id(),
@@ -504,32 +504,12 @@ impl TransportT for SolanaTransport {
         // Set decimals to 0 (NFT)
         let init_mint_ix = spl_token::instruction::initialize_mint(
             &spl_token::id(),
-            &token_mint,
+            &mint_pubkey,
             &payer_pubkey,
             Some(&payer_pubkey),
             0,
         )
         .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
-
-        // Create account to hold the new token and initialize it
-        let token_account = Keypair::new();
-        let token_account_pubkey = token_account.pubkey();
-        let token_account_lamports = self.get_min_lamports(Account::LEN)?;
-        let create_token_account_ix = create_account(
-            &payer_pubkey,
-            &token_account_pubkey,
-            token_account_lamports,
-            Account::LEN as u64,
-            &spl_token::id(),
-        );
-
-        let init_token_account_ix = spl_token::instruction::initialize_account(
-            &spl_token::id(),
-            &token_account_pubkey,
-            &token_mint,
-            &payer_pubkey,
-        )
-        .map_err(|_| TransportError::InitInstructionFailed)?;
 
         // Generate two PDAs from mint_account:
         // one for metadata account and the other for master edition account
@@ -537,7 +517,7 @@ impl TransportT for SolanaTransport {
             &[
                 "metadata".as_bytes(),
                 metaplex_program::id().as_ref(),
-                token_mint.as_ref(),
+                mint_pubkey.as_ref(),
             ],
             &metaplex_program::id(),
         );
@@ -546,26 +526,24 @@ impl TransportT for SolanaTransport {
             &[
                 "metadata".as_bytes(),
                 metaplex_program::id().as_ref(),
-                token_mint.as_ref(),
+                mint_pubkey.as_ref(),
                 "edition".as_bytes(),
             ],
             &metaplex_program::id(),
         );
 
-        // Create ATA for payer (or player's wallet when available)
-        let ata_pubkey = get_associated_token_address(&payer_pubkey, &token_mint);
-
+        // Create ATA to hold the new mint
+        let ata_pubkey = get_associated_token_address(&payer_pubkey, &mint_pubkey);
         let create_ata_account_ix = create_associated_token_account(
             &payer_pubkey,
             &payer_pubkey,
-            &token_mint,
+            &mint_pubkey,
             &spl_token::id(),
         );
 
         let accounts = vec![
             AccountMeta::new_readonly(payer_pubkey, true),
-            AccountMeta::new(token_mint, true),
-            AccountMeta::new(token_account_pubkey, true),
+            AccountMeta::new(mint_pubkey, true),
             AccountMeta::new_readonly(ata_pubkey, false),
             AccountMeta::new(metadata_pda, false),
             AccountMeta::new(edition_pda, false),
@@ -591,8 +569,8 @@ impl TransportT for SolanaTransport {
             &[
                 create_mint_account_ix,
                 init_mint_ix,
-                create_token_account_ix,
-                init_token_account_ix,
+                // create_token_account_ix,
+                // init_token_account_ix,
                 // mint_token_ix,
                 create_ata_account_ix,
                 publish_game_ix,
@@ -602,10 +580,10 @@ impl TransportT for SolanaTransport {
 
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
-        tx.sign(&[payer, &new_token, &token_account], blockhash);
+        tx.sign(&[payer, &new_mint], blockhash);
         self.send_transaction(tx)?;
 
-        Ok(token_mint.to_string())
+        Ok(mint_pubkey.to_string())
     }
 
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
@@ -1255,7 +1233,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_publish_game() -> anyhow::Result<()> {
         let transport = get_transport()?;
-        let params = PublishParams {
+        let params = PublishGameParams {
             uri: "https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E".to_string(),
             name: "RACE_raffle".to_string(),
             symbol: "RACE".to_string(),

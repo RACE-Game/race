@@ -27,7 +27,7 @@ pub fn process(
 
     let mint_account = next_account_info(accounts_iter)?;
 
-    let token_account = next_account_info(accounts_iter)?;
+    // let token_account = next_account_info(accounts_iter)?;
 
     let ata_account = next_account_info(accounts_iter)?;
 
@@ -59,12 +59,12 @@ pub fn process(
 
     // Mint 1 token to token account
     msg!("Token mint: {}", mint_account.key);
-    msg!("Minting 1 token to account: {}", token_account.key);
+    msg!("Minting 1 token to account: {}", ata_account.key);
     invoke(
         &mint_to(
             &token_program.key,
             &mint_account.key,
-            &token_account.key,
+            &ata_account.key,
             &payer.key,
             &[&payer.key],
             1,
@@ -72,13 +72,12 @@ pub fn process(
         &[
             mint_account.clone(),
             payer.clone(),
-            token_account.clone(),
+            ata_account.clone(),
             token_program.clone(),
             sys_rent.clone(),
         ],
     )?;
 
-    // TODO: Creator
     let creator = vec![
         mpl_token_metadata::state::Creator {
             address: payer.key.clone(),
@@ -100,8 +99,8 @@ pub fn process(
         payer.key.clone(),
         payer.key.clone(),
         payer.key.clone(),
-        params.name,   // name
-        params.symbol, // symbol
+        params.name,
+        params.symbol,
         params.uri,
         Some(creator), // creator
         1,             // fee basis point
