@@ -1,28 +1,6 @@
 import { PublicKey } from '@solana/web3.js';
 import * as borsh from 'borsh';
-
-export class ExtendedWriter extends borsh.BinaryWriter {
-  writePublicKey(value: PublicKey) {
-    let buffer = value.toBuffer();
-    this.writeFixedArray(buffer);
-  }
-
-  writeBool(value: boolean) {
-    this.writeU8(value === true ? 1 : 0);
-  }
-}
-
-export class ExtendedReader extends borsh.BinaryReader {
-  readPublicKey() {
-    const value = this.readFixedArray(32);
-    return new PublicKey(value);
-  }
-
-  readBool() {
-    const value = this.readU8();
-    return value === 1;
-  }
-}
+import { ExtendedReader, ExtendedWriter } from './utils'
 
 export class PlayerState {
   isInitialized: boolean;
@@ -33,6 +11,14 @@ export class PlayerState {
     this.isInitialized = data.isInitialized;
     this.nick = data.nick;
     this.pfp = data.pfp;
+  }
+
+  serialize(): Buffer {
+    return Buffer.from(borsh.serialize(playerStateSchema, this, ExtendedWriter))
+  }
+
+  static deserialize(data: Uint8Array): PlayerState {
+    return borsh.deserializeUnchecked(playerStateSchema, PlayerState, Buffer.from(data), ExtendedReader)
   }
 }
 

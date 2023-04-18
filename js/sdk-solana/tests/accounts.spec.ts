@@ -1,11 +1,7 @@
 import { assert } from 'chai';
 import {
   PlayerState,
-  ExtendedReader,
-  ExtendedWriter,
-  playerStateSchema
 } from '../src/accounts';
-import * as borsh from 'borsh';
 import { PublicKey } from '@solana/web3.js';
 
 describe('Test account data serialization', () => {
@@ -15,8 +11,8 @@ describe('Test account data serialization', () => {
       nick: 'Alice',
       pfp: PublicKey.default,
     });
-    let buf = borsh.serialize(playerStateSchema, state, ExtendedWriter)
-    let deserialized = borsh.deserializeUnchecked(playerStateSchema, PlayerState, Buffer.from(buf), ExtendedReader);
+    let buf = state.serialize();
+    let deserialized = PlayerState.deserialize(buf);
     assert.deepStrictEqual(state, deserialized);
   })
 
@@ -26,8 +22,8 @@ describe('Test account data serialization', () => {
       nick: 'Alice',
       pfp: undefined,
     });
-    let buf = borsh.serialize(playerStateSchema, state, ExtendedWriter)
-    let deserialized = borsh.deserializeUnchecked(playerStateSchema, PlayerState, Buffer.from(buf), ExtendedReader);
+    let buf = state.serialize();
+    let deserialized = PlayerState.deserialize(buf);
     assert.deepStrictEqual(state, deserialized);
   })
 })

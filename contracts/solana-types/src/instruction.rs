@@ -17,7 +17,7 @@ pub enum RaceInstruction {
     /// 1. `[writable]` The game account, hold all necessary info about the game.
     /// 2. `[writable]` The temp stake account.
     /// 3. `[]` The mint account.
-    /// 4. `[]` The scene NFT account.
+    /// 4. `[]` The token program.
     /// 5. `[]` The bundled data account
     // TODO: add Game scene NFT to this ix
     CreateGameAccount { params: CreateGameAccountParams },
@@ -142,11 +142,19 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
     fn test_ser() -> anyhow::Result<()> {
-        let ix = RaceInstruction::CreatePlayerProfile {
-            params: CreatePlayerProfileParams {
-                nick: "Alice".into(),
+        // let ix = RaceInstruction::CreatePlayerProfile {
+        //     params: CreatePlayerProfileParams {
+        //         nick: "Alice".into(),
+        //     }
+        // };
+        let ix = RaceInstruction::CreateGameAccount {
+            params: CreateGameAccountParams {
+                title: "test game #2".into(),
+                max_players: 10,
+                min_deposit: 10,
+                max_deposit: 20,
+                data: vec![1, 2, 3, 4],
             }
         };
 
