@@ -28,9 +28,15 @@ import {
 } from 'race-sdk-core';
 import * as intruction from './instruction';
 
-import { PROFILE_ACCOUNT_LEN } from './constants';
+import {
+  PROFILE_ACCOUNT_LEN,
+  PLAYER_PROFILE_SEED,
+} from './constants';
 
-const PLAYER_PROFILE_SEED = 'race-player-1000';
+import {
+  PlayerState,
+} from './accounts'
+
 const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
 
 class SolanaTransport implements ITransport {
@@ -119,7 +125,21 @@ class SolanaTransport implements ITransport {
   }
 
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
-    return undefined;
+    const conn = this.#conn;
+    const profileKey = new PublicKey(addr);
+
+    const profileAccount = await conn.getAccountInfo(profileKey);
+    if (profileAccount) {
+      const profileAccountData = profileAccount.data;
+      const { nick, pfp } = PlayerState.deserialize(profileAccountData);
+      if (pfp !== undefined) {
+        return { addr: addr, nick: nick, pfp: pfp.toBase58() };
+      } else {
+        return { addr: addr, nick: nick, pfp: undefined }
+      }
+    } else {
+      return undefined;
+    }
   }
 
   async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
