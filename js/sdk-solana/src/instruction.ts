@@ -1,7 +1,7 @@
 import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } from '@solana/web3.js';
 import { Buffer } from 'buffer';
 import * as borsh from 'borsh';
-import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+import { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { ExtendedWriter } from './utils';
 import { Metaplex } from '@metaplex-foundation/js';
 
@@ -386,7 +386,6 @@ export type PublishGameOptions = {
   ownerKey: PublicKey,
   mint: PublicKey,
   tokenAccountKey: PublicKey,
-  ataAccountKey: PublicKey,
   metaplex: Metaplex,
   uri: string,
   name: string,
@@ -397,11 +396,13 @@ export function publishGame(
   opts: PublishGameOptions
 ): TransactionInstruction {
   const {
-    ownerKey, mint, tokenAccountKey, metaplex, uri, name, symbol
+    ownerKey, mint, metaplex, uri, name, symbol
   } = opts;
 
   let metadataPda = metaplex.nfts().pdas().metadata({ mint });
   let editonPda = metaplex.nfts().pdas().masterEdition({ mint });
+  let ata = getAssociatedTokenAddressSync(mint, ownerKey);
+
   let data = new PublishGameData(uri, name, symbol).serialize();
 
   return new TransactionInstruction({
@@ -417,11 +418,10 @@ export function publishGame(
         isWritable: false,
       },
       {
-        pubkey: tokenAccountKey,
+        pubkey: ata,
         isSigner: false,
         isWritable: true,
       },
-      // TODO, ATA key
       {
         pubkey: metadataPda,
         isSigner: false,
