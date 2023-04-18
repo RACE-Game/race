@@ -7,8 +7,6 @@ import {
   TransactionInstruction,
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
-import { serialize } from '@dao-xyz/borsh';
-import os from 'os';
 import {
   IWallet,
   ITransport,
@@ -28,7 +26,9 @@ import {
   ServerAccount,
   RegistrationAccount,
 } from 'race-sdk-core';
-import { CreatePlayerProfile } from './instruction';
+import * as intruction from './instruction';
+
+import { PROFILE_ACCOUNT_LEN } from './constants';
 
 const PLAYER_PROFILE_SEED = 'race-player-1000';
 const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
@@ -64,62 +64,42 @@ class SolanaTransport implements ITransport {
     }
 
     const payer = wallet.walletAddr;
-    const payerPublicKey = new PublicKey(payer);
+    const payerKey = new PublicKey(payer);
+    const profileKey = await PublicKey.createWithSeed(payerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
+    console.log('Player profile public key: ', profileKey);
 
-    const profileAccountPublicKey = await PublicKey.createWithSeed(payerPublicKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
-
-    console.log('Player profile public key: ', profileAccountPublicKey);
     let tx = new Transaction();
 
     // Check if player account already exists
-    if (!(await this.#conn.getAccountInfo(profileAccountPublicKey))) {
-      console.log('Profile account already exists: ', profileAccountPublicKey);
-      // FIXME: replace dataLength
-      let lamports = await this.#conn.getMinimumBalanceForRentExemption(dataLength);
+    if (!(await this.#conn.getAccountInfo(profileKey))) {
+      let lamports = await this.#conn.getMinimumBalanceForRentExemption(PROFILE_ACCOUNT_LEN);
 
+      // Construct ix
       const create_profile_account_ix = SystemProgram.createAccountWithSeed({
-        fromPubkey: payerPublicKey,
-        newAccountPubkey: profileAccountPublicKey,
-        basePubkey: payerPublicKey,
+        fromPubkey: payerKey,
+        newAccountPubkey: profileKey,
+        basePubkey: payerKey,
         seed: PLAYER_PROFILE_SEED,
         lamports: lamports,
-        space: dataLength,
+        space: PROFILE_ACCOUNT_LEN,
         programId: PROGRAM_ID,
       });
-
       tx.add(create_profile_account_ix);
+    } else {
+      throw new Error('Profile account already exists: ');
     }
 
     // Get pfp ready
-    const pfpPublicKey = pfp === undefined ? PublicKey.default : new PublicKey(pfp);
-    const ix_data = serialize(new CreatePlayerProfile(nick));
-    const init_profile_ix = new TransactionInstruction({
-      keys: [
-        {
-          pubkey: payerPublicKey,
-          isSigner: true,
-          isWritable: false,
-        },
-        {
-          pubkey: profileAccountPublicKey,
-          isSigner: true,
-          isWritable: false,
-        },
-        {
-          pubkey: pfpPublicKey,
-          isSigner: false,
-          isWritable: false,
-        },
-      ],
-      programId: PROGRAM_ID,
-      data: Buffer.from(ix_data),
-    });
+    const pfpKey = pfp === undefined ? PublicKey.default : new PublicKey(pfp);
 
-    tx.add(init_profile_ix);
+    // Construct ix
+    const create_profile_ix = intruction.createPlayerProfile(payerKey, profileKey, nick, pfpKey);
 
-    wallet.sendTransaction(tx);
+    tx.add(create_profile_ix);
 
-    return '';
+    await wallet.sendTransaction(tx);
+
+    return profileKey.toBase58();
   }
 
   async createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<string> {
@@ -139,6 +119,7 @@ class SolanaTransport implements ITransport {
   }
 
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
+    const profileKey =
     return undefined;
   }
 
