@@ -3,7 +3,8 @@ use clap::{arg, Command};
 use race_core::{
     transport::TransportT,
     types::{
-        CreateGameAccountParams, CreateRegistrationParams, GameBundle, PublishGameParams, ServerAccount,
+        CreateGameAccountParams, CreateRegistrationParams, GameBundle, PublishGameParams,
+        RegisterGameParams, ServerAccount,
     },
 };
 use race_env::{default_keyfile, default_rpc};
@@ -14,6 +15,7 @@ use std::{fs::File, io::Read, path::PathBuf, sync::Arc};
 #[derive(Serialize, Deserialize)]
 pub struct CreateGameSpecs {
     title: String,
+    reg_addr: String,
     token_addr: String,
     bundle_addr: String,
     max_players: u8,
@@ -222,6 +224,11 @@ async fn create_game(transport: Arc<dyn TransportT>, specs: CreateGameSpecs) {
         .await
         .expect("Create game account failed");
     println!("Game account created at: {}", addr);
+    transport.register_game(RegisterGameParams {
+        game_addr: addr.clone(),
+        reg_addr: specs.reg_addr,
+    }).await.expect("Failed to register game");
+    println!("Game registered");
 }
 
 #[tokio::main]

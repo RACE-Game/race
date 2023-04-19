@@ -50,11 +50,9 @@ preview-demo-app: demo-app
 dev-facade:
     cargo run -p race-facade
 
-dev-transactor-1:
-    cargo run -p race-transactor -- -c ./examples/conf/race_server_1.toml run
-
-dev-transactor-2:
-    cargo run -p race-transactor -- -c ./examples/conf/race_server_2.toml run
+dev-transactor conf:
+    cargo run -p race-transactor -- -c {{conf}} reg
+    cargo run -p race-transactor -- -c {{conf}} run
 
 solana:
     (cd contracts/solana; cargo build-sbf)
@@ -66,6 +64,14 @@ ts-sdk:
     npm --prefix ./js/sdk-solana run build:js
     npm --prefix ./js/sdk-solana run build:typedefs
 
+publish name url:
+    cargo run -p race-cli -- -e local publish solana {{name}} {{url}}
+
+create-reg:
+    cargo run -p race-cli -- -e local create-reg solana
+
+create-game spec:
+    cargo run -p race-cli -- -e local create-game solana {{spec}}
 
 alias fa := dev-facade
 alias t1 := dev-transactor-1

@@ -14,14 +14,12 @@ pub struct FacadeConfig {
 pub struct SolanaConfig {
     pub rpc: String,
     pub keyfile: PathBuf,
-    pub reg_center: String,
 }
 
 #[derive(Deserialize)]
 pub struct BnbConfig {
     pub rpc: String,
     pub keyfile: PathBuf,
-    pub reg_center: String,
 }
 
 #[derive(Deserialize)]

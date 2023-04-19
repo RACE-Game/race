@@ -1,12 +1,11 @@
-use std::path::PathBuf;
-use crate::solana;
-use crate::facade;
 use crate::chain_type::ChainType;
 use crate::error::{TransportError, TransportResult};
+use crate::facade;
+use crate::solana;
 use race_core::transport::TransportT;
 use race_env::Config;
+use std::path::PathBuf;
 use tracing::info;
-
 
 #[derive(Default)]
 pub struct TransportBuilder {
@@ -49,6 +48,14 @@ impl TransportBuilder {
                             .as_ref()
                             .ok_or(TransportError::InvalidConfig)?
                             .rpc
+                            .clone(),
+                    );
+                    self.keyfile = Some(
+                        config
+                            .solana
+                            .as_ref()
+                            .ok_or(TransportError::InvalidConfig)?
+                            .keyfile
                             .clone(),
                     );
                 }
