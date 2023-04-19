@@ -24,7 +24,7 @@ function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
     const createProfile = async () => {
       if (helper !== undefined) {
             if (nick === "") {
-                alert("Can't be empty");
+                alert("Profile name can't be empty");
             } else {
                 console.log("Wallet:", wallet);
                 const walletAdapter = new SolanaWalletAdapter(wallet);

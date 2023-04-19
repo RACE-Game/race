@@ -103,10 +103,9 @@ impl TransportT for SolanaTransport {
             &self.program_id,
         );
 
-        let token_mint_pubkey = Self::parse_pubkey(&params.token_addr)?;
-
         // TODO: Use RACE ATA?
-        // Create an account and transfer its ownership to PDA in contract
+        // Create stake account to hold players deposits
+        let token_mint_pubkey = Self::parse_pubkey(&params.token_addr)?;
         let stake_account = Keypair::new();
         let stake_account_pubkey = stake_account.pubkey();
         let stake_account_len = Account::LEN;
@@ -148,6 +147,7 @@ impl TransportT for SolanaTransport {
                 // TODO: add scene pubkey
             ],
         );
+
         let message = Message::new(
             &[
                 create_game_account_ix,
@@ -157,6 +157,7 @@ impl TransportT for SolanaTransport {
             ],
             Some(&payer.pubkey()),
         );
+
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
         tx.sign(&[payer, &game_account, &stake_account], blockhash);
@@ -987,8 +988,6 @@ impl SolanaTransport {
             .client
             .get_account_data(&game_account_pubkey)
             .or(Err(TransportError::GameAccountNotFound))?;
-        println!("1");
-        // GameState::try_from_slice(&data).or(Err(TransportError::GameStateDeserializeError))
         Ok(GameState::try_from_slice(&data).unwrap())
     }
 
@@ -1003,7 +1002,6 @@ impl SolanaTransport {
             .client
             .get_account_data(&server_account_pubkey)
             .or(Err(TransportError::ServerAccountDataNotFound))?;
-
         ServerState::try_from_slice(&data).or(Err(TransportError::ServerStateDeserializeError))
     }
 

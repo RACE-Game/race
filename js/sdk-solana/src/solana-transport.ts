@@ -6,7 +6,9 @@ import {
   clusterApiUrl,
   TransactionInstruction,
   sendAndConfirmTransaction,
+  Keypair,
 } from '@solana/web3.js';
+import { AccountLayout, TOKEN_PROGRAM_ID, createInitializeAccountInstruction } from '@solana/spl-token';
 import {
   IWallet,
   ITransport,
@@ -26,16 +28,21 @@ import {
   ServerAccount,
   RegistrationAccount,
 } from 'race-sdk-core';
-import * as intruction from './instruction';
+import * as instruction from './instruction';
 
 import {
+  GAME_ACCOUNT_LEN,
+  NAME_LEN,
   PROFILE_ACCOUNT_LEN,
   PLAYER_PROFILE_SEED,
 } from './constants';
 
 import {
+  GameState,
   PlayerState,
 } from './accounts'
+
+import { SolanaWalletAdapter } from './solana-wallet';
 
 const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
 
@@ -47,7 +54,67 @@ export class SolanaTransport implements ITransport {
   }
 
   async createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string> {
-    return '';
+    const { title, bundleAddr, tokenAddr } = params;
+    if (title.length > NAME_LEN)   {
+      // FIXME: better error message?
+      throw Error('Game title length exceeds 16 chars');
+    }
+
+    const conn = this.#conn;
+    const payerKey = wallet.walletAddr;
+    console.log("Payer publick key: ", payerKey);
+
+    let tx = new Transaction();
+
+    // Create game account
+    const gameAccount = Keypair.generate();
+    const gameAccountKey = gameAccount.publicKey;
+    const lamports = await conn.getMinimumBalanceForRentExemption(GAME_ACCOUNT_LEN);
+    const createGameAccount = SystemProgram.createAccount({
+      fromPubkey: payerKey,
+      newAccountPubkey: gameAccountKey,
+      lamports: lamports,
+      space: GAME_ACCOUNT_LEN,
+      programId: PROGRAM_ID,
+    });
+    tx.add(createGameAccount);
+
+    // Create stake account to hold deposits
+    const tokenMintKey = new PublicKey(tokenAddr);
+    const stakeAccount = Keypair.generate();
+    const stakeAccountKey = stakeAccount.publicKey;
+    const stakeLamports = await conn.getMinimumBalanceForRentExemption(AccountLayout.span);
+    const createStakeAccount = SystemProgram.createAccount({
+      fromPubkey: payerKey,
+      newAccountPubkey: stakeAccountKey,
+      lamports: stakeLamports,
+      space: AccountLayout.span,
+      programId: TOKEN_PROGRAM_ID,
+    });
+    tx.add(createStakeAccount);
+
+    const initStakeAccount = createInitializeAccountInstruction(stakeAccountKey, tokenMintKey, payerKey, TOKEN_PROGRAM_ID);
+    tx.add(initStakeAccount);
+
+    const bundleKey = new PublicKey(bundleAddr);
+    const createGame = instruction.createGameAccount({
+      ownerKey: payerKey,
+      gameAccountKey: gameAccountKey,
+      stakeAccountKey: stakeAccountKey,
+      mint: tokenMintKey,
+      gameBundleKey: bundleKey,
+      title: title,
+      maxPlayers: params.maxPlayers,
+      minDeposit: params.minDeposit,
+      maxDeposit: params.maxDeposit,
+    });
+    tx.add(createGame);
+
+    tx.partialSign(gameAccount, stakeAccount);
+
+    await wallet.sendTransaction(tx, conn);
+
+    return gameAccountKey.toBase58();
   }
 
   async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> {}
@@ -69,20 +136,21 @@ export class SolanaTransport implements ITransport {
       throw new Error('Player nick name exceeds 16 chars');
     }
 
+    const conn = this.#conn;
     const payerKey = wallet.walletAddr;
+    console.log("Payer Public Key:", payerKey);
 
-    console.log("PayerKey:", payerKey);
     const profileKey = await PublicKey.createWithSeed(payerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
     console.log('Player profile public key: ', profileKey);
 
     let tx = new Transaction();
 
     // Check if player account already exists
-    if (!(await this.#conn.getAccountInfo(profileKey))) {
-      let lamports = await this.#conn.getMinimumBalanceForRentExemption(PROFILE_ACCOUNT_LEN);
+    if (!(await conn.getAccountInfo(profileKey))) {
+      let lamports = await conn.getMinimumBalanceForRentExemption(PROFILE_ACCOUNT_LEN);
 
       // Construct ix
-      const create_profile_account_ix = SystemProgram.createAccountWithSeed({
+      const createProfileAccount = SystemProgram.createAccountWithSeed({
         fromPubkey: payerKey,
         newAccountPubkey: profileKey,
         basePubkey: payerKey,
@@ -91,18 +159,18 @@ export class SolanaTransport implements ITransport {
         space: PROFILE_ACCOUNT_LEN,
         programId: PROGRAM_ID,
       });
-      tx.add(create_profile_account_ix);
+      tx.add(createProfileAccount);
     }
 
     // Get pfp ready
     const pfpKey = !pfp ? PublicKey.default : new PublicKey(pfp);
 
     // Construct ix
-    const create_profile_ix = intruction.createPlayerProfile(payerKey, profileKey, nick, pfpKey);
+    const createProfile = instruction.createPlayerProfile(payerKey, profileKey, nick, pfpKey);
 
-    tx.add(create_profile_ix);
+    tx.add(createProfile);
 
-    await wallet.sendTransaction(tx, this.#conn);
+    await wallet.sendTransaction(tx, conn);
 
     return profileKey.toBase58();
   }
@@ -116,7 +184,45 @@ export class SolanaTransport implements ITransport {
   async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> {}
 
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
-    return undefined;
+    const gameAccountKey = new PublicKey(addr);
+    const gameState = await this.getGameState(gameAccountKey);
+    if (gameState !== undefined) {
+      const {
+        title,
+        bundleAddr,
+        minDeposit,
+        maxDeposit,
+        transactorAddr,
+        accessVersion,
+        settleVersion,
+        maxPlayers,
+        players,
+        servers,
+        dataLen,
+        data,
+        votes,
+        unlockTime
+      } = gameState;
+
+      return {
+        addr: addr,
+        title: title,
+        bundleAddr: bundleAddr.toBase58(),
+        settleVersion: settleVersion,
+        accessVersion: accessVersion,
+        players: players,
+        deposits: deposit,
+        servers: servers,
+        transactorAddr: transactorAddr ? transactorAddr : undefined,
+        votes: votes,
+        unlockTime: unlockTime ? unlockTime : null,
+        maxPlayers: maxPlayers,
+        dataLen: dataLen,
+        data: data,
+      };
+    } else {
+      return undefined;
+    }
   }
 
   async getGameBundle(addr: string): Promise<GameBundle | undefined> {
@@ -151,5 +257,16 @@ export class SolanaTransport implements ITransport {
 
   async getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
     return undefined;
+  }
+
+  async getGameState(gameAccoutKey: PublicKey): Promise<GameState | undefined> {
+    const conn = this.#conn;
+    const gameAccount = await conn.getAccountInfo(gameAccoutKey);
+    if (!gameAccount) {
+      const data = gameAccount.data;
+      return GameState.deserialize(data);
+    } else {
+      return undefined;
+    }
   }
 }
