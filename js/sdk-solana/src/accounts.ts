@@ -78,8 +78,8 @@ export class PlayerState implements IPlayerState {
     return Buffer.from(borsh.serialize(playerStateSchema, this, ExtendedWriter))
   }
 
-  static deserialize(data: Uint8Array): PlayerState {
-    return borsh.deserializeUnchecked(playerStateSchema, PlayerState, Buffer.from(data), ExtendedReader)
+  static deserialize(data: Buffer): PlayerState {
+    return borsh.deserializeUnchecked(playerStateSchema, PlayerState, data, ExtendedReader)
   }
 }
 
@@ -91,8 +91,7 @@ const playerStateSchema = new Map([
       fields: [
         ['isInitialized', 'bool'],
         ['nick', 'string'],
-        ['pfp', { kind: 'option', type: 'publicKey', },
-        ],
+        ['pfp', { kind: 'option', type: 'publicKey' }],
       ],
     },
   ],
@@ -156,8 +155,8 @@ export class GameState {
       borsh.serialize(gameStateSchema, this, ExtendedWriter))
   }
 
-  static deserialize(data: Uint8Array): GameState {
-    return borsh.deserializeUnchecked(gameStateSchema, GameState, Buffer.from(data), ExtendedReader)
+  static deserialize(data: Buffer): GameState {
+    return borsh.deserializeUnchecked(gameStateSchema, GameState, data, ExtendedReader)
   }
 }
 
@@ -258,8 +257,8 @@ export class RegistryState implements IRegistryState {
       borsh.serialize(registryStateSchema, this, ExtendedWriter))
   }
 
-  static deserialize(data: Uint8Array): RegistryState {
-    return borsh.deserializeUnchecked(registryStateSchema, RegistryState, Buffer.from(data), ExtendedReader)
+  static deserialize(data: Buffer): RegistryState {
+    return borsh.deserializeUnchecked(registryStateSchema, RegistryState, data, ExtendedReader)
   }
 }
 

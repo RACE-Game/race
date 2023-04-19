@@ -81,7 +81,6 @@ mod tests {
         let mut state = RegistryState {
             is_initialized: true,
             is_private: false,
-            addr: Pubkey::new_unique(),
             size: 100,
             owner: Pubkey::new_unique(),
             games: Box::new(Vec::<GameReg>::with_capacity(100)),

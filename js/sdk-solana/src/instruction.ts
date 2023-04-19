@@ -186,8 +186,8 @@ export function createPlayerProfile(
       },
       {
         pubkey: profileKey,
-        isSigner: true,
-        isWritable: false,
+        isSigner: false,
+        isWritable: true,
       },
       {
         pubkey: pfpKey || PublicKey.default,

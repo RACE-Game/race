@@ -3,6 +3,7 @@ import HelperContext from './helper-context';
 import ProfileContext, { ProfileData } from './profile-context';
 import { WalletDisconnectButton, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { SolanaWalletAdapter } from 'race-sdk-solana';
 
 function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
     let [nick, setNick] = useState<string>("");
@@ -21,12 +22,13 @@ function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
     }
 
     const createProfile = async () => {
-        if (helper !== undefined) {
+      if (helper !== undefined) {
             if (nick === "") {
                 alert("Can't be empty");
             } else {
                 console.log("Wallet:", wallet);
-                let addr = await helper.create_profile(wallet, nick, nick, "");
+                const walletAdapter = new SolanaWalletAdapter(wallet);
+                let addr = await helper.create_profile(walletAdapter, nick, "");
                 const profile = await helper.get_profile(addr);
                 props.updateProfile(profile);
             }

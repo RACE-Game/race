@@ -68,13 +68,14 @@ mod tests {
 
     fn create_player() -> PlayerState {
         let mut player = PlayerState::default();
+        player.is_initialized = true;
         player.nick = "16-char_nickname".to_string();
-        player.pfp = Some(Pubkey::new_unique());
+        player.pfp = Some(Pubkey::default());
         player
     }
 
     #[test]
-    #[ignore]
+    // #[ignore]
     pub fn test_player_account_len() -> anyhow::Result<()> {
         let mut player = create_player();
         println!(
@@ -86,6 +87,7 @@ mod tests {
             "Player account aligned len {}",
             get_instance_packed_len(&player)?
         );
+        println!("data: {:?}", player.try_to_vec().unwrap());
         assert_eq!(get_instance_packed_len(&player)?, PlayerState::LEN);
         assert_eq!(1, 2);
         Ok(())

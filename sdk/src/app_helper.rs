@@ -18,7 +18,7 @@ use race_core::{
 
 #[wasm_bindgen]
 pub struct AppHelper {
-    transport: Transport
+    transport: Transport,
 }
 
 #[wasm_bindgen]
@@ -87,22 +87,13 @@ impl AppHelper {
     }
 
     #[wasm_bindgen]
-    pub async fn create_profile(
-        &self,
-        wallet: JsValue,
-        addr: &str,
-        nick: &str,
-        pfp: &str,
-    ) -> Result<String> {
+    pub async fn create_profile(&self, wallet: JsValue, nick: &str, pfp: &str) -> Result<String> {
         let pfp = if pfp.eq("") {
             None
         } else {
             Some(pfp.to_owned())
         };
-        info!(format!(
-            "Create profile, address: {}, nick: {}, pfp: {:?}",
-            addr, nick, pfp
-        ));
+        info!(format!("Create profile, nick: {}, pfp: {:?}", nick, pfp));
         let addr = self
             .transport
             .create_player_profile(

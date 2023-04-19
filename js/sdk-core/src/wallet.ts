@@ -1,4 +1,4 @@
 export interface IWallet {
-  walletAddr: string;
-  sendTransaction(tx: any): Promise<void>;
+  walletAddr: any;
+  sendTransaction(tx: any, conn: any): Promise<void>;
 }

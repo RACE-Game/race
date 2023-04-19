@@ -43,7 +43,7 @@ export class SolanaTransport implements ITransport {
   #conn: Connection;
 
   constructor(endpoint: string) {
-    this.#conn = new Connection(endpoint, 'finalized');
+    this.#conn = new Connection(endpoint, 'confirmed');
   }
 
   async createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string> {
@@ -69,8 +69,9 @@ export class SolanaTransport implements ITransport {
       throw new Error('Player nick name exceeds 16 chars');
     }
 
-    const payer = wallet.walletAddr;
-    const payerKey = new PublicKey(payer);
+    const payerKey = wallet.walletAddr;
+
+    console.log("PayerKey:", payerKey);
     const profileKey = await PublicKey.createWithSeed(payerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
     console.log('Player profile public key: ', profileKey);
 
@@ -91,19 +92,17 @@ export class SolanaTransport implements ITransport {
         programId: PROGRAM_ID,
       });
       tx.add(create_profile_account_ix);
-    } else {
-      throw new Error('Profile account already exists: ');
     }
 
     // Get pfp ready
-    const pfpKey = pfp === undefined ? PublicKey.default : new PublicKey(pfp);
+    const pfpKey = !pfp ? PublicKey.default : new PublicKey(pfp);
 
     // Construct ix
     const create_profile_ix = intruction.createPlayerProfile(payerKey, profileKey, nick, pfpKey);
 
     tx.add(create_profile_ix);
 
-    await wallet.sendTransaction(tx);
+    await wallet.sendTransaction(tx, this.#conn);
 
     return profileKey.toBase58();
   }
@@ -129,8 +128,12 @@ export class SolanaTransport implements ITransport {
     const profileKey = new PublicKey(addr);
 
     const profileAccount = await conn.getAccountInfo(profileKey);
+
+    console.log(profileAccount);
+
     if (profileAccount) {
       const profileAccountData = profileAccount.data;
+
       const { nick, pfp } = PlayerState.deserialize(profileAccountData);
       if (pfp !== undefined) {
         return { addr: addr, nick: nick, pfp: pfp.toBase58() };
