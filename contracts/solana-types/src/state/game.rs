@@ -23,7 +23,7 @@ use solana_sdk::pubkey::Pubkey;
 pub struct PlayerJoin {
     pub addr: Pubkey,
     pub balance: u64,
-    pub position: usize,
+    pub position: u32,
     pub access_version: u64,
 }
 
@@ -149,6 +149,18 @@ mod tests {
         println!("Game state len: {}", get_instance_packed_len(&state)?);
         assert_eq!(1, 2);
         Ok(())
+    }
+
+    #[test]
+    pub fn test_usize() {
+        let state = PlayerJoin {
+            addr: Pubkey::default(),
+            balance: 1,
+            position: 1,
+            access_version: 1,
+        };
+        println!("data: {:?}", state.try_to_vec().unwrap());
+        assert_eq!(1, 2);
     }
 
     pub fn make_game_state() -> GameState {

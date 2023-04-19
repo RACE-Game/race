@@ -5,8 +5,8 @@ import { IWallet } from 'race-sdk-core';
 export class SolanaWalletAdapter implements IWallet {
   #wallet: any;
 
-  get walletAddr(): PublicKey {
-    return this.#wallet.publicKey;
+  get walletAddr(): string {
+    return this.#wallet.publicKey.toBase58();
   }
 
   constructor(wallet: any) {

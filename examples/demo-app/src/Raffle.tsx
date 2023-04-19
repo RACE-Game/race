@@ -6,6 +6,7 @@ import ProfileContext from "./profile-context";
 import LogsContext from "./logs-context";
 import { useGameContext } from "./App";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { SolanaTransport, SolanaWalletAdapter } from "race-sdk-solana";
 
 interface State {
     random_id: number,
@@ -67,7 +68,9 @@ function Raffle() {
             if (profile !== undefined && addr !== undefined) {
                 console.log("Create AppClient");
                 let rpc = CHAIN_TO_RPC[chain];
-                let client = await AppClient.try_init(chain, rpc, profile.addr, addr, onEvent);
+                let walletAdapter = new SolanaWalletAdapter(wallet);
+                let transport = new SolanaTransport(rpc);
+                let client = await AppClient.try_init(transport, walletAdapter, addr, onEvent);
                 setClient(client);
                 await client.attach_game();
             }

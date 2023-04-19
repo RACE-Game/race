@@ -16,7 +16,7 @@ use std::sync::Arc;
 use crate::connection::Connection;
 use crate::handler::Handler;
 use crate::transport::Transport;
-use crate::utils::get_function;
+use crate::utils::{get_function, rget};
 use gloo::console::{debug, error, info, warn};
 
 use crate::error::Result;
@@ -60,6 +60,7 @@ impl AppClient {
         game_addr: &str,
         callback: Function,
     ) -> Result<AppClient> {
+        info!("Try init");
         let transport = Arc::new(Transport::new(transport));
         AppClient::try_new(transport, wallet, game_addr, callback).await
     }
@@ -70,38 +71,39 @@ impl AppClient {
         game_addr: &str,
         callback: Function,
     ) -> Result<Self> {
+        info!("Try new");
         let encryptor = Arc::new(Encryptor::default());
-        let player_addr = get_function(&wallet, "walletAddr")
-            .call0(&wallet)
-            .unwrap()
+        info!("Encryptor created");
+        info!(&wallet);
+        let player_addr = rget(&wallet, "walletAddr")
             .as_string()
-            .ok_or(Error::WalletNotConnected)?;
-
+            .unwrap();
+        info!("Player addr got");
         let game_account = transport
             .get_game_account(game_addr)
             .await
             .ok_or(Error::GameAccountNotFound)?;
-
+        info!("Game account loaded");
         let game_bundle = transport
             .get_game_bundle(&game_account.bundle_addr)
             .await
             .ok_or(Error::GameBundleNotFound)?;
-
+        info!("Game bundle loaded");
         let transactor_addr = game_account
             .transactor_addr
             .as_ref()
             .ok_or(Error::GameNotServed)?;
-
+        info!("Game is served");
         let transactor_account = transport
             .get_server_account(transactor_addr)
             .await
             .ok_or(Error::CantFindTransactor)?;
-
+        info!("Transactor account loaded");
         let connection = Arc::new(
             Connection::try_new(&player_addr, &transactor_account.endpoint, encryptor.clone())
                 .await?,
         );
-
+        info!("Connection initialized");
         let client = Client::new(
             player_addr.to_owned(),
             game_addr.to_owned(),
@@ -110,12 +112,16 @@ impl AppClient {
             encryptor.clone(),
             connection.clone(),
         );
+        info!("Game client created");
 
         let handler = Handler::from_bundle(game_bundle, encryptor).await;
+        info!("Game handler created");
 
         let mut game_context = GameContext::try_new(&game_account)?;
+        info!("Game context created");
 
         handler.init_state(&mut game_context, &game_account)?;
+        info!("Handler state initialized");
 
         let state_js =
             parse(game_context.get_handler_state_json()).map_err(|_| Error::JsonParseError)?;

@@ -64,7 +64,7 @@ export class SolanaTransport implements ITransport {
     }
 
     const conn = this.#conn;
-    const payerKey = wallet.walletAddr;
+    const payerKey = new PublicKey(wallet.walletAddr);
     console.log("Payer publick key: ", payerKey);
 
     let tx = new Transaction();
@@ -140,7 +140,7 @@ export class SolanaTransport implements ITransport {
     }
 
     const conn = this.#conn;
-    const payerKey = wallet.walletAddr;
+    const payerKey = new PublicKey(wallet.walletAddr);
     console.log("Payer Public Key:", payerKey);
 
     const profileKey = await PublicKey.createWithSeed(payerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
