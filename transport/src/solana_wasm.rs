@@ -332,6 +332,7 @@ impl TransportLocalT for SolanaWasmTransport {
             title: state.title,
             settle_version: state.settle_version,
             bundle_addr,
+            token_addr: state.token_mint.to_string(),
             access_version: state.access_version,
             players: state
                 .players

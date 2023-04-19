@@ -764,7 +764,7 @@ impl TransportT for SolanaTransport {
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let game_account_pubkey = Self::parse_pubkey(addr).ok()?;
         println!("pubkey: {}", game_account_pubkey.to_string());
-        let state = self
+        let state: GameState = self
             .internal_get_game_account(&game_account_pubkey)
             .await
             .ok()?;
@@ -779,6 +779,7 @@ impl TransportT for SolanaTransport {
             title: state.title,
             settle_version: state.settle_version,
             bundle_addr,
+            token_addr: state.token_mint.to_string(),
             access_version: state.access_version,
             players: state
                 .players

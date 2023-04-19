@@ -154,6 +154,7 @@ pub struct GameAccount {
     pub addr: String,
     pub title: String,
     pub bundle_addr: String,
+    pub token_addr: String,
     pub settle_version: u64,
     pub access_version: u64,
     pub players: Vec<PlayerJoin>,
