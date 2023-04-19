@@ -9,6 +9,7 @@ import {
   Keypair,
 } from '@solana/web3.js';
 import { AccountLayout, TOKEN_PROGRAM_ID, createInitializeAccountInstruction } from '@solana/spl-token';
+import { Metaplex, keypairIdentity, bundlrStorage } from '@metaplex-foundation/js'
 import {
   IWallet,
   ITransport,
@@ -40,9 +41,12 @@ import {
 import {
   GameState,
   PlayerState,
+  RegistryState,
+  ServerState,
 } from './accounts'
 
 import { SolanaWalletAdapter } from './solana-wallet';
+import { isBundlrStorageDriver } from '@metaplex-foundation/js';
 
 const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
 
@@ -185,48 +189,28 @@ export class SolanaTransport implements ITransport {
 
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
     const gameAccountKey = new PublicKey(addr);
-    const gameState = await this.getGameState(gameAccountKey);
+    const gameState = await this._getGameState(gameAccountKey);
     if (gameState !== undefined) {
-      const {
-        title,
-        bundleAddr,
-        minDeposit,
-        maxDeposit,
-        transactorAddr,
-        accessVersion,
-        settleVersion,
-        maxPlayers,
-        players,
-        servers,
-        dataLen,
-        data,
-        votes,
-        unlockTime
-      } = gameState;
-
-      return {
-        addr: addr,
-        title: title,
-        bundleAddr: bundleAddr.toBase58(),
-        settleVersion: settleVersion,
-        accessVersion: accessVersion,
-        players: players,
-        deposits: deposit,
-        servers: servers,
-        transactorAddr: transactorAddr ? transactorAddr : undefined,
-        votes: votes,
-        unlockTime: unlockTime ? unlockTime : null,
-        maxPlayers: maxPlayers,
-        dataLen: dataLen,
-        data: data,
-      };
+      return gameState.generalize(new PublicKey(addr));
     } else {
       return undefined;
     }
   }
 
   async getGameBundle(addr: string): Promise<GameBundle | undefined> {
-    return undefined;
+    const mintKey = new PublicKey(addr);
+    const conn = this.#conn;
+    const metaplex = new Metaplex(conn);
+    const nft = await metaplex.nfts().findByMint({ mintAddress: mintKey });
+    const { uri, name } = nft;
+    const response = await fetch(uri);
+    const metadata: any = response.json();
+    const wasm = metadata.properties.files.find((f:any) => f['type'] == "application/wasm");
+
+    const respWasm = await fetch(wasm.uri);
+    const data = new Uint8Array(await respWasm.arrayBuffer());
+
+    return { uri: uri, name: name.replace(/\0/g, ''), data };
   }
 
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
@@ -252,21 +236,56 @@ export class SolanaTransport implements ITransport {
   }
 
   async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
-    return undefined;
+    const severKey = new PublicKey(addr);
+    const serverState = await this._getServerState(severKey);
+    if (serverState !== undefined) {
+      return serverState.generalize();
+    } else {
+      return undefined;
+    }
   }
 
   async getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
-    return undefined;
+    const regKey = new PublicKey(addr);
+    const regState = await this._getRegState(regKey);
+    if (regState !== undefined) {
+      return regState.generalize();
+    } else {
+      return undefined;
+    }
   }
 
-  async getGameState(gameAccoutKey: PublicKey): Promise<GameState | undefined> {
+  async _getGameState(gameAccoutKey: PublicKey): Promise<GameState | undefined> {
     const conn = this.#conn;
     const gameAccount = await conn.getAccountInfo(gameAccoutKey);
-    if (!gameAccount) {
+    if (gameAccount !== null) {
       const data = gameAccount.data;
       return GameState.deserialize(data);
     } else {
       return undefined;
     }
   }
+
+  async _getRegState(regKey: PublicKey): Promise<RegistryState | undefined> {
+    const conn = this.#conn;
+    const regAccount = await conn.getAccountInfo(regKey);
+    if (regAccount !== null) {
+      const data = regAccount.data;
+      return RegistryState.deserialize(data);
+    } else {
+      return undefined;
+    }
+  }
+
+  async _getServerState(regKey: PublicKey): Promise<ServerState | undefined> {
+    const conn = this.#conn;
+    const serverAccount = await conn.getAccountInfo(regKey);
+    if (serverAccount !== null) {
+      const data = serverAccount.data;
+      return ServerState.deserialize(data);
+    } else {
+      return undefined;
+    }
+  }
+
 }

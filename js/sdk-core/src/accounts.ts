@@ -65,6 +65,7 @@ export type ServerAccount = {
 export type GameBundle = {
   readonly uri: string;
   readonly name: string;
+  readonly data: Uint8Array;
 };
 
 export type PlayerProfile = {
