@@ -11,6 +11,7 @@ members = [
   "env",
   "sdk",
   "client",
+  "nft-storage",
   "test",
   "contracts/solana",
   "contracts/solana-types",
@@ -73,3 +74,4 @@ wasm-bindgen-futures = "0.4.33"
 wasm-bindgen-test = "0.3.33"
 js-sys = "0.3.60"
 project-root = "0.2.2"
+reqwest = "0.11.16"

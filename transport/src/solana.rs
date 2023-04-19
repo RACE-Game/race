@@ -698,7 +698,6 @@ impl TransportT for SolanaTransport {
         println!("payer pubkey {:?}", payer_pubkey);
         println!("game pubkey {:?}", game_account_pubkey);
         println!("reg pubkey {:?}", reg_account_pubkey);
-        println!("reg_state addr {:?}", reg_state.addr);
         println!("reg_state owner {:?}", reg_state.owner);
 
         if reg_state.games.len() == reg_state.size as usize {
@@ -827,11 +826,14 @@ impl TransportT for SolanaTransport {
         let metadata_account_state =
             Metadata::deserialize(&mut metadata_account_data.as_slice()).unwrap();
         let metadata_data = metadata_account_state.data;
+        let uri = metadata_data.uri.trim_end_matches('\0').to_string();
+
+        let data = race_nft_storage::fetch_wasm_from_game_bundle(&uri).await.ok()?;
 
         Some(GameBundle {
-            uri: metadata_data.uri.trim_end_matches('\0').to_string(),
+            uri,
             name: metadata_data.name.trim_end_matches('\0').to_string(),
-            symbol: metadata_data.symbol.trim_end_matches('\0').to_string(),
+            data
         })
     }
 

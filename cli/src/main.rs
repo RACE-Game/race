@@ -108,19 +108,10 @@ async fn create_transport(
 }
 
 async fn publish(name: String, bundle: String, transport: Arc<dyn TransportT>) {
-    // let mut file = File::open(bundle).unwrap();
-    // let mut buf = Vec::with_capacity(0x4000);
-    // file.read_to_end(&mut buf).unwrap();
-    // let addr = "facade-program-addr".into();
-    // let base64 = base64::prelude::BASE64_STANDARD;
-    // let data = base64.encode(&buf);
-    // let bundle = GameBundle { addr, data };
-    // let resp = transport.publish_game(bundle).await.expect("RPC error");
-    // println!("Address: {:?}", &resp);
     let params = PublishGameParams {
         uri: bundle,
         name,
-        symbol: "RACE".into(),
+        symbol: "RACEBUNDLE".into(),
     };
     let resp = transport.publish_game(params).await.expect("RPC error");
     println!("Address: {:?}", &resp);
@@ -129,8 +120,7 @@ async fn publish(name: String, bundle: String, transport: Arc<dyn TransportT>) {
 async fn bundle_info(addr: &str, transport: Arc<dyn TransportT>) {
     match transport.get_game_bundle(addr).await {
         Some(game_bundle) => {
-            println!("Game bundle: {:?}", game_bundle.addr);
-            println!("Data size: {:?}", game_bundle.data.len());
+            println!("Game bundle: {:?}", game_bundle.name);
         }
         None => {
             println!("Game bundle not found");

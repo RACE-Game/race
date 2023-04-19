@@ -115,6 +115,9 @@ pub enum TransportError {
 
     #[error("Failed to mint NFT: {0}")]
     MintNFTError(String),
+
+    #[error("Failed to load game bundle: {0}")]
+    LoadGameBundleError(String),
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;
@@ -122,5 +125,12 @@ pub type TransportResult<T> = std::result::Result<T, TransportError>;
 impl From<TransportError> for race_core::error::Error {
     fn from(value: TransportError) -> Self {
         Self::TransportError(value.to_string())
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl From<race_nft_storage::Error> for TransportError {
+    fn from(value: race_nft_storage::Error) -> Self {
+        Self::LoadGameBundleError(value.to_string())
     }
 }

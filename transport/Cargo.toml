@@ -28,6 +28,7 @@ solana-sdk = { workspace = true }
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
 mpl-token-metadata = { workspace = true }
+race-nft-storage = { path = "../nft-storage" }
 
 [dev-dependencies]
 anyhow = { workspace = true }

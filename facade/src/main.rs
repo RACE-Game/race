@@ -78,11 +78,12 @@ async fn publish_game_bundle(
     params: Params<'_>,
     context: Arc<Mutex<Context>>,
 ) -> RpcResult<String> {
-    let PublishGameParams { uri, .. } = params.one()?;
+    let PublishGameParams { uri, name,.. } = params.one()?;
     let addr = random_addr();
     let bundle = GameBundle {
-        data: uri,
-        addr: addr.clone(),
+        data: vec![],
+        name,
+        uri,
     };
     let mut context = context.lock().await;
     context.bundles.insert(addr.clone(), bundle);
@@ -616,10 +617,9 @@ fn add_bundle(ctx: &mut Context, path: &str, bundle_addr: &str) {
     let mut f = File::open(path).expect("race_example_chat.wasm not found");
     let mut data = vec![];
     f.read_to_end(&mut data).unwrap();
-    let base64 = base64::prelude::BASE64_STANDARD;
-    let data = base64.encode(data);
     let bundle = GameBundle {
-        addr: bundle_addr.into(),
+        name: bundle_addr.to_owned(),
+        uri: "".into(),
         data,
     };
     ctx.bundles.insert(bundle_addr.into(), bundle);
