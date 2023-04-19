@@ -265,6 +265,7 @@ export class SolanaTransport implements ITransport {
     const gameAccount = await conn.getAccountInfo(gameAccoutKey);
     if (gameAccount !== null) {
       const data = gameAccount.data;
+      console.log(JSON.stringify(data));
       return GameState.deserialize(data);
     } else {
       return undefined;

@@ -10,6 +10,7 @@ import {
   Vote,
 } from '../src/accounts';
 import { PublicKey } from '@solana/web3.js';
+import { ACCOUNT_DATA } from './account_data';
 
 describe('Test account data serialization', () => {
   it('PlayerState', () => {
@@ -60,6 +61,10 @@ describe('Test account data serialization', () => {
     let buf = state.serialize();
     let deserialized = RegistryState.deserialize(buf);
     assert.deepStrictEqual(state, deserialized);
+  })
+
+  it('GameState deserialize', () => {
+    let deserialized = GameState.deserialize(Buffer.from(ACCOUNT_DATA));
   })
 
   it('GameState', () => {
@@ -118,4 +123,6 @@ describe('Test account data serialization', () => {
     let deserialized = ServerState.deserialize(buf);
     assert.deepStrictEqual(state, deserialized);
   })
+
+
 })

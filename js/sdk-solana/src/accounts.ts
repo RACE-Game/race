@@ -219,8 +219,9 @@ const gameStateSchema = new Map<Function, any>([
       fields: [
         ['addr', 'publicKey'],
         ['balance', 'bigint'],
-        ['accessVersion', 'bigint'],
-        ['position', 'u32']
+        ['position', 'u32'],
+        ['accessVersion', 'bigint']
+
       ]
     }
   ],
@@ -231,17 +232,6 @@ const gameStateSchema = new Map<Function, any>([
         ['voter', 'publicKey'],
         ['votee', 'publicKey'],
         ['voteType', 'u8']
-      ]
-    }
-  ],
-  [
-    PlayerJoin, {
-      kind: 'struct',
-      fields: [
-        ['addr', 'publicKey'],
-        ['balance', 'bigint'],
-        ['position', 'u32'],
-        ['accessVersion', 'bigint'],
       ]
     }
   ],
@@ -271,7 +261,7 @@ const gameStateSchema = new Map<Function, any>([
           { kind: 'option', type: 'publicKey' }],
         ['accessVersion', 'bigint'],
         ['settleVersion', 'bigint'],
-        ['maxPlayers', 'u32'],
+        ['maxPlayers', 'u8'],
         ['players', [PlayerJoin]],
         ['servers', [ServerJoin]],
         ['dataLen', 'u32'],

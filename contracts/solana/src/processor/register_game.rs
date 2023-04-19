@@ -5,6 +5,7 @@ use crate::{
 
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
+    clock::Clock,
     entrypoint::ProgramResult,
     msg,
     program_error::ProgramError,
@@ -67,36 +68,30 @@ pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult
             .iter()
             .any(|reg| reg.addr.eq(game_account.key))
         {
-            msg!("0");
             return Err(ProcessError::GameAlreadyRegistered)?;
         }
-    } else if registry_state.games.len() == 0 {
-        // FIXME
-        let timestamp = 1680971620u64;
-        // let timestamp = SystemTime::now()
-        //     .duration_since(SystemTime::UNIX_EPOCH)
-        //     .expect("Timestamp")
-        //     .as_secs() as u64;
-        let reg_game = GameReg {
-            title: game_state.title.clone(),
-            addr: game_account.key.clone(),
-            reg_time: timestamp,
-            bundle_addr: game_state.bundle_addr.clone(),
-            // is_hidden: params.is_hidden,
-        };
-
-        registry_state.games.push(reg_game);
-        registry_state.update_padding()?;
-
-        RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;
-
-        added = true;
-        msg!(
-            "Registered game {} to {}",
-            game_account.key.clone(),
-            registry_account.key.clone()
-        );
     }
+
+    let clock = Clock::get()?;
+    let timestamp = clock.epoch;
+    let reg_game = GameReg {
+        title: game_state.title.clone(),
+        addr: game_account.key.clone(),
+        reg_time: timestamp,
+        bundle_addr: game_state.bundle_addr.clone(),
+    };
+
+    registry_state.games.push(reg_game);
+    registry_state.update_padding()?;
+
+    RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;
+
+    added = true;
+    msg!(
+        "Registered game {} to {}",
+        game_account.key.clone(),
+        registry_account.key.clone()
+    );
 
     if !added {
         return Err(ProcessError::RegistrationIsFull)?;
