@@ -321,8 +321,9 @@ export class RegistryState implements IRegistryState {
     return borsh.deserializeUnchecked(registryStateSchema, RegistryState, data, ExtendedReader)
   }
 
-  generalize(): RaceCore.RegistrationAccount {
+  generalize(addr: PublicKey): RaceCore.RegistrationAccount {
     return {
+      addr: addr.toBase58(),
       isPrivate: this.isPrivate,
       size: this.size,
       owner: this.owner.toBase58(),

@@ -35,7 +35,7 @@
     "typescript": "^5.0.3"
   },
   "peerDependencies": {
-    "@metaplex-foundation/js": "^0.18.3",
+    "@metaplex-foundation/mpl-token-metadata": "^2.10.0",
     "@solana/buffer-layout": "^4.0.1",
     "@solana/buffer-layout-utils": "^0.2.0",
     "@solana/spl-token": "^0.3.7",

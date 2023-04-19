@@ -3,10 +3,9 @@ import { Buffer } from 'buffer';
 import * as borsh from 'borsh';
 import { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { ExtendedWriter } from './utils';
-import { Metaplex } from '@metaplex-foundation/js';
+import { PROGRAM_ID as METAPLEX_PROGRAM_ID } from '@metaplex-foundation/mpl-token-metadata';
 
 const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
-const METAPLEX_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
 
 // Instruction types
 
@@ -386,7 +385,6 @@ export type PublishGameOptions = {
   ownerKey: PublicKey,
   mint: PublicKey,
   tokenAccountKey: PublicKey,
-  metaplex: Metaplex,
   uri: string,
   name: string,
   symbol: string,
@@ -396,11 +394,20 @@ export function publishGame(
   opts: PublishGameOptions
 ): TransactionInstruction {
   const {
-    ownerKey, mint, metaplex, uri, name, symbol
+    ownerKey, mint, uri, name, symbol
   } = opts;
 
-  let metadataPda = metaplex.nfts().pdas().metadata({ mint });
-  let editonPda = metaplex.nfts().pdas().masterEdition({ mint });
+  let [metadataPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("metadata", 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mint.toBuffer()], METAPLEX_PROGRAM_ID);
+
+  let [editonPda] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("metadata", 'utf8'),
+      METAPLEX_PROGRAM_ID.toBuffer(),
+      mint.toBuffer(),
+      Buffer.from("edition", 'utf8')
+    ], METAPLEX_PROGRAM_ID
+  );
   let ata = getAssociatedTokenAddressSync(mint, ownerKey);
 
   let data = new PublishGameData(uri, name, symbol).serialize();

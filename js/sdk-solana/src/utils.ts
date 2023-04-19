@@ -1,5 +1,5 @@
 import { PublicKey } from '@solana/web3.js';
-import { Buffer } from 'buffer';
+// import { Buffer } from 'buffer';
 import * as borsh from 'borsh';
 
 export class ExtendedWriter extends borsh.BinaryWriter {
@@ -36,7 +36,9 @@ export class ExtendedReader extends borsh.BinaryReader {
   }
 
   readBigint() {
-    return Buffer.from(this.readFixedArray(8)).readBigUInt64LE(0)
+    let arr = this.readFixedArray(8)
+    let buf = Buffer.from(arr);
+    return buf.readUintLE(0, 8);
   }
 
   readBytes() {

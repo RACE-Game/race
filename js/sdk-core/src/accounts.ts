@@ -75,6 +75,7 @@ export type PlayerProfile = {
 };
 
 export type RegistrationAccount = {
+  readonly addr: string;
   readonly isPrivate: boolean;
   readonly size: number;
   readonly owner: string | undefined;

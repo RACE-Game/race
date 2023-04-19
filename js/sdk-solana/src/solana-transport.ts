@@ -9,7 +9,7 @@ import {
   Keypair,
 } from '@solana/web3.js';
 import { AccountLayout, TOKEN_PROGRAM_ID, createInitializeAccountInstruction } from '@solana/spl-token';
-import { Metaplex, keypairIdentity, bundlrStorage } from '@metaplex-foundation/js'
+import { Metadata, PROGRAM_ID as METAPLEX_PROGRAM_ID } from '@metaplex-foundation/mpl-token-metadata';
 import {
   IWallet,
   ITransport,
@@ -46,7 +46,6 @@ import {
 } from './accounts'
 
 import { SolanaWalletAdapter } from './solana-wallet';
-import { isBundlrStorageDriver } from '@metaplex-foundation/js';
 
 const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
 
@@ -59,7 +58,7 @@ export class SolanaTransport implements ITransport {
 
   async createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string> {
     const { title, bundleAddr, tokenAddr } = params;
-    if (title.length > NAME_LEN)   {
+    if (title.length > NAME_LEN) {
       // FIXME: better error message?
       throw Error('Game title length exceeds 16 chars');
     }
@@ -121,17 +120,17 @@ export class SolanaTransport implements ITransport {
     return gameAccountKey.toBase58();
   }
 
-  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> {}
+  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> { }
 
-  async join(wallet: IWallet, params: JoinParams): Promise<void> {}
+  async join(wallet: IWallet, params: JoinParams): Promise<void> { }
 
-  async deposit(wallet: IWallet, params: DepositParams): Promise<void> {}
+  async deposit(wallet: IWallet, params: DepositParams): Promise<void> { }
 
   async publishGame(wallet: IWallet, params: PublishGameParams): Promise<string> {
     return '';
   }
 
-  async vote(wallet: IWallet, params: VoteParams): Promise<void> {}
+  async vote(wallet: IWallet, params: VoteParams): Promise<void> { }
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<string> {
     const { nick, pfp } = params;
@@ -183,9 +182,9 @@ export class SolanaTransport implements ITransport {
     return '';
   }
 
-  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> {}
+  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> { }
 
-  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> {}
+  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> { }
 
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
     const gameAccountKey = new PublicKey(addr);
@@ -200,12 +199,16 @@ export class SolanaTransport implements ITransport {
   async getGameBundle(addr: string): Promise<GameBundle | undefined> {
     const mintKey = new PublicKey(addr);
     const conn = this.#conn;
-    const metaplex = new Metaplex(conn);
-    const nft = await metaplex.nfts().findByMint({ mintAddress: mintKey });
-    const { uri, name } = nft;
+    const [metadataKey] = PublicKey.findProgramAddressSync(
+      [Buffer.from("metadata", 'utf8'),
+      METAPLEX_PROGRAM_ID.toBuffer(),
+      mintKey.toBuffer()],
+      METAPLEX_PROGRAM_ID);
+    const metadataState = await Metadata.fromAccountAddress(conn, metadataKey);
+    const { uri, name } = metadataState.data;
     const response = await fetch(uri);
     const metadata: any = response.json();
-    const wasm = metadata.properties.files.find((f:any) => f['type'] == "application/wasm");
+    const wasm = metadata.properties.files.find((f: any) => f['type'] == "application/wasm");
 
     const respWasm = await fetch(wasm.uri);
     const data = new Uint8Array(await respWasm.arrayBuffer());
@@ -249,7 +252,9 @@ export class SolanaTransport implements ITransport {
     const regKey = new PublicKey(addr);
     const regState = await this._getRegState(regKey);
     if (regState !== undefined) {
-      return regState.generalize();
+      let x = regState.generalize(regKey);
+      console.log(x);
+      return x;
     } else {
       return undefined;
     }

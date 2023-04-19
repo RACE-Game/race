@@ -7,6 +7,7 @@ use super::common::VoteType;
 
 /// Represent a player call the join instruction in contract.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerJoin {
     pub addr: String,
     pub position: usize,
@@ -32,6 +33,7 @@ impl PlayerJoin {
 
 /// Represent a player call the deposit instruction in contract.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerDeposit {
     pub addr: String,
     pub amount: u64,
@@ -49,6 +51,7 @@ impl PlayerDeposit {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ServerJoin {
     pub addr: String,
     pub endpoint: String,
@@ -66,6 +69,7 @@ impl ServerJoin {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Vote {
     pub voter: String,
     pub votee: String,
@@ -76,6 +80,7 @@ pub struct Vote {
 #[derive(
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct ServerAccount {
     pub addr: String,
     // The public key of transactor owner
@@ -150,11 +155,13 @@ pub struct ServerAccount {
 #[derive(
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct GameAccount {
     pub addr: String,
     pub title: String,
     pub bundle_addr: String,
     pub token_addr: String,
+    pub owner_addr: String,
     pub settle_version: u64,
     pub access_version: u64,
     pub players: Vec<PlayerJoin>,
@@ -173,6 +180,7 @@ pub struct GameAccount {
 #[derive(
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct GameRegistration {
     pub title: String,
     pub addr: String,
@@ -183,6 +191,7 @@ pub struct GameRegistration {
 #[derive(
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct RegistrationAccount {
     pub addr: String,
     pub is_private: bool,
@@ -192,6 +201,7 @@ pub struct RegistrationAccount {
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct GameBundle {
     pub uri: String,
     pub name: String,
@@ -199,8 +209,22 @@ pub struct GameBundle {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerProfile {
     pub addr: String,
     pub nick: String,
     pub pfp: Option<String>,
+}
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_deser() {
+        let s = "{\"isPrivate\":false,\"size\":100,\"owner\":\"F6JoJgWrVZEUaRVpA2uQyRQDNdZXyhyiD8KqdfXcjXQN\",\"games\":[{\"title\":\"Raffle example\",\"addr\":\"CgZrTfRcuZ1nUbRxF6vgMnFB6ywQmj8Gai6STqwdaEae\",\"bundleAddr\":\"ES6Zpewa3XBcpBGhG7NSKgqFj7Nixzdgg21ANVs7wEUY\",\"regTime\":1680971620}]}";
+        let ra: RegistrationAccount = serde_json::from_str(s).unwrap();
+    }
 }
