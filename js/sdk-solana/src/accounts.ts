@@ -60,7 +60,7 @@ export interface IGameState {
   players: IPlayerJoin[];
   servers: IServerJoin[];
   dataLen: number;
-  data: Uint8Array;
+  data: number[];
   votes: IVote[];
   unlockTime: bigint | undefined;
 };
@@ -171,7 +171,7 @@ export class GameState implements IGameState {
   players!: PlayerJoin[];
   servers!: ServerJoin[];
   dataLen!: number;
-  data!: Uint8Array;
+  data!: number[];
   votes!: Vote[];
   unlockTime: bigint | undefined;
 

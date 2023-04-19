@@ -50,8 +50,10 @@ preview-demo-app: demo-app
 dev-facade:
     cargo run -p race-facade
 
-dev-transactor conf:
+dev-reg-transactor conf:
     cargo run -p race-transactor -- -c {{conf}} reg
+
+dev-transactor conf:
     cargo run -p race-transactor -- -c {{conf}} run
 
 solana:

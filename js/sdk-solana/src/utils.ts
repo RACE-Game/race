@@ -38,12 +38,15 @@ export class ExtendedReader extends borsh.BinaryReader {
   readBigint() {
     let arr = this.readFixedArray(8)
     let buf = Buffer.from(arr);
-    // return buf.readUintLE(0, 8);
-    return buf.readBigUInt64LE();
+    if (buf.readBigUInt64LE === undefined) {
+      return buf.readUintLE(0, 8);
+    } else {
+      return buf.readBigUInt64LE();
+    }
   }
 
   readBytes() {
     const len = this.readU32();
-    return this.readFixedArray(len);
+    return Array.from(this.readFixedArray(len));
   }
 }

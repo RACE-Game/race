@@ -27,8 +27,8 @@ Uploaded NFT metadata on Arweave:
 - Raffle: https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E
 
 ```shell
-just publish Chat https://arweave.app/tx/qXM8gjD1sxey90T-U8KPz_Cuj-APuq3hu34AIWz9SXc
-just publish Raffle https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E
+just publish Chat https://arweave.net/qXM8gjD1sxey90T-U8KPz_Cuj-APuq3hu34AIWz9SXc
+just publish Raffle https://arweave.net/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E
 ```
 
 NFT addresses will be returned when upload succeed. Later we will use this NFT token address as **bundle address**.

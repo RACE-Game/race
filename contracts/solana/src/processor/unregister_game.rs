@@ -25,33 +25,34 @@ pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult
     if !payer.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
-    msg!("1");
+
     let mut registry_state = RegistryState::unpack(&registry_account.try_borrow_data()?)?;
     if !registry_state.is_initialized {
         return Err(ProgramError::UninitializedAccount);
     }
-    msg!("2");
 
-    let rent = Rent::get()?;
-    if !rent.is_exempt(registry_account.lamports(), RegistryState::LEN) {
-        return Err(ProgramError::AccountNotRentExempt);
+    {
+        let rent = Rent::get()?;
+        if !rent.is_exempt(registry_account.lamports(), RegistryState::LEN) {
+            return Err(ProgramError::AccountNotRentExempt);
+        }
     }
-    msg!("3");
 
     if registry_state.is_private && registry_state.owner.ne(payer.key) {
         return Err(ProcessError::InvalidOwner)?;
     }
-    msg!("4");
 
-    let game_state = GameState::unpack(&game_account.try_borrow_data()?)?;
-    if !game_state.is_initialized {
-        return Err(ProgramError::UninitializedAccount);
-    }
+    {
+        let game_state = GameState::unpack(&game_account.try_borrow_data()?)?;
+        if !game_state.is_initialized {
+            return Err(ProgramError::UninitializedAccount);
+        }
 
-    if game_state.owner.ne(payer.key) {
-        return Err(ProcessError::InvalidOwner)?;
+        if game_state.owner.ne(payer.key) {
+            return Err(ProcessError::InvalidOwner)?;
+        }
+        drop(game_state);
     }
-    msg!("6");
 
     let mut removed = false;
     if registry_state
@@ -74,6 +75,7 @@ pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult
         msg!("Unregitered game {}", unreg_game.addr);
 
         registry_state.update_padding()?;
+        msg!("len: {:?}", registry_state.padding.len());
         RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;
 
         removed = true;

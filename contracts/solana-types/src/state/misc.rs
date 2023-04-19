@@ -5,6 +5,7 @@ use solana_program::{program_error::ProgramError, program_pack::Sealed};
 pub trait Padded: Sealed {
     fn get_padding_mut(&mut self) -> Result<(usize, &mut Box<Vec<u8>>), ProgramError>;
 
+    #[inline(never)]
     fn update_padding(&mut self) -> Result<(), ProgramError> {
         let (needed_size, padding) = self.get_padding_mut()?;
         let current_size = padding.len();

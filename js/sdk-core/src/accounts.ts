@@ -51,7 +51,7 @@ export type GameAccount = {
   unlockTime: bigint | undefined;
   maxPlayers: number;
   dataLen: number;
-  data: Uint8Array;
+  data: number[];
   minDeposit: bigint;
   maxDeposit: bigint;
 };

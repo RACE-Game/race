@@ -4,7 +4,7 @@ use race_core::{
     transport::TransportT,
     types::{
         CreateGameAccountParams, CreateRegistrationParams, GameBundle, PublishGameParams,
-        RegisterGameParams, ServerAccount,
+        RegisterGameParams, ServerAccount, UnregisterGameParams,
     },
 };
 use race_env::{default_keyfile, default_rpc};
@@ -86,6 +86,14 @@ fn cli() -> Command {
                 .about("Create game account")
                 .arg(arg!(<CHAIN> "The chain to interact"))
                 .arg(arg!(<SPEC_FILE> "The path to specification file"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
+            Command::new("unreg-game")
+                .about("Unregister game account")
+                .arg(arg!(<CHAIN> "The chain to interact"))
+                .arg(arg!(<REG> "The address of registration account"))
+                .arg(arg!(<GAME> "The address of game account"))
                 .arg_required_else_help(true),
         )
 }
@@ -209,7 +217,7 @@ async fn create_reg(transport: Arc<dyn TransportT>) {
     println!("Registration created at: {}", addr);
 }
 
-async fn create_game(transport: Arc<dyn TransportT>, specs: CreateGameSpecs) {
+async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
     let params = CreateGameAccountParams {
         title: specs.title,
         bundle_addr: specs.bundle_addr,
@@ -229,6 +237,15 @@ async fn create_game(transport: Arc<dyn TransportT>, specs: CreateGameSpecs) {
         reg_addr: specs.reg_addr,
     }).await.expect("Failed to register game");
     println!("Game registered");
+}
+
+async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) {
+    println!("Unregister game {} from registration {}", game_addr, reg_addr);
+    transport.unregister_game(UnregisterGameParams {
+        game_addr: game_addr.to_owned(),
+        reg_addr: reg_addr.to_owned()
+    }).await.expect("Failed to unregister game");
+    println!("Game unregistered");
 }
 
 #[tokio::main]
@@ -291,7 +308,18 @@ async fn main() {
             let specs = CreateGameSpecs::from_file(spec_file.into());
             let transport =
                 create_transport(&chain, rpc.as_deref(), keyfile.cloned(), env.as_deref()).await;
-            create_game(transport, specs).await;
+            create_game(specs, transport).await;
+        }
+        Some(("unreg-game", sub_matches)) => {
+            let chain = sub_matches.get_one::<String>("CHAIN").expect("required");
+            let reg_addr = sub_matches.get_one::<String>("REG").expect("required");
+            let game_addr = sub_matches.get_one::<String>("GAME").expect("required");
+            let keyfile = matches.get_one::<String>("keyfile");
+            let rpc = matches.get_one::<String>("rpc").map(String::as_ref);
+            let env = matches.get_one::<String>("env").map(String::as_ref);
+            let transport =
+                create_transport(&chain, rpc.as_deref(), keyfile.cloned(), env.as_deref()).await;
+            unreg_game(reg_addr.clone(), game_addr.clone(), transport).await;
         }
         Some(("reg-info", sub_matches)) => {
             let chain = sub_matches.get_one::<String>("CHAIN").expect("required");

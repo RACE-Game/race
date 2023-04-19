@@ -29,6 +29,7 @@ fn unpack_json<T: DeserializeOwned>(value: &JsValue) -> T {
     match JsValue::into_serde::<T>(&value) {
         Ok(x) => x,
         Err(e) => {
+            gloo::console::error!(value);
             gloo::console::error!("Unpack json failed", e.to_string());
             panic!("Unpack json failed");
         },
