@@ -65,6 +65,13 @@ export interface IGameState {
   unlockTime: bigint | undefined;
 };
 
+export interface IServerState {
+  isInitialized: boolean;
+  addr: PublicKey;
+  owner: PublicKey;
+  endpoint: string;
+};
+
 export class PlayerState implements IPlayerState {
   isInitialized!: boolean;
   nick!: string;
@@ -345,6 +352,47 @@ const registryStateSchema = new Map<Function, any>([
         ['size', 'u16'],
         ['owner', 'publicKey'],
         ['games', [GameReg]]
+      ]
+    }
+  ]]);
+
+export class ServerState implements IServerState {
+  isInitialized!: boolean;
+  addr!: PublicKey;
+  owner!: PublicKey;
+  endpoint!: string;
+
+  constructor(fields: IServerState) {
+    Object.assign(this, fields)
+  }
+
+  serialize(): Buffer {
+    return Buffer.from(
+      borsh.serialize(serverStateSchema, this, ExtendedWriter))
+  }
+
+  static deserialize(data: Buffer): ServerState {
+    return borsh.deserializeUnchecked(serverStateSchema, ServerState, data, ExtendedReader)
+  }
+
+  generalize(): RaceCore.ServerAccount {
+    return {
+      addr: this.addr.toBase58(),
+      ownerAddr: this.owner.toBase58(),
+      endpoint: this.endpoint
+    }
+  }
+}
+
+const serverStateSchema = new Map([
+  [
+    ServerState, {
+      kind: 'struct',
+      fields: [
+        ['isInitialized', 'bool'],
+        ['addr', 'publicKey'],
+        ['owner', 'publicKey'],
+        ['endpoint', 'string'],
       ]
     }
   ]]);

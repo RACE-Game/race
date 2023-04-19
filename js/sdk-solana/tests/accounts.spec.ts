@@ -6,6 +6,7 @@ import {
   PlayerState,
   RegistryState,
   ServerJoin,
+  ServerState,
   Vote,
 } from '../src/accounts';
 import { PublicKey } from '@solana/web3.js';
@@ -24,17 +25,16 @@ describe('Test account data serialization', () => {
     assert.equal(state.isInitialized, deserialized.isInitialized);
   })
 
-  // it('PlayerState with no pfp', () => {
-  //   let state = new PlayerState({
-  //     isInitialized: true,
-  //     nick: 'Alice',
-  //     pfp: undefined,
-  //     padding: Uint8Array.of()
-  //   });
-  //   let buf = state.serialize();
-  //   let deserialized = PlayerState.deserialize(buf);
-  //   assert.deepStrictEqual(state, deserialized);
-  // })
+  it('PlayerState with no pfp', () => {
+    let state = new PlayerState({
+      isInitialized: true,
+      nick: 'Alice',
+      pfp: undefined,
+    });
+    let buf = state.serialize();
+    let deserialized = PlayerState.deserialize(buf);
+    assert.deepStrictEqual(state, deserialized);
+  })
 
   it('RegistryState', () => {
     let state = new RegistryState({
@@ -104,6 +104,18 @@ describe('Test account data serialization', () => {
     });
     let buf = state.serialize();
     let deserialized = GameState.deserialize(buf);
+    assert.deepStrictEqual(state, deserialized);
+  })
+
+  it('ServerState', () => {
+    let state = new ServerState({
+      isInitialized: true,
+      addr: PublicKey.unique(),
+      owner: PublicKey.unique(),
+      endpoint: 'http://foo.bar',
+    });
+    let buf = state.serialize();
+    let deserialized = ServerState.deserialize(buf);
     assert.deepStrictEqual(state, deserialized);
   })
 })
