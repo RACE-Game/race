@@ -164,6 +164,8 @@ pub struct GameAccount {
     pub votes: Vec<Vote>,
     pub unlock_time: Option<u64>,
     pub max_players: u8,
+    pub min_deposit: u64,
+    pub max_deposit: u64,
     pub data_len: u32,
     pub data: Vec<u8>,
 }

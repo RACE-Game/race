@@ -74,6 +74,4 @@ create-game spec:
     cargo run -p race-cli -- -e local create-game solana {{spec}}
 
 alias fa := dev-facade
-alias t1 := dev-transactor-1
-alias t2 := dev-transactor-2
 alias da := dev-demo-app

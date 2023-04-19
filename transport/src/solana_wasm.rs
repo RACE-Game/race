@@ -334,6 +334,8 @@ impl TransportLocalT for SolanaWasmTransport {
             bundle_addr,
             token_addr: state.token_mint.to_string(),
             access_version: state.access_version,
+            min_deposit: state.min_deposit,
+            max_deposit: state.max_deposit,
             players: state
                 .players
                 .into_iter()

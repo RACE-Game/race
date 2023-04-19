@@ -1,7 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 import * as borsh from 'borsh';
 import { ExtendedReader, ExtendedWriter } from './utils'
-import { VoteType } from 'race-sdk-core';
+import RaceCore, { VoteType } from 'race-sdk-core';
 import { Buffer } from 'buffer';
 
 export interface IPlayerState {
@@ -104,6 +104,13 @@ export class Vote implements IVote {
   constructor(fields: IVote) {
     Object.assign(this, fields)
   }
+  standardize(): RaceCore.Vote {
+    return {
+      voter: this.voter.toBase58(),
+      votee: this.votee.toBase58(),
+      voteType: this.voteType
+    }
+  }
 }
 
 export class ServerJoin implements IServerJoin {
@@ -112,6 +119,13 @@ export class ServerJoin implements IServerJoin {
   accessVersion!: bigint;
   constructor(fields: IServerJoin) {
     Object.assign(this, fields)
+  }
+  standardize(): RaceCore.ServerJoin {
+    return {
+      addr: this.addr.toBase58(),
+      endpoint: this.endpoint,
+      accessVersion: this.accessVersion,
+    }
   }
 }
 
@@ -123,10 +137,18 @@ export class PlayerJoin implements IPlayerJoin {
   constructor(fields: IPlayerJoin) {
     Object.assign(this, fields)
   }
+  standardize(): RaceCore.PlayerJoin {
+    return {
+      addr: this.addr.toBase58(),
+      position: this.position,
+      balance: this.balance,
+      accessVersion: this.accessVersion,
+    }
+  }
 }
 
 
-export class GameState {
+export class GameState implements IGameState {
   isInitialized!: boolean;
   title!: string;
   bundleAddr!: PublicKey;
@@ -139,11 +161,11 @@ export class GameState {
   accessVersion!: bigint;
   settleVersion!: bigint;
   maxPlayers!: number;
-  players!: IPlayerJoin[];
-  servers!: IServerJoin[];
+  players!: PlayerJoin[];
+  servers!: ServerJoin[];
   dataLen!: number;
   data!: Uint8Array;
-  votes!: IVote[];
+  votes!: Vote[];
   unlockTime: bigint | undefined;
 
   constructor(fields: IGameState) {
@@ -157,6 +179,29 @@ export class GameState {
 
   static deserialize(data: Buffer): GameState {
     return borsh.deserializeUnchecked(gameStateSchema, GameState, data, ExtendedReader)
+  }
+
+  generalize(addr: PublicKey): RaceCore.GameAccount {
+    return {
+      addr: addr.toBase58(),
+      title: this.title,
+      bundleAddr: this.bundleAddr.toBase58(),
+      ownerAddr: this.ownerAddr.toBase58(),
+      tokenAddr: this.tokenAddr.toBase58(),
+      deposits: [],
+      minDeposit: this.minDeposit,
+      maxDeposit: this.maxDeposit,
+      transactorAddr: this.transactorAddr?.toBase58(),
+      accessVersion: this.accessVersion,
+      settleVersion: this.settleVersion,
+      maxPlayers: this.maxPlayers,
+      players: this.players.map(p => p.standardize()),
+      servers: this.servers.map(s => s.standardize()),
+      dataLen: this.dataLen,
+      data: this.data,
+      votes: this.votes.map(v => v.standardize()),
+      unlockTime: this.unlockTime,
+    }
   }
 }
 
@@ -240,6 +285,14 @@ export class GameReg implements IGameReg {
   constructor(fields: IGameReg) {
     Object.assign(this, fields)
   }
+  generalize(): RaceCore.GameRegistration {
+    return {
+      title: this.title,
+      addr: this.addr.toBase58(),
+      bundleAddr: this.bundleAddr.toBase58(),
+      regTime: this.regTime
+    };
+  }
 }
 
 export class RegistryState implements IRegistryState {
@@ -247,7 +300,7 @@ export class RegistryState implements IRegistryState {
   isPrivate!: boolean;
   size!: number;
   owner!: PublicKey;
-  games!: IGameReg[];
+  games!: GameReg[];
   constructor(fields: IRegistryState) {
     Object.assign(this, fields)
   }
@@ -259,6 +312,15 @@ export class RegistryState implements IRegistryState {
 
   static deserialize(data: Buffer): RegistryState {
     return borsh.deserializeUnchecked(registryStateSchema, RegistryState, data, ExtendedReader)
+  }
+
+  generalize(): RaceCore.RegistrationAccount {
+    return {
+      isPrivate: this.isPrivate,
+      size: this.size,
+      owner: this.owner.toBase58(),
+      games: this.games.map((g) => g.generalize())
+    }
   }
 }
 

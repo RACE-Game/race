@@ -39,17 +39,21 @@ export type GameAccount = {
   addr: string;
   title: string;
   bundleAddr: string;
+  tokenAddr: string;
+  ownerAddr: string;
   settleVersion: bigint;
   accessVersion: bigint;
   players: PlayerJoin[];
   deposits: PlayerDeposit[];
   servers: ServerJoin[];
-  transactorAddr: string;
+  transactorAddr: string | undefined;
   votes: Vote[];
-  unlockTime: bigint | null;
+  unlockTime: bigint | undefined;
   maxPlayers: number;
   dataLen: number;
   data: Uint8Array;
+  minDeposit: bigint;
+  maxDeposit: bigint;
 };
 
 export type ServerAccount = {
@@ -70,7 +74,6 @@ export type PlayerProfile = {
 };
 
 export type RegistrationAccount = {
-  readonly addr: string;
   readonly isPrivate: boolean;
   readonly size: number;
   readonly owner: string | undefined;
