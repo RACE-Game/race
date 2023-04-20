@@ -8,7 +8,7 @@ import {
   sendAndConfirmTransaction,
   Keypair,
 } from '@solana/web3.js';
-import { AccountLayout, NATIVE_MINT, NATIVE_MINT_2022, TOKEN_PROGRAM_ID, createInitializeAccountInstruction } from '@solana/spl-token';
+import { AccountLayout, NATIVE_MINT, NATIVE_MINT_2022, TOKEN_PROGRAM_ID, createInitializeAccountInstruction, createTransferInstruction, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { Metadata, PROGRAM_ID as METAPLEX_PROGRAM_ID } from '@metaplex-foundation/mpl-token-metadata';
 import {
   IWallet,
@@ -47,6 +47,7 @@ import {
 } from './accounts'
 
 import { SolanaWalletAdapter } from './solana-wallet';
+import { join } from './instruction';
 
 const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
 
@@ -126,8 +127,6 @@ export class SolanaTransport implements ITransport {
   async join(wallet: IWallet, params: JoinParams): Promise<void> {
     const { gameAddr, amount, accessVersion, position } = params;
     const playerKey = new PublicKey(wallet.walletAddr);
-    const playerAccountKey = await PublicKey.createWithSeed(
-      playerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
     const gameAccountKey = new PublicKey(gameAddr);
     const gameState = await this._getGameState(gameAccountKey);
     if (gameState === undefined) {
@@ -140,7 +139,65 @@ export class SolanaTransport implements ITransport {
     const isWsol = mintKey.equals(NATIVE_MINT);
 
     const stakeAccountKey = gameState.stakeKey;
+    const tempAccountKeypair = Keypair.generate();
+    const tempAccountKey = tempAccountKeypair.publicKey;
+    const tempAccountLen = AccountLayout.span;
+    const tempAccountLamports = await this.#conn.getMinimumBalanceForRentExemption(
+      tempAccountLen
+    );
 
+    const tx = new Transaction();
+    const createTempAccountIx = SystemProgram.createAccount(
+      {
+        fromPubkey: playerKey,
+        newAccountPubkey: tempAccountKey,
+        lamports: tempAccountLamports,
+        space: tempAccountLen,
+        programId: TOKEN_PROGRAM_ID,
+      });
+    tx.add(createTempAccountIx);
+
+    const initTempAccountIx = createInitializeAccountInstruction(
+      tempAccountKey,
+      mintKey,
+      playerKey
+    );
+    tx.add(initTempAccountIx);
+
+    if (isWsol) {
+      const transferAmount = amount - BigInt(tempAccountLamports);
+      const transferIx = SystemProgram.transfer({
+        fromPubkey: playerKey,
+        toPubkey: tempAccountKey,
+        lamports: transferAmount,
+      });
+      tx.add(transferIx);
+    } else {
+      const playerAta = getAssociatedTokenAddressSync(mintKey, playerKey);
+      const transferIx = createTransferInstruction(
+        playerAta,
+        tempAccountKey,
+        playerKey,
+        amount
+      );
+      tx.add(transferIx);
+    }
+
+    const joinGameIx = join({
+      playerKey,
+      paymentKey: tempAccountKey,
+      gameAccountKey,
+      mint: mintKey,
+      stakeAccountKey: stakeAccountKey,
+      amount,
+      accessVersion,
+      position,
+    });
+    tx.add(joinGameIx);
+
+    tx.partialSign(tempAccountKeypair);
+
+    await wallet.sendTransaction(tx, this.#conn);
   }
 
   async deposit(wallet: IWallet, params: DepositParams): Promise<void> { }

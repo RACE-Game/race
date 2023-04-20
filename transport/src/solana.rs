@@ -143,7 +143,6 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new_readonly(token_mint_pubkey, false),
                 AccountMeta::new_readonly(spl_token::id(), false),
                 AccountMeta::new_readonly(bundle_pubkey, false),
-                // TODO: add scene pubkey
             ],
         );
 
@@ -303,25 +302,6 @@ impl TransportT for SolanaTransport {
             &payer_pubkey,
         )
         .map_err(|_| TransportError::InitInstructionFailed)?;
-
-        // Create RACE ATA for payer
-        let race_mint_pubkey = Self::parse_pubkey(RACE_MINT)?;
-        let race_ata_pubkey = get_associated_token_address(&payer_pubkey, &race_mint_pubkey);
-        let race_ata_balance = self
-            .client
-            .get_balance(&race_ata_pubkey)
-            .map_err(|e| TransportError::AccountNotFound(e.to_string()))?;
-
-        let create_ata_ix = if race_ata_balance == 0 {
-            vec![create_associated_token_account(
-                &payer_pubkey,
-                &payer_pubkey, // should be player's wallet addr
-                &race_mint_pubkey,
-                &spl_token::id(),
-            )]
-        } else {
-            vec![]
-        };
 
         let sync_ix = sync_native(&spl_token::id(), &temp_account_pubkey)
             .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
