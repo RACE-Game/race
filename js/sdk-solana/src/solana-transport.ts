@@ -9,7 +9,6 @@ import {
   Keypair,
 } from '@solana/web3.js';
 import { AccountLayout, NATIVE_MINT, NATIVE_MINT_2022, TOKEN_PROGRAM_ID, createInitializeAccountInstruction, createTransferInstruction, getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { Metadata, PROGRAM_ID as METAPLEX_PROGRAM_ID } from '@metaplex-foundation/mpl-token-metadata';
 import {
   IWallet,
   ITransport,
@@ -30,6 +29,7 @@ import {
   RegistrationAccount,
 } from 'race-sdk-core';
 import * as instruction from './instruction';
+import { Buffer } from 'buffer';
 
 import {
   GAME_ACCOUNT_LEN,
@@ -48,8 +48,9 @@ import {
 
 import { SolanaWalletAdapter } from './solana-wallet';
 import { join } from './instruction';
+import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants';
+import { Metadata } from './metadata';
 
-const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
 
 export class SolanaTransport implements ITransport {
   #conn: Connection;
@@ -274,13 +275,16 @@ export class SolanaTransport implements ITransport {
 
   async getGameBundle(addr: string): Promise<GameBundle | undefined> {
     const mintKey = new PublicKey(addr);
-    const conn = this.#conn;
     const [metadataKey] = PublicKey.findProgramAddressSync(
       [Buffer.from("metadata", 'utf8'),
       METAPLEX_PROGRAM_ID.toBuffer(),
       mintKey.toBuffer()],
       METAPLEX_PROGRAM_ID);
-    const metadataState = await Metadata.fromAccountAddress(conn, metadataKey);
+    const metadataAccount = await this.#conn.getAccountInfo(metadataKey);
+    if (metadataAccount === null) {
+      return undefined;
+    }
+    const metadataState = Metadata.deserialize(metadataAccount.data);
     console.log(metadataState);
     let { uri, name } = metadataState.data;
     uri = uri.replace(/\0/g, '');

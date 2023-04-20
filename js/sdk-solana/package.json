@@ -20,7 +20,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "race-sdk-core": "file:../sdk-core"
+    "race-sdk-core": "file:../sdk-core",
+    "@solana/spl-token": "^0.3.7",
+    "@solana/web3.js": "^1.75.0",
+    "borsh": "^0.7.0",
+    "buffer": "^6.0.3"
   },
   "devDependencies": {
     "@types/chai": "^4.3.4",
@@ -33,15 +37,5 @@
     "tslint": "^6.1.3",
     "tslint-config-prettier": "^1.18.0",
     "typescript": "^5.0.3"
-  },
-  "peerDependencies": {
-    "@metaplex-foundation/mpl-token-metadata": "^2.10.0",
-    "@solana/buffer-layout": "^4.0.1",
-    "@solana/buffer-layout-utils": "^0.2.0",
-    "@solana/spl-token": "^0.3.7",
-    "@solana/wallet-adapter-base": "^0.9.22",
-    "@solana/web3.js": "^1.75.0",
-    "borsh": "^0.7.0",
-    "buffer": "^6.0.3"
   }
 }

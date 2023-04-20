@@ -58,7 +58,9 @@ function Raffle() {
     // Button callback to join the raffle
     const onJoin = async () => {
         if (client !== undefined) {
-            await client.join(wallet, 0, 100n);
+            console.log(wallet);
+            let walletAdapter = new SolanaWalletAdapter(wallet);
+            await client.join(walletAdapter, 0, 100n);
         }
     }
 

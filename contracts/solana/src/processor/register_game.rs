@@ -72,7 +72,7 @@ pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult
     }
 
     let clock = Clock::get()?;
-    let timestamp = clock.epoch;
+    let timestamp = clock.unix_timestamp as u64;
     let reg_game = GameReg {
         title: game_state.title.clone(),
         addr: game_account.key.clone(),

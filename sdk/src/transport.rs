@@ -83,6 +83,7 @@ impl TransportLocalT for Transport {
     async fn join(&self, wallet: &JsValue, params: JoinParams) -> TransportResult<()> {
         let f = get_function(&self.inner, "join");
         let params = JsValue::from_serde(&params).unwrap();
+        gloo::console::info!(wallet);
         let p = f.call2(&self.inner, &wallet, &params).unwrap();
         resolve_promise(p).await.unwrap();
         Ok(())

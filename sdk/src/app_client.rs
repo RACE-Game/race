@@ -256,8 +256,8 @@ impl AppClient {
 
     /// Join the game.
     #[wasm_bindgen]
-    pub async fn join(&self, wallet: &JsValue, position: u8, amount: u64) -> Result<()> {
-        info!("Join game");
+    pub async fn join(&self, wallet: JsValue, position: u8, amount: u64) -> Result<()> {
+        info!("Join game", &wallet);
         let game_account = self
             .transport
             .get_game_account(&self.addr)
@@ -266,7 +266,7 @@ impl AppClient {
 
         self.transport
             .join(
-                wallet,
+                &wallet,
                 JoinParams {
                     game_addr: self.addr.clone(),
                     amount,

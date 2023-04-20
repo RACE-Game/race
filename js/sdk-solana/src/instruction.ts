@@ -3,9 +3,7 @@ import { Buffer } from 'buffer';
 import * as borsh from 'borsh';
 import { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { ExtendedWriter } from './utils';
-import { PROGRAM_ID as METAPLEX_PROGRAM_ID } from '@metaplex-foundation/mpl-token-metadata';
-
-const PROGRAM_ID = new PublicKey('8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu');
+import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants';
 
 // Instruction types
 
