@@ -41,7 +41,7 @@ use solana_client::{
     rpc_client::{RpcClient, RpcClientConfig},
     rpc_config::RpcSendTransactionConfig,
 };
-use solana_sdk::system_instruction::{create_account, create_account_with_seed, transfer, self};
+use solana_sdk::system_instruction::{self, create_account, create_account_with_seed, transfer};
 use solana_sdk::transaction::Transaction;
 use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack};
 use solana_sdk::{feature_set::separate_nonce_from_blockhash, pubkey::Pubkey};
@@ -274,15 +274,17 @@ impl TransportT for SolanaTransport {
         }
 
         let mint_pubkey = game_state.token_mint.clone();
+        let payer_ata = get_associated_token_address(&payer_pubkey, &mint_pubkey);
+
         let is_wsol = mint_pubkey == spl_token::native_mint::id();
 
-        // stake account to receive player's deposit
         let stake_account_pubkey = game_state.stake_account.clone();
 
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[game_account_pubkey.as_ref()], &self.program_id);
 
-        // temp account to hold player's deposit and transfer it to stake account later
+        let mut ixs = vec![];
+
         let temp_account = Keypair::new();
         let temp_account_pubkey = temp_account.pubkey();
         let temp_account_len = Account::LEN;
@@ -294,6 +296,7 @@ impl TransportT for SolanaTransport {
             temp_account_len as u64,
             &spl_token::id(),
         );
+        ixs.push(create_temp_account_ix);
 
         let init_temp_account_ix = initialize_account(
             &spl_token::id(),
@@ -302,29 +305,28 @@ impl TransportT for SolanaTransport {
             &payer_pubkey,
         )
         .map_err(|_| TransportError::InitInstructionFailed)?;
+        ixs.push(init_temp_account_ix);
 
-        let sync_ix = sync_native(&spl_token::id(), &temp_account_pubkey)
-            .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
-
-        let spl_trans_ix = spl_token::instruction::transfer(
-            &spl_token::id(),
-            &race_ata_pubkey,
-            &temp_account_pubkey,
-            &payer_pubkey,
-            &[&payer_pubkey],
-            params.amount,
-        )
-        .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
-
-        let transfer_ix = if is_wsol {
+        if is_wsol {
             let amount = params.amount - temp_account_lamports;
-            vec![
-                transfer(&payer_pubkey, &temp_account_pubkey, amount),
-                sync_ix,
-            ]
+            let transfer_ix = transfer(&payer_pubkey, &temp_account_pubkey, amount);
+            let sync_ix = sync_native(&spl_token::id(), &temp_account_pubkey)
+                .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+
+            ixs.push(transfer_ix);
+            ixs.push(sync_ix);
         } else {
-            vec![spl_trans_ix]
-        };
+            let spl_transfer_ix = spl_token::instruction::transfer(
+                &spl_token::id(),
+                &payer_ata,
+                &temp_account_pubkey,
+                &payer_pubkey,
+                &[&payer_pubkey],
+                params.amount,
+            )
+            .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+            ixs.push(spl_transfer_ix);
+        }
 
         let join_game_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
@@ -338,7 +340,6 @@ impl TransportT for SolanaTransport {
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new_readonly(player_account_pubkey, false),
-                // Mark as signer for transferring token
                 AccountMeta::new(temp_account_pubkey, true),
                 AccountMeta::new(game_account_pubkey, false),
                 AccountMeta::new_readonly(mint_pubkey, false),
@@ -347,10 +348,6 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new_readonly(spl_token::id(), false),
             ],
         );
-
-        let mut ixs = vec![create_temp_account_ix, init_temp_account_ix];
-        ixs.extend_from_slice(&create_ata_ix);
-        ixs.extend_from_slice(&transfer_ix);
         ixs.push(join_game_ix);
 
         let message = Message::new(&ixs, Some(&payer_pubkey));
@@ -806,12 +803,14 @@ impl TransportT for SolanaTransport {
         let metadata_data = metadata_account_state.data;
         let uri = metadata_data.uri.trim_end_matches('\0').to_string();
 
-        let data = race_nft_storage::fetch_wasm_from_game_bundle(&uri).await.ok()?;
+        let data = race_nft_storage::fetch_wasm_from_game_bundle(&uri)
+            .await
+            .ok()?;
 
         Some(GameBundle {
             uri,
             name: metadata_data.name.trim_end_matches('\0').to_string(),
-            data
+            data,
         })
     }
 
