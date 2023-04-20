@@ -30,13 +30,12 @@ pub fn process(
         return Err(ProgramError::AccountNotRentExempt);
     }
 
-    let mut registry_state = RegistryState {
+    let registry_state = RegistryState {
         is_initialized: true,
         is_private: params.is_private,
         size: params.size,
         owner: payer.key.clone(),
         games: Box::new(Vec::<GameReg>::with_capacity(params.size as usize)),
-        padding: Default::default(),
     };
 
     RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;

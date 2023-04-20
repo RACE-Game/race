@@ -74,7 +74,6 @@ pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult
         let unreg_game = registry_state.games.remove(unreg_idx);
         msg!("Unregitered game {}", unreg_game.addr);
 
-        msg!("len: {:?}", registry_state.padding.len());
         RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;
 
         removed = true;

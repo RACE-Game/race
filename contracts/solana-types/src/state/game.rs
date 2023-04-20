@@ -5,7 +5,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::{
     program_error::ProgramError,
-    program_memory::sol_memcpy,
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
@@ -79,8 +78,6 @@ pub struct GameState {
     pub votes: Box<Vec<Vote>>,
     // unlock time
     pub unlock_time: Option<u64>,
-    // padding needed to filled the fixed game account length
-    pub padding: Box<Vec<u8>>,
 }
 
 #[cfg(feature = "program")]

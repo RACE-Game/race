@@ -4,7 +4,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::{
     program_error::ProgramError,
-    program_memory::sol_memcpy,
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
@@ -18,7 +17,6 @@ pub struct ServerState {
     pub addr: Pubkey,
     pub owner: Pubkey,
     pub endpoint: String, // max: 50 chars
-    pub padding: Box<Vec<u8>>,
 }
 
 #[cfg(feature = "program")]

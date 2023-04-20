@@ -4,7 +4,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::{
     program_error::ProgramError,
-    program_memory::sol_memcpy,
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
@@ -28,8 +27,6 @@ pub struct RegistryState {
     pub size: u16, // capacity of the registration center
     pub owner: Pubkey,
     pub games: Box<Vec<GameReg>>,
-    // pub padding: Box<Vec<u8>>,
-    pub padding: Box<Vec<u8>>,
 }
 
 #[cfg(feature = "program")]
@@ -68,7 +65,6 @@ mod tests {
             size: 100,
             owner: Pubkey::new_unique(),
             games: Box::new(Vec::<GameReg>::with_capacity(100)),
-            padding: Default::default(),
         };
 
         state
@@ -77,8 +73,6 @@ mod tests {
     #[ignore]
     pub fn test_registry_account_len() -> anyhow::Result<()> {
         let mut registry = make_registry_state();
-        println!("Current padding len {}", registry.padding.len());
-        println!("Current padding cap {}", registry.padding.capacity());
         println!(
             "Registry account len {}",
             get_instance_packed_len(&registry)?
@@ -97,8 +91,6 @@ mod tests {
             "Registry account aligned len {}",
             get_instance_packed_len(&registry)?
         );
-        println!("Aligned padding len {}", registry.padding.len());
-        println!("Aligned padding cap {}", registry.padding.capacity());
         assert_eq!(1, 2);
         Ok(())
     }

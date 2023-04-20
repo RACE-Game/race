@@ -35,12 +35,11 @@ pub fn process(
         return Err(ProcessError::InvalidAccountPubkey)?;
     }
 
-    let mut server_state = ServerState {
+    let server_state = ServerState {
         is_initialized: true,
         addr: server_account.key.clone(),
         owner: *owner_account.key,
         endpoint: params.endpoint,
-        padding: Default::default(),
     };
 
     msg!("Server state: {:?}", &server_state);

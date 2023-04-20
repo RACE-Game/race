@@ -24,7 +24,7 @@ pub fn process(
     accounts: &[AccountInfo],
     params: SettleParams,
 ) -> ProgramResult {
-    let SettleParams { mut settles } = params;
+    let SettleParams { settles } = params;
 
     let account_iter = &mut accounts.iter();
 

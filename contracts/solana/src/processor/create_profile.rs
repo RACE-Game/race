@@ -52,11 +52,10 @@ pub fn process(
         Some(pfp_account.key.clone())
     };
 
-    let mut player_state = PlayerState {
+    let player_state = PlayerState {
         is_initialized: true,
         nick: params.nick,
         pfp: pfp_pubkey,
-        padding: Default::default(),
     };
 
     msg!("player profile state: {:?}", &player_state);

@@ -53,6 +53,9 @@ pub enum TransportError {
     #[error("Failed to get server account data")]
     ServerAccountDataNotFound,
 
+    #[error("Failed to get player account data")]
+    PlayerAccountDataNotFound,
+
     #[error("Endpoint length exceeds 50 chars")]
     EndpointTooLong,
 
@@ -71,8 +74,8 @@ pub enum TransportError {
     #[error("Lamports not enough for rent exemption")]
     NoEnoughLamports,
 
-    #[error("Failed to create a pubkey")]
-    PubkeyCreationFailed,
+    #[error("Failed to create an adress")]
+    AddressCreationFailed,
 
     #[error("Failed to get lasted blockhash")]
     GetBlockhashFailed,
@@ -88,6 +91,9 @@ pub enum TransportError {
 
     #[error("Failed to deserialize server account data")]
     ServerStateDeserializeError,
+
+    #[error("Failed to deserialize player account data")]
+    PlayerStateDeserializeError,
 
     #[error("Failed to deserialize registry account data")]
     RegistryStateDeserializeError,

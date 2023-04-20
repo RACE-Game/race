@@ -4,7 +4,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::{
     program_error::ProgramError,
-    program_memory::sol_memcpy,
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
@@ -20,7 +19,6 @@ pub struct PlayerState {
     pub is_initialized: bool,
     pub nick: String, // max: 16 chars
     pub pfp: Option<Pubkey>,
-    pub padding: Box<Vec<u8>>,
 }
 
 #[cfg(feature = "program")]

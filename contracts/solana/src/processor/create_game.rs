@@ -61,7 +61,7 @@ pub fn process(
         &[stake_account.clone(), payer.clone(), token_program.clone()],
     )?;
 
-    let mut game_state = GameState {
+    let game_state = GameState {
         is_initialized: true,
         title: params.title,
         // TODO: invalid bundle account
@@ -86,8 +86,6 @@ pub fn process(
         servers: Default::default(),
         unlock_time: None,
         votes: Default::default(),
-
-        padding: Default::default(),
     };
 
     GameState::pack(game_state, &mut game_account.try_borrow_mut_data()?)?;

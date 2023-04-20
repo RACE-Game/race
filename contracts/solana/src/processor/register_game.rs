@@ -60,7 +60,10 @@ pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult
         return Err(ProcessError::InvalidOwner)?;
     }
 
-    let mut added = false;
+    if registry_state.size as usize == registry_state.games.len() {
+        return Err(ProcessError::RegistrationIsFull)?;
+    }
+
     if registry_state.games.len() > 0 {
         if registry_state
             .games
@@ -84,16 +87,11 @@ pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult
 
     RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;
 
-    added = true;
     msg!(
         "Registered game {} to {}",
         game_account.key.clone(),
         registry_account.key.clone()
     );
-
-    if !added {
-        return Err(ProcessError::RegistrationIsFull)?;
-    }
 
     Ok(())
 }
