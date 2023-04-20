@@ -17,12 +17,12 @@ describe('Test account data serialization', () => {
     let state = new PlayerState({
       isInitialized: true,
       nick: '16-char_nickname',
-      pfp: PublicKey.default,
+      pfpKey: PublicKey.default,
     });
     let buf = Buffer.from([1, 16, 0, 0, 0, 49, 54, 45, 99, 104, 97, 114, 95, 110, 105, 99, 107, 110, 97, 109, 101, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 72, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     let deserialized = PlayerState.deserialize(buf);
     assert.equal(state.nick, deserialized.nick);
-    assert.deepStrictEqual(state.pfp, deserialized.pfp);
+    assert.deepStrictEqual(state.pfpKey, deserialized.pfpKey);
     assert.equal(state.isInitialized, deserialized.isInitialized);
   })
 
@@ -30,7 +30,7 @@ describe('Test account data serialization', () => {
     let state = new PlayerState({
       isInitialized: true,
       nick: 'Alice',
-      pfp: undefined,
+      pfpKey: undefined,
     });
     let buf = state.serialize();
     let deserialized = PlayerState.deserialize(buf);
@@ -42,18 +42,18 @@ describe('Test account data serialization', () => {
       isInitialized: true,
       isPrivate: false,
       size: 100,
-      owner: PublicKey.unique(),
+      ownerKey: PublicKey.unique(),
       games: [
         new GameReg({
-          addr: PublicKey.unique(),
+          gameKey: PublicKey.unique(),
           title: 'Game A',
-          bundleAddr: PublicKey.unique(),
+          bundleKey: PublicKey.unique(),
           regTime: 1000n
         }),
         new GameReg({
-          addr: PublicKey.unique(),
+          gameKey: PublicKey.unique(),
           title: 'Game B',
-          bundleAddr: PublicKey.unique(),
+          bundleKey: PublicKey.unique(),
           regTime: 2000n
         })
       ]
@@ -71,19 +71,19 @@ describe('Test account data serialization', () => {
     let state = new GameState({
       isInitialized: true,
       title: 'test game name',
-      bundleAddr: PublicKey.unique(),
-      stakeAddr: PublicKey.unique(),
-      ownerAddr: PublicKey.unique(),
-      tokenAddr: PublicKey.unique(),
+      bundleKey: PublicKey.unique(),
+      stakeKey: PublicKey.unique(),
+      ownerKey: PublicKey.unique(),
+      tokenKey: PublicKey.unique(),
       minDeposit: 100n,
       maxDeposit: 100n,
-      transactorAddr: PublicKey.unique(),
+      transactorKey: PublicKey.unique(),
       accessVersion: 1n,
       settleVersion: 2n,
       maxPlayers: 10,
       players: [
         new PlayerJoin({
-          addr: PublicKey.unique(),
+          key: PublicKey.unique(),
           balance: 100n,
           accessVersion: 1n,
           position: 0,
@@ -91,17 +91,17 @@ describe('Test account data serialization', () => {
       ],
       servers: [
         new ServerJoin({
-          addr: PublicKey.unique(),
+          key: PublicKey.unique(),
           endpoint: 'http://foo.bar',
           accessVersion: 2n,
         })
       ],
       dataLen: 10,
-      data: Uint8Array.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+      data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
       votes: [
         new Vote({
-          voter: PublicKey.unique(),
-          votee: PublicKey.unique(),
+          voterKey: PublicKey.unique(),
+          voteeKey: PublicKey.unique(),
           voteType: 0,
         })
       ],
@@ -115,8 +115,8 @@ describe('Test account data serialization', () => {
   it('ServerState', () => {
     let state = new ServerState({
       isInitialized: true,
-      addr: PublicKey.unique(),
-      owner: PublicKey.unique(),
+      key: PublicKey.unique(),
+      ownerKey: PublicKey.unique(),
       endpoint: 'http://foo.bar',
     });
     let buf = state.serialize();

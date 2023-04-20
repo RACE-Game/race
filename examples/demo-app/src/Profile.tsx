@@ -28,8 +28,8 @@ function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
             } else {
                 console.log("Wallet:", wallet);
                 const walletAdapter = new SolanaWalletAdapter(wallet);
-                let addr = await helper.create_profile(walletAdapter, nick, "");
-                const profile = await helper.get_profile(addr);
+                await helper.create_profile(walletAdapter, nick, "");
+                const profile = await helper.get_profile(walletAdapter.walletAddr);
                 props.updateProfile(profile);
             }
         }

@@ -38,7 +38,7 @@ export type VoteParams = {
 
 export type CreatePlayerProfileParams = {
   nick: string;
-  pfp?: string;
+  pfpKey?: string;
 };
 
 export type PublishGameParams = {

@@ -8,7 +8,7 @@ import {
   sendAndConfirmTransaction,
   Keypair,
 } from '@solana/web3.js';
-import { AccountLayout, TOKEN_PROGRAM_ID, createInitializeAccountInstruction } from '@solana/spl-token';
+import { AccountLayout, NATIVE_MINT, NATIVE_MINT_2022, TOKEN_PROGRAM_ID, createInitializeAccountInstruction } from '@solana/spl-token';
 import { Metadata, PROGRAM_ID as METAPLEX_PROGRAM_ID } from '@metaplex-foundation/mpl-token-metadata';
 import {
   IWallet,
@@ -36,6 +36,7 @@ import {
   NAME_LEN,
   PROFILE_ACCOUNT_LEN,
   PLAYER_PROFILE_SEED,
+  SERVER_PROFILE_SEED,
 } from './constants';
 
 import {
@@ -122,7 +123,25 @@ export class SolanaTransport implements ITransport {
 
   async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> { }
 
-  async join(wallet: IWallet, params: JoinParams): Promise<void> { }
+  async join(wallet: IWallet, params: JoinParams): Promise<void> {
+    const { gameAddr, amount, accessVersion, position } = params;
+    const playerKey = new PublicKey(wallet.walletAddr);
+    const playerAccountKey = await PublicKey.createWithSeed(
+      playerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
+    const gameAccountKey = new PublicKey(gameAddr);
+    const gameState = await this._getGameState(gameAccountKey);
+    if (gameState === undefined) {
+      throw new Error('Game account not found');
+    }
+    if (gameState.accessVersion !== accessVersion) {
+      throw new Error('Access version not match');
+    }
+    const mintKey = gameState.tokenKey;
+    const isWsol = mintKey.equals(NATIVE_MINT);
+
+    const stakeAccountKey = gameState.stakeKey;
+
+  }
 
   async deposit(wallet: IWallet, params: DepositParams): Promise<void> { }
 
@@ -205,31 +224,40 @@ export class SolanaTransport implements ITransport {
       mintKey.toBuffer()],
       METAPLEX_PROGRAM_ID);
     const metadataState = await Metadata.fromAccountAddress(conn, metadataKey);
-    const { uri, name } = metadataState.data;
+    console.log(metadataState);
+    let { uri, name } = metadataState.data;
+    uri = uri.replace(/\0/g, '');
+    name = name.replace(/\0/g, '');
+
+    console.log("uri:", uri);
+    console.log("name:", name);
+
     const response = await fetch(uri);
-    const metadata: any = response.json();
+    const metadata: any = await response.json();
+
+    console.log("metadata:", metadata);
     const wasm = metadata.properties.files.find((f: any) => f['type'] == "application/wasm");
 
     const respWasm = await fetch(wasm.uri);
-    const data = new Uint8Array(await respWasm.arrayBuffer());
+    const data = Array.from(new Uint8Array(await respWasm.arrayBuffer()));
 
-    return { uri: uri, name: name.replace(/\0/g, ''), data };
+    return { uri, name, data };
   }
 
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
     const conn = this.#conn;
-    const profileKey = new PublicKey(addr);
+    const playerKey = new PublicKey(addr);
+    const profileKey = await PublicKey.createWithSeed(
+      playerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
 
     const profileAccount = await conn.getAccountInfo(profileKey);
-
-    console.log(profileAccount);
 
     if (profileAccount) {
       const profileAccountData = profileAccount.data;
 
-      const { nick, pfp } = PlayerState.deserialize(profileAccountData);
-      if (pfp !== undefined) {
-        return { addr: addr, nick: nick, pfp: pfp.toBase58() };
+      const { nick, pfpKey } = PlayerState.deserialize(profileAccountData);
+      if (pfpKey !== undefined) {
+        return { addr: addr, nick: nick, pfp: pfpKey.toBase58() };
       } else {
         return { addr: addr, nick: nick, pfp: undefined }
       }
@@ -239,8 +267,8 @@ export class SolanaTransport implements ITransport {
   }
 
   async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
-    const severKey = new PublicKey(addr);
-    const serverState = await this._getServerState(severKey);
+    const serverKey = new PublicKey(addr);
+    const serverState = await this._getServerState(serverKey);
     if (serverState !== undefined) {
       return serverState.generalize();
     } else {
@@ -282,11 +310,17 @@ export class SolanaTransport implements ITransport {
     }
   }
 
-  async _getServerState(regKey: PublicKey): Promise<ServerState | undefined> {
+  async _getServerState(serverKey: PublicKey): Promise<ServerState | undefined> {
     const conn = this.#conn;
-    const serverAccount = await conn.getAccountInfo(regKey);
+    const profileKey = await PublicKey.createWithSeed(
+      serverKey,
+      SERVER_PROFILE_SEED,
+      PROGRAM_ID,
+    );
+    const serverAccount = await conn.getAccountInfo(profileKey);
     if (serverAccount !== null) {
       const data = serverAccount.data;
+      console.log("Server account data:", data);
       return ServerState.deserialize(data);
     } else {
       return undefined;

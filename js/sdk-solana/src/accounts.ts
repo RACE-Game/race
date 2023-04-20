@@ -7,32 +7,32 @@ import { Buffer } from 'buffer';
 export interface IPlayerState {
   isInitialized: boolean;
   nick: string;
-  pfp?: PublicKey;
+  pfpKey?: PublicKey;
 };
 
 export interface IPlayerJoin {
-  addr: PublicKey;
+  key: PublicKey;
   balance: bigint;
   position: number;
   accessVersion: bigint;
 }
 
 export interface IServerJoin {
-  addr: PublicKey;
+  key: PublicKey;
   endpoint: string;
   accessVersion: bigint;
 }
 
 export interface IVote {
-  voter: PublicKey;
-  votee: PublicKey;
+  voterKey: PublicKey;
+  voteeKey: PublicKey;
   voteType: VoteType
 }
 
 export interface IGameReg {
   title: string;
-  addr: PublicKey;
-  bundleAddr: PublicKey;
+  gameKey: PublicKey;
+  bundleKey: PublicKey;
   regTime: bigint;
 }
 
@@ -40,20 +40,20 @@ export interface IRegistryState {
   isInitialized: boolean;
   isPrivate: boolean;
   size: number,
-  owner: PublicKey,
+  ownerKey: PublicKey,
   games: IGameReg[];
 }
 
 export interface IGameState {
   isInitialized: boolean;
   title: string;
-  bundleAddr: PublicKey;
-  stakeAddr: PublicKey;
-  ownerAddr: PublicKey;
-  tokenAddr: PublicKey;
+  bundleKey: PublicKey;
+  stakeKey: PublicKey;
+  ownerKey: PublicKey;
+  tokenKey: PublicKey;
   minDeposit: bigint;
   maxDeposit: bigint;
-  transactorAddr: PublicKey | undefined;
+  transactorKey: PublicKey | undefined;
   accessVersion: bigint;
   settleVersion: bigint;
   maxPlayers: number;
@@ -67,15 +67,15 @@ export interface IGameState {
 
 export interface IServerState {
   isInitialized: boolean;
-  addr: PublicKey;
-  owner: PublicKey;
+  key: PublicKey;
+  ownerKey: PublicKey;
   endpoint: string;
 };
 
 export class PlayerState implements IPlayerState {
   isInitialized!: boolean;
   nick!: string;
-  pfp?: PublicKey;
+  pfpKey?: PublicKey;
 
   constructor(fields: IPlayerState) {
     Object.assign(this, fields)
@@ -98,30 +98,30 @@ const playerStateSchema = new Map([
       fields: [
         ['isInitialized', 'bool'],
         ['nick', 'string'],
-        ['pfp', { kind: 'option', type: 'publicKey' }],
+        ['pfpKey', { kind: 'option', type: 'publicKey' }],
       ],
     },
   ],
 ]);
 
 export class Vote implements IVote {
-  voter!: PublicKey;
-  votee!: PublicKey;
+  voterKey!: PublicKey;
+  voteeKey!: PublicKey;
   voteType!: VoteType;
   constructor(fields: IVote) {
     Object.assign(this, fields)
   }
   standardize(): RaceCore.Vote {
     return {
-      voter: this.voter.toBase58(),
-      votee: this.votee.toBase58(),
+      voter: this.voterKey.toBase58(),
+      votee: this.voteeKey.toBase58(),
       voteType: this.voteType
     }
   }
 }
 
 export class ServerJoin implements IServerJoin {
-  addr!: PublicKey;
+  key!: PublicKey;
   endpoint!: string;
   accessVersion!: bigint;
   constructor(fields: IServerJoin) {
@@ -129,7 +129,7 @@ export class ServerJoin implements IServerJoin {
   }
   standardize(): RaceCore.ServerJoin {
     return {
-      addr: this.addr.toBase58(),
+      addr: this.key.toBase58(),
       endpoint: this.endpoint,
       accessVersion: this.accessVersion,
     }
@@ -137,7 +137,7 @@ export class ServerJoin implements IServerJoin {
 }
 
 export class PlayerJoin implements IPlayerJoin {
-  addr!: PublicKey;
+  key!: PublicKey;
   balance!: bigint;
   position!: number;
   accessVersion!: bigint;
@@ -146,7 +146,7 @@ export class PlayerJoin implements IPlayerJoin {
   }
   standardize(): RaceCore.PlayerJoin {
     return {
-      addr: this.addr.toBase58(),
+      addr: this.key.toBase58(),
       position: this.position,
       balance: this.balance,
       accessVersion: this.accessVersion,
@@ -158,13 +158,13 @@ export class PlayerJoin implements IPlayerJoin {
 export class GameState implements IGameState {
   isInitialized!: boolean;
   title!: string;
-  bundleAddr!: PublicKey;
-  stakeAddr!: PublicKey;
-  ownerAddr!: PublicKey;
-  tokenAddr!: PublicKey;
+  bundleKey!: PublicKey;
+  stakeKey!: PublicKey;
+  ownerKey!: PublicKey;
+  tokenKey!: PublicKey;
   minDeposit!: bigint;
   maxDeposit!: bigint;
-  transactorAddr: PublicKey | undefined;
+  transactorKey: PublicKey | undefined;
   accessVersion!: bigint;
   settleVersion!: bigint;
   maxPlayers!: number;
@@ -192,13 +192,13 @@ export class GameState implements IGameState {
     return {
       addr: addr.toBase58(),
       title: this.title,
-      bundleAddr: this.bundleAddr.toBase58(),
-      ownerAddr: this.ownerAddr.toBase58(),
-      tokenAddr: this.tokenAddr.toBase58(),
+      bundleAddr: this.bundleKey.toBase58(),
+      ownerAddr: this.ownerKey.toBase58(),
+      tokenAddr: this.tokenKey.toBase58(),
       deposits: [],
       minDeposit: this.minDeposit,
       maxDeposit: this.maxDeposit,
-      transactorAddr: this.transactorAddr?.toBase58(),
+      transactorAddr: this.transactorKey?.toBase58(),
       accessVersion: this.accessVersion,
       settleVersion: this.settleVersion,
       maxPlayers: this.maxPlayers,
@@ -217,7 +217,7 @@ const gameStateSchema = new Map<Function, any>([
     PlayerJoin, {
       kind: 'struct',
       fields: [
-        ['addr', 'publicKey'],
+        ['key', 'publicKey'],
         ['balance', 'bigint'],
         ['position', 'u32'],
         ['accessVersion', 'bigint']
@@ -229,8 +229,8 @@ const gameStateSchema = new Map<Function, any>([
     Vote, {
       kind: 'struct',
       fields: [
-        ['voter', 'publicKey'],
-        ['votee', 'publicKey'],
+        ['voterKey', 'publicKey'],
+        ['voteeKey', 'publicKey'],
         ['voteType', 'u8']
       ]
     }
@@ -239,7 +239,7 @@ const gameStateSchema = new Map<Function, any>([
     ServerJoin, {
       kind: 'struct',
       fields: [
-        ['addr', 'publicKey'],
+        ['key', 'publicKey'],
         ['endpoint', 'string'],
         ['accessVersion', 'bigint'],
       ]
@@ -251,13 +251,13 @@ const gameStateSchema = new Map<Function, any>([
       fields: [
         ['isInitialized', 'bool'],
         ['title', 'string'],
-        ['bundleAddr', 'publicKey'],
-        ['stakeAddr', 'publicKey'],
-        ['ownerAddr', 'publicKey'],
-        ['tokenAddr', 'publicKey'],
+        ['bundleKey', 'publicKey'],
+        ['stakeKey', 'publicKey'],
+        ['ownerKey', 'publicKey'],
+        ['tokenKey', 'publicKey'],
         ['minDeposit', 'bigint'],
         ['maxDeposit', 'bigint'],
-        ['transactorAddr',
+        ['transactorKey',
           { kind: 'option', type: 'publicKey' }],
         ['accessVersion', 'bigint'],
         ['settleVersion', 'bigint'],
@@ -276,8 +276,8 @@ const gameStateSchema = new Map<Function, any>([
 
 export class GameReg implements IGameReg {
   title!: string;
-  addr!: PublicKey;
-  bundleAddr!: PublicKey;
+  gameKey!: PublicKey;
+  bundleKey!: PublicKey;
   regTime!: bigint;
   constructor(fields: IGameReg) {
     Object.assign(this, fields)
@@ -285,8 +285,8 @@ export class GameReg implements IGameReg {
   generalize(): RaceCore.GameRegistration {
     return {
       title: this.title,
-      addr: this.addr.toBase58(),
-      bundleAddr: this.bundleAddr.toBase58(),
+      addr: this.gameKey.toBase58(),
+      bundleAddr: this.bundleKey.toBase58(),
       regTime: this.regTime
     };
   }
@@ -296,7 +296,7 @@ export class RegistryState implements IRegistryState {
   isInitialized!: boolean;
   isPrivate!: boolean;
   size!: number;
-  owner!: PublicKey;
+  ownerKey!: PublicKey;
   games!: GameReg[];
   constructor(fields: IRegistryState) {
     Object.assign(this, fields)
@@ -316,7 +316,7 @@ export class RegistryState implements IRegistryState {
       addr: addr.toBase58(),
       isPrivate: this.isPrivate,
       size: this.size,
-      owner: this.owner.toBase58(),
+      owner: this.ownerKey.toBase58(),
       games: this.games.map((g) => g.generalize())
     }
   }
@@ -328,8 +328,8 @@ const registryStateSchema = new Map<Function, any>([
       kind: 'struct',
       fields: [
         ['title', 'string'],
-        ['addr', 'publicKey'],
-        ['bundleAddr', 'publicKey'],
+        ['gameKey', 'publicKey'],
+        ['bundleKey', 'publicKey'],
         ['regTime', 'bigint'],
       ]
     }
@@ -341,7 +341,7 @@ const registryStateSchema = new Map<Function, any>([
         ['isInitialized', 'bool'],
         ['isPrivate', 'bool'],
         ['size', 'u16'],
-        ['owner', 'publicKey'],
+        ['ownerKey', 'publicKey'],
         ['games', [GameReg]]
       ]
     }
@@ -349,8 +349,8 @@ const registryStateSchema = new Map<Function, any>([
 
 export class ServerState implements IServerState {
   isInitialized!: boolean;
-  addr!: PublicKey;
-  owner!: PublicKey;
+  key!: PublicKey;
+  ownerKey!: PublicKey;
   endpoint!: string;
 
   constructor(fields: IServerState) {
@@ -368,8 +368,7 @@ export class ServerState implements IServerState {
 
   generalize(): RaceCore.ServerAccount {
     return {
-      addr: this.addr.toBase58(),
-      ownerAddr: this.owner.toBase58(),
+      addr: this.ownerKey.toBase58(),
       endpoint: this.endpoint
     }
   }
@@ -381,8 +380,8 @@ const serverStateSchema = new Map([
       kind: 'struct',
       fields: [
         ['isInitialized', 'bool'],
-        ['addr', 'publicKey'],
-        ['owner', 'publicKey'],
+        ['key', 'publicKey'],
+        ['ownerKey', 'publicKey'],
         ['endpoint', 'string'],
       ]
     }

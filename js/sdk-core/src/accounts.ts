@@ -58,14 +58,13 @@ export type GameAccount = {
 
 export type ServerAccount = {
   readonly addr: string;
-  readonly ownerAddr: string;
   readonly endpoint: string;
 };
 
 export type GameBundle = {
   readonly uri: string;
   readonly name: string;
-  readonly data: Uint8Array;
+  readonly data: number[];
 };
 
 export type PlayerProfile = {
