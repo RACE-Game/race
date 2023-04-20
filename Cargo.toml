@@ -15,11 +15,12 @@ members = [
   "test",
   "contracts/solana",
   "contracts/solana-types",
-  "examples/counter/core",
-  "examples/minimal/core",
+  # "examples/blackjack",
+  "examples/draw-card",
+  "examples/roshambo",
   "examples/chat",
+  "examples/minimal",
   "examples/raffle",
-  "examples/console",
   "examples/holdem",
 ]
 

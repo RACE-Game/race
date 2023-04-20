@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useParams } from 'react-router-dom';
 import { AppClient, Event } from 'race-sdk';
 import { CHAIN_TO_RPC } from "./constants";
@@ -15,8 +15,14 @@ interface State {
     next_draw: number,
 }
 
+interface State {
+  last_winner: string | null,
+  players: Player[],
+  random_id: number,
+  draw_time: bigint,
+}
 
-function Winner(props: { settle_version: number, previous_winner: string | null }) {
+function Winner(props: { settle_version: number, last_winner: string | null }) {
 
     const [fade, setFade] = useState(false);
 
@@ -114,5 +120,6 @@ function Raffle() {
         );
     }
 }
+
 
 export default Raffle;

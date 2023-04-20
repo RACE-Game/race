@@ -4,6 +4,7 @@ use race_core::context::GameContext;
 use race_core::engine::{general_handle_event, general_init_state, GameHandler};
 use race_core::error::Result;
 use race_core::event::Event;
+use race_core::prelude::{Effect, InitAccount};
 use race_core::types::GameAccount;
 use race_encryptor::Encryptor;
 
@@ -19,10 +20,13 @@ where
 }
 
 impl<H: GameHandler> TestHandler<H> {
-    pub fn init_state(context: &mut GameContext, init_account: &GameAccount) -> Result<Self> {
+    pub fn init_state(context: &mut GameContext, game_account: &GameAccount) -> Result<Self> {
         let mut new_context = context.clone();
-        general_init_state(&mut new_context, init_account)?;
-        let handler = H::init_state(&mut new_context, init_account.clone())?;
+        let init_account: InitAccount = InitAccount::from_game_account(game_account);
+        general_init_state(&mut new_context, &init_account)?;
+        let mut effect = Effect::from_context(&context);
+        let handler = H::init_state(&mut effect, init_account)?;
+        context.apply_effect(effect)?;
         swap(context, &mut new_context);
         Ok(Self { handler })
     }
@@ -31,8 +35,9 @@ impl<H: GameHandler> TestHandler<H> {
         let mut new_context = context.clone();
         let encryptor = Encryptor::default();
         general_handle_event(&mut new_context, event, &encryptor)?;
-        self.handler
-            .handle_event(&mut new_context, event.to_owned())?;
+        let mut effect = Effect::from_context(&new_context);
+        self.handler.handle_event(&mut effect, event.to_owned())?;
+        new_context.apply_effect(effect)?;
         swap(context, &mut new_context);
         Ok(())
     }

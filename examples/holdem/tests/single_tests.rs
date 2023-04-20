@@ -1,8 +1,8 @@
-#![allow(unused_variables)]               // Remove these two later
+#![allow(unused_variables)] // Remove these two later
 #![allow(warnings)]
 use holdem::*;
-use race_core::context::GameContext;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
+use race_core::prelude::*;
 
 // The unit tests in this file test Holdem specific single functions,
 // such as fns modifying pots, players, chips and so on.
@@ -27,16 +27,16 @@ pub fn test_fns() {
         street: Street::Flop,
         street_bet: 20,
         board: Vec::with_capacity(5),
-        seats_map: HashMap::<String, usize>::new(),
+        seats_map: BTreeMap::<String, usize>::new(),
         player_map: BTreeMap::<String, Player>::new(),
-        bet_map: HashMap::new(),
+        bet_map: BTreeMap::new(),
         // bets: vec![
         //     Bet::new("Alice", 100),
         //     Bet::new("Bob", 45),
         //     Bet::new("Carol", 100),
         //     Bet::new("Gentoo", 50),
         // ],
-        prize_map: HashMap::new(),
+        prize_map: BTreeMap::new(),
         players: vec![],
         // players: vec![
         //     Player {
@@ -156,7 +156,7 @@ pub fn test_fns() {
 #[test]
 #[ignore]
 pub fn test_blind_bets() {
-    let mut ctx = GameContext::default();
+    let mut ctx = Effect::default();
     let mut holdem = Holdem {
         deck_random_id: 0,
         dealer_idx: 0,
@@ -170,11 +170,11 @@ pub fn test_blind_bets() {
         stage: HoldemStage::Play,
         street: Street::Preflop,
         board: Vec::with_capacity(5),
-        seats_map: HashMap::<String, usize>::new(),
+        seats_map: BTreeMap::<String, usize>::new(),
         player_map: BTreeMap::<String, Player>::new(),
         street_bet: 0,
-        bet_map: HashMap::new(),
-        prize_map: HashMap::new(),
+        bet_map: BTreeMap::new(),
+        prize_map: BTreeMap::new(),
         // players: vec![
         //     Player {
         //         addr: String::from("Alice"),
@@ -221,7 +221,7 @@ pub fn test_blind_bets() {
     //     vec![Bet::new("Alice", 10), Bet::new("Bob", 20)],
     //     holdem.bets
     // );
-    assert_eq!(String::from("Carol"), holdem.acting_player.unwrap());
+    assert_eq!((String::from("Carol"), 0), holdem.acting_player.unwrap());
 }
 
 #[test]
@@ -242,16 +242,15 @@ pub fn test_single_player_wins() {
         player_map: BTreeMap::<String, Player>::new(),
         street: Street::Preflop,
         street_bet: 0,
-        bet_map: HashMap::new(),
-        seats_map: HashMap::new(),
+        bet_map: BTreeMap::new(),
+        seats_map: BTreeMap::new(),
         // bets: vec![
         //     Bet::new("Alice", 40),
         //     Bet::new("Bob", 40),
         //     Bet::new("Carol", 40),
         //     Bet::new("Gentoo", 40),
         // ],
-
-        prize_map: HashMap::new(),
+        prize_map: BTreeMap::new(),
         players: vec![],
         acting_player: None,
         pots: vec![],
@@ -293,9 +292,9 @@ pub fn test_new_street() {
         stage: HoldemStage::Play,
         street: Street::Preflop,
         street_bet: 20,
-        seats_map: HashMap::new(),
+        seats_map: BTreeMap::new(),
         board: Vec::<String>::with_capacity(5),
-        bet_map: HashMap::<String, Bet>::new(),
+        bet_map: BTreeMap::<String, Bet>::new(),
         player_map: BTreeMap::<String, Player>::new(),
         // bets: vec![
         //     // Bet::new("Alice", 40),
@@ -303,9 +302,9 @@ pub fn test_new_street() {
         //     Bet::new("Carol", 40),
         //     Bet::new("Gentoo", 40),
         // ],
-        prize_map: HashMap::new(),
+        prize_map: BTreeMap::new(),
         players: vec![],
-        acting_player: Some("Gentoo".to_string()),
+        acting_player: Some(("Gentoo".to_string(), 3)),
         pots: vec![],
     };
 
@@ -320,7 +319,7 @@ pub fn test_new_street() {
 #[test]
 #[ignore]
 pub fn test_next_state() {
-    let mut ctx = GameContext::default();
+    let mut ctx = Effect::default();
     // Modify the fields to fall into different states
     // Below is an example for tesing blind bets, similiar to test_blind_bets() above
     let mut holdem = Holdem {
@@ -336,17 +335,17 @@ pub fn test_next_state() {
         stage: HoldemStage::Play,
         street: Street::Preflop,
         street_bet: 0,
-        seats_map: HashMap::new(),
+        seats_map: BTreeMap::new(),
         player_map: BTreeMap::<String, Player>::new(),
         board: Vec::<String>::with_capacity(5),
-        bet_map: HashMap::<String, Bet>::new(),
+        bet_map: BTreeMap::<String, Bet>::new(),
         // bets: vec![
-            // Bet::new("Alice", 40),
-            // Bet::new("Bob", 40),
-            // Bet::new("Carol", 40),
-            // Bet::new("Gentoo", 40),
+        // Bet::new("Alice", 40),
+        // Bet::new("Bob", 40),
+        // Bet::new("Carol", 40),
+        // Bet::new("Gentoo", 40),
         // ],
-        prize_map: HashMap::new(),
+        prize_map: BTreeMap::new(),
         players: vec![],
         acting_player: None,
         pots: vec![],

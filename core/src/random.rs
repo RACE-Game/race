@@ -2,7 +2,10 @@
 //!
 //! We use Mental Poker randomization between transactors.
 
-use std::collections::HashMap;
+use std::{
+    collections::{BTreeMap, HashMap},
+    iter::repeat,
+};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
@@ -78,36 +81,99 @@ pub enum RandomMode {
     Drawer,
 }
 
-/// An interface for randomness
-/// Since we are using P2P generated randomness, so this structure doesn't really hold the random result.
-/// `Randomness` holds the option of values, the identifiers and the generation status.
-pub trait RandomSpec {
-    /// Get the list of options for a random value.
-    fn options(&self) -> &Vec<String>;
-
-    fn size(&self) -> usize;
+#[derive(Debug, BorshDeserialize, BorshSerialize, PartialEq, Eq)]
+pub enum RandomSpec {
+    ShuffledList {
+        options: Vec<String>,
+    },
+    Lottery {
+        options_and_weights: BTreeMap<String, u16>,
+    },
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ShuffledList {
-    pub options: Vec<String>,
-}
-
-impl ShuffledList {
-    pub fn new<S: Into<String>>(options: Vec<S>) -> Self {
-        Self {
-            options: options.into_iter().map(|o| o.into()).collect(),
+impl RandomSpec {
+    pub fn as_options(self) -> Vec<String> {
+        match self {
+            RandomSpec::ShuffledList { options } => options,
+            RandomSpec::Lottery {
+                options_and_weights,
+            } => options_and_weights
+                .into_iter()
+                .flat_map(|(o, w)| repeat(o).take(w as _))
+                .collect(),
         }
     }
-}
 
-impl RandomSpec for ShuffledList {
-    fn options(&self) -> &Vec<String> {
-        &self.options
+    /// Create a deck of cards.
+    /// Use A, 2-9, T, J, Q, K for kinds.
+    /// Use S(spade), D(diamond), C(club), H(heart) for suits.
+    pub fn deck_of_cards() -> Self {
+        RandomSpec::ShuffledList {
+            options: vec![
+                "ha".into(),
+                "h2".into(),
+                "h3".into(),
+                "h4".into(),
+                "h5".into(),
+                "h6".into(),
+                "h7".into(),
+                "h8".into(),
+                "h9".into(),
+                "ht".into(),
+                "hj".into(),
+                "hq".into(),
+                "hk".into(),
+                "sa".into(),
+                "s2".into(),
+                "s3".into(),
+                "s4".into(),
+                "s5".into(),
+                "s6".into(),
+                "s7".into(),
+                "s8".into(),
+                "s9".into(),
+                "st".into(),
+                "sj".into(),
+                "sq".into(),
+                "sk".into(),
+                "da".into(),
+                "d2".into(),
+                "d3".into(),
+                "d4".into(),
+                "d5".into(),
+                "d6".into(),
+                "d7".into(),
+                "d8".into(),
+                "d9".into(),
+                "dt".into(),
+                "dj".into(),
+                "dq".into(),
+                "dk".into(),
+                "ca".into(),
+                "c2".into(),
+                "c3".into(),
+                "c4".into(),
+                "c5".into(),
+                "c6".into(),
+                "c7".into(),
+                "c8".into(),
+                "c9".into(),
+                "ct".into(),
+                "cj".into(),
+                "cq".into(),
+                "ck".into(),
+            ],
+        }
     }
 
-    fn size(&self) -> usize {
-        self.options.len()
+    pub fn shuffled_list(options: Vec<String>) -> Self {
+        RandomSpec::ShuffledList { options }
+    }
+
+    pub fn lottery(options_and_weights: BTreeMap<String, u16>) -> Self {
+        RandomSpec::Lottery {
+            options_and_weights,
+        }
     }
 }
 
@@ -134,6 +200,10 @@ impl Mask {
 
     pub fn is_required(&self) -> bool {
         self.status == MaskStatus::Required
+    }
+
+    pub fn is_applied(&self) -> bool {
+        self.status == MaskStatus::Applied
     }
 
     pub fn is_removed(&self) -> bool {
@@ -208,9 +278,9 @@ pub struct Share {
 pub enum RandomStatus {
     #[default]
     Ready,
-    Locking(String),        // The address to mask the ciphertexts
-    Masking(String),        // The address to lock the ciphertexts
-    WaitingSecrets(String), // Waiting for the secrets to be shared
+    Locking(String), // The address to mask the ciphertexts
+    Masking(String), // The address to lock the ciphertexts
+    WaitingSecrets,  // Waiting for the secrets to be shared
 }
 
 /// RandomState represents the public information for a single randomness.
@@ -248,8 +318,10 @@ impl RandomState {
         self.ciphertexts.get_mut(index)
     }
 
-    pub fn try_new(id: RandomId, rnd: &dyn RandomSpec, owners: &[String]) -> Result<Self> {
-        let options = rnd.options();
+    pub fn try_new(id: RandomId, spec: RandomSpec, owners: &[String]) -> Result<Self> {
+        let options = spec.as_options();
+        let size = options.len();
+
         let ciphertexts = options
             .iter()
             .map(|o| {
@@ -257,11 +329,18 @@ impl RandomState {
                 LockedCiphertext::new(ciphertext)
             })
             .collect();
+
         let masks = owners.iter().map(Mask::new).collect();
-        let status = RandomStatus::Masking(owners.first().ok_or(Error::NoEnoughServer)?.to_owned());
+
+        let status = if let Some(owner) = owners.first() {
+            RandomStatus::Masking(owner.clone())
+        } else {
+            return Err(Error::NoEnoughServer);
+        };
+
         Ok(Self {
             id,
-            size: rnd.size(),
+            size,
             masks,
             owners: owners.to_owned(),
             options: options.clone(),
@@ -274,10 +353,10 @@ impl RandomState {
 
     pub fn mask<S: AsRef<str>>(&mut self, addr: S, mut ciphertexts: Vec<Ciphertext>) -> Result<()> {
         match self.status {
-            RandomStatus::Masking(ref mask_addr) => {
+            RandomStatus::Masking(ref a) => {
                 let addr = addr.as_ref();
-                if mask_addr.ne(addr) {
-                    return Err(Error::InvalidMaskProvider);
+                if a.ne(addr) {
+                    return Err(Error::InvalidOperator);
                 }
                 if let Some(mut mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr)) {
                     if !mask.is_required() {
@@ -290,14 +369,10 @@ impl RandomState {
                             c.ciphertext = ciphertexts.remove(0);
                         }
                         mask.status = MaskStatus::Applied;
-                        if let Some(m) = self.masks.iter().find(|m| m.is_required()) {
-                            self.status = RandomStatus::Masking(m.owner.clone());
-                        } else {
-                            self.status =
-                                RandomStatus::Locking(self.masks.first().unwrap().owner.clone());
-                        }
+                        self.update_status();
                     }
                 } else {
+                    // unreachable
                     return Err(Error::InvalidOperator);
                 }
                 Ok(())
@@ -315,12 +390,11 @@ impl RandomState {
         S: Into<String> + AsRef<str> + Clone,
     {
         match self.status {
-            RandomStatus::Locking(ref lock_addr) => {
+            RandomStatus::Locking(ref a) => {
                 let addr = addr.as_ref();
-                if addr.ne(lock_addr) {
-                    return Err(Error::InvalidLockProvider);
+                if a.ne(addr) {
+                    return Err(Error::InvalidOperator);
                 }
-
                 if let Some(mut mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr)) {
                     if mask.status.eq(&MaskStatus::Removed) {
                         return Err(Error::DuplicatedLock);
@@ -334,11 +408,7 @@ impl RandomState {
                         c.ciphertext = new_text;
                         c.locks.push(Lock::new(addr.to_owned(), digest));
                     }
-                    if let Some(m) = self.masks.iter().find(|m| !m.is_removed()) {
-                        self.status = RandomStatus::Locking(m.owner.clone());
-                    } else {
-                        self.status = RandomStatus::Ready;
-                    }
+                    self.update_status();
                 } else {
                     return Err(Error::InvalidOperator);
                 }
@@ -354,7 +424,7 @@ impl RandomState {
     {
         if !matches!(
             self.status,
-            RandomStatus::Ready | RandomStatus::WaitingSecrets(_)
+            RandomStatus::Ready | RandomStatus::WaitingSecrets
         ) {
             return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
@@ -382,14 +452,7 @@ impl RandomState {
             }
         }
 
-        let wait_addr = self
-            .secret_shares
-            .iter()
-            .find(|ss| ss.secret.is_none())
-            .unwrap()
-            .from_addr
-            .clone();
-        self.status = RandomStatus::WaitingSecrets(wait_addr);
+        self.status = RandomStatus::WaitingSecrets;
 
         Ok(())
     }
@@ -411,7 +474,7 @@ impl RandomState {
     pub fn reveal(&mut self, indexes: Vec<usize>) -> Result<()> {
         if !matches!(
             self.status,
-            RandomStatus::Ready | RandomStatus::WaitingSecrets(_)
+            RandomStatus::Ready | RandomStatus::WaitingSecrets
         ) {
             return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
@@ -433,15 +496,7 @@ impl RandomState {
             }
         }
 
-        let wait_addr = self
-            .secret_shares
-            .iter()
-            .find(|ss| ss.secret.is_none())
-            .ok_or(Error::InvalidRevealOperation)?
-            .from_addr
-            .clone();
-
-        self.status = RandomStatus::WaitingSecrets(wait_addr);
+        self.status = RandomStatus::WaitingSecrets;
         Ok(())
     }
 
@@ -576,28 +631,33 @@ impl RandomState {
         Ok(())
     }
 
-    // TODO: make it general purpose
+    /// Return addresses those haven't submitted operation
+    pub fn list_operating_addrs(&self) -> Vec<String> {
+        match &self.status {
+            RandomStatus::Ready => Vec::new(),
+            RandomStatus::Locking(addr) => vec![addr.clone()],
+            RandomStatus::Masking(addr) => vec![addr.clone()],
+            RandomStatus::WaitingSecrets => self
+                .secret_shares
+                .iter()
+                .filter(|s| s.secret.is_none())
+                .map(|s| s.from_addr.to_owned())
+                .collect(),
+        }
+    }
+
+    /// Update randomness status
     pub fn update_status(&mut self) {
-        if let Some(secret_share) = self.secret_shares.iter().find(|ss| ss.secret.is_none()) {
-            self.status = RandomStatus::WaitingSecrets(secret_share.from_addr.clone());
+        if let Some(mask) = self.masks.iter().find(|m| m.is_required()) {
+            self.status = RandomStatus::Masking(mask.owner.clone());
+        } else if let Some(mask) = self.masks.iter().find(|m| m.is_applied()) {
+            self.status = RandomStatus::Locking(mask.owner.clone());
+        } else if self.secret_shares.iter().any(|s| s.secret.is_none()) {
+            self.status = RandomStatus::WaitingSecrets;
         } else {
             self.status = RandomStatus::Ready;
         }
     }
-}
-
-// helpers for convenience
-
-/// Create a deck of cards.
-/// Use A, 2-9, T, J, Q, K for kinds.
-/// Use S(spade), D(diamond), C(club), H(heart) for suits.
-pub fn deck_of_cards() -> ShuffledList {
-    ShuffledList::new(vec![
-        "ha", "h2", "h3", "h4", "h5", "h6", "h7", "h8", "h9", "ht", "hj", "hq", "hk", "sa", "s2",
-        "s3", "s4", "s5", "s6", "s7", "s8", "s9", "st", "sj", "sq", "sk", "da", "d2", "d3", "d4",
-        "d5", "d6", "d7", "d8", "d9", "dt", "dj", "dq", "dk", "ca", "c2", "c3", "c4", "c5", "c6",
-        "c7", "c8", "c9", "ct", "cj", "cq", "ck",
-    ])
 }
 
 #[cfg(test)]
@@ -607,8 +667,8 @@ mod tests {
 
     #[test]
     fn test_list_required_secrets() -> Result<()> {
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        let mut state = RandomState::try_new(0, random, &["alice".into(), "bob".into()])?;
         state.mask("alice", vec![vec![1], vec![2], vec![3]])?;
         state.mask("bob", vec![vec![1], vec![2], vec![3]])?;
         state.lock(
@@ -636,9 +696,9 @@ mod tests {
 
     #[test]
     fn test_new_random_spec() -> Result<()> {
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
         let state =
-            RandomState::try_new(0, &rnd, &["alice".into(), "bob".into(), "charlie".into()])?;
+            RandomState::try_new(0, random, &["alice".into(), "bob".into(), "charlie".into()])?;
         assert_eq!(3, state.masks.len());
         Ok(())
     }
@@ -653,8 +713,8 @@ mod tests {
 
     #[test]
     fn test_mask() -> Result<()> {
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        let mut state = RandomState::try_new(0, random, &["alice".into(), "bob".into()])?;
         assert_eq!(RandomStatus::Masking("alice".into()), state.status);
         state
             .mask("alice", vec![vec![1], vec![2], vec![3]])
@@ -672,8 +732,8 @@ mod tests {
 
     #[test]
     fn test_add_secret_share() -> Result<()> {
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        let mut state = RandomState::try_new(0, random, &["alice".into(), "bob".into()])?;
         let share1 = Share {
             from_addr: "alice".into(),
             to_addr: None,
@@ -694,8 +754,8 @@ mod tests {
 
     #[test]
     fn test_lock() -> Result<()> {
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomState::try_new(0, &rnd, &["alice".into(), "bob".into()])?;
+        let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
+        let mut state = RandomState::try_new(0, random, &["alice".into(), "bob".into()])?;
         state
             .mask("alice", vec![vec![1], vec![2], vec![3]])
             .expect("failed to mask");

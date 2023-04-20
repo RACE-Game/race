@@ -100,17 +100,9 @@ impl GameManager {
     ) -> Result<(broadcast::Receiver<BroadcastFrame>, Vec<BroadcastFrame>)> {
         let games = self.games.lock().await;
         let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
-        let receiver = handle.broadcaster()?.get_broadcast_rx();
-        let histories = handle
-            .broadcaster()?
-            .retrieve_histories(settle_version)
-            .await;
+        let broadcaster = handle.broadcaster()?;
+        let receiver = broadcaster.get_broadcast_rx();
+        let histories = broadcaster.retrieve_histories(settle_version).await;
         Ok((receiver, histories))
-    }
-
-    pub async fn get_snapshot(&self, game_addr: &str) -> Result<String> {
-        let games = self.games.lock().await;
-        let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
-        Ok(handle.broadcaster()?.get_snapshot().await)
     }
 }

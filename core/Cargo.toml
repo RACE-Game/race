@@ -9,3 +9,7 @@ thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 borsh = { workspace = true }
+race-proc-macro = { path = "../proc-macro" }
+
+[dev-dependencies]
+anyhow = "1.0.64"

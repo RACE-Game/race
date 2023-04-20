@@ -44,7 +44,9 @@ pub fn test_holdem() -> Result<()> {
 
     // ------------------------- INITTEST ------------------------
     // Try to start the "zero-player" game that will fail
-    let fail_to_start = ctx.gen_first_event();
+    let fail_to_start = Event::GameStart {
+        access_version: game_acct.access_version,
+    };
     holdem.handle_event(&mut ctx, &fail_to_start)?;
     assert_eq!(
         *ctx.get_dispatch(),
@@ -118,10 +120,7 @@ pub fn test_holdem() -> Result<()> {
     // Then Bob will be asked to act
     {
         let state = holdem.get_state();
-        assert_eq!(
-            Some("Bob".to_string()),
-            state.acting_player
-        );
+        assert_eq!(Some(("Bob".to_string(), 1)), state.acting_player);
     }
     // Bob (BB) checks
     let bob_check = bob.custom_event(GameEvent::Check);
@@ -145,10 +144,7 @@ pub fn test_holdem() -> Result<()> {
 
         // Then game goes to Flop and Alice will be asked to act
         assert_eq!(Street::Flop, state.street);
-        assert_eq!(
-            Some("Alice".to_string()),
-            state.acting_player
-        );
+        assert_eq!(Some(("Alice".to_string(), 1)), state.acting_player);
         assert_eq!(Street::Flop, state.street);
     }
 
@@ -176,10 +172,7 @@ pub fn test_holdem() -> Result<()> {
     {
         // Bob is asked to act
         let state = holdem.get_state();
-        assert_eq!(
-            Some("Bob".to_string()),
-            state.acting_player
-        );
+        assert_eq!(Some(("Bob".to_string(), 1)), state.acting_player);
     }
     // Bob BB checks
     let bob_check2 = bob.custom_event(GameEvent::Check);

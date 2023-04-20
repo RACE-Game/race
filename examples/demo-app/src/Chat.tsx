@@ -13,9 +13,7 @@ interface Message {
 }
 
 interface State {
-    messages: Message[],
-    num_of_clients: number,
-    num_of_servers: number,
+  messages: Message[],
 }
 
 function Chat() {

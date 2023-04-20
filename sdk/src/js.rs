@@ -72,7 +72,6 @@ pub struct JsGameContext<'a> {
     pub status: String,
     pub allow_exit: bool,
     pub players: Vec<JsPlayer<'a>>,
-    pub pending_players: Vec<JsPlayerJoin<'a>>,
     pub servers: Vec<JsServer<'a>>,
 }
 
@@ -86,11 +85,6 @@ impl<'a> JsGameContext<'a> {
             allow_exit: context.is_allow_exit(),
             servers: context.get_servers().iter().map(Into::into).collect(),
             players: context.get_players().iter().map(Into::into).collect(),
-            pending_players: context
-                .get_pending_players()
-                .iter()
-                .map(Into::into)
-                .collect(),
         }
     }
 }
@@ -129,17 +123,17 @@ impl From<race_core::event::Event> for Event {
                 sender: Some(sender),
                 data: parse(&raw).unwrap(),
             },
-            Ready { sender } => Self {
+            Ready => Self {
                 kind: "ready".into(),
-                sender: Some(sender),
+                sender: None,
                 data: JsValue::null(),
             },
-            ShareSecrets { sender, secrets } => {
+            ShareSecrets { sender, shares } => {
                 let data = Object::new();
                 Reflect::set(
                     &data,
-                    &"secrets".into(),
-                    &JsValue::from_serde(&secrets).unwrap(),
+                    &"shares".into(),
+                    &JsValue::from_serde(&shares).unwrap(),
                 )
                 .unwrap();
                 Self {
@@ -148,9 +142,14 @@ impl From<race_core::event::Event> for Event {
                     data: JsValue::from(data),
                 }
             }
-            OperationTimeout { addr } => {
+            OperationTimeout { addrs } => {
                 let data = Object::new();
-                Reflect::set(&data, &"addr".into(), &addr.into()).unwrap();
+                Reflect::set(
+                    &data,
+                    &"addrs".into(),
+                    &JsValue::from_serde(&addrs).unwrap(),
+                )
+                .unwrap();
                 Self {
                     kind: "operation-timeout".into(),
                     sender: None,

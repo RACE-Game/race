@@ -121,3 +121,67 @@ pub trait EncryptorT: std::fmt::Debug + Send + Sync {
 pub trait Digestable {
     fn digest(&self) -> String;
 }
+
+#[cfg(test)]
+pub mod tests {
+    use crate::types::{Ciphertext, SecretDigest, SecretKey, Signature};
+
+    use super::{EncryptorT, Result};
+
+    #[derive(Debug, Default)]
+    pub struct DummyEncryptor {}
+
+    #[allow(unused)]
+    impl EncryptorT for DummyEncryptor {
+        fn add_public_key(&self, addr: String, raw: &str) -> Result<()> {
+            Ok(())
+        }
+
+        fn export_public_key(&self, addr: Option<&str>) -> Result<String> {
+            Ok("".into())
+        }
+
+        fn gen_secret(&self) -> SecretKey {
+            vec![0, 0, 0, 0]
+        }
+
+        fn encrypt(&self, addr: Option<&str>, text: &[u8]) -> Result<Vec<u8>> {
+            Ok(vec![0, 0, 0, 0])
+        }
+
+        fn decrypt(&self, text: &[u8]) -> Result<Vec<u8>> {
+            Ok(vec![0, 0, 0, 0])
+        }
+
+        fn apply(&self, secret: &SecretKey, buf: &mut [u8]) {}
+
+        fn apply_multi(&self, secret: Vec<SecretKey>, buf: &mut [u8]) {}
+
+        fn sign_raw(&self, message: &[u8]) -> Result<Vec<u8>> {
+            Ok(vec![0, 0, 0, 0])
+        }
+
+        fn verify_raw(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> Result<()> {
+            Ok(())
+        }
+
+        fn sign(&self, message: &[u8], signer: String) -> Result<Signature> {
+            Ok(Signature {
+                signer,
+                nonce: "".into(),
+                timestamp: 0,
+                signature: "".into(),
+            })
+        }
+
+        fn verify(&self, message: &[u8], signature: &Signature) -> Result<()> {
+            Ok(())
+        }
+
+        fn shuffle(&self, items: &mut Vec<Ciphertext>) {}
+
+        fn digest(&self, text: &[u8]) -> SecretDigest {
+            vec![0, 1, 2, 3]
+        }
+    }
+}

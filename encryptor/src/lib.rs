@@ -128,12 +128,6 @@ impl EncryptorT for Encryptor {
             Some(addr) => public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
             None => &self.default_public_key,
         };
-        // info!(
-        //     "Verify signature, key: {:?}, message: {:?}, signature: {:?}",
-        //     hex::encode(pubkey.to_pkcs1_der().unwrap().as_der(),),
-        //     message,
-        //     signature
-        // );
 
         let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
         let hashed = Sha1::digest(message).to_vec();
@@ -223,7 +217,7 @@ mod tests {
 
     use race_core::{
         random::{RandomMode, ShuffledList},
-        secret::SecretState,
+        secret::RandomSecretState,
     };
 
     use super::*;
@@ -266,7 +260,7 @@ mod tests {
     fn test_secret_state() {
         let e = Arc::new(Encryptor::default());
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let state = SecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
+        let state = RandomSecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
         assert_eq!(3, state.received.len());
         assert_eq!(3, state.decrypted.len());
     }
@@ -275,7 +269,7 @@ mod tests {
     fn test_mask_and_unmask() -> Result<()> {
         let e = Arc::new(Encryptor::default());
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = SecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
+        let mut state = RandomSecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
         let original_ciphertexts = vec![vec![41; 16], vec![42; 16], vec![43; 16]];
         let encrypted = state.mask(original_ciphertexts.clone())?;
         let decrypted = state.unmask(encrypted.clone())?;
@@ -288,7 +282,7 @@ mod tests {
     fn test_lock() -> Result<()> {
         let e = Arc::new(Encryptor::default());
         let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = SecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
+        let mut state = RandomSecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
         let original_ciphertexts = vec![vec![41; 16], vec![42; 16], vec![43; 16]];
         let ciphertexts_and_tests = state.lock(original_ciphertexts)?;
         assert_eq!(3, ciphertexts_and_tests.len());

@@ -4,96 +4,151 @@
 //! round, there's 5 seconds waiting to allow players join.  One of
 //! the player will be picked as winner, and receive all the tokens.
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::error::Result;
-use race_core::random::ShuffledList;
-use race_core::types::Settle;
-use race_core::{
-    context::GameContext,
-    engine::GameHandler,
-    event::Event,
-    types::{GameAccount, RandomId},
-};
-use race_proc_macro::game_handler;
+use race_core::prelude::*;
 use serde::{Deserialize, Serialize};
+
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
+#[derive(Deserialize, Serialize)]
+struct Player {
+    pub addr: String,
+    pub balance: u64,
+}
+
+impl From<PlayerJoin> for Player {
+    fn from(value: PlayerJoin) -> Self {
+        Self {
+            addr: value.addr,
+            balance: value.balance,
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 #[game_handler]
 struct Raffle {
-    previous_winner: Option<String>,
+    last_winner: Option<String>,
+    players: Vec<Player>,
     random_id: RandomId,
-    next_draw: u64,
-    options: Vec<String>,
+    draw_time: u64,
 }
 
 impl Raffle {
-    fn cleanup(&mut self, winner: Option<String>) {
-        self.options.clear();
-        self.previous_winner = winner;
+    fn cleanup(&mut self) {
+        self.players.clear();
         self.random_id = 0;
     }
 }
 
 impl GameHandler for Raffle {
     /// Initialize handler state with on-chain game account data.
-    fn init_state(_context: &mut GameContext, _init_account: GameAccount) -> Result<Self> {
+    fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self> {
+        let players = init_account.players.into_iter().map(Into::into).collect();
+        let draw_time = context.timestamp() + 30_000;
+        context.start_game();
         Ok(Self {
-            previous_winner: None,
+            last_winner: None,
+            players,
             random_id: 0,
-            options: Vec::default(),
-            next_draw: 0,
+            draw_time,
         })
     }
 
     /// Handle event.
-    fn handle_event(&mut self, context: &mut GameContext, event: Event) -> Result<()> {
+    fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()> {
         match event {
             Event::GameStart { .. } => {
-                // We need at least two players to start
-                // Otherwise we will schedule next round
-                let players = context.get_players();
-                if players.len() >= 1 {
-                    self.options = players.iter().map(|p| p.addr.to_owned()).collect();
-                    let rnd_spec = ShuffledList::new(self.options.clone());
-                    self.random_id = context.init_random_state(&rnd_spec)?;
+                // We need at least one player to start, otherwise we will skip this draw.
+                if context.count_players() >= 1 {
+                    let options = self.players.iter().map(|p| p.addr.to_owned()).collect();
+                    let rnd_spec = RandomSpec::shuffled_list(options);
+                    self.random_id = context.init_random_state(rnd_spec);
                 } else {
-                    self.next_draw = context.get_timestamp() + 10_000;
-                    context.wait_timeout(10_000);
+                    self.draw_time = context.timestamp() + 30_000;
+                    context.wait_timeout(30_000);
                 }
             }
-            Event::RandomnessReady { .. } => {
-                context.reveal(self.random_id, vec![0])?;
+
+            Event::Sync { new_players, .. } => {
+                let players = new_players.into_iter().map(Into::into);
+                self.players.extend(players);
             }
+
+            // Reveal the first address when randomness is ready.
+            Event::RandomnessReady { .. } => {
+                context.reveal(self.random_id, vec![0]);
+            }
+
+            // Start game when we have enough players.
             Event::WaitingTimeout => {
                 context.start_game();
             }
+
+            // Eject all players when encryption failed.
             Event::OperationTimeout { .. } => {
                 context.wait_timeout(60_000);
-                self.cleanup(None);
+                self.cleanup();
             }
+
             Event::SecretsReady => {
                 let winner = context
                     .get_revealed(self.random_id)?
                     .get(&0)
                     .unwrap()
                     .to_owned();
-                let mut settles = vec![];
 
-                for p in context.get_players().iter() {
+                for p in self.players.iter() {
                     if p.addr.ne(&winner) {
-                        settles.push(Settle::add(&winner, p.balance));
-                        settles.push(Settle::sub(&p.addr, p.balance));
+                        context.settle(Settle::add(&winner, p.balance));
+                        context.settle(Settle::sub(&p.addr, p.balance));
                     }
+                    context.settle(Settle::eject(&p.addr));
                 }
-                for p in context.get_players().iter() {
-                    settles.push(Settle::eject(&p.addr));
-                }
-                context.settle(settles);
                 context.wait_timeout(5_000);
-                self.cleanup(Some(winner));
+                self.last_winner = Some(winner);
+                self.cleanup();
             }
             _ => (),
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_init_state() {
+        let mut effect = Effect::default();
+        let init_account = InitAccount::default();
+        let state = Raffle::init_state(&mut effect, init_account).expect("Failed to init state");
+        assert_eq!(state.random_id, 0);
+        assert_eq!(state.players, Vec::new());
+        assert_eq!(state.draw_time, 30_000);
+    }
+
+    #[test]
+    fn test_game_start() {
+        let mut effect = Effect::default();
+        let init_account = InitAccount::default();
+        let mut state =
+            Raffle::init_state(&mut effect, init_account).expect("Failed to init state");
+        let event = Event::Sync {
+            new_players: vec![PlayerJoin {
+                addr: "alice".into(),
+                position: 0,
+                balance: 100,
+                access_version: 0,
+            }],
+            new_servers: vec![ServerJoin {
+                addr: "foo".into(),
+                endpoint: "foo.endpoint".into(),
+                access_version: 0,
+            }],
+            transactor_addr: "".into(),
+            access_version: 0,
+        };
+
+        state.handle_event(&mut effect, event).unwrap();
     }
 }

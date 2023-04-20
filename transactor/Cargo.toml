@@ -36,3 +36,4 @@ base64 = { workspace = true }
 
 [dev-dependencies]
 race-test = { path = "../test" }
+project-root = "0.2.2"

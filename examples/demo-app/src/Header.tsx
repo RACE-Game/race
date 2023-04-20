@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from "react";
 import HelperContext from "./helper-context";
 
-function Header() {
+function Header(props: {gameAddr: string}) {
   let [account, setAccount] = useState<any | undefined>(undefined);
   let helper = useContext(HelperContext);
 
@@ -9,8 +9,8 @@ function Header() {
   useEffect(() => {
     let t = setInterval(async () => {
       if (helper !== undefined) {
-        // let account = await helper.get_game_account("EXAMPLE_RAFFLE_ADDRESS");
-        // setAccount(account);
+        let account = await helper.get_game_account(props.gameAddr);
+        setAccount(account);
       }
     }, 1000);
     return () => clearInterval(t);
@@ -22,11 +22,11 @@ function Header() {
     );
   } else if (account === undefined) {
     return (
-      <div> Loading </div>
+      <div className="w-full h-32 p-2 flex flex-wrap"> Loading </div>
     );
   }else {
     return (
-      <div className="w-full h-full p-2 flex flex-wrap">
+      <div className="w-full h-32 p-2 flex flex-wrap">
         <div className="m-2"> <span className="font-bold">Address:</span> {account.game_addr}</div>
         <div className="m-2"> <span className="font-bold">Status:</span> {account.players.length}</div>
         <div className="m-2"> <span className="font-bold">Servers:</span> {account.servers.length}</div>

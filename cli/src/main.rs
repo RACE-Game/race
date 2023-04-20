@@ -145,9 +145,13 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             println!("Access version: {}", game_account.access_version);
             println!("Settle version: {}", game_account.settle_version);
             println!("Data size: {}", game_account.data.len());
+            println!("Max players: {}", game_account.max_players);
             println!("Players:");
             for p in game_account.players.iter() {
-                println!("Player[{}] position: {}", p.addr, p.position);
+                println!(
+                    "Player[{}] position: {} @{}",
+                    p.addr, p.position, p.access_version
+                );
             }
             println!("Deposits:");
             for d in game_account.deposits.iter() {
@@ -155,7 +159,7 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             }
             println!("Servers:");
             for s in game_account.servers.iter() {
-                println!("Server[{}]: {}", s.endpoint, s.addr);
+                println!("Server[{}]: {} @{}", s.endpoint, s.addr, s.access_version);
             }
             println!("Votes:");
             for v in game_account.votes.iter() {
