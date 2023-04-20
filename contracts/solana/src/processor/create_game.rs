@@ -9,7 +9,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::state::{GameState, Padded, PlayerJoin};
+use crate::state::{GameState, PlayerJoin};
 use race_solana_types::types::CreateGameAccountParams;
 use spl_token::{
     instruction::{set_authority, AuthorityType},
@@ -89,8 +89,6 @@ pub fn process(
 
         padding: Default::default(),
     };
-
-    game_state.update_padding()?;
 
     GameState::pack(game_state, &mut game_account.try_borrow_mut_data()?)?;
 

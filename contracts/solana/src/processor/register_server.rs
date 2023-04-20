@@ -7,10 +7,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{
-    error::ProcessError,
-    state::{Padded, ServerState},
-};
+use crate::{error::ProcessError, state::ServerState};
 use race_solana_types::constants::SERVER_PROFILE_SEED;
 use race_solana_types::types::RegisterServerParams;
 
@@ -45,8 +42,6 @@ pub fn process(
         endpoint: params.endpoint,
         padding: Default::default(),
     };
-
-    server_state.update_padding()?;
 
     msg!("Server state: {:?}", &server_state);
 

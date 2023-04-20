@@ -1108,8 +1108,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_registry_create_get() -> anyhow::Result<()> {
         let transport = get_transport()?;
-        // let addr = create_reg(&transport).await?;
-        let addr = "9Aj7xAre79b4CUzbTZAiZeQgFtuBy2sDkhERwsd2enJF".to_string();
+        let addr = create_reg(&transport).await?;
         let reg = transport.get_registration(&addr).await.unwrap();
         assert_eq!(reg.is_private, false);
         assert_eq!(reg.size, 100);
@@ -1140,7 +1139,7 @@ mod tests {
             .get_server_account(&transport.wallet_pubkey().to_string())
             .await
             .unwrap();
-        assert_eq!(server.addr, addr);
+        assert_eq!(server.addr, transport.wallet_pubkey().to_string());
         assert_eq!(server.endpoint, endpoint);
         Ok(())
     }
@@ -1149,20 +1148,19 @@ mod tests {
     async fn test_create_player_profile() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let nick = "Foo".to_string();
-        let addr = transport
+        transport
             .create_player_profile(CreatePlayerProfileParams {
                 nick: nick.clone(),
                 pfp: None,
             })
             .await?;
-        println!("Profile created at {}", addr);
         let profile = transport
             .get_player_profile(&transport.wallet_pubkey().to_string())
             .await
             .unwrap();
-        assert_eq!(profile.addr, addr);
+        assert_eq!(profile.addr, transport.wallet_pubkey().to_string());
         assert_eq!(profile.nick, nick);
-        // assert_eq!(profile.pfp, None);
+        assert_eq!(profile.pfp, None);
         Ok(())
     }
 
@@ -1212,7 +1210,7 @@ mod tests {
     async fn test_publish_game() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let params = PublishGameParams {
-            uri: "https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E".to_string(),
+            uri: "https://arweave.net/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E".to_string(),
             name: "RACE_raffle".to_string(),
             symbol: "RACE".to_string(),
         };
@@ -1227,7 +1225,7 @@ mod tests {
         assert_eq!(bundle.name, "RACE_raffle".to_string());
         assert_eq!(
             bundle.uri,
-            "https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E".to_string()
+            "https://arweave.net/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E".to_string()
         );
         Ok(())
     }

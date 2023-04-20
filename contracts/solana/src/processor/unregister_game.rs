@@ -1,7 +1,7 @@
 // use arrayref::array_mut_ref;
 use crate::{
     error::ProcessError,
-    state::{GameState, Padded, RegistryState},
+    state::{GameState, RegistryState},
 };
 
 use solana_program::{
@@ -74,7 +74,6 @@ pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult
         let unreg_game = registry_state.games.remove(unreg_idx);
         msg!("Unregitered game {}", unreg_game.addr);
 
-        registry_state.update_padding()?;
         msg!("len: {:?}", registry_state.padding.len());
         RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;
 

@@ -1,4 +1,4 @@
-use crate::state::{GameReg, Padded, RegistryState};
+use crate::state::{GameReg, RegistryState};
 use race_solana_types::types::CreateRegistrationParams;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -38,8 +38,6 @@ pub fn process(
         games: Box::new(Vec::<GameReg>::with_capacity(params.size as usize)),
         padding: Default::default(),
     };
-
-    registry_state.update_padding()?;
 
     RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;
     msg!("Created registry {}", registry_account.key);

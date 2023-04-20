@@ -8,10 +8,7 @@ use solana_program::{
     sysvar::rent::Rent,
 };
 
-use crate::{
-    error::ProcessError,
-    state::{Padded, PlayerState},
-};
+use crate::{error::ProcessError, state::PlayerState};
 use race_solana_types::constants::PLAYER_PROFILE_SEED;
 use race_solana_types::types::CreatePlayerProfileParams;
 
@@ -61,8 +58,6 @@ pub fn process(
         pfp: pfp_pubkey,
         padding: Default::default(),
     };
-
-    player_state.update_padding()?;
 
     msg!("player profile state: {:?}", &player_state);
 

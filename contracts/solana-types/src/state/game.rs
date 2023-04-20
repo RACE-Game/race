@@ -1,12 +1,9 @@
 #[cfg(feature = "program")]
 use crate::constants::GAME_ACCOUNT_LEN;
-#[cfg(feature = "program")]
-use crate::state::Padded;
 use crate::types::VoteType;
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::{
-    borsh::get_instance_packed_len,
     program_error::ProgramError,
     program_memory::sol_memcpy,
     program_pack::{IsInitialized, Pack, Sealed},
@@ -87,17 +84,6 @@ pub struct GameState {
 }
 
 #[cfg(feature = "program")]
-impl Padded for GameState {
-    fn get_padding_mut(&mut self) -> Result<(usize, &mut Box<Vec<u8>>), ProgramError> {
-        let packed_len = get_instance_packed_len(self)?;
-        let current_padding_len = self.padding.len();
-        let data_len = packed_len - current_padding_len;
-        let needed_padding_len = Self::LEN - data_len;
-        Ok((needed_padding_len, &mut self.padding))
-    }
-}
-
-#[cfg(feature = "program")]
 impl IsInitialized for GameState {
     fn is_initialized(&self) -> bool {
         self.is_initialized
@@ -111,19 +97,19 @@ impl Sealed for GameState {}
 impl Pack for GameState {
     const LEN: usize = GAME_ACCOUNT_LEN;
 
-    fn pack_into_slice(&self, dst: &mut [u8]) {
-        let data = self.try_to_vec().unwrap();
-        sol_memcpy(dst, &data, data.len());
+    fn pack_into_slice(&self, mut dst: &mut [u8]) {
+        self.serialize(&mut dst).unwrap();
     }
 
-    fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        let result = GameState::try_from_slice(src)?;
-        Ok(result)
+    fn unpack_from_slice(mut src: &[u8]) -> Result<Self, ProgramError> {
+        Self::deserialize(&mut src).map_err(|_| ProgramError::InvalidAccountData)
     }
 }
 
 #[cfg(test)]
 mod tests {
+
+    use solana_program::borsh::get_instance_packed_len;
 
     use super::*;
 
@@ -177,8 +163,7 @@ mod tests {
     #[test]
     #[ignore]
     pub fn test_ser() -> anyhow::Result<()> {
-        let mut state = make_game_state();
-        state.update_padding()?;
+        let state = make_game_state();
         let mut buf = [0u8; GameState::LEN];
         GameState::pack(state, &mut buf)?;
         println!("{:?}", buf);
@@ -187,8 +172,7 @@ mod tests {
 
     #[test]
     pub fn test_deser() -> anyhow::Result<()> {
-        let mut state = make_game_state();
-        state.update_padding()?;
+        let state = make_game_state();
         let mut buf = [0u8; GameState::LEN];
         GameState::pack(state.clone(), &mut buf)?;
         let deser = GameState::unpack(&buf)?;

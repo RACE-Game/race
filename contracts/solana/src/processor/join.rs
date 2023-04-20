@@ -1,6 +1,6 @@
 use crate::{
     error::ProcessError,
-    state::{GameState, Padded, PlayerJoin},
+    state::{GameState, PlayerJoin},
 };
 use race_solana_types::types::JoinParams;
 ///! Player joins a game (cash, sng or tourney)
@@ -186,7 +186,6 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
         )?;
     }
 
-    game_state.update_padding()?;
     GameState::pack(game_state, &mut game_account.try_borrow_mut_data()?)?;
 
     msg!(

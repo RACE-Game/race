@@ -1,6 +1,6 @@
 use crate::{
     error::ProcessError,
-    state::{GameReg, GameState, Padded, RegistryState},
+    state::{GameReg, GameState, RegistryState},
 };
 
 use solana_program::{
@@ -81,7 +81,6 @@ pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult
     };
 
     registry_state.games.push(reg_game);
-    registry_state.update_padding()?;
 
     RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;
 

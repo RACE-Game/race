@@ -15,7 +15,7 @@ use solana_program::{
 
 use crate::{
     error::ProcessError,
-    state::{GameState, Padded, ServerJoin, ServerState},
+    state::{GameState, ServerJoin, ServerState},
 };
 use race_solana_types::constants::MAX_SERVER_NUM;
 
@@ -69,7 +69,6 @@ pub fn process(_program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult 
 
     game_state.servers.push(server_to_join);
     game_state.access_version = new_access_version;
-    game_state.update_padding()?;
 
     msg!(
         "Server {} joins game {}",
