@@ -82,9 +82,8 @@ pub struct Vote {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct ServerAccount {
-    pub addr: String,
     // The public key of transactor owner
-    pub owner_addr: String,
+    pub addr: String,
     // The endpoint for transactor server
     pub endpoint: String,
 }

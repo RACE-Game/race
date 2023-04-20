@@ -2,7 +2,6 @@ use std::mem::swap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
 use race_core::encryptor::EncryptorT;

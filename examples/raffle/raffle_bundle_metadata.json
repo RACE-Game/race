@@ -1,10 +1,10 @@
 {
   "name": "RACE Exampel Raffle",
-  "symbol": "RACE",
+  "symbol": "RACEBUNDLE",
   "description": "Exameple raffle game",
   "seller_fee_basis_points": 0,
   "image": "https://arweave.net/u8OZpbZeLPBSPjupnM47M4ZGUq5KUyLE-qWwUUChMGk",
-  "external_url": "",
+  "external_url": "https://racepoker.app",
   "attributes": [],
   "properties": {
     "files": [
@@ -13,7 +13,7 @@
         "type": "image/png"
       },
       {
-        "uri": "https://arweave.net/-3KRcljnfRBVwsP46TmwXdeNSugUKrBNt88P86gPvZ4",
+        "uri": "https://arweave.net/cEnsqRhXXmoTlnujEWNsk2o8L1TKDXfAmGw02ogJRoE",
         "type": "application/wasm"
       }
     ],

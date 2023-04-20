@@ -696,10 +696,10 @@ impl TransportT for SolanaTransport {
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
         let reg_account_pubkey = Self::parse_pubkey(&params.reg_addr)?;
         let reg_state = self.get_registry_state(&reg_account_pubkey).await?;
-        println!("payer pubkey {:?}", payer_pubkey);
-        println!("game pubkey {:?}", game_account_pubkey);
-        println!("reg pubkey {:?}", reg_account_pubkey);
-        println!("reg_state owner {:?}", reg_state.owner);
+        // println!("payer pubkey {:?}", payer_pubkey);
+        // println!("game pubkey {:?}", game_account_pubkey);
+        // println!("reg pubkey {:?}", reg_account_pubkey);
+        // println!("reg_state owner {:?}", reg_state.owner);
 
         if reg_state.games.len() == reg_state.size as usize {
             // FIXME: Use TransportError
@@ -725,8 +725,6 @@ impl TransportT for SolanaTransport {
         let blockhash = self.get_blockhash()?;
         tx.sign(&[payer], blockhash);
         self.send_transaction(tx)?;
-        println!("5");
-
         Ok(())
     }
 
@@ -764,7 +762,6 @@ impl TransportT for SolanaTransport {
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let game_account_pubkey = Self::parse_pubkey(addr).ok()?;
-        println!("pubkey: {}", game_account_pubkey.to_string());
         let state: GameState = self
             .internal_get_game_account(&game_account_pubkey)
             .await
@@ -868,9 +865,9 @@ impl TransportT for SolanaTransport {
 
         let server_account_data = self.client.get_account_data(&server_account_pubkey).ok()?;
         let server_state = ServerState::try_from_slice(&server_account_data).ok()?;
+
         Some(ServerAccount {
-            addr: server_state.addr.to_string(),
-            owner_addr: server_state.owner.to_string(),
+            addr: server_state.owner.to_string(),
             endpoint: server_state.endpoint,
         })
     }
@@ -1252,7 +1249,6 @@ mod tests {
             .expect("Failed to get game bundle");
 
         assert_eq!(bundle.name, "RACE_raffle".to_string());
-        assert_eq!(bundle.symbol, "RACE".to_string());
         assert_eq!(
             bundle.uri,
             "https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E".to_string()

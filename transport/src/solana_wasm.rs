@@ -386,8 +386,7 @@ impl TransportLocalT for SolanaWasmTransport {
         debug!(format!("Get server profile at {}", addr));
         let state: ServerState = self.conn.get_account_state(&pubkey).await?;
         Some(ServerAccount {
-            addr: addr.to_owned(),
-            owner_addr: state.owner.to_string(),
+            addr: state.owner.to_string(),
             endpoint: state.endpoint,
         })
     }

@@ -45,9 +45,7 @@ pub async fn fetch_wasm_from_game_bundle(uri: &str) -> Result<Vec<u8>> {
 
     // Find the wasm link
     if let Some(wasm_file) = m.properties.files.iter().find(|p| p.r#type == "application/wasm") {
-        println!("wasm_file");
         let wasm_bytes = client.get(&wasm_file.uri).send().await?.bytes().await?.to_vec();
-        println!("wasm_bytes");
         Ok(wasm_bytes)
     } else {
         return Err(Error::MalformedMetadata("Can't find URI of WASM bundle".into()));

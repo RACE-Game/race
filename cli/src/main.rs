@@ -1,16 +1,15 @@
-use base64::Engine;
 use clap::{arg, Command};
 use race_core::{
     transport::TransportT,
     types::{
-        CreateGameAccountParams, CreateRegistrationParams, GameBundle, PublishGameParams,
-        RegisterGameParams, ServerAccount, UnregisterGameParams,
+        CreateGameAccountParams, CreateRegistrationParams, PublishGameParams, RegisterGameParams,
+        ServerAccount, UnregisterGameParams,
     },
 };
 use race_env::{default_keyfile, default_rpc};
 use race_transport::TransportBuilder;
 use serde::{Deserialize, Serialize};
-use std::{fs::File, io::Read, path::PathBuf, sync::Arc};
+use std::{fs::File, path::PathBuf, sync::Arc};
 
 #[derive(Serialize, Deserialize)]
 pub struct CreateGameSpecs {
@@ -173,14 +172,9 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
 async fn server_info(addr: &str, transport: Arc<dyn TransportT>) {
     match transport.get_server_account(addr).await {
         Some(server_account) => {
-            let ServerAccount {
-                addr,
-                owner_addr,
-                endpoint,
-            } = server_account;
+            let ServerAccount { addr, endpoint } = server_account;
             println!("Server account: {}", addr);
-            println!("Server owner: {}", owner_addr);
-            println!("Server owner: {}", endpoint);
+            println!("Server endpoint: {}", endpoint);
         }
         None => {
             println!("Server not found");
@@ -232,19 +226,28 @@ async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
         .await
         .expect("Create game account failed");
     println!("Game account created at: {}", addr);
-    transport.register_game(RegisterGameParams {
-        game_addr: addr.clone(),
-        reg_addr: specs.reg_addr,
-    }).await.expect("Failed to register game");
+    transport
+        .register_game(RegisterGameParams {
+            game_addr: addr.clone(),
+            reg_addr: specs.reg_addr,
+        })
+        .await
+        .expect("Failed to register game");
     println!("Game registered");
 }
 
 async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) {
-    println!("Unregister game {} from registration {}", game_addr, reg_addr);
-    transport.unregister_game(UnregisterGameParams {
-        game_addr: game_addr.to_owned(),
-        reg_addr: reg_addr.to_owned()
-    }).await.expect("Failed to unregister game");
+    println!(
+        "Unregister game {} from registration {}",
+        game_addr, reg_addr
+    );
+    transport
+        .unregister_game(UnregisterGameParams {
+            game_addr: game_addr.to_owned(),
+            reg_addr: reg_addr.to_owned(),
+        })
+        .await
+        .expect("Failed to unregister game");
     println!("Game unregistered");
 }
 
