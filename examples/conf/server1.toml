@@ -1,10 +1,14 @@
 [transactor]
 port = 12003
 endpoint = "ws://localhost:12003"
-chain = "facade"
-address = "SERVER_ADDRESS_1"
-reg_addresses = ["DEFAULT_REGISTRATION"]
+chain = "solana"
+address = "F6JoJgWrVZEUaRVpA2uQyRQDNdZXyhyiD8KqdfXcjXQN"
+reg_addresses = ["CUatbLBW7EzPbpSiNKY7ZwXTpYSeukGsochyaUDr3UVs"]
 
 [facade]
 host = "http://localhost:12002"
-registration_address = "DEFAULT_REGISTRATION"
+registration_address = "DEFAULT_REGISTRATION_ADDRESS"
+
+[solana]
+keyfile = "/home/tianshu/.config/solana/id.json"
+rpc = "http://localhost:8899"

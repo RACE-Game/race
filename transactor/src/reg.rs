@@ -45,6 +45,7 @@ pub async fn start_reg_task(context: &ApplicationContext) {
             context.get_signal_sender(),
         )
     };
+    info!("Server address: {}", server_addr);
     info!("Registraion addresses: {:?}", reg_addresses);
     tokio::spawn(async move {
         loop {
@@ -62,15 +63,19 @@ pub async fn start_reg_task(context: &ApplicationContext) {
                                 .find(|s| s.addr.eq(&server_addr))
                                 .is_none()
                             {
+                                let server_account = transport.get_server_account(&server_addr).await;
+                                if server_account.is_none() {
+                                    error!("Server account not found, please run `task` command first");
+                                    return;
+                                }
                                 info!("Serve game at {:?}", game_account.addr);
-                                if let Ok(_) = transport
+                                if let Err(e) = transport
                                     .serve(ServeParams {
                                         game_addr: game_account.addr.clone(),
-                                        server_addr: server_addr.clone(),
                                     })
                                     .await
                                 {
-                                    info!("Game account at {:?}, updated", game_account.addr);
+                                    error!("Error serve game: {:?}", e)
                                 }
                             }
 

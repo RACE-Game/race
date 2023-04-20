@@ -16,8 +16,8 @@ pub use accounts::{
 pub use transport_params::{
     AssetChange, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GetTransactorInfoParams, JoinParams, PlayerStatus,
-    RegisterGameParams, RegisterServerParams, ServeParams, Settle, SettleOp, SettleParams,
-    UnregisterGameParams, VoteParams,
+    PublishGameParams, RegisterGameParams, RegisterServerParams, ServeParams, Settle, SettleOp,
+    SettleParams, TokenInfo, UnregisterGameParams, VoteParams,
 };
 
 pub use transactor_params::{

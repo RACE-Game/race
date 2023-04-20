@@ -1,0 +1,30 @@
+{
+  "name": "race-sdk-core",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "The type definitions for Race SDK",
+  "main": "lib/index.js",
+  "scripts": {
+    "build:js": "tsc",
+    "build:typedefs": "tsc -p tsconfig.d.json",
+    "format": "prettier \"src/**/*.ts\" -w",
+    "lint": "tslint -p tsconfig.json"
+  },
+  "files": [
+    "lib/**/*"
+  ],
+  "module": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "prettier": "^2.8.7",
+    "tslint": "^6.1.3",
+    "typescript": "^5.0.4"
+  },
+  "peerDependencies": {
+    "borsh": "^0.7.0",
+    "buffer": "^6.0.3"
+  }
+}

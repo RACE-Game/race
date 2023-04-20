@@ -1,14 +1,14 @@
-use race_core::encryptor::EncryptorT;
 use race_core::error::{Error, Result};
 use race_core::event::Event;
-use race_core::transport::TransportT;
 use race_core::types::{BroadcastFrame, ServerAccount};
+use race_encryptor::Encryptor;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use tracing::{info, warn};
 
+use crate::component::WrappedTransport;
 use crate::frame::EventFrame;
 use crate::handle::Handle;
 
@@ -29,8 +29,8 @@ impl GameManager {
     pub async fn load_game(
         &self,
         game_addr: String,
-        transport: Arc<dyn TransportT>,
-        encryptor: Arc<dyn EncryptorT>,
+        transport: Arc<WrappedTransport>,
+        encryptor: Arc<Encryptor>,
         server_account: &ServerAccount,
     ) {
         let mut games = self.games.lock().await;
@@ -50,11 +50,8 @@ impl GameManager {
                     });
                 }
                 Err(err) => {
-                    warn!(
-                        "Failed to load game: {}, error: {}",
-                        e.key(),
-                        err.to_string()
-                    );
+                    warn!("Error loading game: {}", err.to_string());
+                    warn!("Failed to load game: {}", e.key());
                 }
             }
         }

@@ -1,21 +1,20 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 use async_trait::async_trait;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
 use tracing::{debug, error};
 
-#[cfg(target_arch = "wasm32")]
-use jsonrpsee::core::client::Client;
-#[cfg(not(target_arch = "wasm32"))]
 use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBuilder};
-#[cfg(target_arch = "wasm32")]
-use jsonrpsee::wasm_client::WasmClientBuilder as ClientBuilder;
 
 use race_core::error::{Error, Result};
+
 use race_core::transport::TransportT;
+
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-    RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount,
+    PublishGameParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount,
     SettleParams, UnregisterGameParams, VoteParams,
 };
 
@@ -27,14 +26,8 @@ pub struct FacadeTransport {
 
 impl FacadeTransport {
     pub async fn try_new(url: &str) -> TransportResult<Self> {
-        #[cfg(not(target_arch = "wasm32"))]
         let client = ClientBuilder::default()
             .build(url)
-            .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
-        #[cfg(target_arch = "wasm32")]
-        let client = ClientBuilder::default()
-            .build(url)
-            .await
             .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
         Ok(Self { client })
     }
@@ -107,7 +100,6 @@ impl TransportT for FacadeTransport {
         if let Ok(rs) = rs {
             Some(rs)
         } else {
-
             None
         }
     }
@@ -119,7 +111,7 @@ impl TransportT for FacadeTransport {
             .ok()
     }
 
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()> {
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String> {
         self.client
             .request("create_profile", rpc_params![params])
             .await
@@ -135,13 +127,12 @@ impl TransportT for FacadeTransport {
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
         debug!("Fetch server account: {:?}", addr);
-        let resp = self.client
+        let resp = self
+            .client
             .request("get_server_info", rpc_params![addr])
             .await;
         match resp {
-            Ok(server_account) => {
-                Some(server_account)
-            },
+            Ok(server_account) => Some(server_account),
             Err(e) => {
                 error!("Failed to get server account due to {:?}", e);
                 None
@@ -157,9 +148,9 @@ impl TransportT for FacadeTransport {
             .ok()
     }
 
-    async fn publish_game(&self, bundle: GameBundle) -> Result<String> {
+    async fn publish_game(&self, params: PublishGameParams) -> Result<String> {
         self.client
-            .request("publish_game_bundle", rpc_params![bundle])
+            .request("publish_game_bundle", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
     }

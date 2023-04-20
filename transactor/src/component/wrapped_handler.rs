@@ -2,7 +2,6 @@ use std::mem::swap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::context::GameContext;
 use race_core::effect::Effect;
@@ -30,13 +29,8 @@ impl WrappedHandler {
         bundle: &GameBundle,
         encryptor: Arc<dyn EncryptorT>,
     ) -> Result<Self> {
-        let base64 = base64::prelude::BASE64_STANDARD;
-        let mut buffer = Vec::with_capacity(1024);
-        base64
-            .decode_vec(&bundle.data, &mut buffer)
-            .or(Err(Error::MalformedGameBundle))?;
         let mut store = Store::default();
-        let module = Module::from_binary(&store, &buffer).or(Err(Error::MalformedGameBundle))?;
+        let module = Module::from_binary(&store, &bundle.data).or(Err(Error::MalformedGameBundle))?;
         let import_object = imports![];
         let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
         Ok(Self {

@@ -3,15 +3,16 @@ name = "race-cli"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 race-core = { path = "../core" }
 race-transport = { path = "../transport" }
 race-env = { path = "../env" }
-tokio = { version = "1.21.0", features = ["full"] }
-uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
-clap = { version = "4.0.26", features = ["derive"] }
-jsonrpsee = { version = "0.16.1", features = ["http-client"] }
-anyhow = "1.0.64"
-base64 = "0.21.0"
+tokio = { workspace = true, features = ["full"] }
+uuid = { workspace = true, features = ["v4", "fast-rng"] }
+clap = { workspace = true, features = ["derive"] }
+jsonrpsee = { workspace = true, features = ["http-client"] }
+anyhow = { workspace = true }
+base64 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+shellexpand = { workspace = true }

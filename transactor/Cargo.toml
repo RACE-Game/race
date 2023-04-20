@@ -11,28 +11,28 @@ race-transport = { path = "../transport" }
 race-encryptor = { path = "../encryptor" }
 race-client = { path = "../client" }
 race-env = { path = "../env" }
-uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
-anyhow = "1.0.64"
-tokio = { version = "1.21.0", features = ["full"] }
-tokio-stream = { version = "0.1.11", features = ["sync"] }
-jsonrpsee = { version = "0.16.1", features = ["full"] }
-tower-http = { version = "0.3.4", features = ["full"] }
-tower = { version = "0.4.13", features = ["full"] }
-hyper = "0.14.20"
-tracing = "0.1.36"
-tracing-subscriber = { version = "0.3.15", features = ["env-filter"] }
-borsh = "0.9.3"
-serde_json = "1.0.85"
-serde = "1.0.144"
-thiserror = "1.0.35"
-wasmer = "3.0.2"
-clap = { version = "4.0.26", features = ["derive"] }
-arrayref = "0.3.6"
-hex = "0.4.3"
-async-stream = "0.3.3"
-async-trait = "0.1.58"
-futures = "0.3.25"
-base64 = "0.21.0"
+uuid = { workspace = true, features = ["v4", "fast-rng"] }
+tokio = { workspace = true, features = ["full"] }
+tokio-stream = { workspace = true, features = ["sync"] }
+jsonrpsee = { workspace = true, features = ["full"] }
+tower-http = { workspace = true, features = ["full"] }
+anyhow = { workspace = true }
+tower = { workspace = true, features = ["full"] }
+hyper = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+borsh = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+wasmer = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+arrayref = { workspace = true }
+hex = { workspace = true }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+base64 = { workspace = true }
 
 [dev-dependencies]
 race-test = { path = "../test" }

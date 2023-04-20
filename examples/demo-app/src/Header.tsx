@@ -16,11 +16,15 @@ function Header(props: {gameAddr: string}) {
     return () => clearInterval(t);
   });
 
-  if (account === undefined) {
+  if (account === null) {
+    return (
+      <div> Not connected! </div>
+    );
+  } else if (account === undefined) {
     return (
       <div className="w-full h-32 p-2 flex flex-wrap"> Loading </div>
     );
-  } else {
+  }else {
     return (
       <div className="w-full h-32 p-2 flex flex-wrap">
         <div className="m-2"> <span className="font-bold">Address:</span> {account.game_addr}</div>

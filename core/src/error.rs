@@ -132,7 +132,10 @@ pub enum Error {
     ServerAccountMissing,
 
     #[error("Initialization transport failed: {0}")]
-    InitializationTransportFailed(String),
+    TransportError(String),
+
+    #[error("Initializing instruction failed: {0}")]
+    InitInstructionFailed(String),
 
     #[error("Initialize rpc client error: {0}")]
     InitializeRpcClientError(String),
@@ -190,6 +193,9 @@ pub enum Error {
 
     #[error("Event ignored")]
     EventIgnored,
+
+    #[error("Wallet not connected")]
+    WalletNotConnected,
 
     #[error("Invalid custom event")]
     InvalidCustomEvent,

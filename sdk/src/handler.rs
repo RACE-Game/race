@@ -10,7 +10,6 @@ use race_core::encryptor::EncryptorT;
 use race_core::engine::{general_handle_event, general_init_state, post_handle_event, InitAccount};
 use race_core::error::{Error, Result};
 
-use base64::Engine;
 use js_sys::WebAssembly::{Instance, Memory};
 use js_sys::{Function, Object, Reflect, Uint8Array, WebAssembly};
 use race_core::event::Event;
@@ -24,15 +23,8 @@ pub struct Handler {
 }
 
 impl Handler {
-    pub async fn from_bundle(
-        game_bundle: GameBundle,
-        encryptor: Arc<dyn EncryptorT>,
-    ) -> Result<Self> {
-        let mut buffer = Vec::with_capacity(1024);
-        let base64 = base64::prelude::BASE64_STANDARD;
-        base64
-            .decode_vec(&game_bundle.data, &mut buffer)
-            .map_err(|_| Error::WasmInitializationError("Failed to decode bundle data".into()))?;
+    pub async fn from_bundle(game_bundle: GameBundle, encryptor: Arc<dyn EncryptorT>) -> Self {
+        let mut buffer = game_bundle.data;
         let mem_descriptor = Object::new();
         Reflect::set(&mem_descriptor, &"shared".into(), &true.into()).map_err(|_| {
             Error::WasmInitializationError("Failed to create mem descriptor".into())

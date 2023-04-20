@@ -5,9 +5,8 @@ use js_sys::JSON::{parse, stringify};
 use js_sys::{Function, Object, Reflect};
 use jsonrpsee::core::client::Subscription;
 use race_core::context::GameContext;
-use race_core::engine::InitAccount;
-use race_core::types::{BroadcastFrame, DecisionId, ExitGameParams, GameAccount, RandomId};
-use race_transport::TransportBuilder;
+use race_core::types::{BroadcastFrame, ExitGameParams, RandomId};
+use race_transport::TransportLocalT;
 use wasm_bindgen::prelude::*;
 
 use futures::pin_mut;
@@ -17,6 +16,8 @@ use std::sync::Arc;
 
 use crate::connection::Connection;
 use crate::handler::Handler;
+use crate::transport::Transport;
+use crate::utils::{get_function, rget};
 use gloo::console::{debug, error, info, warn};
 
 use crate::error::Result;
@@ -26,7 +27,6 @@ use race_core::{
     connection::ConnectionT,
     error::Error,
     event::Event,
-    transport::TransportT,
     types::{ClientMode, GetStateParams, JoinParams, SubmitEventParams},
 };
 use race_encryptor::Encryptor;
@@ -36,7 +36,7 @@ pub struct AppClient {
     addr: String,
     client: Client,
     handler: Handler,
-    transport: Arc<dyn TransportT>,
+    transport: Arc<Transport>,
     connection: Arc<Connection>,
     game_context: RefCell<GameContext>,
     init_game_account: RefCell<Option<GameAccount>>,
@@ -58,53 +58,55 @@ impl AppClient {
     ///   The `addr` can be one of either the game or its sub game.
     #[wasm_bindgen]
     pub async fn try_init(
-        chain: &str,
-        rpc: &str,
-        player_addr: &str,
+        transport: JsValue,
+        wallet: JsValue,
         game_addr: &str,
         callback: Function,
     ) -> Result<AppClient> {
-        let transport = TransportBuilder::default()
-            .try_with_chain(chain)?
-            .with_rpc(rpc)
-            .build()
-            .await?;
-        AppClient::try_new(Arc::from(transport), player_addr, game_addr, callback).await
+        info!("Try init");
+        let transport = Arc::new(Transport::new(transport));
+        AppClient::try_new(transport, wallet, game_addr, callback).await
     }
 
     async fn try_new(
-        transport: Arc<dyn TransportT>,
-        player_addr: &str,
+        transport: Arc<Transport>,
+        wallet: JsValue,
         game_addr: &str,
         callback: Function,
     ) -> Result<Self> {
+        info!("Try new");
         let encryptor = Arc::new(Encryptor::default());
-
+        info!("Encryptor created");
+        info!(&wallet);
+        let player_addr = rget(&wallet, "walletAddr")
+            .as_string()
+            .unwrap();
+        info!("Player addr got");
         let game_account = transport
             .get_game_account(game_addr)
             .await
             .ok_or(Error::GameAccountNotFound)?;
-
+        info!("Game account loaded");
         let game_bundle = transport
             .get_game_bundle(&game_account.bundle_addr)
             .await
             .ok_or(Error::GameBundleNotFound)?;
-
+        info!("Game bundle loaded");
         let transactor_addr = game_account
             .transactor_addr
             .as_ref()
             .ok_or(Error::GameNotServed)?;
-
+        info!("Game is served");
         let transactor_account = transport
             .get_server_account(transactor_addr)
             .await
             .ok_or(Error::CantFindTransactor)?;
-
+        info!("Transactor account loaded");
         let connection = Arc::new(
-            Connection::try_new(player_addr, &transactor_account.endpoint, encryptor.clone())
+            Connection::try_new(&player_addr, &transactor_account.endpoint, encryptor.clone())
                 .await?,
         );
-
+        info!("Connection initialized");
         let client = Client::new(
             player_addr.to_owned(),
             game_addr.to_owned(),
@@ -113,6 +115,7 @@ impl AppClient {
             encryptor.clone(),
             connection.clone(),
         );
+        info!("Game client created");
 
         let handler = Handler::from_bundle(game_bundle, encryptor).await?;
 
@@ -153,6 +156,15 @@ impl AppClient {
             error!(format!("Callback error, {:?}", e));
         }
         Ok(())
+    }
+
+    #[wasm_bindgen]
+    pub async fn get_profile(&self, addr: &str) -> Option<JsValue> {
+        if let Some(p) = self.transport.get_player_profile(addr).await {
+            Some(JsValue::from_serde(&p).unwrap())
+        } else {
+            None
+        }
     }
 
     #[wasm_bindgen]
@@ -283,8 +295,8 @@ impl AppClient {
 
     /// Join the game.
     #[wasm_bindgen]
-    pub async fn join(&self, amount: u64) -> Result<()> {
-        info!("Join game");
+    pub async fn join(&self, wallet: JsValue, position: u8, amount: u64) -> Result<()> {
+        info!("Join game", &wallet);
         let game_account = self
             .transport
             .get_game_account(&self.addr)
@@ -311,13 +323,15 @@ impl AppClient {
         let position = position.ok_or(Error::GameIsFull(count as _))?;
 
         self.transport
-            .join(JoinParams {
-                player_addr: self.client.addr.clone(),
-                game_addr: self.addr.clone(),
-                amount,
-                access_version: game_account.access_version,
-                position: position as _,
-            })
+            .join(
+                &wallet,
+                JoinParams {
+                    game_addr: self.addr.clone(),
+                    amount,
+                    access_version: game_account.access_version,
+                    position: position as _,
+                },
+            )
             .await?;
 
         Ok(())

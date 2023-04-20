@@ -11,12 +11,16 @@ use race_core::{
     event::{CustomEvent, Event},
     random::{RandomState, RandomStatus},
     secret::SecretState,
-    transport::TransportT,
     types::{
         AttachGameParams, Ciphertext, ClientMode, DecisionId, RandomId, SecretIdent, SecretKey,
         SecretShare, SubmitEventParams,
     },
 };
+
+#[cfg(target_arch = "wasm32")]
+use race_transport::wasm_trait::TransportLocalT as TransportT;
+#[cfg(not(target_arch = "wasm32"))]
+use race_core::transport::TransportT;
 
 /// Operation Ident
 ///

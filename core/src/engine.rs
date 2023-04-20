@@ -81,7 +81,7 @@ impl InitAccount {
             panic!("Failed to add player, duplicated position");
         }
         self.players.push(PlayerJoin {
-            position,
+            position: position as _,
             balance,
             addr: addr.into(),
             access_version,

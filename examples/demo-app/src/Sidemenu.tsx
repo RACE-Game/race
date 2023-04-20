@@ -2,60 +2,51 @@ import { AppHelper } from 'race-sdk';
 import { Link } from 'react-router-dom';
 import { useContext, useState, useEffect } from 'react';
 import HelperContext from './helper-context';
-import { REG_ADDR } from './constants';
+import { Chain } from './types';
+import { CHAIN_ADDR_GAME_MAPPING, CHAIN_TO_REG_ADDR, CHAIN_TO_RPC } from './constants';
+import { GameRegistration } from 'race-sdk-core';
 
-interface GameRegistration {
-  addr: string,
-  bundle_addr: string,
-  title: string,
-  reg_time: number
+interface SidemenuProps {
+    chain: Chain,
 }
 
-function GameItem(props: GameRegistration) {
+function GameItem(props: GameRegistration & { chain: Chain }) {
+    console.log(props);
 
-  let game = undefined;
-  switch (props.bundle_addr) {
-    case 'CHAT_BUNDLE':
-      game = 'chat';
-      break;
-    case 'RAFFLE_BUNDLE':
-      game = 'raffle';
-      break;
-    case 'DRAW_CARD_BUNDLE':
-      game = 'draw-card';
-      break;
-  }
+    const game = CHAIN_ADDR_GAME_MAPPING[props.chain][props.bundleAddr]
 
-  return <Link className="flex flex-col my-4"
-    to={`${game}/${props.addr}`}>
-    <h2 className="w-full text-xl underline cursor-pointer hover:scale-[105%] transition-all">{props.title}</h2>
-    <h4 className="self-end text-sm text-gray-500">{props.bundle_addr}</h4>
-  </Link>
+    return <Link className="flex flex-col my-4"
+        to={`${game}/${props.addr}`}>
+        <h2 className="w-full text-xl underline cursor-pointer hover:scale-[105%] transition-all">{props.title}</h2>
+        <h4 className="self-end text-sm text-gray-500">{props.bundleAddr}</h4>
+    </Link>
 }
 
-function Sidemenu() {
-  const helper = useContext(HelperContext);
-  const [games, setGames] = useState<GameRegistration[] | undefined>(undefined);
+function Sidemenu(props: SidemenuProps) {
+    const { chain } = props;
+    const helper = useContext(HelperContext);
+    const [games, setGames] = useState<GameRegistration[] | undefined>(undefined);
 
-  useEffect(() => {
-    if (helper !== undefined) {
-      helper.list_games([REG_ADDR]).then(r => {
-        console.log("Games: ", r);
-        setGames(r);
-      })
-    }
-  }, [helper]);
+    useEffect(() => {
+        if (helper !== undefined) {
+            console.info("Fetch registration", [CHAIN_TO_REG_ADDR[chain]]);
+            helper.list_games([CHAIN_TO_REG_ADDR[chain]]).then(r => {
+                console.log("Games: ", r);
+                setGames(r);
+            })
+        }
+    }, [helper]);
 
-  return (
-    <div className="p-4">
-      <h3 className="font-bold">Demos:</h3>
-      {
-        games !== undefined ?
-          games.map((game) => <GameItem key={game.addr} {...game} />) :
-          "Loading..."
-      }
-    </div>
-  )
+    return (
+        <div className="p-4">
+            <h3 className="font-bold">Demos:</h3>
+            {
+                games !== undefined ?
+                    games.map((game) => <GameItem key={game.addr} chain={chain} {...game} />) :
+                    "Loading..."
+            }
+        </div>
+    )
 }
 
 Sidemenu.contextType = AppHelper;

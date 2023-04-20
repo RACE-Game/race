@@ -6,8 +6,8 @@ use race_core::{
     types::PlayerJoin,
 };
 use serde::Serialize;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
+use wasm_bindgen::{prelude::*, JsCast};
 
 #[derive(Serialize)]
 pub struct JsPlayer<'a> {
@@ -292,4 +292,48 @@ impl From<race_core::event::Event> for Event {
             },
         }
     }
+}
+
+pub fn rget<T: JsCast>(obj: &Object, key: &str) -> Result<T> {
+    let Ok(v) = Reflect::get(obj, &key.to_owned().into()) else {
+        return Err(JsError::new(&format!("Missing {}", key)))
+    };
+    let Ok(v) = v.dyn_into::<T>() else {
+        return Err(JsError::new(&format!("Invalid parameter {}", key)))
+    };
+    Ok(v)
+}
+
+pub fn rget_string(obj: &Object, key: &str) -> Result<String> {
+    let Ok(v) = Reflect::get(obj, &key.to_owned().into()) else {
+        return Err(JsError::new(&format!("Missing {}", key)))
+    };
+    v.as_string().ok_or(JsError::new(&format!(
+        "Invalid parameter {}, expect string",
+        key
+    )))
+}
+
+pub fn rget_u8(obj: &Object, key: &str) -> Result<u8> {
+    let Ok(v) = Reflect::get(obj, &key.to_owned().into()) else {
+        return Err(JsError::new(&format!("Missing {}", key)))
+    };
+    v.as_f64()
+        .ok_or(JsError::new(&format!(
+            "Invalid parameter {}, expect string",
+            key
+        )))
+        .map(|n| n as u8)
+}
+
+pub fn rget_u64(obj: &Object, key: &str) -> Result<u64> {
+    let Ok(v) = Reflect::get(obj, &key.to_owned().into()) else {
+        return Err(JsError::new(&format!("Missing {}", key)))
+    };
+    v.as_f64()
+        .ok_or(JsError::new(&format!(
+            "Invalid parameter {}, expect string",
+            key
+        )))
+        .map(|n| n as u64)
 }

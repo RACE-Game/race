@@ -5,12 +5,12 @@ use crate::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-        ServerAccount, SettleParams, UnregisterGameParams, VoteParams,
+        PlayerProfile, PublishGameParams, RegisterGameParams, RegisterServerParams,
+        RegistrationAccount, ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
+        VoteParams,
     },
 };
 use async_trait::async_trait;
-use std::marker::Send;
 
 #[async_trait]
 pub trait TransportT: Send + Sync {
@@ -18,7 +18,7 @@ pub trait TransportT: Send + Sync {
     /// and holds basic game properties.  Check [`GameAccount`] for
     /// description of the layout. The implementation should contain
     /// the check for transaction signature, make sure that Ok is
-    /// returned only when the transaction is succeed and finalized.
+    /// returned only when the transaction succeeds and finalized.
     ///
     /// # Arguments
     /// * `max_players` - The maximum number of players in this game. Please note,
@@ -110,9 +110,13 @@ pub trait TransportT: Send + Sync {
     /// * `addr` - The address of the wallet, should be the same with signer.
     /// * `nick` - The display name in the game, can't be empty.
     /// * `pfp` - The address of the NFT token to be used.  `None` means using default pfp.
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()>;
+    ///
+    /// # Returns
+    /// * [`Error::PlayerProfileAccountNotFound`] when invalid `addr` is provided.
+    /// * [`Error::RpcError`] when the RPC invocation failed.
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String>;
 
-    async fn publish_game(&self, bundle: GameBundle) -> Result<String>;
+    async fn publish_game(&self, params: PublishGameParams) -> Result<String>;
 
     async fn settle_game(&self, params: SettleParams) -> Result<()>;
 

@@ -69,7 +69,7 @@ impl From<PlayerJoin> for Player {
     fn from(new_player: PlayerJoin) -> Self {
         Self {
             addr: new_player.addr,
-            position: new_player.position,
+            position: new_player.position as _,
             status: NodeStatus::Ready,
             balance: new_player.balance,
         }
@@ -206,7 +206,7 @@ impl GameContext {
         let players = game_account
             .players
             .iter()
-            .map(|p| Player::new_pending(p.addr.clone(), p.balance, p.position, p.access_version))
+            .map(|p| Player::new_pending(p.addr.clone(), p.balance, p.position as _, p.access_version))
             .collect();
 
         let servers = game_account
@@ -499,7 +499,7 @@ impl GameContext {
             .iter()
             .find(|p| p.addr.eq(&player.addr) || p.position == player.position)
         {
-            if p.position == player.position {
+            if p.position == player.position as _ {
                 Err(Error::PositionOccupied(p.position))
             } else {
                 Err(Error::PlayerAlreadyJoined(player.addr.clone()))
@@ -508,7 +508,7 @@ impl GameContext {
             self.players.push(Player::new(
                 player.addr.clone(),
                 player.balance,
-                player.position,
+                player.position as _,
             ));
             Ok(())
         }

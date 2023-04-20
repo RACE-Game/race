@@ -1,0 +1,23 @@
+[package]
+name = "race-solana"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+no-entrypoint = []
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+solana-program = { workspace = true }
+spl-token = { workspace = true, features = ["no-entrypoint"]}
+spl-associated-token-account = { workspace = true, features = ["no-entrypoint"] }
+race-solana-types = { path = "../solana-types", features = ["program"] }
+borsh = { workspace = true }
+arrayref = { workspace = true }
+thiserror = { workspace = true }
+mpl-token-metadata = { workspace = true, features = ["no-entrypoint"] }
+
+[dev-dependencies]
+anyhow = { workspace = true }
