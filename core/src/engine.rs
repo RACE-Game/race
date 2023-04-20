@@ -77,7 +77,7 @@ impl InitAccount {
     pub fn add_player<S: Into<String>>(&mut self, addr: S, position: usize, balance: u64) {
         self.access_version += 1;
         let access_version = self.access_version;
-        if self.players.iter().any(|p| p.position == position) {
+        if self.players.iter().any(|p| p.position as usize == position) {
             panic!("Failed to add player, duplicated position");
         }
         self.players.push(PlayerJoin {

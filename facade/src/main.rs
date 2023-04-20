@@ -644,6 +644,10 @@ fn add_game(ctx: &mut Context, title: &str, game_addr: &str, bundle_addr: &str, 
         max_players: 20,
         data_len: data.len() as _,
         data,
+        token_addr: "".into(),
+        owner_addr: "".into(),
+        min_deposit: 0,
+        max_deposit: 10,
     };
     ctx.accounts.insert(game_addr.into(), account);
     ctx.registrations

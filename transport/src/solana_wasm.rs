@@ -342,7 +342,7 @@ impl TransportLocalT for SolanaWasmTransport {
                 .into_iter()
                 .map(|p| PlayerJoin {
                     addr: p.addr.to_string(),
-                    position: p.position as usize,
+                    position: p.position,
                     balance: p.balance,
                     access_version: p.access_version,
                 })

@@ -5,7 +5,8 @@ use js_sys::JSON::{parse, stringify};
 use js_sys::{Function, Object, Reflect};
 use jsonrpsee::core::client::Subscription;
 use race_core::context::GameContext;
-use race_core::types::{BroadcastFrame, ExitGameParams, RandomId};
+use race_core::types::{BroadcastFrame, GameAccount, ExitGameParams, RandomId};
+use race_core::prelude::{InitAccount, DecisionId};
 use race_transport::TransportLocalT;
 use wasm_bindgen::prelude::*;
 

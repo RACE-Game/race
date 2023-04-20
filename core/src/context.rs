@@ -497,9 +497,9 @@ impl GameContext {
         if let Some(p) = self
             .players
             .iter()
-            .find(|p| p.addr.eq(&player.addr) || p.position == player.position)
+            .find(|p| p.addr.eq(&player.addr) || p.position == player.position as usize)
         {
-            if p.position == player.position as _ {
+            if p.position == player.position as usize {
                 Err(Error::PositionOccupied(p.position))
             } else {
                 Err(Error::PlayerAlreadyJoined(player.addr.clone()))

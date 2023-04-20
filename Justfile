@@ -6,10 +6,6 @@ dep:
     cargo fetch
     npm --prefix ./examples/demo-app i
 
-dev-sdk:
-    wasm-pack build --debug --target web sdk
-    patch ./sdk/pkg/package.json < ./sdk/package.json.patch
-
 build-sdk:
     wasm-pack build --release --target web sdk
     patch ./sdk/pkg/package.json < ./sdk/package.json.patch

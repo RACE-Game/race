@@ -65,7 +65,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
     // 2. position within [0..=(len-1)]?
     // 3. player already joined?
     // 4. position already taken?
-    if game_state.max_players == game_state.players.len() as u8 {
+    if game_state.max_players as usize == game_state.players.len() {
         return Err(ProcessError::GameFullAlready)?;
     }
 

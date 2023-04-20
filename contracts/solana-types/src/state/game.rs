@@ -19,7 +19,7 @@ use solana_sdk::pubkey::Pubkey;
 pub struct PlayerJoin {
     pub addr: Pubkey,
     pub balance: u64,
-    pub position: u32,
+    pub position: u16,
     pub access_version: u64,
 }
 
@@ -65,7 +65,7 @@ pub struct GameState {
     // a serial number, increased by 1 after each settlement
     pub settle_version: u64,
     // game size
-    pub max_players: u8,
+    pub max_players: u16,
     // game players
     pub players: Box<Vec<PlayerJoin>>,
     // game servers (max: 10)

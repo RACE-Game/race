@@ -17,7 +17,7 @@ pub struct CreateGameSpecs {
     reg_addr: String,
     token_addr: String,
     bundle_addr: String,
-    max_players: u8,
+    max_players: u16,
     min_deposit: u64,
     max_deposit: u64,
     data: Vec<u8>,

@@ -24,8 +24,8 @@ We use this token for following tests.
 
 Uploaded NFT metadata on Arweave:
 
-- Chat: https://arweave.app/tx/qXM8gjD1sxey90T-U8KPz_Cuj-APuq3hu34AIWz9SXc
-- Raffle: https://arweave.app/tx/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E
+- Chat: https://arweave.net/qXM8gjD1sxey90T-U8KPz_Cuj-APuq3hu34AIWz9SXc
+- Raffle: https://arweave./uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E
 
 ```shell
 just publish Chat https://arweave.net/qXM8gjD1sxey90T-U8KPz_Cuj-APuq3hu34AIWz9SXc

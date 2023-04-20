@@ -9,7 +9,7 @@ use race_transport::TransportLocalT;
 use wasm_bindgen::prelude::*;
 
 use crate::error::Result;
-use crate::js::{rget, rget_string, rget_u64, rget_u8};
+use crate::js::{rget, rget_string, rget_u64, rget_u8, regu16};
 use crate::transport::Transport;
 use race_core::{
     error::Error,
@@ -45,7 +45,7 @@ impl AppHelper {
         let title = rget_string(opts, "title")?;
         let token_addr = rget_string(opts, "token_addr")?;
         let bundle_addr = rget_string(opts, "bundle_addr")?;
-        let max_players = rget_u8(opts, "max_players")?;
+        let max_players = rget_u16(opts, "max_players")?;
         let data: Uint8Array = rget(opts, "data")?;
         let min_deposit = rget_u64(opts, "min_deposit")?;
         let max_deposit = rget_u64(opts, "max_deposit")?;
