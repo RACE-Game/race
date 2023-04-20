@@ -2,7 +2,6 @@ use crate::{
     error::ProcessError,
     state::{GameState, Padded, PlayerJoin},
 };
-use borsh::BorshDeserialize;
 use race_solana_types::types::JoinParams;
 ///! Player joins a game (cash, sng or tourney)
 use solana_program::{

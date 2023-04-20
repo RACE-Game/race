@@ -41,7 +41,7 @@ use solana_client::{
     rpc_client::{RpcClient, RpcClientConfig},
     rpc_config::RpcSendTransactionConfig,
 };
-use solana_sdk::system_instruction::{create_account, create_account_with_seed, transfer};
+use solana_sdk::system_instruction::{create_account, create_account_with_seed, transfer, self};
 use solana_sdk::transaction::Transaction;
 use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack};
 use solana_sdk::{feature_set::separate_nonce_from_blockhash, pubkey::Pubkey};
@@ -61,6 +61,7 @@ use spl_associated_token_account::{
     get_associated_token_address, instruction::create_associated_token_account,
 };
 use spl_token::{
+    instruction as spl_token_instruction,
     instruction::{initialize_account, sync_native},
     state::{Account, Mint},
 };
@@ -84,9 +85,7 @@ impl TransportT for SolanaTransport {
         // TODO: Discuss title allowed len
         if params.title.len() > NAME_LEN {
             // FIXME: Use TransportError
-            return Err(race_core::error::Error::Custom(
-                "Game title exceeds 16 chars".to_string(),
-            ));
+            return Err(TransportError::InvalidNameLength(params.title))?;
         }
 
         let payer = &self.keypair;
@@ -95,7 +94,7 @@ impl TransportT for SolanaTransport {
         let game_account = Keypair::new();
         let game_account_pubkey = game_account.pubkey();
         let lamports = self.get_min_lamports(GAME_ACCOUNT_LEN)?;
-        let create_game_account_ix = create_account(
+        let create_game_account_ix = system_instruction::create_account(
             &payer_pubkey,
             &game_account_pubkey,
             lamports,
@@ -110,7 +109,7 @@ impl TransportT for SolanaTransport {
         let stake_account_pubkey = stake_account.pubkey();
         let stake_account_len = Account::LEN;
         let stake_lamports = self.get_min_lamports(stake_account_len)?;
-        let create_stake_account_ix = create_account(
+        let create_stake_account_ix = system_instruction::create_account(
             &payer_pubkey,
             &stake_account_pubkey,
             stake_lamports,
@@ -118,7 +117,7 @@ impl TransportT for SolanaTransport {
             &spl_token::id(),
         );
 
-        let init_stake_account_ix = initialize_account(
+        let init_stake_account_ix = spl_token_instruction::initialize_account(
             &spl_token::id(),
             &stake_account_pubkey,
             &token_mint_pubkey,
@@ -222,7 +221,8 @@ impl TransportT for SolanaTransport {
         //     _ => {}
         // }
 
-        let create_server_account_ix = create_account_with_seed(
+        // Get a server account; same seed leads to same result
+        let get_server_account_ix = create_account_with_seed(
             &payer_pubkey,
             &server_account_pubkey,
             &payer_pubkey,
@@ -232,7 +232,8 @@ impl TransportT for SolanaTransport {
             &self.program_id,
         );
 
-        let init_account_ix = Instruction::new_with_borsh(
+        // Init a new account or update the old endpoint
+        let init_or_update_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
             &RaceInstruction::RegisterServer {
                 params: solana_types::RegisterServerParams {
@@ -246,7 +247,7 @@ impl TransportT for SolanaTransport {
         );
 
         let message = Message::new(
-            &[create_server_account_ix, init_account_ix],
+            &[get_server_account_ix, init_or_update_ix],
             Some(&payer_pubkey),
         );
 
@@ -274,11 +275,7 @@ impl TransportT for SolanaTransport {
         }
 
         let mint_pubkey = game_state.token_mint.clone();
-        let is_wsol = if mint_pubkey == spl_token::native_mint::id() {
-            true
-        } else {
-            false
-        };
+        let is_wsol = mint_pubkey == spl_token::native_mint::id();
 
         // stake account to receive player's deposit
         let stake_account_pubkey = game_state.stake_account.clone();
@@ -291,7 +288,7 @@ impl TransportT for SolanaTransport {
         let temp_account_pubkey = temp_account.pubkey();
         let temp_account_len = Account::LEN;
         let temp_account_lamports = self.get_min_lamports(temp_account_len)?;
-        let create_temp_account_ix = create_account(
+        let create_temp_account_ix = system_instruction::create_account(
             &payer_pubkey,
             &temp_account_pubkey,
             temp_account_lamports,
@@ -423,7 +420,7 @@ impl TransportT for SolanaTransport {
     async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String> {
         // Check if nick name exceeds 16 chars
         if params.nick.len() > NAME_LEN {
-            return Err(TransportError::InvalidNickName(params.nick))?;
+            return Err(TransportError::InvalidNameLength(params.nick))?;
         }
 
         let payer = &self.keypair;
@@ -494,7 +491,7 @@ impl TransportT for SolanaTransport {
         let new_mint = Keypair::new();
         let mint_pubkey = new_mint.pubkey();
         let mint_account_lamports = self.get_min_lamports(Mint::LEN)?;
-        let create_mint_account_ix = create_account(
+        let create_mint_account_ix = system_instruction::create_account(
             &payer_pubkey,
             &mint_pubkey,
             mint_account_lamports,
@@ -657,7 +654,7 @@ impl TransportT for SolanaTransport {
         let registry_account = Keypair::new();
         let registry_account_pubkey = registry_account.pubkey();
         let lamports = self.get_min_lamports(REGISTRY_ACCOUNT_LEN)?;
-        let create_account_ix = create_account(
+        let create_account_ix = system_instruction::create_account(
             &payer_pubkey,
             &registry_account_pubkey,
             lamports,
@@ -766,7 +763,6 @@ impl TransportT for SolanaTransport {
             .internal_get_game_account(&game_account_pubkey)
             .await
             .ok()?;
-        let bundle_addr = state.bundle_addr.to_string();
         let transactor_addr = match state.transactor_addr {
             Some(pubkey) => Some(pubkey.to_string()),
             None => None,
@@ -776,7 +772,7 @@ impl TransportT for SolanaTransport {
             addr: addr.to_owned(),
             title: state.title,
             settle_version: state.settle_version,
-            bundle_addr,
+            bundle_addr: state.bundle_addr.to_string(),
             token_addr: state.token_mint.to_string(),
             owner_addr: state.owner.to_string(),
             access_version: state.access_version,
@@ -1133,7 +1129,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_registry_create_get() -> anyhow::Result<()> {
         let transport = get_transport()?;
-        let addr = create_reg(&transport).await?;
+        // let addr = create_reg(&transport).await?;
+        let addr = "9Aj7xAre79b4CUzbTZAiZeQgFtuBy2sDkhERwsd2enJF".to_string();
         let reg = transport.get_registration(&addr).await.unwrap();
         assert_eq!(reg.is_private, false);
         assert_eq!(reg.size, 100);

@@ -15,7 +15,6 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-use std::time::SystemTime;
 
 #[inline(never)]
 pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {

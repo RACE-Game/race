@@ -8,16 +8,16 @@ use solana_program::{
     program_error::ProgramError,
     program_pack::Pack,
     pubkey::Pubkey,
-    system_program,
+    // system_program,
 };
 use spl_token::{
-    instruction::{mint_to, set_authority, AuthorityType},
-    state::{Account, Mint},
+    instruction::mint_to,
+    state:: Mint,
 };
 
 #[inline(never)]
 pub fn process(
-    program_id: &Pubkey,
+    _program_id: &Pubkey,
     accounts: &[AccountInfo],
     params: PublishParams,
 ) -> ProgramResult {

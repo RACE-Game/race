@@ -23,8 +23,8 @@ pub enum TransportError {
     #[error("Invalid chain name: {0}")]
     InvalidChainName(String),
 
-    #[error("Nick name exceeds 16 characters: {0}")]
-    InvalidNickName(String),
+    #[error("Game title or nick name exceeds 16 characters: {0}")]
+    InvalidNameLength(String),
 
     #[error("Initialization failed: {0}")]
     InitializationFailed(String),

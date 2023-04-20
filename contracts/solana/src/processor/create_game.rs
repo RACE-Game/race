@@ -23,7 +23,6 @@ pub fn process(
     params: CreateGameAccountParams,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
-
     let payer = next_account_info(accounts_iter)?;
 
     if !payer.is_signer {
@@ -84,9 +83,10 @@ pub fn process(
         players: Box::new(Vec::<PlayerJoin>::with_capacity(
             params.max_players as usize,
         )),
+        servers: Default::default(),
         unlock_time: None,
         votes: Default::default(),
-        servers: Default::default(),
+
         padding: Default::default(),
     };
 
