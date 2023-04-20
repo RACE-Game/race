@@ -2,7 +2,6 @@ import { PublicKey } from '@solana/web3.js';
 import * as borsh from 'borsh';
 import { ExtendedReader, ExtendedWriter } from './utils'
 import RaceCore, { VoteType } from 'race-sdk-core';
-import { Buffer } from 'buffer';
 
 export interface IPlayerState {
   isInitialized: boolean;

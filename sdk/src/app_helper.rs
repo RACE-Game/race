@@ -122,7 +122,9 @@ impl AppHelper {
         let games = Array::new();
         for reg_addr in registration_addrs.into_iter() {
             if let Some(reg_addr) = JsValue::as_string(reg_addr) {
+                info!(format!("Reg addr: {:?}", reg_addr));
                 if let Some(reg) = self.transport.get_registration(&reg_addr).await {
+                    info!(format!("Games: {:?}", reg));
                     for game in reg.games {
                         games.push(&JsValue::from_serde(&game).unwrap());
                     }

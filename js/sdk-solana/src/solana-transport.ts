@@ -29,7 +29,6 @@ import {
   RegistrationAccount,
 } from 'race-sdk-core';
 import * as instruction from './instruction';
-import { Buffer } from 'buffer';
 
 import {
   GAME_ACCOUNT_LEN,

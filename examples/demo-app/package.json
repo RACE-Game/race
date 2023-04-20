@@ -15,7 +15,6 @@
     "@solana/wallet-adapter-react-ui": "^0.9.31",
     "@solana/wallet-adapter-wallets": "^0.19.16",
     "@solana/web3.js": "^1.74.0",
-    "buffer": "^6.0.3",
     "race-sdk": "file:../../sdk/pkg",
     "race-sdk-core": "file:../../js/sdk-core",
     "race-sdk-solana": "file:../../js/sdk-solana",
@@ -24,6 +23,7 @@
     "react-router-dom": "^6.8.1"
   },
   "devDependencies": {
+    "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
     "@types/react": "^18.0.27",
     "@types/react-dom": "^18.0.10",
     "@vitejs/plugin-react": "^3.1.0",

@@ -183,6 +183,9 @@ impl TransportLocalT for Transport {
         let f = get_function(&self.inner, "getRegistration");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        unpack_json(&value)
+        gloo::console::info!("value:", &value);
+        let x = unpack_json(&value);
+        gloo::console::info!(format!("unpack: {:?}", x));
+        x
     }
 }

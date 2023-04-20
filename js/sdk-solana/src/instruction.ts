@@ -1,5 +1,4 @@
 import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } from '@solana/web3.js';
-import { Buffer } from 'buffer';
 import * as borsh from 'borsh';
 import { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { ExtendedWriter } from './utils';
