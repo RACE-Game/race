@@ -96,7 +96,7 @@ const createGameAccountDataSchema = new Map([
       fields: [
         ['instruction', 'u8'],
         ['title', 'string'],
-        ['maxPlayers', 'u8'],
+        ['maxPlayers', 'u16'],
         ['minDeposit', 'bigint'],
         ['maxDeposit', 'bigint'],
         ['data', 'bytes'],
