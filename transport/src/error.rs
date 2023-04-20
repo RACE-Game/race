@@ -92,6 +92,9 @@ pub enum TransportError {
     #[error("Failed to deserialize registry account data")]
     RegistryStateDeserializeError,
 
+    #[error("Failed to deserialize metadata account data")]
+    MetadataDeserializeError,
+
     #[error("Failed to parse string address")]
     ParseAddressError,
 

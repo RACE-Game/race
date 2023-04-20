@@ -799,7 +799,7 @@ impl TransportT for SolanaTransport {
             .get_account_data(&metadata_account_pubkey)
             .ok()?;
         let metadata_account_state =
-            Metadata::deserialize(&mut metadata_account_data.as_slice()).unwrap();
+            Metadata::deserialize(&mut metadata_account_data.as_slice()).map_err(|_| TransportError::MetadataDeserializeError).ok()?;
         let metadata_data = metadata_account_state.data;
         let uri = metadata_data.uri.trim_end_matches('\0').to_string();
 
