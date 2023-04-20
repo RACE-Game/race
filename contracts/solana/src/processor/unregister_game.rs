@@ -61,7 +61,6 @@ pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult
         .find(|reg| reg.addr.eq(game_account.key))
         .is_none()
     {
-        msg!("0");
         return Err(ProcessError::InvalidUnregistration)?;
     } else if !removed {
         let mut unreg_idx = 0usize;
@@ -77,7 +76,6 @@ pub fn process(_programe_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult
         RegistryState::pack(registry_state, &mut registry_account.try_borrow_mut_data()?)?;
 
         removed = true;
-        msg!("7");
     }
 
     if !removed {

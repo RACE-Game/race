@@ -665,7 +665,9 @@ impl TransportT for SolanaTransport {
         let payer_pubkey = payer.pubkey();
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
         let reg_account_pubkey = Self::parse_pubkey(&params.reg_addr)?;
-        let reg_state = self.internal_get_registry_state(&reg_account_pubkey).await?;
+        let reg_state = self
+            .internal_get_registry_state(&reg_account_pubkey)
+            .await?;
         // println!("payer pubkey {:?}", payer_pubkey);
         // println!("game pubkey {:?}", game_account_pubkey);
         // println!("reg pubkey {:?}", reg_account_pubkey);
@@ -794,8 +796,9 @@ impl TransportT for SolanaTransport {
             .client
             .get_account_data(&metadata_account_pubkey)
             .ok()?;
-        let metadata_account_state =
-            Metadata::deserialize(&mut metadata_account_data.as_slice()).map_err(|_| TransportError::MetadataDeserializeError).ok()?;
+        let metadata_account_state = Metadata::deserialize(&mut metadata_account_data.as_slice())
+            .map_err(|_| TransportError::MetadataDeserializeError)
+            .ok()?;
         let metadata_data = metadata_account_state.data;
         let uri = metadata_data.uri.trim_end_matches('\0').to_string();
 
@@ -949,7 +952,10 @@ impl SolanaTransport {
     /// Get the state of an on-chain server account
     /// Not for public API usage
     #[allow(dead_code)]
-    async fn internal_get_server_state(&self, server_pubkey: &Pubkey) -> TransportResult<ServerState> {
+    async fn internal_get_server_state(
+        &self,
+        server_pubkey: &Pubkey,
+    ) -> TransportResult<ServerState> {
         let server_account_pubkey =
             Pubkey::create_with_seed(server_pubkey, SERVER_PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::AddressCreationFailed)?;
@@ -962,12 +968,17 @@ impl SolanaTransport {
             .map_err(|e| TransportError::ServerStateDeserializeError)
     }
 
-    async fn internal_get_player_state(&self, player_pubkey: &Pubkey) -> TransportResult<PlayerState> {
+    async fn internal_get_player_state(
+        &self,
+        player_pubkey: &Pubkey,
+    ) -> TransportResult<PlayerState> {
         let profile_pubkey =
             Pubkey::create_with_seed(&player_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::AddressCreationFailed)?;
 
-        let data = self.client.get_account_data(&profile_pubkey)
+        let data = self
+            .client
+            .get_account_data(&profile_pubkey)
             .or(Err(TransportError::PlayerAccountDataNotFound))?;
 
         PlayerState::deserialize(&mut data.as_slice())
@@ -1112,12 +1123,20 @@ mod tests {
         let game_addr = create_game(&transport).await?;
         transport
             .register_game(RegisterGameParams {
-                game_addr,
+                game_addr: game_addr.clone(),
                 reg_addr: addr.clone(),
             })
             .await?;
         let reg = transport.get_registration(&addr).await.unwrap();
         assert_eq!(reg.games.len(), 1);
+        transport
+            .unregister_game(UnregisterGameParams {
+                game_addr,
+                reg_addr: addr.clone(),
+            })
+            .await?;
+        let reg = transport.get_registration(&addr).await.unwrap();
+        assert_eq!(reg.games.len(), 0);
         Ok(())
     }
 
