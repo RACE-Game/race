@@ -86,7 +86,7 @@ impl From<PlayerJoin> for Player {
     fn from(new_player: PlayerJoin) -> Self {
         Self {
             addr: new_player.addr,
-            position: new_player.position,
+            position: new_player.position as _,
             status: PlayerStatus::Ready,
             balance: new_player.balance,
         }

@@ -10,7 +10,7 @@ use super::common::VoteType;
 #[serde(rename_all = "camelCase")]
 pub struct PlayerJoin {
     pub addr: String,
-    pub position: usize,
+    pub position: u32,
     pub balance: u64,
     pub access_version: u64,
 }
@@ -18,7 +18,7 @@ pub struct PlayerJoin {
 impl PlayerJoin {
     pub fn new<S: Into<String>>(
         addr: S,
-        position: usize,
+        position: u32,
         balance: u64,
         access_version: u64,
     ) -> Self {

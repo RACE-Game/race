@@ -1,4 +1,6 @@
-export type PlayerJoin = {
+import * as borsh from 'borsh';
+
+export interface IPlayerJoin {
   readonly addr: string;
   readonly position: number;
   readonly balance: bigint;
@@ -36,24 +38,24 @@ export type GameRegistration = {
 };
 
 export type GameAccount = {
-  addr: string;
-  title: string;
-  bundleAddr: string;
-  tokenAddr: string;
-  ownerAddr: string;
-  settleVersion: bigint;
-  accessVersion: bigint;
-  players: PlayerJoin[];
-  deposits: PlayerDeposit[];
-  servers: ServerJoin[];
-  transactorAddr: string | undefined;
-  votes: Vote[];
-  unlockTime: bigint | undefined;
-  maxPlayers: number;
-  dataLen: number;
-  data: number[];
-  minDeposit: bigint;
-  maxDeposit: bigint;
+  readonly addr: string;
+  readonly title: string;
+  readonly bundleAddr: string;
+  readonly tokenAddr: string;
+  readonly ownerAddr: string;
+  readonly settleVersion: bigint;
+  readonly accessVersion: bigint;
+  readonly players: PlayerJoin[];
+  readonly deposits: PlayerDeposit[];
+  readonly servers: ServerJoin[];
+  readonly transactorAddr: string | undefined;
+  readonly votes: Vote[];
+  readonly unlockTime: bigint | undefined;
+  readonly maxPlayers: number;
+  readonly dataLen: number;
+  readonly data: number[];
+  readonly minDeposit: bigint;
+  readonly maxDeposit: bigint;
 };
 
 export type ServerAccount = {
@@ -80,3 +82,27 @@ export type RegistrationAccount = {
   readonly owner: string | undefined;
   readonly games: GameRegistration[];
 };
+
+export class PlayerJoin implements IPlayerJoin {
+  readonly addr!: string;
+  readonly position!: number;
+  readonly balance!: bigint;
+  readonly accessVersion!: bigint;
+  constructor(fields: IPlayerJoin) {
+    Object.assign(this, fields)
+  }
+};
+
+const playerJoinSchema = new Map([
+  [
+    PlayerJoin, {
+      kind: 'struct',
+      fields: [
+        ['addr', 'string'],
+        ['position', 'u32'],
+        ['balance', 'bigint'],
+        ['accessVersion', 'bigint']
+      ]
+    }
+  ]
+]);
