@@ -4,5 +4,5 @@ export const METAPLEX_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybz
 export const PROFILE_ACCOUNT_LEN = 130;
 export const PLAYER_PROFILE_SEED = 'race-player-1000';
 export const SERVER_PROFILE_SEED = 'race-server-1000';
-export const NAME_LEN = 16;     // NickName | GameTitle
+export const NAME_LEN = 16; // NickName | GameTitle
 export const GAME_ACCOUNT_LEN = 4000;

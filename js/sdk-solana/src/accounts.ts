@@ -1,13 +1,13 @@
 import { PublicKey } from '@solana/web3.js';
 import * as borsh from 'borsh';
-import { ExtendedReader, ExtendedWriter } from './utils'
+import { ExtendedReader, ExtendedWriter } from './utils';
 import RaceCore, { VoteType } from 'race-sdk-core';
 
 export interface IPlayerState {
   isInitialized: boolean;
   nick: string;
   pfpKey?: PublicKey;
-};
+}
 
 export interface IPlayerJoin {
   key: PublicKey;
@@ -25,7 +25,7 @@ export interface IServerJoin {
 export interface IVote {
   voterKey: PublicKey;
   voteeKey: PublicKey;
-  voteType: VoteType
+  voteType: VoteType;
 }
 
 export interface IGameReg {
@@ -38,8 +38,8 @@ export interface IGameReg {
 export interface IRegistryState {
   isInitialized: boolean;
   isPrivate: boolean;
-  size: number,
-  ownerKey: PublicKey,
+  size: number;
+  ownerKey: PublicKey;
   games: IGameReg[];
 }
 
@@ -62,14 +62,14 @@ export interface IGameState {
   data: number[];
   votes: IVote[];
   unlockTime: bigint | undefined;
-};
+}
 
 export interface IServerState {
   isInitialized: boolean;
   key: PublicKey;
   ownerKey: PublicKey;
   endpoint: string;
-};
+}
 
 export class PlayerState implements IPlayerState {
   isInitialized!: boolean;
@@ -77,15 +77,15 @@ export class PlayerState implements IPlayerState {
   pfpKey?: PublicKey;
 
   constructor(fields: IPlayerState) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 
   serialize(): Buffer {
-    return Buffer.from(borsh.serialize(playerStateSchema, this, ExtendedWriter))
+    return Buffer.from(borsh.serialize(playerStateSchema, this, ExtendedWriter));
   }
 
   static deserialize(data: Buffer): PlayerState {
-    return borsh.deserializeUnchecked(playerStateSchema, PlayerState, data, ExtendedReader)
+    return borsh.deserializeUnchecked(playerStateSchema, PlayerState, data, ExtendedReader);
   }
 }
 
@@ -108,14 +108,14 @@ export class Vote implements IVote {
   voteeKey!: PublicKey;
   voteType!: VoteType;
   constructor(fields: IVote) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
   standardize(): RaceCore.Vote {
     return {
       voter: this.voterKey.toBase58(),
       votee: this.voteeKey.toBase58(),
-      voteType: this.voteType
-    }
+      voteType: this.voteType,
+    };
   }
 }
 
@@ -124,14 +124,14 @@ export class ServerJoin implements IServerJoin {
   endpoint!: string;
   accessVersion!: bigint;
   constructor(fields: IServerJoin) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
   standardize(): RaceCore.ServerJoin {
     return {
       addr: this.key.toBase58(),
       endpoint: this.endpoint,
       accessVersion: this.accessVersion,
-    }
+    };
   }
 }
 
@@ -141,7 +141,7 @@ export class PlayerJoin implements IPlayerJoin {
   position!: number;
   accessVersion!: bigint;
   constructor(fields: IPlayerJoin) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
   standardize(): RaceCore.PlayerJoin {
     return {
@@ -149,10 +149,9 @@ export class PlayerJoin implements IPlayerJoin {
       position: this.position,
       balance: this.balance,
       accessVersion: this.accessVersion,
-    }
+    };
   }
 }
-
 
 export class GameState implements IGameState {
   isInitialized!: boolean;
@@ -175,16 +174,15 @@ export class GameState implements IGameState {
   unlockTime: bigint | undefined;
 
   constructor(fields: IGameState) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 
   serialize(): Buffer {
-    return Buffer.from(
-      borsh.serialize(gameStateSchema, this, ExtendedWriter))
+    return Buffer.from(borsh.serialize(gameStateSchema, this, ExtendedWriter));
   }
 
   static deserialize(data: Buffer): GameState {
-    return borsh.deserializeUnchecked(gameStateSchema, GameState, data, ExtendedReader)
+    return borsh.deserializeUnchecked(gameStateSchema, GameState, data, ExtendedReader);
   }
 
   generalize(addr: PublicKey): RaceCore.GameAccount {
@@ -207,45 +205,48 @@ export class GameState implements IGameState {
       data: this.data,
       votes: this.votes.map(v => v.standardize()),
       unlockTime: this.unlockTime,
-    }
+    };
   }
 }
 
 const gameStateSchema = new Map<Function, any>([
   [
-    PlayerJoin, {
+    PlayerJoin,
+    {
       kind: 'struct',
       fields: [
         ['key', 'publicKey'],
         ['balance', 'bigint'],
         ['position', 'u32'],
-        ['accessVersion', 'bigint']
-
-      ]
-    }
+        ['accessVersion', 'bigint'],
+      ],
+    },
   ],
   [
-    Vote, {
+    Vote,
+    {
       kind: 'struct',
       fields: [
         ['voterKey', 'publicKey'],
         ['voteeKey', 'publicKey'],
-        ['voteType', 'u8']
-      ]
-    }
+        ['voteType', 'u8'],
+      ],
+    },
   ],
   [
-    ServerJoin, {
+    ServerJoin,
+    {
       kind: 'struct',
       fields: [
         ['key', 'publicKey'],
         ['endpoint', 'string'],
         ['accessVersion', 'bigint'],
-      ]
-    }
+      ],
+    },
   ],
   [
-    GameState, {
+    GameState,
+    {
       kind: 'struct',
       fields: [
         ['isInitialized', 'bool'],
@@ -256,8 +257,7 @@ const gameStateSchema = new Map<Function, any>([
         ['tokenKey', 'publicKey'],
         ['minDeposit', 'bigint'],
         ['maxDeposit', 'bigint'],
-        ['transactorKey',
-          { kind: 'option', type: 'publicKey' }],
+        ['transactorKey', { kind: 'option', type: 'publicKey' }],
         ['accessVersion', 'bigint'],
         ['settleVersion', 'bigint'],
         ['maxPlayers', 'u8'],
@@ -266,11 +266,10 @@ const gameStateSchema = new Map<Function, any>([
         ['dataLen', 'u32'],
         ['data', 'bytes'],
         ['votes', [Vote]],
-        ['unlockTime',
-          { kind: 'option', type: 'bigint' }]
-      ]
-    }
-  ]
+        ['unlockTime', { kind: 'option', type: 'bigint' }],
+      ],
+    },
+  ],
 ]);
 
 export class GameReg implements IGameReg {
@@ -279,14 +278,14 @@ export class GameReg implements IGameReg {
   bundleKey!: PublicKey;
   regTime!: bigint;
   constructor(fields: IGameReg) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
   generalize(): RaceCore.GameRegistration {
     return {
       title: this.title,
       addr: this.gameKey.toBase58(),
       bundleAddr: this.bundleKey.toBase58(),
-      regTime: this.regTime
+      regTime: this.regTime,
     };
   }
 }
@@ -298,16 +297,15 @@ export class RegistryState implements IRegistryState {
   ownerKey!: PublicKey;
   games!: GameReg[];
   constructor(fields: IRegistryState) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 
   serialize(): Buffer {
-    return Buffer.from(
-      borsh.serialize(registryStateSchema, this, ExtendedWriter))
+    return Buffer.from(borsh.serialize(registryStateSchema, this, ExtendedWriter));
   }
 
   static deserialize(data: Buffer): RegistryState {
-    return borsh.deserializeUnchecked(registryStateSchema, RegistryState, data, ExtendedReader)
+    return borsh.deserializeUnchecked(registryStateSchema, RegistryState, data, ExtendedReader);
   }
 
   generalize(addr: PublicKey): RaceCore.RegistrationAccount {
@@ -316,35 +314,38 @@ export class RegistryState implements IRegistryState {
       isPrivate: this.isPrivate,
       size: this.size,
       owner: this.ownerKey.toBase58(),
-      games: this.games.map((g) => g.generalize())
-    }
+      games: this.games.map(g => g.generalize()),
+    };
   }
 }
 
 const registryStateSchema = new Map<Function, any>([
   [
-    GameReg, {
+    GameReg,
+    {
       kind: 'struct',
       fields: [
         ['title', 'string'],
         ['gameKey', 'publicKey'],
         ['bundleKey', 'publicKey'],
         ['regTime', 'bigint'],
-      ]
-    }
+      ],
+    },
   ],
   [
-    RegistryState, {
+    RegistryState,
+    {
       kind: 'struct',
       fields: [
         ['isInitialized', 'bool'],
         ['isPrivate', 'bool'],
         ['size', 'u16'],
         ['ownerKey', 'publicKey'],
-        ['games', [GameReg]]
-      ]
-    }
-  ]]);
+        ['games', [GameReg]],
+      ],
+    },
+  ],
+]);
 
 export class ServerState implements IServerState {
   isInitialized!: boolean;
@@ -353,35 +354,36 @@ export class ServerState implements IServerState {
   endpoint!: string;
 
   constructor(fields: IServerState) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 
   serialize(): Buffer {
-    return Buffer.from(
-      borsh.serialize(serverStateSchema, this, ExtendedWriter))
+    return Buffer.from(borsh.serialize(serverStateSchema, this, ExtendedWriter));
   }
 
   static deserialize(data: Buffer): ServerState {
-    return borsh.deserializeUnchecked(serverStateSchema, ServerState, data, ExtendedReader)
+    return borsh.deserializeUnchecked(serverStateSchema, ServerState, data, ExtendedReader);
   }
 
   generalize(): RaceCore.ServerAccount {
     return {
       addr: this.ownerKey.toBase58(),
-      endpoint: this.endpoint
-    }
+      endpoint: this.endpoint,
+    };
   }
 }
 
 const serverStateSchema = new Map([
   [
-    ServerState, {
+    ServerState,
+    {
       kind: 'struct',
       fields: [
         ['isInitialized', 'bool'],
         ['key', 'publicKey'],
         ['ownerKey', 'publicKey'],
         ['endpoint', 'string'],
-      ]
-    }
-  ]]);
+      ],
+    },
+  ],
+]);

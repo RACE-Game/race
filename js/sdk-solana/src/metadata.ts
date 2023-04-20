@@ -1,4 +1,4 @@
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey } from '@solana/web3.js';
 import { ExtendedReader } from './utils';
 import * as borsh from 'borsh';
 
@@ -9,10 +9,10 @@ import * as borsh from 'borsh';
  * polyfill, And we only use a small set of its features.
  */
 export interface IMetadata {
-  key: number,
-  updateAuthority: PublicKey,
-  mint: PublicKey,
-  data: Data,
+  key: number;
+  updateAuthority: PublicKey;
+  mint: PublicKey;
+  data: Data;
 }
 
 export interface ICreator {
@@ -35,10 +35,10 @@ export class Metadata implements IMetadata {
   mint!: PublicKey;
   data!: Data;
   constructor(fields: IMetadata) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
   static deserialize(data: Buffer): Metadata {
-    return borsh.deserializeUnchecked(metadataSchema, Metadata, data, ExtendedReader)
+    return borsh.deserializeUnchecked(metadataSchema, Metadata, data, ExtendedReader);
   }
 }
 
@@ -49,7 +49,7 @@ export class Data implements IData {
   sellerFeeBasisPoints!: number;
   creators: ICreator[] | undefined;
   constructor(fields: IData) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 }
 
@@ -58,40 +58,45 @@ export class Creator implements ICreator {
   verified!: boolean;
   share!: number;
   constructor(fields: ICreator) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 }
 
 const metadataSchema = new Map<Function, any>([
   [
-    Metadata, {
-      kind: 'struct', fields: [
+    Metadata,
+    {
+      kind: 'struct',
+      fields: [
         ['key', 'u8'],
         ['updateAuthority', 'publicKey'],
         ['mint', 'publicKey'],
-        ['data', Data]
-      ]
-    }
+        ['data', Data],
+      ],
+    },
   ],
   [
-    Creator, {
+    Creator,
+    {
       kind: 'struct',
       fields: [
         ['address', 'publicKey'],
         ['verified', 'bool'],
-        ['share', 'u8']
-      ]
-    }
+        ['share', 'u8'],
+      ],
+    },
   ],
   [
-    Data, {
+    Data,
+    {
       kind: 'struct',
       fields: [
         ['name', 'string'],
         ['symbol', 'string'],
         ['uri', 'string'],
         ['sellerFeeBasisPoints', 'u16'],
-        ['creators', [Creator]]
+        ['creators', [Creator]],
       ],
-    }]
+    },
+  ],
 ]);

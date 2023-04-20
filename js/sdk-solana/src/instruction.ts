@@ -24,9 +24,9 @@ export enum Instruction {
 // Instruction data definitations
 
 abstract class Serialize {
-  schema: Map<any, any>
+  schema: Map<any, any>;
   constructor(schema: Map<any, any>) {
-    this.schema = schema
+    this.schema = schema;
   }
   serialize(): Buffer {
     return Buffer.from(borsh.serialize(this.schema, this, ExtendedWriter));
@@ -38,7 +38,7 @@ export class CreatePlayerProfileData extends Serialize {
   nick: string;
 
   constructor(nick: string) {
-    super(createPlayerProfileDataScheme)
+    super(createPlayerProfileDataScheme);
     this.nick = nick;
   }
 }
@@ -56,12 +56,11 @@ const createPlayerProfileDataScheme = new Map([
   ],
 ]);
 
-
 export class CloseGameAccountData extends Serialize {
   instruction = Instruction.CloseGameAccount;
 
   constructor() {
-    super(closeGameAccountDataScheme)
+    super(closeGameAccountDataScheme);
   }
 }
 
@@ -70,11 +69,10 @@ const closeGameAccountDataScheme = new Map([
     CloseGameAccountData,
     {
       kind: 'struct',
-      fields: [
-        ['instruction', 'u8']
-      ]
-    }
-  ]]);
+      fields: [['instruction', 'u8']],
+    },
+  ],
+]);
 
 export class CreateGameAccountData extends Serialize {
   instruction = Instruction.CreateGameAccount;
@@ -85,8 +83,8 @@ export class CreateGameAccountData extends Serialize {
   data: Uint8Array = Uint8Array.from([]);
 
   constructor(params: Partial<CreateGameAccountData>) {
-    super(createGameAccountDataSchema)
-    Object.assign(this, params)
+    super(createGameAccountDataSchema);
+    Object.assign(this, params);
   }
 }
 
@@ -101,10 +99,10 @@ const createGameAccountDataSchema = new Map([
         ['maxPlayers', 'u8'],
         ['minDeposit', 'bigint'],
         ['maxDeposit', 'bigint'],
-        ['data', 'bytes']
-      ]
-    }
-  ]
+        ['data', 'bytes'],
+      ],
+    },
+  ],
 ]);
 
 export class JoinGameData extends Serialize {
@@ -159,9 +157,10 @@ const publishGameDataSchema = new Map([
         ['uri', 'string'],
         ['name', 'string'],
         ['symbol', 'string'],
-      ]
-    }
-  ]]);
+      ],
+    },
+  ],
+]);
 
 // Instruction helpers
 
@@ -197,20 +196,18 @@ export function createPlayerProfile(
 }
 
 export type CreateGameOptions = {
-  ownerKey: PublicKey,
-  gameAccountKey: PublicKey,
-  stakeAccountKey: PublicKey,
-  mint: PublicKey,
-  gameBundleKey: PublicKey,
-  title: string
-  maxPlayers: number
-  minDeposit: bigint
-  maxDeposit: bigint
+  ownerKey: PublicKey;
+  gameAccountKey: PublicKey;
+  stakeAccountKey: PublicKey;
+  mint: PublicKey;
+  gameBundleKey: PublicKey;
+  title: string;
+  maxPlayers: number;
+  minDeposit: bigint;
+  maxDeposit: bigint;
 };
 
-export function createGameAccount(
-  opts: CreateGameOptions
-): TransactionInstruction {
+export function createGameAccount(opts: CreateGameOptions): TransactionInstruction {
   const data = new CreateGameAccountData(opts).serialize();
   return new TransactionInstruction({
     keys: [
@@ -243,29 +240,24 @@ export function createGameAccount(
         pubkey: opts.gameBundleKey,
         isSigner: false,
         isWritable: false,
-      }
+      },
     ],
     programId: PROGRAM_ID,
-    data
+    data,
   });
 }
 
 export type CloseGameAccountOptions = {
-  ownerKey: PublicKey,
-  gameAccountKey: PublicKey,
-  regAccountKey: PublicKey,
-  gameStakeKey: PublicKey
+  ownerKey: PublicKey;
+  gameAccountKey: PublicKey;
+  regAccountKey: PublicKey;
+  gameStakeKey: PublicKey;
 };
 
-export function closeGameAccount(
-  opts: CloseGameAccountOptions
-): TransactionInstruction {
+export function closeGameAccount(opts: CloseGameAccountOptions): TransactionInstruction {
   const { ownerKey, gameAccountKey, regAccountKey, gameStakeKey } = opts;
   const data = new CloseGameAccountData().serialize();
-  let [pda, _] = PublicKey.findProgramAddressSync(
-    [gameAccountKey.toBuffer()],
-    PROGRAM_ID,
-  );
+  let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID);
   return new TransactionInstruction({
     keys: [
       {
@@ -297,11 +289,11 @@ export function closeGameAccount(
         pubkey: PROGRAM_ID,
         isSigner: false,
         isWritable: false,
-      }
+      },
     ],
     programId: PROGRAM_ID,
     data,
-  })
+  });
 }
 
 export type JoinOptions = {
@@ -310,29 +302,15 @@ export type JoinOptions = {
   gameAccountKey: PublicKey;
   mint: PublicKey;
   stakeAccountKey: PublicKey;
-  amount: bigint,
-  accessVersion: bigint,
-  position: number,
+  amount: bigint;
+  accessVersion: bigint;
+  position: number;
 };
 
-export function join(
-  opts: JoinOptions
-): TransactionInstruction {
-  const {
-    playerKey,
-    paymentKey,
-    gameAccountKey,
-    mint,
-    stakeAccountKey,
-    amount,
-    accessVersion,
-    position
-  } = opts;
+export function join(opts: JoinOptions): TransactionInstruction {
+  const { playerKey, paymentKey, gameAccountKey, mint, stakeAccountKey, amount, accessVersion, position } = opts;
 
-  let [pda, _] = PublicKey.findProgramAddressSync(
-    [gameAccountKey.toBuffer()],
-    PROGRAM_ID,
-  );
+  let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID);
   const data = new JoinGameData(amount, accessVersion, position).serialize();
 
   return new TransactionInstruction({
@@ -371,39 +349,33 @@ export function join(
         pubkey: TOKEN_2022_PROGRAM_ID,
         isSigner: false,
         isWritable: false,
-      }
+      },
     ],
     programId: PROGRAM_ID,
-    data
-  })
+    data,
+  });
 }
 
 export type PublishGameOptions = {
-  ownerKey: PublicKey,
-  mint: PublicKey,
-  tokenAccountKey: PublicKey,
-  uri: string,
-  name: string,
-  symbol: string,
+  ownerKey: PublicKey;
+  mint: PublicKey;
+  tokenAccountKey: PublicKey;
+  uri: string;
+  name: string;
+  symbol: string;
 };
 
-export function publishGame(
-  opts: PublishGameOptions
-): TransactionInstruction {
-  const {
-    ownerKey, mint, uri, name, symbol
-  } = opts;
+export function publishGame(opts: PublishGameOptions): TransactionInstruction {
+  const { ownerKey, mint, uri, name, symbol } = opts;
 
   let [metadataPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("metadata", 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mint.toBuffer()], METAPLEX_PROGRAM_ID);
+    [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+    METAPLEX_PROGRAM_ID
+  );
 
   let [editonPda] = PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("metadata", 'utf8'),
-      METAPLEX_PROGRAM_ID.toBuffer(),
-      mint.toBuffer(),
-      Buffer.from("edition", 'utf8')
-    ], METAPLEX_PROGRAM_ID
+    [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mint.toBuffer(), Buffer.from('edition', 'utf8')],
+    METAPLEX_PROGRAM_ID
   );
   let ata = getAssociatedTokenAddressSync(mint, ownerKey);
 
@@ -455,9 +427,9 @@ export function publishGame(
         pubkey: PublicKey.default,
         isSigner: false,
         isWritable: false,
-      }
+      },
     ],
     programId: PROGRAM_ID,
-    data
+    data,
   });
 }

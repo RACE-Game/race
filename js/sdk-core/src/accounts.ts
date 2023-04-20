@@ -20,7 +20,7 @@ export type ServerJoin = {
 export enum VoteType {
   ServerVoteTransactorDropOff = 0,
   ClientVoteTransactorDropOff = 1,
-};
+}
 
 export type Vote = {
   readonly voter: string;
