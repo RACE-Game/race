@@ -2,6 +2,7 @@
 
 pkgs.mkShell {
   buildInputs = with pkgs; [
+    openssl
     rustup
     rust-analyzer
     wasm-pack
