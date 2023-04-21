@@ -25,11 +25,11 @@ We use this token for following tests.
 Uploaded NFT metadata on Arweave:
 
 - Chat: https://arweave.net/pIzCCw-NJQsfIVZ9OPrGIWJ1ZMDP_02cPYr4OGMverE
-- Raffle: https://arweave.net/xDkBn1A8-8xFJAoaMSgpQWR84kh_MwQqYkLhS-ty0tw
+- Raffle: https://arweave.net/2QOeQ1sr8NBjQLm-sbswiFS2TRXRChaVC29OvEDEWCc
 
 ```shell
 just publish Chat https://arweave.net/pIzCCw-NJQsfIVZ9OPrGIWJ1ZMDP_02cPYr4OGMverE
-just publish Raffle https://arweave.net/xDkBn1A8-8xFJAoaMSgpQWR84kh_MwQqYkLhS-ty0tw
+just publish Raffle https://arweave.net/2QOeQ1sr8NBjQLm-sbswiFS2TRXRChaVC29OvEDEWCc
 ```
 
 NFT addresses will be returned when upload succeed. Later we will use this NFT token address as **bundle address**.
@@ -46,7 +46,7 @@ To create games, a spec file in JSON is required. Replace the addresses with wha
 
 ```json
 {
-  "title": "Chat example",
+  "title": "<GAME TITLE>",
   "reg_addr": "<REPLACE WITH THE REGISTRATION ADDRESS>",
   "bundle_addr": "<REPLACE WITH THE BUNDLE ADDRESS>",
   "token_addr": "<REPLACE WITH THE TOKEN ADDRESS>",
@@ -69,6 +69,9 @@ Game account address will be returned.
 
 ```shell
 solana-keygen new -o transactor.json
+
+# Transfer some SOL to this new account
+solana transfer --allow-unfunded-recipient <TRANSACTOR PUBKEY> 2
 ```
 
 ## Create transactor configuration file
@@ -86,8 +89,14 @@ keyfile = /path/to/transactor.json
 rpc = "http://localhost:8899"
 ```
 
+## Register server
+
+``` shell
+just dev-reg-transactor /path/to/transactor.toml
+```
+
 ## Start transactor
 
 ```shell
-just dev-transactor /path/to/transactor.json
+just dev-transactor /path/to/transactor.toml
 ```

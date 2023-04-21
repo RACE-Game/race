@@ -913,8 +913,7 @@ impl SolanaTransport {
         //     .send_and_confirm_transaction(&tx)
         //     .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
 
-        // let skip_preflight = if cfg!(test) { true } else { false };
-        let skip_preflight = true;
+        let skip_preflight = if cfg!(test) { true } else { false };
         let confirm_num = if cfg!(test) { 1 } else { 32 };
 
         let sig = self

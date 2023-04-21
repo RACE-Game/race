@@ -25,6 +25,7 @@ pub async fn register_server(config: &Config) -> Result<()> {
         .try_with_config(config)?
         .build()
         .await?;
+    info!("Transport built successfully");
     let addr = transport
         .register_server(RegisterServerParams {
             endpoint: transactor_conf.endpoint.to_owned(),
