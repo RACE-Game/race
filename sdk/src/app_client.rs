@@ -303,7 +303,7 @@ impl AppClient {
             .get_game_account(&self.addr)
             .await
             .ok_or(Error::GameAccountNotFound)?;
-        let count: u8 = game_account.players.len() as _;
+        let count: u16 = game_account.players.len() as _;
 
         if game_account.max_players <= count {
             return Err(Error::GameIsFull(count as _))?;
@@ -314,7 +314,7 @@ impl AppClient {
             if game_account
                 .players
                 .iter()
-                .all(|p| p.position != i as usize)
+                .all(|p| p.position != i)
             {
                 position = Some(i as _);
                 break;

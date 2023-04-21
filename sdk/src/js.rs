@@ -31,7 +31,7 @@ impl<'a> From<&'a Player> for JsPlayer<'a> {
 #[derive(Serialize)]
 pub struct JsPlayerJoin<'a> {
     pub addr: &'a str,
-    pub position: usize,
+    pub position: u16,
     pub balance: u64,
     pub access_version: u64,
 }
