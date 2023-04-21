@@ -95,5 +95,5 @@ create-reg:
 create-game spec:
     cargo run -p race-cli -- -e local create-game solana {{spec}}
 
-alias fa := dev-facade
-alias da := dev-demo-app
+validator:
+  solana-test-validator --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s token_metadata_program.so
