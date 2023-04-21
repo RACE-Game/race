@@ -1,6 +1,7 @@
 use async_trait::async_trait;
+use borsh::BorshDeserialize;
 use gloo::utils::format::JsValueSerdeExt;
-use jsonrpsee::core::DeserializeOwned;
+use js_sys::Uint8Array;
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
@@ -11,7 +12,7 @@ use race_transport::{
     error::{TransportError, TransportResult},
     TransportLocalT,
 };
-use wasm_bindgen::JsValue;
+use wasm_bindgen::{JsCast, JsValue};
 
 use crate::utils::{get_function, resolve_promise};
 
@@ -25,15 +26,10 @@ impl Transport {
     }
 }
 
-fn unpack_json<T: DeserializeOwned>(value: &JsValue) -> T {
-    match JsValue::into_serde::<T>(&value) {
-        Ok(x) => x,
-        Err(e) => {
-            gloo::console::error!(value);
-            gloo::console::error!("Unpack json failed", e.to_string());
-            panic!("Unpack json failed");
-        },
-    }
+fn unpack_json<T: BorshDeserialize>(value: &JsValue) -> T {
+    let f = get_function(value, "serialize");
+    let r = f.call0(value).unwrap().dyn_into::<Uint8Array>().unwrap();
+    T::try_from_slice(&r.to_vec()).unwrap()
 }
 
 #[async_trait(?Send)]
