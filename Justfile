@@ -4,6 +4,7 @@ build: build-sdk build-transactor build-cli
 
 dep:
     cargo fetch
+    npm --prefix ./js i -ws
     npm --prefix ./examples/demo-app i
 
 build-sdk:
