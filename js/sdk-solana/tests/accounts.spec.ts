@@ -48,13 +48,13 @@ describe('Test account data serialization', () => {
           gameKey: PublicKey.unique(),
           title: 'Game A',
           bundleKey: PublicKey.unique(),
-          regTime: 1000n
+          regTime: BigInt(1000)
         }),
         new GameReg({
           gameKey: PublicKey.unique(),
           title: 'Game B',
           bundleKey: PublicKey.unique(),
-          regTime: 2000n
+          regTime: BigInt(2000)
         })
       ]
     });
@@ -75,17 +75,17 @@ describe('Test account data serialization', () => {
       stakeKey: PublicKey.unique(),
       ownerKey: PublicKey.unique(),
       tokenKey: PublicKey.unique(),
-      minDeposit: 100n,
-      maxDeposit: 100n,
+      minDeposit: BigInt(100),
+      maxDeposit: BigInt(100),
       transactorKey: PublicKey.unique(),
-      accessVersion: 1n,
-      settleVersion: 2n,
+      accessVersion: BigInt(1),
+      settleVersion: BigInt(2),
       maxPlayers: 10,
       players: [
         new PlayerJoin({
           key: PublicKey.unique(),
-          balance: 100n,
-          accessVersion: 1n,
+          balance: BigInt(100),
+          accessVersion: BigInt(1),
           position: 0,
         })
       ],
@@ -93,7 +93,7 @@ describe('Test account data serialization', () => {
         new ServerJoin({
           key: PublicKey.unique(),
           endpoint: 'http://foo.bar',
-          accessVersion: 2n,
+          accessVersion: BigInt(2),
         })
       ],
       dataLen: 10,

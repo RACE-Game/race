@@ -128,7 +128,7 @@ const joinGameDataSchema = new Map([
         ['instruction', 'u8'],
         ['amount', 'bigint'],
         ['accessVersion', 'bigint'],
-        ['position', 'u32'],
+        ['position', 'u16'],
       ],
     },
   ],

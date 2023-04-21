@@ -3,6 +3,7 @@ import {
   CloseGameAccountData,
   CreateGameAccountData,
   CreatePlayerProfileData,
+  JoinGameData,
 } from '../src/instruction';
 
 describe('Test instruction serialization', () => {
@@ -16,8 +17,8 @@ describe('Test instruction serialization', () => {
   it('CreateGameAccount without data', () => {
     const data = new CreateGameAccountData({
       title: 'test game',
-      minDeposit: 30n,
-      maxDeposit: 60n,
+      minDeposit: BigInt(30),
+      maxDeposit: BigInt(60),
       maxPlayers: 10,
       data: Uint8Array.from([]),
     });
@@ -30,8 +31,8 @@ describe('Test instruction serialization', () => {
   it('CreateGameAccount without data', () => {
     const data = new CreateGameAccountData({
       title: 'test game #2',
-      minDeposit: 10n,
-      maxDeposit: 20n,
+      minDeposit: BigInt(10),
+      maxDeposit: BigInt(20),
       maxPlayers: 10,
       data: Uint8Array.of(1, 2, 3, 4)
     });
@@ -45,6 +46,13 @@ describe('Test instruction serialization', () => {
     const data = new CloseGameAccountData();
     const serialized = data.serialize();
     const expected = Buffer.from([1])
+    assert.deepStrictEqual(serialized, expected);
+  })
+
+  it('JoinGame', () => {
+    const data = new JoinGameData(BigInt(1000), BigInt(0), 2);
+    const serialized = data.serialize();
+    const expected = Buffer.from([10, 232, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0]);
     assert.deepStrictEqual(serialized, expected);
   })
 })
