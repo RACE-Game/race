@@ -84,7 +84,6 @@ impl TransportT for SolanaTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
         // TODO: Discuss title allowed len
         if params.title.len() > NAME_LEN {
-            // FIXME: Use TransportError
             return Err(TransportError::InvalidNameLength(params.title))?;
         }
 
@@ -102,8 +101,6 @@ impl TransportT for SolanaTransport {
             &self.program_id,
         );
 
-        // TODO: Use RACE ATA?
-        // Create stake account to hold players deposits
         let token_mint_pubkey = Self::parse_pubkey(&params.token_addr)?;
         let stake_account = Keypair::new();
         let stake_account_pubkey = stake_account.pubkey();
@@ -164,7 +161,6 @@ impl TransportT for SolanaTransport {
     }
 
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
-        // payer is initializer/owner of the to-be-closed game
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
@@ -196,11 +192,9 @@ impl TransportT for SolanaTransport {
     }
 
     async fn register_server(&self, params: RegisterServerParams) -> Result<String> {
-        // Check endpoint URL len
         if params.endpoint.len() > 50 {
             return Err(TransportError::EndpointTooLong)?;
         }
-        // Create server profile on chain (like creation of a player profile)
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
@@ -216,7 +210,6 @@ impl TransportT for SolanaTransport {
         //     _ => {}
         // }
 
-        // Get a server account; same seed leads to same result
         let get_server_account_ix = create_account_with_seed(
             &payer_pubkey,
             &server_account_pubkey,
@@ -227,7 +220,6 @@ impl TransportT for SolanaTransport {
             &self.program_id,
         );
 
-        // Init a new account or update the old endpoint
         let init_or_update_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
             &RaceInstruction::RegisterServer {
@@ -391,7 +383,6 @@ impl TransportT for SolanaTransport {
     }
 
     async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String> {
-        // Check if nick name exceeds 16 chars
         if params.nick.len() > NAME_LEN {
             return Err(TransportError::InvalidNameLength(params.nick))?;
         }
@@ -409,7 +400,6 @@ impl TransportT for SolanaTransport {
         );
         let mut ixs = Vec::new();
 
-        // Check if player account already exists
         if self.client.get_account(&profile_account_pubkey).is_err() {
             let lamports = self.get_min_lamports(PROFILE_ACCOUNT_LEN)?;
             let create_profile_account_ix = create_account_with_seed(
@@ -460,7 +450,6 @@ impl TransportT for SolanaTransport {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
-        // Create token and initialize its mint
         let new_mint = Keypair::new();
         let mint_pubkey = new_mint.pubkey();
         let mint_account_lamports = self.get_min_lamports(Mint::LEN)?;
@@ -472,7 +461,6 @@ impl TransportT for SolanaTransport {
             &spl_token::id(),
         );
 
-        // Set decimals to 0 (NFT)
         let init_mint_ix = spl_token::instruction::initialize_mint(
             &spl_token::id(),
             &mint_pubkey,
@@ -482,8 +470,6 @@ impl TransportT for SolanaTransport {
         )
         .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
 
-        // Generate two PDAs from mint_account:
-        // one for metadata account and the other for master edition account
         let (metadata_pda, bump_seed) = Pubkey::find_program_address(
             &[
                 "metadata".as_bytes(),
@@ -503,7 +489,6 @@ impl TransportT for SolanaTransport {
             &metaplex_program::id(),
         );
 
-        // Create ATA to hold the new mint
         let ata_pubkey = get_associated_token_address(&payer_pubkey, &mint_pubkey);
         let create_ata_account_ix = create_associated_token_account(
             &payer_pubkey,
@@ -1210,7 +1195,7 @@ mod tests {
                 game_addr: game_addr.clone(),
                 amount: 50u64,
                 access_version: 0u64,
-                position: 0usize,
+                position: 0u16,
             })
             .await?;
         let game = transport
