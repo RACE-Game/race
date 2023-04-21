@@ -42,6 +42,6 @@ export class ExtendedReader extends borsh.BinaryReader {
 
   readBytes() {
     const len = this.readU32();
-    return Array.from(this.readFixedArray(len));
+    return this.readFixedArray(len);
   }
 }

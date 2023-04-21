@@ -1,6 +1,11 @@
 module.exports = {
-  preset: 'ts-jest',
-  testEnvironment: 'node',
+  preset: "ts-jest",
   extensionsToTreatAsEsm: [".ts"],
-  testMatch: ['<rootDir>/tests/**/*.spec.ts']
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
+  roots: ["<rootDir>/tests"],
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', {useESM: true,},],
+  },
 };

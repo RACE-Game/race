@@ -59,7 +59,7 @@ export interface IGameState {
   players: IPlayerJoin[];
   servers: IServerJoin[];
   dataLen: number;
-  data: number[];
+  data: Uint8Array;
   votes: IVote[];
   unlockTime: bigint | undefined;
 }
@@ -87,6 +87,14 @@ export class PlayerState implements IPlayerState {
   static deserialize(data: Buffer): PlayerState {
     return borsh.deserializeUnchecked(playerStateSchema, PlayerState, data, ExtendedReader);
   }
+
+  generalize(addr: PublicKey): RaceCore.PlayerProfile {
+    return new RaceCore.PlayerProfile({
+      addr: addr.toBase58(),
+      nick: this.nick,
+      pfp: this.pfpKey?.toBase58(),
+    });
+  }
 }
 
 const playerStateSchema = new Map([
@@ -110,12 +118,12 @@ export class Vote implements IVote {
   constructor(fields: IVote) {
     Object.assign(this, fields);
   }
-  standardize(): RaceCore.Vote {
-    return {
+  generalize(): RaceCore.Vote {
+    return new RaceCore.Vote({
       voter: this.voterKey.toBase58(),
       votee: this.voteeKey.toBase58(),
       voteType: this.voteType,
-    };
+    });
   }
 }
 
@@ -126,12 +134,12 @@ export class ServerJoin implements IServerJoin {
   constructor(fields: IServerJoin) {
     Object.assign(this, fields);
   }
-  standardize(): RaceCore.ServerJoin {
-    return {
+  generalize(): RaceCore.ServerJoin {
+    return new RaceCore.ServerJoin({
       addr: this.key.toBase58(),
       endpoint: this.endpoint,
       accessVersion: this.accessVersion,
-    };
+    });
   }
 }
 
@@ -143,13 +151,13 @@ export class PlayerJoin implements IPlayerJoin {
   constructor(fields: IPlayerJoin) {
     Object.assign(this, fields);
   }
-  standardize(): RaceCore.PlayerJoin {
-    return {
+  generalize(): RaceCore.PlayerJoin {
+    return new RaceCore.PlayerJoin({
       addr: this.key.toBase58(),
       position: this.position,
       balance: this.balance,
       accessVersion: this.accessVersion,
-    };
+    });
   }
 }
 
@@ -169,7 +177,7 @@ export class GameState implements IGameState {
   players!: PlayerJoin[];
   servers!: ServerJoin[];
   dataLen!: number;
-  data!: number[];
+  data!: Uint8Array;
   votes!: Vote[];
   unlockTime: bigint | undefined;
 
@@ -186,7 +194,7 @@ export class GameState implements IGameState {
   }
 
   generalize(addr: PublicKey): RaceCore.GameAccount {
-    return {
+    return new RaceCore.GameAccount({
       addr: addr.toBase58(),
       title: this.title,
       bundleAddr: this.bundleKey.toBase58(),
@@ -199,13 +207,13 @@ export class GameState implements IGameState {
       accessVersion: this.accessVersion,
       settleVersion: this.settleVersion,
       maxPlayers: this.maxPlayers,
-      players: this.players.map(p => p.standardize()),
-      servers: this.servers.map(s => s.standardize()),
+      players: this.players.map(p => p.generalize()),
+      servers: this.servers.map(s => s.generalize()),
       dataLen: this.dataLen,
       data: this.data,
-      votes: this.votes.map(v => v.standardize()),
+      votes: this.votes.map(v => v.generalize()),
       unlockTime: this.unlockTime,
-    };
+    });
   }
 }
 
@@ -217,7 +225,7 @@ const gameStateSchema = new Map<Function, any>([
       fields: [
         ['key', 'publicKey'],
         ['balance', 'bigint'],
-        ['position', 'u32'],
+        ['position', 'u16'],
         ['accessVersion', 'bigint'],
       ],
     },
@@ -260,7 +268,7 @@ const gameStateSchema = new Map<Function, any>([
         ['transactorKey', { kind: 'option', type: 'publicKey' }],
         ['accessVersion', 'bigint'],
         ['settleVersion', 'bigint'],
-        ['maxPlayers', 'u8'],
+        ['maxPlayers', 'u16'],
         ['players', [PlayerJoin]],
         ['servers', [ServerJoin]],
         ['dataLen', 'u32'],
@@ -281,12 +289,12 @@ export class GameReg implements IGameReg {
     Object.assign(this, fields);
   }
   generalize(): RaceCore.GameRegistration {
-    return {
+    return new RaceCore.GameRegistration({
       title: this.title,
       addr: this.gameKey.toBase58(),
       bundleAddr: this.bundleKey.toBase58(),
       regTime: this.regTime,
-    };
+    });
   }
 }
 
@@ -309,13 +317,13 @@ export class RegistryState implements IRegistryState {
   }
 
   generalize(addr: PublicKey): RaceCore.RegistrationAccount {
-    return {
+    return new RaceCore.RegistrationAccount({
       addr: addr.toBase58(),
       isPrivate: this.isPrivate,
       size: this.size,
       owner: this.ownerKey.toBase58(),
       games: this.games.map(g => g.generalize()),
-    };
+    });
   }
 }
 
@@ -366,10 +374,10 @@ export class ServerState implements IServerState {
   }
 
   generalize(): RaceCore.ServerAccount {
-    return {
+    return new RaceCore.ServerAccount({
       addr: this.ownerKey.toBase58(),
       endpoint: this.endpoint,
-    };
+    });
   }
 }
 

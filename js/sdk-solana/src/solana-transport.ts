@@ -123,7 +123,7 @@ export class SolanaTransport implements ITransport {
     return gameAccountKey.toBase58();
   }
 
-  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> {}
+  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> { }
 
   async join(wallet: IWallet, params: JoinParams): Promise<void> {
     const { gameAddr, amount, accessVersion, position } = params;
@@ -189,13 +189,13 @@ export class SolanaTransport implements ITransport {
     await wallet.sendTransaction(tx, this.#conn);
   }
 
-  async deposit(wallet: IWallet, params: DepositParams): Promise<void> {}
+  async deposit(wallet: IWallet, params: DepositParams): Promise<void> { }
 
   async publishGame(wallet: IWallet, params: PublishGameParams): Promise<string> {
     return '';
   }
 
-  async vote(wallet: IWallet, params: VoteParams): Promise<void> {}
+  async vote(wallet: IWallet, params: VoteParams): Promise<void> { }
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<string> {
     const { nick, pfp } = params;
@@ -247,9 +247,9 @@ export class SolanaTransport implements ITransport {
     return '';
   }
 
-  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> {}
+  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> { }
 
-  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> {}
+  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> { }
 
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
     const gameAccountKey = new PublicKey(addr);
@@ -287,9 +287,9 @@ export class SolanaTransport implements ITransport {
     const wasm = metadata.properties.files.find((f: any) => f['type'] == 'application/wasm');
 
     const respWasm = await fetch(wasm.uri);
-    const data = Array.from(new Uint8Array(await respWasm.arrayBuffer()));
+    const data = new Uint8Array(await respWasm.arrayBuffer());
 
-    return { uri, name, data };
+    return new GameBundle({ uri, name, data });
   }
 
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
@@ -301,13 +301,8 @@ export class SolanaTransport implements ITransport {
 
     if (profileAccount) {
       const profileAccountData = profileAccount.data;
-
-      const { nick, pfpKey } = PlayerState.deserialize(profileAccountData);
-      if (pfpKey !== undefined) {
-        return { addr: addr, nick: nick, pfp: pfpKey.toBase58() };
-      } else {
-        return { addr: addr, nick: nick, pfp: undefined };
-      }
+      const state = PlayerState.deserialize(profileAccountData);
+      return state.generalize(playerKey);
     } else {
       return undefined;
     }
@@ -327,9 +322,7 @@ export class SolanaTransport implements ITransport {
     const regKey = new PublicKey(addr);
     const regState = await this._getRegState(regKey);
     if (regState !== undefined) {
-      let x = regState.generalize(regKey);
-      console.log(x);
-      return x;
+      return regState.generalize(regKey);
     } else {
       return undefined;
     }

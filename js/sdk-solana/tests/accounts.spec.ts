@@ -97,7 +97,7 @@ describe('Test account data serialization', () => {
         })
       ],
       dataLen: 10,
-      data: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      data: Uint8Array.from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
       votes: [
         new Vote({
           voterKey: PublicKey.unique(),
