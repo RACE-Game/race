@@ -7,7 +7,6 @@ import './App.css'
 import ProfileContext, { ProfileData } from './profile-context';
 import LogsContext from './logs-context';
 import HelperContext from './helper-context';
-import Header from './Header';
 import Logs from './Logs';
 import SolanaWalletWrapper from './SolanaWalletWrapper';
 import FacadeWalletWrapper from './FacadeWalletWrapper';
@@ -35,13 +34,10 @@ const Content = (props: RenderContentProps) => {
         <div className="row-span-6">
             <Sidemenu chain={chain} />
         </div>
-        <div className="col-span-2">
-            <Header />
-        </div>
-        <Profile updateProfile={props.setProfile} />
         <div className="row-span-6 col-span-2">
             <Outlet context={{ chain }} />
         </div>
+        <Profile updateProfile={props.setProfile} />
         <div className="row-span-5">
             <Logs logs={props.logs} />
         </div>
@@ -73,6 +69,10 @@ function App() {
             return newLogs;
         });
     }
+
+    const clearLog = () => {
+        setLogs([])
+    };
 
     useEffect(() => {
         if (chain !== undefined) {
@@ -119,7 +119,7 @@ function App() {
     return (
         <HelperContext.Provider value={helper}>
             <ProfileContext.Provider value={profile}>
-                <LogsContext.Provider value={{ addLog }}>
+                <LogsContext.Provider value={{ addLog, clearLog }}>
                     <WalletWrapper>
                         <Content logs={logs} setProfile={setProfile} chain={chain} />
                     </WalletWrapper>
