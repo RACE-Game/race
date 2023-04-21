@@ -145,25 +145,56 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ser() -> anyhow::Result<()> {
-        // let ix = RaceInstruction::CreatePlayerProfile {
-        //     params: CreatePlayerProfileParams {
-        //         nick: "Alice".into(),
-        //     }
-        // };
-        let ix = RaceInstruction::CreateGameAccount {
+    fn test_ser_create_game_account() -> anyhow::Result<()> {
+        let nodata_ix = RaceInstruction::CreateGameAccount{
             params: CreateGameAccountParams {
-                title: "test game #2".into(),
-                max_players: 10,
-                min_deposit: 10,
-                max_deposit: 20,
+                title: "test game".to_string(),
+                min_deposit: 30u64,
+                max_deposit: 60u64,
+                max_players: 10u16,
+                data: vec![]
+            }
+        };
+
+        let data_ix = RaceInstruction::CreateGameAccount{
+            params: CreateGameAccountParams {
+                title: "test game #2".to_string(),
+                min_deposit: 10u64,
+                max_deposit: 20u64,
+                max_players: 10u16,
                 data: vec![1, 2, 3, 4],
             }
         };
 
-        let data = ix.try_to_vec()?;
-        println!("data: {:?}", data);
-        assert_eq!(1, 2);
+        let nodata_ix_ser = nodata_ix.try_to_vec().unwrap();
+        println!("No data ix {:?}", nodata_ix_ser);
+        let nodata_bytes = [0, 9, 0, 0, 0, 116, 101, 115, 116, 32, 103, 97, 109, 101, 10, 0, 30, 0, 0, 0, 0, 0, 0, 0, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(nodata_ix_ser, nodata_bytes);
+
+        let data_ix_ser = data_ix.try_to_vec().unwrap();
+        println!("Data ix {:?}", data_ix_ser);
+        let data_bytes = [0, 12, 0, 0, 0, 116, 101, 115, 116, 32, 103, 97, 109, 101, 32, 35, 50, 10, 0, 10, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 1, 2, 3, 4];
+        assert_eq!(data_ix_ser, data_bytes);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ser_join() -> anyhow::Result<()> {
+        let join_ix = RaceInstruction::JoinGame{
+            params: JoinParams {
+                amount: 1000u64,
+                access_version: 0u64,
+                position: 2u16,
+            }
+        };
+
+        let join_ix_ser = join_ix.try_to_vec().unwrap();
+        println!("join ix serialized {:?}", join_ix);
+        let join_bytes = [10, 232, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0];
+        assert_eq!(join_ix_ser, join_bytes);
+
+
         Ok(())
     }
 }

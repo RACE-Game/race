@@ -314,7 +314,7 @@ pub fn rget_string(obj: &Object, key: &str) -> Result<String> {
     )))
 }
 
-pub fn rget_u8(obj: &Object, key: &str) -> Result<u8> {
+pub fn _rget_u8(obj: &Object, key: &str) -> Result<u8> {
     let Ok(v) = Reflect::get(obj, &key.to_owned().into()) else {
         return Err(JsError::new(&format!("Missing {}", key)))
     };
@@ -324,6 +324,18 @@ pub fn rget_u8(obj: &Object, key: &str) -> Result<u8> {
             key
         )))
         .map(|n| n as u8)
+}
+
+pub fn rget_u16(obj: &Object, key: &str) -> Result<u16> {
+    let Ok(v) = Reflect::get(obj, &key.to_owned().into()) else {
+        return Err(JsError::new(&format!("Missing {}", key)))
+    };
+    v.as_f64()
+        .ok_or(JsError::new(&format!(
+            "Invalid parameter {}, expect string",
+            key
+        )))
+        .map(|n| n as u16)
 }
 
 pub fn rget_u64(obj: &Object, key: &str) -> Result<u64> {

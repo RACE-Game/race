@@ -84,7 +84,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
     if game_state
         .players
         .iter()
-        .any(|p| p.position == params.position as u32)
+        .any(|p| p.position == params.position)
     {
         return Err(ProcessError::PositionTakenAlready)?;
     }

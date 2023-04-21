@@ -24,12 +24,12 @@ We use this token for following tests.
 
 Uploaded NFT metadata on Arweave:
 
-- Chat: https://arweave.net/qXM8gjD1sxey90T-U8KPz_Cuj-APuq3hu34AIWz9SXc
-- Raffle: https://arweave./uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E
+- Chat: https://arweave.net/pIzCCw-NJQsfIVZ9OPrGIWJ1ZMDP_02cPYr4OGMverE
+- Raffle: https://arweave.net/xDkBn1A8-8xFJAoaMSgpQWR84kh_MwQqYkLhS-ty0tw
 
 ```shell
-just publish Chat https://arweave.net/qXM8gjD1sxey90T-U8KPz_Cuj-APuq3hu34AIWz9SXc
-just publish Raffle https://arweave.net/uQFXQ9Jp5IrO5qGuTX8zSWRMJU679M6ZGW9MM1cSP0E
+just publish Chat https://arweave.net/pIzCCw-NJQsfIVZ9OPrGIWJ1ZMDP_02cPYr4OGMverE
+just publish Raffle https://arweave.net/xDkBn1A8-8xFJAoaMSgpQWR84kh_MwQqYkLhS-ty0tw
 ```
 
 NFT addresses will be returned when upload succeed. Later we will use this NFT token address as **bundle address**.

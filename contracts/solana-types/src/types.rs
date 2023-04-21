@@ -97,7 +97,7 @@ pub struct SettleParams {
 pub struct JoinParams {
     pub amount: u64,
     pub access_version: u64,
-    pub position: usize,
+    pub position: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]

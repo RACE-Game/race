@@ -14,6 +14,7 @@ pub(crate) fn get_function(obj: &JsValue, name: &str) -> Function {
         .unwrap()
 }
 
+#[allow(dead_code)]
 pub(crate) fn create_object(entries: &[(&str, &JsValue)]) -> Object {
     let obj = Object::new();
     for (k, v) in entries.into_iter() {

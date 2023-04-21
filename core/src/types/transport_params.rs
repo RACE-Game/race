@@ -145,7 +145,7 @@ pub struct JoinParams {
     pub game_addr: String,
     pub amount: u64,
     pub access_version: u64,
-    pub position: usize,
+    pub position: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

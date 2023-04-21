@@ -129,8 +129,9 @@ mod tests {
             };
             state.servers.push(s);
         }
-        println!("Game state len: {}", get_instance_packed_len(&state)?);
-        assert_eq!(1, 2);
+        let game_state_len = get_instance_packed_len(&state)?;
+        println!("Game state len: {}", game_state_len);
+        assert_eq!(GAME_ACCOUNT_LEN, game_state_len);
         Ok(())
     }
 

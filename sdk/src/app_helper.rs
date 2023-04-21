@@ -9,7 +9,7 @@ use race_transport::TransportLocalT;
 use wasm_bindgen::prelude::*;
 
 use crate::error::Result;
-use crate::js::{rget, rget_string, rget_u64, rget_u8, rget_u16};
+use crate::js::{rget, rget_string, rget_u64, rget_u16};
 use crate::transport::Transport;
 use race_core::{
     error::Error,

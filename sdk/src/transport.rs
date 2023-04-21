@@ -1,3 +1,4 @@
+#![allow(unused_variables)]
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
 use gloo::utils::format::JsValueSerdeExt;
@@ -142,7 +143,7 @@ impl TransportLocalT for Transport {
     async fn unregister_game(
         &self,
         wallet: &JsValue,
-        params: UnregisterGameParams,
+        _params: UnregisterGameParams,
     ) -> TransportResult<()> {
         Ok(())
     }

@@ -296,7 +296,7 @@ impl AppClient {
 
     /// Join the game.
     #[wasm_bindgen]
-    pub async fn join(&self, wallet: JsValue, position: u8, amount: u64) -> Result<()> {
+    pub async fn join(&self, wallet: JsValue, amount: u64) -> Result<()> {
         info!("Join game", &wallet);
         let game_account = self
             .transport
@@ -309,7 +309,7 @@ impl AppClient {
             return Err(Error::GameIsFull(count as _))?;
         }
 
-        let mut position: Option<u8> = None;
+        let mut position: Option<u16> = None;
         for i in 0..game_account.max_players {
             if game_account
                 .players
