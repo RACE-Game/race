@@ -37,6 +37,7 @@ pub struct AppClient {
     addr: String,
     client: Client,
     handler: Handler,
+    wallet: JsValue,
     transport: Arc<Transport>,
     connection: Arc<Connection>,
     game_context: RefCell<GameContext>,
@@ -125,6 +126,7 @@ impl AppClient {
         Ok(Self {
             addr: game_addr.to_owned(),
             client,
+            wallet,
             transport,
             connection,
             handler,
@@ -296,8 +298,8 @@ impl AppClient {
 
     /// Join the game.
     #[wasm_bindgen]
-    pub async fn join(&self, wallet: JsValue, amount: u64) -> Result<()> {
-        info!("Join game", &wallet);
+    pub async fn join(&self, amount: u64) -> Result<()> {
+        info!("Join game");
         let game_account = self
             .transport
             .get_game_account(&self.addr)
@@ -325,7 +327,7 @@ impl AppClient {
 
         self.transport
             .join(
-                &wallet,
+                &self.wallet,
                 JoinParams {
                     game_addr: self.addr.clone(),
                     amount,
