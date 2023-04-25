@@ -7,7 +7,6 @@ use super::common::VoteType;
 
 /// Represent a player call the join instruction in contract.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PlayerJoin {
     pub addr: String,
     pub position: u16,
@@ -33,7 +32,6 @@ impl PlayerJoin {
 
 /// Represent a player call the deposit instruction in contract.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PlayerDeposit {
     pub addr: String,
     pub amount: u64,
@@ -51,7 +49,6 @@ impl PlayerDeposit {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ServerJoin {
     pub addr: String,
     pub endpoint: String,
@@ -69,7 +66,6 @@ impl ServerJoin {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Vote {
     pub voter: String,
     pub votee: String,
@@ -80,7 +76,6 @@ pub struct Vote {
 #[derive(
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
-#[serde(rename_all = "camelCase")]
 pub struct ServerAccount {
     // The public key of transactor owner
     pub addr: String,
@@ -154,7 +149,6 @@ pub struct ServerAccount {
 #[derive(
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
-#[serde(rename_all = "camelCase")]
 pub struct GameAccount {
     pub addr: String,
     pub title: String,
@@ -179,7 +173,6 @@ pub struct GameAccount {
 #[derive(
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
-#[serde(rename_all = "camelCase")]
 pub struct GameRegistration {
     pub title: String,
     pub addr: String,
@@ -190,7 +183,6 @@ pub struct GameRegistration {
 #[derive(
     Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
-#[serde(rename_all = "camelCase")]
 pub struct RegistrationAccount {
     pub addr: String,
     pub is_private: bool,
@@ -200,7 +192,6 @@ pub struct RegistrationAccount {
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct GameBundle {
     pub uri: String,
     pub name: String,
@@ -208,7 +199,6 @@ pub struct GameBundle {
 }
 
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct PlayerProfile {
     pub addr: String,
     pub nick: String,
