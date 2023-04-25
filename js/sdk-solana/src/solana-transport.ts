@@ -253,16 +253,18 @@ export class SolanaTransport implements ITransport {
 
   async getGameBundle(addr: string): Promise<GameBundle | undefined> {
     const mintKey = new PublicKey(addr);
+    console.log("Game Stake Mint:", mintKey);
     const [metadataKey] = PublicKey.findProgramAddressSync(
       [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
       METAPLEX_PROGRAM_ID
     );
     const metadataAccount = await this.#conn.getAccountInfo(metadataKey);
+
     if (metadataAccount === null) {
       return undefined;
     }
     const metadataState = Metadata.deserialize(metadataAccount.data);
-    console.log(metadataState);
+    console.log("Metadata state:", metadataState);
     let { uri, name } = metadataState.data;
     uri = uri.replace(/\0/g, '');
     name = name.replace(/\0/g, '');
@@ -310,7 +312,6 @@ export class SolanaTransport implements ITransport {
 
   async getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
     const regKey = new PublicKey(addr);
-    console.log("Reg key: ", addr);
     const regState = await this._getRegState(regKey);
     if (regState !== undefined) {
       return regState.generalize(regKey);
@@ -324,7 +325,6 @@ export class SolanaTransport implements ITransport {
     const gameAccount = await conn.getAccountInfo(gameAccoutKey);
     if (gameAccount !== null) {
       const data = gameAccount.data;
-      console.log("Game data", data);
       return GameState.deserialize(data);
     } else {
       return undefined;
@@ -336,7 +336,6 @@ export class SolanaTransport implements ITransport {
     const regAccount = await conn.getAccountInfo(regKey);
     if (regAccount !== null) {
       const data = regAccount.data;
-      console.log("Reg data", data);
       return RegistryState.deserialize(data);
     } else {
       return undefined;

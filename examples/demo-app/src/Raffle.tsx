@@ -8,11 +8,9 @@ import { useGameContext } from "./App";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { SolanaTransport, SolanaWalletAdapter } from "race-sdk-solana";
 
-interface State {
-    random_id: number,
-    options: string[],
-    previous_winner: string | null,
-    next_draw: number,
+interface Player {
+  addr: string,
+  balance: bigint,
 }
 
 interface State {
@@ -31,11 +29,11 @@ function Winner(props: { settle_version: number, last_winner: string | null }) {
         setTimeout(() => setFade(true), 5000)
     }, [props.settle_version]);
 
-    if (props.previous_winner) {
+    if (props.last_winner) {
         return <div className={
             `bg-black text-white text-lg p-4 text-center animate-bounce transition-opacity duration-[3500ms]
        ${fade ? "opacity-0" : "opacity-100"}`}>
-            Winner: {props.previous_winner}
+        Winner: {props.last_winner}
         </div>
     } else {
         return <div></div>
@@ -66,7 +64,7 @@ function Raffle() {
         if (client !== undefined) {
             console.log(wallet);
             let walletAdapter = new SolanaWalletAdapter(wallet);
-            await client.join(walletAdapter, 0, 100n);
+            await client.join(100n);
         }
     }
 
@@ -100,12 +98,12 @@ function Raffle() {
                 </div>
                 <div>
                     Next draw: {
-                        state.next_draw > 0 ? new Date(state.next_draw).toLocaleTimeString() : "N/A"
+                      state.random_id > 0 ? new Date(state.random_id).toLocaleTimeString() : "N/A"
                     }
                 </div>
                 <div>Players:</div>
                 {
-                    context.pending_players.map((p: any, i: number) => {
+                    context.players.map((p: any, i: number) => {
                         return <div key={i} className="m-2 p-2 border border-black">
                             {p.addr}
                         </div>
@@ -114,7 +112,7 @@ function Raffle() {
 
                 <div className="flex-1"></div>
                 <Winner
-                    previous_winner={state.previous_winner}
+                    last_winner={state.last_winner}
                     settle_version={context.settle_version} />
             </div>
         );

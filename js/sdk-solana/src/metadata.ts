@@ -95,7 +95,7 @@ const metadataSchema = new Map<Function, any>([
         ['symbol', 'string'],
         ['uri', 'string'],
         ['sellerFeeBasisPoints', 'u16'],
-        ['creators', [Creator]],
+        ['creators', {kind: 'option', type: [Creator]}],
       ],
     },
   ],
