@@ -219,6 +219,8 @@ pub struct PlayerProfile {
 #[cfg(test)]
 mod tests {
 
+    use borsh::try_from_slice_with_schema;
+
     use crate::context::GameStatus;
 
     use super::*;
@@ -374,6 +376,31 @@ mod tests {
         println!("Serialized game account {:?}", ser);
 
         assert_eq!(ser, bytes);
+
+    }
+
+    #[test]
+    fn test_reg_account() {
+        let reg_account = RegistrationAccount {
+            addr: "DUMZU76rYgYkXuaCBB2m65USqeeCd1T1Gk2mpfgKKrS4".to_string(),
+            is_private: false,
+            size: 100,
+            owner: Some("J22ir2nLxVRqUrcpwMDBM47HpFCLLRrKFroF6LjK7DEA".to_string()),
+            games: vec![
+                GameRegistration {
+                    title: "My Raffle".to_string(),
+                    addr: "DbsLWtwanc5VrGHH9FBqxTfhQA1XxCitsQCAcahade9r".to_string(),
+                    reg_time: 1682425340u64,
+                    bundle_addr: "96VJaPnUHuCGsvX1eACQPDU5R7WxwB2TxQY6CL947DqF".to_string()
+                },
+            ],
+        };
+
+        let bytes = [44,0,0,0,68,85,77,90,85,55,54,114,89,103,89,107,88,117,97,67,66,66,50,109,54,53,85,83,113,101,101,67,100,49,84,49,71,107,50,109,112,102,103,75,75,114,83,52,0,100,0,1,44,0,0,0,74,50,50,105,114,50,110,76,120,86,82,113,85,114,99,112,119,77,68,66,77,52,55,72,112,70,67,76,76,82,114,75,70,114,111,70,54,76,106,75,55,68,69,65,1,0,0,0,9,0,0,0,77,121,32,82,97,102,102,108,101,44,0,0,0,68,98,115,76,87,116,119,97,110,99,53,86,114,71,72,72,57,70,66,113,120,84,102,104,81,65,49,88,120,67,105,116,115,81,67,65,99,97,104,97,100,101,57,114,252,197,71,100,0,0,0,0,44,0,0,0,57,54,86,74,97,80,110,85,72,117,67,71,115,118,88,49,101,65,67,81,80,68,85,53,82,55,87,120,119,66,50,84,120,81,89,54,67,76,57,52,55,68,113,70];
+        let der = RegistrationAccount::try_from_slice(&bytes).unwrap();
+        // let ser = reg_account.try_to_vec().unwrap();
+        assert_eq!(der, reg_account);
+
 
     }
 }

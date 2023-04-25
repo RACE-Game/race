@@ -67,7 +67,6 @@ export class SolanaTransport implements ITransport {
 
     let tx = new Transaction();
 
-    // Create game account
     const gameAccount = Keypair.generate();
     const gameAccountKey = gameAccount.publicKey;
     const lamports = await conn.getMinimumBalanceForRentExemption(GAME_ACCOUNT_LEN);
@@ -80,7 +79,6 @@ export class SolanaTransport implements ITransport {
     });
     tx.add(createGameAccount);
 
-    // Create stake account to hold deposits
     const tokenMintKey = new PublicKey(tokenAddr);
     const stakeAccount = Keypair.generate();
     const stakeAccountKey = stakeAccount.publicKey;
@@ -115,9 +113,7 @@ export class SolanaTransport implements ITransport {
       maxDeposit: params.maxDeposit,
     });
     tx.add(createGame);
-
     tx.partialSign(gameAccount, stakeAccount);
-
     await wallet.sendTransaction(tx, conn);
 
     return gameAccountKey.toBase58();
@@ -138,12 +134,12 @@ export class SolanaTransport implements ITransport {
     }
     const mintKey = gameState.tokenKey;
     const isWsol = mintKey.equals(NATIVE_MINT);
-
+    const conn = this.#conn;
     const stakeAccountKey = gameState.stakeKey;
     const tempAccountKeypair = Keypair.generate();
     const tempAccountKey = tempAccountKeypair.publicKey;
     const tempAccountLen = AccountLayout.span;
-    const tempAccountLamports = await this.#conn.getMinimumBalanceForRentExemption(tempAccountLen);
+    const tempAccountLamports = await conn.getMinimumBalanceForRentExemption(tempAccountLen);
 
     const tx = new Transaction();
     const createTempAccountIx = SystemProgram.createAccount({
@@ -213,11 +209,9 @@ export class SolanaTransport implements ITransport {
 
     let tx = new Transaction();
 
-    // Check if player account already exists
     if (!(await conn.getAccountInfo(profileKey))) {
       let lamports = await conn.getMinimumBalanceForRentExemption(PROFILE_ACCOUNT_LEN);
 
-      // Construct ix
       const createProfileAccount = SystemProgram.createAccountWithSeed({
         fromPubkey: payerKey,
         newAccountPubkey: profileKey,
@@ -230,14 +224,10 @@ export class SolanaTransport implements ITransport {
       tx.add(createProfileAccount);
     }
 
-    // Get pfp ready
     const pfpKey = !pfp ? PublicKey.default : new PublicKey(pfp);
-
-    // Construct ix
     const createProfile = instruction.createPlayerProfile(payerKey, profileKey, nick, pfpKey);
 
     tx.add(createProfile);
-
     await wallet.sendTransaction(tx, conn);
 
     return profileKey.toBase58();
@@ -320,6 +310,7 @@ export class SolanaTransport implements ITransport {
 
   async getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
     const regKey = new PublicKey(addr);
+    console.log("Reg key: ", addr);
     const regState = await this._getRegState(regKey);
     if (regState !== undefined) {
       return regState.generalize(regKey);
@@ -333,6 +324,7 @@ export class SolanaTransport implements ITransport {
     const gameAccount = await conn.getAccountInfo(gameAccoutKey);
     if (gameAccount !== null) {
       const data = gameAccount.data;
+      console.log("Game data", data);
       return GameState.deserialize(data);
     } else {
       return undefined;
@@ -344,6 +336,7 @@ export class SolanaTransport implements ITransport {
     const regAccount = await conn.getAccountInfo(regKey);
     if (regAccount !== null) {
       const data = regAccount.data;
+      console.log("Reg data", data);
       return RegistryState.deserialize(data);
     } else {
       return undefined;

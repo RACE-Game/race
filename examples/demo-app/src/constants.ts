@@ -2,7 +2,7 @@ import { Chain } from './types';
 
 export const CHAIN_TO_REG_ADDR: Record<Chain, string> = {
   'facade': 'DEFAULT_REGISTRATION_ADDRESS',
-  'solana': '6C54vabgE65Hdmz2SgZ91pypYdbTisHqAh4UPn5uMSgX',
+  'solana': 'DUMZU76rYgYkXuaCBB2m65USqeeCd1T1Gk2mpfgKKrS4',
 };
 
 export const CHAIN_TO_RPC: Record<Chain, string> = {
@@ -12,7 +12,7 @@ export const CHAIN_TO_RPC: Record<Chain, string> = {
 
 export const CHAIN_ADDR_GAME_MAPPING: Record<Chain, Record<string, string>> = {
   'solana': {
-    '4W8YNcCYBYxVT419ysFdKECnL7VPEnH8a9ebHRvQ6zXF': 'raffle'
+    '96VJaPnUHuCGsvX1eACQPDU5R7WxwB2TxQY6CL947DqF': 'raffle'
   },
   'facade': {
     'CHAT_BUNDLE_ADDRESS': 'chat',

@@ -10,7 +10,7 @@ import {
   Vote,
 } from '../src/accounts';
 import { PublicKey } from '@solana/web3.js';
-import { ACCOUNT_DATA } from './account_data';
+import { ACCOUNT_DATA, REG_ACCOUNT_DATA } from './account_data';
 
 describe('Test account data serialization', () => {
   it('PlayerState', () => {
@@ -35,6 +35,13 @@ describe('Test account data serialization', () => {
     let buf = state.serialize();
     let deserialized = PlayerState.deserialize(buf);
     assert.deepStrictEqual(state, deserialized);
+  })
+
+  it('RegState deserialize', () => {
+    let deserialized = RegistryState.deserialize(Buffer.from(REG_ACCOUNT_DATA));
+    assert.equal(100, deserialized.size);
+    assert.equal(false, deserialized.isPrivate);
+    assert.equal(1, deserialized.games.length);
   })
 
   it('RegistryState', () => {
@@ -111,6 +118,8 @@ describe('Test account data serialization', () => {
     let deserialized = GameState.deserialize(buf);
     assert.deepStrictEqual(state, deserialized);
   })
+
+
 
   it('ServerState', () => {
     let state = new ServerState({
