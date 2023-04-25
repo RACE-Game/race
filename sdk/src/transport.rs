@@ -176,37 +176,34 @@ impl TransportLocalT for Transport {
         let f = get_function(&self.inner, "getPlayerProfile");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        parse_js_value(&value)
+        Some(parse_js_value(&value));
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let f = get_function(&self.inner, "getGameAccount");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        parse_js_value(&value)
+        Some(parse_js_value(&value))
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
         let f = get_function(&self.inner, "getGameBundle");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        parse_js_value(&value)
+        Some(parse_js_value(&value))
     }
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
         let f = get_function(&self.inner, "getServerAccount");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        parse_js_value(&value)
+        Some(parse_js_value(&value))
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
         let f = get_function(&self.inner, "getRegistration");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        gloo::console::info!("value:", &value);
-        let x = parse_js_value(&value);
-        gloo::console::info!(format!("unpack: {:?}", x));
-        x
+        Some(parse_js_value(&value))
     }
 }
