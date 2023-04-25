@@ -123,7 +123,7 @@ async fn publish(name: String, bundle: String, transport: Arc<dyn TransportT>) {
         symbol: "RACEBUNDLE".into(),
     };
     let resp = transport.publish_game(params).await.expect("RPC error");
-    println!("Address: {:?}", &resp);
+    println!("Address: {}", &resp);
 }
 
 async fn bundle_info(addr: &str, transport: Arc<dyn TransportT>) {
@@ -212,7 +212,7 @@ async fn create_reg(transport: Arc<dyn TransportT>) {
         .create_registration(params)
         .await
         .expect("Create registration failed");
-    println!("Registration created at: {}", addr);
+    println!("Address: {}", addr);
 }
 
 async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
@@ -229,7 +229,6 @@ async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
         .create_game_account(params)
         .await
         .expect("Create game account failed");
-    println!("Game account created at: {}", addr);
     transport
         .register_game(RegisterGameParams {
             game_addr: addr.clone(),
@@ -238,6 +237,7 @@ async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
         .await
         .expect("Failed to register game");
     println!("Game registered");
+    println!("Address: {}", addr);
 }
 
 async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) {
