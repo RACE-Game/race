@@ -27,10 +27,34 @@ impl Transport {
     }
 }
 
-fn unpack_json<T: BorshDeserialize>(value: &JsValue) -> T {
+fn parse_js_value<T: BorshDeserialize>(value: &JsValue) -> T {
     let f = get_function(value, "serialize");
-    let r = f.call0(value).unwrap().dyn_into::<Uint8Array>().unwrap();
-    T::try_from_slice(&r.to_vec()).unwrap()
+
+
+    let r = match f.call0(value) {
+        Ok(r) => r,
+        Err(e) => {
+            gloo::console::error!("Failed to serialize object:", value, e);
+            panic!("Parse response failed");
+        }
+    };
+
+    let r = match r.dyn_into::<Uint8Array>() {
+        Ok(r) => r,
+        Err(e) => {
+            gloo::console::error!("Failed to parse object to Uint8Array:", e);
+            panic!("Parse response failed");
+        }
+    };
+
+    match T::try_from_slice(&r.to_vec()){
+        Ok(r) => r,
+        Err(e) => {
+            gloo::console::error!("Failed to deserialize:", r);
+            gloo::console::error!(format!("Error: {:?}", e));
+            panic!("Parse response failed");
+        }
+    }
 }
 
 #[async_trait(?Send)]
@@ -152,28 +176,28 @@ impl TransportLocalT for Transport {
         let f = get_function(&self.inner, "getPlayerProfile");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        unpack_json(&value)
+        parse_js_value(&value)
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let f = get_function(&self.inner, "getGameAccount");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        unpack_json(&value)
+        parse_js_value(&value)
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
         let f = get_function(&self.inner, "getGameBundle");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        unpack_json(&value)
+        parse_js_value(&value)
     }
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
         let f = get_function(&self.inner, "getServerAccount");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        unpack_json(&value)
+        parse_js_value(&value)
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
@@ -181,7 +205,7 @@ impl TransportLocalT for Transport {
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
         gloo::console::info!("value:", &value);
-        let x = unpack_json(&value);
+        let x = parse_js_value(&value);
         gloo::console::info!(format!("unpack: {:?}", x));
         x
     }

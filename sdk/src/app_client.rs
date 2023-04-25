@@ -5,8 +5,8 @@ use js_sys::JSON::{parse, stringify};
 use js_sys::{Function, Object, Reflect};
 use jsonrpsee::core::client::Subscription;
 use race_core::context::GameContext;
-use race_core::types::{BroadcastFrame, GameAccount, ExitGameParams, RandomId};
-use race_core::prelude::{InitAccount, DecisionId};
+use race_core::prelude::{DecisionId, InitAccount};
+use race_core::types::{BroadcastFrame, ExitGameParams, GameAccount, RandomId};
 use race_transport::TransportLocalT;
 use wasm_bindgen::prelude::*;
 
@@ -18,7 +18,7 @@ use std::sync::Arc;
 use crate::connection::Connection;
 use crate::handler::Handler;
 use crate::transport::Transport;
-use crate::utils::{get_function, rget};
+use crate::utils::rget;
 use gloo::console::{debug, error, info, warn};
 
 use crate::error::Result;
@@ -80,9 +80,7 @@ impl AppClient {
         let encryptor = Arc::new(Encryptor::default());
         info!("Encryptor created");
         info!(&wallet);
-        let player_addr = rget(&wallet, "walletAddr")
-            .as_string()
-            .unwrap();
+        let player_addr = rget(&wallet, "walletAddr").as_string().unwrap();
         info!("Player addr got");
         let game_account = transport
             .get_game_account(game_addr)
@@ -105,8 +103,12 @@ impl AppClient {
             .ok_or(Error::CantFindTransactor)?;
         info!("Transactor account loaded");
         let connection = Arc::new(
-            Connection::try_new(&player_addr, &transactor_account.endpoint, encryptor.clone())
-                .await?,
+            Connection::try_new(
+                &player_addr,
+                &transactor_account.endpoint,
+                encryptor.clone(),
+            )
+            .await?,
         );
         info!("Connection initialized");
         let client = Client::new(
@@ -313,11 +315,7 @@ impl AppClient {
 
         let mut position: Option<u16> = None;
         for i in 0..game_account.max_players {
-            if game_account
-                .players
-                .iter()
-                .all(|p| p.position != i)
-            {
+            if game_account.players.iter().all(|p| p.position != i) {
                 position = Some(i as _);
                 break;
             }

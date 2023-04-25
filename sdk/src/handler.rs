@@ -24,7 +24,7 @@ pub struct Handler {
 
 impl Handler {
     pub async fn from_bundle(game_bundle: GameBundle, encryptor: Arc<dyn EncryptorT>) -> Result<Self> {
-        let mut buffer = game_bundle.data;
+        let buffer = game_bundle.data;
         let mem_descriptor = Object::new();
         Reflect::set(&mem_descriptor, &"shared".into(), &true.into()).map_err(|_| {
             Error::WasmInitializationError("Failed to create mem descriptor".into())
