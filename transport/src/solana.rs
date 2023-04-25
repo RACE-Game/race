@@ -525,9 +525,6 @@ impl TransportT for SolanaTransport {
             &[
                 create_mint_account_ix,
                 init_mint_ix,
-                // create_token_account_ix,
-                // init_token_account_ix,
-                // mint_token_ix,
                 create_ata_account_ix,
                 publish_game_ix,
             ],

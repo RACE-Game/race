@@ -20,16 +20,23 @@ spl-token mint <TOKEN_ADDRESS> <AMOUNT>
 ```
 We use this token for following tests.
 
+## Deploy RACE contract to solana localnet
+
+``` shell
+just solana
+```
+
+
 ## Publish game bundle
 
 Uploaded NFT metadata on Arweave:
 
 - Chat: https://arweave.net/pIzCCw-NJQsfIVZ9OPrGIWJ1ZMDP_02cPYr4OGMverE
-- Raffle: https://arweave.net/2QOeQ1sr8NBjQLm-sbswiFS2TRXRChaVC29OvEDEWCc
+- Raffle: https://arweave.net/qcfK5xFtomI2ZD3ieSvYkVpt4xLWxHDxV-seGNgBEEU
 
 ```shell
 just publish Chat https://arweave.net/pIzCCw-NJQsfIVZ9OPrGIWJ1ZMDP_02cPYr4OGMverE
-just publish Raffle https://arweave.net/2QOeQ1sr8NBjQLm-sbswiFS2TRXRChaVC29OvEDEWCc
+just publish Raffle https://arweave.net/qcfK5xFtomI2ZD3ieSvYkVpt4xLWxHDxV-seGNgBEEU
 ```
 
 NFT addresses will be returned when upload succeed. Later we will use this NFT token address as **bundle address**.

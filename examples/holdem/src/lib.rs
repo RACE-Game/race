@@ -1004,7 +1004,7 @@ impl GameHandler for Holdem {
             Event::Sync { new_players, .. } => {
                 for p in new_players.iter() {
                     // TODO: balance == chips?
-                    let player = Player::new(p.addr.clone(), p.balance, p.position);
+                    let player = Player::new(p.addr.clone(), p.balance, p.position as usize);
                     // TODO: Check diff of p.position and the current positions of game
                     self.player_map.insert(player.addr.clone(), player);
                 }

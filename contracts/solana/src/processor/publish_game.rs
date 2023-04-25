@@ -27,8 +27,6 @@ pub fn process(
 
     let mint_account = next_account_info(accounts_iter)?;
 
-    // let token_account = next_account_info(accounts_iter)?;
-
     let ata_account = next_account_info(accounts_iter)?;
 
     let metadata_pda = next_account_info(accounts_iter)?;
@@ -52,10 +50,6 @@ pub fn process(
     if !mint_state.is_initialized {
         return Err(ProgramError::UninitializedAccount);
     }
-    //
-    // if !token_account.is_initialized {
-    //     return Err(ProgramError::UninitializedAccount);
-    // }
 
     // Mint 1 token to token account
     msg!("Token mint: {}", mint_account.key);
@@ -78,6 +72,7 @@ pub fn process(
         ],
     )?;
 
+    msg!("Recording creators of NFT ...");
     let creator = vec![
         mpl_token_metadata::state::Creator {
             address: payer.key.clone(),
@@ -90,6 +85,7 @@ pub fn process(
             share: 0,
         },
     ];
+
     // Create metadata account
     msg!("Creating metadata account: {}", metadata_pda.key);
     let create_metadata_account_ix = create_metadata_accounts_v3(
