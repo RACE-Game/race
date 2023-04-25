@@ -31,12 +31,12 @@ just solana
 
 Uploaded NFT metadata on Arweave:
 
-- Chat: https://arweave.net/pIzCCw-NJQsfIVZ9OPrGIWJ1ZMDP_02cPYr4OGMverE
-- Raffle: https://arweave.net/qcfK5xFtomI2ZD3ieSvYkVpt4xLWxHDxV-seGNgBEEU
+- Chat: https://arweave.net/6SOGM007lgaeBH1SOJ-Ifm9eUUNz4kCdRqVJe-yl9_g
+- Raffle: https://arweave.net/hTlRRw2tZ2q_RpklixjRIzrR3PgAChBujAKzp6wknHs
 
 ```shell
-just publish Chat https://arweave.net/pIzCCw-NJQsfIVZ9OPrGIWJ1ZMDP_02cPYr4OGMverE
-just publish Raffle https://arweave.net/qcfK5xFtomI2ZD3ieSvYkVpt4xLWxHDxV-seGNgBEEU
+just publish Chat https://arweave.net/6SOGM007lgaeBH1SOJ-Ifm9eUUNz4kCdRqVJe-yl9_g
+just publish Raffle https://arweave.net/hTlRRw2tZ2q_RpklixjRIzrR3PgAChBujAKzp6wknHs
 ```
 
 NFT addresses will be returned when upload succeed. Later we will use this NFT token address as **bundle address**.
