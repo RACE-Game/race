@@ -176,7 +176,7 @@ impl TransportLocalT for Transport {
         let f = get_function(&self.inner, "getPlayerProfile");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        Some(parse_js_value(&value));
+        Some(parse_js_value(&value))
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
