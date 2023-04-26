@@ -1,8 +1,8 @@
 import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } from '@solana/web3.js';
 import * as borsh from 'borsh';
-import { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { ExtendedWriter } from './utils';
-import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants';
+import { PROGRAM_ID, METAPLEX_PROGRAM_ID, PLAYER_PROFILE_SEED } from './constants';
 
 // Instruction types
 
@@ -232,7 +232,7 @@ export function createGameAccount(opts: CreateGameOptions): TransactionInstructi
         isWritable: false,
       },
       {
-        pubkey: TOKEN_2022_PROGRAM_ID,
+        pubkey: TOKEN_PROGRAM_ID,
         isSigner: false,
         isWritable: false,
       },
@@ -307,8 +307,10 @@ export type JoinOptions = {
   position: number;
 };
 
-export function join(opts: JoinOptions): TransactionInstruction {
+export async function join(opts: JoinOptions): Promise<TransactionInstruction> {
   const { playerKey, paymentKey, gameAccountKey, mint, stakeAccountKey, amount, accessVersion, position } = opts;
+
+  const profileKey = await PublicKey.createWithSeed(playerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
 
   let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID);
   const data = new JoinGameData(amount, accessVersion, position).serialize();
@@ -318,6 +320,11 @@ export function join(opts: JoinOptions): TransactionInstruction {
       {
         pubkey: playerKey,
         isSigner: true,
+        isWritable: false,
+      },
+      {
+        pubkey: profileKey,
+        isSigner: false,
         isWritable: false,
       },
       {
@@ -346,7 +353,7 @@ export function join(opts: JoinOptions): TransactionInstruction {
         isWritable: true,
       },
       {
-        pubkey: TOKEN_2022_PROGRAM_ID,
+        pubkey: TOKEN_PROGRAM_ID,
         isSigner: false,
         isWritable: false,
       },
@@ -409,7 +416,7 @@ export function publishGame(opts: PublishGameOptions): TransactionInstruction {
         isWritable: false,
       },
       {
-        pubkey: TOKEN_2022_PROGRAM_ID,
+        pubkey: TOKEN_PROGRAM_ID,
         isSigner: false,
         isWritable: false,
       },

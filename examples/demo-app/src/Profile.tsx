@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import HelperContext from './helper-context';
 import ProfileContext, { ProfileData } from './profile-context';
 import { WalletDisconnectButton, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
@@ -22,7 +22,7 @@ function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
     }
 
     const createProfile = async () => {
-      if (helper !== undefined) {
+        if (helper !== undefined) {
             if (nick === "") {
                 alert("Profile name can't be empty");
             } else {

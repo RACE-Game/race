@@ -69,14 +69,14 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
         return Err(ProcessError::GameFullAlready)?;
     }
 
-    if game_state.players.len() == 0 && params.position != 0 {
+    if params.position >= game_state.max_players {
         return Err(ProcessError::InvalidPosition)?;
     }
 
     if game_state
         .players
         .iter()
-        .any(|p| p.addr == *player_account.key)
+        .any(|p| p.addr == *payer_account.key)
     {
         return Err(ProcessError::JoinedGameAlready)?;
     }
@@ -101,7 +101,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
 
     // Player joins
     game_state.players.push(PlayerJoin {
-        addr: player_account.key.clone(),
+        addr: payer_account.key.clone(),
         balance: params.amount,
         position: params.position as _,
         access_version: game_state.access_version,
@@ -190,7 +190,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
 
     msg!(
         "Player {} joined the game {}",
-        player_account.key,
+        payer_account.key,
         game_account.key
     );
 

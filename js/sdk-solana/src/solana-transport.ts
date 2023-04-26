@@ -65,7 +65,7 @@ export class SolanaTransport implements ITransport {
     const payerKey = new PublicKey(wallet.walletAddr);
     console.log('Payer publick key: ', payerKey);
 
-    let tx = new Transaction();
+    let tx = await makeTransaction(conn, payerKey);
 
     const gameAccount = Keypair.generate();
     const gameAccountKey = gameAccount.publicKey;
@@ -122,7 +122,9 @@ export class SolanaTransport implements ITransport {
   async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> { }
 
   async join(wallet: IWallet, params: JoinParams): Promise<void> {
-    const { gameAddr, amount, accessVersion, position } = params;
+    const { gameAddr, amount: amountRaw, accessVersion: accessVersionRaw, position } = params;
+    const amount = BigInt(amountRaw);
+    const accessVersion = BigInt(accessVersionRaw);
     const playerKey = new PublicKey(wallet.walletAddr);
     const gameAccountKey = new PublicKey(gameAddr);
     const gameState = await this._getGameState(gameAccountKey);
@@ -141,7 +143,7 @@ export class SolanaTransport implements ITransport {
     const tempAccountLen = AccountLayout.span;
     const tempAccountLamports = await conn.getMinimumBalanceForRentExemption(tempAccountLen);
 
-    const tx = new Transaction();
+    const tx = await makeTransaction(conn, playerKey);
     const createTempAccountIx = SystemProgram.createAccount({
       fromPubkey: playerKey,
       newAccountPubkey: tempAccountKey,
@@ -168,7 +170,9 @@ export class SolanaTransport implements ITransport {
       tx.add(transferIx);
     }
 
-    const joinGameIx = join({
+    console.log("position:", position);
+
+    const joinGameIx = await join({
       playerKey,
       paymentKey: tempAccountKey,
       gameAccountKey,
@@ -354,4 +358,13 @@ export class SolanaTransport implements ITransport {
       return undefined;
     }
   }
+}
+
+async function makeTransaction(conn: Connection, feePayer: PublicKey): Promise<Transaction> {
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash();
+  return new Transaction({
+    feePayer,
+    blockhash,
+    lastValidBlockHeight
+  });
 }

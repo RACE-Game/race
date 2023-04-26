@@ -105,6 +105,7 @@ pub enum RaceInstruction {
     ///
     /// Accounts expected:
     /// 0. `[signer]` The player to join the game
+    /// 1.
     /// 1. `[writable]` The temp account.
     /// 2. `[writable]` The game account
     /// 3. `[]` The mint account.

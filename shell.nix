@@ -6,6 +6,7 @@ pkgs.mkShell rec {
     wasm-pack
     openssl
     rust-analyzer
+    simple-http-server
     nodejs-16_x
     just
     git

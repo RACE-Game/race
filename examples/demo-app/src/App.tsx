@@ -74,6 +74,21 @@ function App() {
         setLogs([])
     };
 
+    // useEffect(() => {
+  //   console.log("--------------");
+  //       const q = async () => {
+  //           if (helper !== undefined && wallet !== undefined) {
+  //               const walletAdapter = new SolanaWalletAdapter(wallet);
+  //               const profile = await helper.get_profile(walletAdapter.walletAddr);
+  //               if (profile !== undefined) {
+  //                   props.updateProfile(profile);
+  //                   setNick(profile.nick);
+  //               }
+  //           }
+  //       };
+  //       q();
+  //   }, [helper, wallet]);
+
     useEffect(() => {
         if (chain !== undefined) {
             console.log("Chain: ", chain);
