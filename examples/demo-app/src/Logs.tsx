@@ -7,6 +7,9 @@ const replacer = (_key: string, value: any) =>
 function LogItem(props: { event: Event }) {
 
   let event = props.event;
+  if (event === undefined ) {
+    return null;
+  }
   let sender = event.sender();
   let kind = event.kind();
   let data = JSON.stringify(event.data(), replacer);

@@ -91,7 +91,7 @@ echo "A game of raffle is created at $GAME"
 echo "Generate a keypair for transactor..."
 solana-keygen new -o dist/transactor-keypair.json --no-bip39-passphrase -s -f
 # solana airdrop 10 dist/transactor-keypair.json
-TRANSACTOR=$(solana-keygen pubkey)
+TRANSACTOR=$(solana-keygen pubkey dist/transactor-keypair.json)
 solana airdrop 10 dist/transactor-keypair.json --commitment finalized
 
 echo "Generate server configuration..."
@@ -113,6 +113,6 @@ echo "Create server account..."
 just dev-reg-transactor $SCRIPT_DIR/dist/transactor.toml
 
 echo "That's it!
-Now you can start the transactor with: just dev-transactor dist/transactor.toml
+Now you can start the transactor with: just dev-transactor ${SCRIPT_DIR}/dist/transactor.toml
 And open the demo app with: just ts-sdk dev-sdk dev-demo-app
 "
