@@ -9,10 +9,10 @@ import LogsContext from './logs-context';
 import HelperContext from './helper-context';
 import Logs from './Logs';
 import SolanaWalletWrapper from './SolanaWalletWrapper';
-import FacadeWalletWrapper from './FacadeWalletWrapper';
+// import FacadeWalletWrapper from './FacadeWalletWrapper';
 import { SolanaTransport } from 'race-sdk-solana';
-
-type Chain = 'solana' | 'facade';
+import { CHAIN_TO_RPC } from './constants';
+import { Chain } from './types';
 
 interface RenderContentProps {
     chain: Chain,
@@ -45,15 +45,6 @@ const Content = (props: RenderContentProps) => {
     )
 }
 
-function getRpc(chain: string): string {
-    switch (chain) {
-        case 'solana':
-            return 'http://localhost:8899';
-        default:
-            return 'ws://localhost:12002';
-    }
-}
-
 function App() {
     const [chain, setChain] = useState<Chain | undefined>(undefined);
     const [helper, setHelper] = useState<AppHelper | undefined>(undefined);
@@ -75,24 +66,24 @@ function App() {
     };
 
     // useEffect(() => {
-  //   console.log("--------------");
-  //       const q = async () => {
-  //           if (helper !== undefined && wallet !== undefined) {
-  //               const walletAdapter = new SolanaWalletAdapter(wallet);
-  //               const profile = await helper.get_profile(walletAdapter.walletAddr);
-  //               if (profile !== undefined) {
-  //                   props.updateProfile(profile);
-  //                   setNick(profile.nick);
-  //               }
-  //           }
-  //       };
-  //       q();
-  //   }, [helper, wallet]);
+    //   console.log("--------------");
+    //       const q = async () => {
+    //           if (helper !== undefined && wallet !== undefined) {
+    //               const walletAdapter = new SolanaWalletAdapter(wallet);
+    //               const profile = await helper.get_profile(walletAdapter.walletAddr);
+    //               if (profile !== undefined) {
+    //                   props.updateProfile(profile);
+    //                   setNick(profile.nick);
+    //               }
+    //           }
+    //       };
+    //       q();
+    //   }, [helper, wallet]);
 
     useEffect(() => {
         if (chain !== undefined) {
             console.log("Chain: ", chain);
-            let endpoint = getRpc(chain);
+            let endpoint = CHAIN_TO_RPC[chain];
             const initHelper = async () => {
                 await init();
                 let transport = new SolanaTransport(endpoint);
@@ -106,11 +97,14 @@ function App() {
 
     let WalletWrapper = null;
     switch (chain) {
-        case 'solana':
+        case 'solana-local':
             WalletWrapper = SolanaWalletWrapper;
             break;
-        case 'facade':
-            WalletWrapper = FacadeWalletWrapper;
+        case 'solana-devnet':
+            WalletWrapper = SolanaWalletWrapper;
+            break;
+        case 'solana-mainnet':
+            WalletWrapper = SolanaWalletWrapper;
             break;
     }
 
@@ -120,13 +114,13 @@ function App() {
                 className="p-2 bg-white border border-black"
                 onChange={(e) => {
                     const value = e.currentTarget.value;
-                    if (value === 'facade' || value === 'solana') {
+                    if (value === 'solana-local' || value === 'solana-devnet' || value === 'solana-mainnet') {
                         setChain(value);
                     }
                 }}>
                 <option value="">[Select chain]</option>
-                <option value="solana">Solana</option>
-                <option value="facade">Facade</option>
+                <option value="solana-local">Solana(Local)</option>
+                <option value="solana-mainnet">Solana(Mainnet)</option>
             </select>
         </div>
     }

@@ -116,10 +116,10 @@ echo "Generate demo-app-data..."
 cat <<EOF > dist/demo-app-data.json
 {
   "CHAIN_TO_REG_ADDR": {
-    "solana": "$REG"
+    "solana-local": "$REG"
   },
   "CHAIN_ADDR_GAME_MAPPING": {
-    "solana": {
+    "solana-local": {
        "$BUNDLE": "raffle"
     }
   }
