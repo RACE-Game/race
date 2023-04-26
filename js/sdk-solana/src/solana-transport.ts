@@ -16,6 +16,7 @@ import {
   createInitializeAccountInstruction,
   createTransferInstruction,
   getAssociatedTokenAddressSync,
+  getMint,
 } from '@solana/spl-token';
 import {
   IWallet,
@@ -122,8 +123,8 @@ export class SolanaTransport implements ITransport {
   async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> { }
 
   async join(wallet: IWallet, params: JoinParams): Promise<void> {
+    const conn = this.#conn;
     const { gameAddr, amount: amountRaw, accessVersion: accessVersionRaw, position } = params;
-    const amount = BigInt(amountRaw);
     const accessVersion = BigInt(accessVersionRaw);
     const playerKey = new PublicKey(wallet.walletAddr);
     const gameAccountKey = new PublicKey(gameAddr);
@@ -135,8 +136,10 @@ export class SolanaTransport implements ITransport {
       throw new Error('Access version not match');
     }
     const mintKey = gameState.tokenKey;
+    const mint = await getMint(conn, mintKey, undefined, TOKEN_PROGRAM_ID);
     const isWsol = mintKey.equals(NATIVE_MINT);
-    const conn = this.#conn;
+    const decimals = isWsol ? 9 : mint.decimals;
+    const amount = amountRaw * BigInt(Math.pow(10, decimals));
     const stakeAccountKey = gameState.stakeKey;
     const tempAccountKeypair = Keypair.generate();
     const tempAccountKey = tempAccountKeypair.publicKey;
