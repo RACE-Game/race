@@ -1,5 +1,7 @@
 //! Wrapped transport, which support retry
 
+use std::time::Duration;
+
 use jsonrpsee::core::async_trait;
 use race_core::error::Result;
 use race_core::types::{
@@ -15,6 +17,7 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
+use tracing::error;
 
 pub struct WrappedTransport {
     inner: Box<dyn TransportT>,
@@ -86,8 +89,16 @@ impl TransportT for WrappedTransport {
         self.inner.publish_game(params).await
     }
 
+    /// We should keep retrying until success
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
-        self.inner.settle_game(params).await
+        loop {
+            if let Err(e) = self.inner.settle_game(params.clone()).await {
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                error!("Error in settlement: {:?}", e);
+            } else {
+                return Ok(());
+            }
+        }
     }
 
     async fn register_server(&self, params: RegisterServerParams) -> Result<String> {

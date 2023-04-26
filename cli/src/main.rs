@@ -146,6 +146,10 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             println!("Settle version: {}", game_account.settle_version);
             println!("Data size: {}", game_account.data.len());
             println!("Max players: {}", game_account.max_players);
+            println!(
+                "Deposit range: {} ~ {}",
+                game_account.min_deposit, game_account.max_deposit
+            );
             println!("Players:");
             for p in game_account.players.iter() {
                 println!(

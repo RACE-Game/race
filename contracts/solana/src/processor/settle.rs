@@ -14,7 +14,7 @@ use solana_program::{
     entrypoint::ProgramResult,
     program_error::ProgramError,
     program_pack::Pack,
-    pubkey::Pubkey,
+    pubkey::Pubkey, msg,
 };
 
 use super::misc::{validate_receiver_account, TransferSource};
@@ -56,6 +56,8 @@ pub fn process(
     let mut game_state = GameState::unpack(&game_account.try_borrow_mut_data()?)?;
 
     if stake_account.key.ne(&game_state.stake_account) {
+        msg!("Stake account expected: {:?}", game_state.stake_account);
+        msg!("Stake account given: {:?}", stake_account.key);
         return Err(ProcessError::InvalidStakeAccount)?;
     }
 
@@ -99,9 +101,6 @@ pub fn process(
                 op_type = 1;
             }
             SettleOp::Eject => {
-                if op_type == 0 {
-                    return Err(ProcessError::InvalidOrderOfSettles)?;
-                }
                 let idx = game_state
                     .players
                     .iter()

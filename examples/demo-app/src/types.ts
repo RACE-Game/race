@@ -1,1 +1,1 @@
-export type Chain = 'solana' | 'facade';
+export type Chain = 'solana';

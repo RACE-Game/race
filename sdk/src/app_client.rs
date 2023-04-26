@@ -65,7 +65,6 @@ impl AppClient {
         game_addr: &str,
         callback: Function,
     ) -> Result<AppClient> {
-        info!("Try init");
         let transport = Arc::new(Transport::new(transport));
         AppClient::try_new(transport, wallet, game_addr, callback).await
     }
@@ -76,7 +75,6 @@ impl AppClient {
         game_addr: &str,
         callback: Function,
     ) -> Result<Self> {
-        info!("Try new");
         let encryptor = Arc::new(Encryptor::default());
         info!("Encryptor created");
         info!(&wallet);

@@ -109,6 +109,12 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
 
     // Check player's deposit
     if params.amount < game_state.min_deposit || params.amount > game_state.max_deposit {
+        msg!(
+            "deposit: {}, min: {}, max: {}",
+            params.amount,
+            game_state.min_deposit,
+            game_state.max_deposit
+        );
         return Err(ProcessError::InvalidDeposit)?;
     }
 

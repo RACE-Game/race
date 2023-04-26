@@ -11,8 +11,6 @@ interface SidemenuProps {
 }
 
 function GameItem(props: GameRegistration & { chain: Chain }) {
-    console.log(props);
-
     const game = CHAIN_ADDR_GAME_MAPPING[props.chain][props.bundleAddr]
 
     return <Link className="flex flex-col my-4"
@@ -28,7 +26,7 @@ function Sidemenu(props: SidemenuProps) {
     const [games, setGames] = useState<GameRegistration[] | undefined>(undefined);
 
     useEffect(() => {
-        if (helper !== undefined) {
+      if (helper !== undefined) {
             console.info("Fetch registration", [CHAIN_TO_REG_ADDR[chain]]);
             helper.list_games([CHAIN_TO_REG_ADDR[chain]]).then(r => {
                 console.log("Games: ", r);

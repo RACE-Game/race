@@ -76,6 +76,7 @@ pub struct SolanaTransport {
     program_id: Pubkey,
     client: RpcClient,
     keypair: Keypair,
+    debug: bool,
 }
 
 #[async_trait]
@@ -577,14 +578,21 @@ impl TransportT for SolanaTransport {
             .collect();
         let settles = settles?;
 
-        let accounts = vec![
+        let mut accounts = vec![
             AccountMeta::new_readonly(payer_pubkey, true),
             AccountMeta::new(Pubkey::from_str(&addr).unwrap(), false),
-            AccountMeta::new_readonly(game_state.token_mint.clone(), false),
+            AccountMeta::new(game_state.stake_account.clone(), false),
             AccountMeta::new_readonly(pda, false),
             AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(system_program::id(), false),
         ];
+
+        for settle in settles.iter() {
+            if settle.op.eq(&race_solana_types::types::SettleOp::Eject) {
+                let ata = get_associated_token_address(&settle.addr, &game_state.token_mint);
+                accounts.push(AccountMeta::new(ata, false));
+            }
+        }
 
         let settle_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
@@ -864,12 +872,14 @@ impl SolanaTransport {
         } else {
             CommitmentConfig::finalized()
         };
+        let debug = rpc.eq("http://localhost:8899");
         let client = RpcClient::new_with_commitment(rpc, commitment);
         let keypair = read_keypair(keyfile)?;
         Ok(Self {
             client,
             keypair,
             program_id,
+            debug,
         })
     }
 
@@ -890,12 +900,6 @@ impl SolanaTransport {
     }
 
     fn send_transaction(&self, tx: Transaction) -> TransportResult<Signature> {
-        // let sig = self
-        //     .client
-        //     .send_and_confirm_transaction(&tx)
-        //     .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
-
-        let skip_preflight = if cfg!(test) { true } else { false };
         let confirm_num = if cfg!(test) { 1 } else { 32 };
 
         let sig = self
@@ -903,7 +907,7 @@ impl SolanaTransport {
             .send_transaction_with_config(
                 &tx,
                 RpcSendTransactionConfig {
-                    skip_preflight,
+                    skip_preflight: self.debug,
                     ..RpcSendTransactionConfig::default()
                 },
             )

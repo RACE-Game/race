@@ -64,7 +64,7 @@ function Raffle() {
         if (client !== undefined) {
             console.log(wallet);
             let walletAdapter = new SolanaWalletAdapter(wallet);
-            await client.join(100n);
+            await client.join(10n);
         }
     }
 
@@ -98,7 +98,7 @@ function Raffle() {
                 </div>
                 <div>
                     Next draw: {
-                      state.random_id > 0 ? new Date(state.random_id).toLocaleTimeString() : "N/A"
+                      state.draw_time ? new Date(Number(state.draw_time)).toLocaleTimeString() : "N/A"
                     }
                 </div>
                 <div>Players:</div>

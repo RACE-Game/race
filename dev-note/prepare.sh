@@ -20,7 +20,7 @@ fi
 echo "Airdrop 10SOL..."
 solana airdrop 10
 
-TOKEN=$(spl-token create-token | grep 'Address' | awk '{print $2}')
+TOKEN=$(spl-token create-token  --decimals 0 | grep 'Address' | awk '{print $2}')
 echo "Token: $TOKEN will be used for games"
 spl-token create-account "$TOKEN"
 spl-token mint $TOKEN 1000000
@@ -112,7 +112,22 @@ EOF
 echo "Create server account..."
 just dev-reg-transactor $SCRIPT_DIR/dist/transactor.toml
 
+echo "Generate demo-app-data..."
+cat <<EOF > dist/demo-app-data.json
+{
+  "CHAIN_TO_REG_ADDR": {
+    "solana": "$REG"
+  },
+  "CHAIN_ADDR_GAME_MAPPING": {
+    "solana": {
+       "$BUNDLE": "raffle"
+    }
+  }
+}
+EOF
+
 echo "That's it!
+Start a server to simulate AR storage and provide data for demo-app: simple-http-server --cors -- dist
 Now you can start the transactor with: just dev-transactor ${SCRIPT_DIR}/dist/transactor.toml
 And open the demo app with: just ts-sdk dev-sdk dev-demo-app
 "

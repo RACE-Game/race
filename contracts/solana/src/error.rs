@@ -1,4 +1,4 @@
-use solana_program::program_error::ProgramError;
+use solana_program::{program_error::ProgramError, msg};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -122,6 +122,7 @@ pub enum ProcessError {
 
 impl From<ProcessError> for ProgramError {
     fn from(err: ProcessError) -> Self {
+        msg!("Processing error: {:?}", err);
         ProgramError::Custom(err as u32)
     }
 }
