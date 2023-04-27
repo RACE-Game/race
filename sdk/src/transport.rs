@@ -27,7 +27,10 @@ impl Transport {
     }
 }
 
-fn parse_js_value<T: BorshDeserialize>(value: &JsValue) -> T {
+fn parse_js_value<T: BorshDeserialize>(value: &JsValue) -> Option<T> {
+    if value.is_undefined() {
+        return None;
+    }
     let f = get_function(value, "serialize");
 
 
@@ -48,7 +51,7 @@ fn parse_js_value<T: BorshDeserialize>(value: &JsValue) -> T {
     };
 
     match T::try_from_slice(&r.to_vec()){
-        Ok(r) => r,
+        Ok(r) => Some(r),
         Err(e) => {
             gloo::console::error!("Failed to deserialize:", r);
             gloo::console::error!(format!("Error: {:?}", e));
@@ -176,34 +179,34 @@ impl TransportLocalT for Transport {
         let f = get_function(&self.inner, "getPlayerProfile");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        Some(parse_js_value(&value))
+        parse_js_value(&value)
     }
 
     async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
         let f = get_function(&self.inner, "getGameAccount");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        Some(parse_js_value(&value))
+        parse_js_value(&value)
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
         let f = get_function(&self.inner, "getGameBundle");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        Some(parse_js_value(&value))
+        parse_js_value(&value)
     }
 
     async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
         let f = get_function(&self.inner, "getServerAccount");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        Some(parse_js_value(&value))
+        parse_js_value(&value)
     }
 
     async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
         let f = get_function(&self.inner, "getRegistration");
         let p = f.call1(&self.inner, &addr.into()).unwrap();
         let value = resolve_promise(p).await.unwrap();
-        Some(parse_js_value(&value))
+        parse_js_value(&value)
     }
 }
