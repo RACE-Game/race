@@ -78,8 +78,8 @@ cat <<EOF > dist/raffle.spec.json
   "bundle_addr": "$BUNDLE",
   "token_addr": "$TOKEN",
   "max_players": 10,
-  "min_deposit": 10,
-  "max_deposit": 20,
+  "min_deposit": 1,
+  "max_deposit": 2,
   "data": []
 }
 EOF
