@@ -51,7 +51,8 @@ function App() {
     const [profile, setProfile] = useState<ProfileData | undefined>(undefined);
     let [logs, setLogs] = useState<Array<Event>>([]);
 
-    const addLog = (event: Event) => {
+  const addLog = (event: Event) => {
+    console.log("Add event log:", event);
         setLogs(logs => {
             let newLogs = [...logs, event];
             if (newLogs.length > 30) {
@@ -64,21 +65,6 @@ function App() {
     const clearLog = () => {
         setLogs([])
     };
-
-    // useEffect(() => {
-    //   console.log("--------------");
-    //       const q = async () => {
-    //           if (helper !== undefined && wallet !== undefined) {
-    //               const walletAdapter = new SolanaWalletAdapter(wallet);
-    //               const profile = await helper.get_profile(walletAdapter.walletAddr);
-    //               if (profile !== undefined) {
-    //                   props.updateProfile(profile);
-    //                   setNick(profile.nick);
-    //               }
-    //           }
-    //       };
-    //       q();
-    //   }, [helper, wallet]);
 
     useEffect(() => {
         if (chain !== undefined) {

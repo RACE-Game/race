@@ -8,6 +8,10 @@ export class SolanaWalletAdapter implements IWallet {
     return this.#wallet.publicKey.toBase58();
   }
 
+  get isConnected(): boolean {
+    return this.#wallet.connected;
+  }
+
   constructor(wallet: any) {
     this.#wallet = wallet;
   }

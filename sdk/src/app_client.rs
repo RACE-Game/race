@@ -79,7 +79,6 @@ impl AppClient {
         info!("Encryptor created");
         info!(&wallet);
         let player_addr = rget(&wallet, "walletAddr").as_string().unwrap();
-        info!("Player addr got");
         let game_account = transport
             .get_game_account(game_addr)
             .await

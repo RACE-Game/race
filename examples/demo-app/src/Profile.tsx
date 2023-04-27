@@ -1,7 +1,6 @@
 import React, { useContext, useState, useEffect } from 'react';
 import HelperContext from './helper-context';
 import ProfileContext, { ProfileData } from './profile-context';
-import { WalletDisconnectButton, WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { SolanaWalletAdapter } from 'race-sdk-solana';
 
@@ -10,6 +9,7 @@ function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
     let helper = useContext(HelperContext);
     let profile = useContext(ProfileContext);
     let wallet = useWallet();
+    let walletAdapter = new SolanaWalletAdapter(wallet);
 
     const editNick = (e: React.ChangeEvent<HTMLInputElement>) => {
         setNick(e.target.value);
@@ -20,6 +20,21 @@ function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
             setNick(e.currentTarget.value);
         }
     }
+
+    useEffect(() => {
+        if (helper !== undefined && walletAdapter.isConnected) {
+            const q = async () => {
+                if (helper !== undefined && walletAdapter.isConnected) {
+                    const profile = await helper.get_profile(walletAdapter.walletAddr);
+                    if (profile !== undefined) {
+                        props.updateProfile(profile);
+                        setNick(profile.nick);
+                    }
+                }
+            }
+            q();
+        }
+    }, [helper, walletAdapter.isConnected && walletAdapter.walletAddr]);
 
     const createProfile = async () => {
         if (helper !== undefined) {
