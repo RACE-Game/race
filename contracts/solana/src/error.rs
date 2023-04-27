@@ -59,63 +59,63 @@ pub enum ProcessError {
     #[error("Invalid receiver address, wallet and ATA mismatch")]
     InvalidRecevierAddress,
 
-    /// C
+    /// E
     #[error("Settles are not in correct order")]
     InvalidOrderOfSettles,
 
-    /// D
+    /// F
     #[error("Player balance amount overflows")]
     PlayerBalanceOverflow,
 
-    /// E
+    /// 10
     #[error("Invalid voter account")]
     InvalidVoterAccount,
 
-    /// F
+    /// 11
     #[error("Invalid votee account")]
     InvalidVoteeAccount,
 
-    /// 10
+    /// 12
     #[error("Game is not served")]
     GameNotServed,
 
-    /// 11
+    /// 13
     #[error("Feature is unimplemented")]
     Unimplemented,
 
-    /// 12
+    /// 14
     #[error("Duplicate joining not allowed as the server already joined")]
     DuplicateServerJoin,
 
-    /// 13
+    /// 15
     #[error("Can't unregister the game as it has not been registered yet")]
     InvalidUnregistration,
 
-    /// 14
+    /// 16
     #[error("Server number exceeds the max of 10")]
     ServerNumberExceedsLimit,
 
-    /// 15
+    /// 17
     #[error("Position already taken by another player")]
     PositionTakenAlready,
 
-    /// 16
+    /// 18
     #[error("Can't join game because game is already full")]
     GameFullAlready,
 
-    /// 17
+    /// 19
     #[error("Can't join game because player already joined")]
     JoinedGameAlready,
 
-    /// 18
+    /// 1A
     #[error("Token's mint must be the same as that used in the game")]
     InvalidMint,
 
-    /// 19
+    /// 1B
     #[error("Can't join game because deposit is invalid")]
     InvalidDeposit,
 
-    /// 1A
+    /// 1C
     #[error("Given position falls out the range of 0 to player_num - 1")]
     InvalidPosition,
 }
@@ -124,5 +124,15 @@ impl From<ProcessError> for ProgramError {
     fn from(err: ProcessError) -> Self {
         msg!("Processing error: {:?}", err);
         ProgramError::Custom(err as u32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_err_no() {
+        assert_eq!(ProcessError::InvalidPosition as u32, 0x1C);
     }
 }
