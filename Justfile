@@ -53,6 +53,7 @@ example-chat:
 example-raffle:
     cargo build -r -p race-example-raffle --target wasm32-unknown-unknown
     wasm-opt -Oz target/wasm32-unknown-unknown/release/race_example_raffle.wasm -o target/race_example_raffle.wasm
+    cp target/race_example_raffle.wasm dev/dist/
 
 example-draw-card:
     cargo build -r -p race-example-draw-card --target wasm32-unknown-unknown

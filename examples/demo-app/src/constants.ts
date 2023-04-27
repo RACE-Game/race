@@ -29,8 +29,9 @@ export let CHAIN_ADDR_GAME_MAPPING: Record<Chain, Record<string, string>> = {
     let resp = await fetch('http://localhost:8000/demo-app-data.json');
     if (resp.ok) {
       let data: any = await resp.json();
-      Object.assign(CHAIN_TO_REG_ADDR, data["CHAIN_TO_REG_ADDR"]);
-      Object.assign(CHAIN_ADDR_GAME_MAPPING, data["CHAIN_ADDR_GAME_MAPPING"]);
+      console.log("Data: ", data);
+      CHAIN_TO_REG_ADDR = Object.assign(CHAIN_TO_REG_ADDR, data["CHAIN_TO_REG_ADDR"]);
+      CHAIN_ADDR_GAME_MAPPING = Object.assign(CHAIN_ADDR_GAME_MAPPING, data["CHAIN_ADDR_GAME_MAPPING"]);
       console.log("App data loaded");
     }
   } catch (e) {

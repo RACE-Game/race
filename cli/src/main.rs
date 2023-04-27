@@ -249,14 +249,17 @@ async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn Tran
         "Unregister game {} from registration {}",
         game_addr, reg_addr
     );
-    transport
+    let r = transport
         .unregister_game(UnregisterGameParams {
             game_addr: game_addr.to_owned(),
             reg_addr: reg_addr.to_owned(),
         })
-        .await
-        .expect("Failed to unregister game");
-    println!("Game unregistered");
+        .await;
+    if let Err(e) = r {
+        println!("Failed to unregister game due to: {}", e.to_string());
+    } else {
+        println!("Game unregistered");
+    }
 }
 
 #[tokio::main]

@@ -36,6 +36,7 @@ impl Raffle {
     fn cleanup(&mut self) {
         self.players.clear();
         self.random_id = 0;
+        self.draw_time = 0;
     }
 }
 
@@ -43,7 +44,7 @@ impl GameHandler for Raffle {
     /// Initialize handler state with on-chain game account data.
     fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self> {
         let players = init_account.players.into_iter().map(Into::into).collect();
-        let draw_time = context.timestamp() + 30_000;
+        let draw_time = 0;
         context.start_game();
         Ok(Self {
             last_winner: None,
@@ -62,15 +63,16 @@ impl GameHandler for Raffle {
                     let options = self.players.iter().map(|p| p.addr.to_owned()).collect();
                     let rnd_spec = RandomSpec::shuffled_list(options);
                     self.random_id = context.init_random_state(rnd_spec);
-                } else {
-                    self.draw_time = context.timestamp() + 30_000;
-                    context.wait_timeout(30_000);
                 }
             }
 
             Event::Sync { new_players, .. } => {
                 let players = new_players.into_iter().map(Into::into);
                 self.players.extend(players);
+                if self.players.len() >= 1 && self.draw_time == 0{
+                    self.draw_time = context.timestamp() + 60_000;
+                    context.wait_timeout(60_000);
+                }
             }
 
             // Reveal the first address when randomness is ready.
@@ -85,7 +87,6 @@ impl GameHandler for Raffle {
 
             // Eject all players when encryption failed.
             Event::OperationTimeout { .. } => {
-                context.wait_timeout(60_000);
                 self.cleanup();
             }
 
