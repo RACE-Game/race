@@ -45,7 +45,6 @@ impl GameHandler for Raffle {
     fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self> {
         let players = init_account.players.into_iter().map(Into::into).collect();
         let draw_time = 0;
-        context.start_game();
         Ok(Self {
             last_winner: None,
             players,
@@ -69,7 +68,7 @@ impl GameHandler for Raffle {
             Event::Sync { new_players, .. } => {
                 let players = new_players.into_iter().map(Into::into);
                 self.players.extend(players);
-                if self.players.len() >= 1 && self.draw_time == 0{
+                if self.players.len() >= 1 && self.draw_time == 0 {
                     self.draw_time = context.timestamp() + 60_000;
                     context.wait_timeout(60_000);
                 }
@@ -82,7 +81,9 @@ impl GameHandler for Raffle {
 
             // Start game when we have enough players.
             Event::WaitingTimeout => {
-                context.start_game();
+                if self.players.len() >= 1 {
+                    context.start_game();
+                }
             }
 
             // Eject all players when encryption failed.
@@ -104,7 +105,6 @@ impl GameHandler for Raffle {
                     }
                     context.settle(Settle::eject(&p.addr));
                 }
-                context.wait_timeout(5_000);
                 self.last_winner = Some(winner);
                 self.cleanup();
             }
