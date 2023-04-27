@@ -125,21 +125,33 @@ export class SolanaTransport implements ITransport {
   async join(wallet: IWallet, params: JoinParams): Promise<void> {
     const conn = this.#conn;
     const { gameAddr, amount: amountRaw, accessVersion: accessVersionRaw, position } = params;
+
     const accessVersion = BigInt(accessVersionRaw);
     const playerKey = new PublicKey(wallet.walletAddr);
     const gameAccountKey = new PublicKey(gameAddr);
     const gameState = await this._getGameState(gameAccountKey);
     if (gameState === undefined) {
-      throw new Error('Game account not found');
+      throw new Error('TS: Game account not found');
     }
     if (gameState.accessVersion !== accessVersion) {
-      throw new Error('Access version not match');
+      console.log('TS: Access version on chain = ', gameState.accessVersion);
+      console.log('TS: Access version passed = ', accessVersion);
+      throw new Error('TS: Access version mismatch');
     }
     const mintKey = gameState.tokenKey;
-    const mint = await getMint(conn, mintKey, undefined, TOKEN_PROGRAM_ID);
     const isWsol = mintKey.equals(NATIVE_MINT);
-    const decimals = isWsol ? 9 : mint.decimals;
-    const amount = amountRaw * BigInt(Math.pow(10, decimals));
+    const amount = BigInt(amountRaw);
+
+    if (amount < gameState.minDeposit || amount > gameState.maxDeposit) {
+      console.log(
+        'Max deposit = {}, min deposit = {}, join amount = {}',
+        gameState.maxDeposit,
+        gameState.minDeposit,
+        amount
+      );
+      throw new Error('TS: Join with invalid amount');
+    }
+
     const stakeAccountKey = gameState.stakeKey;
     const tempAccountKeypair = Keypair.generate();
     const tempAccountKey = tempAccountKeypair.publicKey;
@@ -172,8 +184,6 @@ export class SolanaTransport implements ITransport {
       const transferIx = createTransferInstruction(playerAta, tempAccountKey, playerKey, amount);
       tx.add(transferIx);
     }
-
-    console.log("position:", position);
 
     const joinGameIx = await join({
       playerKey,

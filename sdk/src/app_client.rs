@@ -57,7 +57,7 @@ impl AppClient {
     /// * `game_addr`, The address of game to attach.
     /// * `callback`, A JS function: function(addr: String, context: PartialGameContext, state: GameState).
     ///   This function will be called when either game context or game state is updated.
-    ///   The `addr` can be one of either the game or its sub game.
+    ///   The `addr` belong to either the game or its sub game.
     #[wasm_bindgen]
     pub async fn try_init(
         transport: JsValue,
@@ -76,29 +76,30 @@ impl AppClient {
         callback: Function,
     ) -> Result<Self> {
         let encryptor = Arc::new(Encryptor::default());
-        info!("Encryptor created");
+        info!("WASM: Encryptor created");
         info!(&wallet);
         let player_addr = rget(&wallet, "walletAddr").as_string().unwrap();
+        info!("WASM: Player addr got");
         let game_account = transport
             .get_game_account(game_addr)
             .await
             .ok_or(Error::GameAccountNotFound)?;
-        info!("Game account loaded");
+        info!("WASM: Game account loaded");
         let game_bundle = transport
             .get_game_bundle(&game_account.bundle_addr)
             .await
             .ok_or(Error::GameBundleNotFound)?;
-        info!("Game bundle loaded");
+        info!("WASM: Game bundle loaded");
         let transactor_addr = game_account
             .transactor_addr
             .as_ref()
             .ok_or(Error::GameNotServed)?;
-        info!("Game is served");
+        info!("WASM: Game is served");
         let transactor_account = transport
             .get_server_account(transactor_addr)
             .await
             .ok_or(Error::CantFindTransactor)?;
-        info!("Transactor account loaded");
+        info!("WASM: Transactor account loaded");
         let connection = Arc::new(
             Connection::try_new(
                 &player_addr,
@@ -107,7 +108,7 @@ impl AppClient {
             )
             .await?,
         );
-        info!("Connection initialized");
+        info!("WASM: Connection initialized");
         let client = Client::new(
             player_addr.to_owned(),
             game_addr.to_owned(),
@@ -116,7 +117,7 @@ impl AppClient {
             encryptor.clone(),
             connection.clone(),
         );
-        info!("Game client created");
+        info!("WASM: Game client created");
 
         let handler = Handler::from_bundle(game_bundle, encryptor).await?;
 
@@ -155,7 +156,7 @@ impl AppClient {
             &event_js,
         );
         if let Err(e) = r {
-            error!(format!("Callback error, {:?}", e));
+            error!(format!("WASM: Callback error, {:?}", e));
         }
         Ok(())
     }
@@ -179,12 +180,12 @@ impl AppClient {
         if init_game_account.is_none() {
             return Err(Error::DuplicatedInitialization)?;
         }
-        info!("Attach to game");
+        info!("WASM: Attach to game");
         self.client.attach_game().await?;
         let settle_version = self.game_context.borrow().get_settle_version();
 
         debug!(
-            "Subscribe event stream, use settle_version = {} as check point",
+            "WASM: Subscribe event stream, use settle_version = {} as check point",
             settle_version
         );
 
@@ -194,7 +195,7 @@ impl AppClient {
             .await?;
 
         pin_mut!(sub);
-        debug!("Event stream connected");
+        debug!("WASM: Event stream connected");
 
         while let Some(Ok(frame)) = sub.next().await {
             match frame {
@@ -208,7 +209,7 @@ impl AppClient {
                         .ok_or(Error::DuplicatedInitialization)?;
 
                     info!(format!(
-                        "Apply checkpoint, access_version = {}, settle_version = {}",
+                        "WASM: Apply checkpoint, access_version = {}, settle_version = {}",
                         access_version, settle_version
                     ));
 
@@ -221,10 +222,10 @@ impl AppClient {
                             self.invoke_callback(&game_context, None)?;
                         }
                         Err(Error::WasmExecutionError(e)) => {
-                            error!(format!("Initiate state error: {:?}", e))
+                            error!(format!("WASM: Initiate state error: {:?}", e))
                         }
                         Err(e) => {
-                            warn!("Init state failed, {}", e.to_string())
+                            warn!("WASM: Init state failed, {}", e.to_string())
                         }
                     }
                 }
@@ -238,10 +239,10 @@ impl AppClient {
                             self.invoke_callback(&game_context, Some(event))?;
                         }
                         Err(Error::WasmExecutionError(e)) => {
-                            error!(format!("Handle event error: {:?}", e))
+                            error!(format!("WASM: Handle event error: {:?}", e))
                         }
                         Err(e) => {
-                            warn!(format!("Discard event [{}] due to: [{:?}]", event, e));
+                            warn!(format!("WASM: Discard event [{}] due to: [{:?}]", event, e));
                         }
                     }
                 }
@@ -252,7 +253,7 @@ impl AppClient {
 
     #[wasm_bindgen]
     pub async fn submit_event(&self, val: JsValue) -> Result<()> {
-        info!(format!("Submit event: {:?}", val));
+        info!(format!("WASM: Submit event: {:?}", val));
         let raw = stringify(&val)
             .or(Err(Error::JsonParseError))?
             .as_string()
@@ -298,7 +299,7 @@ impl AppClient {
     /// Join the game.
     #[wasm_bindgen]
     pub async fn join(&self, amount: u64) -> Result<()> {
-        info!("Join game");
+        info!("WASM: Join game");
         let game_account = self
             .transport
             .get_game_account(&self.addr)
@@ -306,6 +307,7 @@ impl AppClient {
             .ok_or(Error::GameAccountNotFound)?;
         let count: u16 = game_account.players.len() as _;
 
+        info!(format!("WASM: player number = {}", count));
         if game_account.max_players <= count {
             return Err(Error::GameIsFull(count as _))?;
         }
@@ -319,7 +321,9 @@ impl AppClient {
         }
 
         let position = position.ok_or(Error::GameIsFull(count as _))?;
+        info!(format!("WASM: player position = {}", position));
 
+        info!(format!("WASM: join amount = {}", amount));
         self.transport
             .join(
                 &self.wallet,
@@ -337,7 +341,7 @@ impl AppClient {
 
     #[wasm_bindgen]
     pub async fn exit(&self) -> Result<()> {
-        info!("Exit game");
+        info!("WASM: Exit game");
         self.connection
             .exit_game(&self.addr, ExitGameParams {})
             .await?;
@@ -350,7 +354,7 @@ impl AppClient {
         if let Some(event_sub) = self.event_sub.replace(None) {
             event_sub.unsubscribe().await?;
         }
-        info!("App client closed");
+        info!("WASM: App client closed");
         Ok(())
     }
 }
@@ -372,7 +376,7 @@ mod tests {
             "ws://localhost:12002",
             "Alice",
             "COUNTER_GAME_ADDRESS",
-            Function::default(),
+            // Function::default(),
         )
         .await
         .map_err(JsValue::from)

@@ -168,15 +168,14 @@ async fn create_registration(
 
 async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
     let JoinParams {
-        player_addr,
         game_addr,
-        position,
         amount,
         access_version,
+        position,
     } = params.one()?;
     info!(
-        "Join game: player: {}, game: {}, amount: {}",
-        player_addr, game_addr, amount
+        "Join game: game: {}, amount: {}, access version: {}",
+        game_addr, amount, access_version
     );
     let mut context = context.lock().await;
     if let Some(game_account) = context.accounts.get_mut(&game_addr) {
@@ -264,7 +263,6 @@ async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rp
     let addr = random_addr();
     let transactor = ServerAccount {
         addr: addr.clone(),
-        owner_addr: DEFAULT_OWNER_ADDRESS.into(),
         endpoint,
     };
     let mut context = context.lock().await;

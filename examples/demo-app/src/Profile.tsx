@@ -25,6 +25,7 @@ function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
         if (helper !== undefined && walletAdapter.isConnected) {
             const q = async () => {
                 if (helper !== undefined && walletAdapter.isConnected) {
+                  console.log("TSX: wallet addr = ", walletAdapter.walletAddr)
                     const profile = await helper.get_profile(walletAdapter.walletAddr);
                     if (profile !== undefined) {
                         props.updateProfile(profile);

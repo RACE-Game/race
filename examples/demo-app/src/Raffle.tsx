@@ -64,7 +64,7 @@ function Raffle() {
         if (client !== undefined) {
             console.log(wallet);
             let walletAdapter = new SolanaWalletAdapter(wallet);
-            await client.join(10n);
+            await client.join(1n);
         }
     }
 
