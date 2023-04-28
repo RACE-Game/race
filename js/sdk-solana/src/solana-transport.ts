@@ -133,11 +133,6 @@ export class SolanaTransport implements ITransport {
     if (gameState === undefined) {
       throw new Error('TS: Game account not found');
     }
-    if (gameState.accessVersion !== accessVersion) {
-      console.log('TS: Access version on chain = ', gameState.accessVersion);
-      console.log('TS: Access version passed = ', accessVersion);
-      throw new Error('TS: Access version mismatch');
-    }
     const mintKey = gameState.tokenKey;
     const isWsol = mintKey.equals(NATIVE_MINT);
     const amount = BigInt(amountRaw);
