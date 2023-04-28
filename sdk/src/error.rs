@@ -1,9 +1,24 @@
+use thiserror::Error;
 use wasm_bindgen::prelude::*;
-pub struct Error(String);
+
+#[derive(Error)]
+pub enum Error {
+    #[error("Interop error: {0}")]
+    InteropError(String),
+
+    #[error("Transport error: {0}")]
+    TransportError(String),
+
+    #[error("Connection(with transactor) error: {0}")]
+    ConnectionError(String),
+
+    #[error("Internal error: {0}")]
+    InternalError(String),
+}
 
 impl From<race_core::error::Error> for Error {
     fn from(value: race_core::error::Error) -> Self {
-        Self(value.to_string())
+        Self::InternalError(value.to_string())
     }
 }
 
@@ -13,4 +28,4 @@ impl From<Error> for JsError {
     }
 }
 
-pub type Result<T> = std::result::Result<T, JsError>;
+pub type Result<T> = std::result::Result<T, Error>;

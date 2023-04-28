@@ -1,5 +1,5 @@
 use gloo::console::warn;
-use js_sys::{Function, Object, Promise, Reflect};
+use js_sys::{Function, Promise, Reflect};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
@@ -12,15 +12,6 @@ pub(crate) fn get_function(obj: &JsValue, name: &str) -> Function {
         .unwrap()
         .dyn_into::<Function>()
         .unwrap()
-}
-
-#[allow(dead_code)]
-pub(crate) fn create_object(entries: &[(&str, &JsValue)]) -> Object {
-    let obj = Object::new();
-    for (k, v) in entries.into_iter() {
-        Reflect::set(&obj, &(k.clone().into()), &v).unwrap();
-    }
-    obj
 }
 
 pub(crate) async fn resolve_promise(p: JsValue) -> Option<JsValue> {

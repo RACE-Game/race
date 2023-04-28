@@ -6,6 +6,7 @@ import LogsContext from './logs-context';
 import ProfileContext from './profile-context';
 import { useGameContext } from './App';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { SolanaTransport, SolanaWalletAdapter } from 'race-sdk-solana';
 
 interface Message {
     sender: string,
@@ -13,7 +14,7 @@ interface Message {
 }
 
 interface State {
-  messages: Message[],
+    messages: Message[],
 }
 
 function Chat() {
@@ -38,7 +39,7 @@ function Chat() {
     // Button callback to join the raffle
     const onJoin = async () => {
         if (client !== undefined) {
-            await client.join(wallet, 0, 1n);
+            await client.join(1n);
         }
     }
 
@@ -48,7 +49,9 @@ function Chat() {
             if (profile !== undefined && addr !== undefined) {
                 console.log("Create AppClient");
                 let rpc = CHAIN_TO_RPC[chain];
-                let client = await AppClient.try_init(chain, rpc, profile.addr, addr, onEvent);
+                let walletAdapter = new SolanaWalletAdapter(wallet);
+                let transport = new SolanaTransport(rpc);
+                let client = await AppClient.try_init(transport, walletAdapter, addr, onEvent);
                 setClient(client);
                 await client.attach_game();
             }
