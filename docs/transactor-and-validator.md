@@ -1,8 +1,8 @@
 # Transactor and Validator
 
-In race protocol, the game are served by a server cluster.  Each server runs either in Transactor mode or in Validator mode.  Usually, the transactor is the first server to join the server, which acts as a relay for other servers and clients and makes all settlement transactions.  Other servers run in Validator mode, acts as validator and randomization participants.
+In RACE Protocol, games are served by a server cluster.  Each server runs in either Transactor mode or Validator mode.  Usually, the transactor is the first server that joins the game. It acts as a relay for other servers and clients, and makes all settlement transactions.  Other servers run in Validator mode, acting as validators and randomization participants.
 
-Here the differences of both modes are listed below.
+The differences of both modes are listed below.
 
 ## Transactor Mode
 
