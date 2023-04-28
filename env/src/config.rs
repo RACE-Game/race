@@ -8,6 +8,7 @@ use tracing::info;
 #[derive(Deserialize)]
 pub struct FacadeConfig {
     pub host: String,
+    pub address: String,
 }
 
 #[derive(Deserialize)]

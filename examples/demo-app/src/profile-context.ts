@@ -6,7 +6,5 @@ export interface ProfileData {
   pfp: string,
 }
 
-const ProfileContext =
+export const ProfileContext =
   React.createContext<ProfileData | undefined>(undefined);
-
-export default ProfileContext;

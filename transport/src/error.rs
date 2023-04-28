@@ -127,6 +127,9 @@ pub enum TransportError {
 
     #[error("Failed to load game bundle: {0}")]
     LoadGameBundleError(String),
+
+    #[error("Invalid parameter")]
+    InvalidParameter(String)
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

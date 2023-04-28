@@ -68,8 +68,8 @@ demo-app:
 preview-demo-app: demo-app
     npm --prefix ./examples/demo-app run preview
 
-dev-facade:
-    cargo run -p race-facade
+dev-facade *ARGS:
+    cargo run -p race-facade -- {{ARGS}}
 
 dev-reg-transactor conf:
     cargo run -p race-transactor -- -c {{conf}} reg
@@ -77,15 +77,27 @@ dev-reg-transactor conf:
 dev-transactor conf:
     cargo run -p race-transactor -- -c {{conf}} run
 
+facade-transactor num:
+    cargo run -p race-transactor -- -c examples/conf/server{{num}}.toml reg
+    cargo run -p race-transactor -- -c examples/conf/server{{num}}.toml run
+
 solana:
     (cd contracts/solana; cargo build-sbf)
     solana program deploy ./target/deploy/race_solana.so
 
-ts-sdk:
+sdk-core:
     npm --prefix ./js/sdk-core run build:js
     npm --prefix ./js/sdk-core run build:typedefs
+
+sdk-solana:
     npm --prefix ./js/sdk-solana run build:js
     npm --prefix ./js/sdk-solana run build:typedefs
+
+sdk-facade:
+    npm --prefix ./js/sdk-facade run build:js
+    npm --prefix ./js/sdk-facade run build:typedefs
+
+ts-sdk: sdk-core sdk-solana sdk-facade
 
 publish name url:
     cargo run -p race-cli -- -e local publish solana {{name}} {{url}}

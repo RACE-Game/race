@@ -1,7 +1,5 @@
 import React from 'react';
 import { AppHelper } from 'race-sdk';
 
-const HelperContext =
+export const HelperContext =
   React.createContext<AppHelper | undefined>(undefined);
-
-export default HelperContext;

@@ -120,7 +120,7 @@ export class SolanaTransport implements ITransport {
     return gameAccountKey.toBase58();
   }
 
-  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> { }
+  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> {}
 
   async join(wallet: IWallet, params: JoinParams): Promise<void> {
     const conn = this.#conn;
@@ -202,15 +202,15 @@ export class SolanaTransport implements ITransport {
     await wallet.sendTransaction(tx, this.#conn);
   }
 
-  async deposit(wallet: IWallet, params: DepositParams): Promise<void> { }
+  async deposit(wallet: IWallet, params: DepositParams): Promise<void> {}
 
   async publishGame(wallet: IWallet, params: PublishGameParams): Promise<string> {
     return '';
   }
 
-  async vote(wallet: IWallet, params: VoteParams): Promise<void> { }
+  async vote(wallet: IWallet, params: VoteParams): Promise<void> {}
 
-  async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<string> {
+  async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void> {
     const { nick, pfp } = params;
     if (nick.length > 16) {
       // FIXME: better error message?
@@ -246,17 +246,15 @@ export class SolanaTransport implements ITransport {
 
     tx.add(createProfile);
     await wallet.sendTransaction(tx, conn);
-
-    return profileKey.toBase58();
   }
 
   async createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<string> {
     return '';
   }
 
-  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> { }
+  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> {}
 
-  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> { }
+  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> {}
 
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
     const gameAccountKey = new PublicKey(addr);
@@ -270,7 +268,7 @@ export class SolanaTransport implements ITransport {
 
   async getGameBundle(addr: string): Promise<GameBundle | undefined> {
     const mintKey = new PublicKey(addr);
-    console.log("Game Stake Mint:", mintKey);
+    console.log('Game Stake Mint:', mintKey);
     const [metadataKey] = PublicKey.findProgramAddressSync(
       [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
       METAPLEX_PROGRAM_ID
@@ -281,7 +279,7 @@ export class SolanaTransport implements ITransport {
       return undefined;
     }
     const metadataState = Metadata.deserialize(metadataAccount.data);
-    console.log("Metadata state:", metadataState);
+    console.log('Metadata state:', metadataState);
     let { uri, name } = metadataState.data;
     uri = uri.replace(/\0/g, '');
     name = name.replace(/\0/g, '');
@@ -378,6 +376,6 @@ async function makeTransaction(conn: Connection, feePayer: PublicKey): Promise<T
   return new Transaction({
     feePayer,
     blockhash,
-    lastValidBlockHeight
+    lastValidBlockHeight,
   });
 }

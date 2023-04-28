@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::Serialize;
 
 use crate::decision::DecisionState;
-use crate::effect::{Ask, Assign, Effect, Reveal, Release};
+use crate::effect::{Ask, Assign, Effect, Release, Reveal};
 use crate::engine::GameHandler;
 use crate::error::{Error, Result};
 use crate::event::CustomEvent;
@@ -206,7 +206,9 @@ impl GameContext {
         let players = game_account
             .players
             .iter()
-            .map(|p| Player::new_pending(p.addr.clone(), p.balance, p.position as _, p.access_version))
+            .map(|p| {
+                Player::new_pending(p.addr.clone(), p.balance, p.position as _, p.access_version)
+            })
             .collect();
 
         let servers = game_account
@@ -695,16 +697,34 @@ impl GameContext {
                         self.players.retain(|p| p.addr.ne(&s.addr));
                     }
                     SettleOp::Add(amount) => {
-                        let p = self
-                            .get_player_mut_by_address(&s.addr)
-                            .ok_or(Error::InvalidSettle)?;
-                        p.balance = p.balance.checked_add(amount).ok_or(Error::InvalidSettle)?;
+                        let p =
+                            self.get_player_mut_by_address(&s.addr)
+                                .ok_or(Error::InvalidSettle(format!(
+                                    "Invalid player address: {}",
+                                    s.addr
+                                )))?;
+                        p.balance =
+                            p.balance
+                                .checked_add(amount)
+                                .ok_or(Error::InvalidSettle(format!(
+                                    "Settle amount overflow (add): balance {}, change {}",
+                                    p.balance, amount,
+                                )))?;
                     }
                     SettleOp::Sub(amount) => {
-                        let p = self
-                            .get_player_mut_by_address(&s.addr)
-                            .ok_or(Error::InvalidSettle)?;
-                        p.balance = p.balance.checked_sub(amount).ok_or(Error::InvalidSettle)?;
+                        let p =
+                            self.get_player_mut_by_address(&s.addr)
+                                .ok_or(Error::InvalidSettle(format!(
+                                    "Invalid player address: {}",
+                                    s.addr
+                                )))?;
+                        p.balance =
+                            p.balance
+                                .checked_sub(amount)
+                                .ok_or(Error::InvalidSettle(format!(
+                                    "Settle amount overflow (sub): balance {}, change {}",
+                                    p.balance, amount,
+                                )))?;
                     }
                 }
             }

@@ -129,7 +129,7 @@ impl ValidatorHandle {
             .ok_or(Error::GameNotServed)?;
         let transactor_account = transport
             .get_server_account(&transactor_addr)
-            .await
+            .await?
             .ok_or(Error::CantFindTransactor)?;
 
         info!("Creating components");
@@ -202,7 +202,7 @@ impl Handle {
         info!("Try create game handle for {}", addr);
         let game_account = transport
             .get_game_account(addr)
-            .await
+            .await?
             .ok_or(Error::GameAccountNotFound)?;
 
         if let Some(ref transactor_addr) = game_account.transactor_addr {
@@ -211,7 +211,7 @@ impl Handle {
             info!("Query game bundle: {}", game_account.bundle_addr);
             let game_bundle = transport
                 .get_game_bundle(&game_account.bundle_addr)
-                .await
+                .await?
                 .ok_or(Error::GameBundleNotFound)?;
 
             if transactor_addr.eq(&server_account.addr) {

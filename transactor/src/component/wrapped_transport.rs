@@ -45,7 +45,7 @@ impl TransportT for WrappedTransport {
         self.inner.create_game_account(params).await
     }
 
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String> {
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()> {
         self.inner.create_player_profile(params).await
     }
 
@@ -65,7 +65,7 @@ impl TransportT for WrappedTransport {
         self.inner.vote(params).await
     }
 
-    async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
+    async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
         self.inner.get_game_account(addr).await
     }
 
@@ -73,15 +73,15 @@ impl TransportT for WrappedTransport {
         self.inner.deposit(params).await
     }
 
-    async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
+    async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
         self.inner.get_game_bundle(addr).await
     }
 
-    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
+    async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>> {
         self.inner.get_server_account(addr).await
     }
 
-    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
+    async fn get_player_profile(&self, addr: &str) -> Result<Option<PlayerProfile>> {
         self.inner.get_player_profile(addr).await
     }
 
@@ -101,11 +101,11 @@ impl TransportT for WrappedTransport {
         }
     }
 
-    async fn register_server(&self, params: RegisterServerParams) -> Result<String> {
+    async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
         self.inner.register_server(params).await
     }
 
-    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
+    async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>> {
         self.inner.get_registration(addr).await
     }
 

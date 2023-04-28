@@ -2,11 +2,10 @@ import { AppClient, Event } from 'race-sdk';
 import { useParams } from 'react-router-dom';
 import { useContext, useEffect, useState } from 'react';
 import { CHAIN_TO_RPC } from './constants';
-import LogsContext from './logs-context';
-import ProfileContext from './profile-context';
+import { LogsContext } from './logs-context';
+import { ProfileContext } from './profile-context';
 import { useGameContext } from './App';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { SolanaTransport, SolanaWalletAdapter } from 'race-sdk-solana';
+import { useWallet, createTransport } from './integration';
 
 interface Message {
     sender: string,
@@ -18,14 +17,13 @@ interface State {
 }
 
 function Chat() {
-
     let [state, setState] = useState<State | undefined>(undefined);
     let [client, setClient] = useState<AppClient | undefined>(undefined);
     const { addLog } = useContext(LogsContext);
     let { addr } = useParams();
     let { chain } = useGameContext();
     let profile = useContext(ProfileContext);
-    let wallet = useWallet();
+    let wallet = useWallet(chain);
     const [text, setText] = useState<string>('');
 
     // Game event handler
@@ -49,9 +47,8 @@ function Chat() {
             if (profile !== undefined && addr !== undefined) {
                 console.log("Create AppClient");
                 let rpc = CHAIN_TO_RPC[chain];
-                let walletAdapter = new SolanaWalletAdapter(wallet);
-                let transport = new SolanaTransport(rpc);
-                let client = await AppClient.try_init(transport, walletAdapter, addr, onEvent);
+                let transport = createTransport(chain, rpc);
+                let client = await AppClient.try_init(transport, wallet, addr, onEvent);
                 setClient(client);
                 await client.attach_game();
             }

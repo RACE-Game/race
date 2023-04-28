@@ -40,7 +40,7 @@ impl ApplicationContext {
 
         let account = transport
             .get_server_account(&transactor_config.address)
-            .await
+            .await?
             .ok_or(Error::ServerAccountMissing)?;
 
         let game_manager = Arc::new(GameManager::default());

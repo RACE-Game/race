@@ -1,7 +1,7 @@
 import { AppHelper } from 'race-sdk';
 import { Link } from 'react-router-dom';
 import { useContext, useState, useEffect } from 'react';
-import HelperContext from './helper-context';
+import { HelperContext } from './helper-context';
 import { Chain } from './types';
 import { CHAIN_ADDR_GAME_MAPPING, CHAIN_TO_REG_ADDR } from './constants';
 import { GameRegistration } from 'race-sdk-core';
@@ -26,7 +26,7 @@ function Sidemenu(props: SidemenuProps) {
     const [games, setGames] = useState<GameRegistration[] | undefined>(undefined);
 
     useEffect(() => {
-      if (helper !== undefined) {
+        if (helper !== undefined) {
             console.info("Fetch registration", [CHAIN_TO_REG_ADDR[chain]]);
             helper.list_games([CHAIN_TO_REG_ADDR[chain]]).then(r => {
                 console.log("Games: ", r);

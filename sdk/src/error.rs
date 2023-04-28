@@ -1,9 +1,12 @@
+use gloo::console::error;
+use race_transport::error::TransportError;
 use thiserror::Error;
 use wasm_bindgen::prelude::*;
 
-#[derive(Error)]
-pub enum Error {
-    #[error("Interop error: {0}")]
+#[derive(Error, Debug)]
+#[allow(unused)]
+pub enum SdkError {
+    #[error("JS invocation error: {0}")]
     InteropError(String),
 
     #[error("Transport error: {0}")]
@@ -12,20 +15,24 @@ pub enum Error {
     #[error("Connection(with transactor) error: {0}")]
     ConnectionError(String),
 
+    #[error("Parse error: {0}")]
+    ParseError(String),
+
     #[error("Internal error: {0}")]
     InternalError(String),
 }
 
-impl From<race_core::error::Error> for Error {
+impl From<race_core::error::Error> for SdkError {
     fn from(value: race_core::error::Error) -> Self {
         Self::InternalError(value.to_string())
     }
 }
 
-impl From<Error> for JsError {
-    fn from(value: Error) -> Self {
-        Self::new(&value.0)
+impl From<SdkError> for TransportError {
+    fn from(value: SdkError) -> Self {
+        gloo::console::error!("An error occurred in transport:", value.to_string());
+        TransportError::InteropError
     }
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, JsError>;

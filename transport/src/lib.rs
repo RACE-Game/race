@@ -14,16 +14,6 @@ pub use builder::TransportBuilder;
 
 // WASM-only
 #[cfg(target_arch = "wasm32")]
-pub mod facade_wasm;
-#[cfg(target_arch = "wasm32")]
-pub mod solana_wasm;
-#[cfg(target_arch = "wasm32")]
 pub mod wasm_trait;
-#[cfg(target_arch = "wasm32")]
-pub mod wasm_utils;
-#[cfg(target_arch = "wasm32")]
-pub mod wasm_builder;
-#[cfg(target_arch = "wasm32")]
-pub use wasm_builder::TransportBuilder;
 #[cfg(target_arch = "wasm32")]
 pub use wasm_trait::TransportLocalT;

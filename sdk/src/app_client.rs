@@ -7,8 +7,8 @@ use jsonrpsee::core::client::Subscription;
 use race_core::context::GameContext;
 use race_core::prelude::{DecisionId, InitAccount};
 use race_core::types::{BroadcastFrame, ExitGameParams, GameAccount, RandomId};
-use race_transport::TransportLocalT;
 use wasm_bindgen::prelude::*;
+use race_transport::wasm_trait::TransportLocalT;
 
 use futures::pin_mut;
 use futures::stream::StreamExt;
@@ -82,12 +82,12 @@ impl AppClient {
         info!("WASM: Player addr got");
         let game_account = transport
             .get_game_account(game_addr)
-            .await
+            .await?
             .ok_or(Error::GameAccountNotFound)?;
         info!("WASM: Game account loaded");
         let game_bundle = transport
             .get_game_bundle(&game_account.bundle_addr)
-            .await
+            .await?
             .ok_or(Error::GameBundleNotFound)?;
         info!("WASM: Game bundle loaded");
         let transactor_addr = game_account
@@ -97,7 +97,7 @@ impl AppClient {
         info!("WASM: Game is served");
         let transactor_account = transport
             .get_server_account(transactor_addr)
-            .await
+            .await?
             .ok_or(Error::CantFindTransactor)?;
         info!("WASM: Transactor account loaded");
         let connection = Arc::new(
@@ -162,11 +162,11 @@ impl AppClient {
     }
 
     #[wasm_bindgen]
-    pub async fn get_profile(&self, addr: &str) -> Option<JsValue> {
-        if let Some(p) = self.transport.get_player_profile(addr).await {
-            Some(JsValue::from_serde(&p).unwrap())
+    pub async fn get_profile(&self, addr: &str) -> Result<Option<JsValue>> {
+        if let Some(p) = self.transport.get_player_profile(addr).await? {
+            Ok(Some(JsValue::from_serde(&p).unwrap()))
         } else {
-            None
+            Ok(None)
         }
     }
 
@@ -303,7 +303,7 @@ impl AppClient {
         let game_account = self
             .transport
             .get_game_account(&self.addr)
-            .await
+            .await?
             .ok_or(Error::GameAccountNotFound)?;
         let count: u16 = game_account.players.len() as _;
 

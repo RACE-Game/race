@@ -3,7 +3,7 @@ use tokio::sync::{
     mpsc::{self, error::SendError},
     oneshot,
 };
-use tracing::{info, warn};
+use tracing::{info, warn, error};
 
 use crate::frame::EventFrame;
 
@@ -32,9 +32,15 @@ impl PortsHandle {
     pub async fn wait(&mut self) {
         if self.close_rx.is_some() {
             let rx = std::mem::replace(&mut self.close_rx, None);
-            rx.unwrap().await.unwrap();
+            let reason = rx.unwrap().await.unwrap();
+            match reason {
+                CloseReason::Complete => todo!(),
+                CloseReason::Fault(e) => {
+                    error!("Recieved an error: {}", e.to_string());
+                }
+            }
         } else {
-            panic!("Some where else is waiting already");
+            panic!("Somewhere else is waiting already");
         }
     }
 

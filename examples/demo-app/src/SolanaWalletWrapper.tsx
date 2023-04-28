@@ -1,10 +1,9 @@
-import { FC, useMemo } from 'react';
+import React, { FC, useMemo } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import { UnsafeBurnerWalletAdapter } from '@solana/wallet-adapter-wallets';
 import {
     WalletModalProvider,
-    WalletDisconnectButton,
     WalletMultiButton
 } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
@@ -13,7 +12,7 @@ import '@solana/wallet-adapter-react-ui/styles.css';
 // // Default styles that can be overridden by your app
 // require('@solana/wallet-adapter-react-ui/styles.css');
 
-const SolanaWalletWrapper = (props: any) => {
+const SolanaWalletWrapper: FC<{ children: React.ReactNode }> = ({ children }) => {
     // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
     const network = WalletAdapterNetwork.Devnet;
 
@@ -47,7 +46,7 @@ const SolanaWalletWrapper = (props: any) => {
                     <div className="absolute top-0 right-0 bg-gray-300">
                         <WalletMultiButton />
                     </div>
-                    {props.children}
+                    {children}
                 </WalletModalProvider>
             </WalletProvider>
         </ConnectionProvider>

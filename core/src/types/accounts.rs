@@ -263,6 +263,20 @@ mod tests {
     }
 
     #[test]
+    fn test_player_profile2() {
+        let p = PlayerProfile {
+            addr: "FhgSDdsXx88htt3kzn1GToXwMtE3VTvg2iyimQUoqELe".to_string(),
+            nick: "Gentoo".to_string(),
+            pfp: None,
+        };
+
+        let p1 = PlayerProfile::try_from_slice(&[44, 0, 0, 0, 70, 104, 103, 83, 68, 100, 115, 88, 120, 56, 56, 104, 116, 116, 51, 107, 122, 110, 49, 71, 84, 111, 88, 119, 77, 116, 69, 51, 86, 84, 118, 103, 50, 105, 121, 105, 109, 81, 85, 111, 113, 69, 76, 101, 6, 0, 0, 0, 71, 101, 110, 116, 111, 111, 0]).unwrap();
+        assert_eq!(p.addr, p1.addr);
+        assert_eq!(p.nick, p1.nick);
+        assert_eq!(p.pfp, p1.pfp);
+    }
+
+    #[test]
     fn test_reg() {
         let reg = RegistrationAccount {
             addr: "an addr".to_string(),

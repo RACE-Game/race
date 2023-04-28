@@ -12,6 +12,7 @@ pub struct TransportBuilder {
     chain: Option<ChainType>,
     rpc: Option<String>,
     keyfile: Option<PathBuf>,
+    address: Option<String>,
 }
 
 impl TransportBuilder {
@@ -70,6 +71,7 @@ impl TransportBuilder {
                     );
                 }
                 ChainType::Facade => {
+                    self.address = Some(config.facade.as_ref().ok_or(TransportError::InvalidConfig)?.address.clone());
                     self.rpc = Some(
                         config
                             .facade
@@ -96,8 +98,9 @@ impl TransportBuilder {
                 }
                 ChainType::Facade => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
+                    let address = self.address.ok_or(TransportError::UnspecifiedSigner)?;
                     info!("Build FacadeTransport for {:?}", rpc);
-                    Ok(Box::new(facade::FacadeTransport::try_new(&rpc).await?))
+                    Ok(Box::new(facade::FacadeTransport::try_new(address.to_owned(), &rpc).await?))
                 }
                 _ => unimplemented!(),
             }

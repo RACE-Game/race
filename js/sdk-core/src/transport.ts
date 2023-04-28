@@ -73,7 +73,7 @@ export interface ITransport {
 
   vote(wallet: IWallet, params: VoteParams): Promise<void>;
 
-  createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<string>;
+  createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void>;
 
   publishGame(wallet: IWallet, params: PublishGameParams): Promise<string>;
 

@@ -41,7 +41,7 @@ pub trait TransportLocalT {
         &self,
         wallet: &JsValue,
         params: CreatePlayerProfileParams,
-    ) -> TransportResult<String>;
+    ) -> TransportResult<()>;
 
     async fn publish_game(
         &self,
@@ -67,13 +67,13 @@ pub trait TransportLocalT {
         params: UnregisterGameParams,
     ) -> TransportResult<()>;
 
-    async fn get_game_account(&self, addr: &str) -> Option<GameAccount>;
+    async fn get_game_account(&self, addr: &str) -> TransportResult<Option<GameAccount>>;
 
-    async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle>;
+    async fn get_game_bundle(&self, addr: &str) -> TransportResult<Option<GameBundle>>;
 
-    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile>;
+    async fn get_player_profile(&self, addr: &str) -> TransportResult<Option<PlayerProfile>>;
 
-    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount>;
+    async fn get_server_account(&self, addr: &str) -> TransportResult<Option<ServerAccount>>;
 
-    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount>;
+    async fn get_registration(&self, addr: &str) -> TransportResult<Option<RegistrationAccount>>;
 }

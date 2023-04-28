@@ -10,7 +10,7 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::{context::ApplicationContext, frame::SignalFrame};
 
@@ -26,12 +26,12 @@ pub async fn register_server(config: &Config) -> Result<()> {
         .build()
         .await?;
     info!("Transport built successfully");
-    let addr = transport
+    transport
         .register_server(RegisterServerParams {
             endpoint: transactor_conf.endpoint.to_owned(),
         })
         .await?;
-    info!("Server account created at {:?}", addr);
+    info!("Server account created");
     Ok(())
 }
 
@@ -51,11 +51,11 @@ pub async fn start_reg_task(context: &ApplicationContext) {
     tokio::spawn(async move {
         loop {
             // We search for accounts every 10 seconds
-            tokio::time::sleep(Duration::from_secs(1)).await;
             for addr in reg_addresses.iter() {
-                if let Some(reg) = transport.get_registration(addr).await {
+                if let Ok(Some(reg)) = transport.get_registration(addr).await {
                     for game_reg in reg.games.into_iter() {
-                        if let Some(game_account) = transport.get_game_account(&game_reg.addr).await
+                        if let Some(game_account) =
+                            transport.get_game_account(&game_reg.addr).await.unwrap()
                         {
                             // We will keep registering until we become the transactor.
                             if game_account
@@ -64,9 +64,12 @@ pub async fn start_reg_task(context: &ApplicationContext) {
                                 .find(|s| s.addr.eq(&server_addr))
                                 .is_none()
                             {
-                                let server_account = transport.get_server_account(&server_addr).await;
+                                let server_account =
+                                    transport.get_server_account(&server_addr).await.unwrap();
                                 if server_account.is_none() {
-                                    error!("Server account not found, please run `task` command first");
+                                    error!(
+                                        "Server account not found, please run `task` command first"
+                                    );
                                     return;
                                 }
                                 info!("Serve game at {:?}", game_account.addr);
@@ -93,8 +96,11 @@ pub async fn start_reg_task(context: &ApplicationContext) {
                             }
                         }
                     }
+                } else {
+                    warn!("Failed to load registration at {}", addr);
                 }
             }
+            tokio::time::sleep(Duration::from_secs(10)).await;
         }
     });
 }

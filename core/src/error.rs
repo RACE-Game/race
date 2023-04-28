@@ -47,7 +47,7 @@ pub enum Error {
     #[error("Custom error")]
     Custom(String),
 
-    #[error("Game account not found")]
+    #[error("Server account not found")]
     ServerAccountNotFound,
 
     #[error("Player profile not found")]
@@ -170,8 +170,8 @@ pub enum Error {
     #[error("Signature verification failed")]
     SignatureVerificationFailed,
 
-    #[error("Invalid Settle")]
-    InvalidSettle,
+    #[error("Invalid Settle: {0}")]
+    InvalidSettle(String),
 
     #[error("IO Error: {0}")]
     IoError(String),

@@ -192,7 +192,7 @@ impl TransportT for SolanaTransport {
         Ok(())
     }
 
-    async fn register_server(&self, params: RegisterServerParams) -> Result<String> {
+    async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
         if params.endpoint.len() > 50 {
             return Err(TransportError::EndpointTooLong)?;
         }
@@ -244,7 +244,7 @@ impl TransportT for SolanaTransport {
         tx.sign(&[payer], blockhash);
 
         self.send_transaction(tx)?;
-        Ok(server_account_pubkey.to_string())
+        Ok(())
     }
 
     async fn join(&self, params: JoinParams) -> Result<()> {
@@ -383,7 +383,7 @@ impl TransportT for SolanaTransport {
         todo!()
     }
 
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String> {
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()> {
         if params.nick.len() > NAME_LEN {
             return Err(TransportError::InvalidNameLength(params.nick))?;
         }
@@ -442,7 +442,7 @@ impl TransportT for SolanaTransport {
         let blockhash = self.get_blockhash()?;
         tx.sign(&[payer], blockhash);
         self.send_transaction(tx)?;
-        Ok(profile_account_pubkey.to_string())
+        Ok(())
     }
 
     // TODO: add close_player_profile
@@ -722,18 +722,11 @@ impl TransportT for SolanaTransport {
         Ok(())
     }
 
-    async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
-        let game_account_pubkey = Self::parse_pubkey(addr).ok()?;
-        let state: GameState = self
-            .internal_get_game_state(&game_account_pubkey)
-            .await
-            .ok()?;
-        let transactor_addr = match state.transactor_addr {
-            Some(pubkey) => Some(pubkey.to_string()),
-            None => None,
-        };
+    async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
+        let game_account_pubkey = Self::parse_pubkey(addr)?;
+        let state: GameState = self.internal_get_game_state(&game_account_pubkey).await?;
 
-        Some(GameAccount {
+        Ok(Some(GameAccount {
             addr: addr.to_owned(),
             title: state.title,
             settle_version: state.settle_version,
@@ -762,73 +755,68 @@ impl TransportT for SolanaTransport {
                     access_version: s.access_version,
                 })
                 .collect(),
-            transactor_addr,
+            transactor_addr: state.transactor_addr.map(|pk| pk.to_string()),
             max_players: state.max_players,
             data_len: state.data_len,
             data: *state.data,
             deposits: Vec::new(),
             votes: Vec::new(),
             unlock_time: None,
-        })
+        }))
     }
 
-    async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
-        let mint_pubkey = Self::parse_pubkey(addr).ok()?;
+    async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
+        let mint_pubkey = Self::parse_pubkey(addr)?;
 
         let (metadata_account_pubkey, _) =
             metaplex_program::pda::find_metadata_account(&mint_pubkey);
-        // println!(
-        //     "Metadata account (PDA of MINT) {:?}",
-        //     metadata_account_pubkey
-        // );
 
         let metadata_account_data = self
             .client
             .get_account_data(&metadata_account_pubkey)
-            .ok()?;
+            .map_err(|e| TransportError::NetworkError(e.to_string()))?;
         let metadata_account_state = Metadata::deserialize(&mut metadata_account_data.as_slice())
-            .map_err(|_| TransportError::MetadataDeserializeError)
-            .ok()?;
+            .map_err(|_| TransportError::MetadataDeserializeError)?;
         let metadata_data = metadata_account_state.data;
         let uri = metadata_data.uri.trim_end_matches('\0').to_string();
 
         let data = race_nft_storage::fetch_wasm_from_game_bundle(&uri)
             .await
-            .ok()?;
+            .map_err(|e| TransportError::NetworkError(e.to_string()))?;
 
-        Some(GameBundle {
+        Ok(Some(GameBundle {
             uri,
             name: metadata_data.name.trim_end_matches('\0').to_string(),
             data,
-        })
+        }))
     }
 
-    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
-        let wallet_pubkey = Self::parse_pubkey(addr).ok()?;
-        let profile_state = self.internal_get_player_state(&wallet_pubkey).await.ok()?;
+    async fn get_player_profile(&self, addr: &str) -> Result<Option<PlayerProfile>> {
+        let wallet_pubkey = Self::parse_pubkey(addr)?;
+        let profile_state = self.internal_get_player_state(&wallet_pubkey).await?;
         let pfp = profile_state.pfp.map(|x| x.to_string());
-        Some(PlayerProfile {
+        Ok(Some(PlayerProfile {
             addr: addr.to_owned(),
             nick: profile_state.nick,
             pfp,
-        })
+        }))
     }
 
-    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
-        let wallet_pubkey = Self::parse_pubkey(addr).ok()?;
-        let server_state = self.internal_get_server_state(&wallet_pubkey).await.ok()?;
+    async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>> {
+        let wallet_pubkey = Self::parse_pubkey(addr)?;
+        let server_state = self.internal_get_server_state(&wallet_pubkey).await?;
 
-        Some(ServerAccount {
+        Ok(Some(ServerAccount {
             addr: server_state.owner.to_string(),
             endpoint: server_state.endpoint,
-        })
+        }))
     }
 
-    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
-        let key = Self::parse_pubkey(addr).ok()?;
-        let state = self.internal_get_registry_state(&key).await.ok()?;
+    async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>> {
+        let key = Self::parse_pubkey(addr)?;
+        let state = self.internal_get_registry_state(&key).await?;
 
-        Some(RegistrationAccount {
+        Ok(Some(RegistrationAccount {
             addr: addr.to_owned(),
             is_private: state.is_private,
             size: state.size,
@@ -843,7 +831,7 @@ impl TransportT for SolanaTransport {
                     bundle_addr: "".into(),
                 })
                 .collect(),
-        })
+        }))
     }
 }
 

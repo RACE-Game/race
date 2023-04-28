@@ -1,23 +1,23 @@
-import { useContext, useEffect, useRef, useState } from "react";
-import { useParams } from 'react-router-dom';
+import { useContext, useEffect, useState } from "react";
+import { useNavigate, useParams } from 'react-router-dom';
 import { AppClient, Event } from 'race-sdk';
 import { CHAIN_TO_RPC } from "./constants";
-import ProfileContext from "./profile-context";
-import LogsContext from "./logs-context";
+import { ProfileContext } from "./profile-context";
+import { LogsContext } from "./logs-context";
 import { useGameContext } from "./App";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { SolanaTransport, SolanaWalletAdapter } from "race-sdk-solana";
+import { createTransport, useWallet } from './integration';
+import { HelperContext } from "./helper-context";
 
 interface Player {
-  addr: string,
-  balance: bigint,
+    addr: string,
+    balance: bigint,
 }
 
 interface State {
-  last_winner: string | null,
-  players: Player[],
-  random_id: number,
-  draw_time: bigint,
+    last_winner: string | null,
+    players: Player[],
+    random_id: number,
+    draw_time: bigint,
 }
 
 function Winner(props: { settle_version: number, last_winner: string | null }) {
@@ -33,7 +33,7 @@ function Winner(props: { settle_version: number, last_winner: string | null }) {
         return <div className={
             `bg-black text-white text-lg p-4 text-center animate-bounce transition-opacity duration-[3500ms]
        ${fade ? "opacity-0" : "opacity-100"}`}>
-        Winner: {props.last_winner}
+            Winner: {props.last_winner}
         </div>
     } else {
         return <div></div>
@@ -47,7 +47,7 @@ function Raffle() {
     let { addr } = useParams();
     let { chain } = useGameContext();
     let profile = useContext(ProfileContext);
-    let wallet = useWallet();
+    let wallet = useWallet(chain);
     let { addLog } = useContext(LogsContext);
 
     // Game event handler
@@ -63,7 +63,6 @@ function Raffle() {
     const onJoin = async () => {
         if (client !== undefined) {
             console.log(wallet);
-            let walletAdapter = new SolanaWalletAdapter(wallet);
             await client.join(1n);
         }
     }
@@ -72,11 +71,9 @@ function Raffle() {
     useEffect(() => {
         const initClient = async () => {
             if (profile !== undefined && addr !== undefined) {
-                console.log("Create AppClient");
                 let rpc = CHAIN_TO_RPC[chain];
-                let walletAdapter = new SolanaWalletAdapter(wallet);
-                let transport = new SolanaTransport(rpc);
-                let client = await AppClient.try_init(transport, walletAdapter, addr, onEvent);
+                let transport = createTransport(chain, rpc);
+                let client = await AppClient.try_init(transport, wallet, addr, onEvent);
                 setClient(client);
                 await client.attach_game();
             }
@@ -98,7 +95,7 @@ function Raffle() {
                 </div>
                 <div>
                     Next draw: {
-                      state.draw_time ? new Date(Number(state.draw_time)).toLocaleTimeString() : "N/A"
+                        state.draw_time ? new Date(Number(state.draw_time)).toLocaleTimeString() : "N/A"
                     }
                 </div>
                 <div>Players:</div>

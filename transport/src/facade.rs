@@ -1,9 +1,7 @@
-#![cfg(not(target_arch = "wasm32"))]
-
 use async_trait::async_trait;
+use borsh::BorshDeserialize;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
-use tracing::{debug, error};
 
 use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBuilder};
 
@@ -14,22 +12,51 @@ use race_core::transport::TransportT;
 use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-    PublishGameParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount,
-    SettleParams, UnregisterGameParams, VoteParams,
+    PublishGameParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
+    ServerAccount, SettleParams, UnregisterGameParams, VoteParams,
 };
+use serde::Serialize;
 
 use crate::error::{TransportError, TransportResult};
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServeInstruction {
+    game_addr: String,
+    server_addr: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterServerInstruction {
+    server_addr: String,
+    endpoint: String,
+}
+
 pub struct FacadeTransport {
+    addr: String,
     client: Client,
 }
 
 impl FacadeTransport {
-    pub async fn try_new(url: &str) -> TransportResult<Self> {
+    pub async fn try_new(addr: String, url: &str) -> TransportResult<Self> {
         let client = ClientBuilder::default()
             .build(url)
             .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
-        Ok(Self { client })
+        Ok(Self { addr, client })
+    }
+
+    pub async fn fetch<T: BorshDeserialize>(&self, method: &str, addr: &str) -> Result<Option<T>> {
+        let data: Option<Vec<u8>> = self
+            .client
+            .request(method, rpc_params![addr])
+            .await
+            .map_err(|e| TransportError::NetworkError(e.to_string()))?;
+        if let Some(data) = data {
+            Ok(Some(T::try_from_slice(&data).unwrap()))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -37,42 +64,45 @@ impl FacadeTransport {
 #[allow(unused_variables)]
 impl TransportT for FacadeTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
-        self.client
-            .request("create_game", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+        unimplemented!()
     }
 
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
-        self.client
-            .request("close_game", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+        unimplemented!()
     }
 
-    async fn register_server(&self, params: RegisterServerParams) -> Result<String> {
+    async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
         self.client
-            .request("register_server", rpc_params![params])
+            .request(
+                "register_server",
+                rpc_params![RegisterServerInstruction {
+                    server_addr: self.addr.clone(),
+                    endpoint: params.endpoint
+                }],
+            )
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
     }
 
     async fn join(&self, params: JoinParams) -> Result<()> {
-        self.client
-            .request("join", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+        unimplemented!()
     }
 
     async fn serve(&self, params: ServeParams) -> Result<()> {
         self.client
-            .request("serve", rpc_params![params])
+            .request(
+                "serve",
+                rpc_params![ServeInstruction {
+                    game_addr: params.game_addr,
+                    server_addr: self.addr.clone(),
+                }],
+            )
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
     }
 
     async fn vote(&self, params: VoteParams) -> Result<()> {
-        if let Some(game_account) = self.get_game_account(&params.game_addr).await {
+        if let Some(game_account) = self.get_game_account(&params.game_addr).await? {
             if game_account
                 .votes
                 .iter()
@@ -91,68 +121,32 @@ impl TransportT for FacadeTransport {
         }
     }
 
-    async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
-        debug!("Fetch game account: {:?}", addr);
-        let rs = self
-            .client
-            .request("get_account_info", rpc_params![addr])
-            .await;
-        if let Ok(rs) = rs {
-            Some(rs)
-        } else {
-            None
-        }
+    async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
+        self.fetch("get_account_info", addr).await
     }
 
-    async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
-        self.client
-            .request("get_game_bundle", rpc_params![addr])
-            .await
-            .ok()
+    async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
+        self.fetch("get_game_bundle", addr).await
     }
 
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String> {
-        self.client
-            .request("create_profile", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()> {
+        unimplemented!()
     }
 
-    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
-        self.client
-            .request("get_profile", rpc_params![addr])
-            .await
-            .ok()
+    async fn get_player_profile(&self, addr: &str) -> Result<Option<PlayerProfile>> {
+        self.fetch("get_profile", addr).await
     }
 
-    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
-        debug!("Fetch server account: {:?}", addr);
-        let resp = self
-            .client
-            .request("get_server_info", rpc_params![addr])
-            .await;
-        match resp {
-            Ok(server_account) => Some(server_account),
-            Err(e) => {
-                error!("Failed to get server account due to {:?}", e);
-                None
-            }
-        }
+    async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>> {
+        self.fetch("get_server_info", addr).await
     }
 
-    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
-        debug!("Fetch registration account: {:?}", addr);
-        self.client
-            .request("get_registration_info", rpc_params![addr])
-            .await
-            .ok()
+    async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>> {
+        self.fetch("get_registration_info", addr).await
     }
 
     async fn publish_game(&self, params: PublishGameParams) -> Result<String> {
-        self.client
-            .request("publish_game_bundle", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+        unimplemented!()
     }
 
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
@@ -163,30 +157,18 @@ impl TransportT for FacadeTransport {
     }
 
     async fn deposit(&self, params: DepositParams) -> Result<()> {
-        self.client
-            .request("deposit", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+        unimplemented!()
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
-        self.client
-            .request("create_registration", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+        unimplemented!()
     }
 
     async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
-        self.client
-            .request("register_game", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+        unimplemented!()
     }
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
-        self.client
-            .request("unregister_game", rpc_params![params])
-            .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+        unimplemented!()
     }
 }

@@ -3610,6 +3610,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.21.0",
+ "clap 4.1.1",
  "futures",
  "getrandom 0.2.8",
  "hyper",

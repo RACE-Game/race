@@ -7,19 +7,19 @@ export interface IPlayerJoin {
   readonly position: number;
   readonly balance: bigint;
   readonly accessVersion: bigint;
-};
+}
 
 export interface IPlayerDeposit {
   readonly addr: string;
   readonly amount: bigint;
   readonly settleVersion: bigint;
-};
+}
 
 export interface IServerJoin {
   readonly addr: string;
   readonly endpoint: string;
   readonly accessVersion: bigint;
-};
+}
 
 export enum VoteType {
   ServerVoteTransactorDropOff = 0,
@@ -30,14 +30,14 @@ export interface IVote {
   readonly voter: string;
   readonly votee: string;
   readonly voteType: VoteType;
-};
+}
 
 export interface IGameRegistration {
   readonly title: string;
   readonly addr: string;
   readonly regTime: bigint;
   readonly bundleAddr: string;
-};
+}
 
 export interface IGameAccount {
   readonly addr: string;
@@ -58,24 +58,24 @@ export interface IGameAccount {
   readonly data: Uint8Array;
   readonly minDeposit: bigint;
   readonly maxDeposit: bigint;
-};
+}
 
 export interface IServerAccount {
   readonly addr: string;
   readonly endpoint: string;
-};
+}
 
 export interface IGameBundle {
   readonly uri: string;
   readonly name: string;
   readonly data: Uint8Array;
-};
+}
 
 export interface IPlayerProfile {
   readonly addr: string;
   readonly nick: string;
   readonly pfp: string | undefined;
-};
+}
 
 export interface IRegistrationAccount {
   readonly addr: string;
@@ -83,32 +83,33 @@ export interface IRegistrationAccount {
   readonly size: number;
   readonly owner: string | undefined;
   readonly games: GameRegistration[];
-};
+}
 
 export class ServerAccount implements IServerAccount {
   readonly addr!: string;
   readonly endpoint!: string;
   constructor(fields: IServerAccount) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
   serialize(): Uint8Array {
     return borsh.serialize(serverAccountSchema, this, ExtendedWriter);
   }
   static deserialize(data: Uint8Array) {
-    return borsh.deserialize(serverAccountSchema, ServerAccount, Buffer.from(data), ExtendedReader)
+    return borsh.deserialize(serverAccountSchema, ServerAccount, Buffer.from(data), ExtendedReader);
   }
 }
 
 const serverAccountSchema = new Map([
   [
-    ServerAccount, {
+    ServerAccount,
+    {
       kind: 'struct',
       fields: [
         ['addr', 'string'],
         ['endpoint', 'string'],
-      ]
-    }
-  ]
+      ],
+    },
+  ],
 ]);
 
 export class PlayerJoin implements IPlayerJoin {
@@ -117,16 +118,16 @@ export class PlayerJoin implements IPlayerJoin {
   readonly balance!: bigint;
   readonly accessVersion!: bigint;
   constructor(fields: IPlayerJoin) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
-};
+}
 
 export class ServerJoin implements IServerJoin {
   readonly addr!: string;
   readonly endpoint!: string;
   readonly accessVersion!: bigint;
   constructor(fields: IServerJoin) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 }
 
@@ -135,7 +136,7 @@ export class PlayerDeposit implements IPlayerDeposit {
   readonly amount!: bigint;
   readonly settleVersion!: bigint;
   constructor(fields: IPlayerDeposit) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 }
 
@@ -144,7 +145,7 @@ export class Vote implements IVote {
   readonly votee!: string;
   readonly voteType!: VoteType;
   constructor(fields: IVote) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 }
 
@@ -168,60 +169,65 @@ export class GameAccount implements IGameAccount {
   readonly minDeposit!: bigint;
   readonly maxDeposit!: bigint;
   constructor(fields: IGameAccount) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
   serialize(): Uint8Array {
     return borsh.serialize(gameAccountSchema, this, ExtendedWriter);
   }
   static deserialize(data: Uint8Array) {
-    return borsh.deserialize(gameAccountSchema, GameAccount, Buffer.from(data), ExtendedReader)
+    return borsh.deserialize(gameAccountSchema, GameAccount, Buffer.from(data), ExtendedReader);
   }
 }
 
 const gameAccountSchema = new Map<Function, any>([
   [
-    PlayerJoin, {
+    PlayerJoin,
+    {
       kind: 'struct',
       fields: [
         ['addr', 'string'],
         ['position', 'u16'],
         ['balance', 'bigint'],
-        ['accessVersion', 'bigint']
-      ]
-    }
+        ['accessVersion', 'bigint'],
+      ],
+    },
   ],
   [
-    ServerJoin, {
+    ServerJoin,
+    {
       kind: 'struct',
       fields: [
         ['addr', 'string'],
         ['endpoint', 'string'],
         ['accessVersion', 'bigint'],
-      ]
-    }
+      ],
+    },
   ],
   [
-    PlayerDeposit, {
+    PlayerDeposit,
+    {
       kind: 'struct',
       fields: [
         ['addr', 'string'],
         ['amount', 'bigint'],
         ['settleVersion', 'bigint'],
-      ]
-    }
+      ],
+    },
   ],
   [
-    Vote, {
+    Vote,
+    {
       kind: 'struct',
       fields: [
         ['voter', 'string'],
         ['votee', 'string'],
         ['voteType', 'u8'],
-      ]
-    }
+      ],
+    },
   ],
   [
-    GameAccount, {
+    GameAccount,
+    {
       kind: 'struct',
       fields: [
         ['addr', 'string'],
@@ -242,9 +248,9 @@ const gameAccountSchema = new Map<Function, any>([
         ['maxDeposit', 'bigint'],
         ['dataLen', 'u32'],
         ['data', 'bytes'],
-      ]
-    }
-  ]
+      ],
+    },
+  ],
 ]);
 
 export class GameBundle implements IGameBundle {
@@ -253,27 +259,28 @@ export class GameBundle implements IGameBundle {
   readonly data!: Uint8Array;
 
   constructor(fields: IGameBundle) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
   serialize(): Uint8Array {
     return borsh.serialize(gameBundleSchema, this, ExtendedWriter);
   }
   static deserialize(data: Uint8Array) {
-    return borsh.deserialize(gameBundleSchema, GameBundle, Buffer.from(data), ExtendedReader)
+    return borsh.deserialize(gameBundleSchema, GameBundle, Buffer.from(data), ExtendedReader);
   }
 }
 
 const gameBundleSchema = new Map<Function, any>([
   [
-    GameBundle, {
+    GameBundle,
+    {
       kind: 'struct',
       fields: [
         ['uri', 'string'],
         ['name', 'string'],
         ['data', 'bytes'],
-      ]
-    }
-  ]
+      ],
+    },
+  ],
 ]);
 
 export class GameRegistration implements IGameRegistration {
@@ -282,7 +289,7 @@ export class GameRegistration implements IGameRegistration {
   readonly regTime!: bigint;
   readonly bundleAddr!: string;
   constructor(fields: IGameRegistration) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 }
 
@@ -293,40 +300,42 @@ export class RegistrationAccount implements IRegistrationAccount {
   readonly owner!: string | undefined;
   readonly games!: GameRegistration[];
   constructor(fields: IRegistrationAccount) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
   serialize(): Uint8Array {
     return borsh.serialize(registrationAccountSchema, this, ExtendedWriter);
   }
   static deserialize(data: Uint8Array) {
-    return borsh.deserialize(registrationAccountSchema, RegistrationAccount, Buffer.from(data), ExtendedReader)
+    return borsh.deserialize(registrationAccountSchema, RegistrationAccount, Buffer.from(data), ExtendedReader);
   }
 }
 
 const registrationAccountSchema = new Map<Function, any>([
   [
-    GameRegistration, {
+    GameRegistration,
+    {
       kind: 'struct',
       fields: [
         ['title', 'string'],
         ['addr', 'string'],
         ['regTime', 'bigint'],
         ['bundleAddr', 'string'],
-      ]
+      ],
     },
   ],
   [
-    RegistrationAccount, {
+    RegistrationAccount,
+    {
       kind: 'struct',
       fields: [
         ['addr', 'string'],
         ['isPrivate', 'bool'],
         ['size', 'u16'],
         ['owner', { kind: 'option', type: 'string' }],
-        ['games', [GameRegistration]]
-      ]
-    }
-  ]
+        ['games', [GameRegistration]],
+      ],
+    },
+  ],
 ]);
 
 export class PlayerProfile implements IPlayerProfile {
@@ -334,25 +343,26 @@ export class PlayerProfile implements IPlayerProfile {
   readonly nick!: string;
   readonly pfp: string | undefined;
   constructor(fields: IPlayerProfile) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
   serialize(): Uint8Array {
     return borsh.serialize(playerProfileSchema, this, ExtendedWriter);
   }
   static deserialize(data: Uint8Array) {
-    return borsh.deserialize(playerProfileSchema, PlayerProfile, Buffer.from(data), ExtendedReader)
+    return borsh.deserialize(playerProfileSchema, PlayerProfile, Buffer.from(data), ExtendedReader);
   }
 }
 
 const playerProfileSchema = new Map([
   [
-    PlayerProfile, {
+    PlayerProfile,
+    {
       kind: 'struct',
       fields: [
         ['addr', 'string'],
         ['nick', 'string'],
         ['pfp', { kind: 'option', type: 'string' }],
       ],
-    }
-  ]
+    },
+  ],
 ]);

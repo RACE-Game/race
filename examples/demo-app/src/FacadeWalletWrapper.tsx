@@ -1,9 +1,9 @@
-import { FC, Fragment } from "react";
+import React, { FC } from 'react';
+import { FacadeWalletContext, DEFAULT_WALLET } from './facade-wallet-context';
 
-const FacadeWalletWrapper = (props: any) => {
-    return <Fragment>
-        {props.children}
-    </Fragment>
-}
+const FacadeWalletWrapper: FC<{ children: React.ReactNode }> = ({ children }) =>
+    <FacadeWalletContext.Provider value={DEFAULT_WALLET}>
+        {children}
+    </FacadeWalletContext.Provider>
 
 export default FacadeWalletWrapper;

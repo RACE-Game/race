@@ -1,18 +1,16 @@
-import React, { useState, useEffect, FC } from 'react'
-import { Outlet, useOutletContext } from 'react-router-dom';
+import { useState, useEffect } from 'react'
+import { Outlet, useOutletContext, useNavigate } from 'react-router-dom';
 import Sidemenu from './Sidemenu';
 import Profile from './Profile';
 import init, { AppHelper, Event } from 'race-sdk';
 import './App.css'
-import ProfileContext, { ProfileData } from './profile-context';
-import LogsContext from './logs-context';
-import HelperContext from './helper-context';
+import { ProfileContext, ProfileData } from './profile-context';
+import { LogsContext } from './logs-context';
+import { HelperContext } from './helper-context';
 import Logs from './Logs';
-import SolanaWalletWrapper from './SolanaWalletWrapper';
-// import FacadeWalletWrapper from './FacadeWalletWrapper';
-import { SolanaTransport } from 'race-sdk-solana';
 import { CHAIN_TO_RPC } from './constants';
-import { Chain } from './types';
+import { Chain, isChain } from './types';
+import { createTransport, getWalletWrapper } from './integration';
 
 interface RenderContentProps {
     chain: Chain,
@@ -37,7 +35,7 @@ const Content = (props: RenderContentProps) => {
         <div className="row-span-6 col-span-2">
             <Outlet context={{ chain }} />
         </div>
-        <Profile updateProfile={props.setProfile} />
+        <Profile updateProfile={props.setProfile} chain={chain} />
         <div className="row-span-5">
             <Logs logs={props.logs} />
         </div>
@@ -50,9 +48,14 @@ function App() {
     const [helper, setHelper] = useState<AppHelper | undefined>(undefined);
     const [profile, setProfile] = useState<ProfileData | undefined>(undefined);
     let [logs, setLogs] = useState<Array<Event>>([]);
+    let nav = useNavigate();
 
-  const addLog = (event: Event) => {
-    console.log("Add event log:", event);
+    useEffect(() => {
+        nav('/')
+    }, []);
+
+    const addLog = (event: Event) => {
+        console.log("Add event log:", event);
         setLogs(logs => {
             let newLogs = [...logs, event];
             if (newLogs.length > 30) {
@@ -69,10 +72,10 @@ function App() {
     useEffect(() => {
         if (chain !== undefined) {
             console.log("Chain: ", chain);
-            let endpoint = CHAIN_TO_RPC[chain];
+            let rpc = CHAIN_TO_RPC[chain];
             const initHelper = async () => {
                 await init();
-                let transport = new SolanaTransport(endpoint);
+                let transport = createTransport(chain, rpc);
                 let client = await AppHelper.try_init(transport);
                 console.log("AppHelper initialized");
                 setHelper(client);
@@ -81,36 +84,25 @@ function App() {
         }
     }, [chain]);
 
-    let WalletWrapper = null;
-    switch (chain) {
-        case 'solana-local':
-            WalletWrapper = SolanaWalletWrapper;
-            break;
-        case 'solana-devnet':
-            WalletWrapper = SolanaWalletWrapper;
-            break;
-        case 'solana-mainnet':
-            WalletWrapper = SolanaWalletWrapper;
-            break;
-    }
-
-    if (WalletWrapper === null || chain === undefined) {
+    if (chain === undefined || !isChain(chain)) {
         return <div className="w-full h-screen flex items-center justify-center">
             <select
                 className="p-2 bg-white border border-black"
                 onChange={(e) => {
                     const value = e.currentTarget.value;
-                    if (value === 'solana-local' || value === 'solana-devnet' || value === 'solana-mainnet') {
+                    if (isChain(value)) {
                         setChain(value);
                     }
                 }}>
-                <option value="">[Select chain]</option>
+                <option value="">[Select environment]</option>
+                <option value="facade">Fake</option>
                 <option value="solana-local">Solana(Local)</option>
                 <option value="solana-mainnet">Solana(Mainnet)</option>
             </select>
         </div>
     }
 
+    const WalletWrapper = getWalletWrapper(chain);
     return (
         <HelperContext.Provider value={helper}>
             <ProfileContext.Provider value={profile}>

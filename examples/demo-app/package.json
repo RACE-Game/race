@@ -18,6 +18,7 @@
     "race-sdk": "file:../../sdk/pkg",
     "race-sdk-core": "file:../../js/sdk-core",
     "race-sdk-solana": "file:../../js/sdk-solana",
+    "race-sdk-facade": "file:../../js/sdk-facade",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.8.1"
@@ -28,6 +29,7 @@
     "@types/react-dom": "^18.0.10",
     "@vitejs/plugin-react": "^3.1.0",
     "autoprefixer": "^10.4.13",
+    "nanoid": "^4.0.2",
     "postcss": "^8.4.21",
     "tailwindcss": "^3.2.4",
     "typescript": "^4.9.3",

@@ -1,14 +1,13 @@
+import React from "react";
 import { useContext, useEffect, useRef, useState } from "react";
 import { useParams } from 'react-router-dom';
 import { AppClient, Event } from 'race-sdk';
 import { CHAIN_TO_RPC } from "./constants";
 import Card from './Card';
-import ProfileContext, { ProfileData } from "./profile-context";
-import LogsContext from "./logs-context";
+import { ProfileContext, ProfileData } from "./profile-context";
+import { LogsContext } from "./logs-context";
 import Header from "./Header";
-import React from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { SolanaTransport, SolanaWalletAdapter } from "race-sdk-solana";
+import { useWallet, createTransport } from './integration';
 import { useGameContext } from "./App";
 
 type GameStage = "Dealing" | "Betting" | "Reacting" | "Revealing";
@@ -67,7 +66,7 @@ function DrawCard() {
     let { chain } = useGameContext();
     let { addr } = useParams();
     let profile = useContext(ProfileContext);
-    let wallet = useWallet();
+    let wallet = useWallet(chain);
 
     let { addLog, clearLog } = useContext(LogsContext);
 
@@ -107,9 +106,8 @@ function DrawCard() {
         const initClient = async () => {
             if (profile !== undefined && addr !== undefined) {
                 let rpc = CHAIN_TO_RPC[chain];
-                let walletAdapter = new SolanaWalletAdapter(wallet);
-                let transport = new SolanaTransport(rpc);
-                let c = await AppClient.try_init(transport, walletAdapter, addr, onEvent);
+                let transport = createTransport(chain, rpc);
+                let c = await AppClient.try_init(transport, wallet, addr, onEvent);
                 client.current = c;
                 await c.attach_game();
                 console.log("Attached to game");

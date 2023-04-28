@@ -59,7 +59,7 @@ pub trait TransportT: Send + Sync {
     /// * [`Error::ServerAccountExists`] when the account has been created already.
     /// * [`Error::MalformedEndpoint`] when the `endpoint` is invalid.
     /// * [`Error::RpcError`] when the RPC invocation failed.
-    async fn register_server(&self, params: RegisterServerParams) -> Result<String>;
+    async fn register_server(&self, params: RegisterServerParams) -> Result<()>;
 
     /// Join the game.
     ///
@@ -114,7 +114,7 @@ pub trait TransportT: Send + Sync {
     /// # Returns
     /// * [`Error::PlayerProfileAccountNotFound`] when invalid `addr` is provided.
     /// * [`Error::RpcError`] when the RPC invocation failed.
-    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<String>;
+    async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()>;
 
     async fn publish_game(&self, params: PublishGameParams) -> Result<String>;
 
@@ -127,17 +127,17 @@ pub trait TransportT: Send + Sync {
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()>;
 
     /// Get game account by its address.
-    async fn get_game_account(&self, addr: &str) -> Option<GameAccount>;
+    async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>>;
 
     /// Get game bundle account by its address.
-    async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle>;
+    async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>>;
 
     /// Get player profile account by its address.
-    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile>;
+    async fn get_player_profile(&self, addr: &str) -> Result<Option<PlayerProfile>>;
 
     /// Get server account by its address.
-    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount>;
+    async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>>;
 
     /// Get registration account by its address.
-    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount>;
+    async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>>;
 }

@@ -13,9 +13,13 @@ use race_transport::{
     error::{TransportError, TransportResult},
     TransportLocalT,
 };
+use serde::Serialize;
 use wasm_bindgen::{JsCast, JsValue};
 
-use crate::utils::{get_function, resolve_promise};
+use crate::{
+    error::SdkError,
+    utils::{get_function, resolve_promise},
+};
 
 pub struct Transport {
     inner: JsValue,
@@ -27,18 +31,25 @@ impl Transport {
     }
 }
 
-fn parse_js_value<T: BorshDeserialize>(value: &JsValue) -> Option<T> {
-    if value.is_undefined() {
-        return None;
-    }
-    let f = get_function(value, "serialize");
+fn parse_params<T: Serialize>(params: &T) -> TransportResult<JsValue> {
+    JsValue::from_serde(params).map_err(|e| {
+        TransportError::InvalidParameter(
+            "Failed to serialize parameters for transport invocation".into(),
+        )
+    })
+}
 
+fn parse_js_value<T: BorshDeserialize>(value: &JsValue) -> TransportResult<Option<T>> {
+    if value.is_undefined() {
+        return Ok(None);
+    }
+    let f = get_function(value, "serialize")?;
 
     let r = match f.call0(value) {
         Ok(r) => r,
         Err(e) => {
             gloo::console::error!("Failed to serialize object:", value, e);
-            panic!("Parse response failed");
+            return Err(TransportError::InteropError);
         }
     };
 
@@ -46,17 +57,46 @@ fn parse_js_value<T: BorshDeserialize>(value: &JsValue) -> Option<T> {
         Ok(r) => r,
         Err(e) => {
             gloo::console::error!("Failed to parse object to Uint8Array:", e);
-            panic!("Parse response failed");
+            return Err(TransportError::InteropError);
         }
     };
 
-    match T::try_from_slice(&r.to_vec()){
-        Ok(r) => Some(r),
+    match T::try_from_slice(&r.to_vec()) {
+        Ok(r) => Ok(Some(r)),
         Err(e) => {
             gloo::console::error!("Failed to deserialize:", r);
             gloo::console::error!(format!("Error: {:?}", e));
-            panic!("Parse response failed");
+            return Err(TransportError::InteropError);
         }
+    }
+}
+
+impl Transport {
+    async fn api_fetch<T: BorshDeserialize>(
+        &self,
+        api: &str,
+        addr: &str,
+    ) -> TransportResult<Option<T>> {
+        let f = get_function(&self.inner, api)?;
+        let p = f.call1(&self.inner, &addr.into()).map_err(|e| {
+            SdkError::InteropError(format!("An error occurred in API fetch: {}", api))
+        })?;
+        let value = resolve_promise(p).await?;
+        Ok(parse_js_value(&value)?)
+    }
+
+    async fn api_call<T: Serialize>(
+        &self,
+        api: &str,
+        wallet: &JsValue,
+        params: T,
+    ) -> TransportResult<JsValue> {
+        let f = get_function(&self.inner, api)?;
+        let params = parse_params(&params)?;
+        let p: JsValue = f.call2(&self.inner, &wallet, &params).map_err(|e| {
+            SdkError::InteropError(format!("An error occurred in API call: {}", api))
+        })?;
+        Ok(resolve_promise(p).await?)
     }
 }
 
@@ -67,14 +107,10 @@ impl TransportLocalT for Transport {
         wallet: &JsValue,
         params: CreateGameAccountParams,
     ) -> TransportResult<String> {
-        let f = get_function(&self.inner, "createGameAccount");
-        let params = JsValue::from_serde(&params).unwrap();
-        let p = f.call2(&self.inner, &wallet, &params).unwrap();
-        resolve_promise(p)
-            .await
-            .unwrap()
+        self.api_call("createGameAccount", wallet, &params)
+            .await?
             .as_string()
-            .ok_or(TransportError::TransactionNotConfirmed)
+            .ok_or(TransportError::ParseAddressError)
     }
 
     async fn close_game_account(
@@ -82,10 +118,7 @@ impl TransportLocalT for Transport {
         wallet: &JsValue,
         params: CloseGameAccountParams,
     ) -> TransportResult<()> {
-        let f = get_function(&self.inner, "closeGameAccount");
-        let params = JsValue::from_serde(&params).unwrap();
-        let p = f.call2(&self.inner, &wallet, &params).unwrap();
-        resolve_promise(p).await.unwrap();
+        self.api_call("closeGameAccount", wallet, &params).await?;
         Ok(())
     }
 
@@ -93,39 +126,24 @@ impl TransportLocalT for Transport {
         &self,
         wallet: &JsValue,
         params: CreatePlayerProfileParams,
-    ) -> TransportResult<String> {
-        let f = get_function(&self.inner, "createPlayerProfile");
-        let params = JsValue::from_serde(&params).unwrap();
-        let p = f.call2(&self.inner, &wallet, &params).unwrap();
-        resolve_promise(p)
-            .await
-            .unwrap()
-            .as_string()
-            .ok_or(TransportError::TransactionNotConfirmed)
+    ) -> TransportResult<()> {
+        self.api_call("createPlayerProfile", wallet, &params)
+            .await?;
+        Ok(())
     }
 
     async fn join(&self, wallet: &JsValue, params: JoinParams) -> TransportResult<()> {
-        let f = get_function(&self.inner, "join");
-        let params = JsValue::from_serde(&params).unwrap();
-        gloo::console::info!(wallet);
-        let p = f.call2(&self.inner, &wallet, &params).unwrap();
-        resolve_promise(p).await.unwrap();
+        self.api_call("join", wallet, &params).await?;
         Ok(())
     }
 
     async fn deposit(&self, wallet: &JsValue, params: DepositParams) -> TransportResult<()> {
-        let f = get_function(&self.inner, "deposit");
-        let params = JsValue::from_serde(&params).unwrap();
-        let p = f.call2(&self.inner, &wallet, &params).unwrap();
-        resolve_promise(p).await.unwrap();
+        self.api_call("deposit", wallet, &params).await?;
         Ok(())
     }
 
     async fn vote(&self, wallet: &JsValue, params: VoteParams) -> TransportResult<()> {
-        let f = get_function(&self.inner, "vote");
-        let params = JsValue::from_serde(&params).unwrap();
-        let p = f.call2(&self.inner, &wallet, &params).unwrap();
-        resolve_promise(p).await.unwrap();
+        self.api_call("vote", wallet, &params).await?;
         Ok(())
     }
 
@@ -134,14 +152,10 @@ impl TransportLocalT for Transport {
         wallet: &JsValue,
         params: PublishGameParams,
     ) -> TransportResult<String> {
-        let f = get_function(&self.inner, "publishGame");
-        let params = JsValue::from_serde(&params).unwrap();
-        let p = f.call2(&self.inner, &wallet, &params).unwrap();
-        resolve_promise(p)
-            .await
-            .unwrap()
+        self.api_call("publishGame", wallet, &params)
+            .await?
             .as_string()
-            .ok_or(TransportError::TransactionNotConfirmed)
+            .ok_or(TransportError::ParseAddressError)
     }
 
     async fn create_registration(
@@ -149,14 +163,10 @@ impl TransportLocalT for Transport {
         wallet: &JsValue,
         params: CreateRegistrationParams,
     ) -> TransportResult<String> {
-        let f = get_function(&self.inner, "createRegistration");
-        let params = JsValue::from_serde(&params).unwrap();
-        let p = f.call2(&self.inner, &wallet, &params).unwrap();
-        resolve_promise(p)
-            .await
-            .unwrap()
+        self.api_call("createRegistration", wallet, &params)
+            .await?
             .as_string()
-            .ok_or(TransportError::TransactionNotConfirmed)
+            .ok_or(TransportError::ParseAddressError)
     }
 
     async fn register_game(
@@ -175,38 +185,23 @@ impl TransportLocalT for Transport {
         Ok(())
     }
 
-    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
-        let f = get_function(&self.inner, "getPlayerProfile");
-        let p = f.call1(&self.inner, &addr.into()).ok()?;
-        let value = resolve_promise(p).await?;
-        parse_js_value(&value)
+    async fn get_player_profile(&self, addr: &str) -> TransportResult<Option<PlayerProfile>> {
+        self.api_fetch("getPlayerProfile", addr).await
     }
 
-    async fn get_game_account(&self, addr: &str) -> Option<GameAccount> {
-        let f = get_function(&self.inner, "getGameAccount");
-        let p = f.call1(&self.inner, &addr.into()).ok()?;
-        let value = resolve_promise(p).await?;
-        parse_js_value(&value)
+    async fn get_game_account(&self, addr: &str) -> TransportResult<Option<GameAccount>> {
+        self.api_fetch("getGameAccount", addr).await
     }
 
-    async fn get_game_bundle(&self, addr: &str) -> Option<GameBundle> {
-        let f = get_function(&self.inner, "getGameBundle");
-        let p = f.call1(&self.inner, &addr.into()).ok()?;
-        let value = resolve_promise(p).await?;
-        parse_js_value(&value)
+    async fn get_game_bundle(&self, addr: &str) -> TransportResult<Option<GameBundle>> {
+        self.api_fetch("getGameBundle", addr).await
     }
 
-    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
-        let f = get_function(&self.inner, "getServerAccount");
-        let p = f.call1(&self.inner, &addr.into()).ok()?;
-        let value = resolve_promise(p).await?;
-        parse_js_value(&value)
+    async fn get_server_account(&self, addr: &str) -> TransportResult<Option<ServerAccount>> {
+        self.api_fetch("getServerAccount", addr).await
     }
 
-    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
-        let f = get_function(&self.inner, "getRegistration");
-        let p = f.call1(&self.inner, &addr.into()).ok()?;
-        let value = resolve_promise(p).await?;
-        parse_js_value(&value)
+    async fn get_registration(&self, addr: &str) -> TransportResult<Option<RegistrationAccount>> {
+        self.api_fetch("getRegistration", addr).await
     }
 }

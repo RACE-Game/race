@@ -1,15 +1,19 @@
-import React, { useContext, useState, useEffect } from 'react';
-import HelperContext from './helper-context';
-import ProfileContext, { ProfileData } from './profile-context';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { SolanaWalletAdapter } from 'race-sdk-solana';
+import React, { useContext, useState, useEffect, FC } from 'react';
+import { HelperContext } from './helper-context';
+import { ProfileContext, ProfileData } from './profile-context';
+import { useWallet } from './integration';
+import { Chain } from './types';
 
-function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
+type ProfileProps = {
+    chain: Chain;
+    updateProfile: (profile: ProfileData) => void;
+}
+
+const Profile: FC<ProfileProps> = ({ chain, updateProfile }) => {
     let [nick, setNick] = useState<string>("");
     let helper = useContext(HelperContext);
     let profile = useContext(ProfileContext);
-    let wallet = useWallet();
-    let walletAdapter = new SolanaWalletAdapter(wallet);
+    let wallet = useWallet(chain);
 
     const editNick = (e: React.ChangeEvent<HTMLInputElement>) => {
         setNick(e.target.value);
@@ -22,20 +26,20 @@ function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
     }
 
     useEffect(() => {
-        if (helper !== undefined && walletAdapter.isConnected) {
+        if (helper !== undefined && wallet.isConnected) {
             const q = async () => {
-                if (helper !== undefined && walletAdapter.isConnected) {
-                  console.log("TSX: wallet addr = ", walletAdapter.walletAddr)
-                    const profile = await helper.get_profile(walletAdapter.walletAddr);
+                if (helper !== undefined && wallet.isConnected) {
+                    console.log("TSX: wallet addr = ", wallet.walletAddr)
+                    const profile = await helper.get_profile(wallet.walletAddr);
                     if (profile !== undefined) {
-                        props.updateProfile(profile);
+                        updateProfile(profile);
                         setNick(profile.nick);
                     }
                 }
             }
             q();
         }
-    }, [helper, walletAdapter.isConnected && walletAdapter.walletAddr]);
+    }, [helper, wallet.isConnected && wallet.walletAddr]);
 
     const createProfile = async () => {
         if (helper !== undefined) {
@@ -43,10 +47,9 @@ function Profile(props: { updateProfile: (profile: ProfileData) => void }) {
                 alert("Profile name can't be empty");
             } else {
                 console.log("Wallet:", wallet);
-                const walletAdapter = new SolanaWalletAdapter(wallet);
-                await helper.create_profile(walletAdapter, nick, "");
-                const profile = await helper.get_profile(walletAdapter.walletAddr);
-                props.updateProfile(profile);
+                await helper.create_profile(wallet, nick, "");
+                const profile = await helper.get_profile(wallet.walletAddr);
+                updateProfile(profile);
             }
         }
     }
