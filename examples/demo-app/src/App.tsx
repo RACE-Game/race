@@ -95,7 +95,7 @@ function App() {
                     }
                 }}>
                 <option value="">[Select environment]</option>
-                <option value="facade">Fake</option>
+                <option value="facade">Facade</option>
                 <option value="solana-local">Solana(Local)</option>
                 <option value="solana-mainnet">Solana(Mainnet)</option>
             </select>

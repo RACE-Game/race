@@ -218,10 +218,6 @@ pub struct PlayerProfile {
 #[cfg(test)]
 mod tests {
 
-    use borsh::try_from_slice_with_schema;
-
-    use crate::context::GameStatus;
-
     use super::*;
 
     #[test]

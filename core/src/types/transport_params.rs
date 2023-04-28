@@ -98,11 +98,22 @@ pub enum AssetChange {
 }
 
 /// The data represents how a player's asset & status changed.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    BorshSerialize,
+    BorshDeserialize,
+    PartialOrd,
+    Ord,
+)]
 pub enum SettleOp {
-    Eject,
     Add(u64),
     Sub(u64),
+    Eject,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]

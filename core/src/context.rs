@@ -691,6 +691,15 @@ impl GameContext {
         if self.settles.is_some() {
             let mut settles = None;
             std::mem::swap(&mut settles, &mut self.settles);
+
+            if let Some(settles) = settles.as_mut() {
+                settles.sort_by_key(|s| match s.op {
+                    SettleOp::Add(_) => 0,
+                    SettleOp::Sub(_) => 1,
+                    SettleOp::Eject => 2,
+                })
+            }
+
             for s in settles.as_ref().unwrap().iter() {
                 match s.op {
                     SettleOp::Eject => {

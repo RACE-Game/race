@@ -115,7 +115,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
             }
         }
 
-        warn!("Shutdown client");
+        warn!("Shutdown client, result: {:?}", res);
         match res {
             Ok(()) => ports.close(CloseReason::Complete),
             Err(e) => ports.close(CloseReason::Fault(e)),
