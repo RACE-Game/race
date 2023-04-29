@@ -1,5 +1,5 @@
 [transactor]
-port = 12003
+port = 12004
 endpoint = "ws://localhost:12004"
 chain = "facade"
 address = "Server 2"
