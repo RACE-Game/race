@@ -27,8 +27,8 @@ solana-sdk = { workspace = true }
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
 mpl-token-metadata = { workspace = true }
-race-nft-storage = { path = "../nft-storage" }
 race-solana-types = { path = "../contracts/solana-types", features = ["sdk"], default-features = false }
+reqwest = { workspace = true, features = [ "json"] }
 
 [dev-dependencies]
 anyhow = { workspace = true }

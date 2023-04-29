@@ -3628,18 +3628,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "race-nft-storage"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
-]
-
-[[package]]
 name = "race-proc-macro"
 version = "0.1.0"
 dependencies = [
@@ -3771,8 +3759,8 @@ dependencies = [
  "project-root",
  "race-core",
  "race-env",
- "race-nft-storage",
  "race-solana-types",
+ "reqwest",
  "serde",
  "serde_json",
  "shellexpand",

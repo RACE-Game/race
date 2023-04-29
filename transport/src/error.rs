@@ -141,8 +141,8 @@ impl From<TransportError> for race_core::error::Error {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-impl From<race_nft_storage::Error> for TransportError {
-    fn from(value: race_nft_storage::Error) -> Self {
-        Self::LoadGameBundleError(value.to_string())
+impl From<reqwest::Error> for TransportError {
+    fn from(value: reqwest::Error) -> Self {
+        Self::NetworkError(value.to_string())
     }
 }

@@ -66,6 +66,9 @@ use spl_token::{
     state::{Account, Mint},
 };
 
+
+mod nft;
+
 fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
     let keypair = solana_sdk::signature::read_keypair_file(path)
         .map_err(|e| TransportError::InvalidKeyfile(e.to_string()))?;
@@ -780,7 +783,7 @@ impl TransportT for SolanaTransport {
         let metadata_data = metadata_account_state.data;
         let uri = metadata_data.uri.trim_end_matches('\0').to_string();
 
-        let data = race_nft_storage::fetch_wasm_from_game_bundle(&uri)
+        let data = nft::fetch_wasm_from_game_bundle(&uri)
             .await
             .map_err(|e| TransportError::NetworkError(e.to_string()))?;
 
