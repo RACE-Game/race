@@ -5,7 +5,7 @@ use race_core::context::GameContext;
 use race_core::error::Error;
 use race_core::event::Event;
 use tokio::select;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 use crate::component::common::{Component, PipelinePorts, Ports};
 use crate::component::event_bus::CloseReason;
@@ -78,13 +78,7 @@ async fn retrieve_event(
     game_context: &mut GameContext,
     mode: ClientMode,
 ) -> Option<EventFrame> {
-    // Set timestamp
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64;
-    game_context.set_timestamp(timestamp);
-
+    let timestamp = current_timestamp();
     if mode != ClientMode::Transactor {
         ports.recv().await
     } else if let Some(dispatch) = game_context.get_dispatch() {
@@ -123,6 +117,9 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         // Read games from event bus
         while let Some(event_frame) = retrieve_event(&mut ports, &mut game_context, ctx.mode).await
         {
+            // Set timestamp to current time
+            game_context.set_timestamp(current_timestamp());
+
             match event_frame {
                 EventFrame::InitState { init_account } => {
                     if let Err(e) = game_context
@@ -203,4 +200,11 @@ impl EventLoop {
             },
         )
     }
+}
+
+fn current_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
 }
