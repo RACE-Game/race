@@ -47,7 +47,7 @@ impl TransportBuilder {
                         config
                             .solana
                             .as_ref()
-                            .ok_or(TransportError::InvalidConfig)?
+                            .ok_or(TransportError::InvalidConfig("RPC unspecified".into()))?
                             .rpc
                             .clone(),
                     );
@@ -55,7 +55,7 @@ impl TransportBuilder {
                         config
                             .solana
                             .as_ref()
-                            .ok_or(TransportError::InvalidConfig)?
+                            .ok_or(TransportError::InvalidConfig("Keyfile not found".into()))?
                             .keyfile
                             .clone(),
                     );
@@ -65,18 +65,18 @@ impl TransportBuilder {
                         config
                             .bnb
                             .as_ref()
-                            .ok_or(TransportError::InvalidConfig)?
+                            .ok_or(TransportError::InvalidConfig("RPC unspecified".into()))?
                             .rpc
                             .clone(),
                     );
                 }
                 ChainType::Facade => {
-                    self.address = Some(config.facade.as_ref().ok_or(TransportError::InvalidConfig)?.address.clone());
+                    self.address = Some(config.facade.as_ref().ok_or(TransportError::InvalidConfig("Address unspecified".into()))?.address.clone());
                     self.rpc = Some(
                         config
                             .facade
                             .as_ref()
-                            .ok_or(TransportError::InvalidConfig)?
+                            .ok_or(TransportError::InvalidConfig("RPC unspecified".into()))?
                             .host
                             .clone(),
                     );

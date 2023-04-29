@@ -66,7 +66,6 @@ use spl_token::{
     state::{Account, Mint},
 };
 
-
 mod nft;
 
 fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
@@ -875,7 +874,8 @@ impl SolanaTransport {
     }
 
     fn parse_pubkey(addr: &str) -> TransportResult<Pubkey> {
-        Pubkey::from_str(addr).map_err(|_| TransportError::InvalidConfig)
+        Pubkey::from_str(addr)
+            .map_err(|_| TransportError::InvalidConfig(format!("Can't parse public key: {}", addr)))
     }
 
     fn get_min_lamports(&self, account_len: usize) -> TransportResult<u64> {

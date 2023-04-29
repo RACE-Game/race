@@ -11,8 +11,8 @@ pub enum TransportError {
     #[error("Unspecified rpc")]
     UnspecifiedRpc,
 
-    #[error("Invalid config")]
-    InvalidConfig,
+    #[error("Invalid config: {0}")]
+    InvalidConfig(String),
 
     #[error("Invalid bundle address")]
     InvalidBundleAddress,

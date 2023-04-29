@@ -109,6 +109,7 @@ async fn create_transport(
         .with_rpc(rpc.unwrap_or(default_rpc(chain, env)));
 
     if let Some(keyfile) = keyfile.or(default_keyfile(chain)) {
+        println!("Use keyfile: {}", keyfile);
         builder = builder.with_keyfile(keyfile);
     }
 
@@ -198,7 +199,7 @@ async fn reg_info(addr: &str, transport: Arc<dyn TransportT>) {
             println!("Owner: {}", reg.owner.unwrap_or("None".into()));
             println!("Games:");
             for g in reg.games.iter() {
-                println!("Game account: {}, Game bundle: {}", g.addr, g.bundle_addr);
+                println!("Game account: {}\tGame bundle: {}", g.addr, g.bundle_addr);
             }
         }
         None => {
