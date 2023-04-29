@@ -25,7 +25,7 @@ export let CHAIN_ADDR_GAME_MAPPING: Record<Chain, Record<string, string>> = {
     '': 'raffle'
   },
   'solana-mainnet': {
-    'AxDr2roV3847Y7c6Ag9grL8SKTtzUo9eZpa387QUD8b7': 'raffle'
+    'fLS6bq5bhMnTpSzqV54GZuBdAE8exJfCGVPyV67KmQJ': 'raffle'
   }
 };
 
