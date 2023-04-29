@@ -21,7 +21,7 @@ export class SolanaWalletAdapter implements IWallet {
       context: { slot: minContextSlot },
       value: { blockhash, lastValidBlockHeight },
     } = await conn.getLatestBlockhashAndContext();
-    const signature = await this.#wallet.sendTransaction(tx, conn, { minContextSlot, skipPreflight: true });
+    const signature = await this.#wallet.sendTransaction(tx, conn, { minContextSlot });
     await conn.confirmTransaction({ blockhash, lastValidBlockHeight, signature });
   }
 }

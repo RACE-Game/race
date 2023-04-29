@@ -260,10 +260,6 @@ impl TransportT for SolanaTransport {
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
         let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
 
-        if game_state.access_version != params.access_version {
-            return Err(TransportError::AccessVersionNotMatched)?;
-        }
-
         let mint_pubkey = game_state.token_mint.clone();
         let payer_ata = get_associated_token_address(&payer_pubkey, &mint_pubkey);
 
@@ -839,8 +835,9 @@ impl TransportT for SolanaTransport {
 
 impl SolanaTransport {
     pub fn try_new(rpc: String, keyfile: PathBuf) -> TransportResult<Self> {
+        let keypair = read_keypair(keyfile)?;
         let program_id = Pubkey::from_str(PROGRAM_ID)?;
-        SolanaTransport::try_new_with_program_id(rpc, keyfile, program_id)
+        SolanaTransport::try_new_with_program_id(rpc, keypair, program_id)
     }
 
     #[allow(unused)]
@@ -850,7 +847,7 @@ impl SolanaTransport {
 
     pub(crate) fn try_new_with_program_id(
         rpc: String,
-        keyfile: PathBuf,
+        keypair: Keypair,
         program_id: Pubkey,
     ) -> TransportResult<Self> {
         println!(
@@ -864,7 +861,6 @@ impl SolanaTransport {
         };
         let debug = rpc.eq("http://localhost:8899");
         let client = RpcClient::new_with_commitment(rpc, commitment);
-        let keypair = read_keypair(keyfile)?;
         Ok(Self {
             client,
             keypair,
@@ -1015,15 +1011,18 @@ mod tests {
     }
 
     fn get_transport() -> anyhow::Result<SolanaTransport> {
+        let keypair = Keypair::new();
+        let pubkey = keypair.pubkey();
         let transport = SolanaTransport::try_new_with_program_id(
             "http://localhost:8899".into(),
-            shellexpand::tilde("~/.config/solana/id.json")
-                .to_string()
-                .into(),
+            keypair,
             read_program_id()?,
         )?;
+        transport.client.request_airdrop(&pubkey, 1_000_000_000)?;
         Ok(transport)
     }
+
+
 
     #[test]
     fn test_get_transport() -> anyhow::Result<()> {
@@ -1031,14 +1030,14 @@ mod tests {
         Ok(())
     }
 
-    async fn create_player(transport: &SolanaTransport) -> anyhow::Result<String> {
+    async fn create_player(transport: &SolanaTransport) -> anyhow::Result<()> {
         let player = transport
             .create_player_profile(CreatePlayerProfileParams {
                 nick: "Alice".to_string(),
                 pfp: None,
             })
             .await?;
-        Ok(player)
+        Ok(())
     }
 
     async fn create_game(transport: &SolanaTransport) -> anyhow::Result<String> {
@@ -1046,9 +1045,9 @@ mod tests {
             .create_game_account(CreateGameAccountParams {
                 title: "16-CHAR_GAME_TIL".to_string(),
                 bundle_addr: "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_owned(),
-                token_addr: RACE_MINT.to_string(),
-                min_deposit: 10,
-                max_deposit: 100,
+                token_addr: NATIVE_MINT.to_string(),
+                min_deposit: 100_000_000u64,
+                max_deposit: 2_000_000_000u64,
                 max_players: 9,
                 data: Vec::<u8>::new(),
             })
@@ -1074,7 +1073,7 @@ mod tests {
         let addr = create_game(&transport).await?;
         let game_account = transport
             .get_game_account(&addr)
-            .await
+            .await?
             .expect("Failed to query");
         assert_eq!(game_account.access_version, 0);
         assert_eq!(game_account.settle_version, 0);
@@ -1084,7 +1083,7 @@ mod tests {
             .close_game_account(CloseGameAccountParams { addr: addr.clone() })
             .await
             .expect("Failed to close");
-        assert_eq!(None, transport.get_game_account(&addr).await);
+        assert_eq!(None, transport.get_game_account(&addr).await?);
         Ok(())
     }
 
@@ -1092,7 +1091,7 @@ mod tests {
     async fn test_registry_create_get() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let addr = create_reg(&transport).await?;
-        let reg = transport.get_registration(&addr).await.unwrap();
+        let reg = transport.get_registration(&addr).await?.unwrap();
         assert_eq!(reg.is_private, false);
         assert_eq!(reg.size, 100);
         assert_eq!(reg.games.len(), 0);
@@ -1103,7 +1102,7 @@ mod tests {
                 reg_addr: addr.clone(),
             })
             .await?;
-        let reg = transport.get_registration(&addr).await.unwrap();
+        let reg = transport.get_registration(&addr).await?.unwrap();
         assert_eq!(reg.games.len(), 1);
         transport
             .unregister_game(UnregisterGameParams {
@@ -1111,7 +1110,7 @@ mod tests {
                 reg_addr: addr.clone(),
             })
             .await?;
-        let reg = transport.get_registration(&addr).await.unwrap();
+        let reg = transport.get_registration(&addr).await?.unwrap();
         assert_eq!(reg.games.len(), 0);
         Ok(())
     }
@@ -1128,7 +1127,7 @@ mod tests {
 
         let server = transport
             .get_server_account(&transport.wallet_pubkey().to_string())
-            .await
+            .await?
             .unwrap();
         assert_eq!(server.addr, transport.wallet_pubkey().to_string());
         assert_eq!(server.endpoint, endpoint);
@@ -1147,7 +1146,7 @@ mod tests {
             .await?;
         let profile = transport
             .get_player_profile(&transport.wallet_pubkey().to_string())
-            .await
+            .await?
             .unwrap();
         assert_eq!(profile.addr, transport.wallet_pubkey().to_string());
         assert_eq!(profile.nick, nick);
@@ -1166,7 +1165,7 @@ mod tests {
             .await?;
         let game = transport
             .get_game_account(&game_addr)
-            .await
+            .await?
             .expect("Failed to get game");
         assert_eq!(game.servers.len(), 1);
         assert_eq!(
@@ -1185,18 +1184,38 @@ mod tests {
         transport
             .join(JoinParams {
                 game_addr: game_addr.clone(),
-                amount: 50u64,
+                amount: 500_000_000u64,
+                access_version: 0u64,
+                position: 0u16,
+            })
+            .await?;
+
+        let game = transport
+            .get_game_account(&game_addr)
+            .await?
+            .expect("Failed to get game");
+        assert_eq!(game.players.len(), 1);
+
+        let transport = get_transport()?;
+        create_player(&transport).await?;
+        println!("Join game: {}", game_addr);
+        transport
+            .join(JoinParams {
+                game_addr: game_addr.clone(),
+                amount: 500_000_000u64,
                 access_version: 0u64,
                 position: 0u16,
             })
             .await?;
         let game = transport
             .get_game_account(&game_addr)
-            .await
+            .await?
             .expect("Failed to get game");
-        assert_eq!(game.players.len(), 1);
+        assert_eq!(game.players.len(), 2);
+
         Ok(())
     }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn test_publish_game() -> anyhow::Result<()> {
         let transport = get_transport()?;
@@ -1210,7 +1229,7 @@ mod tests {
 
         let bundle = transport
             .get_game_bundle(&token_mint)
-            .await
+            .await?
             .expect("Failed to get game bundle");
 
         assert_eq!(bundle.name, "RACE_raffle".to_string());

@@ -81,15 +81,22 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
         return Err(ProcessError::JoinedGameAlready)?;
     }
 
+    let mut position = params.position;
     if game_state
         .players
         .iter()
         .any(|p| p.position == params.position)
     {
-        return Err(ProcessError::PositionTakenAlready)?;
+        if let Some(pos) = (0..game_state.max_players).into_iter().find(|&i| {
+            !game_state.players.iter().any(|p| p.position == i as u16)
+        }) {
+            position = pos;
+        } else {
+            return Err(ProcessError::PositionTakenAlready)?;
+        }
     }
 
-    msg!("Player position: {:?}", params.position);
+    msg!("Player position: {:?}", position);
 
     // TODO: Check game status?
     // if game_state.status != GameStatus::Open {
@@ -103,7 +110,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
     game_state.players.push(PlayerJoin {
         addr: payer_account.key.clone(),
         balance: params.amount,
-        position: params.position as _,
+        position,
         access_version: game_state.access_version,
     });
 
