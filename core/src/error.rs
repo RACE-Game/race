@@ -158,8 +158,8 @@ pub enum Error {
     #[error("Invalid key index")]
     InvalidKeyIndex,
 
-    #[error("Invalid ciphertexts size")]
-    InvalidCiphertextsSize,
+    #[error("Invalid ciphertexts size, expect: {0}, got: {1}")]
+    InvalidCiphertextsSize(u32, u32),
 
     #[error("Invalid max players")]
     InvalidMaxPlayers,

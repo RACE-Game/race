@@ -7,6 +7,8 @@
 use race_core::prelude::*;
 use serde::{Deserialize, Serialize};
 
+const DRAW_TIMEOUT: u64 = 30_000;
+
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Deserialize, Serialize)]
 struct Player {
@@ -42,7 +44,7 @@ impl Raffle {
 
 impl GameHandler for Raffle {
     /// Initialize handler state with on-chain game account data.
-    fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self> {
+    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self> {
         let players = init_account.players.into_iter().map(Into::into).collect();
         let draw_time = 0;
         Ok(Self {
@@ -54,14 +56,14 @@ impl GameHandler for Raffle {
     }
 
     /// Handle event.
-    fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()> {
+    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<()> {
         match event {
             Event::GameStart { .. } => {
                 // We need at least one player to start, otherwise we will skip this draw.
-                if context.count_players() >= 1 {
+                if effect.count_players() >= 1 {
                     let options = self.players.iter().map(|p| p.addr.to_owned()).collect();
                     let rnd_spec = RandomSpec::shuffled_list(options);
-                    self.random_id = context.init_random_state(rnd_spec);
+                    self.random_id = effect.init_random_state(rnd_spec);
                 }
             }
 
@@ -69,20 +71,20 @@ impl GameHandler for Raffle {
                 let players = new_players.into_iter().map(Into::into);
                 self.players.extend(players);
                 if self.players.len() >= 1 && self.draw_time == 0 {
-                    self.draw_time = context.timestamp() + 60_000;
-                    context.wait_timeout(60_000);
+                    self.draw_time = effect.timestamp() + DRAW_TIMEOUT;
+                    effect.wait_timeout(DRAW_TIMEOUT);
                 }
             }
 
             // Reveal the first address when randomness is ready.
             Event::RandomnessReady { .. } => {
-                context.reveal(self.random_id, vec![0]);
+                effect.reveal(self.random_id, vec![0]);
             }
 
             // Start game when we have enough players.
             Event::WaitingTimeout => {
                 if self.players.len() >= 1 {
-                    context.start_game();
+                    effect.start_game();
                 }
             }
 
@@ -92,7 +94,7 @@ impl GameHandler for Raffle {
             }
 
             Event::SecretsReady => {
-                let winner = context
+                let winner = effect
                     .get_revealed(self.random_id)?
                     .get(&0)
                     .unwrap()
@@ -100,10 +102,10 @@ impl GameHandler for Raffle {
 
                 for p in self.players.iter() {
                     if p.addr.ne(&winner) {
-                        context.settle(Settle::add(&winner, p.balance));
-                        context.settle(Settle::sub(&p.addr, p.balance));
+                        effect.settle(Settle::add(&winner, p.balance));
+                        effect.settle(Settle::sub(&p.addr, p.balance));
                     }
-                    context.settle(Settle::eject(&p.addr));
+                    effect.settle(Settle::eject(&p.addr));
                 }
                 self.last_winner = Some(winner);
                 self.cleanup();

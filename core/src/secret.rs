@@ -102,7 +102,7 @@ impl SecretState {
             .ok_or(Error::InvalidRandomId)?;
 
         if g.size != ciphertexts.len() {
-            return Err(Error::InvalidCiphertextsSize);
+            return Err(Error::InvalidCiphertextsSize(g.size as _, ciphertexts.len() as _));
         }
 
         ciphertexts.iter_mut().for_each(|c| {
@@ -123,7 +123,7 @@ impl SecretState {
             .ok_or(Error::InvalidRandomId)?;
 
         if g.size != ciphertexts.len() {
-            return Err(Error::InvalidCiphertextsSize);
+            return Err(Error::InvalidCiphertextsSize(g.size as _, ciphertexts.len() as _));
         }
 
         ciphertexts.iter_mut().for_each(|c| {
@@ -144,7 +144,7 @@ impl SecretState {
             .ok_or(Error::InvalidRandomId)?;
 
         if g.size != ciphertexts.len() {
-            return Err(Error::InvalidCiphertextsSize);
+            return Err(Error::InvalidCiphertextsSize(g.size as _, ciphertexts.len() as _));
         }
 
         Ok(ciphertexts
