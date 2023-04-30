@@ -215,13 +215,8 @@ impl EncryptorT for Encryptor {
 mod tests {
     use std::sync::Arc;
 
-    use race_core::{
-        random::{RandomMode, ShuffledList},
-        secret::RandomSecretState,
-    };
-
     use super::*;
-    use race_core::error::Result;
+    use race_core::{error::Result, secret::SecretState};
 
     #[test]
     fn test_sign_verify() {
@@ -257,22 +252,13 @@ mod tests {
     }
 
     #[test]
-    fn test_secret_state() {
-        let e = Arc::new(Encryptor::default());
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let state = RandomSecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
-        assert_eq!(3, state.received.len());
-        assert_eq!(3, state.decrypted.len());
-    }
-
-    #[test]
     fn test_mask_and_unmask() -> Result<()> {
         let e = Arc::new(Encryptor::default());
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomSecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
+        let mut state = SecretState::new(e);
+        state.gen_random_secrets(1, 3);
         let original_ciphertexts = vec![vec![41; 16], vec![42; 16], vec![43; 16]];
-        let encrypted = state.mask(original_ciphertexts.clone())?;
-        let decrypted = state.unmask(encrypted.clone())?;
+        let encrypted = state.mask(1, original_ciphertexts.clone())?;
+        let decrypted = state.unmask(1, encrypted.clone())?;
         assert_ne!(original_ciphertexts, encrypted);
         assert_eq!(decrypted, original_ciphertexts);
         Ok(())
@@ -281,10 +267,10 @@ mod tests {
     #[test]
     fn test_lock() -> Result<()> {
         let e = Arc::new(Encryptor::default());
-        let rnd = ShuffledList::new(vec!["a", "b", "c"]);
-        let mut state = RandomSecretState::from_random_spec(e, &rnd, RandomMode::Shuffler);
+        let mut state = SecretState::new(e);
+        state.gen_random_secrets(1, 3);
         let original_ciphertexts = vec![vec![41; 16], vec![42; 16], vec![43; 16]];
-        let ciphertexts_and_tests = state.lock(original_ciphertexts)?;
+        let ciphertexts_and_tests = state.lock(1, original_ciphertexts)?;
         assert_eq!(3, ciphertexts_and_tests.len());
         Ok(())
     }
