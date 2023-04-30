@@ -17,14 +17,15 @@
     "@solana/web3.js": "^1.74.0",
     "race-sdk": "file:../../sdk/pkg",
     "race-sdk-core": "file:../../js/sdk-core",
-    "race-sdk-solana": "file:../../js/sdk-solana",
     "race-sdk-facade": "file:../../js/sdk-facade",
+    "race-sdk-solana": "file:../../js/sdk-solana",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.8.1"
   },
   "devDependencies": {
     "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
+    "@rollup/plugin-inject": "^5.0.3",
     "@types/react": "^18.0.27",
     "@types/react-dom": "^18.0.10",
     "@vitejs/plugin-react": "^3.1.0",

@@ -1,8 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import wasmPack from 'vite-plugin-wasm-pack';
-// import { NodeGlobalsPolyfillPlugin } from '@esbuild-plugins/node-globals-polyfill'
-// import { NodeModulesPolyfillPlugin } from '@esbuild-plugins/node-modules-polyfill'
+import inject from '@rollup/plugin-inject'
 
 export default defineConfig({
   plugins: [
@@ -15,16 +14,10 @@ export default defineConfig({
     alias: {
       buffer: "buffer/"
     }
-  }
-  // define: {
-  //   global: {}
-  // },
-  // optimizeDeps: {
-  //   esbuildOptions: {
-  //     plugins: [
-  //       // NodeGlobalsPolyfillPlugin({ buffer: true }),
-  //       NodeModulesPolyfillPlugin(),
-  //     ],
-  //   }
-  // },
+  },
+  build: {
+    rollupOptions: {
+      plugins: [inject({ Buffer: ['buffer', 'Buffer'] })],
+    },
+  },
 })

@@ -63,7 +63,7 @@ function Raffle() {
     const onJoin = async () => {
         if (client !== undefined) {
             console.log(wallet);
-            await client.join(1n);
+            await client.join(1000000000n);
         }
     }
 

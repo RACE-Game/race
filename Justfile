@@ -62,10 +62,10 @@ example-draw-card:
 dev-demo-app:
     npm --prefix ./examples/demo-app run dev
 
-demo-app:
+build-demo-app:
     npm --prefix ./examples/demo-app run build
 
-preview-demo-app: demo-app
+preview-demo-app: build-demo-app
     npm --prefix ./examples/demo-app run preview
 
 dev-facade *ARGS:

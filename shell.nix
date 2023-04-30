@@ -13,6 +13,7 @@ pkgs.mkShell rec {
     tokei
     rnix-lsp
     nixpkgs-fmt
+    binaryen
   ];
   RUST_LOG = "info,wasmer_compiler_cranelift=error,solana_rpc_client=error";
   RUST_BACKTRACE = 1;

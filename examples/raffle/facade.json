@@ -1,8 +1,8 @@
 {
-  "title": "Race Demo Raffle",
+  "title": "1RACE Raffle",
   "bundle": "target/race_example_raffle.wasm",
   "max_players": 6,
-  "min_deposit": 1,
-  "max_deposit": 2,
+  "min_deposit": 1000000000,
+  "max_deposit": 1000000000,
   "data": []
 }

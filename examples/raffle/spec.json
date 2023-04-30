@@ -1,10 +1,10 @@
 {
-  "title": "Race Demo Raffle",
+  "title": "1RACE Raffle",
   "reg_addr": "GbnAz9VFaJ4C9jp5FCFcc9Wqzcta6vKyiDGqcz9qCQb9",
   "bundle_addr": "fLS6bq5bhMnTpSzqV54GZuBdAE8exJfCGVPyV67KmQJ",
   "token_addr": "RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ",
   "max_players": 6,
-  "min_deposit": 1,
-  "max_deposit": 2,
+  "min_deposit": 1000000000,
+  "max_deposit": 1000000000,
   "data": []
 }

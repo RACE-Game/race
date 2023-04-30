@@ -128,7 +128,11 @@ async fn publish(name: String, bundle: String, transport: Arc<dyn TransportT>) {
 }
 
 async fn bundle_info(addr: &str, transport: Arc<dyn TransportT>) {
-    match transport.get_game_bundle(addr).await.expect("Network error") {
+    match transport
+        .get_game_bundle(addr)
+        .await
+        .expect("Network error")
+    {
         Some(game_bundle) => {
             println!("Game bundle: {:?}", game_bundle.name);
         }
@@ -139,7 +143,11 @@ async fn bundle_info(addr: &str, transport: Arc<dyn TransportT>) {
 }
 
 async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
-    match transport.get_game_account(addr).await.expect("Network error") {
+    match transport
+        .get_game_account(addr)
+        .await
+        .expect("Network error")
+    {
         Some(game_account) => {
             println!("Game account: {}", game_account.addr);
             println!("Game bundle: {}", game_account.bundle_addr);
@@ -179,7 +187,11 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
 }
 
 async fn server_info(addr: &str, transport: Arc<dyn TransportT>) {
-    match transport.get_server_account(addr).await.expect("Network error") {
+    match transport
+        .get_server_account(addr)
+        .await
+        .expect("Network error")
+    {
         Some(server_account) => {
             let ServerAccount { addr, endpoint } = server_account;
             println!("Server account: {}", addr);
@@ -192,14 +204,23 @@ async fn server_info(addr: &str, transport: Arc<dyn TransportT>) {
 }
 
 async fn reg_info(addr: &str, transport: Arc<dyn TransportT>) {
-    match transport.get_registration(addr).await.expect("Network error") {
+    match transport
+        .get_registration(addr)
+        .await
+        .expect("Network error")
+    {
         Some(reg) => {
             println!("Registration account: {}", reg.addr);
             println!("Size(Registered): {}({})", reg.size, reg.games.len());
             println!("Owner: {}", reg.owner.unwrap_or("None".into()));
             println!("Games:");
             for g in reg.games.iter() {
-                println!("Game account: {}\tGame bundle: {}", g.addr, g.bundle_addr);
+                println!(
+                    "{}\t{}\tGame bundle: {}",
+                    format!("{: <17}", g.title),
+                    g.addr,
+                    g.bundle_addr
+                );
             }
         }
         None => {
