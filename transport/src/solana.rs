@@ -826,7 +826,7 @@ impl TransportT for SolanaTransport {
                     title: g.title.clone(),
                     addr: g.addr.to_string(),
                     reg_time: g.reg_time,
-                    bundle_addr: "".into(),
+                    bundle_addr: g.bundle_addr.to_string(),
                 })
                 .collect(),
         }))

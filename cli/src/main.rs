@@ -1,4 +1,5 @@
 use clap::{arg, Command};
+use prettytable::{row, Table};
 use race_core::{
     transport::TransportT,
     types::{
@@ -213,15 +214,12 @@ async fn reg_info(addr: &str, transport: Arc<dyn TransportT>) {
             println!("Registration account: {}", reg.addr);
             println!("Size(Registered): {}({})", reg.size, reg.games.len());
             println!("Owner: {}", reg.owner.unwrap_or("None".into()));
-            println!("Games:");
+            let mut table = Table::new();
+            table.add_row(row!["Title", "Address", "Bundle"]);
             for g in reg.games.iter() {
-                println!(
-                    "{}\t{}\tGame bundle: {}",
-                    format!("{: <17}", g.title),
-                    g.addr,
-                    g.bundle_addr
-                );
+                table.add_row(row![g.title, g.addr, g.bundle_addr]);
             }
+            table.printstd();
         }
         None => {
             println!("Registration not found");
