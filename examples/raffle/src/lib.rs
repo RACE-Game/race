@@ -5,12 +5,11 @@
 //! the player will be picked as winner, and receive all the tokens.
 
 use race_core::prelude::*;
-use serde::{Deserialize, Serialize};
 
 const DRAW_TIMEOUT: u64 = 30_000;
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(Deserialize, Serialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 struct Player {
     pub addr: String,
     pub balance: u64,
@@ -25,7 +24,7 @@ impl From<PlayerJoin> for Player {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 #[game_handler]
 struct Raffle {
     last_winner: Option<String>,

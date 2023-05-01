@@ -1,11 +1,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::types::DecisionId;
 
 #[derive(
-    Error, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq,
+    Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq,
 )]
 pub enum Error {
     #[error("Player already joined: {0}")]
@@ -240,6 +239,7 @@ pub enum Error {
     DuplicatedInitialization,
 }
 
+#[cfg(feature = "serde")]
 impl From<serde_json::Error> for Error {
     fn from(e: serde_json::Error) -> Self {
         Error::MalformedData(e.to_string())

@@ -1,5 +1,4 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
     context::{GameContext, GameStatus},
@@ -102,7 +101,7 @@ impl Default for InitAccount {
     }
 }
 
-pub trait GameHandler: Sized + Serialize + DeserializeOwned {
+pub trait GameHandler: Sized + BorshSerialize + BorshDeserialize {
     /// Initialize handler state with on-chain game account data.
     fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self>;
 

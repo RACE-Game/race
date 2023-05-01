@@ -8,7 +8,6 @@ use std::{
 };
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::types::{Ciphertext, RandomId, SecretDigest, SecretIdent, SecretKey};
@@ -75,7 +74,7 @@ impl From<Error> for crate::error::Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub enum RandomMode {
     Shuffler,
     Drawer,

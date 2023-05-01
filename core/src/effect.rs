@@ -3,7 +3,6 @@
 use std::collections::BTreeMap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::Serialize;
 
 use crate::{
     context::GameContext,
@@ -151,7 +150,7 @@ pub struct Effect {
     pub revealed: BTreeMap<usize, BTreeMap<usize, String>>,
     pub answered: BTreeMap<usize, String>,
     pub settles: Vec<Settle>,
-    pub handler_state: Option<String>,
+    pub handler_state: Option<Vec<u8>>,
     pub error: Option<Error>,
     pub allow_exit: bool,
 }
@@ -320,14 +319,14 @@ impl Effect {
     where
         S: GameHandler,
     {
-        serde_json::from_str(self.handler_state.as_ref().unwrap()).unwrap()
+        S::try_from_slice(self.handler_state.as_ref().unwrap()).unwrap()
     }
 
     /// Set handler state.
     ///
     /// This is an internal function, DO NOT use in game handler.
-    pub fn __set_handler_state<S: Serialize>(&mut self, handler_state: S) {
-        if let Ok(state) = serde_json::to_string(&handler_state) {
+    pub fn __set_handler_state<S: BorshSerialize>(&mut self, handler_state: S) {
+        if let Ok(state) = handler_state.try_to_vec() {
             self.handler_state = Some(state);
         } else {
             self.error = Some(Error::SerializationError);

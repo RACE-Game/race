@@ -3697,8 +3697,6 @@ dependencies = [
  "borsh",
  "quote 1.0.26",
  "race-core",
- "serde",
- "serde_json",
  "syn 1.0.107",
 ]
 

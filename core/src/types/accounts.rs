@@ -1,13 +1,15 @@
 //! The data structures for on-chain accounts.
 
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use super::common::VoteType;
 
 /// Represent a player call the join instruction in contract.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct PlayerJoin {
     pub addr: String,
     pub position: u16,
@@ -32,8 +34,9 @@ impl PlayerJoin {
 }
 
 /// Represent a player call the deposit instruction in contract.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct PlayerDeposit {
     pub addr: String,
     pub amount: u64,
@@ -50,7 +53,9 @@ impl PlayerDeposit {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ServerJoin {
     pub addr: String,
     pub endpoint: String,
@@ -67,8 +72,9 @@ impl ServerJoin {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Vote {
     pub voter: String,
     pub votee: String,
@@ -77,9 +83,10 @@ pub struct Vote {
 
 /// The data represents the state of on-chain transactor registration.
 #[derive(
-    Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
+    Debug, Default, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
-#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ServerAccount {
     // The public key of transactor owner
     pub addr: String,
@@ -150,10 +157,9 @@ pub struct ServerAccount {
 /// should be immutable. If a mutable state is required, it must
 /// always have the same length, which is specified by `data_len`.
 ///
-#[derive(
-    Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
-)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Default, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GameAccount {
     pub addr: String,
     pub title: String,
@@ -176,9 +182,10 @@ pub struct GameAccount {
 }
 
 #[derive(
-    Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
+    Debug, Default, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
-#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GameRegistration {
     pub title: String,
     pub addr: String,
@@ -187,9 +194,10 @@ pub struct GameRegistration {
 }
 
 #[derive(
-    Debug, Default, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
+    Debug, Default, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq,
 )]
-#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct RegistrationAccount {
     pub addr: String,
     pub is_private: bool,
@@ -198,16 +206,18 @@ pub struct RegistrationAccount {
     pub games: Vec<GameRegistration>,
 }
 
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, BorshSerialize, BorshDeserialize, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GameBundle {
     pub uri: String,
     pub name: String,
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, BorshSerialize, BorshDeserialize, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct PlayerProfile {
     pub addr: String,
     pub nick: String,

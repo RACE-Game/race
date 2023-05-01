@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+#[cfg(feature = "serde")]
+use serde::{Serialize, Deserialize};
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::Serialize;
-
 use crate::decision::DecisionState;
 use crate::effect::{Ask, Assign, Effect, Release, Reveal};
 use crate::engine::GameHandler;
@@ -20,7 +20,9 @@ use crate::{
 
 const OPERATION_TIMEOUT: u64 = 15_000;
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Serialize)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum NodeStatus {
     Pending(u64),
     Ready,
@@ -37,9 +39,7 @@ impl std::fmt::Display for NodeStatus {
     }
 }
 
-#[derive(
-    Debug, Default, Serialize, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone,
-)]
+#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone)]
 pub enum GameStatus {
     #[default]
     Uninit,
@@ -57,7 +57,9 @@ impl std::fmt::Display for GameStatus {
     }
 }
 
-#[derive(Debug, Serialize, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Player {
     pub addr: String,
     pub position: usize,
@@ -184,7 +186,7 @@ pub struct GameContext {
     /// List of validators serving this game
     pub(crate) servers: Vec<Server>,
     pub(crate) dispatch: Option<DispatchEvent>,
-    pub(crate) handler_state: String,
+    pub(crate) handler_state: Vec<u8>,
     pub(crate) timestamp: u64,
     /// Whether a player can leave or not
     pub(crate) allow_exit: bool,
@@ -243,7 +245,7 @@ impl GameContext {
         self.allow_exit
     }
 
-    pub fn get_handler_state_raw(&self) -> &str {
+    pub fn get_handler_state_raw(&self) -> &Vec<u8> {
         &self.handler_state
     }
 
@@ -251,14 +253,14 @@ impl GameContext {
     where
         H: GameHandler,
     {
-        serde_json::from_str(&self.handler_state).unwrap()
+        H::try_from_slice(&self.handler_state).unwrap()
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
     where
         H: GameHandler,
     {
-        self.handler_state = serde_json::to_string(&handler).unwrap()
+        self.handler_state = handler.try_to_vec().unwrap()
     }
 
     pub fn get_servers(&self) -> &Vec<Server> {
@@ -347,10 +349,7 @@ impl GameContext {
     where
         E: CustomEvent,
     {
-        let event = Event::Custom {
-            sender: self.transactor_addr.to_owned(),
-            raw: serde_json::to_string(&e).unwrap(),
-        };
+        let event = Event::custom(self.transactor_addr.to_owned(), e);
         self.dispatch_event(event, timeout);
     }
 
