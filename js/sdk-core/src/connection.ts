@@ -1,5 +1,5 @@
 import { Chain } from './common'
-import { Event } from './events'
+import { GameEvent } from './events'
 
 export interface AttachGameParams {
   addr: string
@@ -16,13 +16,13 @@ export interface SubscribeEventParams {
 
 export interface SubmitEventParams {
   addr: string
-  event: Event
+  event: GameEvent
 }
 
 export interface BroadcastFrame {
   gameAddr: string
   state: any
-  event: Event
+  event: GameEvent
 }
 
 export interface IConnection {

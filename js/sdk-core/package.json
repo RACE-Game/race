@@ -1,5 +1,5 @@
 {
-  "name": "race-sdk-core",
+  "name": "@race/sdk-core",
   "type": "module",
   "version": "0.0.1",
   "description": "The type definitions for Race SDK",

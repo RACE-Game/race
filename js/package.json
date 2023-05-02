@@ -1,3 +1,3 @@
 {
-  "workspaces": ["./sdk-core", "./sdk-solana", "./sdk-facade"]
+  "workspaces": ["./sdk-core", "./sdk-solana", "./sdk-facade", './sdk-borsh']
 }

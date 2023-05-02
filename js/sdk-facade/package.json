@@ -1,5 +1,5 @@
 {
-  "name": "race-sdk-facade",
+  "name": "@race/sdk-facade",
   "type": "module",
   "version": "0.0.1",
   "description": "The Facade integration for Race SDK",

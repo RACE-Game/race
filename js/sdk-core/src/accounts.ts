@@ -92,25 +92,26 @@ export class ServerAccount implements IServerAccount {
     Object.assign(this, fields);
   }
   serialize(): Uint8Array {
-    return borsh.serialize(serverAccountSchema, this, ExtendedWriter);
+    return borsh.serialize(ServerAccount.schema, this, ExtendedWriter);
   }
   static deserialize(data: Uint8Array) {
-    return borsh.deserialize(serverAccountSchema, ServerAccount, Buffer.from(data), ExtendedReader);
+    return borsh.deserialize(ServerAccount.schema, ServerAccount, Buffer.from(data), ExtendedReader);
+  }
+  static get schema(): Map<Function, any> {
+    return new Map([
+      [
+        ServerAccount,
+        {
+          kind: 'struct',
+          fields: [
+            ['addr', 'string'],
+            ['endpoint', 'string'],
+          ],
+        },
+      ],
+    ]);
   }
 }
-
-const serverAccountSchema = new Map([
-  [
-    ServerAccount,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['endpoint', 'string'],
-      ],
-    },
-  ],
-]);
 
 export class PlayerJoin implements IPlayerJoin {
   readonly addr!: string;
@@ -119,6 +120,20 @@ export class PlayerJoin implements IPlayerJoin {
   readonly accessVersion!: bigint;
   constructor(fields: IPlayerJoin) {
     Object.assign(this, fields);
+  }
+  static get schema(): Map<Function, any> {
+    return new Map([
+      [PlayerJoin,
+        {
+          kind: 'struct',
+          fields: [
+            ['addr', 'string'],
+            ['position', 'u16'],
+            ['balance', 'bigint'],
+            ['accessVersion', 'bigint'],
+          ],
+        }]
+    ]);
   }
 }
 
@@ -129,6 +144,21 @@ export class ServerJoin implements IServerJoin {
   constructor(fields: IServerJoin) {
     Object.assign(this, fields);
   }
+  static get schema(): Map<Function, any> {
+    return new Map([
+      [
+        ServerJoin,
+        {
+          kind: 'struct',
+          fields: [
+            ['addr', 'string'],
+            ['endpoint', 'string'],
+            ['accessVersion', 'bigint'],
+          ],
+        },
+      ]
+    ])
+  }
 }
 
 export class PlayerDeposit implements IPlayerDeposit {
@@ -138,6 +168,21 @@ export class PlayerDeposit implements IPlayerDeposit {
   constructor(fields: IPlayerDeposit) {
     Object.assign(this, fields);
   }
+  static get schema(): Map<Function, any> {
+    return new Map([
+      [
+        PlayerDeposit,
+        {
+          kind: 'struct',
+          fields: [
+            ['addr', 'string'],
+            ['amount', 'bigint'],
+            ['settleVersion', 'bigint'],
+          ],
+        },
+      ]
+    ]);
+  }
 }
 
 export class Vote implements IVote {
@@ -146,6 +191,21 @@ export class Vote implements IVote {
   readonly voteType!: VoteType;
   constructor(fields: IVote) {
     Object.assign(this, fields);
+  }
+  static get schema(): Map<Function, any> {
+    return new Map([
+      [
+        Vote,
+        {
+          kind: 'struct',
+          fields: [
+            ['voter', 'string'],
+            ['votee', 'string'],
+            ['voteType', 'u8'],
+          ],
+        },
+      ]
+    ])
   }
 }
 
@@ -172,86 +232,46 @@ export class GameAccount implements IGameAccount {
     Object.assign(this, fields);
   }
   serialize(): Uint8Array {
-    return borsh.serialize(gameAccountSchema, this, ExtendedWriter);
+    return borsh.serialize(GameAccount.schema, this, ExtendedWriter);
   }
   static deserialize(data: Uint8Array) {
-    return borsh.deserialize(gameAccountSchema, GameAccount, Buffer.from(data), ExtendedReader);
+    return borsh.deserialize(GameAccount.schema, GameAccount, Buffer.from(data), ExtendedReader);
+  }
+  static get schema(): Map<Function, any> {
+    return new Map<Function, any>([
+      ...PlayerJoin.schema,
+      ...ServerJoin.schema,
+      ...PlayerDeposit.schema,
+      ...Vote.schema,
+      [
+        GameAccount,
+        {
+          kind: 'struct',
+          fields: [
+            ['addr', 'string'],
+            ['title', 'string'],
+            ['bundleAddr', 'string'],
+            ['tokenAddr', 'string'],
+            ['ownerAddr', 'string'],
+            ['settleVersion', 'bigint'],
+            ['accessVersion', 'bigint'],
+            ['players', [PlayerJoin]],
+            ['deposits', [PlayerDeposit]],
+            ['servers', [ServerJoin]],
+            ['transactorAddr', { kind: 'option', type: 'string' }],
+            ['votes', [Vote]],
+            ['unlockTime', { kind: 'option', type: 'bigint' }],
+            ['maxPlayers', 'u16'],
+            ['minDeposit', 'bigint'],
+            ['maxDeposit', 'bigint'],
+            ['dataLen', 'u32'],
+            ['data', 'bytes'],
+          ],
+        },
+      ],
+    ]);
   }
 }
-
-const gameAccountSchema = new Map<Function, any>([
-  [
-    PlayerJoin,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['position', 'u16'],
-        ['balance', 'bigint'],
-        ['accessVersion', 'bigint'],
-      ],
-    },
-  ],
-  [
-    ServerJoin,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['endpoint', 'string'],
-        ['accessVersion', 'bigint'],
-      ],
-    },
-  ],
-  [
-    PlayerDeposit,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['amount', 'bigint'],
-        ['settleVersion', 'bigint'],
-      ],
-    },
-  ],
-  [
-    Vote,
-    {
-      kind: 'struct',
-      fields: [
-        ['voter', 'string'],
-        ['votee', 'string'],
-        ['voteType', 'u8'],
-      ],
-    },
-  ],
-  [
-    GameAccount,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['title', 'string'],
-        ['bundleAddr', 'string'],
-        ['tokenAddr', 'string'],
-        ['ownerAddr', 'string'],
-        ['settleVersion', 'bigint'],
-        ['accessVersion', 'bigint'],
-        ['players', [PlayerJoin]],
-        ['deposits', [PlayerDeposit]],
-        ['servers', [ServerJoin]],
-        ['transactorAddr', { kind: 'option', type: 'string' }],
-        ['votes', [Vote]],
-        ['unlockTime', { kind: 'option', type: 'bigint' }],
-        ['maxPlayers', 'u16'],
-        ['minDeposit', 'bigint'],
-        ['maxDeposit', 'bigint'],
-        ['dataLen', 'u32'],
-        ['data', 'bytes'],
-      ],
-    },
-  ],
-]);
 
 export class GameBundle implements IGameBundle {
   readonly uri!: string;
@@ -262,26 +282,27 @@ export class GameBundle implements IGameBundle {
     Object.assign(this, fields);
   }
   serialize(): Uint8Array {
-    return borsh.serialize(gameBundleSchema, this, ExtendedWriter);
+    return borsh.serialize(GameBundle.schema, this, ExtendedWriter);
   }
   static deserialize(data: Uint8Array) {
-    return borsh.deserialize(gameBundleSchema, GameBundle, Buffer.from(data), ExtendedReader);
+    return borsh.deserialize(GameBundle.schema, GameBundle, Buffer.from(data), ExtendedReader);
+  }
+  static get schema(): Map<Function, any> {
+    return new Map<Function, any>([
+      [
+        GameBundle,
+        {
+          kind: 'struct',
+          fields: [
+            ['uri', 'string'],
+            ['name', 'string'],
+            ['data', 'bytes'],
+          ],
+        },
+      ],
+    ]);
   }
 }
-
-const gameBundleSchema = new Map<Function, any>([
-  [
-    GameBundle,
-    {
-      kind: 'struct',
-      fields: [
-        ['uri', 'string'],
-        ['name', 'string'],
-        ['data', 'bytes'],
-      ],
-    },
-  ],
-]);
 
 export class GameRegistration implements IGameRegistration {
   readonly title!: string;
@@ -290,6 +311,21 @@ export class GameRegistration implements IGameRegistration {
   readonly bundleAddr!: string;
   constructor(fields: IGameRegistration) {
     Object.assign(this, fields);
+  }
+  static get schema(): Map<Function, any> {
+    return new Map([
+      [GameRegistration,
+        {
+          kind: 'struct',
+          fields: [
+            ['title', 'string'],
+            ['addr', 'string'],
+            ['regTime', 'bigint'],
+            ['bundleAddr', 'string'],
+          ],
+        }
+      ]
+    ]);
   }
 }
 
@@ -303,40 +339,30 @@ export class RegistrationAccount implements IRegistrationAccount {
     Object.assign(this, fields);
   }
   serialize(): Uint8Array {
-    return borsh.serialize(registrationAccountSchema, this, ExtendedWriter);
+    return borsh.serialize(RegistrationAccount.schema, this, ExtendedWriter);
   }
   static deserialize(data: Uint8Array) {
-    return borsh.deserialize(registrationAccountSchema, RegistrationAccount, Buffer.from(data), ExtendedReader);
+    return borsh.deserialize(RegistrationAccount.schema, RegistrationAccount, Buffer.from(data), ExtendedReader);
+  }
+  static get schema(): Map<Function, any> {
+    return new Map<Function, any>([
+      ...GameRegistration.schema,
+      [
+        RegistrationAccount,
+        {
+          kind: 'struct',
+          fields: [
+            ['addr', 'string'],
+            ['isPrivate', 'bool'],
+            ['size', 'u16'],
+            ['owner', { kind: 'option', type: 'string' }],
+            ['games', [GameRegistration]],
+          ],
+        },
+      ],
+    ]);
   }
 }
-
-const registrationAccountSchema = new Map<Function, any>([
-  [
-    GameRegistration,
-    {
-      kind: 'struct',
-      fields: [
-        ['title', 'string'],
-        ['addr', 'string'],
-        ['regTime', 'bigint'],
-        ['bundleAddr', 'string'],
-      ],
-    },
-  ],
-  [
-    RegistrationAccount,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['isPrivate', 'bool'],
-        ['size', 'u16'],
-        ['owner', { kind: 'option', type: 'string' }],
-        ['games', [GameRegistration]],
-      ],
-    },
-  ],
-]);
 
 export class PlayerProfile implements IPlayerProfile {
   readonly addr!: string;
@@ -346,23 +372,24 @@ export class PlayerProfile implements IPlayerProfile {
     Object.assign(this, fields);
   }
   serialize(): Uint8Array {
-    return borsh.serialize(playerProfileSchema, this, ExtendedWriter);
+    return borsh.serialize(PlayerProfile.schema, this, ExtendedWriter);
   }
   static deserialize(data: Uint8Array) {
-    return borsh.deserialize(playerProfileSchema, PlayerProfile, Buffer.from(data), ExtendedReader);
+    return borsh.deserialize(PlayerProfile.schema, PlayerProfile, Buffer.from(data), ExtendedReader);
+  }
+  static get schema(): Map<Function, any> {
+    return new Map([
+      [
+        PlayerProfile,
+        {
+          kind: 'struct',
+          fields: [
+            ['addr', 'string'],
+            ['nick', 'string'],
+            ['pfp', { kind: 'option', type: 'string' }],
+          ],
+        },
+      ],
+    ]);
   }
 }
-
-const playerProfileSchema = new Map([
-  [
-    PlayerProfile,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['nick', 'string'],
-        ['pfp', { kind: 'option', type: 'string' }],
-      ],
-    },
-  ],
-]);
