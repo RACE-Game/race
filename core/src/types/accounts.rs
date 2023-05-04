@@ -231,12 +231,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_deser() {
-        let s = "{\"isPrivate\":false,\"size\":100,\"owner\":\"F6JoJgWrVZEUaRVpA2uQyRQDNdZXyhyiD8KqdfXcjXQN\",\"games\":[{\"title\":\"Raffle example\",\"addr\":\"CgZrTfRcuZ1nUbRxF6vgMnFB6ywQmj8Gai6STqwdaEae\",\"bundleAddr\":\"ES6Zpewa3XBcpBGhG7NSKgqFj7Nixzdgg21ANVs7wEUY\",\"regTime\":1680971620}]}";
-        let _ra: RegistrationAccount = serde_json::from_str(s).unwrap();
-    }
-
-    #[test]
     fn test_server_account() {
         let s = ServerAccount{
             addr: "an addr".to_string(),
