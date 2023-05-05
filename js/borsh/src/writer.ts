@@ -1,4 +1,4 @@
-import { ExtendOptions, Field, IExtendReader, IExtendWriter } from "./types";
+import { HasExtendedWriter, IExtendWriter } from "./types";
 
 const textEncoder = new TextEncoder();
 
@@ -237,7 +237,7 @@ export class BinaryWriter {
     throw new Error("Not implemented yet!");
   }
 
-  writeExtended<T>(value: T, options: Required<Pick<ExtendOptions<T>, "writer" | "size">>) {
+  writeExtended<T>(value: T, options: HasExtendedWriter<T>) {
     const w = new WriteExtended(value, options.size, options.writer);
     this.#length += w.length;
     this.#writes.push(w)

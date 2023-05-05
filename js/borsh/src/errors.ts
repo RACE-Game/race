@@ -12,6 +12,14 @@ function extendedWriterNotFound(path: string[]) {
   throw new Error(`Borsh: Extended writer not found at: ${path.join(",")}`);
 }
 
+function extendedReaderNotFound(path: string[]) {
+  throw new Error(`Borsh: Extended reader not found at: ${path.join(",")}`);
+}
+
 function noSuperClassForVariant(cls: Function) {
   throw new Error(`Borsh: No super class available for class ${cls} which is decorated as variant`)
+}
+
+function invalidEnumField(path: string[]) {
+  throw new Error(`Borsh: Invalid enum field type at: ${path.join(",")}`);
 }

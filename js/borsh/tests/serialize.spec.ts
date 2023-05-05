@@ -1,7 +1,8 @@
-import { extend, field, option, serialize, struct, variant, vec } from '../src/index';
+import { deserialize, extend, field, option, serialize, struct, variant, enums, vec } from '../src/index';
 import { assert } from 'chai';
-import { ExtendOptions, IExtendWriter } from '../src/types';
+import { ExtendOptions, IExtendReader, IExtendWriter } from '../src/types';
 import { writeU32, writeU64 } from '../src/writer';
+import { readU64 } from '../src/reader';
 
 describe('Test serialize', () => {
   it('U8', () => {
@@ -17,6 +18,8 @@ describe('Test serialize', () => {
     const c = new C({ x: 1, y: 2 });
     const bs = serialize(c);
     assert.deepEqual(bs, Uint8Array.from([1, 2]));
+    const c0 = deserialize(C, bs);
+    assert.deepEqual(c, c0);
   })
 
   it('U64', () => {
@@ -35,6 +38,8 @@ describe('Test serialize', () => {
     });
     const bs = serialize(c);
     assert.deepEqual(bs, Uint8Array.from([53, 28, 220, 223, 2, 0, 0, 0, 248, 177, 67, 183, 72, 0, 0, 0]));
+    const c0 = deserialize(C, bs);
+    assert.deepEqual(c, c0);
   })
 
   it('String', () => {
@@ -50,6 +55,8 @@ describe('Test serialize', () => {
     const c = new C({ x: 'foo', y: 'barbaz' });
     const bs = serialize(c);
     assert.deepEqual(bs, Uint8Array.from([3, 0, 0, 0, 102, 111, 111, 6, 0, 0, 0, 98, 97, 114, 98, 97, 122]))
+    const c0 = deserialize(C, bs);
+    assert.deepEqual(c, c0);
   })
 
   it('Fixed sized byte array', () => {
@@ -63,6 +70,8 @@ describe('Test serialize', () => {
     const c = new C({ x: Uint8Array.of(1, 2, 3, 4) });
     const bs = serialize(c);
     assert.deepEqual(bs, Uint8Array.from([1, 2, 3, 4]))
+    const c0 = deserialize(C, bs);
+    assert.deepEqual(c, c0);
   })
 
   it('Dynamic sized byte array with vec', () => {
@@ -76,6 +85,8 @@ describe('Test serialize', () => {
     const c = new C({ x: Uint8Array.of(1, 2, 3, 4) });
     const bs = serialize(c);
     assert.deepEqual(bs, Uint8Array.from([4, 0, 0, 0, 1, 2, 3, 4]))
+    const c0 = deserialize(C, bs);
+    assert.deepEqual(c, c0);
   })
 
   it('Option', () => {
@@ -85,7 +96,8 @@ describe('Test serialize', () => {
       @field(option('string'))
       y: string | undefined;
       constructor(fields: { x?: number, y?: string }) {
-        Object.assign(this, fields);
+        this.x = fields.x;
+        this.y = fields.y;
       }
     };
     let c = new C({
@@ -94,11 +106,16 @@ describe('Test serialize', () => {
     });
     let bs = serialize(c);
     assert.deepEqual(bs, Uint8Array.from([1, 127, 1, 5, 0, 0, 0, 104, 101, 108, 108, 111]));
+    let c0 = deserialize(C, bs);
+    assert.deepEqual(c, c0);
+
     c = new C({
       y: "hello"
     });
     bs = serialize(c);
     assert.deepEqual(bs, Uint8Array.from([0, 1, 5, 0, 0, 0, 104, 101, 108, 108, 111]))
+    c0 = deserialize(C, bs);
+    assert.deepEqual(c, c0);
   })
 
   it('Extend', () => {
@@ -107,16 +124,23 @@ describe('Test serialize', () => {
         writeU64(BigInt(value.getTime()), buf, offset);
       }
     }
+    class DateReader implements IExtendReader<Date> {
+      read(buf: Uint8Array, offset: number): Date {
+        const v = readU64(buf, offset);
+        return new Date(Number(v));
+      }
+    }
     const dateOptions: ExtendOptions<Date> = {
       size: 8,
-      writer: new DateWriter()
+      writer: new DateWriter(),
+      reader: new DateReader()
     };
 
     class C {
       @field(extend(dateOptions))
-      x!: Date;
+      x: Date;
       constructor(fields: { x: Date }) {
-        Object.assign(this, fields);
+        this.x = fields.x;
       }
     };
     let c = new C({
@@ -124,6 +148,8 @@ describe('Test serialize', () => {
     });
     let bs = serialize(c);
     assert.deepEqual(bs, Uint8Array.from([0, 40, 56, 17, 126, 1, 0, 0]));
+    const c0 = deserialize(C, bs);
+    assert.deepEqual(c, c0);
   })
 
   it('Struct', () => {
@@ -162,10 +188,13 @@ describe('Test serialize', () => {
       ]
     });
     const bs = serialize(c);
-    assert.deepEqual(bs, Uint8Array.from([1, 2, 0, 0, 0, 3, 0, 0, 0, 102, 111, 111, 3, 0, 0, 0, 98, 97, 114]))})
+    assert.deepEqual(bs, Uint8Array.from([1, 2, 0, 0, 0, 3, 0, 0, 0, 102, 111, 111, 3, 0, 0, 0, 98, 97, 114]))
+    const c0 = deserialize(C, bs);
+    assert.deepEqual(c, c0);
+  })
 
   it('Enum', () => {
-    abstract class A {}
+    abstract class A { }
 
     @variant(0)
     class B extends A {
@@ -178,7 +207,7 @@ describe('Test serialize', () => {
     }
 
     @variant(1)
-    class C extends A{
+    class C extends A {
       @field('u64')
       x!: bigint;
       constructor(fields: { x: bigint }) {
@@ -187,8 +216,23 @@ describe('Test serialize', () => {
       }
     }
 
-    const c = new C({ x: BigInt(1) });
-    const bs = serialize(c);
-    assert.deepEqual(bs, Uint8Array.from([1, 1, 0, 0, 0, 0, 0, 0, 0]))
+    class D {
+      @field('u8')
+      x: number;
+
+      @field(enums(A))
+      y: A;
+
+      constructor(fields: { x: number, y: A }) {
+        this.x = fields.x;
+        this.y = fields.y;
+      }
+    }
+
+    const d = new D({ x: 1, y: new B({ x: 127 }) });
+    const bs0 = serialize(d);
+    assert.deepEqual(bs0, Uint8Array.from([1, 0, 127]));
+
+
   })
 })

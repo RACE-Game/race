@@ -1,3 +1,5 @@
+export type Ctor<T> = { new(_: any): T };
+
 export interface IExtendReader<T> {
   read(buf: Uint8Array, offset: number): T;
 }
@@ -11,6 +13,10 @@ export type ExtendOptions<T> = {
   reader?: IExtendReader<T>,
   writer?: IExtendWriter<T>,
 }
+
+export type HasExtendedWriter<T> = Required<Pick<ExtendOptions<T>, "writer" | "size">>;
+
+export type HasExtendedReader<T> = Required<Pick<ExtendOptions<T>, "reader" | "size">>;
 
 export type PrimitiveFieldType = 'u8'
   | 'u16'
@@ -31,13 +37,15 @@ export type FieldKey = PropertyKey;
 
 export type ByteArrayFieldType = number;
 
+export type EnumFieldType = { kind: 'enum', value: Function };
+
 export type VecFieldType = { kind: 'vec', value: FieldType };
 
 export type MapFieldType = { kind: 'map', value: FieldType };
 
 export type OptionFieldType = { kind: 'option', value: FieldType };
 
-export type StructFieldType = { kind: 'struct', value: Function };
+export type StructFieldType<T> = { kind: 'struct', value: Ctor<T> };
 
 export type ExtendFieldType<T> = { kind: 'extend', value: ExtendOptions<T> };
 
@@ -46,7 +54,23 @@ export type FieldType = PrimitiveFieldType
   | VecFieldType
   | MapFieldType
   | OptionFieldType
-  | StructFieldType
+  | EnumFieldType
+  | StructFieldType<any>
   | ExtendFieldType<any>;
 
 export type Field = [FieldKey, FieldType]
+
+export function isPrimitiveType(fieldType: FieldType):
+  fieldType is PrimitiveFieldType {
+  return typeof fieldType === 'string'
+}
+
+export function hasExtendWriter<T>(options: ExtendOptions<T>):
+  options is HasExtendedWriter<T> {
+  return options.writer !== undefined;
+}
+
+export function hasExtendReader<T>(options: ExtendOptions<T>):
+  options is HasExtendedReader<T> {
+  return options.reader !== undefined;
+}
