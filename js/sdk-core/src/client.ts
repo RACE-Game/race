@@ -6,24 +6,24 @@ import { makeCustomEvent } from './events';
 import { GameContext } from './game-context';
 
 type OpIdent =
-  {
-    kind: 'random-secret';
-    randomId: bigint;
-    toAddr: string | undefined;
-    index: number
-  } |
-  {
-    kind: 'answer-secret';
-    decisionId: bigint;
-  } |
-  {
-    kind: 'lock',
-    randomId: bigint;
-  } |
-  {
-    kind: 'mask',
-    randomId: bigint;
-  };
+  | {
+      kind: 'random-secret';
+      randomId: bigint;
+      toAddr: string | undefined;
+      index: number;
+    }
+  | {
+      kind: 'answer-secret';
+      decisionId: bigint;
+    }
+  | {
+      kind: 'lock';
+      randomId: bigint;
+    }
+  | {
+      kind: 'mask';
+      randomId: bigint;
+    };
 
 export class Client {
   #encryptor: IEncryptor;
@@ -48,24 +48,23 @@ export class Client {
     const key = this.#encryptor.exportPublicKey(undefined);
     await this.#connection.attachGame({
       addr: this.#gameAddr,
-      key
+      key,
     });
   }
 
   async submitEvent(event: any): Promise<void> {
     await this.#connection.submitEvent({
       addr: this.#gameAddr,
-      event
+      event,
     });
   }
 
   async submitCustomEvent(customEvent: any): Promise<void> {
     const event = makeCustomEvent(this.#gameAddr, customEvent);
-    await this.#connection.submitEvent(
-      {
-        addr: this.#gameAddr,
-        event
-      });
+    await this.#connection.submitEvent({
+      addr: this.#gameAddr,
+      event,
+    });
   }
 
   async handleDecision(ctx: GameContext): Promise<Event[]> {

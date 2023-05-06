@@ -1,7 +1,7 @@
 {
   /* Visit https://aka.ms/tsconfig to read more about this file */
   "$schema": "https://json.schemastore.org/tsconfig",
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "tests/**/*"],
   "compilerOptions": {
     "module": "es2020",
     "target": "es2020",
@@ -11,5 +11,6 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
+    "experimentalDecorators": true
   }
 }

@@ -1,11 +1,9 @@
-import { IConnection } from "./connection";
-import { GameContext } from "./game-context";
-import { ITransport } from "./transport";
-import { IWallet } from "./wallet";
+import { IConnection } from './connection';
+import { GameContext } from './game-context';
+import { ITransport } from './transport';
+import { IWallet } from './wallet';
 
-
-export type EventCallbackFunction =
-  (context: GameContext, state: Uint8Array, event: Event | undefined) => void
+export type EventCallbackFunction = (context: GameContext, state: Uint8Array, event: Event | undefined) => void;
 
 export class AppClient {
   #addr: string;
@@ -25,11 +23,10 @@ export class AppClient {
   }
 
   get playerAddr() {
-    return this.#wallet.walletAddr
+    return this.#wallet.walletAddr;
   }
 
   get gameAddr() {
     return this.#addr;
   }
-
 }

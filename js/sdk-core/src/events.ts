@@ -1,335 +1,59 @@
-import * as borsh from "borsh";
-import { ExtendedWriter, ExtendedReader } from './utils';
-import { Buffer } from 'buffer';
+import { deserialize, serialize, field, vec, enums, option, variant, struct } from '@race/borsh';
 import { PlayerJoin, ServerJoin } from './accounts';
-
-export interface IRandom {
-  fromAddr: string;
-  toAddr: string | undefined;
-  randomId: bigint;
-  index: number;
-  secret: Uint8Array;
-}
-
-export interface IAnswer {
-  fromAddr: string;
-  decisionId: bigint;
-  secret: Uint8Array;
-}
-
-export enum EventKind {
-  Custom = 0,
-  Ready,
-  ShareSecrets,
-  SecretsReady,
-  Shutdown,
-}
-
-export interface IGameEvent {
-  kind: EventKind;
-}
-
-export interface ICustom {
-  sender: string;
-  raw: Uint8Array;
-}
-
-export enum ShareKind {
-  Random = 0,
-  Answer,
-}
-
-export interface ISecretShare {
-  kind: ShareKind;
-}
-
-export interface IShareSecrets {
-  sender: string;
-  shares: SecretShare[];
-}
-
-export interface IReady { }
-export interface ISecretsReady { }
-export interface IShutdown { }
-
-export class Random implements IRandom, ISecretShare {
-  fromAddr!: string;
-  toAddr!: string | undefined;
-  randomId!: bigint;
-  index!: number;
-  secret!: Uint8Array;
-  constructor(fields: IRandom) {
-    Object.assign(this, fields);
-  }
-  get kind() { return ShareKind.Random }
-  static get schema(): Map<Function, any> {
-    return new Map([
-      [Random, {
-        kind: 'struct',
-        fields: [
-          ['kind', 'u8'],
-          ['fromAddr', 'string'],
-          ['toAddr', 'string'],
-          ['randomId', 'bigint'],
-          ['index', 'u32'],
-          ['secret', 'bytes'],
-        ]
-      }]
-    ])
-  }
-}
-
-export class Answer implements IAnswer, ISecretShare {
-  fromAddr!: string;
-  decisionId!: bigint;
-  secret!: Uint8Array;
-  constructor(fields: IAnswer) {
-    Object.assign(this, fields)
-  }
-  get kind() { return ShareKind.Answer }
-  static get schema(): Map<Function, any> {
-    return new Map([
-      [Answer, {
-        kind: 'struct',
-        fields: [
-          ['kind', 'u8'],
-          ['fromAddr', 'string'],
-          ['decisionId', 'bigint'],
-          ['secret', 'bytes']
-        ]
-      }]
-    ])
-  }
-}
-
-export type SecretShare = Answer | Random;
-
-export class Custom implements ICustom, IGameEvent {
-  sender: string;
-  raw: Uint8Array;
-  constructor(fields: ICustom) {
-    this.sender = fields.sender;
-    this.raw = fields.raw;
-  }
-  get kind() { return EventKind.Custom }
-  static get schema(): Map<Function, any> {
-    return new Map([
-      [Custom, {
-        kind: 'struct',
-        fields: [
-          ['kind', 'u8'],
-          ['sender', 'string'],
-          ['raw', 'bytes']
-        ]
-      }]
-    ])
-  }
-}
-
-export class Ready implements IReady, IGameEvent {
-  constructor(_: any = {}) { }
-  get kind() { return EventKind.Ready }
-  static get schema(): Map<Function, any> {
-    return new Map([[Ready, { kind: 'struct', fields: [['kind', 'u8']] }]])
-  }
-  static default(): Ready {
-    return new Ready({});
-  }
-}
-
-export class ShareSecrets implements IShareSecrets, IGameEvent {
-  sender: string;
-  shares: SecretShare[];
-  constructor(fields: IShareSecrets) {
-    this.sender = fields.sender;
-    this.shares = fields.shares;
-  }
-  get kind() { return EventKind.ShareSecrets };
-  static get schema(): Map<Function, any> {
-    return new Map([
-      [ShareSecrets, {
-        kind: 'struct',
-        fields: [
-          ['sender', 'string'],
-          ['shares', []]
-        ]
-      }]
-    ]);
-  }
-}
-
-
-export class SecretsReady implements ISecretsReady, IGameEvent {
-  constructor(_: any = {}) { }
-  get kind() { return EventKind.SecretsReady }
-  static get schema(): Map<Function, any> {
-    return new Map([[SecretsReady, { kind: 'struct', fields: [['kind', 'u8']] }]])
-  }
-  static default(): SecretsReady {
-    return new SecretsReady({});
-  }
-}
-
-export class Shutdown implements IShutdown, IGameEvent {
-  constructor(_: any = {}) { }
-  get kind() { return EventKind.Shutdown }
-  static get schema(): Map<Function, any> {
-    return new Map([[Shutdown, { kind: 'struct', fields: [['kind', 'u8']] }]])
-  }
-  static default(): Shutdown {
-    return new Shutdown({});
-  }
-}
-
-export type EventValue = Custom
-  | Ready
-  | ShareSecrets
-  | SecretsReady
-  | Shutdown;
-
-export class GameEvent {
-  kind: EventKind;
-  value: EventValue;
-  constructor(kind: EventKind, value: EventValue) {
-    this.kind = kind;
-    this.value = value;
-  }
-  static deserialize(data: Uint8Array) {
-    const kind = data[0] as EventKind;
-    const buf = Buffer.from(data.slice(1));
-    let value;
-    switch (kind) {
-      case EventKind.Custom:
-        value = borsh.deserialize(Custom.schema, Custom, buf, ExtendedReader);
-        break;
-      case EventKind.Ready:
-        value = Ready.default;
-        break;
-      case EventKind.ShareSecrets:
-        value = borsh.deserialize(ShareSecrets.schema, , )
-      case EventKind.SecretsReady:
-      case EventKind.Shutdown:
-    }
-    return new GameEvent(kind, value);
-  }
-}
-
-export function serializeEvent(event: GameEvent): Uint8Array {
-  switch (event.kind) {
-    case EventKind.Custom:
-      return borsh.serialize(Custom.schema, event, ExtendedWriter);
-    case EventKind.Ready:
-      return borsh.serialize(Ready.schema, event, ExtendedWriter);
-    case EventKind.ShareSecrets:
-      return borsh.serialize(ShareSecrets.schema, event, ExtendedWriter);
-    case EventKind.SecretsReady:
-      return borsh.serialize(SecretsReady.schema, event, ExtendedWriter);
-    case EventKind.Shutdown:
-      return borsh.serialize(Shutdown.schema, event, ExtendedWriter);
-  }
-}
-
-export function deserializeEvent(data: Uint8Array): GameEvent {
-  let kind = data[0] as EventKind;
-  switch (kind) {
-    case EventKind.Custom:
-      return borsh.deserialize(Custom.schema, Custom, Buffer.from(data), ExtendedReader);
-    case EventKind.Ready:
-      return borsh.deserialize(Ready.schema, Ready, Buffer.from(data), ExtendedReader);
-  }
-}
-
-export type _GameEvent =
-  {
-    Custom: {
-      sender: string;
-      raw: string;
-    }
-  }
-  | "Ready"
-  | {
-    ShareSecrets: {
-      sender: string;
-      shares: SecretShare[];
-    }
-  }
-  | {
-    OperationTimeout: {
-      addrs: string[];
-    }
-  }
-  | {
-    Mask: {
-      sender: string;
-      random_id: bigint;
-      ciphertexts: Uint8Array,
-    }
-  }
-  | {
-    Lock: {
-      sender: string;
-      random_id: bigint;
-      ciphertexs_and_digests: Array<[Uint8Array, Uint8Array]>;
-    }
-  }
-  | {
-    RandomnessReady: {
-      random_id: bigint,
-    }
-  }
-  | {
-    Sync: {
-      new_players: PlayerJoin[],
-      new_servers: ServerJoin[],
-      transactor_addr: string;
-      access_version: bigint,
-    }
-  }
-  | {
-    ServerLeave: {
-      server_addr: string;
-      transactor_addr: string;
-    }
-  }
-  | {
-    Leave: {
-      player_addr: string;
-    }
-  }
-  | {
-    GameStart: {
-      access_version: bigint;
-    }
-  }
-  | "WaitingTimeout"
-  | {
-    DrawRandomItems: {
-      sender: string;
-      random_id: number;
-      indexes: number[];
-    }
-  }
-  | "DrawTimeout"
-  | {
-    ActionTimeout: {
-      player_addr: string;
-    }
-  }
-  | {
-    AnswerDecision: {
-      sender: string;
-      decision_id: bigint;
-      ciphertext: Uint8Array;
-      digest: Uint8Array;
-    }
-  }
-  | "SecretsReady"
-  | "Shutdown";
-
 
 export interface ICustomEvent {
   serialize(): Uint8Array;
   deserialize(data: Uint8Array): ICustomEvent;
+}
+
+type Fields<T> = Pick<T, keyof T>;
+
+export abstract class SecretShare {}
+
+@variant(0)
+export class Random extends SecretShare {
+  @field('string')
+  fromAddr!: string;
+  @field(option('string'))
+  toAddr!: string | undefined;
+  @field('u64')
+  randomId!: bigint;
+  @field('u32')
+  index!: number;
+  @field(vec('u8'))
+  secret!: Uint8Array;
+  constructor(fields: Fields<Random>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(1)
+export class Answer extends SecretShare {
+  @field('string')
+  fromAddr!: string;
+  @field('u64')
+  decisionId!: bigint;
+  @field(vec('u8'))
+  secret!: Uint8Array;
+  constructor(fields: Fields<Answer>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+export abstract class GameEvent {}
+
+@variant(0)
+export class Custom extends GameEvent {
+  @field('string')
+  sender!: string;
+  @field(vec('u8'))
+  raw!: Uint8Array;
+  constructor(fields: Fields<Custom>) {
+    super();
+    Object.assign(this, fields);
+  }
 }
 
 export function makeCustomEvent(sender: string, customEvent: ICustomEvent): Custom {
@@ -337,4 +61,197 @@ export function makeCustomEvent(sender: string, customEvent: ICustomEvent): Cust
     sender,
     raw: customEvent.serialize(),
   });
+}
+
+@variant(1)
+export class Ready extends GameEvent {
+  constructor(_: any = {}) {
+    super();
+  }
+}
+
+@variant(2)
+export class ShareSecrets extends GameEvent {
+  @field('string')
+  sender!: string;
+  @field(vec(enums(SecretShare)))
+  shares!: SecretShare[];
+  constructor(fields: Fields<ShareSecrets>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(3)
+export class OperationTimeout extends GameEvent {
+  @field(vec('string'))
+  addrs!: string[];
+  constructor(fields: Fields<OperationTimeout>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(4)
+export class Mask extends GameEvent {
+  @field('string')
+  sender!: string;
+  @field('u64')
+  randomId!: bigint;
+  @field(vec(vec('u8')))
+  ciphertexts!: Uint8Array[];
+  constructor(fields: Fields<Mask>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+export class CiphertextAndDigest {
+  @field(vec('u8'))
+  ciphertext!: Uint8Array;
+  @field(vec('u8'))
+  digest!: Uint8Array;
+  constructor(fields: Fields<CiphertextAndDigest>) {
+    Object.assign(this, fields);
+  }
+}
+
+@variant(5)
+export class Lock extends GameEvent {
+  @field('string')
+  sender!: string;
+  @field('u64')
+  randomId!: bigint;
+  @field(vec(struct(CiphertextAndDigest)))
+  ciphertextsAndDigests!: CiphertextAndDigest[];
+  constructor(fields: Fields<Lock>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(6)
+export class RandomnessReady extends GameEvent {
+  @field('u64')
+  randomId!: bigint;
+  constructor(fields: Fields<RandomnessReady>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(7)
+export class Sync extends GameEvent {
+  @field(vec(struct(PlayerJoin)))
+  newPlayers!: PlayerJoin[];
+  @field(vec(struct(ServerJoin)))
+  newServers!: ServerJoin[];
+  @field('string')
+  transactorAddr!: string;
+  @field('u64')
+  accessVersion!: bigint;
+  constructor(fields: Fields<Sync>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(8)
+export class ServerLeave extends GameEvent {
+  @field('string')
+  serverAddr!: string;
+  @field('string')
+  transactorAddr!: string;
+  constructor(fields: Fields<ServerLeave>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(9)
+export class Leave extends GameEvent {
+  @field('string')
+  playerAddr!: string;
+  constructor(fields: Fields<Leave>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(10)
+export class GameStart extends GameEvent {
+  @field('u64')
+  accessVersion!: bigint;
+  constructor(fields: Fields<GameStart>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(11)
+export class WaitingTimeout extends GameEvent {
+  constructor(_: {}) {
+    super();
+  }
+}
+
+@variant(12)
+export class DrawRandomItems extends GameEvent {
+  @field('string')
+  sender!: string;
+  @field('u64')
+  randomId!: bigint;
+  @field(vec('u32'))
+  indexes!: number[];
+  constructor(fields: Fields<DrawRandomItems>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(13)
+export class DrawTimeout extends GameEvent {
+  constructor(_: {}) {
+    super();
+  }
+}
+
+@variant(14)
+export class ActionTimeout extends GameEvent {
+  @field('string')
+  playerAddr!: string;
+  constructor(fields: Fields<ActionTimeout>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(15)
+export class AnswerDecision extends GameEvent {
+  @field('string')
+  sender!: string;
+  @field('u64')
+  decisionId!: bigint;
+  @field(vec('u8'))
+  cihpertext!: Uint8Array;
+  @field(vec('u8'))
+  digest!: Uint8Array;
+  constructor(fields: Fields<AnswerDecision>) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(16)
+export class SecretsReady extends GameEvent {
+  constructor(_: any = {}) {
+    super();
+  }
+}
+
+@variant(17)
+export class Shutdown extends GameEvent {
+  constructor(_: any = {}) {
+    super();
+  }
 }

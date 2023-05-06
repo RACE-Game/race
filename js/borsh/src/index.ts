@@ -1,7 +1,22 @@
-import { VecFieldType, Field, FieldKey, FieldType, OptionFieldType, StructFieldType, ExtendOptions, ExtendFieldType, Ctor, isPrimitiveType, hasExtendReader, hasExtendWriter, EnumFieldType } from './types';
-import { BinaryWriter } from "./writer";
-import { BinaryReader } from "./reader";
-
+import {
+  VecFieldType,
+  Field,
+  FieldKey,
+  FieldType,
+  OptionFieldType,
+  StructFieldType,
+  ExtendOptions,
+  ExtendFieldType,
+  Ctor,
+  isPrimitiveType,
+  hasExtendReader,
+  hasExtendWriter,
+  EnumFieldType,
+  EnumClass,
+} from './types';
+import { BinaryWriter } from './writer';
+import { BinaryReader } from './reader';
+import { invalidByteArrayLength, extendedWriterNotFound, extendedReaderNotFound, invalidEnumField } from './errors';
 
 function addSchemaField(prototype: any, key: FieldKey, fieldType: FieldType) {
   let fields: Field[] = prototype.__schema_fields || [];
@@ -10,22 +25,30 @@ function addSchemaField(prototype: any, key: FieldKey, fieldType: FieldType) {
 }
 
 function getSchemaFields(prototype: any): Field[] {
-  return prototype.__schema_fields
+  return prototype.__schema_fields || [];
 }
 
-function addSchemaVariant(prototype: any, variant: number) {
-  prototype.__schema_variant = variant;
-  const superClass = Object.getPrototypeOf(prototype).constructor;
+function addSchemaVariant<T>(ctor: Ctor<T>, variant: number) {
+  ctor.prototype.__schema_variant = variant;
+  const superClass = Object.getPrototypeOf(ctor.prototype).constructor;
   let enumVariants = superClass.prototype.__schema_enum_variants || [];
-  enumVariants.push(prototype);
+  enumVariants.push(ctor);
   superClass.prototype.__schema_enum_variants = enumVariants;
 }
 
 function getSchemaVariant(prototype: any): number | undefined {
-  return prototype.__schema_variant
+  return prototype.__schema_variant;
 }
 
-function getSchemaEnumVarients(prototype: any): any[] | undefined {
+function isVariantObject(obj: any): boolean {
+  return getSchemaVariant(Object.getPrototypeOf(obj)) !== undefined;
+}
+
+function isEnumClass<T>(obj: any): obj is EnumClass<T> {
+  return getSchemaEnumVariants(obj.prototype) !== undefined;
+}
+
+function getSchemaEnumVariants(prototype: any): any[] | undefined {
   return prototype.__schema_enum_variants;
 }
 
@@ -33,20 +56,15 @@ function serializeValue(path: string[], value: any, fieldType: FieldType, writer
   if (isPrimitiveType(fieldType)) {
     if (fieldType === 'u8') {
       writer.writeU8(value);
-    }
-    else if (fieldType === 'u16') {
+    } else if (fieldType === 'u16') {
       writer.writeU16(value);
-    }
-    else if (fieldType === 'u32') {
+    } else if (fieldType === 'u32') {
       writer.writeU32(value);
-    }
-    else if (fieldType === 'u64') {
+    } else if (fieldType === 'u64') {
       writer.writeU64(value);
-    }
-    else if (fieldType === 'bool') {
+    } else if (fieldType === 'bool') {
       writer.writeBool(value);
-    }
-    else if (fieldType === 'string') {
+    } else if (fieldType === 'string') {
       writer.writeString(value);
     }
   } else if (typeof fieldType === 'number') {
@@ -54,8 +72,7 @@ function serializeValue(path: string[], value: any, fieldType: FieldType, writer
       invalidByteArrayLength(path, fieldType, value.length);
     }
     writer.writeByteArray(value);
-  }
-  else {
+  } else {
     const { kind, value: v } = fieldType;
     if (kind === 'option') {
       if (value === undefined || value === null) {
@@ -64,20 +81,16 @@ function serializeValue(path: string[], value: any, fieldType: FieldType, writer
         writer.writeU8(1);
         serializeValue([...path, '<OptionValue>'], value, v, writer);
       }
-    }
-    else if (kind === 'vec') {
+    } else if (kind === 'vec') {
       writer.writeU32(value.length);
       for (let i = 0; i < value.length; i++) {
         serializeValue([...path, `<Vec[${i}]>`], value[i], v, writer);
       }
-    }
-    else if (kind === 'struct') {
+    } else if (kind === 'struct') {
       serializeStruct(path, value, writer);
-    }
-    else if (kind === 'enum') {
+    } else if (kind === 'enum') {
       serializeEnum(path, value, writer);
-    }
-    else if (kind === 'extend') {
+    } else if (kind === 'extend') {
       if (hasExtendWriter(v)) {
         writer.writeExtended(value, v);
       } else {
@@ -102,11 +115,9 @@ function deserializeValue(path: string[], fieldType: FieldType, reader: BinaryRe
     } else if (fieldType === 'string') {
       return reader.readString();
     }
-  }
-  else if (typeof fieldType === 'number') {
+  } else if (typeof fieldType === 'number') {
     return reader.readByteArray(fieldType);
-  }
-  else {
+  } else {
     const { kind, value } = fieldType;
     if (kind === 'vec') {
       let vec = [];
@@ -146,7 +157,7 @@ function serializeField(path: string[], obj: any, field: Field, writer: BinaryWr
   const [key, fieldType] = field;
   const k = key.toString();
   const value = obj[k];
-  serializeValue([...path, k], value, fieldType, writer)
+  serializeValue([...path, k], value, fieldType, writer);
 }
 
 function deserializeField(path: string[], obj: Record<string, any>, field: Field, reader: BinaryReader): Object {
@@ -158,7 +169,7 @@ function deserializeField(path: string[], obj: Record<string, any>, field: Field
 }
 
 function serializeEnum<T>(path: string[], obj: T, writer: BinaryWriter) {
-  const prototype = Object.getPrototypeOf(obj)
+  const prototype = Object.getPrototypeOf(obj);
   const variant = getSchemaVariant(prototype);
   if (variant !== undefined) {
     writer.writeU8(variant);
@@ -169,7 +180,7 @@ function serializeEnum<T>(path: string[], obj: T, writer: BinaryWriter) {
 }
 
 function serializeStruct<T>(path: string[], obj: T, writer: BinaryWriter) {
-  const prototype = Object.getPrototypeOf(obj)
+  const prototype = Object.getPrototypeOf(obj);
   const fields = getSchemaFields(prototype);
   for (const field of fields) {
     serializeField(path, obj, field, writer);
@@ -178,7 +189,7 @@ function serializeStruct<T>(path: string[], obj: T, writer: BinaryWriter) {
 
 function deserializeEnum(path: string[], enumClass: Function, reader: BinaryReader): any {
   const prototype = enumClass.prototype;
-  const enumVariants = getSchemaEnumVarients(prototype);
+  const enumVariants = getSchemaEnumVariants(prototype);
   if (enumVariants instanceof Array) {
     const i = reader.readU8();
     const variant = enumVariants[i];
@@ -199,15 +210,15 @@ function deserializeStruct<T>(path: string[], ctor: Ctor<T>, reader: BinaryReade
 }
 
 export function field(fieldType: FieldType) {
-  return function(target: any, key: PropertyKey) {
+  return function (target: any, key: PropertyKey) {
     addSchemaField(target.constructor.prototype, key, fieldType);
-  }
+  };
 }
 
 export function variant(variant: number) {
-  return function(target: Function) {
-    addSchemaVariant(target.prototype, variant);
-  }
+  return function <T>(target: Ctor<T>) {
+    addSchemaVariant(target, variant);
+  };
 }
 
 export function extend<T>(options: ExtendOptions<T>): ExtendFieldType<T> {
@@ -232,11 +243,26 @@ export function enums(enumClass: Function): EnumFieldType {
 
 export function serialize(obj: any): Uint8Array {
   const writer = new BinaryWriter();
-  serializeStruct([], obj, writer);
+  if (isVariantObject(obj)) {
+    serializeEnum([], obj, writer);
+  } else {
+    serializeStruct([], obj, writer);
+  }
   return writer.toArray();
 }
 
-export function deserialize<T>(ctor: Ctor<T>, data: Uint8Array): T {
+export function deserialize<T>(enumClass: EnumClass<T>, data: Uint8Array): T;
+export function deserialize<T>(ctor: Ctor<T>, data: Uint8Array): T;
+export function deserialize<T>(classType: Ctor<T> | EnumClass<T>, data: Uint8Array): T {
   const reader = new BinaryReader(data);
-  return deserializeStruct([], ctor, reader);
+  if (isEnumClass(classType)) {
+    return deserializeEnum([], classType, reader);
+  } else {
+    return deserializeStruct([], classType, reader);
+  }
+}
+
+export function deserializeVariant<T>(enumClass: Function & { prototype: T }, data: Uint8Array): T {
+  const reader = new BinaryReader(data);
+  return deserializeEnum([], enumClass, reader);
 }

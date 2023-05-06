@@ -1,32 +1,31 @@
-import { Chain } from './common'
-import { GameEvent } from './events'
+import { Chain } from './common';
+import { GameEvent } from './events';
 
 export interface AttachGameParams {
-  addr: string
-  key: string
+  addr: string;
+  key: string;
 }
 
 export interface GetStateParams {
-  addr: string
+  addr: string;
 }
 
 export interface SubscribeEventParams {
-  addr: string
+  addr: string;
 }
 
 export interface SubmitEventParams {
-  addr: string
-  event: GameEvent
+  addr: string;
+  event: GameEvent;
 }
 
 export interface BroadcastFrame {
-  gameAddr: string
-  state: any
-  event: GameEvent
+  gameAddr: string;
+  state: any;
+  event: GameEvent;
 }
 
 export interface IConnection {
-
   attachGame(params: AttachGameParams): Promise<void>;
 
   submitEvent(params: SubmitEventParams): Promise<void>;

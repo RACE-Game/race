@@ -9,10 +9,10 @@ export class RandomState {
   }
 
   get id() {
-    return this.#id
+    return this.#id;
   }
 
   get size() {
-    return this.#size
+    return this.#size;
   }
 }

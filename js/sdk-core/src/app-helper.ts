@@ -1,6 +1,6 @@
-import { GameAccount, PlayerProfile } from "./accounts";
-import { CreateGameAccountParams, ITransport } from "./transport";
-import { IWallet } from "./wallet";
+import { GameAccount, PlayerProfile } from './accounts';
+import { CreateGameAccountParams, ITransport } from './transport';
+import { IWallet } from './wallet';
 
 /**
  * The helper for common interaction.
@@ -9,7 +9,7 @@ import { IWallet } from "./wallet";
  * @beta
  */
 export class AppHelper {
-  #transport: ITransport
+  #transport: ITransport;
 
   constructor(transport: ITransport) {
     this.#transport = transport;
@@ -59,7 +59,8 @@ export class AppHelper {
    */
   async registerGame(wallet: IWallet, gameAddr: string, regAddr: string) {
     await this.#transport.registerGame(wallet, {
-      gameAddr, regAddr
+      gameAddr,
+      regAddr,
     });
   }
 
@@ -72,7 +73,8 @@ export class AppHelper {
    */
   async createProfile(wallet: IWallet, nick: string, pfp: string | undefined) {
     await this.#transport.createPlayerProfile(wallet, {
-      nick, pfp
+      nick,
+      pfp,
     });
   }
 
@@ -83,6 +85,6 @@ export class AppHelper {
    * @returns The player profile account or undefined when not found
    */
   async getProfile(addr: string): Promise<PlayerProfile | undefined> {
-    return await this.#transport.getPlayerProfile(addr)
+    return await this.#transport.getPlayerProfile(addr);
   }
 }

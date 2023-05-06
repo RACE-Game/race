@@ -1,5 +1,3 @@
-
-
 export interface IAsk {
   playerAddr: string;
 }
@@ -27,7 +25,7 @@ export interface IActionTimeout {
 export class Ask implements IAsk {
   playerAddr!: string;
   constructor(fields: IAsk) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 }
 
@@ -36,7 +34,7 @@ export class Assign implements IAssign {
   playerAddr!: string;
   indexes!: Uint16Array;
   constructor(fields: IAssign) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 }
 
@@ -44,7 +42,7 @@ export class IReveal {
   randomId!: bigint;
   indexes!: Uint16Array;
   constructor(fields: IReveal) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 }
 
@@ -58,5 +56,5 @@ export class IActionTimeout {
 }
 
 export class Effect {
-  actionTimeout: ActionTimeout
+  actionTimeout: ActionTimeout;
 }

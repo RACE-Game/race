@@ -1,58 +1,71 @@
-import { makeCustomEvent, GameEvent, ICustomEvent, Custom, serializeEvent, deserializeEvent, Ready, SecretsReady, Shutdown } from '../src/events';
+import { makeCustomEvent, ICustomEvent, Custom, Ready, SecretsReady, Shutdown, ShareSecrets, Random, Answer, GameEvent } from '../src/events';
 import { assert } from 'chai';
-import { Buffer } from 'buffer';
-import * as borsh from 'borsh';
+import { deserialize, serialize, field } from '@race/borsh';
 
 class TestCustom implements ICustomEvent {
+  @field('u32')
   n: number;
   constructor(fields: { n: number }) {
     this.n = fields.n;
   }
   serialize(): Uint8Array {
-    return borsh.serialize(TestCustom.schema, this);
+    return serialize(this);
   }
   deserialize(data: Uint8Array): ICustomEvent {
-    return borsh.deserialize(TestCustom.schema, TestCustom, Buffer.from(data))
-  }
-  static get schema(): Map<Function, any> {
-    return new Map([
-      [TestCustom, {
-        kind: 'struct',
-        fields: [
-          ['n', 'u32'],
-        ]
-      }]
-    ])
+    return deserialize(TestCustom, data);
   }
 }
 
 describe('Serialization', () => {
   it('Custom', () => {
     let e = makeCustomEvent("alice", new TestCustom({ n: 100 }))
-    let data = serializeEvent(e);
-    let e1 = deserializeEvent(data);
+    let data = serialize(e);
+    let e1 = deserialize(GameEvent, data);
     assert.deepStrictEqual(e, e1);
   })
 
   it('Ready', () => {
-    let e = Ready.default();
-    let data = serializeEvent(e);
-    let e1 = deserializeEvent(data);
-    assert.deepStrictEqual(e, e1);
+    let e = new Ready({});
+    let data = serialize(e);
+    let e1 = deserialize(GameEvent, data);
+    assert.deepStrictEqual(e1, e);
+  })
+
+  it('ShareSecrets', () => {
+    let e = new ShareSecrets({
+      sender: 'alice',
+      shares: [
+        new Random({
+          fromAddr: 'alice',
+          toAddr: 'bob',
+          randomId: 1n,
+          index: 0,
+          secret: Uint8Array.of(1, 2, 3, 4),
+        }),
+        new Answer({
+          fromAddr: 'alice',
+          decisionId: 2n,
+          secret: Uint8Array.of(5, 6, 7, 8),
+        })
+      ]
+    });
+    let data = serialize(e);
+    let e1 = deserialize(GameEvent, data);
+    assert.deepStrictEqual(e1, e);
   })
 
   it('SecretsReady', () => {
-    let e = SecretsReady.default();
-    let data = serializeEvent(e);
-    let e1 = deserializeEvent(data);
-    assert.deepStrictEqual(e, e1);
+    let e = new SecretsReady({});
+    let data = serialize(e);
+    let e1 = deserialize(GameEvent, data);
+    assert.deepStrictEqual(e1, e);
   })
 
   it('Shutdown', () => {
-    let e = Shutdown.default();
-    let data = serializeEvent(e);
-    let e1 = deserializeEvent(data);
-    assert.deepStrictEqual(e, e1);
+    let e = new Shutdown({});
+    let data = serialize(e);
+    let e1 = deserialize(GameEvent, data);
+    assert.deepStrictEqual(e1, e);
   })
 })
 

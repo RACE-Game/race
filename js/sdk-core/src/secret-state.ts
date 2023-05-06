@@ -1,21 +1,16 @@
-import { IEncryptor } from "./encryptor";
+import { IEncryptor } from './encryptor';
 
 export class SecretState {
-
   #encryptor: IEncryptor;
   constructor(encryptor: IEncryptor) {
     this.#encryptor = encryptor;
   }
 
-  clear() {
-
-  };
+  clear() {}
 
   isRandomLoaded(id: bigint): boolean {
     return true;
   }
 
-  genRandomStates(id: bigint, size: number): any {
-
-  }
+  genRandomStates(id: bigint, size: number): any {}
 }

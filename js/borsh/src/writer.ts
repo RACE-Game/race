@@ -1,4 +1,4 @@
-import { HasExtendedWriter, IExtendWriter } from "./types";
+import { HasExtendedWriter, IExtendWriter } from './types';
 
 const textEncoder = new TextEncoder();
 
@@ -12,32 +12,30 @@ export function writeU8(value: number, buf: Uint8Array, offset: number = 0): num
   return offset + 1;
 }
 
-
 export function writeU16(value: number, buf: Uint8Array, offset: number = 0): number {
-  buf.set([value & 0xff, value >> 8 & 0xff], offset);
+  buf.set([value & 0xff, (value >> 8) & 0xff], offset);
   return offset + 2;
 }
 
-
 export function writeU32(value: number, buf: Uint8Array, offset: number = 0): number {
-  buf.set([
-    value & 0xff, value >> 8 & 0xff, value >> 16 & 0xff, value >> 24 & 0xff
-  ], offset);
+  buf.set([value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, (value >> 24) & 0xff], offset);
   return offset + 4;
 }
 
-
 export function writeU64(value: bigint, buf: Uint8Array, offset: number = 0): number {
-  buf.set([
-    Number(value & 0xffn),
-    Number(value >> 8n & 0xffn),
-    Number(value >> 16n & 0xffn),
-    Number(value >> 24n & 0xffn),
-    Number(value >> 32n & 0xffn),
-    Number(value >> 40n & 0xffn),
-    Number(value >> 48n & 0xffn),
-    Number(value >> 56n & 0xffn)],
-    offset);
+  buf.set(
+    [
+      Number(value & 0xffn),
+      Number((value >> 8n) & 0xffn),
+      Number((value >> 16n) & 0xffn),
+      Number((value >> 24n) & 0xffn),
+      Number((value >> 32n) & 0xffn),
+      Number((value >> 40n) & 0xffn),
+      Number((value >> 48n) & 0xffn),
+      Number((value >> 56n) & 0xffn),
+    ],
+    offset
+  );
   return offset + 8;
 }
 
@@ -89,7 +87,7 @@ export class WriteU32 implements IWrite {
     return 4;
   }
   write(buf: Uint8Array, offset: number = 0) {
-    writeU32(this.#value, buf, offset)
+    writeU32(this.#value, buf, offset);
   }
 }
 
@@ -102,7 +100,7 @@ export class WriteU64 implements IWrite {
     return 8;
   }
   write(buf: Uint8Array, offset: number = 0) {
-    writeU64(this.#value, buf, offset)
+    writeU64(this.#value, buf, offset);
   }
 }
 
@@ -138,9 +136,9 @@ export class WriteString {
 }
 
 export class WriteExtended<T> {
-  #value: T
-  #length: number
-  #writer: IExtendWriter<T>
+  #value: T;
+  #length: number;
+  #writer: IExtendWriter<T>;
   constructor(value: T, size: number, writer: IExtendWriter<T>) {
     this.#value = value;
     this.#writer = writer;
@@ -194,27 +192,27 @@ export class BinaryWriter {
   }
 
   writeU128(value: bigint) {
-    throw new Error("Not implemented yet!");
+    throw new Error('Not implemented yet!');
   }
 
   writeI8() {
-    throw new Error("Not implemented yet!");
+    throw new Error('Not implemented yet!');
   }
 
   writeI16() {
-    throw new Error("Not implemented yet!");
+    throw new Error('Not implemented yet!');
   }
 
   writeI32() {
-    throw new Error("Not implemented yet!");
+    throw new Error('Not implemented yet!');
   }
 
   writeI64() {
-    throw new Error("Not implemented yet!");
+    throw new Error('Not implemented yet!');
   }
 
   writeI128() {
-    throw new Error("Not implemented yet!");
+    throw new Error('Not implemented yet!');
   }
 
   writeString(value: string) {
@@ -230,17 +228,17 @@ export class BinaryWriter {
   }
 
   writeF32() {
-    throw new Error("Not implemented yet!");
+    throw new Error('Not implemented yet!');
   }
 
   writeF64() {
-    throw new Error("Not implemented yet!");
+    throw new Error('Not implemented yet!');
   }
 
   writeExtended<T>(value: T, options: HasExtendedWriter<T>) {
     const w = new WriteExtended(value, options.size, options.writer);
     this.#length += w.length;
-    this.#writes.push(w)
+    this.#writes.push(w);
   }
 
   toArray(): Uint8Array {
