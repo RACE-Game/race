@@ -16,22 +16,3 @@ pub mod random;
 pub mod secret;
 pub mod transport;
 pub mod types;
-
-#[cfg(test)]
-mod tests {
-
-    use borsh::{self, BorshSerialize};
-    #[test]
-    fn test() {
-
-        #[derive(BorshSerialize)]
-        struct S {
-            x: u64,
-        }
-        let s = S {
-            x: 1640966400000
-        };
-        println!("{:?}", s.try_to_vec());
-        assert_eq!(1, 2);
-    }
-}

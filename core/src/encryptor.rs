@@ -4,7 +4,7 @@ use crate::types::{Ciphertext, SecretDigest, SecretKey, Signature};
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
-pub enum Error {
+pub enum EncryptorError {
     #[error("Key gen failed")]
     KeyGenFailed,
 
@@ -47,6 +47,9 @@ pub enum Error {
     #[error("Failed to import private key")]
     ImportPrivateKeyError,
 
+    #[error("Failed to export private key")]
+    ExportPrivateKeyError,
+
     #[error("Invalid nonce")]
     InvalidNonce,
 
@@ -60,36 +63,36 @@ pub enum Error {
     MissingSecret,
 }
 
-impl From<Error> for crate::error::Error {
-    fn from(e: Error) -> Self {
+impl From<EncryptorError> for crate::error::Error {
+    fn from(e: EncryptorError) -> Self {
         crate::error::Error::CryptoError(e.to_string())
     }
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type EncryptorResult<T> = std::result::Result<T, EncryptorError>;
 
 pub trait EncryptorT: std::fmt::Debug + Send + Sync {
-    fn add_public_key(&self, addr: String, raw: &str) -> Result<()>;
+    fn add_public_key(&self, addr: String, raw: &str) -> EncryptorResult<()>;
 
-    fn export_public_key(&self, addr: Option<&str>) -> Result<String>;
+    fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<String>;
 
     fn gen_secret(&self) -> SecretKey;
 
-    fn encrypt(&self, addr: Option<&str>, text: &[u8]) -> Result<Vec<u8>>;
+    fn encrypt(&self, addr: Option<&str>, text: &[u8]) -> EncryptorResult<Vec<u8>>;
 
-    fn decrypt(&self, text: &[u8]) -> Result<Vec<u8>>;
+    fn decrypt(&self, text: &[u8]) -> EncryptorResult<Vec<u8>>;
 
     fn apply(&self, secret: &SecretKey, buf: &mut [u8]);
 
     fn apply_multi(&self, secret: Vec<SecretKey>, buf: &mut [u8]);
 
-    fn sign_raw(&self, message: &[u8]) -> Result<Vec<u8>>;
+    fn sign_raw(&self, message: &[u8]) -> EncryptorResult<Vec<u8>>;
 
-    fn verify_raw(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> Result<()>;
+    fn verify_raw(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> EncryptorResult<()>;
 
-    fn sign(&self, message: &[u8], signer: String) -> Result<Signature>;
+    fn sign(&self, message: &[u8], signer: String) -> EncryptorResult<Signature>;
 
-    fn verify(&self, message: &[u8], signature: &Signature) -> Result<()>;
+    fn verify(&self, message: &[u8], signature: &Signature) -> EncryptorResult<()>;
 
     fn shuffle(&self, items: &mut Vec<Ciphertext>);
 
@@ -100,18 +103,18 @@ pub trait EncryptorT: std::fmt::Debug + Send + Sync {
         ciphertext_map: HashMap<usize, Ciphertext>,
         mut secret_map: HashMap<usize, Vec<SecretKey>>,
         valid_options: &[String],
-    ) -> Result<HashMap<usize, String>> {
+    ) -> EncryptorResult<HashMap<usize, String>> {
         let mut ret = HashMap::new();
         for (i, mut buf) in ciphertext_map.into_iter() {
             if let Some(secrets) = secret_map.remove(&i) {
                 self.apply_multi(secrets, &mut buf);
-                let value = String::from_utf8(buf).or(Err(Error::DecodeFailed))?;
+                let value = String::from_utf8(buf).or(Err(EncryptorError::DecodeFailed))?;
                 if !valid_options.contains(&value) {
-                    return Err(Error::InvalidResult(value))?;
+                    return Err(EncryptorError::InvalidResult(value))?;
                 }
                 ret.insert(i, value);
             } else {
-                return Err(Error::MissingSecret);
+                return Err(EncryptorError::MissingSecret);
             }
         }
         Ok(ret)
@@ -126,18 +129,18 @@ pub trait Digestable {
 pub mod tests {
     use crate::types::{Ciphertext, SecretDigest, SecretKey, Signature};
 
-    use super::{EncryptorT, Result};
+    use super::{EncryptorT, EncryptorResult};
 
     #[derive(Debug, Default)]
     pub struct DummyEncryptor {}
 
     #[allow(unused)]
     impl EncryptorT for DummyEncryptor {
-        fn add_public_key(&self, addr: String, raw: &str) -> Result<()> {
+        fn add_public_key(&self, addr: String, raw: &str) -> EncryptorResult<()> {
             Ok(())
         }
 
-        fn export_public_key(&self, addr: Option<&str>) -> Result<String> {
+        fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<String> {
             Ok("".into())
         }
 
@@ -145,11 +148,11 @@ pub mod tests {
             vec![0, 0, 0, 0]
         }
 
-        fn encrypt(&self, addr: Option<&str>, text: &[u8]) -> Result<Vec<u8>> {
+        fn encrypt(&self, addr: Option<&str>, text: &[u8]) -> EncryptorResult<Vec<u8>> {
             Ok(vec![0, 0, 0, 0])
         }
 
-        fn decrypt(&self, text: &[u8]) -> Result<Vec<u8>> {
+        fn decrypt(&self, text: &[u8]) -> EncryptorResult<Vec<u8>> {
             Ok(vec![0, 0, 0, 0])
         }
 
@@ -157,15 +160,15 @@ pub mod tests {
 
         fn apply_multi(&self, secret: Vec<SecretKey>, buf: &mut [u8]) {}
 
-        fn sign_raw(&self, message: &[u8]) -> Result<Vec<u8>> {
+        fn sign_raw(&self, message: &[u8]) -> EncryptorResult<Vec<u8>> {
             Ok(vec![0, 0, 0, 0])
         }
 
-        fn verify_raw(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> Result<()> {
+        fn verify_raw(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> EncryptorResult<()> {
             Ok(())
         }
 
-        fn sign(&self, message: &[u8], signer: String) -> Result<Signature> {
+        fn sign(&self, message: &[u8], signer: String) -> EncryptorResult<Signature> {
             Ok(Signature {
                 signer,
                 nonce: "".into(),
@@ -174,7 +177,7 @@ pub mod tests {
             })
         }
 
-        fn verify(&self, message: &[u8], signature: &Signature) -> Result<()> {
+        fn verify(&self, message: &[u8], signature: &Signature) -> EncryptorResult<()> {
             Ok(())
         }
 

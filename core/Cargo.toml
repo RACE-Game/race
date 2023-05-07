@@ -12,7 +12,7 @@ borsh = { workspace = true }
 race-proc-macro = { path = "../proc-macro" }
 
 [dev-dependencies]
-anyhow = "1.0.64"
+anyhow = { workspace = true }
 
 [features]
 serde = ["dep:serde", "dep:serde_json"]

@@ -12,18 +12,7 @@ pub type RandomIndex = usize;
 pub type DecisionId = usize;
 pub type Ciphertext = Vec<u8>;
 pub type SecretDigest = Vec<u8>;
-pub type SecretKeyRaw = [u8; 44]; // key: 32, nonce: 12
-                                  // There's an issue for serialization of arrary,
-                                  // So we have this vector type.
 pub type SecretKey = Vec<u8>;
-
-pub fn empty_secret_key_raw() -> SecretKeyRaw {
-    [0u8; 44]
-}
-
-pub fn empty_secret_key() -> SecretKey {
-    vec![0u8; 44]
-}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ClientMode {

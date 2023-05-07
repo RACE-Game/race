@@ -7,104 +7,122 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use aes::cipher::{KeyIvInit, StreamCipher};
 use arrayref::{array_ref, array_refs, mut_array_refs};
-use chacha20::cipher::{KeyIvInit, StreamCipher};
-use chacha20::ChaCha20;
+use base64::Engine as _;
+use openssl::hash::MessageDigest;
+use openssl::pkey::PKey;
+use openssl::sign::{Signer, Verifier};
+use openssl::{
+    pkey::{Private, Public},
+    rsa::{Padding, Rsa},
+};
 use race_core::encryptor::EncryptorT;
 use race_core::types::Signature;
 use rand::seq::SliceRandom;
-use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
-use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha1::{Digest, Sha1};
 
 use race_core::{
-    encryptor::{Error, Result},
+    encryptor::{EncryptorError, EncryptorResult},
     types::{Ciphertext, SecretDigest, SecretKey},
 };
-use tracing::info;
+
+type Aes128Ctr64LE = ctr::Ctr64LE<aes::Aes128>;
+
+fn base64_encode(data: &[u8]) -> String {
+    let engine = base64::engine::general_purpose::STANDARD_NO_PAD;
+    engine.encode(data)
+}
+
+fn base64_decode(data: &str) -> EncryptorResult<Vec<u8>> {
+    let engine = base64::engine::general_purpose::STANDARD_NO_PAD;
+    engine
+        .decode(data)
+        .map_err(|_| EncryptorError::DecodeFailed)
+}
 
 #[derive(Debug)]
 pub struct Encryptor {
-    private_key: RsaPrivateKey,
-    public_keys: Mutex<HashMap<String, RsaPublicKey>>,
-    default_public_key: RsaPublicKey,
+    private_key: Rsa<Private>,
+    default_public_key: Rsa<Public>,
+    public_keys: Mutex<HashMap<String, Rsa<Public>>>,
 }
 
 impl Encryptor {
-    pub fn new(private_key: RsaPrivateKey) -> Self {
-        let default_public_key = RsaPublicKey::from(&private_key);
-        info!(
-            "Encryptor created, public key: {}",
-            hex::encode(default_public_key.to_pkcs1_der().unwrap().as_der(),)
-        );
+    pub fn new(private_key: Rsa<Private>) -> Self {
+        let public = Rsa::from_public_components(
+            private_key.n().to_owned().unwrap(),
+            private_key.e().to_owned().unwrap(),
+        )
+        .unwrap();
         Self {
             private_key,
-            default_public_key,
+            default_public_key: public,
             public_keys: Mutex::new(HashMap::new()),
         }
-    }
-
-    pub fn from_pem(pem: &str) -> Result<Self> {
-        let private_key =
-            RsaPrivateKey::from_pkcs1_pem(pem).or(Err(Error::ImportPrivateKeyError))?;
-        Ok(Encryptor::new(private_key))
     }
 }
 
 impl Default for Encryptor {
     fn default() -> Self {
-        let mut rng = rand::thread_rng();
         let bits = 2048;
-        let private_key = RsaPrivateKey::new(&mut rng, bits).expect("key gen failed");
-        Encryptor::new(private_key)
+        let private = Rsa::generate(bits).unwrap();
+        Encryptor::new(private)
     }
 }
 
 impl EncryptorT for Encryptor {
     fn gen_secret(&self) -> SecretKey {
-        let mut secret = [0u8; 44];
-        let (key, nonce) = mut_array_refs![&mut secret, 32, 12];
-        key.copy_from_slice(&rand::random::<[u8; 32]>());
-        nonce.copy_from_slice(&rand::random::<[u8; 12]>());
+        let mut secret = [0u8; 32];
+        let (key, iv) = mut_array_refs![&mut secret, 16, 16];
+        key.copy_from_slice(&rand::random::<[u8; 16]>());
+        iv.copy_from_slice(&rand::random::<[u8; 16]>());
         secret.to_vec()
     }
 
     /// Encrypt the message use RSA public key
-    fn encrypt(&self, addr: Option<&str>, text: &[u8]) -> Result<Vec<u8>> {
+    fn encrypt(&self, addr: Option<&str>, text: &[u8]) -> EncryptorResult<Vec<u8>> {
         let public_keys = self
             .public_keys
             .lock()
-            .map_err(|_| Error::ReadPublicKeyError)?;
-        let pubkey = match addr {
-            Some(addr) => public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
+            .map_err(|_| EncryptorError::ReadPublicKeyError)?;
+
+        let public = match addr {
+            Some(addr) => public_keys
+                .get(addr)
+                .ok_or(EncryptorError::PublicKeyNotfound)?,
             None => &self.default_public_key,
         };
-        let mut rng = rand::thread_rng();
-        pubkey
-            .encrypt(&mut rng, PaddingScheme::PKCS1v15Encrypt, text)
-            .map_err(|e| Error::RsaEncryptFailed(e.to_string()))
+        let mut buf = vec![0; public.size() as _];
+        println!("public size: {:?}", public.size());
+        println!("buf size: {:?}", buf.len());
+        println!("text size: {:?}", text.len());
+        let size = public
+            .public_encrypt(text, &mut buf, Padding::PKCS1_OAEP)
+            .unwrap();
+        println!("encrypted: {:?}", buf);
+        Ok(buf[0..size].to_vec())
     }
 
     /// Decrypt the message use RSA private key
-    fn decrypt(&self, text: &[u8]) -> Result<Vec<u8>> {
-        self.private_key
-            .decrypt(PaddingScheme::PKCS1v15Encrypt, text)
-            .map_err(|e| Error::RsaDecryptFailed(e.to_string()))
+    fn decrypt(&self, text: &[u8]) -> EncryptorResult<Vec<u8>> {
+        let mut buf = vec![0; self.private_key.size() as _];
+        let size = self
+            .private_key
+            .private_decrypt(text, &mut buf, Padding::PKCS1_OAEP)
+            .unwrap();
+        Ok(buf[0..size].to_vec())
     }
 
-    fn sign_raw(&self, message: &[u8]) -> Result<Vec<u8>> {
-        let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
-        let hashed = Sha1::digest(message);
-        // info!(
-        //     "Verify signature, key: {:?}, message: {:?}",
-        //     self.default_public_key, message
-        // );
-        self.private_key
-            .sign(padding, &hashed)
-            .map_err(|e| Error::SignFailed(e.to_string()))
+    fn sign_raw(&self, message: &[u8]) -> EncryptorResult<Vec<u8>> {
+        let pkey = PKey::from_rsa(self.private_key.clone()).unwrap();
+        let mut signer = Signer::new(MessageDigest::sha256(), &pkey).unwrap();
+        signer.update(message).unwrap();
+        let signature = signer.sign_to_vec().unwrap();
+        Ok(signature)
     }
 
-    fn sign(&self, message: &[u8], signer: String) -> Result<Signature> {
+    fn sign(&self, message: &[u8], signer: String) -> EncryptorResult<Signature> {
         // let timestamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
         let timestamp = chrono::Utc::now().timestamp_millis() as _;
         let nonce: [u8; 8] = rand::random();
@@ -112,31 +130,37 @@ impl EncryptorT for Encryptor {
         let sig = self.sign_raw(&message)?;
         Ok(Signature {
             signer,
-            nonce: hex::encode(nonce),
+            nonce: base64_encode(&nonce),
             timestamp: timestamp as _,
-            signature: hex::encode(sig),
+            signature: base64_encode(&sig),
         })
     }
 
-    fn verify_raw(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> Result<()> {
+    fn verify_raw(
+        &self,
+        addr: Option<&str>,
+        message: &[u8],
+        signature: &[u8],
+    ) -> EncryptorResult<()> {
         let public_keys = self
             .public_keys
             .lock()
-            .map_err(|_| Error::ReadPublicKeyError)?;
-
-        let pubkey = match addr {
-            Some(addr) => public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
+            .map_err(|_| EncryptorError::ReadPublicKeyError)?;
+        let public = match addr {
+            Some(addr) => public_keys
+                .get(addr)
+                .ok_or(EncryptorError::PublicKeyNotfound)?,
             None => &self.default_public_key,
         };
 
-        let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
-        let hashed = Sha1::digest(message).to_vec();
-        pubkey
-            .verify(padding, &hashed, signature)
-            .map_err(|e| Error::VerifyFailed(e.to_string()))
+        let pkey = PKey::from_rsa(public.to_owned()).unwrap();
+        let mut verifier = Verifier::new(MessageDigest::sha256(), &pkey).unwrap();
+        verifier.update(message).unwrap();
+        verifier.verify(&signature).unwrap();
+        Ok(())
     }
 
-    fn verify(&self, message: &[u8], signature: &Signature) -> Result<()> {
+    fn verify(&self, message: &[u8], signature: &Signature) -> EncryptorResult<()> {
         let Signature {
             signer,
             nonce,
@@ -144,16 +168,16 @@ impl EncryptorT for Encryptor {
             signature,
         } = signature;
         // TODO: We should check timestamp here.
-        let nonce = hex::decode(nonce).or(Err(Error::InvalidNonce))?;
-        let signature = hex::decode(signature).or(Err(Error::InvalidNonce))?;
+        let nonce = base64_decode(nonce)?;
+        let signature = base64_decode(signature)?;
         let message = [message, &nonce, &u64::to_le_bytes(*timestamp)].concat();
         self.verify_raw(Some(&signer), &message, &signature)
     }
 
     fn apply(&self, secret: &SecretKey, buffer: &mut [u8]) {
-        let secret = array_ref![secret, 0, 44];
-        let (key, nonce) = array_refs![secret, 32, 12];
-        let mut cipher = ChaCha20::new(key.into(), nonce.into());
+        let secret = array_ref![secret, 0, 32];
+        let (key, iv) = array_refs![secret, 16, 16];
+        let mut cipher = Aes128Ctr64LE::new(key.into(), iv.into());
         cipher.apply_keystream(buffer);
     }
 
@@ -168,15 +192,13 @@ impl EncryptorT for Encryptor {
         items.shuffle(&mut rng);
     }
 
-    fn add_public_key(&self, addr: String, raw: &str) -> Result<()> {
+    fn add_public_key(&self, addr: String, raw: &str) -> EncryptorResult<()> {
         let mut public_keys = self
             .public_keys
             .lock()
-            .map_err(|_| Error::AddPublicKeyError)?;
+            .map_err(|_| EncryptorError::AddPublicKeyError)?;
 
-        let pubkey =
-            RsaPublicKey::from_pkcs1_der(&hex::decode(raw).or(Err(Error::ImportPublicKeyError))?)
-                .or(Err(Error::ImportPrivateKeyError))?;
+        let pubkey = Rsa::public_key_from_der(&base64_decode(raw)?).unwrap();
 
         public_keys.insert(addr, pubkey);
         Ok(())
@@ -186,37 +208,29 @@ impl EncryptorT for Encryptor {
         Sha1::digest(text).to_vec()
     }
 
-    fn export_public_key(&self, addr: Option<&str>) -> Result<String> {
+    fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<String> {
         let public_keys = self
             .public_keys
             .lock()
-            .map_err(|_| Error::ReadPublicKeyError)?;
+            .map_err(|_| EncryptorError::ReadPublicKeyError)?;
         let pubkey = match addr {
-            Some(addr) => public_keys.get(addr).ok_or(Error::PublicKeyNotfound)?,
-            None => &self.default_public_key,
+            Some(addr) => public_keys
+                .get(addr)
+                .ok_or(EncryptorError::PublicKeyNotfound)?
+                .public_key_to_der()
+                .unwrap(),
+            None => self.private_key.public_key_to_der().unwrap(),
         };
-        Ok(hex::encode(
-            pubkey.to_pkcs1_der().or(Err(Error::EncodeFailed))?.as_der(),
-        ))
+        Ok(base64_encode(&pubkey))
     }
 }
-
-/// Verify a public key.
-// pub fn verify_address_signed(public_key: String, message: &[u8], signature: &[u8]) -> Result<()> {
-//     let pubkey = RsaPublicKey::from_pkcs1_pem(&public_key).or(Err(Error::ImportPublicKeyError))?;
-//     let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA1));
-//     let hashed = Sha1::digest(message).to_vec();
-//     pubkey
-//         .verify(padding, &hashed, signature)
-//         .map_err(|e| Error::VerifyFailed(e.to_string()))
-// }
 
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use race_core::{error::Result, secret::SecretState};
+    use race_core::secret::SecretState;
 
     #[test]
     fn test_sign_verify() {
@@ -229,11 +243,34 @@ mod tests {
     #[test]
     fn test_encrypt_decrypt() {
         let e = Encryptor::default();
-        let text = b"hello";
-        let encrypted = e.encrypt(None, text).expect("Failed to encrypt");
+        let plain = e.gen_secret();
+        let encrypted = e.encrypt(None, &plain).expect("Failed to encrypt");
         let decrypted = e.decrypt(&encrypted[..]).expect("Failed to decrypt");
-        assert_eq!(decrypted, text);
+        assert_eq!(decrypted, plain);
     }
+
+    // #[test]
+    // fn test_export_public_key() -> anyhow::Result<()> {
+    //     let privkey = "MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAN2EJP9pElDhOrvuAnLrcCofkfZXmGqdi49O7OkG0nj0UWiqs+IbbToTINmrZt0Rcq+yVawo88sm18lsDCwSMn4fGZAR/qmYzznJzKetJnkW2OSwhvYcqcQVFkCWKOzDMh+ZNgxDSbTVPTQ9fC2X8EvXSKFuDzpaF7tg9I4gL/yBAgMBAAECgYBibtAJ9uS+r/brf43zBw/mh/TSZIZEChHz8nxv6CoquVZbjk800D8vKUTVtMaWwaQW0sYjJGeBBJeq16ppAwUQFm2v/H/yWHusinxum8t/pxL3GV8qNvbJoxdNeGJY8tKP5At8N+SL/tIJ9STf6mntLsd6lq2j6xpKuO7eMPUrgQJBAPgB24foIEdG9bVj3ee+r1H4IyNmSscv4x2nOMFxaWmMBBu/cdmEsI2fRTzIjXwUE21BQAI9yj+m8uwrmUsoOIkCQQDkp7oTalsufiXSMJ/JAjVy7S84S8OzR9ZduwL7NCbzXZ0g69mWgc4DGkdWghuAARL6Ql7+WwFwzDB0s1/VOrY5AkEAryBwqumpUWu0OeBJZEnsd09nUKn9B+ay08+vbjntm9B5Xjaz6EugeIENXTypXAK5LR80WeDUHlp/k3G+D6pZMQJBAMlyyCpQ2pKEize6pRvH+WUOeDql7X3m/YLIv2Cn2uUwhb26bJIAPItZPJ6HtEi7KYgYr25yqTtCejJm0jifKGkCQBDrmvF954+gn/Q5qXAMF8B7SxfbrwzIIsJNHkBKlmr3wIPwQst0sPrZwSOjDdnnEEuAGUEtLt7mxJpm5XpzLwI=".to_string();
+    //     let pubkey = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDdhCT/aRJQ4Tq77gJy63AqH5H2V5hqnYuPTuzpBtJ49FFoqrPiG206EyDZq2bdEXKvslWsKPPLJtfJbAwsEjJ+HxmQEf6pmM85ycynrSZ5FtjksIb2HKnEFRZAlijswzIfmTYMQ0m01T00PXwtl/BL10ihbg86Whe7YPSOIC/8gQIDAQAB".to_string();
+    //     let privkey = RsaPrivateKey::from_pkcs1_der(&base64_decode(&privkey)?)?;
+    //     println!("private key read");
+    //     let e = Encryptor::new(privkey);
+    //     let exported_pubkey = e.export_public_key(None)?;
+    //     assert_eq!(exported_pubkey, pubkey);
+    //     Ok(())
+    // }
+
+    // #[test]
+    // fn test_wrap_unwrap_key() {
+    //     let e = Encryptor::default();
+    //     let secret = e.gen_secret();
+    //     println!("{}", e.export_public_key(None).unwrap());
+    //     println!("{}", e.export_private_key().unwrap());
+    //     let encrytped = e.encrypt(None, &secret).unwrap();
+    //     let decrypted = e.decrypt(&encrytped).unwrap();
+    //     assert_eq!(secret, decrypted);
+    // }
 
     #[test]
     fn test_apply() {
@@ -252,7 +289,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mask_and_unmask() -> Result<()> {
+    fn test_mask_and_unmask() -> anyhow::Result<()> {
         let e = Arc::new(Encryptor::default());
         let mut state = SecretState::new(e);
         state.gen_random_secrets(1, 3);
@@ -265,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lock() -> Result<()> {
+    fn test_lock() -> anyhow::Result<()> {
         let e = Arc::new(Encryptor::default());
         let mut state = SecretState::new(e);
         state.gen_random_secrets(1, 3);
