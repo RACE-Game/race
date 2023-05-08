@@ -140,8 +140,8 @@ pub struct Effect {
     pub timestamp: u64,
     pub curr_random_id: RandomId,
     pub curr_decision_id: DecisionId,
-    pub players_count: usize,
-    pub servers_count: usize,
+    pub players_count: u16,
+    pub servers_count: u16,
     pub asks: Vec<Ask>,
     pub assigns: Vec<Assign>,
     pub reveals: Vec<Reveal>,
@@ -203,12 +203,12 @@ impl Effect {
 
     /// Return the number of players, including both pending and joint.
     pub fn count_players(&self) -> usize {
-        self.players_count
+        self.players_count as usize
     }
 
     /// Return the number of servers, including both pending and joint.
     pub fn count_servers(&self) -> usize {
-        self.servers_count
+        self.servers_count as usize
     }
 
     /// Initialize a random state with random spec, return random id.

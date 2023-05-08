@@ -291,12 +291,12 @@ impl GameContext {
         self.players.iter_mut().find(|p| p.addr.eq(addr))
     }
 
-    pub fn count_players(&self) -> usize {
-        self.players.len()
+    pub fn count_players(&self) -> u16 {
+        self.players.len() as u16
     }
 
-    pub fn count_servers(&self) -> usize {
-        self.servers.len()
+    pub fn count_servers(&self) -> u16 {
+        self.servers.len() as u16
     }
 
     pub fn gen_start_game_event(&self) -> Event {
