@@ -13,10 +13,17 @@ console.log("Subtle Crypto:", subtleCrypto);
 const publicExponent = Uint8Array.of(1, 0, 1);
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+  let binary = '';
+  let bytes = new Uint8Array(buffer);
+  let len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
+
   const rawBytes = atob(base64);
   const uint8Array = new Uint8Array(rawBytes.length);
   for (let i = 0; i < rawBytes.length; i++) {
@@ -30,10 +37,9 @@ export async function exportRsaPublicKey(publicKey: CryptoKey): Promise<string> 
 }
 
 export async function exportRsa(keypair: CryptoKeyPair): Promise<[string, string]> {
-  return [
-    arrayBufferToBase64(await subtleCrypto.exportKey("pkcs8", keypair.privateKey)),
-    arrayBufferToBase64(await subtleCrypto.exportKey("spki", keypair.publicKey))
-  ];
+  let privkey = await subtleCrypto.exportKey("pkcs8", keypair.privateKey);
+  let pubkey = await subtleCrypto.exportKey("spki", keypair.publicKey);
+  return [arrayBufferToBase64(privkey), arrayBufferToBase64(pubkey)];
 }
 
 export async function rsaEncrypt(publicKey: CryptoKey, plaintext: Uint8Array): Promise<Uint8Array> {

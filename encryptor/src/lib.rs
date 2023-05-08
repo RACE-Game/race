@@ -30,12 +30,13 @@ use race_core::{
 type Aes128Ctr64LE = ctr::Ctr64LE<aes::Aes128>;
 
 fn base64_encode(data: &[u8]) -> String {
-    let engine = base64::engine::general_purpose::STANDARD_NO_PAD;
+    println!("Length of data: {}", data.len());
+    let engine = base64::engine::general_purpose::STANDARD;
     engine.encode(data)
 }
 
 fn base64_decode(data: &str) -> EncryptorResult<Vec<u8>> {
-    let engine = base64::engine::general_purpose::STANDARD_NO_PAD;
+    let engine = base64::engine::general_purpose::STANDARD;
     engine
         .decode(data)
         .map_err(|_| EncryptorError::DecodeFailed)
@@ -49,25 +50,32 @@ pub struct Encryptor {
 }
 
 impl Encryptor {
-    pub fn new(private_key: Rsa<Private>) -> Self {
+    pub fn try_new(private_key: Rsa<Private>) -> EncryptorResult<Self> {
         let public = Rsa::from_public_components(
-            private_key.n().to_owned().unwrap(),
-            private_key.e().to_owned().unwrap(),
+            private_key
+                .n()
+                .to_owned()
+                .or(Err(EncryptorError::ImportPrivateKeyError))?,
+            private_key
+                .e()
+                .to_owned()
+                .or(Err(EncryptorError::ImportPrivateKeyError))?,
         )
-        .unwrap();
-        Self {
+        .or(Err(EncryptorError::ImportPrivateKeyError))?;
+
+        Ok(Self {
             private_key,
             default_public_key: public,
             public_keys: Mutex::new(HashMap::new()),
-        }
+        })
     }
 }
 
 impl Default for Encryptor {
     fn default() -> Self {
-        let bits = 2048;
-        let private = Rsa::generate(bits).unwrap();
-        Encryptor::new(private)
+        let bits = 1024;
+        let private = Rsa::generate(bits).expect("Failed to generate RSA keypair");
+        Encryptor::try_new(private).expect("Failed to initiate encryptor")
     }
 }
 
@@ -94,13 +102,9 @@ impl EncryptorT for Encryptor {
             None => &self.default_public_key,
         };
         let mut buf = vec![0; public.size() as _];
-        println!("public size: {:?}", public.size());
-        println!("buf size: {:?}", buf.len());
-        println!("text size: {:?}", text.len());
         let size = public
             .public_encrypt(text, &mut buf, Padding::PKCS1_OAEP)
-            .unwrap();
-        println!("encrypted: {:?}", buf);
+            .map_err(|e| EncryptorError::RsaEncryptFailed(e.to_string()))?;
         Ok(buf[0..size].to_vec())
     }
 
@@ -110,20 +114,28 @@ impl EncryptorT for Encryptor {
         let size = self
             .private_key
             .private_decrypt(text, &mut buf, Padding::PKCS1_OAEP)
-            .unwrap();
+            .map_err(|e| EncryptorError::RsaDecryptFailed(e.to_string()))?;
         Ok(buf[0..size].to_vec())
     }
 
     fn sign_raw(&self, message: &[u8]) -> EncryptorResult<Vec<u8>> {
-        let pkey = PKey::from_rsa(self.private_key.clone()).unwrap();
-        let mut signer = Signer::new(MessageDigest::sha256(), &pkey).unwrap();
-        signer.update(message).unwrap();
-        let signature = signer.sign_to_vec().unwrap();
+        let pkey = PKey::from_rsa(self.private_key.clone())
+            .map_err(|e| EncryptorError::SignFailed(e.to_string()))?;
+
+        let mut signer = Signer::new(MessageDigest::sha256(), &pkey)
+            .map_err(|e| EncryptorError::SignFailed(e.to_string()))?;
+        signer
+            .update(message)
+            .map_err(|e| EncryptorError::SignFailed(e.to_string()))?;
+
+        let signature = signer
+            .sign_to_vec()
+            .map_err(|e| EncryptorError::SignFailed(e.to_string()))?;
+
         Ok(signature)
     }
 
     fn sign(&self, message: &[u8], signer: String) -> EncryptorResult<Signature> {
-        // let timestamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
         let timestamp = chrono::Utc::now().timestamp_millis() as _;
         let nonce: [u8; 8] = rand::random();
         let message = [message, &nonce, &u64::to_le_bytes(timestamp)].concat();
@@ -153,10 +165,16 @@ impl EncryptorT for Encryptor {
             None => &self.default_public_key,
         };
 
-        let pkey = PKey::from_rsa(public.to_owned()).unwrap();
-        let mut verifier = Verifier::new(MessageDigest::sha256(), &pkey).unwrap();
-        verifier.update(message).unwrap();
-        verifier.verify(&signature).unwrap();
+        let pkey = PKey::from_rsa(public.to_owned())
+            .map_err(|e| EncryptorError::VerifyFailed(e.to_string()))?;
+        let mut verifier = Verifier::new(MessageDigest::sha256(), &pkey)
+            .map_err(|e| EncryptorError::VerifyFailed(e.to_string()))?;
+        verifier
+            .update(message)
+            .map_err(|e| EncryptorError::VerifyFailed(e.to_string()))?;
+        verifier
+            .verify(&signature)
+            .map_err(|e| EncryptorError::VerifyFailed(e.to_string()))?;
         Ok(())
     }
 
@@ -198,7 +216,8 @@ impl EncryptorT for Encryptor {
             .lock()
             .map_err(|_| EncryptorError::AddPublicKeyError)?;
 
-        let pubkey = Rsa::public_key_from_der(&base64_decode(raw)?).unwrap();
+        let pubkey = Rsa::public_key_from_der(&base64_decode(raw)?)
+            .map_err(|_| EncryptorError::ImportPublicKeyError)?;
 
         public_keys.insert(addr, pubkey);
         Ok(())
@@ -218,8 +237,11 @@ impl EncryptorT for Encryptor {
                 .get(addr)
                 .ok_or(EncryptorError::PublicKeyNotfound)?
                 .public_key_to_der()
-                .unwrap(),
-            None => self.private_key.public_key_to_der().unwrap(),
+                .or(Err(EncryptorError::PublicKeyNotfound))?,
+            None => self
+                .private_key
+                .public_key_to_der()
+                .or(Err(EncryptorError::PublicKeyNotfound))?,
         };
         Ok(base64_encode(&pubkey))
     }
@@ -249,28 +271,17 @@ mod tests {
         assert_eq!(decrypted, plain);
     }
 
-    // #[test]
-    // fn test_export_public_key() -> anyhow::Result<()> {
-    //     let privkey = "MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAN2EJP9pElDhOrvuAnLrcCofkfZXmGqdi49O7OkG0nj0UWiqs+IbbToTINmrZt0Rcq+yVawo88sm18lsDCwSMn4fGZAR/qmYzznJzKetJnkW2OSwhvYcqcQVFkCWKOzDMh+ZNgxDSbTVPTQ9fC2X8EvXSKFuDzpaF7tg9I4gL/yBAgMBAAECgYBibtAJ9uS+r/brf43zBw/mh/TSZIZEChHz8nxv6CoquVZbjk800D8vKUTVtMaWwaQW0sYjJGeBBJeq16ppAwUQFm2v/H/yWHusinxum8t/pxL3GV8qNvbJoxdNeGJY8tKP5At8N+SL/tIJ9STf6mntLsd6lq2j6xpKuO7eMPUrgQJBAPgB24foIEdG9bVj3ee+r1H4IyNmSscv4x2nOMFxaWmMBBu/cdmEsI2fRTzIjXwUE21BQAI9yj+m8uwrmUsoOIkCQQDkp7oTalsufiXSMJ/JAjVy7S84S8OzR9ZduwL7NCbzXZ0g69mWgc4DGkdWghuAARL6Ql7+WwFwzDB0s1/VOrY5AkEAryBwqumpUWu0OeBJZEnsd09nUKn9B+ay08+vbjntm9B5Xjaz6EugeIENXTypXAK5LR80WeDUHlp/k3G+D6pZMQJBAMlyyCpQ2pKEize6pRvH+WUOeDql7X3m/YLIv2Cn2uUwhb26bJIAPItZPJ6HtEi7KYgYr25yqTtCejJm0jifKGkCQBDrmvF954+gn/Q5qXAMF8B7SxfbrwzIIsJNHkBKlmr3wIPwQst0sPrZwSOjDdnnEEuAGUEtLt7mxJpm5XpzLwI=".to_string();
-    //     let pubkey = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDdhCT/aRJQ4Tq77gJy63AqH5H2V5hqnYuPTuzpBtJ49FFoqrPiG206EyDZq2bdEXKvslWsKPPLJtfJbAwsEjJ+HxmQEf6pmM85ycynrSZ5FtjksIb2HKnEFRZAlijswzIfmTYMQ0m01T00PXwtl/BL10ihbg86Whe7YPSOIC/8gQIDAQAB".to_string();
-    //     let privkey = RsaPrivateKey::from_pkcs1_der(&base64_decode(&privkey)?)?;
-    //     println!("private key read");
-    //     let e = Encryptor::new(privkey);
-    //     let exported_pubkey = e.export_public_key(None)?;
-    //     assert_eq!(exported_pubkey, pubkey);
-    //     Ok(())
-    // }
-
-    // #[test]
-    // fn test_wrap_unwrap_key() {
-    //     let e = Encryptor::default();
-    //     let secret = e.gen_secret();
-    //     println!("{}", e.export_public_key(None).unwrap());
-    //     println!("{}", e.export_private_key().unwrap());
-    //     let encrytped = e.encrypt(None, &secret).unwrap();
-    //     let decrypted = e.decrypt(&encrytped).unwrap();
-    //     assert_eq!(secret, decrypted);
-    // }
+    #[test]
+    fn test_export_public_key() -> anyhow::Result<()> {
+        let privkey = "MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAN2EJP9pElDhOrvuAnLrcCofkfZXmGqdi49O7OkG0nj0UWiqs+IbbToTINmrZt0Rcq+yVawo88sm18lsDCwSMn4fGZAR/qmYzznJzKetJnkW2OSwhvYcqcQVFkCWKOzDMh+ZNgxDSbTVPTQ9fC2X8EvXSKFuDzpaF7tg9I4gL/yBAgMBAAECgYBibtAJ9uS+r/brf43zBw/mh/TSZIZEChHz8nxv6CoquVZbjk800D8vKUTVtMaWwaQW0sYjJGeBBJeq16ppAwUQFm2v/H/yWHusinxum8t/pxL3GV8qNvbJoxdNeGJY8tKP5At8N+SL/tIJ9STf6mntLsd6lq2j6xpKuO7eMPUrgQJBAPgB24foIEdG9bVj3ee+r1H4IyNmSscv4x2nOMFxaWmMBBu/cdmEsI2fRTzIjXwUE21BQAI9yj+m8uwrmUsoOIkCQQDkp7oTalsufiXSMJ/JAjVy7S84S8OzR9ZduwL7NCbzXZ0g69mWgc4DGkdWghuAARL6Ql7+WwFwzDB0s1/VOrY5AkEAryBwqumpUWu0OeBJZEnsd09nUKn9B+ay08+vbjntm9B5Xjaz6EugeIENXTypXAK5LR80WeDUHlp/k3G+D6pZMQJBAMlyyCpQ2pKEize6pRvH+WUOeDql7X3m/YLIv2Cn2uUwhb26bJIAPItZPJ6HtEi7KYgYr25yqTtCejJm0jifKGkCQBDrmvF954+gn/Q5qXAMF8B7SxfbrwzIIsJNHkBKlmr3wIPwQst0sPrZwSOjDdnnEEuAGUEtLt7mxJpm5XpzLwI=";
+        let pubkey = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDdhCT/aRJQ4Tq77gJy63AqH5H2V5hqnYuPTuzpBtJ49FFoqrPiG206EyDZq2bdEXKvslWsKPPLJtfJbAwsEjJ+HxmQEf6pmM85ycynrSZ5FtjksIb2HKnEFRZAlijswzIfmTYMQ0m01T00PXwtl/BL10ihbg86Whe7YPSOIC/8gQIDAQAB";
+        let decoded = &base64_decode(privkey).unwrap();
+        let privkey = PKey::private_key_from_pkcs8(decoded).unwrap();
+        let e = Encryptor::try_new(privkey.rsa().unwrap()).unwrap();
+        let exported_pubkey = e.export_public_key(None)?;
+        assert_eq!(exported_pubkey, pubkey);
+        Ok(())
+    }
 
     #[test]
     fn test_apply() {
