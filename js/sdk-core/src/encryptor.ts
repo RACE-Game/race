@@ -1,14 +1,18 @@
 import { SdkError } from './error';
 
-let subtleCrypto: SubtleCrypto;
+let subtle: SubtleCrypto;
+let crypto: Crypto;
 if (global !== undefined) {
-  const crypto = require('crypto');
-  subtleCrypto = crypto.webcrypto.subtle;
+  const _crypto = require('crypto');
+  crypto = _crypto.webcrypto;
+  subtle = _crypto.webcrypto.subtle;
 } else {
-  subtleCrypto = window.crypto.subtle;
+  crypto = window.crypto;
+  subtle = window.crypto.subtle;
 }
-console.log("Subtle Crypto:", subtleCrypto);
+console.log("Subtle Crypto:", subtle);
 
+let aesCounter = crypto.getRandomValues(new Uint8Array(16));
 
 const publicExponent = Uint8Array.of(1, 0, 1);
 
@@ -33,21 +37,37 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 export async function exportRsaPublicKey(publicKey: CryptoKey): Promise<string> {
-  return arrayBufferToBase64(await subtleCrypto.exportKey("spki", publicKey));
+  return arrayBufferToBase64(await subtle.exportKey("spki", publicKey));
 }
 
 export async function exportRsa(keypair: CryptoKeyPair): Promise<[string, string]> {
-  let privkey = await subtleCrypto.exportKey("pkcs8", keypair.privateKey);
-  let pubkey = await subtleCrypto.exportKey("spki", keypair.publicKey);
+  let privkey = await subtle.exportKey("pkcs8", keypair.privateKey);
+  let pubkey = await subtle.exportKey("spki", keypair.publicKey);
   return [arrayBufferToBase64(privkey), arrayBufferToBase64(pubkey)];
 }
 
 export async function rsaEncrypt(publicKey: CryptoKey, plaintext: Uint8Array): Promise<Uint8Array> {
-  return new Uint8Array(await subtleCrypto.encrypt("RSA-OASEP", publicKey, plaintext));
+  return new Uint8Array(await subtle.encrypt("RSA-OAEP", publicKey, plaintext));
 }
 
 export async function rsaDecrypt(publicKey: CryptoKey, ciphertext: Uint8Array): Promise<Uint8Array> {
-  return new Uint8Array(await subtleCrypto.encrypt("RSA-OASEP", publicKey, ciphertext));
+  return new Uint8Array(await subtle.decrypt("RSA-OAEP", publicKey, ciphertext));
+}
+
+export async function encryptAes(key: CryptoKey, text: Uint8Array): Promise<Uint8Array> {
+  return new Uint8Array(await subtle.encrypt({
+    name: "AES-CTR",
+    counter: aesCounter,
+    length: 128,
+  }, key, text));
+}
+
+export async function decryptAes(key: CryptoKey, text: Uint8Array): Promise<Uint8Array> {
+  return new Uint8Array(await subtle.decrypt({
+    name: "AES-CTR",
+    counter: aesCounter,
+    length: 128,
+  }, key, text));
 }
 
 export async function importRsa([privateKeyStr, publicKeyStr]: [string, string]): Promise<CryptoKeyPair> {
@@ -57,18 +77,30 @@ export async function importRsa([privateKeyStr, publicKeyStr]: [string, string])
   };
   const privateBuf = base64ToArrayBuffer(privateKeyStr);
   const publicBuf = base64ToArrayBuffer(publicKeyStr);
-  const privateKey = await subtleCrypto.importKey("pkcs8", privateBuf, algorithm, true, ["decrypt"]);
-  const publicKey = await subtleCrypto.importKey("spki", publicBuf, algorithm, true, ["encrypt"]);
+  const privateKey = await subtle.importKey("pkcs8", privateBuf, algorithm, true, ["decrypt"]);
+  const publicKey = await subtle.importKey("spki", publicBuf, algorithm, true, ["encrypt"]);
   return { publicKey, privateKey }
 }
 
 export async function generateRsaKeypair(): Promise<CryptoKeyPair> {
-  return await subtleCrypto.generateKey({
+  return await subtle.generateKey({
     name: "RSA-OAEP",
     modulusLength: 1024,
     publicExponent: publicExponent,
     hash: "SHA-256"
   }, true, ["encrypt", "decrypt"]);
+}
+
+export async function generateAes(): Promise<CryptoKey> {
+
+  const k = await subtle.generateKey({
+    name: "AES-CTR",
+    length: 128,
+  },
+    true,
+    ["encrypt", "decrypt"]
+  );
+  return k;
 }
 
 /**
@@ -121,7 +153,7 @@ export class Encryptor {
     //     throw SdkError.publicKeyNotFound(addr);
     //   }
     // }
-    // let exported = await subtleCrypto.exportKey("spki", key);
+    // let exported = await subtle.exportKey("spki", key);
     // let body = window.btoa(String.fromCharCode(...new Uint8Array(exported)));
     // body = body.match(/.{1,64}/g)!.join('\n');
     // return `${PEM_HEADER}\n${body}\n${PEM_FOOTER}`;

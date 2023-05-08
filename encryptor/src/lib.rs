@@ -284,6 +284,14 @@ mod tests {
     }
 
     #[test]
+    fn test_wrap_unwrap_secret() {
+        let secret = vec![224, 94, 30, 52, 114, 149, 215, 66, 131, 241, 62, 207, 146, 217, 134, 53, 163, 3, 184, 130, 159, 236, 218, 174, 92, 16, 212, 159, 91, 85, 103, 87];
+        let e = Encryptor::default();
+        let encrypted = e.encrypt(None, &secret).expect("Failed to encrypt");
+        let decrypted = e.decrypt(&encrypted[..]).expect("Failed to decrypt");
+    }
+
+    #[test]
     fn test_apply() {
         let e = Encryptor::default();
         let text = b"hello";
