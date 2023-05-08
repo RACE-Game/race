@@ -16,6 +16,11 @@ let aesCounter = crypto.getRandomValues(new Uint8Array(16));
 
 const publicExponent = Uint8Array.of(1, 0, 1);
 
+const RSA_PARAMS = {
+  name: "RSA-OAEP",
+  hash: "SHA-256"
+};
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = '';
   let bytes = new Uint8Array(buffer);
@@ -46,11 +51,11 @@ export async function exportRsa(keypair: CryptoKeyPair): Promise<[string, string
   return [arrayBufferToBase64(privkey), arrayBufferToBase64(pubkey)];
 }
 
-export async function rsaEncrypt(publicKey: CryptoKey, plaintext: Uint8Array): Promise<Uint8Array> {
+export async function encryptRsa(publicKey: CryptoKey, plaintext: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await subtle.encrypt("RSA-OAEP", publicKey, plaintext));
 }
 
-export async function rsaDecrypt(publicKey: CryptoKey, ciphertext: Uint8Array): Promise<Uint8Array> {
+export async function decryptRsa(publicKey: CryptoKey, ciphertext: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await subtle.decrypt("RSA-OAEP", publicKey, ciphertext));
 }
 
@@ -70,16 +75,27 @@ export async function decryptAes(key: CryptoKey, text: Uint8Array): Promise<Uint
   }, key, text));
 }
 
+export async function importAes(keyStr: string): Promise<CryptoKey> {
+  const key = await subtle.importKey(
+    "raw",
+    base64ToArrayBuffer(keyStr),
+    { name: "AES-CTR" },
+    true,
+    ["encrypt", "decrypt"]);
+  return key;
+}
+
 export async function importRsa([privateKeyStr, publicKeyStr]: [string, string]): Promise<CryptoKeyPair> {
-  const algorithm = {
-    name: "RSA-OAEP",
-    hash: "SHA-256"
-  };
   const privateBuf = base64ToArrayBuffer(privateKeyStr);
-  const publicBuf = base64ToArrayBuffer(publicKeyStr);
-  const privateKey = await subtle.importKey("pkcs8", privateBuf, algorithm, true, ["decrypt"]);
-  const publicKey = await subtle.importKey("spki", publicBuf, algorithm, true, ["encrypt"]);
+  const privateKey = await subtle.importKey("pkcs8", privateBuf, RSA_PARAMS, true, ["decrypt"]);
+  const publicKey = await importRsaPublicKey(publicKeyStr);
   return { publicKey, privateKey }
+}
+
+export async function importRsaPublicKey(publicKeyStr: string): Promise<CryptoKey> {
+  const publicBuf = base64ToArrayBuffer(publicKeyStr);
+  const publicKey = await subtle.importKey("spki", publicBuf, RSA_PARAMS, true, ["encrypt"]);
+  return publicKey;
 }
 
 export async function generateRsaKeypair(): Promise<CryptoKeyPair> {
@@ -103,17 +119,32 @@ export async function generateAes(): Promise<CryptoKey> {
   return k;
 }
 
+export interface Signature {
+
+}
+
+
 /**
  * Encryptor
  * Use RSA and ChaCha20(AES-CTR) for random secrets encryption.
  */
 
 export interface IEncryptor {
-  exportPublicKey(addr?: string): string;
+  addPublicKey(addr: string, raw: string): Promise<void>;
+
+  exportPublicKey(addr?: string): Promise<string>;
+
+  decryptRsa(text: Uint8Array): Promise<Uint8Array>;
+
+  decryptAes(secret: Uint8Array, text: Uint8Array): Promise<Uint8Array>;
+
+  sign(message: Uint8Array): Promise<Signature>;
+
+  verify(message: Uint8Array, signature: Signature): Promise<boolean>;
 }
 
 
-export class Encryptor {
+export class Encryptor implements IEncryptor {
   readonly #keypair!: CryptoKeyPair;
   readonly #publicKeys: Map<string, CryptoKey>;
 
@@ -121,42 +152,48 @@ export class Encryptor {
     this.#publicKeys = new Map([]);
     this.#keypair = keypair;
   }
+  async decryptRsa(text: Uint8Array): Promise<Uint8Array> {
+    return await decryptRsa(this.#keypair.privateKey, text);
+  }
+
+  async decryptAes(secret: Uint8Array, text: Uint8Array): Promise<Uint8Array> {
+    return await decryptAes(secret, text);
+  }
+
+  sign(message: Uint8Array): Signature {
+    throw new Error('Method not implemented.');
+  }
+
+  verify(message: Uint8Array, signature: Signature): boolean {
+    throw new Error('Method not implemented.');
+  }
 
   static async default(): Promise<Encryptor> {
     const keypair = await generateRsaKeypair();
     return new Encryptor(keypair);
   }
 
-  // static async fromPrivateKey(key: string): Promise<Encryptor> {
-
-  // }
-  // static async fromPem(pem: string): Promise<Encryptor> {
-  //   const privateKey = await importRsaPrivateKeyFromPem(pem);
-  //   const publicKey = await getRsaPublicKey(privateKey);
-  //   const keypair = { publicKey, privateKey };
-  //   return new Encryptor(keypair);
-  // }
-
   async exportKeys(): Promise<[string, string]> {
     return await exportRsa(this.#keypair);
+  }
+
+  async addPublicKey(addr: string, raw: string): Promise<void> {
+    const publicKey = await importRsaPublicKey(raw);
+    this.#publicKeys.set(addr, publicKey);
   }
 
   exportPublicKey(): Promise<string>;
   exportPublicKey(addr: string): Promise<string>;
   async exportPublicKey(addr?: string): Promise<string> {
-    // let key;
-    // if (addr === undefined) {
-    //   key = this.#defaultPublicKey;
-    // } else {
-    //   key = this.#publicKeys.get(addr);
-    //   if (key === undefined) {
-    //     throw SdkError.publicKeyNotFound(addr);
-    //   }
-    // }
-    // let exported = await subtle.exportKey("spki", key);
-    // let body = window.btoa(String.fromCharCode(...new Uint8Array(exported)));
-    // body = body.match(/.{1,64}/g)!.join('\n');
-    // return `${PEM_HEADER}\n${body}\n${PEM_FOOTER}`;
-    return '';
+    let key;
+    if (addr === undefined) {
+      key = this.#keypair.publicKey;
+    } else {
+      key = this.#publicKeys.get(addr);
+      if (key === undefined) {
+        throw SdkError.publicKeyNotFound(addr);
+      }
+    }
+    return await exportRsaPublicKey(key);
   }
 }

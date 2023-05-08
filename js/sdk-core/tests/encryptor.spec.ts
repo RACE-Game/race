@@ -1,5 +1,5 @@
 import { assert } from 'chai';
-import { encryptAes, decryptAes, exportRsa, generateAes, generateRsaKeypair, importRsa, rsaDecrypt, rsaEncrypt } from '../src/encryptor';
+import { encryptAes, decryptAes, exportRsa, generateAes, generateRsaKeypair, importRsa, decryptRsa, encryptRsa } from '../src/encryptor';
 
 describe('Test utilities', () => {
   it('RSA key creation', async () => {
@@ -26,8 +26,8 @@ describe('Test utilities', () => {
   it('RSA encryption/decryption', async () => {
     const plaintext = Uint8Array.of(1, 2, 3, 4, 5, 6);
     const keypair = await generateRsaKeypair();
-    const ciphertext = await rsaEncrypt(keypair.publicKey, plaintext);
-    const decrypted = await rsaDecrypt(keypair.privateKey, ciphertext);
+    const ciphertext = await encryptRsa(keypair.publicKey, plaintext);
+    const decrypted = await decryptRsa(keypair.privateKey, ciphertext);
     assert.deepEqual(decrypted, plaintext);
   })
 });
