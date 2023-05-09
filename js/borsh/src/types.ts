@@ -43,7 +43,7 @@ export type EnumFieldType = { kind: 'enum'; value: Function };
 
 export type VecFieldType = { kind: 'vec'; value: FieldType };
 
-export type MapFieldType = { kind: 'map'; value: FieldType };
+export type MapFieldType = { kind: 'map'; value: [FieldType, FieldType] };
 
 export type OptionFieldType = { kind: 'option'; value: FieldType };
 

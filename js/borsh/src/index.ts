@@ -13,6 +13,7 @@ import {
   hasExtendWriter,
   EnumFieldType,
   EnumClass,
+  MapFieldType,
 } from './types';
 import { BinaryWriter } from './writer';
 import { BinaryReader } from './reader';
@@ -90,6 +91,13 @@ function serializeValue(path: string[], value: any, fieldType: FieldType, writer
       serializeStruct(path, value, writer);
     } else if (kind === 'enum') {
       serializeEnum(path, value, writer);
+    } else if (kind === 'map') {
+      writer.writeU32(value.size);
+      const [keyType, valueType] = v;
+      for (const [k, v] of value) {
+        serializeValue([...path, `<Map[key]>`], k, keyType, writer);
+        serializeValue([...path, `<Map[value]>`], v, valueType, writer);
+      }
     } else if (kind === 'extend') {
       if (hasExtendWriter(v)) {
         writer.writeExtended(value, v);
@@ -143,6 +151,16 @@ function deserializeValue(path: string[], fieldType: FieldType, reader: BinaryRe
       return deserializeStruct(path, value, reader);
     } else if (kind === 'enum') {
       return deserializeEnum(path, value, reader);
+    } else if (kind === 'map') {
+      const length = reader.readU32();
+      const [keyType, valueType] = value;
+      const m = new Map();
+      for (let i = 0; i < length; i++) {
+        let k = deserializeValue([...path, `<Map[key]>`], keyType, reader);
+        let v = deserializeValue([...path, `<Map[value]>`], valueType, reader);
+        m.set(k, v);
+      }
+      return m;
     } else if (kind === 'extend') {
       if (hasExtendReader(value)) {
         return reader.readExtended(value);
@@ -210,7 +228,7 @@ function deserializeStruct<T>(path: string[], ctor: Ctor<T>, reader: BinaryReade
 }
 
 export function field(fieldType: FieldType) {
-  return function (target: any, key: PropertyKey) {
+  return function(target: any, key: PropertyKey) {
     addSchemaField(target.constructor.prototype, key, fieldType);
   };
 }
@@ -227,6 +245,10 @@ export function extend<T>(options: ExtendOptions<T>): ExtendFieldType<T> {
 
 export function vec(elementType: FieldType): VecFieldType {
   return { kind: 'vec', value: elementType };
+}
+
+export function map(keyType: FieldType, valueType: FieldType): MapFieldType {
+  return { kind: 'map', value: [keyType, valueType] };
 }
 
 export function option(innerType: FieldType): OptionFieldType {

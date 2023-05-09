@@ -1,4 +1,4 @@
-import { deserialize, extend, field, option, serialize, struct, variant, enums, vec } from '../src/index';
+import { deserialize, extend, field, option, serialize, struct, variant, enums, vec, map } from '../src/index';
 import { assert } from 'chai';
 import { ExtendOptions, IExtendReader, IExtendWriter } from '../src/types';
 import { writeU64 } from '../src/writer';
@@ -102,6 +102,21 @@ describe('Test serialize', () => {
     const c = new C({ x: Uint8Array.of(1, 2, 3, 4) });
     const bs = serialize(c);
     assert.deepEqual(bs, Uint8Array.from([4, 0, 0, 0, 1, 2, 3, 4]))
+    const c0 = deserialize(C, bs);
+    assert.deepEqual(c, c0);
+  })
+
+  it('Map', () => {
+    class C {
+      @field(map('u8', 'string'))
+      x!: Map<number, string>;
+      constructor(fields: { x: Map<number, string> }) {
+        Object.assign(this, fields);
+      }
+    }
+    const c = new C({ x: new Map([[1, 'a'], [2, 'b']]) });
+    const bs = serialize(c);
+    assert.deepEqual(bs, Uint8Array.from([2, 0, 0, 0, 1, 1, 0, 0, 0, 97, 2, 1, 0, 0, 0, 98]))
     const c0 = deserialize(C, bs);
     assert.deepEqual(c, c0);
   })
