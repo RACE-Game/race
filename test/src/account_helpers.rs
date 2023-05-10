@@ -40,6 +40,7 @@ impl Default for TestGameAccountBuilder {
             addr: game_account_addr(),
             title: "Unnamed".into(),
             bundle_addr: game_bundle_addr(),
+            owner_addr: "8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu".to_string(),
             settle_version: 0,
             access_version: 0,
             players: vec![],
@@ -51,13 +52,16 @@ impl Default for TestGameAccountBuilder {
             unlock_time: None,
             max_players: 6,
             deposits: vec![],
+            max_deposit: 2,
+            min_deposit: 1,
+            token_addr: "RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ".to_string(),
         };
         TestGameAccountBuilder { account }
     }
 }
 
 /// A tuple of (address, deposit, position, access_version),
-type TestPlayerInfo = (String, u64, usize, u64);
+type TestPlayerInfo = (String, u64, u16, u64);
 
 impl TestGameAccountBuilder {
     pub fn new() -> Self {
@@ -113,7 +117,7 @@ impl TestGameAccountBuilder {
             self.account.access_version += 1;
             self.account.players.push(PlayerJoin {
                 addr: addr.to_string(),
-                position: i,
+                position: i as u16,
                 access_version: self.account.access_version,
                 balance: DEFAULT_DEPOSIT_AMOUNT,
             });
@@ -148,7 +152,6 @@ impl TestGameAccountBuilder {
 pub fn transactor_account() -> ServerAccount {
     ServerAccount {
         addr: transactor_account_addr(),
-        owner_addr: transactor_owner_addr(),
         endpoint: transactor_endpoint(),
     }
 }

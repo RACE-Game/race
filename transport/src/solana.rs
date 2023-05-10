@@ -1204,7 +1204,7 @@ mod tests {
                 game_addr: game_addr.clone(),
                 amount: 500_000_000u64,
                 access_version: 0u64,
-                position: 0u16,
+                position: 1u16,
             })
             .await?;
         let game = transport

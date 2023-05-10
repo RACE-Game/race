@@ -17,10 +17,10 @@ use race_core::{
     },
 };
 
-#[cfg(target_arch = "wasm32")]
-use race_transport::wasm_trait::TransportLocalT as TransportT;
 #[cfg(not(target_arch = "wasm32"))]
 use race_core::transport::TransportT;
+#[cfg(target_arch = "wasm32")]
+use race_transport::wasm_trait::TransportLocalT as TransportT;
 
 /// Operation Ident
 ///
@@ -64,11 +64,11 @@ pub struct Client {
     pub transport: Arc<dyn TransportT>,
     pub connection: Arc<dyn ConnectionT>,
     pub game_addr: String,
-    // The address of current node, the player address or server address.
+    // The address of current node, player address or server address.
     pub addr: String,
-    // The client mode, could be player, validator or transactor.
-    // Only the player can send custom event.
-    // Only the transactor can send system event.
+    // The client mode could be player, validator or transactor.
+    // Only player can send custom events.
+    // Only transactor can send system events.
     pub mode: ClientMode,
     pub op_hist: BTreeSet<OpIdent>,
     pub secret_state: SecretState,
@@ -147,6 +147,7 @@ impl Client {
         let mut shares = Vec::new();
 
         for state in game_context.list_decision_states() {
+            println!("[CLET] Decision state {:?}", state);
             if state.get_owner().eq(&self.addr) {
                 let secret = self
                     .secret_state
@@ -159,11 +160,14 @@ impl Client {
                 ));
             }
         }
-
-        Ok(vec![Event::ShareSecrets {
-            sender: self.addr.clone(),
-            shares,
-        }])
+        if shares.is_empty() {
+            Ok(vec![])
+        } else {
+            Ok(vec![Event::ShareSecrets {
+                sender: self.addr.clone(),
+                shares,
+            }])
+        }
     }
 
     pub fn handle_random_waiting(&mut self, random_state: &RandomState) -> Result<Option<Event>> {
@@ -319,7 +323,6 @@ impl Client {
     }
 
     pub fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<Vec<Event>> {
-        // info!("Client handle updated context in mode: {:?}", self.mode);
         let events = match self.mode {
             ClientMode::Player => {
                 self.load_random_states(ctx)?;

@@ -42,16 +42,16 @@ pub struct ActionTimeout {
     pub timeout: u64,
 }
 
-/// An effect used in game handler, provide reading and mutating to
+/// An effect used in game handler provides reading and mutating to
 /// the game context.  An effect can be created from game context,
 /// manipulated by game handler and applied after event processing.
 ///
 /// # Num of Players and Servers
 ///
 /// [`Effect::count_players`] and [`Effect::count_servers`] return the total number of
-/// players and servers, which including those with pending status.
-/// These functions are useful when detecting if there's enough
-/// players/servers to statr a game.
+/// players and servers, respectively. The number includes those with pending status.
+/// These functions are useful when detecting if there's enough players/servers for
+/// a game to start.
 ///
 /// # Randomness
 ///
@@ -73,8 +73,8 @@ pub struct ActionTimeout {
 /// let mut effect = Effect::default();
 /// effect.assign(1 /* random_id */, "Alice", vec![0, 1, 2] /* indexes */);
 /// ```
-/// To reveal some items to public, use [`Effect::reveal`].
-/// It makes those items visible to everyone(including servers).
+/// To reveal some items to the public, use [`Effect::reveal`].
+/// It makes those items visible to everyone, including servers.
 ///
 /// ```
 /// # use race_core::effect::Effect;
@@ -131,7 +131,7 @@ pub struct ActionTimeout {
 /// ```
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(Default, BorshSerialize, BorshDeserialize)]
+#[derive(Default, BorshSerialize, BorshDeserialize, Debug)]
 pub struct Effect {
     pub action_timeout: Option<ActionTimeout>,
     pub wait_timeout: Option<u64>,
@@ -202,12 +202,12 @@ impl Effect {
         }
     }
 
-    /// Return the number of players, including both pending and joint.
+    /// Return the number of players, including both the pending and joined.
     pub fn count_players(&self) -> usize {
         self.players_count
     }
 
-    /// Return the number of servers, including both pending and joint.
+    /// Return the number of servers, including both the pending and joined.
     pub fn count_servers(&self) -> usize {
         self.servers_count
     }
@@ -234,7 +234,7 @@ impl Effect {
         })
     }
 
-    /// Reveal some random items to public.
+    /// Reveal some random items to the public.
     pub fn reveal(&mut self, random_id: RandomId, indexes: Vec<usize>) {
         self.reveals.push(Reveal { random_id, indexes })
     }

@@ -20,10 +20,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "race-sdk-core": "0.0.1",
     "@solana/spl-token": "^0.3.7",
     "@solana/web3.js": "^1.75.0",
-    "borsh": "^0.7.0"
+    "borsh": "^0.7.0",
+    "race-sdk-core": "0.0.1"
   },
   "devDependencies": {
     "@types/chai": "^4.3.4",

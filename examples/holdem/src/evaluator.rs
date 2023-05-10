@@ -1,5 +1,5 @@
-// use serde::{Deserialize, Serialize};
-// use race_core::error::{Error, Result};
+use serde::{de::DeserializeOwned, Serialize};
+use race_core::error::{Error, Result};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 

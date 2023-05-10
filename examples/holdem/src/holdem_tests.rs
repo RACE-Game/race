@@ -1,12 +1,11 @@
-// use std::collections::HashMap;
 use race_core::{
     context::{DispatchEvent, GameContext, GameStatus},
     error::{Error, Result},
     event::Event,
     random::RandomStatus,
-    types::{ClientMode, PlayerJoin},
+    types::{ClientMode, PlayerJoin, ServerJoin},
 };
-use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
+use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler, DummyTransport};
 use super::*;
 
 type Game = (InitAccount, GameContext, TestHandler<Holdem>, TestClient);
@@ -28,13 +27,14 @@ fn set_up() -> Game {
 
 fn create_sync_event(ctx: &GameContext, players: Vec<String>) -> Event {
     let av = ctx.get_access_version() + 1;
+
     let mut new_players = Vec::new();
     for (i, p) in players.iter().enumerate() {
         new_players.push(
             PlayerJoin {
                 addr: p.into(),
                 balance: 10_000,
-                position: i,
+                position: i as u16,
                 access_version: av,
             }
         )
@@ -46,7 +46,6 @@ fn create_sync_event(ctx: &GameContext, players: Vec<String>) -> Event {
         transactor_addr: transactor_account_addr(),
         access_version: av,
     }
-
 }
 
 #[test]
@@ -85,7 +84,6 @@ fn test_runner() -> Result<()> {
             *ctx.get_dispatch()
         );
         assert!(state.is_acting_player(&"Alice".to_string()));
-
     }
 
     // ------------------------- PREFLOP ------------------------
@@ -117,7 +115,6 @@ fn test_runner() -> Result<()> {
 }
 
 #[test]
-#[ignore]
 fn test_players_order() -> Result<()> {
     let (game_acct, mut ctx, mut handler, mut transactor) = set_up();
 
@@ -137,14 +134,17 @@ fn test_players_order() -> Result<()> {
         ]
     );
 
+
     // ------------------------- GAMESTART ------------------------
+    println!("-- Syncing players --");
     handler.handle_until_no_events(
         &mut ctx,
         &sync_evt,
         vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
     )?;
+    println!("-- Syncing done --");
 
-    // BTN is 4 so players should be arranged like below
+    // BTN is 4 so players should be arranged like below:
     // Alice (SB), Bob (BB), Carol (UTG), Dave (MID), Eva (BTN)
     {
         let state = handler.get_state();
@@ -156,16 +156,12 @@ fn test_players_order() -> Result<()> {
         );
     }
 
-    // ------------------------- BLIND BETS ------------------------
-
     Ok(())
 }
 
 #[test]
 fn test_play_game() -> Result<()> {
     let (game_acct, mut ctx, mut handler, mut transactor) = set_up();
-
-
     let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
     let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
     let mut carol = TestClient::new("Carol".into(), game_acct.addr.clone(), ClientMode::Player);
@@ -181,6 +177,7 @@ fn test_play_game() -> Result<()> {
              "Eva".to_string(),
         ]
     );
+
 
     // ------------------------- GAMESTART ------------------------
     handler.handle_until_no_events(

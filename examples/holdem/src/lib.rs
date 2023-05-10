@@ -1,17 +1,13 @@
 #![allow(unused_imports)]
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::prelude::*;
-use race_proc_macro::game_handler;
-use serde::{Deserialize, Serialize};
-// use core::num::flt2dec::decoder;
+use serde::{de::DeserializeOwned, Serialize};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use race_core::prelude::*;
+use race_proc_macro::game_handler;
 
 pub mod evaluator;
 use evaluator::{compare_hands, create_cards, evaluate_cards};
-
-// #[macro_use]
-// extern crate log;
 
 #[cfg(test)]
 mod holdem_tests;
@@ -201,14 +197,13 @@ impl CustomEvent for GameEvent {}
 #[game_handler]
 #[derive(Deserialize, Serialize, Clone, Default)]
 pub struct Holdem {
-    // GameState Handler
     pub deck_random_id: RandomId,
     pub dealer_idx: usize,
     pub sb: u64,
     pub bb: u64,
-    pub min_raise: u64, // (init == bb, then last raise amount)
+    pub min_raise: u64,
     pub buyin: u64,
-    pub btn: usize, // current btn position, zero-indexed?
+    pub btn: usize,
     pub rake: f32,
     pub size: u32,
     pub stage: HoldemStage,
@@ -223,9 +218,8 @@ pub struct Holdem {
     // A map of players in the order of their init positions
     pub player_map: BTreeMap<String, Player>,
     pub players: Vec<String>,
-    // TODO: make this into Option<(String, position)> | type ActingPlayer = (String, usize)
-    pub acting_player: Option<ActingPlayer>, // Acting player's ID or address
-    pub pots: Vec<Pot>,                      // 1st main pot + rest side pot(s)
+    pub acting_player: Option<ActingPlayer>,
+    pub pots: Vec<Pot>,
 }
 
 impl Holdem {
@@ -269,13 +263,13 @@ impl Holdem {
         }
     }
 
-    pub fn ask_for_action(&mut self, player_addr: String, context: &mut Effect) -> Result<()> {
+    pub fn ask_for_action(&mut self, player_addr: String, effect: &mut Effect) -> Result<()> {
         if let Some(player) = self.player_map.get_mut(&player_addr) {
             println!("== Asking {} to act ==", player.addr);
             player.status = PlayerStatus::Acting;
             self.acting_player = Some((player.addr.clone(), player.position));
             // Ask player for action within 30 secs
-            context.action_timeout(player_addr, 30_000);
+            effect.action_timeout(player_addr, 30_000);
             Ok(())
         } else {
             return Err(Error::Custom("Next player not found in game!".to_string()));
@@ -304,7 +298,8 @@ impl Holdem {
         Ok(())
     }
 
-    pub fn blind_bets(&mut self, context: &mut Effect) -> Result<()> {
+    #[allow(unused_variables)]
+    pub fn blind_bets(&mut self, effect: &mut Effect) -> Result<()> {
         let mut players: Vec<String> = self.players.clone();
         if players.len() == 2 {
             players.reverse();
@@ -329,7 +324,7 @@ impl Holdem {
                     Bet::new(sb_player.addr.clone(), real_sb),
                 );
                 // SB acts first
-                self.ask_for_action((*addr).clone(), context)?;
+                self.ask_for_action((*addr).clone(), effect)?;
             }
         } else {
             // Take bet from SB (1st in Player vec)
@@ -372,7 +367,7 @@ impl Holdem {
                     })
                     .collect();
                 let player_to_act = action_players.first().unwrap();
-                self.ask_for_action((*player_to_act).clone(), context)?;
+                self.ask_for_action((*player_to_act).clone(), effect)?;
             }
         }
         // self.players = players;
@@ -381,11 +376,12 @@ impl Holdem {
         Ok(())
     }
 
-    // Handle main pot and side pot(s), for example:
-    // Players A(100), B(45), C(45), D(50) call or go all in, then the pots become
-    // Main:  { amount: 45*4, owners: [A, B, C, D], winners [] }
-    // Side1: { amount: 5*2,  owners: [A, D], winners [] }
-    // Side2: { amount: 50,   owners: [A], winners [] } <-- should return bet to A
+
+    /// Handle main pot and side pot(s), for example:
+    /// Players A(100), B(45), C(45), D(50) call or go all in, then the pots become
+    /// Main:  { amount: 45*4, owners: [A, B, C, D], winners [] }
+    /// Side1: { amount: 5*2,  owners: [A, D], winners [] }
+    /// Side2: { amount: 50,   owners: [A], winners [] } <-- should return bet to A
     pub fn collect_bets(&mut self) -> Result<()> {
         // filter bets: arrange from small to big and remove duplicates
         let mut bets: Vec<u64> = self.bet_map.iter().map(|(_, b)| b.amount).collect();
@@ -441,7 +437,7 @@ impl Holdem {
         Ok(())
     }
 
-    pub fn change_street(&mut self, context: &mut Effect, new_street: Street) -> Result<()> {
+    pub fn change_street(&mut self, effect: &mut Effect, new_street: Street) -> Result<()> {
         // Reset acted to wait
         for player in self.player_map.values_mut() {
             if player.status == PlayerStatus::Acted {
@@ -460,7 +456,7 @@ impl Holdem {
         match self.street {
             Street::Flop => {
                 println!("Reveal cards for street {:?}", self.street);
-                context.reveal(
+                effect.reveal(
                     self.deck_random_id,
                     (players_cnt..(players_cnt + 3)).collect::<Vec<usize>>(),
                 );
@@ -469,7 +465,7 @@ impl Holdem {
             }
 
             Street::Turn => {
-                context.reveal(
+                effect.reveal(
                     self.deck_random_id,
                     (players_cnt..(players_cnt + 4)).collect::<Vec<usize>>(),
                 );
@@ -478,7 +474,7 @@ impl Holdem {
             }
 
             Street::River => {
-                context.reveal(
+                effect.reveal(
                     self.deck_random_id,
                     (players_cnt..(players_cnt + 5)).collect::<Vec<usize>>(),
                 );
@@ -568,7 +564,7 @@ impl Holdem {
     }
 
     // De facto entry point of Holdem
-    pub fn next_state(&mut self, context: &mut Effect) -> Result<()> {
+    pub fn next_state(&mut self, effect: &mut Effect) -> Result<()> {
         // Or self.players.rotate_left(self.btn - 1);
         let last_pos = self.get_ref_positon();
         self.arrange_players(last_pos)?;
@@ -616,7 +612,7 @@ impl Holdem {
         if self.street == Street::Preflop && self.bet_map.is_empty() {
             println!("[Next State]: Blind bets");
             // self.stage = HoldemStage::BlindBets;
-            self.blind_bets(context)?;
+            self.blind_bets(effect)?;
             Ok(())
         }
         // Single player wins because there are one player only
@@ -643,7 +639,7 @@ impl Holdem {
                 "[Next State]: Next-to-act player is: {}",
                 next_action_player
             );
-            self.ask_for_action(next_action_player, context)?;
+            self.ask_for_action(next_action_player, effect)?;
             Ok(())
         }
         // Runner
@@ -661,11 +657,11 @@ impl Holdem {
                     indexes.push(idx * 2 + 1);
                 }
             }
-            context.reveal(self.deck_random_id, indexes);
+            effect.reveal(self.deck_random_id, indexes);
 
             // Reveal community cards
             let players_cnt = self.players.len() * 2;
-            context.reveal(
+            effect.reveal(
                 self.deck_random_id,
                 (players_cnt..(players_cnt + 5)).collect::<Vec<usize>>(),
             );
@@ -674,7 +670,7 @@ impl Holdem {
         // Next Street
         else if new_street != Street::Showdown {
             println!("[Next State]: Move to next street: {:?}", new_street);
-            self.change_street(context, new_street)?;
+            self.change_street(effect, new_street)?;
             Ok(())
         }
         // Showdown
@@ -687,7 +683,7 @@ impl Holdem {
             let board: Vec<&str> = self.board.iter().map(|c| c.as_str()).collect();
             let mut player_hands: Vec<(String, evaluator::PlayerHand)> =
                 Vec::with_capacity(self.players.len());
-            let decryption = context.get_revealed(self.deck_random_id)?;
+            let decryption = effect.get_revealed(self.deck_random_id)?;
             for player in self.player_map.values() {
                 if player.status != PlayerStatus::Fold {
                     let hole_cards = [
@@ -699,8 +695,7 @@ impl Holdem {
                     player_hands.push((player.addr.clone(), hand));
                 }
             }
-            // Compare players' hands
-            // From low to high
+            // Sort players' hands in ascending order
             player_hands.sort_by(|(_, h1), (_, h2)| evaluator::compare_hands(&h1.value, &h2.value));
             println!("Player Hands in ascending order {:?}", player_hands);
 
@@ -732,7 +727,7 @@ impl Holdem {
 
     fn handle_custom_event(
         &mut self,
-        context: &mut Effect,
+        effect: &mut Effect,
         event: GameEvent,
         sender: String,
     ) -> Result<()> {
@@ -765,7 +760,7 @@ impl Holdem {
                     };
                     self.min_raise = amount;
                     self.street_bet = amount;
-                    self.next_state(context)?;
+                    self.next_state(effect)?;
                     Ok(())
                 } else {
                     return Err(Error::Custom(
@@ -795,7 +790,7 @@ impl Holdem {
                             PlayerStatus::Acted
                         };
                         println!("After calls: {:?}", player);
-                        self.next_state(context)?;
+                        self.next_state(effect)?;
                         Ok(())
                     } else {
                         // player's first time to call in this street
@@ -808,7 +803,7 @@ impl Holdem {
                         } else {
                             PlayerStatus::Acted
                         };
-                        self.next_state(context)?;
+                        self.next_state(effect)?;
                         Ok(())
                     }
                 } else {
@@ -831,7 +826,7 @@ impl Holdem {
 
                             if let Some(player) = self.player_map.get_mut(&sender) {
                                 player.status = PlayerStatus::Acted;
-                                self.next_state(context)?;
+                                self.next_state(effect)?;
                                 Ok(())
                             } else {
                                 return Err(Error::Custom("Player not found in game!".to_string()));
@@ -845,7 +840,7 @@ impl Holdem {
                         if self.bet_map.is_empty() {
                             let player = self.player_map.get_mut(&sender).unwrap();
                             player.status = PlayerStatus::Acted;
-                            self.next_state(context)?;
+                            self.next_state(effect)?;
                             Ok(())
                         } else {
                             return Err(Error::Custom("Player hasnt bet yet!".to_string()));
@@ -867,7 +862,7 @@ impl Holdem {
                 if let Some(player) = self.player_map.get_mut(&sender) {
                     println!("Player {} folds", sender);
                     player.status = PlayerStatus::Fold;
-                    self.next_state(context)?;
+                    self.next_state(effect)?;
                     Ok(())
                 } else {
                     return Err(Error::Custom("Player NOT found in game!".to_string()));
@@ -915,7 +910,7 @@ impl Holdem {
                             self.bet_map
                                 .insert(sender, Bet::new(player.addr.clone(), real_bet));
                         }
-                        self.next_state(context)?;
+                        self.next_state(effect)?;
                     } else {
                         let added_bet = amount - 0;
                         let (allin, real_bet) = player.take_bet(added_bet);
@@ -934,7 +929,7 @@ impl Holdem {
                             self.bet_map
                                 .insert(sender, Bet::new(player.addr.clone(), real_bet));
                         }
-                        self.next_state(context)?;
+                        self.next_state(effect)?;
                     }
                     Ok(())
                 } else {
@@ -946,7 +941,7 @@ impl Holdem {
 }
 
 impl GameHandler for Holdem {
-    fn init_state(context: &mut Effect, _init_account: InitAccount) -> Result<Self> {
+    fn init_state(effect: &mut Effect, _init_account: InitAccount) -> Result<Self> {
         // TODO: Use GameAccount to initialize the Game State
         // let account = HoldemAccount::try_from_slice(&init_account.data).unwrap();
         Ok(Self {
@@ -974,30 +969,12 @@ impl GameHandler for Holdem {
         })
     }
 
-    fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()> {
+    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<()> {
         match event {
             // Handle holdem specific (custom) events
             Event::Custom { sender, raw } => {
                 let event: GameEvent = serde_json::from_str(&raw)?;
-                self.handle_custom_event(context, event, sender.clone())?;
-                Ok(())
-            }
-
-            // Timeout, reveal, assign
-            Event::GameStart { .. } => {
-                // Initializing the game state
-                self.street = Street::Init;
-                self.stage = HoldemStage::Play;
-                let player_num = self.player_map.len();
-                self.btn = player_num - 1;
-                println!("== There are {} players in game ==", player_num);
-                // Arrange action order for players
-                self.arrange_players(self.btn)?;
-
-                // Get the randomness (shuffled and dealt cards) ready
-                let rnd_spec = RandomSpec::deck_of_cards();
-                self.deck_random_id = context.init_random_state(rnd_spec);
-
+                self.handle_custom_event(effect, event, sender.clone())?;
                 Ok(())
             }
 
@@ -1009,10 +986,29 @@ impl GameHandler for Holdem {
                     self.player_map.insert(player.addr.clone(), player);
                 }
 
-                // Must detect num of players and servers
-                if context.count_players() >= 2 && context.count_servers() >= 1 {
-                    context.start_game();
+                // Must check num of players and servers
+                // TODO: uncomment the server checking once done with settle
+                if effect.count_players() >= 2
+                    // && effect.count_servers() >= 1
+                {
+                    effect.start_game();
                 }
+                Ok(())
+            }
+
+            Event::GameStart { .. } => {
+                self.street = Street::Init;
+                self.stage = HoldemStage::Play;
+                let player_num = self.player_map.len();
+                self.btn = player_num - 1;
+                println!("== There are {} players in game ==", player_num);
+                // Arrange action order for players
+                self.arrange_players(self.btn)?;
+
+                // Get the randomness (shuffled and dealt cards) ready
+                let rnd_spec = RandomSpec::deck_of_cards();
+                self.deck_random_id = effect.init_random_state(rnd_spec);
+
                 Ok(())
             }
 
@@ -1030,12 +1026,12 @@ impl GameHandler for Holdem {
                         if player_bet.amount == street_bet {
                             player.status = PlayerStatus::Acted;
                             self.acting_player = None;
-                            self.next_state(context)?;
+                            self.next_state(effect)?;
                             Ok(())
                         } else {
                             player.status = PlayerStatus::Fold;
                             self.acting_player = None;
-                            self.next_state(context)?;
+                            self.next_state(effect)?;
                             Ok(())
                         }
                     } else {
@@ -1046,28 +1042,26 @@ impl GameHandler for Holdem {
                 }
             }
 
-            // random_id: RandomId
             Event::RandomnessReady { ref random_id } => {
                 self.deck_random_id = *random_id;
-                let mut idx: usize = 0;
-                for (idx, (addr, player)) in self.player_map.iter().enumerate() {
-                    context.assign(self.deck_random_id, addr, vec![idx * 2, idx * 2 + 1]);
+                for (idx, (addr, _)) in self.player_map.iter().enumerate() {
+                    effect.assign(self.deck_random_id, addr, vec![idx * 2, idx * 2 + 1]);
                 }
                 Ok(())
             }
 
-            // Whenever context updated, ShareSecrets and SecretsReady will be dispatched
+            // Whenever effect updated, ShareSecrets and SecretsReady will be dispatched
             // Then the program falls into this variant arm
             // Before handling SecretsReady, the game is halted for a short while
             Event::SecretsReady => match self.stage {
-                // SecretsReady dispatched because of revealing cards, restore the game
+                // SecretsReady dispatched because of revealing hole cards
                 HoldemStage::ShareKey => {
                     self.stage = HoldemStage::Play;
 
-                    // After revealing hole cards, makes the game enter the preflop
+                    // After revealing hole cards, game should enter the preflop
                     match self.street {
                         Street::Init => {
-                            let decryption = context.get_revealed(self.deck_random_id)?;
+                            let decryption = effect.get_revealed(self.deck_random_id)?;
                             for (idx, player) in self.players.iter().enumerate() {
                                 // let hole_cards = vec![
                                 //     decryption.get(&idx).unwrap(),
@@ -1075,7 +1069,7 @@ impl GameHandler for Holdem {
                                 // ];
                                 let base = idx * 2;
                                 println!(
-                                    "{} got hole cards [{}, {}]",
+                                    "{} gets hole cards [{}, {}]",
                                     player,
                                     decryption.get(&base).unwrap(),
                                     decryption.get(&(base + 1)).unwrap(),
@@ -1083,29 +1077,12 @@ impl GameHandler for Holdem {
                             }
 
                             self.street = Street::Preflop;
-                            self.next_state(context)?;
+                            self.next_state(effect)?;
                         }
 
-                        // Street::Preflop  => {
-                        //     let decryption = context.get_revealed(self.deck_random_id)?;
-                        //     for (idx, player) in self.players.iter().enumerate() {
-                        //         // let hole_cards = vec![
-                        //         //     decryption.get(&idx).unwrap(),
-                        //         //     decryption.get(&(idx + 1)).unwrap(),
-                        //         // ];
-                        //
-                        //         println!("{} got hole cards [{}, {}]",
-                        //                  player,
-                        //                  decryption.get(&idx).unwrap(),
-                        //                  decryption.get(&(idx + 1)).unwrap(),
-                        //         );
-                        //     }
-                        //
-                        //     self.next_state(context)?;
-                        // }
                         Street::Flop => {
                             let players_cnt = self.players.len() * 2;
-                            let decryption = context.get_revealed(self.deck_random_id)?;
+                            let decryption = effect.get_revealed(self.deck_random_id)?;
                             let mut board = Vec::<String>::with_capacity(3);
                             for i in players_cnt..(players_cnt + 3) {
                                 let card = decryption.get(&i).unwrap().clone();
@@ -1114,27 +1091,27 @@ impl GameHandler for Holdem {
                             self.board = board;
                             println!("== Board is {:?} ==", self.board);
 
-                            self.next_state(context)?;
+                            self.next_state(effect)?;
                         }
 
                         Street::Turn => {
-                            let decryption = context.get_revealed(self.deck_random_id)?;
+                            let decryption = effect.get_revealed(self.deck_random_id)?;
                             let card_index = self.players.len() * 2 + 3;
                             let card = decryption.get(&card_index).unwrap().clone();
                             self.board.push(card);
                             println!("== Board is {:?} ==", self.board);
 
-                            self.next_state(context)?;
+                            self.next_state(effect)?;
                         }
 
                         Street::River => {
-                            let decryption = context.get_revealed(self.deck_random_id)?;
+                            let decryption = effect.get_revealed(self.deck_random_id)?;
                             let card_index = self.players.len() * 2 + 4;
                             let card = decryption.get(&card_index).unwrap().clone();
                             self.board.push(card);
                             println!("== Board is {:?} ==", self.board);
 
-                            self.next_state(context)?;
+                            self.next_state(effect)?;
                         }
 
                         _ => {}
@@ -1147,7 +1124,7 @@ impl GameHandler for Holdem {
                         Street::Init => {
                             // Reveal players hole cards
                             let end = self.players.len() * 2;
-                            context.reveal(self.deck_random_id, (0..end).collect::<Vec<usize>>());
+                            effect.reveal(self.deck_random_id, (0..end).collect::<Vec<usize>>());
                             self.stage = HoldemStage::ShareKey;
                             Ok(())
                         }
@@ -1157,7 +1134,7 @@ impl GameHandler for Holdem {
                         // } else {
                         //     (player_addr, dealer_addr)
                         // };
-                        // context.settle(vec![
+                        // effect.settle(vec![
                         //     Settle::add(winner, self.bet),
                         //     Settle::sub(loser, self.bet),
                         //     ]);

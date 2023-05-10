@@ -7,6 +7,7 @@ use std::{
 use crate::account_helpers::*;
 use async_trait::async_trait;
 use base64::prelude::Engine;
+#[allow(unused_imports)]
 use race_core::{
     error::{Error, Result},
     transport::TransportT,
@@ -14,7 +15,7 @@ use race_core::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
         PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-        ServerAccount, Settle, SettleParams, UnregisterGameParams, VoteParams,
+        ServerAccount, Settle, SettleParams, UnregisterGameParams, VoteParams, PublishGameParams,
     },
 };
 
@@ -67,17 +68,17 @@ impl TransportT for DummyTransport {
         Ok(())
     }
 
-    async fn get_game_account(&self, _addr: &str) -> Option<GameAccount> {
+    async fn get_game_account(&self, _addr: &str) -> Result<Option<GameAccount>> {
         let mut states = self.states.lock().unwrap();
         if states.is_empty() {
-            None
+            Ok(None)
         } else {
             let game_account = states.remove(0);
-            Some(game_account)
+            Ok(Some(game_account))
         }
     }
 
-    async fn get_game_bundle(&self, addr_q: &str) -> Option<GameBundle> {
+    async fn get_game_bundle(&self, addr_q: &str) -> Result<Option<GameBundle>> {
         let addr = game_bundle_addr();
         if addr.eq(addr_q) {
             let mut f = std::fs::File::open(
@@ -88,22 +89,24 @@ impl TransportT for DummyTransport {
             f.read_to_end(&mut buf).unwrap();
             let base64 = base64::prelude::BASE64_STANDARD;
             let data = base64.encode(buf);
-            Some(GameBundle { addr, data })
+            // FIXME: complete fields
+            Ok(Some(GameBundle {uri: "".into(), name: "".into(), data: vec![]})
+)
         } else {
-            None
+            Ok(None)
         }
     }
 
-    async fn get_server_account(&self, addr: &str) -> Option<ServerAccount> {
-        todo!()
+    async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>> {
+        Ok(None)
     }
 
-    async fn get_player_profile(&self, addr: &str) -> Option<PlayerProfile> {
-        None
+    async fn get_player_profile(&self, addr: &str) -> Result<Option<PlayerProfile>> {
+        Ok(None)
     }
 
-    async fn publish_game(&self, bundle: GameBundle) -> Result<String> {
-        Ok(bundle.addr)
+    async fn publish_game(&self, bundle: PublishGameParams) -> Result<String> {
+        Ok("".into())
     }
 
     async fn settle_game(&self, mut params: SettleParams) -> Result<()> {
@@ -124,8 +127,8 @@ impl TransportT for DummyTransport {
         Ok(())
     }
 
-    async fn register_server(&self, params: RegisterServerParams) -> Result<String> {
-        Ok("".into())
+    async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
+        Ok(())
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
@@ -140,8 +143,8 @@ impl TransportT for DummyTransport {
         Ok(())
     }
 
-    async fn get_registration(&self, addr: &str) -> Option<RegistrationAccount> {
-        None
+    async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>> {
+        Ok(None)
     }
 }
 
@@ -175,10 +178,10 @@ mod tests {
         transport.simulate_states(states);
 
         let addr = game_account_addr();
-        assert_eq!(Some(ga_0), transport.get_game_account(&addr).await);
-        assert_eq!(Some(ga_1), transport.get_game_account(&addr).await);
-        assert_eq!(Some(ga_2), transport.get_game_account(&addr).await);
-        assert_eq!(None, transport.get_game_account(&addr).await);
+        assert_eq!(Some(ga_0), transport.get_game_account(&addr).await?);
+        assert_eq!(Some(ga_1), transport.get_game_account(&addr).await?);
+        assert_eq!(Some(ga_2), transport.get_game_account(&addr).await?);
+        assert_eq!(None, transport.get_game_account(&addr).await?);
     }
 
     #[tokio::test]
