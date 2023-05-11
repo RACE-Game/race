@@ -253,3 +253,29 @@ impl From<std::io::Error> for Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(
+    Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq,
+)]
+pub enum HandlerError {
+    #[error("Custom error: {0}")]
+    CustomError(String),
+
+    #[error("No enough players")]
+    NoEnoughPlayers,
+
+    #[error("Player not in game")]
+    PlayerNotInGame,
+
+    #[error("Can't leave game")]
+    CantLeave,
+
+    #[error("Invalid amount")]
+    InvalidAmount,
+
+    #[error("Malformed game account data")]
+    MalformedGameAccountData,
+
+    #[error("Malformed custom event")]
+    MalformedCustomEvent,
+}

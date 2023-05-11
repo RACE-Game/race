@@ -1,12 +1,11 @@
 import { deserialize, serialize, field, vec, enums, option, variant, struct } from '@race/borsh';
 import { PlayerJoin, ServerJoin } from './accounts';
+import { Fields } from './types';
 
 export interface ICustomEvent {
   serialize(): Uint8Array;
   deserialize(data: Uint8Array): ICustomEvent;
 }
-
-type Fields<T> = Pick<T, keyof T>;
 
 export abstract class SecretShare {}
 

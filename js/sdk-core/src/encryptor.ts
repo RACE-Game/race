@@ -1,4 +1,5 @@
 import { SdkError } from './error';
+import { Digest, Secret, Ciphertext } from './types';
 
 let subtle: SubtleCrypto;
 let crypto: Crypto;
@@ -67,7 +68,7 @@ export async function encryptAes(key: CryptoKey, text: Uint8Array): Promise<Uint
   }, key, text));
 }
 
-export async function decryptAes(key: CryptoKey, text: Uint8Array): Promise<Uint8Array> {
+export async function decryptAes(key: CryptoKey, text: Ciphertext): Promise<Uint8Array> {
   return new Uint8Array(await subtle.decrypt({
     name: "AES-CTR",
     counter: aesCounter,
@@ -75,14 +76,13 @@ export async function decryptAes(key: CryptoKey, text: Uint8Array): Promise<Uint
   }, key, text));
 }
 
-export async function importAes(keyStr: string): Promise<CryptoKey> {
-  const key = await subtle.importKey(
+export async function importAes(rawKey: Uint8Array): Promise<CryptoKey> {
+  return await subtle.importKey(
     "raw",
-    base64ToArrayBuffer(keyStr),
+    rawKey,
     { name: "AES-CTR" },
     true,
     ["encrypt", "decrypt"]);
-  return key;
 }
 
 export async function importRsa([privateKeyStr, publicKeyStr]: [string, string]): Promise<CryptoKeyPair> {
@@ -120,9 +120,11 @@ export async function generateAes(): Promise<CryptoKey> {
 }
 
 export interface Signature {
-
+  signer: string;
+  nonce: string;
+  timestamp: number;
+  signature: string;
 }
-
 
 /**
  * Encryptor
@@ -136,7 +138,9 @@ export interface IEncryptor {
 
   decryptRsa(text: Uint8Array): Promise<Uint8Array>;
 
-  decryptAes(secret: Uint8Array, text: Uint8Array): Promise<Uint8Array>;
+  decryptAes(secret: Secret, text: Ciphertext): Promise<Ciphertext>;
+
+  decryptAesMulti(secrets: Secret[], text: Ciphertext): Promise<Ciphertext>;
 
   sign(message: Uint8Array): Promise<Signature>;
 
@@ -156,16 +160,24 @@ export class Encryptor implements IEncryptor {
     return await decryptRsa(this.#keypair.privateKey, text);
   }
 
-  async decryptAes(secret: Uint8Array, text: Uint8Array): Promise<Uint8Array> {
-    return await decryptAes(secret, text);
+  async decryptAes(secret: Secret, text: Ciphertext): Promise<Ciphertext> {
+    const key = await importAes(secret);
+    return await decryptAes(key, text);
   }
 
-  sign(message: Uint8Array): Signature {
+  async decryptAesMulti(secrets: Secret[], text: Ciphertext): Promise<Ciphertext> {
+    for (const secret of secrets) {
+      text = await this.decryptAes(secret, text);
+    }
+    return text;
+  }
+
+  async sign(message: Uint8Array): Promise<Signature> {
     throw new Error('Method not implemented.');
   }
 
-  verify(message: Uint8Array, signature: Signature): boolean {
-    throw new Error('Method not implemented.');
+  async verify(message: Uint8Array, signature: Signature): Promise<boolean> {
+    return true;
   }
 
   static async default(): Promise<Encryptor> {

@@ -283,8 +283,3 @@ export function deserialize<T>(classType: Ctor<T> | EnumClass<T>, data: Uint8Arr
     return deserializeStruct([], classType, reader);
   }
 }
-
-export function deserializeVariant<T>(enumClass: Function & { prototype: T }, data: Uint8Array): T {
-  const reader = new BinaryReader(data);
-  return deserializeEnum([], enumClass, reader);
-}

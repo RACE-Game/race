@@ -1,7 +1,9 @@
 import { deserialize, serialize } from '@race/borsh';
-import { GameAccount, PlayerJoin, ServerJoin } from './accounts';
+import { GameAccount, GameBundle, PlayerJoin, ServerJoin } from './accounts';
 import { GameEvent } from './events';
 import { GameContext } from './game-context';
+import { IEncryptor } from './encryptor';
+import { Effect } from './effect';
 
 /**
  * A subset of GameAccount, used in handler initialization.
@@ -61,7 +63,30 @@ export interface IHandler {
   initState(context: GameContext, initAccount: InitAccount): Promise<void>;
 }
 
-export class Handler {
+export class Handler implements IHandler {
+
+  #encryptor: IEncryptor;
+  #instance: WebAssembly.Instance;
+
+  constructor(instance: WebAssembly.Instance, encryptor: IEncryptor) {
+    this.#encryptor = encryptor;
+    this.#instance = instance;
+  }
+
+  static async initialize(gameBundle: GameBundle, encryptor: IEncryptor): Promise<Handler> {
+    const importObject = {
+      imports: {
+        memory: new WebAssembly.Memory({
+          shared: true,
+          maximum: 100,
+          initial: 100,
+        })
+      }
+    };
+    const initiatedSource = await WebAssembly.instantiateStreaming(fetch(gameBundle.uri), importObject);
+    return new Handler(initiatedSource.instance, encryptor);
+  }
+
   async handleEvent(context: GameContext, event: GameEvent) {
     this.generalPreHandleEvent(context, event);
     this.customHandleEvent(context, event);
@@ -74,15 +99,18 @@ export class Handler {
     this.generalPostInitState(context, initAccount);
   }
 
-  async generalPreInitState(context: GameContext, initAccount: InitAccount) {}
+  async generalPreInitState(_context: GameContext, _initAccount: InitAccount) { }
 
-  async generalPostInitState(_context: GameContext, _initAccount: InitAccount) {}
+  async generalPostInitState(_context: GameContext, _initAccount: InitAccount) { }
 
-  async customInitState(context: GameContext, initAccount: InitAccount) {}
+  async generalPreHandleEvent(context: GameContext, event: GameEvent) { }
 
-  async generalPreHandleEvent(context: GameContext, event: GameEvent) {}
+  async generalPostHandleEvent(context: GameContext, event: GameEvent) { }
 
-  async generalPostHandleEvent(context: GameContext, event: GameEvent) {}
+  async customInitState(context: GameContext, initAccount: InitAccount) {
+    const exports = this.#instance.exports;
+    const effect = Effect.fromContext(context);
+  }
 
-  async customHandleEvent(context: GameContext, event: GameEvent) {}
+  async customHandleEvent(context: GameContext, event: GameEvent) { }
 }

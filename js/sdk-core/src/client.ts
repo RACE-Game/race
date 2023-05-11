@@ -45,7 +45,7 @@ export class Client {
   }
 
   async attachGame(): Promise<void> {
-    const key = this.#encryptor.exportPublicKey(undefined);
+    const key = await this.#encryptor.exportPublicKey(undefined);
     await this.#connection.attachGame({
       addr: this.#gameAddr,
       key,
@@ -72,7 +72,7 @@ export class Client {
   }
 
   loadRandomStates(ctx: GameContext) {
-    for (let randomState of ctx.listRandomStates()) {
+    for (let randomState of ctx.randomStates) {
       if (!this.#secretState.isRandomLoaded(randomState.id)) {
         this.#secretState.genRandomStates(randomState.id, randomState.size);
       }
