@@ -1,12 +1,13 @@
 import React, { useContext, useState, useEffect, FC } from 'react';
 import { HelperContext } from './helper-context';
-import { ProfileContext, ProfileData } from './profile-context';
+import { ProfileContext } from './profile-context';
+import { PlayerProfile } from '@race/sdk-core';
 import { useWallet } from './integration';
 import { Chain } from './types';
 
 type ProfileProps = {
     chain: Chain;
-    updateProfile: (profile: ProfileData) => void;
+    updateProfile: (profile: PlayerProfile) => void;
 }
 
 const Profile: FC<ProfileProps> = ({ chain, updateProfile }) => {
@@ -30,7 +31,7 @@ const Profile: FC<ProfileProps> = ({ chain, updateProfile }) => {
             const q = async () => {
                 if (helper !== undefined && wallet.isConnected) {
                     console.log("TSX: wallet addr = ", wallet.walletAddr)
-                    const profile = await helper.get_profile(wallet.walletAddr);
+                    const profile = await helper.getProfile(wallet.walletAddr);
                     if (profile !== undefined) {
                         updateProfile(profile);
                         setNick(profile.nick);
@@ -47,9 +48,11 @@ const Profile: FC<ProfileProps> = ({ chain, updateProfile }) => {
                 alert("Profile name can't be empty");
             } else {
                 console.log("Wallet:", wallet);
-                await helper.create_profile(wallet, nick, "");
-                const profile = await helper.get_profile(wallet.walletAddr);
-                updateProfile(profile);
+                await helper.createProfile(wallet, nick, undefined);
+                const profile = await helper.getProfile(wallet.walletAddr);
+                if (profile !== undefined) {
+                    updateProfile(profile);
+                }
             }
         }
     }

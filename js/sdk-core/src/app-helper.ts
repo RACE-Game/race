@@ -1,4 +1,4 @@
-import { GameAccount, PlayerProfile } from './accounts';
+import { GameAccount, GameRegistration, PlayerProfile } from './accounts';
 import { CreateGameAccountParams, ITransport } from './transport';
 import { IWallet } from './wallet';
 
@@ -86,5 +86,24 @@ export class AppHelper {
    */
   async getProfile(addr: string): Promise<PlayerProfile | undefined> {
     return await this.#transport.getPlayerProfile(addr);
+  }
+
+  /**
+   * List games from a list of registration accounts.
+   *
+   * @param registrationAddrs - The addresses of registration accounts
+   * @return A list of games
+   */
+  async listGames(registrationAddrs: string[]): Promise<GameRegistration[]> {
+    let games: GameRegistration[] = [];
+    for (const addr of registrationAddrs) {
+      const reg = await this.#transport.getRegistration(addr);
+      if (reg !== undefined) {
+        for (const game of reg.games) {
+          games.push(game);
+        }
+      }
+    }
+    return games;
   }
 }

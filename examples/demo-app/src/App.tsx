@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { Outlet, useOutletContext, useNavigate } from 'react-router-dom';
 import Sidemenu from './Sidemenu';
 import Profile from './Profile';
-import init, { AppHelper, Event } from 'race-sdk';
+import init, { Event } from 'race-sdk';
+import { AppHelper, PlayerProfile } from '@race/sdk-core';
 import './App.css'
-import { ProfileContext, ProfileData } from './profile-context';
+import { ProfileContext } from './profile-context';
 import { LogsContext } from './logs-context';
 import { HelperContext } from './helper-context';
 import Logs from './Logs';
@@ -14,7 +15,7 @@ import { createTransport, getWalletWrapper } from './integration';
 
 interface RenderContentProps {
     chain: Chain,
-    setProfile: (profile: ProfileData) => void
+    setProfile: (profile: PlayerProfile) => void
     logs: Array<Event>
 }
 
@@ -46,7 +47,7 @@ const Content = (props: RenderContentProps) => {
 function App() {
     const [chain, setChain] = useState<Chain | undefined>(undefined);
     const [helper, setHelper] = useState<AppHelper | undefined>(undefined);
-    const [profile, setProfile] = useState<ProfileData | undefined>(undefined);
+    const [profile, setProfile] = useState<PlayerProfile | undefined>(undefined);
     let [logs, setLogs] = useState<Array<Event>>([]);
     let nav = useNavigate();
 
@@ -75,10 +76,10 @@ function App() {
             let rpc = CHAIN_TO_RPC[chain];
             const initHelper = async () => {
                 await init();
-                let transport = createTransport(chain, rpc);
-                let client = await AppHelper.try_init(transport);
-                console.log("AppHelper initialized");
-                setHelper(client);
+                const transport = createTransport(chain, rpc);
+                const helper = new AppHelper(transport);
+                console.log("AppHelper initialized", helper);
+                setHelper(helper);
             }
             initHelper();
         }

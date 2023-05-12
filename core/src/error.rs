@@ -1,11 +1,15 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;
 
+#[cfg(feature = "serde")]
+use serde::{Serialize, Deserialize};
+
 use crate::types::DecisionId;
 
 #[derive(
     Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq,
 )]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Error {
     #[error("Player already joined: {0}")]
     PlayerAlreadyJoined(String),

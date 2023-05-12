@@ -4,10 +4,10 @@ import * as SolWalletAdapter from '@solana/wallet-adapter-react';
 import { Chain } from './types';
 import FacadeWalletWrapper from './FacadeWalletWrapper';
 import SolanaWalletWrapper from './SolanaWalletWrapper';
-import { ITransport, IWallet } from 'race-sdk-core';
-import { SolanaTransport, SolanaWalletAdapter } from 'race-sdk-solana';
+import { ITransport, IWallet } from '@race/sdk-core';
+import { SolanaTransport, SolanaWalletAdapter } from '@race/sdk-solana';
 import { FacadeWalletContext } from './facade-wallet-context';
-import { FacadeTransport } from 'race-sdk-facade';
+import { FacadeTransport } from '@race/sdk-facade';
 
 export function useWallet(chain: Chain): IWallet {
   switch (chain) {

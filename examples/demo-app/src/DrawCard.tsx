@@ -4,7 +4,8 @@ import { useParams } from 'react-router-dom';
 import { AppClient, Event } from 'race-sdk';
 import { CHAIN_TO_RPC } from "./constants";
 import Card from './Card';
-import { ProfileContext, ProfileData } from "./profile-context";
+import { PlayerProfile } from '@race/sdk-core';
+import { ProfileContext } from "./profile-context";
 import { LogsContext } from "./logs-context";
 import Header from "./Header";
 import { useWallet, createTransport } from './integration';
@@ -33,7 +34,7 @@ interface State {
     max_bet: bigint,
 }
 
-function renderWaitingPlayers(state: State, profile: ProfileData, client: AppClient) {
+function renderWaitingPlayers(state: State, profile: PlayerProfile, client: AppClient) {
     let n = state.players.length;
     let canJoin = state.players.find((p) => p.addr == profile.addr) === undefined;
     let onJoin = async () => {

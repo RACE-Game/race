@@ -1,10 +1,5 @@
+import { PlayerProfile } from '@race/sdk-core';
 import React from 'react';
 
-export interface ProfileData {
-  addr: string,
-  nick: string,
-  pfp: string,
-}
-
 export const ProfileContext =
-  React.createContext<ProfileData | undefined>(undefined);
+  React.createContext<PlayerProfile | undefined>(undefined);

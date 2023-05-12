@@ -1,15 +1,4 @@
 {
-  /* Visit https://aka.ms/tsconfig to read more about this file */
-  "$schema": "https://json.schemastore.org/tsconfig",
-  "include": ["src/**/*"],
-  "compilerOptions": {
-    "module": "es2020",
-    "target": "es2020",
-    "esModuleInterop": true,
-    "moduleResolution": "node",
-    "outDir": "./lib",
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,
-    "skipLibCheck": true,
-  }
+  "extends": "../config/tsconfig.json",
+  "include": ["src/**/*", "tests/**/*"],
 }

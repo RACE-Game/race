@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { FacadeWallet } from 'race-sdk-facade';
+import { FacadeWallet } from '@race/sdk-facade';
 
 export const DEFAULT_WALLET = new FacadeWallet();
 

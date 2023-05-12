@@ -7,27 +7,18 @@ import {
   DepositParams,
   GameAccount,
   GameBundle,
-  GameRegistration,
-  IGameAccount,
-  IGameBundle,
-  IPlayerProfile,
-  IRegistrationAccount,
-  IServerAccount,
   ITransport,
   IWallet,
   JoinParams,
-  PlayerDeposit,
-  PlayerJoin,
   PlayerProfile,
   PublishGameParams,
   RegisterGameParams,
   RegistrationAccount,
   ServerAccount,
-  ServerJoin,
   UnregisterGameParams,
-  Vote,
   VoteParams,
-} from 'race-sdk-core';
+} from '@race/sdk-core';
+import { deserialize } from '@race/borsh';
 
 interface JoinInstruction {
   playerAddr: string;
@@ -88,27 +79,27 @@ export class FacadeTransport implements ITransport {
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
     const data: Uint8Array | undefined = await this.fetchState('get_account_info', addr);
     if (data === undefined) return undefined;
-    return GameAccount.deserialize(data);
+    return deserialize(GameAccount, data);
   }
   async getGameBundle(addr: string): Promise<GameBundle | undefined> {
     const data: Uint8Array | undefined = await this.fetchState('get_game_bundle', addr);
     if (data === undefined) return undefined;
-    return GameBundle.deserialize(data);
+    return deserialize(GameBundle, data);
   }
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
     const data: Uint8Array | undefined = await this.fetchState('get_profile', addr);
     if (data === undefined) return undefined;
-    return PlayerProfile.deserialize(data);
+    return deserialize(PlayerProfile, data);
   }
   async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
     const data: Uint8Array | undefined = await this.fetchState('get_server_info', addr);
     if (data === undefined) return undefined;
-    return ServerAccount.deserialize(data);
+    return deserialize(ServerAccount, data);
   }
   async getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
     const data: Uint8Array | undefined = await this.fetchState('get_registration_info', addr);
     if (data === undefined) return undefined;
-    return RegistrationAccount.deserialize(data);
+    return deserialize(RegistrationAccount, data);
   }
 
   async sendInstruction(method: string, ix: any) {
@@ -133,7 +124,7 @@ export class FacadeTransport implements ITransport {
     }
   }
 
-  async fetchState<T>(method: string, addr: string): Promise<T | undefined> {
+  async fetchState(method: string, addr: string): Promise<Uint8Array | undefined> {
     const reqData = JSON.stringify({
       jsonrpc: '2.0',
       method,
@@ -152,7 +143,7 @@ export class FacadeTransport implements ITransport {
     }
     const { result } = await resp.json();
     if (result !== null) {
-      return result;
+      return Uint8Array.from(result);
     } else {
       return undefined;
     }
