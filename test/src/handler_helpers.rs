@@ -73,7 +73,7 @@ impl<H: GameHandler> TestHandler<H> {
 
         while !evts.is_empty() {
             let evt = &evts[0];
-            println!("Current event is {}", evt);
+            println!("[HP] Received event: {}", evt);
 
             self.handle_event(context, evt)?;
             if evts.len() == 1 {
@@ -82,7 +82,6 @@ impl<H: GameHandler> TestHandler<H> {
                 evts = evts.iter().skip(1).map(|e| e.clone()).collect();
             }
             if let Some(ctx_evt) = context.get_dispatch() {
-                // timeout == 0
                 if ctx_evt.timeout == 0 {
                     evts.push(ctx_evt.event.clone());
                     context.cancel_dispatch();
@@ -95,7 +94,7 @@ impl<H: GameHandler> TestHandler<H> {
                 evts.extend_from_slice(&cli_evts);
             }
 
-            println!("Context dispatch: {:?}", context.get_dispatch());
+            println!("[HP] Context dispatch: {:?}", context.get_dispatch());
         }
         Ok(())
     }

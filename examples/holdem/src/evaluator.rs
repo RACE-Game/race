@@ -1,5 +1,3 @@
-use serde::{de::DeserializeOwned, Serialize};
-use race_core::error::{Error, Result};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
@@ -35,7 +33,6 @@ fn kind_to_order(card: &str) -> u8 {
     } // 2-9
 }
 
-/// Used as the fn required by the built-in sort_by method on Vec.
 /// After sorting, higher card (kind) will come first in the vec.
 /// Input:  "ck" "ha"
 /// Output: Ordering::Less
@@ -62,7 +59,7 @@ pub fn validate_cards(cards: &Vec<&str>) -> bool {
 
 /// Sort the 7 cards first by the number of grouped kinds.
 /// If two groups have equal number of cards, the higher-kind group wins:
-/// Input:  ["ht", "st", "s8", "c8", "h5", "d3", "h3"]
+/// Input:  ["ht", "s8", "st", "c8", "h5", "d3", "h3"]
 /// Output: ["ht", "st", "s8", "c8", "d3", "h3", "h5"]
 pub fn sort_grouped_cards<'a>(cards: &Vec<&'a str>) -> Vec<&'a str> {
     // Group cards by their kinds
@@ -103,7 +100,7 @@ pub fn sort_grouped_cards<'a>(cards: &Vec<&'a str>) -> Vec<&'a str> {
 
 // ============================================================
 // Most fns below will assume that `cards' have been sorted
-// using the fns above, in the order from high to low
+// using the fns above, in the order of from high to low
 // ============================================================
 
 /// Used to detect the type of SameKinds: One Pair, Two Pairs, FullHouse, etc.
@@ -128,11 +125,8 @@ pub struct PlayerHand<'a> {
     pub value: Vec<u8>,      // Values of Best 5 Kinds + category value
 }
 
-// // TODO: Try to impl eq for PlayerHand?
+// TODO: Try to impl eq for PlayerHand?
 // impl<'a> PartialEq for PlayerHand<'a> {
-//     fn eq(&self, other: PlayerHand<'a>) -> bool {
-//
-//     }
 // }
 
 /// Given the vec of kind orders, tag the category order value in the first place
@@ -143,7 +137,7 @@ fn tag_value(picked: &Vec<&str>, catetogry_orderv: u8) -> Vec<u8> {
     value
 }
 
-/// Use the enum Category to check if there is indeed one
+/// Decide the category of the input
 pub fn check_same_kinds(sorted_kinds: &Vec<&str>, category: Category) -> bool {
     match category {
         Category::FourOfAKind => sorted_kinds[0..4].iter().all(|&c| c == sorted_kinds[0]),
@@ -416,7 +410,10 @@ pub fn evaluate_cards(cards: Vec<&str>) -> PlayerHand {
         .collect();
     let (has_royal, rflush) = find_royal_flush(&cards);
     let (has_flush, flush_cards) = find_flush(&cards);
-    let (has_straights, straights) = find_straights(&cards);
+
+    let mut sorted_cards: Vec<&str> = cards.iter().map(|c| *c).collect();
+    sorted_cards.sort_by(|&c1, &c2| compare_kinds(c1, c2));
+    let (has_straights, straights) = find_straights(&sorted_cards);
 
     // royal flush
     if has_royal {

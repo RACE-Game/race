@@ -589,7 +589,7 @@ impl RandomState {
             if index >= self.size {
                 return Err(Error::InvalidIndex);
             }
-            self.revealed.insert(index, value);
+            self.revealed.entry(index).or_insert(value);
         }
         Ok(())
     }
