@@ -19,7 +19,7 @@ export abstract class RandomSpec {
 export class ShuffledList extends RandomSpec {
   @field(vec('string'))
   options!: string[];
-  constructor(fields: Fields<ShuffledList>) {
+  constructor(fields: { options: string[] }) {
     super();
     Object.assign(this, fields);
   }
@@ -47,7 +47,7 @@ export class Lottery extends RandomSpec {
   }
 }
 
-export class ILock {
+export class Lock {
   digest: Digest;
   owner: string;
   constructor(owner: string, digest: Digest) {
@@ -70,7 +70,7 @@ export class Mask {
 export type CipherOwner = {
   kind: 'unclaimed'
 } | {
-  kind: 'alligned',
+  kind: 'assigned',
   addr: string;
 } | {
   kind: 'multiAssigned',
@@ -123,7 +123,7 @@ export class RandomState {
   status: RandomStatus;
   masks: Mask[];
   ciphertexts: LockedCiphertext[];
-  secret_shares: Share[];
+  secretShares: Share[];
   revealed: Map<number, string>;
 
   constructor(id: bigint, spec: RandomSpec, owners: string[]) {
@@ -137,65 +137,243 @@ export class RandomState {
     this.masks = owners.map(o => new Mask(o));
     this.id = id;
     this.revealed = new Map();
-    this.secret_shares = [];
+    this.secretShares = [];
     this.status = { kind: 'masking', addr: owners[0] };
   }
 
-  mask(addr: string, ciphertexts: Ciphertext[]) {
+  isFullyMasked(): boolean {
+    return this.masks.every(m => m.status !== 'required');
+  }
 
+  isFullyLocked(): boolean {
+    return this.masks.every(m => m.status === 'removed');
+  }
+
+  mask(addr: string, ciphertexts: Ciphertext[]) {
+    if (this.status.kind === 'masking') {
+      const a = this.status.addr;
+      if (a !== addr) {
+        throw new Error('Invalid operator');
+      }
+      const mask = this.masks.find(m => m.owner === addr);
+      if (mask === undefined) {
+        throw new Error('Invalid operator');
+      }
+      if (mask.status !== 'required') {
+        throw new Error('Duplicated mask');
+      }
+      if (ciphertexts.length !== this.ciphertexts.length) {
+        throw new Error('Invalid ciphertexts');
+      }
+      for (let i = 0; i < this.ciphertexts.length; i++) {
+        this.ciphertexts[i].ciphertext = ciphertexts[i];
+      }
+      mask.status = 'applied';
+      this.updateStatus();
+    } else {
+      throw new Error('Invalid status' + this.status);
+    }
   }
 
   lock(addr: string, ciphertextsAndDigests: CiphertextAndDigest[]) {
-
+    if (this.status.kind === 'locking') {
+      const a = this.status.addr;
+      if (a !== addr) {
+        throw new Error('Invalid operator');
+      }
+      const mask = this.masks.find(m => m.owner === addr);
+      if (mask === undefined) {
+        throw new Error('Invalid operator');
+      }
+      if (ciphertextsAndDigests.length !== this.ciphertexts.length) {
+        throw new Error('Invalid ciphertexts');
+      }
+      mask.status = 'removed';
+      for (let i = 0; i < this.ciphertexts.length; i++) {
+        const { ciphertext, digest } = ciphertextsAndDigests[0];
+        this.ciphertexts[i].ciphertext = ciphertext;
+        this.ciphertexts[i].locks.push(new Lock(addr, digest));
+      }
+      this.updateStatus();
+    } else {
+      throw new Error('Invalid status' + this.status);
+    }
   }
 
   assign(addr: string, indexes: number[]) {
+    if (this.status.kind === 'ready' || this.status.kind === 'waiting-secrets') {
+      for (const idx of indexes) {
+        let c = this.ciphertexts[idx];
+        if (c.owner.kind === 'assigned' || c.owner.kind === 'revealed') {
+          throw new Error('Ciphertext already assigned');
+        }
+        c.owner = { kind: 'assigned', addr };
+        let secrets = this.secretShares;
+        this.owners.forEach(o => {
+          secrets.push(new Share(o, idx, addr))
+        })
+      }
 
+      this.status = { kind: 'waiting-secrets' };
+    } else {
+      throw new Error('Invalid status' + this.status);
+    }
   }
 
   addSecretShare(share: Share) {
-
+    const exist = this.secretShares.find(ss =>
+      ss.fromAddr === share.fromAddr
+      && ss.toAddr === share.toAddr
+      && ss.index === share.index);
+    if (exist === undefined) {
+      this.secretShares.push(share);
+    }
   }
 
   reveal(indexes: number[]) {
+    if (this.status.kind === 'ready' || this.status.kind === 'waiting-secrets') {
+      for (const idx of indexes) {
+        let c = this.ciphertexts[idx];
+        if (c.owner.kind !== 'revealed') {
+          c.owner = { kind: 'revealed' };
+          let secrets = this.secretShares;
+          this.owners.forEach(o => {
+            secrets.push(new Share(o, idx))
+          })
+        }
+      }
 
+      this.status = { kind: 'waiting-secrets' };
+    } else {
+      throw new Error('Invalid status' + this.status);
+    }
   }
 
   listRequiredSecretsByFromAddr(fromAddr: string): SecretIdent[] {
-    return [];
+    return this.secretShares
+      .filter(ss => ss.secret === undefined && ss.fromAddr === fromAddr)
+      .map(ss => ({
+        fromAddr: ss.fromAddr,
+        toAddr: ss.toAddr,
+        randomId: this.id,
+        index: ss.index
+      }));
   }
 
-  listRevealedSecrets(): Map<number, Ciphertext[]> {
-    return new Map();
-
+  listRevealedSecrets(): Map<number, Secret[]> {
+    if (this.status.kind !== 'ready') {
+      throw new Error('Secrets not ready');
+    }
+    let res = new Map<number, Secret[]>();
+    for (const ss of this.secretShares) {
+      if (ss.toAddr === undefined) {
+        let ciphertexts = res.get(ss.index);
+        if (ciphertexts === undefined) {
+          res.set(ss.index, [ss.secret!]);
+        } else {
+          ciphertexts.push(ss.secret!);
+        }
+      }
+    }
+    return res;
   }
 
   listAssignedCiphertexts(addr: string): Map<number, Ciphertext> {
-    return new Map();
-
+    let res = new Map<number, Ciphertext>();
+    for (let i = 0; i < this.ciphertexts.length; i++) {
+      const c = this.ciphertexts[i];
+      if (c.owner.kind === 'assigned' && c.owner.addr === addr) {
+        res.set(i, c.ciphertext);
+      }
+    }
+    return res;
   }
 
   listRevealedCiphertexts(): Map<number, Ciphertext> {
-    return new Map();
+    let res = new Map<number, Ciphertext>();
+    for (let i = 0; i < this.ciphertexts.length; i++) {
+      const c = this.ciphertexts[i];
+      if (c.owner.kind === 'revealed') {
+        res.set(i, c.ciphertext);
+      }
+    }
+    return res;
   }
 
-  listSharedSecrets(): Map<number, Secret[]> {
-    return new Map();
+  listSharedSecrets(toAddr: string): Map<number, Secret[]> {
+    if (this.status.kind !== 'ready') {
+      throw new Error('Secrets not ready');
+    }
+    let res = new Map<number, Secret[]>();
+    for (const ss of this.secretShares) {
+      if (ss.toAddr === toAddr) {
+        let secrets = res.get(ss.index);
+        if (secrets === undefined) {
+          res.set(ss.index, [ss.secret!]);
+        } else {
+          secrets.push(ss.secret!);
+        }
+      }
+    }
+    return res;
   }
 
   addRevealed(revealed: Map<number, string>) {
-
+    for (const [index, value] of revealed) {
+      if (index >= this.size) {
+        throw new Error('Invalid index');
+      }
+      this.revealed.set(index, value);
+    }
   }
 
   addSecret(fromAddr: string, toAddr: string | undefined, index: number, secret: Secret) {
-
+    const secretShare = this.secretShares.find(ss => ss.fromAddr === fromAddr && ss.toAddr === toAddr && ss.index === index);
+    if (secretShare !== undefined) {
+      if (secretShare.secret === undefined) {
+        const ciphertext = this.ciphertexts[secretShare.index];
+        if (ciphertext !== undefined) {
+          secretShare.secret = secret;
+        } else {
+          throw new Error('Invalid secret');
+        }
+      } else {
+        throw new Error('Duplicated secret');
+      }
+    }
+    this.updateStatus();
   }
 
   listOperatingAddrs(): string[] {
-    return [];
+    switch (this.status.kind) {
+      case 'ready':
+        return [];
+      case 'locking':
+        return [this.status.addr];
+      case 'masking':
+        return [this.status.addr];
+      case 'waiting-secrets':
+        return this.secretShares
+          .filter(s => s.secret === undefined)
+          .map(s => s.fromAddr);
+    }
   }
 
   updateStatus() {
-
+    let mask = this.masks.find(m => m.status === 'required');
+    if (mask !== undefined) {
+      this.status = { kind: 'masking', addr: mask.owner };
+      return;
+    }
+    mask = this.masks.find(m => m.status === 'applied');
+    if (mask !== undefined) {
+      this.status = { kind: 'locking', addr: mask.owner };
+      return;
+    }
+    if (this.secretShares.find(s => s.secret === undefined) !== undefined) {
+      this.status = { kind: 'waiting-secrets' };
+      return;
+    }
+    this.status = { kind: 'ready' };
   }
 }
