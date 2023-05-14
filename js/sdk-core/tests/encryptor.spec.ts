@@ -7,8 +7,6 @@ describe('Test utilities', () => {
     const keyStrs = await exportRsa(keypair);
     const keypair0 = await importRsa(keyStrs);
     const keyStrs1 = await exportRsa(keypair0);
-    console.log(keyStrs[0]);
-    console.log(keyStrs[1]);
     assert.deepEqual(keyStrs1, keyStrs);
   });
 

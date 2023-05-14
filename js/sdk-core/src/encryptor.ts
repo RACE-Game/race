@@ -11,7 +11,6 @@ if (global !== undefined) {
   crypto = window.crypto;
   subtle = window.crypto.subtle;
 }
-console.log("Subtle Crypto:", subtle);
 
 let aesCounter = crypto.getRandomValues(new Uint8Array(16));
 
