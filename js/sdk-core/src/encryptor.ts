@@ -3,7 +3,7 @@ import { Digest, Secret, Ciphertext } from './types';
 
 let subtle: SubtleCrypto;
 let crypto: Crypto;
-if (global !== undefined) {
+if (typeof global === 'object') {
   const _crypto = require('crypto');
   crypto = _crypto.webcrypto;
   subtle = _crypto.webcrypto.subtle;
@@ -13,6 +13,8 @@ if (global !== undefined) {
 }
 
 let aesCounter = crypto.getRandomValues(new Uint8Array(16));
+
+const textDecoder = new TextDecoder('utf8');
 
 const publicExponent = Uint8Array.of(1, 0, 1);
 
@@ -144,6 +146,8 @@ export interface IEncryptor {
   sign(message: Uint8Array): Promise<Signature>;
 
   verify(message: Uint8Array, signature: Signature): Promise<boolean>;
+
+  decryptWithSecrets(ciphertextMap: Map<number, Ciphertext>, secretMap: Map<number, Secret[]>, validOptions: string[]): Promise<Map<number, string>>;
 }
 
 
@@ -206,5 +210,23 @@ export class Encryptor implements IEncryptor {
       }
     }
     return await exportRsaPublicKey(key);
+  }
+
+  async decryptWithSecrets(ciphertextMap: Map<number, Ciphertext>, secretMap: Map<number, Secret[]>, validOptions: string[]): Promise<Map<number, string>> {
+    const res = new Map();
+    for (const [idx, ciphertext] of ciphertextMap) {
+      const secrets = secretMap.get(idx);
+      if (secrets === undefined) {
+        throw new Error('Missing secrets');
+      } else {
+        const decrypted = await this.decryptAesMulti(secrets, ciphertext);
+        const decryptedValue = textDecoder.decode(decrypted);
+        if (validOptions.find(s => s === decryptedValue) === undefined) {
+          throw new Error('Invalid result');
+        }
+        res.set(idx, decryptedValue);
+      }
+    }
+    return res;
   }
 }

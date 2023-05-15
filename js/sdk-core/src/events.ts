@@ -232,7 +232,7 @@ export class AnswerDecision extends GameEvent {
   @field('u64')
   decisionId!: bigint;
   @field(vec('u8'))
-  cihpertext!: Uint8Array;
+  ciphertext!: Uint8Array;
   @field(vec('u8'))
   digest!: Uint8Array;
   constructor(fields: Fields<AnswerDecision>) {

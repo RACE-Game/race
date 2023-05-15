@@ -288,10 +288,10 @@ export class SolanaTransport implements ITransport {
     console.log('metadata:', metadata);
     const wasm = metadata.properties.files.find((f: any) => f['type'] == 'application/wasm');
 
-    const respWasm = await fetch(wasm.uri);
-    const data = new Uint8Array(await respWasm.arrayBuffer());
+    // const respWasm = await fetch(wasm.uri);
+    // const data = new Uint8Array(await respWasm.arrayBuffer());
 
-    return new GameBundle({ uri, name, data });
+    return new GameBundle({ uri, name, data: new Uint8Array(0) });
   }
 
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {

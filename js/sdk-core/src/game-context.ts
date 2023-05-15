@@ -91,7 +91,6 @@ export class GameContext {
     this.handlerState = Uint8Array.of();
   }
 
-
   getServerByAddress(addr: string): IServer | undefined {
     return this.servers.find(s => s.addr === addr);
   }
