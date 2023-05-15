@@ -1,8 +1,5 @@
 use std::collections::HashMap;
 
-#[cfg(feature = "serde")]
-use serde::{Serialize, Deserialize};
-use borsh::{BorshDeserialize, BorshSerialize};
 use crate::decision::DecisionState;
 use crate::effect::{Ask, Assign, Effect, Release, Reveal};
 use crate::engine::GameHandler;
@@ -17,6 +14,9 @@ use crate::{
     random::RandomState,
     types::{Ciphertext, GameAccount},
 };
+use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 const OPERATION_TIMEOUT: u64 = 15_000;
 
@@ -465,13 +465,7 @@ impl GameContext {
         }
     }
 
-    pub fn is_all_random_ready(&self) -> bool {
-        self.random_states
-            .iter()
-            .all(|st| st.status == RandomStatus::Ready)
-    }
-
-    pub fn secrets_ready(&self) -> bool {
+    pub fn is_secrets_ready(&self) -> bool {
         self.random_states
             .iter()
             .all(|st| st.status == RandomStatus::Ready)

@@ -125,7 +125,7 @@ pub fn general_handle_event(
 
         Event::ShareSecrets { sender, shares } => {
             context.add_shared_secrets(sender, shares.clone())?;
-            if context.secrets_ready() {
+            if context.is_secrets_ready() {
                 context.dispatch_event(Event::SecretsReady, 0);
             }
             Ok(())

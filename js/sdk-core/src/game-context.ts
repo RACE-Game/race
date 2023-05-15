@@ -1,8 +1,11 @@
 import { RandomState, RandomSpec } from './random-state';
 import { DecisionState } from './decision-state';
-import { ActionTimeout, GameEvent, GameStart, SecretShare, Shutdown, WaitingTimeout } from './events';
-import { Effect, Settle } from './effect';
+import { ActionTimeout, Answer, CiphertextAndDigest, GameEvent, GameStart, OperationTimeout, Random, RandomnessReady, SecretShare, Shutdown, WaitingTimeout } from './events';
+import { Effect, Settle, SettleAdd, SettleEject, SettleSub } from './effect';
 import { GameAccount, PlayerJoin, ServerJoin } from './accounts';
+import { Ciphertext, Digest } from './types';
+
+const OPERATION_TIMEOUT = 15_000n;
 
 export type NodeStatus = {
   kind: 'pending',
@@ -103,6 +106,10 @@ export class GameContext {
     };
   }
 
+  dispatchEventInstantly(event: GameEvent) {
+    this.dispatchEvent(event, 0n);
+  }
+
   waitTimeout(timeout: bigint) {
     this.dispatch = {
       event: new WaitingTimeout({}),
@@ -137,71 +144,307 @@ export class GameContext {
     };
   }
 
-  assign(randomId: bigint, playerAddr: string, indexes: number[]) {
+  getRandomState(randomId: bigint): RandomState {
+    if (randomId <= 0n) {
+      throw new Error('Invalid random id');
+    }
+    const st = this.randomStates[Number(randomId)];
+    if (st === undefined) {
+      throw new Error('Invalid random id');
+    }
+    return st;
+  }
 
+  getDecisionState(decisionId: bigint): DecisionState {
+    if (decisionId <= 0n) {
+      throw new Error('Invalid decision id');
+    }
+    const st = this.decisionStates[Number(decisionId)];
+    if (st === undefined) {
+      throw new Error('Invalid decision id');
+    }
+    return st;
+  }
+
+  assign(randomId: bigint, playerAddr: string, indexes: number[]) {
+    const st = this.getRandomState(randomId);
+    st.assign(playerAddr, indexes);
   }
 
   reveal(randomId: bigint, indexes: number[]) {
-
+    const st = this.getRandomState(randomId);
+    st.reveal(indexes);
   }
 
-
   isRandomReady(randomId: bigint): boolean {
-    return true;
+    const k = this.getRandomState(randomId).status.kind;
+    return k === 'ready' || k === 'waiting-secrets'
   }
 
   isAllRandomReady(): boolean {
+    for (const st of this.randomStates) {
+      const k = st.status.kind;
+      if (k !== 'ready' && k !== 'waiting-secrets') {
+        return false;
+      }
+    }
     return true;
   }
 
   isSecretsReady(): boolean {
-    return true;
+    return this.randomStates.every(st => st.status.kind === 'ready');
   }
 
   setPlayerStatus(addr: string, status: NodeStatus) {
-
+    let p = this.players.find(p => p.addr === addr);
+    if (p === undefined) {
+      throw new Error('Invalid player address');
+    }
+    p.status = status;
   }
 
   addPlayer(player: PlayerJoin) {
-
+    const exist = this.players.find(p => p.addr === player.addr || p.position === player.position);
+    if (exist === undefined) {
+      this.players.push({
+        addr: player.addr,
+        balance: player.balance,
+        status: { kind: 'ready' },
+        position: player.position
+      })
+    } else {
+      if (exist.position === player.position) {
+        throw new Error('Position occupied');
+      } else {
+        throw new Error('Player already joined');
+      }
+    }
   }
 
   addServer(server: ServerJoin) {
+    const exist = this.players.find(s => s.addr === server.addr);
+    if (exist === undefined) {
+      this.servers.push({
+        addr: server.addr,
+        status: { kind: 'ready' },
+        endpoint: server.endpoint,
+      });
+    } else {
+      throw new Error('Server already joined');
+    }
+  }
 
+  setAccessVersion(accessVersion: bigint) {
+    this.accessVersion = accessVersion;
+  }
+
+  setAllowExit(allowExit: boolean) {
+    this.allowExit = allowExit;
+  }
+
+  removePlayer(addr: string) {
+    if (this.allowExit) {
+      const origLen = this.players.length;
+      this.players = this.players.filter(p => p.addr !== addr);
+      if (this.players.length === origLen) {
+        throw new Error('Player not in game');
+      }
+    } else {
+      throw new Error("Can't leave");
+    }
   }
 
   initRandomState(spec: RandomSpec): bigint {
-    return 0n;
+    const randomId = BigInt(this.randomStates.length) + 1n;
+    const owners = this.servers
+      .filter(s => s.status.kind === 'ready')
+      .map(s => s.addr);
+    const randomState = new RandomState(randomId, spec, owners);
+    this.randomStates.push(randomState);
+    return randomId;
   }
 
   addSharedSecrets(_addr: string, shares: SecretShare[]) {
+    for (const share of shares) {
+      if (share instanceof Random) {
+        const { randomId, toAddr, fromAddr, index, secret } = share;
+        this.getRandomState(randomId).addSecret(fromAddr, toAddr, index, secret);
+      } else if (share instanceof Answer) {
+        const { fromAddr, decisionId, secret } = share;
+        this.getDecisionState(decisionId).addSecret(fromAddr, secret);
+      }
+    }
+  }
+
+  randomizeAndMask(addr: string, randomId: bigint, ciphertexts: Ciphertext[]) {
+    let st = this.getRandomState(randomId);
+    st.mask(addr, ciphertexts);
+    this.dispatchRandomizationTimeout(randomId);
+  }
+
+  lock(addr: string, randomId: bigint, ciphertextsAndTests: CiphertextAndDigest[]) {
+    let st = this.getRandomState(randomId);
+    st.lock(addr, ciphertextsAndTests);
+    this.dispatchRandomizationTimeout(randomId);
   }
 
   dispatchRandomizationTimeout(randomId: bigint) {
-
+    const noDispatch = this.dispatch === undefined;
+    let st = this.getRandomState(randomId);
+    const statusKind = st.status.kind;
+    if (statusKind === 'ready') {
+      this.dispatchEventInstantly(new RandomnessReady({ randomId }));
+    } else if (statusKind === 'locking' || statusKind === 'masking') {
+      const addr = st.status.addr;
+      if (noDispatch) {
+        this.dispatchEvent(new OperationTimeout({ addrs: [addr] }), OPERATION_TIMEOUT);
+      }
+    } else if (statusKind === 'waiting-secrets') {
+      if (noDispatch) {
+        const addrs = st.listOperatingAddrs();
+        this.dispatchEvent(new OperationTimeout({ addrs }), OPERATION_TIMEOUT)
+      }
+    }
   }
 
   settle(settles: Settle[]) {
-
+    this.settles = settles;
   }
 
   bumpSettleVersion() {
-
+    this.settleVersion += 1n;
   }
 
   applyAndTakeSettles(): Settle[] | undefined {
-    return undefined;
+    if (this.settles === undefined) {
+      return undefined;
+    }
+    let settles = this.settles;
+    this.settles = undefined;
+    settles = settles.sort((s1, s2) => s1.compare(s2));
+    for (const s of settles) {
+      if (s.op instanceof SettleAdd) {
+        let p = this.getPlayerByAddress(s.addr);
+        if (p === undefined) {
+          throw new Error('Invalid settle player address');
+        }
+        p.balance += s.op.amount;
+      } else if (s.op instanceof SettleSub) {
+        let p = this.getPlayerByAddress(s.addr);
+        if (p === undefined) {
+          throw new Error('Invalid settle player address');
+        }
+        p.balance -= s.op.amount;
+      } else if (s.op instanceof SettleEject) {
+        this.players = this.players.filter(p => p.addr !== s.addr);
+      }
+    }
+
+    this.bumpSettleVersion();
+  }
+
+  addSettle(settle: Settle) {
+    if (this.settles === undefined) {
+      this.settles = [settle];
+    } else {
+      this.settles.push(settle);
+    }
+  }
+
+  addRevealedRandom(randomId: bigint, revealed: Map<number, string>) {
+    const st = this.getRandomState(randomId);
+    st.addRevealed(revealed);
+  }
+
+  addRevealedAnswer(decisionId: bigint, revealed: string) {
+    const st = this.getDecisionState(decisionId);
+    st.addReleased(revealed);
+  }
+
+  ask(owner: string): bigint {
+    const id = BigInt(this.decisionStates.length) + 1n;
+    const st = new DecisionState(id, owner);
+    this.decisionStates.push(st);
+    return id;
+  }
+
+  answerDecision(id: bigint, owner: string, ciphertext: Ciphertext, digest: Digest) {
+    const st = this.getDecisionState(id);
+    st.setAnswer(owner, ciphertext, digest);
+  }
+
+  getRevealed(randomId: bigint): Map<number, string> {
+    let st = this.getRandomState(randomId);
+    return st.revealed;
   }
 
   applyEffect(effect: Effect) {
-
+    if (effect.startGame) {
+      this.startGame();
+    } else if (effect.stopGame) {
+      this.shutdownGame();
+    } else if (effect.actionTimeout !== undefined) {
+      this.actionTimeout(effect.actionTimeout.playerAddr, effect.actionTimeout.timeout);
+    } else if (effect.waitTimeout !== undefined) {
+      this.waitTimeout(effect.waitTimeout);
+    } else if (effect.cancelDispatch) {
+      this.dispatch = undefined;
+    }
+    for (const assign of effect.assigns) {
+      this.assign(assign.randomId, assign.playerAddr, assign.indexes);
+    }
+    for (const reveal of effect.reveals) {
+      this.reveal(reveal.randomId, reveal.indexes);
+    }
+    for (const ask of effect.asks) {
+      this.ask(ask.playerAddr);
+    }
+    for (const spec of effect.initRandomStates) {
+      this.initRandomState(spec);
+    }
+    if (effect.settles.length > 0) {
+      this.settle(effect.settles);
+    }
+    if (effect.handlerState !== undefined) {
+      this.handlerState = effect.handlerState
+    }
   }
 
   setNodeReady(accessVersion: bigint) {
-
+    for (const s of this.servers) {
+      if (s.status.kind === 'pending') {
+        if (s.status.accessVersion < accessVersion) {
+          s.status = { kind: 'ready' };
+        }
+      }
+    }
+    for (const p of this.players) {
+      if (p.status.kind === 'pending') {
+        if (p.status.accessVersion < accessVersion) {
+          p.status = { kind: 'ready' };
+        }
+      }
+    }
   }
 
   applyCheckpoint(accessVersion: bigint, settleVersion: bigint) {
-
+    if (this.settleVersion !== settleVersion) {
+      throw new Error('Invalid checkpoint');
+    }
+    this.players = this.players.filter(p => {
+      if (p.status.kind === 'pending') {
+        return p.status.accessVersion < accessVersion
+      } else {
+        return true;
+      }
+    });
+    this.servers = this.servers.filter(s => {
+      if (s.status.kind === 'pending') {
+        return s.status.accessVersion < accessVersion
+      } else {
+        return true;
+      }
+    });
+    this.accessVersion = accessVersion;
   }
 }

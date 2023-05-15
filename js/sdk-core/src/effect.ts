@@ -38,9 +38,21 @@ export class Settle {
   addr: string;
   @field(enums(SettleOp))
   op: SettleOp;
-  constructor(fields: Fields<Settle>) {
+  constructor(fields: { addr: string, op: SettleOp }) {
     this.addr = fields.addr;
     this.op = fields.op;
+  }
+  sortKey(): number {
+    if (this.op instanceof SettleAdd) {
+      return 0;
+    } else if (this.op instanceof SettleSub) {
+      return 1;
+    } else {
+      return 2;
+    }
+  }
+  compare(s: Settle): number {
+    return this.sortKey() - s.sortKey();
   }
 }
 
@@ -57,8 +69,8 @@ export class Assign {
   randomId!: bigint;
   @field('string')
   playerAddr!: string;
-  @field(vec('u8'))
-  indexes!: Uint16Array;
+  @field(vec('u16'))
+  indexes!: number[];
   constructor(fields: Fields<Assign>) {
     Object.assign(this, fields);
   }
