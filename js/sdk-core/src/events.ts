@@ -1,4 +1,4 @@
-import { deserialize, serialize, field, vec, enums, option, variant, struct } from '@race/borsh';
+import { field, vec, enums, option, variant, struct } from '@race/borsh';
 import { PlayerJoin, ServerJoin } from './accounts';
 import { Fields } from './types';
 
@@ -189,7 +189,7 @@ export class GameStart extends GameEvent {
 
 @variant(11)
 export class WaitingTimeout extends GameEvent {
-  constructor(_: {}) {
+  constructor(_: any = {}) {
     super();
   }
 }

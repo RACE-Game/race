@@ -1,10 +1,9 @@
-import { AppHelper } from 'race-sdk';
 import { Link } from 'react-router-dom';
 import { useContext, useState, useEffect } from 'react';
 import { HelperContext } from './helper-context';
 import { Chain } from './types';
 import { CHAIN_ADDR_GAME_MAPPING, CHAIN_TO_REG_ADDR } from './constants';
-import { GameRegistration } from '@race/sdk-core';
+import { AppHelper, GameRegistration } from '@race/sdk-core';
 
 interface SidemenuProps {
     chain: Chain,
@@ -47,6 +46,6 @@ function Sidemenu(props: SidemenuProps) {
     )
 }
 
-Sidemenu.contextType = AppHelper;
+// Sidemenu.contextType = AppHelper;
 
 export default Sidemenu;

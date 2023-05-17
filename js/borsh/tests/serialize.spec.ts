@@ -106,6 +106,34 @@ describe('Test serialize', () => {
     assert.deepEqual(c, c0);
   })
 
+  it('Vec of structs', () => {
+    class A {
+      @field('u8')
+      x!: number;
+      constructor(fields: { x: number }) {
+        Object.assign(this, fields);
+      }
+    }
+
+    class C {
+      @field(vec(struct(A)))
+      x!: A[];
+      constructor(fields: { x: A[] }) {
+        Object.assign(this, fields);
+      }
+    }
+    const c = new C({
+      x: [
+        new A({x: 1}),
+        new A({x: 2})
+      ]
+    });
+    const bs = serialize(c);
+    assert.deepEqual(bs, Uint8Array.from([2, 0, 0, 0, 1, 2]))
+    const c0 = deserialize(C, bs);
+    assert.deepEqual(c, c0);
+  })
+
   it('Map', () => {
     class C {
       @field(map('u8', 'string'))

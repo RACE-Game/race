@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react'
 import { Outlet, useOutletContext, useNavigate } from 'react-router-dom';
 import Sidemenu from './Sidemenu';
 import Profile from './Profile';
-import init, { Event } from 'race-sdk';
 import { AppHelper, PlayerProfile } from '@race/sdk-core';
 import './App.css'
 import { ProfileContext } from './profile-context';
-import { LogsContext } from './logs-context';
+// import { LogsContext } from './logs-context';
 import { HelperContext } from './helper-context';
-import Logs from './Logs';
+// import Logs from './Logs';
 import { CHAIN_TO_RPC } from './constants';
 import { Chain, isChain } from './types';
 import { createTransport, getWalletWrapper } from './integration';
@@ -38,7 +37,6 @@ const Content = (props: RenderContentProps) => {
         </div>
         <Profile updateProfile={props.setProfile} chain={chain} />
         <div className="row-span-5">
-            <Logs logs={props.logs} />
         </div>
     </div>
     )
@@ -75,7 +73,6 @@ function App() {
             console.log("Chain: ", chain);
             let rpc = CHAIN_TO_RPC[chain];
             const initHelper = async () => {
-                await init();
                 const transport = createTransport(chain, rpc);
                 const helper = new AppHelper(transport);
                 console.log("AppHelper initialized", helper);
@@ -107,11 +104,9 @@ function App() {
     return (
         <HelperContext.Provider value={helper}>
             <ProfileContext.Provider value={profile}>
-                <LogsContext.Provider value={{ addLog, clearLog }}>
-                    <WalletWrapper>
-                        <Content logs={logs} setProfile={setProfile} chain={chain} />
-                    </WalletWrapper>
-                </LogsContext.Provider>
+                <WalletWrapper>
+                    <Content logs={logs} setProfile={setProfile} chain={chain} />
+                </WalletWrapper>
             </ProfileContext.Provider>
         </HelperContext.Provider>
     );

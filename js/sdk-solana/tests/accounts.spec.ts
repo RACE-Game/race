@@ -11,7 +11,6 @@ import {
 } from '../src/accounts';
 import { PublicKey } from '@solana/web3.js';
 import { ACCOUNT_DATA, REG_ACCOUNT_DATA } from './account_data';
-import { Creator, Metadata } from '../src/metadata';
 
 describe('Test account data serialization', () => {
   it('PlayerState', () => {

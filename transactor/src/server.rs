@@ -1,8 +1,9 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use crate::context::ApplicationContext;
+use borsh::BorshDeserialize;
+use jsonrpsee::core::error::Error as RpcError;
 use jsonrpsee::core::error::SubscriptionClosed;
-use jsonrpsee::core::Error;
 use jsonrpsee::types::error::CallError;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
@@ -13,53 +14,75 @@ use race_core::types::{
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::{error, info, warn};
 
-type Result<T> = std::result::Result<T, Error>;
+fn parse_params<T: BorshDeserialize>(
+    params: Params<'_>,
+) -> Result<(String, T, Signature), RpcError> {
+    let (game_addr, arg_vec, sig_vec) = params.parse::<(String, Vec<u8>, Vec<u8>)>()?;
+
+    let arg = T::try_from_slice(&arg_vec)
+        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+
+    let signature = Signature::try_from_slice(&sig_vec)
+        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+
+    Ok((game_addr, arg, signature))
+}
 
 /// Ask transactor to load game and provide client's public key for further encryption.
-async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<()> {
+async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
     info!("Attach to game");
-    let (_game_addr, AttachGameParams { key }, Signature { signer, .. }) =
-        params.parse::<(String, AttachGameParams, Signature)>()?;
+
+    let (game_addr, AttachGameParams { key }, sig) = parse_params(params)?;
+
     // TODO: check signature
-    info!("Register the key provided by client {}", signer);
+    info!("Register the key provided by client {}", sig.signer);
+
     context
-        .register_key(signer, key)
+        .register_key(sig.signer, key)
         .await
-        .map_err(|e| Error::Call(CallError::InvalidParams(e.into())))
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
 
-async fn submit_event(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<()> {
-    let (game_addr, arg, sig) = params.parse::<(String, SubmitEventParams, Signature)>()?;
-    context.verify(&game_addr, &arg, &sig).await.map_err(|e| {
-        warn!("Reject event due to verification failed: {}", e);
-        Error::Call(CallError::InvalidParams(e.into()))
-    })?;
+async fn submit_event(
+    params: Params<'_>,
+    context: Arc<ApplicationContext>,
+) -> Result<(), RpcError> {
+    info!("Submit event");
+
+    let (game_addr, SubmitEventParams { event }, sig) = parse_params(params)?;
+
     context
-        .send_event(&game_addr, arg.event)
+        .send_event(&game_addr, event)
         .await
-        .map_err(|e| Error::Call(CallError::Failed(e.into())))
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
 
-async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<()> {
-    let (game_addr, arg, sig) = params.parse::<(String, ExitGameParams, Signature)>()?;
+async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
+    let (game_addr, _arg, sig) = params.parse::<(String, Vec<u8>, Signature)>()?;
 
-    context
-        .verify(&game_addr, &arg, &sig)
-        .await
-        .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
+    info!("Exit game");
+
+    let (game_addr, ExitGameParams {}, sig) = parse_params(params)?;
+
+    // context
+    //     .verify(&game_addr, &arg, &sig)
+    //     .await
+    //     .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
+
     context
         .eject_player(&game_addr, &sig.signer)
         .await
-        .map_err(|e| Error::Call(CallError::Failed(e.into())))
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
 
 fn subscribe_event(
     params: Params<'_>,
     mut sink: SubscriptionSink,
     context: Arc<ApplicationContext>,
-) -> std::result::Result<(), SubscriptionEmptyError> {
+) -> Result<(), SubscriptionEmptyError> {
     {
-        let (game_addr, arg, _sig) = params.parse::<(String, SubscribeEventParams, Signature)>()?;
+        let (game_addr, SubscribeEventParams { settle_version }, sig) =
+            parse_params(params).or(Err(SubscriptionEmptyError))?;
 
         tokio::spawn(async move {
             // We don't need verification.
@@ -72,7 +95,7 @@ fn subscribe_event(
             // }
 
             let (receiver, histories) =
-                match context.get_broadcast(&game_addr, arg.settle_version).await {
+                match context.get_broadcast(&game_addr, settle_version).await {
                     Ok(x) => x,
                     Err(e) => {
                         sink.close(SubscriptionClosed::Failed(

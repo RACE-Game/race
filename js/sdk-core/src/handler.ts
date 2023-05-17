@@ -1,6 +1,6 @@
 import { deserialize, serialize } from '@race/borsh';
 import { GameAccount, GameBundle, PlayerJoin, ServerJoin } from './accounts';
-import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, RandomnessReady, SecretsReady, ShareSecrets, Sync } from './events';
+import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Sync } from './events';
 import { GameContext } from './game-context';
 import { IEncryptor } from './encryptor';
 import { Effect } from './effect';

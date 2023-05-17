@@ -1,4 +1,4 @@
-import { AppClient, Event } from 'race-sdk';
+import { AppClient, GameEvent } from '@race/sdk-core';
 import { useParams } from 'react-router-dom';
 import { useContext, useEffect, useState } from 'react';
 import { CHAIN_TO_RPC } from './constants';
@@ -27,18 +27,18 @@ function Chat() {
     const [text, setText] = useState<string>('');
 
     // Game event handler
-    const onEvent = (_context: any, state: State, event: Event | null) => {
-        if (event !== null) {
-            addLog(event);
-        }
-        setState(state);
+    const onEvent = (_context: any, state: Uint8Array, event: GameEvent | undefined) => {
+        // if (event !== null) {
+        //     addLog(event);
+        // }
+        // setState(state);
     }
 
     // Button callback to join the raffle
     const onJoin = async () => {
-        if (client !== undefined) {
-            await client.join(1n);
-        }
+        // if (client !== undefined) {
+        //     await client.join(1n);
+        // }
     }
 
     // Initialize app client
@@ -47,10 +47,10 @@ function Chat() {
             if (profile !== undefined && addr !== undefined) {
                 console.log("Create AppClient");
                 let rpc = CHAIN_TO_RPC[chain];
-                let transport = createTransport(chain, rpc);
-                let client = await AppClient.try_init(transport, wallet, addr, onEvent);
+              let transport = createTransport(chain, rpc);
+              let client = await AppClient.initialize(transport, wallet, addr, onEvent);
                 setClient(client);
-                await client.attach_game();
+                await client.attachGame();
             }
         };
         initClient();
@@ -59,7 +59,7 @@ function Chat() {
 
     const sendMessage = async () => {
         if (text.length > 0) {
-            client && await client.submit_event({ PublicMessage: { text } });
+            // client && await client.submitEvent({ PublicMessage: { text } });
             setText('');
         }
     }

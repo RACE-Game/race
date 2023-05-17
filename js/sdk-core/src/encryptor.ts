@@ -176,7 +176,12 @@ export class Encryptor implements IEncryptor {
   }
 
   async sign(message: Uint8Array): Promise<Signature> {
-    throw new Error('Method not implemented.');
+    return {
+      signer: "",
+      nonce: "",
+      timestamp: 1,
+      signature: "",
+    }
   }
 
   async verify(message: Uint8Array, signature: Signature): Promise<boolean> {

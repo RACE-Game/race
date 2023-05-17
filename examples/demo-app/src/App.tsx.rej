@@ -1,0 +1,70 @@
+diff a/examples/demo-app/src/App.tsx b/examples/demo-app/src/App.tsx	(rejected hunks)
+@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
+ import { Outlet, useOutletContext, useNavigate } from 'react-router-dom';
+ import Sidemenu from './Sidemenu';
+ import Profile from './Profile';
+-import init, { Event } from 'race-sdk';
+-import { AppHelper, PlayerProfile } from '@race/sdk-core';
++import { AppHelper, PlayerProfile, GameEvent } from '@race/sdk-core';
+ import './App.css'
+ import { ProfileContext } from './profile-context';
+ import { LogsContext } from './logs-context';
+@@ -16,7 +15,7 @@ import { createTransport, getWalletWrapper } from './integration';
+ interface RenderContentProps {
+     chain: Chain,
+     setProfile: (profile: PlayerProfile) => void
+-    logs: Array<Event>
++    logs: Array<GameEvent>
+ }
+ 
+ interface OutletContextType {
+@@ -37,9 +36,12 @@ const Content = (props: RenderContentProps) => {
+             <Outlet context={{ chain }} />
+         </div>
+         <Profile updateProfile={props.setProfile} chain={chain} />
+-        <div className="row-span-5">
++        {/*
++              <div className="row-span-5">
+             <Logs logs={props.logs} />
+         </div>
++
++                */}
+     </div>
+     )
+ }
+@@ -74,14 +76,10 @@ function App() {
+         if (chain !== undefined) {
+             console.log("Chain: ", chain);
+             let rpc = CHAIN_TO_RPC[chain];
+-            const initHelper = async () => {
+-                await init();
+-                const transport = createTransport(chain, rpc);
+-                const helper = new AppHelper(transport);
+-                console.log("AppHelper initialized", helper);
+-                setHelper(helper);
+-            }
+-            initHelper();
++            const transport = createTransport(chain, rpc);
++            const helper = new AppHelper(transport);
++            console.log("AppHelper initialized", helper);
++            setHelper(helper);
+         }
+     }, [chain]);
+ 
+@@ -107,11 +105,11 @@ function App() {
+     return (
+         <HelperContext.Provider value={helper}>
+             <ProfileContext.Provider value={profile}>
+-                <LogsContext.Provider value={{ addLog, clearLog }}>
+-                    <WalletWrapper>
+-                        <Content logs={logs} setProfile={setProfile} chain={chain} />
+-                    </WalletWrapper>
+-                </LogsContext.Provider>
++                {/*<LogsContext.Provider value={{ addLog, clearLog }}>*/}
++                <WalletWrapper>
++                    <Content logs={logs} setProfile={setProfile} chain={chain} />
++                </WalletWrapper>
++                {/*</LogsContext.Provider>*/}
+             </ProfileContext.Provider>
+         </HelperContext.Provider>
+     );

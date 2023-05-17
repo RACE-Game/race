@@ -1,7 +1,7 @@
 import React from "react";
 import { useContext, useEffect, useRef, useState } from "react";
 import { useParams } from 'react-router-dom';
-import { AppClient, Event } from 'race-sdk';
+import { AppClient, GameEvent } from '@race/sdk-core';
 import { CHAIN_TO_RPC } from "./constants";
 import Card from './Card';
 import { PlayerProfile } from '@race/sdk-core';

@@ -1,18 +1,19 @@
-import { Event } from 'race-sdk';
-
+import { GameEvent } from '@race/sdk-core';
 
 const replacer = (_key: string, value: any) =>
   typeof value === "bigint" ? value.toString() : value;
 
-function LogItem(props: { event: Event }) {
+function LogItem(props: { event: GameEvent }) {
 
   let event = props.event;
   if (event === undefined ) {
     return null;
   }
-  let sender = event.sender();
-  let kind = event.kind();
-  let data = JSON.stringify(event.data(), replacer);
+  // let sender = event.sender();
+  // let kind = event.kind();
+  let sender = 'sender';
+  let kind = 'kind';
+  let data = JSON.stringify('', replacer);
 
   return (
     <div className="p-2 mb-2 flex-col items-stretch w-full border border-black rounded-lg">

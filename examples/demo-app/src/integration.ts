@@ -1,5 +1,4 @@
-import React, { FC } from 'react';
-import { useContext } from 'react';
+import React, { useContext, FC } from 'react';
 import * as SolWalletAdapter from '@solana/wallet-adapter-react';
 import { Chain } from './types';
 import FacadeWalletWrapper from './FacadeWalletWrapper';

@@ -9,7 +9,7 @@ function Header(props: { gameAddr: string }) {
     useEffect(() => {
         let t = setInterval(async () => {
             if (helper !== undefined) {
-                let account = await helper.get_game_account(props.gameAddr);
+                let account = await helper.getGame(props.gameAddr);
                 setAccount(account);
             }
         }, 1000);

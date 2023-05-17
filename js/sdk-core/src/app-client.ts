@@ -7,6 +7,7 @@ import { Encryptor } from './encryptor';
 import { SdkError } from './error';
 import { GameAccount, PlayerProfile } from './accounts';
 import { Client } from './client';
+import { Custom, ICustomEvent } from './events';
 
 export type EventCallbackFunction = (context: GameContext, state: Uint8Array, event: Event | undefined) => void;
 
@@ -89,6 +90,39 @@ export class AppClient {
    * Connect to the transactor and retrieve the event stream.
    */
   async attachGame() {
+    await this.#client.attachGame();
+    const settleVersion = this.#gameContext.settleVersion;
+    let sub = this.#connection.substribeEvents(this.#gameAddr, { settleVersion });
+    for await (const frame of sub) {
+      console.log(frame);
+    }
+  }
 
+  /**
+   * Submit an event.
+   */
+  async submitEvent(customEvent: ICustomEvent): Promise<void> {
+    const raw = customEvent.serialize();
+    const event = new Custom({ sender: this.playerAddr, raw });
+    await this.#connection.submitEvent(this.#gameAddr, { event });
+  }
+
+  getRevealed(randomId: bigint): Map<number, string> {
+    // this.#client.decrypt(context, randomId);
+    return new Map();
+  }
+
+  /**
+   * Close current event subscription.
+   */
+  async close() {
+
+  }
+
+  /**
+   * Exit current game.
+   */
+  async exit() {
+    await this.#connection.exitGame(this.#gameAddr, {});
   }
 }

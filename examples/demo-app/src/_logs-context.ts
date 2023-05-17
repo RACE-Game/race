@@ -1,4 +1,4 @@
-import { Event } from 'race-sdk';
+import { GameEvent } from '@race/sdk-core';
 import React from 'react';
 
 export type LogsData = {
