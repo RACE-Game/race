@@ -64,7 +64,6 @@ export interface IHandler {
 }
 
 export class Handler implements IHandler {
-
   #encryptor: IEncryptor;
   #instance: WebAssembly.Instance;
 
@@ -80,8 +79,8 @@ export class Handler implements IHandler {
           shared: true,
           maximum: 100,
           initial: 100,
-        })
-      }
+        }),
+      },
     };
     let initiatedSource;
     if (gameBundle.data.length === 0) {
@@ -105,9 +104,9 @@ export class Handler implements IHandler {
     this.generalPostInitState(context, initAccount);
   }
 
-  async generalPreInitState(_context: GameContext, _initAccount: InitAccount) { }
+  async generalPreInitState(_context: GameContext, _initAccount: InitAccount) {}
 
-  async generalPostInitState(_context: GameContext, _initAccount: InitAccount) { }
+  async generalPostInitState(_context: GameContext, _initAccount: InitAccount) {}
 
   async generalPreHandleEvent(context: GameContext, event: GameEvent, encryptor: IEncryptor) {
     if (event instanceof ShareSecrets) {
@@ -162,7 +161,7 @@ export class Handler implements IHandler {
     }
   }
 
-  async generalPostHandleEvent(context: GameContext, event: GameEvent) { }
+  async generalPostHandleEvent(context: GameContext, event: GameEvent) {}
 
   async customInitState(context: GameContext, initAccount: InitAccount) {
     const exports = this.#instance.exports;
@@ -184,7 +183,7 @@ export class Handler implements IHandler {
     const initState = exports.init_state as Function;
     const newEffectSize: number = initState(effectSize, initAccountSize);
     const data = new Uint8Array(mem.buffer);
-    const newEffectBytes = data.slice(1, (newEffectSize + 1));
+    const newEffectBytes = data.slice(1, newEffectSize + 1);
     const newEffect = deserialize(Effect, newEffectBytes);
 
     if (newEffect.error !== undefined) {
@@ -214,7 +213,7 @@ export class Handler implements IHandler {
     const handleEvent = exports.handle_event as Function;
     const newEffectSize: number = handleEvent(effectSize, eventSize);
     const data = new Uint8Array(mem.buffer);
-    const newEffectBytes = data.slice(1, (newEffectSize + 1));
+    const newEffectBytes = data.slice(1, newEffectSize + 1);
     const newEffect = deserialize(Effect, newEffectBytes);
 
     if (newEffect.error !== undefined) {

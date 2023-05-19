@@ -7,23 +7,23 @@ import { GameContext } from './game-context';
 
 type OpIdent =
   | {
-    kind: 'random-secret';
-    randomId: bigint;
-    toAddr: string | undefined;
-    index: number;
-  }
+      kind: 'random-secret';
+      randomId: bigint;
+      toAddr: string | undefined;
+      index: number;
+    }
   | {
-    kind: 'answer-secret';
-    decisionId: bigint;
-  }
+      kind: 'answer-secret';
+      decisionId: bigint;
+    }
   | {
-    kind: 'lock';
-    randomId: bigint;
-  }
+      kind: 'lock';
+      randomId: bigint;
+    }
   | {
-    kind: 'mask';
-    randomId: bigint;
-  };
+      kind: 'mask';
+      randomId: bigint;
+    };
 
 export class Client {
   #encryptor: IEncryptor;

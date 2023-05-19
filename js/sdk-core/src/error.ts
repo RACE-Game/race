@@ -1,6 +1,6 @@
 import { variant } from '@race/borsh';
 
-export abstract class HandlerError { }
+export abstract class HandlerError {}
 
 @variant(0)
 export class CustomError extends HandlerError {
@@ -13,37 +13,47 @@ export class CustomError extends HandlerError {
 
 @variant(1)
 export class NoEnoughPlayers extends HandlerError {
-  constructor(_: any) { super() }
+  constructor(_: any) {
+    super();
+  }
 }
 
 @variant(2)
 export class PlayerNotInGame extends HandlerError {
-  constructor(_: any) { super() }
+  constructor(_: any) {
+    super();
+  }
 }
 
 @variant(3)
 export class CantLeave extends HandlerError {
-  constructor(_: any) { super() }
+  constructor(_: any) {
+    super();
+  }
 }
 
 @variant(4)
 export class InvalidAmount extends HandlerError {
-  constructor(_: any) { super() }
+  constructor(_: any) {
+    super();
+  }
 }
 
 @variant(5)
 export class MalformedGameAccountData extends HandlerError {
-  constructor(_: any) { super() }
+  constructor(_: any) {
+    super();
+  }
 }
 
 @variant(6)
 export class MalformedCustomEvent extends HandlerError {
-  constructor(_: any) { super() }
+  constructor(_: any) {
+    super();
+  }
 }
 
-
 export class SdkError extends Error {
-
   constructor(message: string) {
     super(message);
   }

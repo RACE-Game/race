@@ -69,12 +69,17 @@ impl From<EncryptorError> for crate::error::Error {
     }
 }
 
+pub struct NodePublicKeyRaw {
+    pub rsa: String,
+    pub ec: String,
+}
+
 pub type EncryptorResult<T> = std::result::Result<T, EncryptorError>;
 
 pub trait EncryptorT: std::fmt::Debug + Send + Sync {
-    fn add_public_key(&self, addr: String, raw: &str) -> EncryptorResult<()>;
+    fn add_public_key(&self, addr: String, raw: &NodePublicKeyRaw) -> EncryptorResult<()>;
 
-    fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<String>;
+    fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<NodePublicKeyRaw>;
 
     fn gen_secret(&self) -> SecretKey;
 
@@ -88,7 +93,12 @@ pub trait EncryptorT: std::fmt::Debug + Send + Sync {
 
     fn sign_raw(&self, message: &[u8]) -> EncryptorResult<Vec<u8>>;
 
-    fn verify_raw(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> EncryptorResult<()>;
+    fn verify_raw(
+        &self,
+        addr: Option<&str>,
+        message: &[u8],
+        signature: &[u8],
+    ) -> EncryptorResult<()>;
 
     fn sign(&self, message: &[u8], signer: String) -> EncryptorResult<Signature>;
 
@@ -129,19 +139,22 @@ pub trait Digestable {
 pub mod tests {
     use crate::types::{Ciphertext, SecretDigest, SecretKey, Signature};
 
-    use super::{EncryptorT, EncryptorResult};
+    use super::{EncryptorResult, EncryptorT, NodePublicKeyRaw};
 
     #[derive(Debug, Default)]
     pub struct DummyEncryptor {}
 
     #[allow(unused)]
     impl EncryptorT for DummyEncryptor {
-        fn add_public_key(&self, addr: String, raw: &str) -> EncryptorResult<()> {
+        fn add_public_key(&self, addr: String, raw: &NodePublicKeyRaw) -> EncryptorResult<()> {
             Ok(())
         }
 
-        fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<String> {
-            Ok("".into())
+        fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<NodePublicKeyRaw> {
+            Ok(NodePublicKeyRaw {
+                rsa: "".into(),
+                ec: "".into(),
+            })
         }
 
         fn gen_secret(&self) -> SecretKey {
@@ -164,7 +177,12 @@ pub mod tests {
             Ok(vec![0, 0, 0, 0])
         }
 
-        fn verify_raw(&self, addr: Option<&str>, message: &[u8], signature: &[u8]) -> EncryptorResult<()> {
+        fn verify_raw(
+            &self,
+            addr: Option<&str>,
+            message: &[u8],
+            signature: &[u8],
+        ) -> EncryptorResult<()> {
             Ok(())
         }
 

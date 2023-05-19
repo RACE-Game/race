@@ -1,16 +1,31 @@
 import { RandomState, RandomSpec } from './random-state';
 import { DecisionState } from './decision-state';
-import { ActionTimeout, Answer, CiphertextAndDigest, GameEvent, GameStart, OperationTimeout, Random, RandomnessReady, SecretShare, Shutdown, WaitingTimeout } from './events';
+import {
+  ActionTimeout,
+  Answer,
+  CiphertextAndDigest,
+  GameEvent,
+  GameStart,
+  OperationTimeout,
+  Random,
+  RandomnessReady,
+  SecretShare,
+  Shutdown,
+  WaitingTimeout,
+} from './events';
 import { Effect, Settle, SettleAdd, SettleEject, SettleSub } from './effect';
 import { GameAccount, PlayerJoin, ServerJoin } from './accounts';
 import { Ciphertext, Digest } from './types';
 
 const OPERATION_TIMEOUT = 15_000n;
 
-export type NodeStatus = {
-  kind: 'pending',
-  accessVersion: bigint,
-} | { kind: 'ready' } | { kind: 'disconnected' };
+export type NodeStatus =
+  | {
+      kind: 'pending';
+      accessVersion: bigint;
+    }
+  | { kind: 'ready' }
+  | { kind: 'disconnected' };
 
 export type GameStatus = 'uninit' | 'running' | 'closed';
 
@@ -53,27 +68,23 @@ export class GameContext {
     if (transactorAddr === undefined) {
       throw new Error('Game not served');
     }
-    const players: IPlayer[] = gameAccount
-      .players
-      .map(p => ({
-        addr: p.addr,
-        balance: p.balance,
-        position: p.position,
-        status: {
-          kind: 'pending',
-          accessVersion: p.accessVersion
-        }
-      }));
-    const servers: IServer[] = gameAccount
-      .servers
-      .map(s => ({
-        addr: s.addr,
-        endpoint: s.endpoint,
-        status: {
-          kind: 'pending',
-          accessVersion: s.accessVersion
-        }
-      }));
+    const players: IPlayer[] = gameAccount.players.map(p => ({
+      addr: p.addr,
+      balance: p.balance,
+      position: p.position,
+      status: {
+        kind: 'pending',
+        accessVersion: p.accessVersion,
+      },
+    }));
+    const servers: IServer[] = gameAccount.servers.map(s => ({
+      addr: s.addr,
+      endpoint: s.endpoint,
+      status: {
+        kind: 'pending',
+        accessVersion: s.accessVersion,
+      },
+    }));
 
     this.gameAddr = gameAccount.addr;
     this.transactorAddr = transactorAddr;
@@ -101,7 +112,8 @@ export class GameContext {
 
   dispatchEvent(event: GameEvent, timeout: bigint) {
     this.dispatch = {
-      event, timeout: this.timestamp + timeout
+      event,
+      timeout: this.timestamp + timeout,
     };
   }
 
@@ -113,18 +125,18 @@ export class GameContext {
     this.dispatch = {
       event: new WaitingTimeout({}),
       timeout: this.timestamp + timeout,
-    }
+    };
   }
 
   actionTimeout(playerAddr: string, timeout: bigint) {
     this.dispatch = {
       event: new ActionTimeout({ playerAddr }),
       timeout: this.timestamp + timeout,
-    }
+    };
   }
 
   genStartGameEvent(): GameEvent {
-    return new GameStart({ accessVersion: this.accessVersion })
+    return new GameStart({ accessVersion: this.accessVersion });
   }
 
   startGame() {
@@ -132,14 +144,14 @@ export class GameContext {
     this.decisionStates = [];
     this.dispatch = {
       event: this.genStartGameEvent(),
-      timeout: 0n
+      timeout: 0n,
     };
   }
 
   shutdownGame() {
     this.dispatch = {
       event: new Shutdown({}),
-      timeout: 0n
+      timeout: 0n,
     };
   }
 
@@ -177,7 +189,7 @@ export class GameContext {
 
   isRandomReady(randomId: bigint): boolean {
     const k = this.getRandomState(randomId).status.kind;
-    return k === 'ready' || k === 'waiting-secrets'
+    return k === 'ready' || k === 'waiting-secrets';
   }
 
   isAllRandomReady(): boolean {
@@ -209,8 +221,8 @@ export class GameContext {
         addr: player.addr,
         balance: player.balance,
         status: { kind: 'ready' },
-        position: player.position
-      })
+        position: player.position,
+      });
     } else {
       if (exist.position === player.position) {
         throw new Error('Position occupied');
@@ -255,9 +267,7 @@ export class GameContext {
 
   initRandomState(spec: RandomSpec): bigint {
     const randomId = BigInt(this.randomStates.length) + 1n;
-    const owners = this.servers
-      .filter(s => s.status.kind === 'ready')
-      .map(s => s.addr);
+    const owners = this.servers.filter(s => s.status.kind === 'ready').map(s => s.addr);
     const randomState = new RandomState(randomId, spec, owners);
     this.randomStates.push(randomState);
     return randomId;
@@ -301,7 +311,7 @@ export class GameContext {
     } else if (statusKind === 'waiting-secrets') {
       if (noDispatch) {
         const addrs = st.listOperatingAddrs();
-        this.dispatchEvent(new OperationTimeout({ addrs }), OPERATION_TIMEOUT)
+        this.dispatchEvent(new OperationTimeout({ addrs }), OPERATION_TIMEOUT);
       }
     }
   }
@@ -405,7 +415,7 @@ export class GameContext {
       this.settle(effect.settles);
     }
     if (effect.handlerState !== undefined) {
-      this.handlerState = effect.handlerState
+      this.handlerState = effect.handlerState;
     }
   }
 
@@ -432,14 +442,14 @@ export class GameContext {
     }
     this.players = this.players.filter(p => {
       if (p.status.kind === 'pending') {
-        return p.status.accessVersion < accessVersion
+        return p.status.accessVersion < accessVersion;
       } else {
         return true;
       }
     });
     this.servers = this.servers.filter(s => {
       if (s.status.kind === 'pending') {
-        return s.status.accessVersion < accessVersion
+        return s.status.accessVersion < accessVersion;
       } else {
         return true;
       }

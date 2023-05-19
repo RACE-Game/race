@@ -1,10 +1,10 @@
 import { RandomSpec, RandomState } from './random-state';
-import { HandlerError } from "./error";
-import { GameContext } from "./game-context";
+import { HandlerError } from './error';
+import { GameContext } from './game-context';
 import { enums, field, map, option, struct, variant, vec } from '@race/borsh';
 import { Fields } from './types';
 
-export abstract class SettleOp { }
+export abstract class SettleOp {}
 
 @variant(0)
 export class SettleAdd extends SettleOp {
@@ -12,7 +12,7 @@ export class SettleAdd extends SettleOp {
   amount!: bigint;
   constructor(fields: Fields<SettleAdd>) {
     super();
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 }
 
@@ -22,7 +22,7 @@ export class SettleSub extends SettleOp {
   amount!: bigint;
   constructor(fields: Fields<SettleAdd>) {
     super();
-    Object.assign(this, fields)
+    Object.assign(this, fields);
   }
 }
 
@@ -38,7 +38,7 @@ export class Settle {
   addr: string;
   @field(enums(SettleOp))
   op: SettleOp;
-  constructor(fields: { addr: string, op: SettleOp }) {
+  constructor(fields: { addr: string; op: SettleOp }) {
     this.addr = fields.addr;
     this.op = fields.op;
   }
@@ -104,7 +104,6 @@ export class ActionTimeout {
   }
 }
 
-
 export class Effect {
   @field(option(struct(ActionTimeout)))
   actionTimeout: ActionTimeout | undefined;
@@ -167,7 +166,7 @@ export class Effect {
   error: HandlerError | undefined;
 
   @field('bool')
-  allowExit!: boolean
+  allowExit!: boolean;
 
   constructor(fields: Fields<Effect>) {
     Object.assign(this, fields);

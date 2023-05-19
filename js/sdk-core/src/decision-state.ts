@@ -1,4 +1,4 @@
-import { Ciphertext, Digest, Secret } from "./types";
+import { Ciphertext, Digest, Secret } from './types';
 
 export type DecisionStatus = 'asked' | 'answered' | 'releasing' | 'released';
 

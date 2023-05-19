@@ -11,7 +11,7 @@ export interface GetStateParams {
   addr: string;
 }
 
-export interface ExitGameParams { }
+export interface ExitGameParams {}
 
 export interface SubscribeEventParams {
   settleVersion: bigint;
@@ -21,7 +21,7 @@ export interface SubmitEventParams {
   event: GameEvent;
 }
 
-export abstract class BroadcastFrame { }
+export abstract class BroadcastFrame {}
 
 @variant(0)
 export class BroadcastFrameEvent extends BroadcastFrame {
@@ -67,9 +67,7 @@ export interface IConnection {
   substribeEvents(gameAddr: string, params: SubscribeEventParams): AsyncGenerator<string | undefined>;
 }
 
-function* EventStream() {
-
-}
+function* EventStream() {}
 
 export class Connection implements IConnection {
   #playerAddr: string;
@@ -86,22 +84,22 @@ export class Connection implements IConnection {
   }
 
   async attachGame(gameAddr: string, params: AttachGameParams): Promise<void> {
-    await this.request("attach_game", gameAddr, params);
+    await this.request('attach_game', gameAddr, params);
   }
 
   async submitEvent(gameAddr: string, params: SubmitEventParams): Promise<void> {
-    await this.request("submit_event", gameAddr, params);
+    await this.request('submit_event', gameAddr, params);
   }
 
   async exitGame(gameAddr: string, params: ExitGameParams): Promise<void> {
-    await this.request("exit_game", gameAddr, params);
+    await this.request('exit_game', gameAddr, params);
   }
 
   async *substribeEvents(gameAddr: string, params: SubscribeEventParams): AsyncGenerator<string | undefined> {
-    await this.request("subscribe_event", gameAddr, params);
+    await this.request('subscribe_event', gameAddr, params);
     let messageQueue: string[] = [];
     let resolve: undefined | ((value: string | undefined) => void);
-    let messagePromise = new Promise<string | undefined>(r => resolve = r);
+    let messagePromise = new Promise<string | undefined>(r => (resolve = r));
 
     this.#socket.onmessage = msg => {
       if (resolve !== undefined) {
@@ -111,7 +109,7 @@ export class Connection implements IConnection {
       } else {
         messageQueue.push(msg.data);
       }
-    }
+    };
 
     this.#socket.onclose = () => {
       if (resolve !== undefined) {
@@ -119,7 +117,7 @@ export class Connection implements IConnection {
         resolve = undefined;
         r(undefined);
       }
-    }
+    };
 
     while (true) {
       if (messageQueue.length > 0) {
@@ -135,19 +133,20 @@ export class Connection implements IConnection {
   }
 
   async request<P>(method: string, gameAddr: string, params: P): Promise<void> {
-    const message = gameAddr + "";
+    const message = gameAddr + '';
     const textEncoder = new TextEncoder();
     const signature = await this.#encryptor.sign(textEncoder.encode(message));
-    console.log("Signature:", signature);
-    const reqData = JSON.stringify({
-      jsonrpc: '2.0',
-      method,
-      id: nanoid(),
-      params: [gameAddr, params, signature]
-    },
+    console.log('Signature:', signature);
+    const reqData = JSON.stringify(
+      {
+        jsonrpc: '2.0',
+        method,
+        id: nanoid(),
+        params: [gameAddr, params, signature],
+      },
       (_key, value) => (typeof value === 'bigint' ? Number(value) : value)
     );
-    console.log("Request data:", reqData);
+    console.log('Request data:', reqData);
     await this.waitSocketReady();
     this.#socket.send(reqData);
   }
@@ -166,7 +165,7 @@ export class Connection implements IConnection {
           resolve(undefined);
         }
         currAttempt++;
-      }, intervalTime)
-    })
+      }, intervalTime);
+    });
   }
 }

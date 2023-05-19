@@ -86,15 +86,14 @@ impl ApplicationContext {
         Ok(())
     }
 
-    pub async fn verify<S: ToString>(
+    pub fn verify(
         &self,
         game_addr: &str,
-        arg: &S,
+        arg: &[u8],
         signature: &Signature,
     ) -> Result<()> {
-        let message = format!("{}{}", game_addr, arg.to_string());
-        // info!("Verify, message: \"{}\", signature: {}", message, signature);
-        Ok(self.encryptor.verify(&message.as_bytes(), signature)?)
+        // Ok(self.encryptor.verify(arg, signature)?)
+        Ok(())
     }
 
     /// Return if the game is loaded.

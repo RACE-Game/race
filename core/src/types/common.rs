@@ -26,7 +26,6 @@ pub enum ClientMode {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Signature {
     pub signer: String,
-    pub nonce: String,
     pub timestamp: u64,
     pub signature: String,
 }
@@ -35,8 +34,8 @@ impl std::fmt::Display for Signature {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[{}](signer: {}, timestamp: {}, nonce: {})",
-            self.signature, self.signer, self.timestamp, self.nonce
+            "[{}](signer: {}, timestamp: {})",
+            self.signature, self.signer, self.timestamp
         )
     }
 }

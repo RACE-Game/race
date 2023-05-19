@@ -5,10 +5,10 @@ import { CiphertextAndDigest } from './events';
 const textEncoder = new TextEncoder();
 
 export interface SecretIdent {
-  fromAddr: string
-  toAddr: string | undefined
-  randomId: bigint
-  index: number
+  fromAddr: string;
+  toAddr: string | undefined;
+  randomId: bigint;
+  index: number;
 }
 
 export abstract class RandomSpec {
@@ -31,7 +31,7 @@ export class ShuffledList extends RandomSpec {
 @variant(1)
 export class Lottery extends RandomSpec {
   @field(map('string', 'u16'))
-  optionsAndWeights!: Map<string, number>
+  optionsAndWeights!: Map<string, number>;
   constructor(fields: Fields<Lottery>) {
     super();
     Object.assign(this, fields);
@@ -67,17 +67,21 @@ export class Mask {
   }
 }
 
-export type CipherOwner = {
-  kind: 'unclaimed'
-} | {
-  kind: 'assigned',
-  addr: string;
-} | {
-  kind: 'multiAssigned',
-  addrs: string[];
-} | {
-  kind: 'revealed'
-};
+export type CipherOwner =
+  | {
+      kind: 'unclaimed';
+    }
+  | {
+      kind: 'assigned';
+      addr: string;
+    }
+  | {
+      kind: 'multiAssigned';
+      addrs: string[];
+    }
+  | {
+      kind: 'revealed';
+    };
 
 export class LockedCiphertext {
   locks: Lock[];
@@ -103,17 +107,21 @@ export class Share {
   }
 }
 
-export type RandomStatus = {
-  kind: 'ready'
-} | {
-  kind: 'locking',
-  addr: string
-} | {
-  kind: 'masking',
-  addr: string
-} | {
-  kind: 'waiting-secrets'
-};
+export type RandomStatus =
+  | {
+      kind: 'ready';
+    }
+  | {
+      kind: 'locking';
+      addr: string;
+    }
+  | {
+      kind: 'masking';
+      addr: string;
+    }
+  | {
+      kind: 'waiting-secrets';
+    };
 
 export class RandomState {
   id: bigint;
@@ -210,8 +218,8 @@ export class RandomState {
         c.owner = { kind: 'assigned', addr };
         let secrets = this.secretShares;
         this.owners.forEach(o => {
-          secrets.push(new Share(o, idx, addr))
-        })
+          secrets.push(new Share(o, idx, addr));
+        });
       }
 
       this.status = { kind: 'waiting-secrets' };
@@ -221,10 +229,9 @@ export class RandomState {
   }
 
   addSecretShare(share: Share) {
-    const exist = this.secretShares.find(ss =>
-      ss.fromAddr === share.fromAddr
-      && ss.toAddr === share.toAddr
-      && ss.index === share.index);
+    const exist = this.secretShares.find(
+      ss => ss.fromAddr === share.fromAddr && ss.toAddr === share.toAddr && ss.index === share.index
+    );
     if (exist === undefined) {
       this.secretShares.push(share);
     }
@@ -238,8 +245,8 @@ export class RandomState {
           c.owner = { kind: 'revealed' };
           let secrets = this.secretShares;
           this.owners.forEach(o => {
-            secrets.push(new Share(o, idx))
-          })
+            secrets.push(new Share(o, idx));
+          });
         }
       }
 
@@ -256,7 +263,7 @@ export class RandomState {
         fromAddr: ss.fromAddr,
         toAddr: ss.toAddr,
         randomId: this.id,
-        index: ss.index
+        index: ss.index,
       }));
   }
 
@@ -328,7 +335,9 @@ export class RandomState {
   }
 
   addSecret(fromAddr: string, toAddr: string | undefined, index: number, secret: Secret) {
-    const secretShare = this.secretShares.find(ss => ss.fromAddr === fromAddr && ss.toAddr === toAddr && ss.index === index);
+    const secretShare = this.secretShares.find(
+      ss => ss.fromAddr === fromAddr && ss.toAddr === toAddr && ss.index === index
+    );
     if (secretShare !== undefined) {
       if (secretShare.secret === undefined) {
         const ciphertext = this.ciphertexts[secretShare.index];
@@ -353,9 +362,7 @@ export class RandomState {
       case 'masking':
         return [this.status.addr];
       case 'waiting-secrets':
-        return this.secretShares
-          .filter(s => s.secret === undefined)
-          .map(s => s.fromAddr);
+        return this.secretShares.filter(s => s.secret === undefined).map(s => s.fromAddr);
     }
   }
 

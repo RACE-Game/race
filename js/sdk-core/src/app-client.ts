@@ -22,7 +22,8 @@ export class AppClient {
   #initGameAccount: GameAccount;
   #callback: EventCallbackFunction;
 
-  constructor(gameAddr: string,
+  constructor(
+    gameAddr: string,
     handler: Handler,
     wallet: IWallet,
     client: Client,
@@ -30,7 +31,7 @@ export class AppClient {
     connection: IConnection,
     gameContext: GameContext,
     initGameAccount: GameAccount,
-    callback: EventCallbackFunction,
+    callback: EventCallbackFunction
   ) {
     this.#gameAddr = gameAddr;
     this.#handler = handler;
@@ -43,7 +44,12 @@ export class AppClient {
     this.#callback = callback;
   }
 
-  static async initialize(transport: ITransport, wallet: IWallet, gameAddr: string, callback: EventCallbackFunction): Promise<AppClient> {
+  static async initialize(
+    transport: ITransport,
+    wallet: IWallet,
+    gameAddr: string,
+    callback: EventCallbackFunction
+  ): Promise<AppClient> {
     const encryptor = await Encryptor.default();
     const playerAddr = wallet.walletAddr;
     const gameAccount = await transport.getGameAccount(gameAddr);
@@ -66,9 +72,7 @@ export class AppClient {
     const connection = Connection.initialize(playerAddr, transactorAccount.endpoint, encryptor);
     const client = new Client(playerAddr, gameAddr, transport, encryptor, connection);
     const gameContext = new GameContext(gameAccount);
-    return new AppClient(
-      gameAddr, handler, wallet, client, transport, connection, gameContext, gameAccount, callback
-    )
+    return new AppClient(gameAddr, handler, wallet, client, transport, connection, gameContext, gameAccount, callback);
   }
 
   get playerAddr() {
@@ -83,7 +87,7 @@ export class AppClient {
    * Get player profile by its wallet address.
    */
   async getProfile(addr: string): Promise<PlayerProfile | undefined> {
-    return await this.#transport.getPlayerProfile(addr)
+    return await this.#transport.getPlayerProfile(addr);
   }
 
   /**
@@ -115,9 +119,7 @@ export class AppClient {
   /**
    * Close current event subscription.
    */
-  async close() {
-
-  }
+  async close() {}
 
   /**
    * Exit current game.
