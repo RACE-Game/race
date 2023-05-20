@@ -1,4 +1,4 @@
-import { deserialize, extend, field, option, serialize, struct, variant, enums, vec, map } from '../src/index';
+import { deserialize, extend, field, option, serialize, struct, variant, enums, array, map } from '../src/index';
 import { assert } from 'chai';
 import { ExtendOptions, IExtendReader, IExtendWriter } from '../src/types';
 import { writeU64 } from '../src/writer';
@@ -22,7 +22,7 @@ describe('Test serialize', () => {
     assert.deepEqual(c, c0);
   })
 
-  it('U8', () => {
+  it('U32', () => {
     class C {
       @field('u32')
       x!: number;
@@ -91,9 +91,9 @@ describe('Test serialize', () => {
     assert.deepEqual(c, c0);
   })
 
-  it('Dynamic sized byte array with vec', () => {
+  it('Uint8Array', () => {
     class C {
-      @field(vec('u8'))
+      @field('u8-array')
       x!: Uint8Array;
       constructor(fields: { x: Uint8Array }) {
         Object.assign(this, fields);
@@ -106,7 +106,7 @@ describe('Test serialize', () => {
     assert.deepEqual(c, c0);
   })
 
-  it('Vec of structs', () => {
+  it('Array of structs', () => {
     class A {
       @field('u8')
       x!: number;
@@ -116,7 +116,7 @@ describe('Test serialize', () => {
     }
 
     class C {
-      @field(vec(struct(A)))
+      @field(array(struct(A)))
       x!: A[];
       constructor(fields: { x: A[] }) {
         Object.assign(this, fields);
@@ -233,7 +233,7 @@ describe('Test serialize', () => {
       @field(struct(X))
       x!: X;
 
-      @field(vec(struct(Y)))
+      @field(array(struct(Y)))
       y!: Y[];
 
       constructor(fields: { x: X, y: Y[] }) {

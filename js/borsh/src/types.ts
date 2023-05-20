@@ -33,7 +33,8 @@ export type PrimitiveFieldType =
   | 'string'
   | 'f32'
   | 'f64'
-  | 'bool';
+  | 'bool'
+  | 'u8-array';
 
 export type FieldKey = PropertyKey;
 
@@ -41,7 +42,7 @@ export type ByteArrayFieldType = number;
 
 export type EnumFieldType = { kind: 'enum'; value: Function };
 
-export type VecFieldType = { kind: 'vec'; value: FieldType };
+export type ArrayFieldType = { kind: 'array'; value: FieldType };
 
 export type MapFieldType = { kind: 'map'; value: [FieldType, FieldType] };
 
@@ -54,7 +55,7 @@ export type ExtendFieldType<T> = { kind: 'extend'; value: ExtendOptions<T> };
 export type FieldType =
   | PrimitiveFieldType
   | ByteArrayFieldType
-  | VecFieldType
+  | ArrayFieldType
   | MapFieldType
   | OptionFieldType
   | EnumFieldType

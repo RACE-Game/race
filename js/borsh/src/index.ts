@@ -1,5 +1,5 @@
 import {
-  VecFieldType,
+  ArrayFieldType,
   Field,
   FieldKey,
   FieldType,
@@ -67,6 +67,11 @@ function serializeValue(path: string[], value: any, fieldType: FieldType, writer
       writer.writeBool(value);
     } else if (fieldType === 'string') {
       writer.writeString(value);
+    } else if (fieldType === 'u8-array') {
+      writer.writeU32(value.length);
+      for (let i = 0; i < value.length; i++) {
+        writer.writeU8(value[i]);
+      }
     }
   } else if (typeof fieldType === 'number') {
     if (value.length !== fieldType) {
@@ -82,10 +87,10 @@ function serializeValue(path: string[], value: any, fieldType: FieldType, writer
         writer.writeU8(1);
         serializeValue([...path, '<OptionValue>'], value, v, writer);
       }
-    } else if (kind === 'vec') {
+    } else if (kind === 'array') {
       writer.writeU32(value.length);
       for (let i = 0; i < value.length; i++) {
-        serializeValue([...path, `<Vec[${i}]>`], value[i], v, writer);
+        serializeValue([...path, `<Array[${i}]>`], value[i], v, writer);
       }
     } else if (kind === 'struct') {
       serializeStruct(path, value, writer);
@@ -122,23 +127,27 @@ function deserializeValue(path: string[], fieldType: FieldType, reader: BinaryRe
       return reader.readBool();
     } else if (fieldType === 'string') {
       return reader.readString();
+    } else if (fieldType === 'u8-array') {
+      let arr = [];
+      const length = reader.readU32();
+      for (let i = 0; i < length; i++) {
+        let n = reader.readU8();
+        arr.push(n);
+      }
+      return Uint8Array.from(arr);
     }
   } else if (typeof fieldType === 'number') {
     return reader.readByteArray(fieldType);
   } else {
     const { kind, value } = fieldType;
-    if (kind === 'vec') {
-      let vec = [];
+    if (kind === 'array') {
+      let arr = [];
       const length = reader.readU32();
       for (let i = 0; i < length; i++) {
-        let v = deserializeValue([...path, `<Vec[${i}]>`], value, reader);
-        vec.push(v);
+        let v = deserializeValue([...path, `<Array[${i}]>`], value, reader);
+        arr.push(v);
       }
-      if (value === 'u8') {
-        return Uint8Array.from(vec);
-      } else {
-        return vec;
-      }
+      return arr;
     } else if (kind === 'option') {
       let opt = reader.readBool();
       if (opt) {
@@ -243,8 +252,8 @@ export function extend<T>(options: ExtendOptions<T>): ExtendFieldType<T> {
   return { kind: 'extend', value: options };
 }
 
-export function vec(elementType: FieldType): VecFieldType {
-  return { kind: 'vec', value: elementType };
+export function array(elementType: FieldType): ArrayFieldType {
+  return { kind: 'array', value: elementType };
 }
 
 export function map(keyType: FieldType, valueType: FieldType): MapFieldType {
