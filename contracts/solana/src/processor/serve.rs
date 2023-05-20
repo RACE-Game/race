@@ -17,10 +17,11 @@ use crate::{
     error::ProcessError,
     state::{GameState, ServerJoin, ServerState},
 };
-use race_solana_types::constants::MAX_SERVER_NUM;
+use race_solana_types::{constants::MAX_SERVER_NUM, types::ServeParams};
 
 #[inline(never)]
-pub fn process(_program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+pub fn process(_program_id: &Pubkey, accounts: &[AccountInfo], params: ServeParams) -> ProgramResult {
+    let ServeParams { verify_key } = params;
     let account_iter = &mut accounts.iter();
 
     let payer_account = next_account_info(account_iter)?;
@@ -60,6 +61,7 @@ pub fn process(_program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult 
         addr: *payer_account.key,
         endpoint: server_state.endpoint.clone(),
         access_version: new_access_version,
+        verify_key,
     };
 
     if game_state.transactor_addr.is_none() || game_state.servers.len() == 0 {

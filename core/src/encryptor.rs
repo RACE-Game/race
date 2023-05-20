@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use crate::types::{Ciphertext, SecretDigest, SecretKey, Signature};
+use borsh::{BorshSerialize, BorshDeserialize};
 use thiserror::Error;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum EncryptorError {
@@ -69,6 +72,8 @@ impl From<EncryptorError> for crate::error::Error {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct NodePublicKeyRaw {
     pub rsa: String,
     pub ec: String,
@@ -189,7 +194,6 @@ pub mod tests {
         fn sign(&self, message: &[u8], signer: String) -> EncryptorResult<Signature> {
             Ok(Signature {
                 signer,
-                nonce: "".into(),
                 timestamp: 0,
                 signature: "".into(),
             })

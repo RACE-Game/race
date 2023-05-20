@@ -32,6 +32,7 @@ pub struct TokenInfo {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ServeParams {
     pub game_addr: String,
+    pub verify_key: String,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone)]
@@ -168,6 +169,7 @@ pub struct JoinParams {
     pub amount: u64,
     pub access_version: u64,
     pub position: u16,
+    pub verify_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

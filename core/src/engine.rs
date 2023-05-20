@@ -73,7 +73,13 @@ impl InitAccount {
     /// Add a new player.  This function is only available in tests.
     /// This function will panic when a duplicated position is
     /// specified.
-    pub fn add_player<S: Into<String>>(&mut self, addr: S, position: usize, balance: u64) {
+    pub fn add_player<S: Into<String>>(
+        &mut self,
+        addr: S,
+        position: usize,
+        balance: u64,
+        verify_key: String,
+    ) {
         self.access_version += 1;
         let access_version = self.access_version;
         if self.players.iter().any(|p| p.position as usize == position) {
@@ -84,6 +90,7 @@ impl InitAccount {
             balance,
             addr: addr.into(),
             access_version,
+            verify_key,
         })
     }
 }
@@ -288,18 +295,21 @@ mod tests {
                     position: 0,
                     balance: 100,
                     access_version: 1,
+                    verify_key: "VERIFY KEY".into(),
                 },
                 PlayerJoin {
                     addr: "bob".into(),
                     position: 1,
                     balance: 100,
                     access_version: 1,
+                    verify_key: "VERIFY KEY".into(),
                 },
             ],
             new_servers: vec![ServerJoin {
                 addr: "foo".into(),
                 endpoint: "foo.endpoint".into(),
                 access_version: 1,
+                verify_key: "VERIFY KEY".into(),
             }],
             transactor_addr: "".into(),
             access_version: 1,

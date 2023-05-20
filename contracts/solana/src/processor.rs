@@ -51,9 +51,9 @@ pub fn process(
             msg!("Vote");
             vote::process(program_id, accounts, params)
         }
-        RaceInstruction::ServeGame => {
+        RaceInstruction::ServeGame { params } => {
             msg!("Server joins a game");
-            serve::process(program_id, accounts)
+            serve::process(program_id, accounts, params)
         }
         RaceInstruction::RegisterGame => {
             msg!("Register a game");

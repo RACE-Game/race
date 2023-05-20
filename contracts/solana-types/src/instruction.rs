@@ -1,6 +1,6 @@
 use crate::types::{
     CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, JoinParams,
-    PublishParams, RegisterServerParams, SettleParams, VoteParams,
+    PublishParams, RegisterServerParams, SettleParams, VoteParams, ServeParams,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
@@ -83,7 +83,7 @@ pub enum RaceInstruction {
     /// 0. `[signer]` The payer acount (the server itself)
     /// 1. `[writable]` The game account to be served
     /// 2. `[]` The server account
-    ServeGame,
+    ServeGame{ params: ServeParams },
 
     /// # Register a game to the registry
     ///

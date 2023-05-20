@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 
-use crate::event::Event;
+use crate::{event::Event, encryptor::NodePublicKeyRaw};
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct AttachGameParams {
-    pub key: String,
+    pub key: NodePublicKeyRaw,
 }
 
 impl Display for AttachGameParams {

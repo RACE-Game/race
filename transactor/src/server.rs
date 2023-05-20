@@ -14,6 +14,15 @@ use race_core::types::{
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::{error, info, warn};
 
+fn parse_params_no_sig<T: BorshDeserialize>(
+    params: Params<'_>,
+) -> Result<(String, T), RpcError> {
+    let (game_addr, arg_vec) = params.parse::<(String, Vec<u8>)>()?;
+    let arg = T::try_from_slice(&arg_vec)
+        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+    Ok((game_addr, arg))
+}
+
 fn parse_params<T: BorshDeserialize>(
     params: Params<'_>,
     context: &ApplicationContext,
@@ -23,7 +32,8 @@ fn parse_params<T: BorshDeserialize>(
     let signature = Signature::try_from_slice(&sig_vec)
         .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
 
-    context.verify(&game_addr, &arg_vec, &signature)
+    context
+        .verify(&arg_vec, &signature)
         .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
 
     let arg = T::try_from_slice(&arg_vec)
@@ -36,7 +46,7 @@ fn parse_params<T: BorshDeserialize>(
 async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
     info!("Attach to game");
 
-    let (game_addr, AttachGameParams { key }, sig) = parse_params(params, &context)?;
+    let (_game_addr, AttachGameParams { key }, sig) = parse_params(params, &context)?;
 
     info!("Register the key provided by client {}", sig.signer);
 
@@ -52,7 +62,7 @@ async fn submit_event(
 ) -> Result<(), RpcError> {
     info!("Submit event");
 
-    let (game_addr, SubmitEventParams { event }, sig) = parse_params(params, &context)?;
+    let (game_addr, SubmitEventParams { event }, _sig) = parse_params(params, &context)?;
 
     context
         .send_event(&game_addr, event)
@@ -61,16 +71,11 @@ async fn submit_event(
 }
 
 async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
-    let (game_addr, _arg, sig) = params.parse::<(String, Vec<u8>, Signature)>()?;
+    let (_game_addr, _arg, _sig) = params.parse::<(String, Vec<u8>, Signature)>()?;
 
     info!("Exit game");
 
     let (game_addr, ExitGameParams {}, sig) = parse_params(params, &context)?;
-
-    // context
-    //     .verify(&game_addr, &arg, &sig)
-    //     .await
-    //     .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
 
     context
         .eject_player(&game_addr, &sig.signer)
@@ -84,19 +89,10 @@ fn subscribe_event(
     context: Arc<ApplicationContext>,
 ) -> Result<(), SubscriptionEmptyError> {
     {
-        let (game_addr, SubscribeEventParams { settle_version }, sig) =
-            parse_params(params, &context).or(Err(SubscriptionEmptyError))?;
+        let (game_addr, SubscribeEventParams { settle_version }) =
+            parse_params_no_sig(params).or(Err(SubscriptionEmptyError))?;
 
         tokio::spawn(async move {
-            // We don't need verification.
-            // if let Err(e) = context.verify(&game_addr, &arg, &sig).await {
-            //     error!("Subscription verification failed: {:?}", e);
-            //     sink.close(SubscriptionClosed::Failed(
-            //         CallError::Failed(e.into()).into(),
-            //     ));
-            //     return;
-            // }
-
             let (receiver, histories) =
                 match context.get_broadcast(&game_addr, settle_version).await {
                     Ok(x) => x,

@@ -1,7 +1,7 @@
 use crate::component::WrappedTransport;
 use crate::frame::SignalFrame;
 use crate::game_manager::GameManager;
-use race_core::encryptor::EncryptorT;
+use race_core::encryptor::{EncryptorT, NodePublicKeyRaw};
 use race_core::error::{Error, Result};
 use race_core::event::Event;
 use race_core::transport::TransportT;
@@ -80,19 +80,22 @@ impl ApplicationContext {
         })
     }
 
-    pub async fn register_key(&self, player_addr: String, key: String) -> Result<()> {
-        info!("Client {:?} register public key, {}", player_addr, key);
+    pub async fn register_key(&self, player_addr: String, key: NodePublicKeyRaw) -> Result<()> {
+        info!("Client {:?} register public key, {:?}", player_addr, key);
         self.encryptor.add_public_key(player_addr, &key)?;
         Ok(())
     }
 
+    pub fn export_public_key(&self) -> NodePublicKeyRaw {
+        self.encryptor.export_public_key(None).expect("Export public key failed").clone()
+    }
+
     pub fn verify(
         &self,
-        game_addr: &str,
         arg: &[u8],
         signature: &Signature,
     ) -> Result<()> {
-        // Ok(self.encryptor.verify(arg, signature)?)
+        self.encryptor.verify(arg, signature)?;
         Ok(())
     }
 

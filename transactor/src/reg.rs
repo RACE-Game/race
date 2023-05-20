@@ -38,6 +38,7 @@ pub async fn register_server(config: &Config) -> Result<()> {
 /// Start the registration task.
 /// This task will scan the games in registration account, find unserved games and join.
 pub async fn start_reg_task(context: &ApplicationContext) {
+    let key = context.export_public_key();
     let (reg_addresses, transport, server_addr, signal_tx) = {
         (
             context.config.reg_addresses.clone(),
@@ -76,6 +77,7 @@ pub async fn start_reg_task(context: &ApplicationContext) {
                                 if let Err(e) = transport
                                     .serve(ServeParams {
                                         game_addr: game_account.addr.clone(),
+                                        verify_key: key.ec.clone(),
                                     })
                                     .await
                                 {
