@@ -398,7 +398,7 @@ impl GameContext {
         if id == 0 {
             return Err(Error::InvalidRandomId);
         }
-        if let Some(rnd_st) = self.random_states.get(id - 1) {
+        if let Some(rnd_st) = self.random_states.get(id as usize - 1) {
             Ok(rnd_st)
         } else {
             Err(Error::InvalidRandomId)
@@ -406,14 +406,14 @@ impl GameContext {
     }
 
     pub fn get_random_state_unchecked(&self, id: RandomId) -> &RandomState {
-        &self.random_states[id - 1]
+        &self.random_states[id as usize - 1]
     }
 
     pub fn get_decision_state_mut(&mut self, id: DecisionId) -> Result<&mut DecisionState> {
         if id == 0 {
             return Err(Error::InvalidDecisionId);
         }
-        if let Some(st) = self.decision_states.get_mut(id - 1) {
+        if let Some(st) = self.decision_states.get_mut(id as usize - 1) {
             Ok(st)
         } else {
             Err(Error::InvalidDecisionId)
@@ -424,7 +424,7 @@ impl GameContext {
         if id == 0 {
             return Err(Error::InvalidRandomId);
         }
-        if let Some(rnd_st) = self.random_states.get_mut(id - 1) {
+        if let Some(rnd_st) = self.random_states.get_mut(id as usize - 1) {
             Ok(rnd_st)
         } else {
             Err(Error::InvalidRandomId)
@@ -615,7 +615,7 @@ impl GameContext {
     pub fn randomize_and_mask(
         &mut self,
         addr: &str,
-        random_id: usize,
+        random_id: RandomId,
         ciphertexts: Vec<Ciphertext>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
@@ -626,7 +626,7 @@ impl GameContext {
     pub fn lock(
         &mut self,
         addr: &str,
-        random_id: usize,
+        random_id: RandomId,
         ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
@@ -771,7 +771,7 @@ impl GameContext {
 
     pub fn answer_decision(
         &mut self,
-        id: usize,
+        id: DecisionId,
         owner: &str,
         ciphertext: Ciphertext,
         digest: SecretDigest,
@@ -780,7 +780,7 @@ impl GameContext {
         st.answer(owner, ciphertext, digest)
     }
 
-    pub fn get_revealed(&self, random_id: usize) -> Result<&HashMap<usize, String>> {
+    pub fn get_revealed(&self, random_id: RandomId) -> Result<&HashMap<usize, String>> {
         let rnd_st = self.get_random_state(random_id)?;
         Ok(&rnd_st.revealed)
     }

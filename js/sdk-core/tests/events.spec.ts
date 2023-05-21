@@ -39,13 +39,13 @@ describe('Serialization', () => {
         new Random({
           fromAddr: 'alice',
           toAddr: 'bob',
-          randomId: 1n,
+          randomId: 1,
           index: 0,
           secret: Uint8Array.of(1, 2, 3, 4),
         }),
         new Answer({
           fromAddr: 'alice',
-          decisionId: 2n,
+          decisionId: 2,
           secret: Uint8Array.of(5, 6, 7, 8),
         })
       ]
@@ -63,7 +63,7 @@ describe('Serialization', () => {
   })
 
   it('Mask', () => {
-    let e = new Mask({ sender: 'alice', randomId: 1n, ciphertexts: [Uint8Array.of(1, 2, 3)] });
+    let e = new Mask({ sender: 'alice', randomId: 1, ciphertexts: [Uint8Array.of(1, 2, 3)] });
     let data = serialize(e);
     let e1 = deserialize(GameEvent, data);
     assert.deepStrictEqual(e1, e);
@@ -71,7 +71,7 @@ describe('Serialization', () => {
 
   it('Lock', () => {
     let e = new Lock({
-      sender: 'alice', randomId: 1n,
+      sender: 'alice', randomId: 1,
       ciphertextsAndDigests: [
         new CiphertextAndDigest({
           ciphertext: Uint8Array.of(1, 2, 3),
@@ -86,7 +86,7 @@ describe('Serialization', () => {
 
   it('RandomnessReady', () => {
     let e = new RandomnessReady({
-      randomId: 1n
+      randomId: 1
     });
     let data = serialize(e);
     let e1 = deserialize(GameEvent, data);
@@ -100,14 +100,16 @@ describe('Serialization', () => {
           addr: 'alice',
           position: 1,
           balance: 100n,
-          accessVersion: 1n
+          accessVersion: 1n,
+          verifyKey: "key0",
         })
       ],
       newServers: [
         new ServerJoin({
           addr: 'foo',
           endpoint: 'http://foo.bar',
-          accessVersion: 2n
+          accessVersion: 2n,
+          verifyKey: "key1",
         })
       ],
       transactorAddr: 'foo',
@@ -149,7 +151,7 @@ describe('Serialization', () => {
   it('DrawRandomItems', () => {
     let e = new DrawRandomItems({
       sender: 'alice',
-      randomId: 1n,
+      randomId: 1,
       indexes: [10, 20],
     });
     let data = serialize(e);

@@ -1,10 +1,11 @@
-import { field, vec, struct, option } from '@race/borsh';
+import { field, array, struct, option } from '@race/borsh';
 
 export interface IPlayerJoin {
   readonly addr: string;
   readonly position: number;
   readonly balance: bigint;
   readonly accessVersion: bigint;
+  readonly verifyKey: string;
 }
 
 export interface IPlayerDeposit {
@@ -17,6 +18,7 @@ export interface IServerJoin {
   readonly addr: string;
   readonly endpoint: string;
   readonly accessVersion: bigint;
+  readonly verifyKey: string;
 }
 
 export enum VoteType {
@@ -102,6 +104,8 @@ export class PlayerJoin implements IPlayerJoin {
   readonly balance!: bigint;
   @field('u64')
   readonly accessVersion!: bigint;
+  @field('string')
+  readonly verifyKey!: string;
   constructor(fields: IPlayerJoin) {
     Object.assign(this, fields);
   }
@@ -114,6 +118,8 @@ export class ServerJoin implements IServerJoin {
   readonly endpoint!: string;
   @field('u64')
   readonly accessVersion!: bigint;
+  @field('string')
+  readonly verifyKey!: string;
   constructor(fields: IServerJoin) {
     Object.assign(this, fields);
   }
@@ -158,15 +164,15 @@ export class GameAccount implements IGameAccount {
   readonly settleVersion!: bigint;
   @field('u64')
   readonly accessVersion!: bigint;
-  @field(vec(struct(PlayerJoin)))
+  @field(array(struct(PlayerJoin)))
   readonly players!: PlayerJoin[];
-  @field(vec(struct(PlayerDeposit)))
+  @field(array(struct(PlayerDeposit)))
   readonly deposits!: PlayerDeposit[];
-  @field(vec(struct(ServerJoin)))
+  @field(array(struct(ServerJoin)))
   readonly servers!: ServerJoin[];
   @field(option('string'))
   readonly transactorAddr: string | undefined;
-  @field(vec(struct(Vote)))
+  @field(array(struct(Vote)))
   readonly votes!: Vote[];
   @field(option('u64'))
   readonly unlockTime: bigint | undefined;
@@ -178,7 +184,7 @@ export class GameAccount implements IGameAccount {
   readonly maxDeposit!: bigint;
   @field('u32')
   readonly dataLen!: number;
-  @field(vec('u8'))
+  @field('u8-array')
   readonly data!: Uint8Array;
   constructor(fields: IGameAccount) {
     Object.assign(this, fields);
@@ -190,7 +196,7 @@ export class GameBundle implements IGameBundle {
   readonly uri!: string;
   @field('string')
   readonly name!: string;
-  @field(vec('u8'))
+  @field('u8-array')
   readonly data!: Uint8Array;
 
   constructor(fields: IGameBundle) {
@@ -221,7 +227,7 @@ export class RegistrationAccount implements IRegistrationAccount {
   readonly size!: number;
   @field(option('string'))
   readonly owner!: string | undefined;
-  @field(vec(struct(GameRegistration)))
+  @field(array(struct(GameRegistration)))
   readonly games!: GameRegistration[];
   constructor(fields: IRegistrationAccount) {
     Object.assign(this, fields);

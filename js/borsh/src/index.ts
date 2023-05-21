@@ -63,6 +63,8 @@ function serializeValue(path: string[], value: any, fieldType: FieldType, writer
       writer.writeU32(value);
     } else if (fieldType === 'u64') {
       writer.writeU64(value);
+    } else if (fieldType === 'usize') {
+      writer.writeU64(BigInt(value));
     } else if (fieldType === 'bool') {
       writer.writeBool(value);
     } else if (fieldType === 'string') {
@@ -125,6 +127,8 @@ function deserializeValue(path: string[], fieldType: FieldType, reader: BinaryRe
       return reader.readU64();
     } else if (fieldType === 'bool') {
       return reader.readBool();
+    } else if (fieldType === 'usize') {
+      return Number(reader.readU64());
     } else if (fieldType === 'string') {
       return reader.readString();
     } else if (fieldType === 'u8-array') {
@@ -292,3 +296,5 @@ export function deserialize<T>(classType: Ctor<T> | EnumClass<T>, data: Uint8Arr
     return deserializeStruct([], classType, reader);
   }
 }
+
+export * from './types';

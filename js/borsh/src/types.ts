@@ -33,6 +33,7 @@ export type PrimitiveFieldType =
   | 'string'
   | 'f32'
   | 'f64'
+  | 'usize'
   | 'bool'
   | 'u8-array';
 

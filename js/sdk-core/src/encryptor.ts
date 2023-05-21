@@ -1,7 +1,7 @@
 import { SdkError } from './error';
 import { Secret, Ciphertext } from './types';
-import { field, vec } from '@race/borsh';
-import * as asn1 from 'asn1js';
+import { field } from '@race/borsh';
+import { base64ToArrayBuffer, arrayBufferToBase64 } from './utils';
 
 let subtle: SubtleCrypto;
 let crypto: Crypto;
@@ -37,6 +37,17 @@ export interface IPublicKeyRaws {
   ec: string;
 }
 
+export class PublicKeyRaws implements IPublicKeyRaws {
+  @field('string')
+  rsa: string;
+  @field('string')
+  ec: string;
+  constructor(fields: IPublicKeyRaws) {
+    this.rsa = fields.rsa;
+    this.ec = fields.ec;
+  }
+}
+
 const RSA_PARAMS = {
   name: 'RSA-OAEP',
   hash: 'SHA-256',
@@ -46,25 +57,6 @@ const EC_PARAMS = {
   name: 'ECDSA',
   namedCurve: 'P-256',
 };
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  let binary = '';
-  let bytes = new Uint8Array(buffer);
-  let len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const rawBytes = atob(base64);
-  const uint8Array = new Uint8Array(rawBytes.length);
-  for (let i = 0; i < rawBytes.length; i++) {
-    uint8Array[i] = rawBytes.charCodeAt(i);
-  }
-  return uint8Array.buffer;
-}
 
 export async function exportRsaPublicKey(publicKey: CryptoKey): Promise<string> {
   return arrayBufferToBase64(await subtle.exportKey('spki', publicKey));
@@ -202,7 +194,7 @@ export class Signature {
   signer: string;
   @field('u64')
   timestamp: bigint;
-  @field(vec('u8'))
+  @field('u8-array')
   signature: Uint8Array;
 
   constructor(fields: ISignature) {

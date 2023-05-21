@@ -20,6 +20,7 @@ export type JoinParams = {
   amount: bigint;
   accessVersion: bigint;
   position: number;
+  verifyKey: string;
 };
 
 export type DepositParams = {

@@ -285,7 +285,7 @@ pub enum RandomStatus {
 /// RandomState represents the public information for a single randomness.
 #[derive(Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
 pub struct RandomState {
-    pub id: usize,
+    pub id: RandomId,
     pub size: usize,
     pub owners: Vec<String>,
     pub options: Vec<String>,
@@ -507,7 +507,7 @@ impl RandomState {
                 from_addr: ss.from_addr.clone(),
                 to_addr: ss.to_addr.clone(),
                 random_id: self.id,
-                index: ss.index,
+                index: ss.index as usize,
             })
             .collect()
     }
@@ -521,7 +521,7 @@ impl RandomState {
             .iter()
             .filter(|ss| ss.to_addr.is_none())
             .fold(HashMap::new(), |mut acc, ss| {
-                acc.entry(ss.index)
+                acc.entry(ss.index as usize)
                     .and_modify(|v: &mut Vec<SecretKey>| {
                         v.push(ss.secret.as_ref().unwrap().clone())
                     })
@@ -539,7 +539,7 @@ impl RandomState {
             .enumerate()
             .filter_map(|(i, c)| {
                 if matches!(&c.owner, CipherOwner::Assigned(a) if a.eq(addr)) {
-                    Some((i, c.ciphertext.clone()))
+                    Some((i as usize, c.ciphertext.clone()))
                 } else {
                     None
                 }
@@ -553,7 +553,7 @@ impl RandomState {
             .enumerate()
             .filter_map(|(i, c)| {
                 if c.owner == CipherOwner::Revealed {
-                    Some((i, c.ciphertext.clone()))
+                    Some((i as usize, c.ciphertext.clone()))
                 } else {
                     None
                 }

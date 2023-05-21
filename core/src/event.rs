@@ -1,5 +1,6 @@
-use crate::types::{
-    Ciphertext, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin,
+use crate::{
+    error::HandlerError,
+    types::{Ciphertext, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
@@ -211,4 +212,8 @@ impl Event {
     }
 }
 
-pub trait CustomEvent: Sized + BorshSerialize + BorshDeserialize {}
+pub trait CustomEvent: Sized + BorshSerialize + BorshDeserialize {
+    fn try_parse(slice: &[u8]) -> Result<Self, HandlerError> {
+        Self::try_from_slice(slice).or(Err(HandlerError::MalformedCustomEvent))
+    }
+}

@@ -125,6 +125,7 @@ mod tests {
                 addr: Pubkey::default(),
                 endpoint: s.clone(),
                 access_version: 0,
+                verify_key: "key0".into(),
             };
             state.servers.push(s);
         }
@@ -141,9 +142,10 @@ mod tests {
             balance: 1,
             position: 1,
             access_version: 1,
+            verify_key: "key0".into(),
         };
         println!("data: {:?}", state.try_to_vec().unwrap());
-        assert_eq!(1, 2);
+        // assert_eq!(1, 2);
     }
 
     pub fn make_game_state() -> GameState {

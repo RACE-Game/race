@@ -1,4 +1,4 @@
-import { IConnection } from './connection';
+import { AttachGameParams, IConnection, SubmitEventParams } from './connection';
 import { IEncryptor } from './encryptor';
 import { ITransport } from './transport';
 import { SecretState } from './secret-state';
@@ -7,23 +7,23 @@ import { GameContext } from './game-context';
 
 type OpIdent =
   | {
-      kind: 'random-secret';
-      randomId: bigint;
-      toAddr: string | undefined;
-      index: number;
-    }
+    kind: 'random-secret';
+    randomId: bigint;
+    toAddr: string | undefined;
+    index: number;
+  }
   | {
-      kind: 'answer-secret';
-      decisionId: bigint;
-    }
+    kind: 'answer-secret';
+    decisionId: bigint;
+  }
   | {
-      kind: 'lock';
-      randomId: bigint;
-    }
+    kind: 'lock';
+    randomId: bigint;
+  }
   | {
-      kind: 'mask';
-      randomId: bigint;
-    };
+    kind: 'mask';
+    randomId: bigint;
+  };
 
 export class Client {
   #encryptor: IEncryptor;
@@ -46,22 +46,27 @@ export class Client {
 
   async attachGame(): Promise<void> {
     const key = await this.#encryptor.exportPublicKey(undefined);
-    await this.#connection.attachGame(this.#gameAddr, {
-      key,
-    });
+    await this.#connection.attachGame(this.#gameAddr,
+      new AttachGameParams({
+        signer: this.#addr,
+        key,
+      })
+    );
   }
 
   async submitEvent(event: any): Promise<void> {
-    await this.#connection.submitEvent(this.#gameAddr, {
-      event,
-    });
+    await this.#connection.submitEvent(this.#gameAddr,
+      new SubmitEventParams({
+        event,
+      }));
   }
 
   async submitCustomEvent(customEvent: any): Promise<void> {
     const event = makeCustomEvent(this.#gameAddr, customEvent);
-    await this.#connection.submitEvent(this.#gameAddr, {
-      event,
-    });
+    await this.#connection.submitEvent(this.#gameAddr,
+      new SubmitEventParams({
+        event,
+      }));
   }
 
   async handleDecision(ctx: GameContext): Promise<Event[]> {

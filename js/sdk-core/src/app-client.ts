@@ -1,4 +1,4 @@
-import { Connection, IConnection } from './connection';
+import { BroadcastFrameEvent, BroadcastFrameInit, Connection, IConnection, SubscribeEventParams } from './connection';
 import { GameContext } from './game-context';
 import { ITransport } from './transport';
 import { IWallet } from './wallet';
@@ -50,7 +50,7 @@ export class AppClient {
     gameAddr: string,
     callback: EventCallbackFunction
   ): Promise<AppClient> {
-    const encryptor = await Encryptor.default();
+    const encryptor = await Encryptor.create();
     const playerAddr = wallet.walletAddr;
     const gameAccount = await transport.getGameAccount(gameAddr);
     if (gameAccount === undefined) {
@@ -96,9 +96,20 @@ export class AppClient {
   async attachGame() {
     await this.#client.attachGame();
     const settleVersion = this.#gameContext.settleVersion;
-    let sub = this.#connection.substribeEvents(this.#gameAddr, { settleVersion });
+    let sub = this.#connection.subscribeEvents(this.#gameAddr, new SubscribeEventParams({ settleVersion }));
     for await (const frame of sub) {
-      console.log(frame);
+      if (frame instanceof BroadcastFrameInit) {
+        this.#gameContext.applyCheckpoint(frame.accessVersion, frame.settleVersion);
+        const initAccount = InitAccount.createFromGameAccount(this.#initGameAccount, frame.accessVersion, frame.settleVersion);
+
+        this.#handler.initState(this.#gameContext, initAccount);
+
+        console.log("init called");
+      } else if (frame instanceof BroadcastFrameEvent) {
+
+      } else {
+        throw new Error('Invalid broadcast frame');
+      }
     }
   }
 
@@ -119,7 +130,7 @@ export class AppClient {
   /**
    * Close current event subscription.
    */
-  async close() {}
+  async close() { }
 
   /**
    * Exit current game.

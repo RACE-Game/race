@@ -8,7 +8,6 @@ pub type Addr = String;
 pub type Amount = u64;
 #[allow(unused)]
 pub type RandomId = usize;
-pub type RandomIndex = usize;
 pub type DecisionId = usize;
 pub type Ciphertext = Vec<u8>;
 pub type SecretDigest = Vec<u8>;
@@ -133,7 +132,7 @@ impl std::fmt::Display for SecretShare {
 impl SecretShare {
     pub fn new_for_random(
         random_id: RandomId,
-        index: RandomIndex,
+        index: usize,
         from_addr: Addr,
         to_addr: Option<Addr>,
         secret: SecretKey,

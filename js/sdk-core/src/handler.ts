@@ -169,6 +169,7 @@ export class Handler implements IHandler {
     let buf = new Uint8Array(mem.buffer);
 
     const effect = Effect.fromContext(context);
+    console.log("Effect:", effect);
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
 

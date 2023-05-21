@@ -17,10 +17,10 @@ use race_core::{
     },
 };
 
-#[cfg(target_arch = "wasm32")]
-use race_transport::wasm_trait::TransportLocalT as TransportT;
 #[cfg(not(target_arch = "wasm32"))]
 use race_core::transport::TransportT;
+#[cfg(target_arch = "wasm32")]
+use race_transport::wasm_trait::TransportLocalT as TransportT;
 
 /// Operation Ident
 ///
@@ -98,7 +98,13 @@ impl Client {
     pub async fn attach_game(&self) -> Result<()> {
         let key = self.encryptor.export_public_key(None)?;
         self.connection
-            .attach_game(&self.game_addr, AttachGameParams { key })
+            .attach_game(
+                &self.game_addr,
+                AttachGameParams {
+                    key,
+                    signer: self.addr.clone(),
+                },
+            )
             .await
     }
 

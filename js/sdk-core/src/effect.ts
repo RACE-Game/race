@@ -1,7 +1,7 @@
 import { RandomSpec, RandomState } from './random-state';
 import { HandlerError } from './error';
 import { GameContext } from './game-context';
-import { enums, field, map, option, struct, variant, vec } from '@race/borsh';
+import { enums, field, map, option, struct, variant, array } from '@race/borsh';
 import { Fields } from './types';
 
 export abstract class SettleOp {}
@@ -65,11 +65,11 @@ export class Ask {
 }
 
 export class Assign {
-  @field('u64')
-  randomId!: bigint;
+  @field('usize')
+  randomId!: number;
   @field('string')
   playerAddr!: string;
-  @field(vec('u16'))
+  @field(array('usize'))
   indexes!: number[];
   constructor(fields: Fields<Assign>) {
     Object.assign(this, fields);
@@ -77,9 +77,9 @@ export class Assign {
 }
 
 export class Reveal {
-  @field('u64')
-  randomId!: bigint;
-  @field(vec('u16'))
+  @field('usize')
+  randomId!: number;
+  @field(array('usize'))
   indexes!: number[];
   constructor(fields: Fields<Reveal>) {
     Object.assign(this, fields);
@@ -87,8 +87,8 @@ export class Reveal {
 }
 
 export class Release {
-  @field('u64')
-  decisionId!: bigint;
+  @field('usize')
+  decisionId!: number;
   constructor(fields: Fields<Release>) {
     Object.assign(this, fields);
   }
@@ -123,11 +123,11 @@ export class Effect {
   @field('u64')
   timestamp!: bigint;
 
-  @field('u64')
-  currRandomId!: bigint;
+  @field('usize')
+  currRandomId!: number;
 
-  @field('u64')
-  currDecisionId!: bigint;
+  @field('usize')
+  currDecisionId!: number;
 
   @field('u16')
   playersCount!: number;
@@ -135,34 +135,34 @@ export class Effect {
   @field('u16')
   serversCount!: number;
 
-  @field(vec(struct(Ask)))
+  @field(array(struct(Ask)))
   asks!: Ask[];
 
-  @field(vec(struct(Assign)))
+  @field(array(struct(Assign)))
   assigns!: Assign[];
 
-  @field(vec(struct(Reveal)))
+  @field(array(struct(Reveal)))
   reveals!: Reveal[];
 
-  @field(vec(struct(Release)))
+  @field(array(struct(Release)))
   releases!: Release[];
 
-  @field(vec(enums(RandomSpec)))
+  @field(array(enums(RandomSpec)))
   initRandomStates!: RandomSpec[];
 
-  @field(map('u32', map('u32', 'string')))
+  @field(map('usize', map('usize', 'string')))
   revealed!: Map<number, Map<number, string>>;
 
-  @field(map('u32', 'string'))
+  @field(map('usize', 'string'))
   answered!: Map<number, string>;
 
-  @field(vec(struct(Settle)))
+  @field(array(struct(Settle)))
   settles!: Settle[];
 
-  @field(vec('u8'))
-  handlerState!: Uint8Array;
+  @field(option('u8-array'))
+  handlerState!: Uint8Array | undefined;
 
-  @field(vec(enums(HandlerError)))
+  @field(option(enums(HandlerError)))
   error: HandlerError | undefined;
 
   @field('bool')
@@ -179,10 +179,10 @@ export class Effect {
     const stopGame = false;
     const cancelDispatch = false;
     const timestamp = context.timestamp;
-    const currRandomId = BigInt(context.randomStates.length + 1);
-    const currDecisionId = BigInt(context.decisionStates.length + 1);
-    const playersCount = 0; // TODO
-    const serversCount = 0; // TODO
+    const currRandomId = context.randomStates.length + 1;
+    const currDecisionId = context.decisionStates.length + 1;
+    const playersCount = context.players.length;
+    const serversCount = context.servers.length;
     const asks: Ask[] = [];
     const assigns: Assign[] = [];
     const releases: Release[] = [];

@@ -1,9 +1,13 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use crate::context::ApplicationContext;
+use base64::Engine;
 use borsh::BorshDeserialize;
+use borsh::BorshSerialize;
+use hyper::Method;
 use jsonrpsee::core::error::Error as RpcError;
 use jsonrpsee::core::error::SubscriptionClosed;
+use jsonrpsee::server::AllowHosts;
 use jsonrpsee::types::error::CallError;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
@@ -12,12 +16,28 @@ use race_core::types::{
     AttachGameParams, ExitGameParams, Signature, SubmitEventParams, SubscribeEventParams,
 };
 use tokio_stream::wrappers::BroadcastStream;
+use tower::ServiceBuilder;
+use tower_http::cors::Any;
+use tower_http::cors::CorsLayer;
 use tracing::{error, info, warn};
 
-fn parse_params_no_sig<T: BorshDeserialize>(
-    params: Params<'_>,
-) -> Result<(String, T), RpcError> {
-    let (game_addr, arg_vec) = params.parse::<(String, Vec<u8>)>()?;
+fn base64_encode(data: &[u8]) -> String {
+    let engine = base64::engine::general_purpose::STANDARD;
+    engine.encode(data)
+}
+
+fn base64_decode(data: &str) -> Result<Vec<u8>, RpcError> {
+    let engine = base64::engine::general_purpose::STANDARD;
+    engine
+        .decode(data)
+        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))
+}
+
+fn parse_params_no_sig<T: BorshDeserialize>(params: Params<'_>) -> Result<(String, T), RpcError> {
+    let (game_addr, arg_base64) = params.parse::<(String, String)>()?;
+
+    let arg_vec = base64_decode(&arg_base64)?;
+
     let arg = T::try_from_slice(&arg_vec)
         .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
     Ok((game_addr, arg))
@@ -27,7 +47,9 @@ fn parse_params<T: BorshDeserialize>(
     params: Params<'_>,
     context: &ApplicationContext,
 ) -> Result<(String, T, Signature), RpcError> {
-    let (game_addr, arg_vec, sig_vec) = params.parse::<(String, Vec<u8>, Vec<u8>)>()?;
+    let (game_addr, arg_base64, sig_base64) = params.parse::<(String, String, String)>()?;
+    let arg_vec = base64_decode(&arg_base64)?;
+    let sig_vec = base64_decode(&sig_base64)?;
 
     let signature = Signature::try_from_slice(&sig_vec)
         .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
@@ -46,12 +68,10 @@ fn parse_params<T: BorshDeserialize>(
 async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
     info!("Attach to game");
 
-    let (_game_addr, AttachGameParams { key }, sig) = parse_params(params, &context)?;
-
-    info!("Register the key provided by client {}", sig.signer);
+    let (_game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
 
     context
-        .register_key(sig.signer, key)
+        .register_key(signer, key)
         .await
         .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
@@ -108,7 +128,10 @@ fn subscribe_event(
             let rx = BroadcastStream::new(receiver);
 
             histories.into_iter().for_each(|x| {
-                sink.send(&x)
+                let v = x.try_to_vec().unwrap();
+                let s = base64_encode(&v);
+
+                sink.send(&s)
                     .map_err(|e| {
                         error!("Error occurred when broadcasting event histories: {:?}", e);
                         e
@@ -137,11 +160,21 @@ fn subscribe_event(
 }
 
 pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
+    let cors = CorsLayer::new()
+        .allow_methods([Method::POST])
+        .allow_origin(Any)
+        .allow_headers([hyper::header::CONTENT_TYPE]);
+
+    let middleware = ServiceBuilder::new().layer(cors);
+
     let host = {
         let port = context.config.port;
         format!("0.0.0.0:{}", port)
     };
+
     let server = ServerBuilder::default()
+        .set_host_filtering(AllowHosts::Any)
+        .set_middleware(middleware)
         .max_request_body_size(100_1000)
         .build(host.parse::<SocketAddr>()?)
         .await?;

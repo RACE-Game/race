@@ -7,7 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use crate::{
     context::GameContext,
     engine::GameHandler,
-    error::{Error, Result},
+    error::{Error, HandlerError, Result},
     random::RandomSpec,
     types::{DecisionId, RandomId, Settle},
 };
@@ -61,7 +61,7 @@ pub struct ActionTimeout {
 /// use race_core::random::RandomSpec;
 /// let mut effect = Effect::default();
 /// let random_spec = RandomSpec::deck_of_cards();
-/// let random_id: usize = effect.init_random_state(random_spec);
+/// let random_id = effect.init_random_state(random_spec);
 /// ```
 ///
 /// To assign some items of the randomness to a specific player, use [`Effect::assign`].
@@ -88,7 +88,7 @@ pub struct ActionTimeout {
 /// ```
 /// # use race_core::effect::Effect;
 /// let mut effect = Effect::default();
-/// let decision_id: usize = effect.ask("Alice");
+/// let decision_id = effect.ask("Alice");
 /// ```
 ///
 /// To reveal the answer, use [`Effect::reveal_answer`].
@@ -147,11 +147,11 @@ pub struct Effect {
     pub reveals: Vec<Reveal>,
     pub releases: Vec<Release>,
     pub init_random_states: Vec<RandomSpec>,
-    pub revealed: BTreeMap<usize, BTreeMap<usize, String>>,
-    pub answered: BTreeMap<usize, String>,
+    pub revealed: BTreeMap<RandomId, BTreeMap<usize, String>>,
+    pub answered: BTreeMap<DecisionId, String>,
     pub settles: Vec<Settle>,
     pub handler_state: Option<Vec<u8>>,
-    pub error: Option<Error>,
+    pub error: Option<HandlerError>,
     pub allow_exit: bool,
 }
 
@@ -329,21 +329,21 @@ impl Effect {
         if let Ok(state) = handler_state.try_to_vec() {
             self.handler_state = Some(state);
         } else {
-            self.error = Some(Error::SerializationError);
+            self.error = Some(HandlerError::SerializationError);
         }
     }
 
     /// Set error.
     ///
     /// This is an internal function, DO NOT use in game handler.
-    pub fn __set_error(&mut self, error: Error) {
+    pub fn __set_error(&mut self, error: HandlerError) {
         self.error = Some(error);
     }
 
     /// Take error
     ///
     /// This is an internal function, DO NOT use in game handler.
-    pub fn __take_error(&mut self) -> Option<Error> {
+    pub fn __take_error(&mut self) -> Option<HandlerError> {
         std::mem::replace(&mut self.error, None)
     }
 }
@@ -356,13 +356,13 @@ mod tests {
     #[test]
     fn test_serialization() -> anyhow::Result<()> {
         let mut answered = BTreeMap::new();
-        answered.insert(1, "A".into());
+        answered.insert(33, "A".into());
 
         let mut revealed = BTreeMap::new();
         {
             let mut m = BTreeMap::new();
-            m.insert(1, "B".into());
-            revealed.insert(2, m);
+            m.insert(11, "B".into());
+            revealed.insert(22, m);
         }
 
         let effect = Effect {
@@ -384,25 +384,27 @@ mod tests {
             }],
             assigns: vec![Assign {
                 player_addr: "bob".into(),
-                random_id: 1,
+                random_id: 5,
                 indexes: vec![0, 1, 2],
             }],
             reveals: vec![Reveal {
-                random_id: 1,
+                random_id: 6,
                 indexes: vec![0, 1, 2],
             }],
-            releases: vec![Release { decision_id: 1 }],
+            releases: vec![Release { decision_id: 7 }],
             init_random_states: vec![RandomSpec::shuffled_list(vec!["a".into(), "b".into()])],
             revealed,
             answered,
-            settles: vec![Settle::add("alice", 200), Settle::add("bob", 200)],
-            handler_state: Some("".into()),
-            error: Some(Error::NoEnoughPlayers),
+            settles: vec![Settle::add("alice", 200), Settle::sub("bob", 200)],
+            handler_state: Some(vec![1, 2, 3, 4]),
+            error: Some(HandlerError::NoEnoughPlayers),
             allow_exit: true,
         };
         let bs = effect.try_to_vec()?;
 
+        println!("Effect: {:?}", bs);
         let parsed = Effect::try_from_slice(&bs)?;
+
         assert_eq!(effect, parsed);
         Ok(())
     }

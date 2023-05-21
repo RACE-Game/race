@@ -1,8 +1,9 @@
 import { PublicKey } from '@solana/web3.js';
 import * as borsh from 'borsh';
-import { ExtendedReader, ExtendedWriter } from './utils';
+import { publicKeyExt } from './utils';
 import * as RaceCore from '@race/sdk-core';
-import {VoteType} from '@race/sdk-core';
+import { VoteType } from '@race/sdk-core';
+import { deserialize, serialize, field, option, array, struct } from '@race/borsh';
 
 export interface IPlayerState {
   isInitialized: boolean;
@@ -15,12 +16,14 @@ export interface IPlayerJoin {
   balance: bigint;
   position: number;
   accessVersion: bigint;
+  verifyKey: string;
 }
 
 export interface IServerJoin {
   key: PublicKey;
   endpoint: string;
   accessVersion: bigint;
+  verifyKey: string;
 }
 
 export interface IVote {
@@ -73,20 +76,23 @@ export interface IServerState {
 }
 
 export class PlayerState implements IPlayerState {
+  @field('bool')
   isInitialized!: boolean;
+  @field('string')
   nick!: string;
+  @field(option(publicKeyExt))
   pfpKey?: PublicKey;
 
   constructor(fields: IPlayerState) {
     Object.assign(this, fields);
   }
 
-  serialize(): Buffer {
-    return Buffer.from(borsh.serialize(playerStateSchema, this, ExtendedWriter));
+  serialize(): Uint8Array {
+    return serialize(this);
   }
 
-  static deserialize(data: Buffer): PlayerState {
-    return borsh.deserializeUnchecked(playerStateSchema, PlayerState, data, ExtendedReader);
+  static deserialize(data: Uint8Array): PlayerState {
+    return deserialize(PlayerState, data);
   }
 
   generalize(addr: PublicKey): RaceCore.PlayerProfile {
@@ -98,23 +104,12 @@ export class PlayerState implements IPlayerState {
   }
 }
 
-const playerStateSchema = new Map([
-  [
-    PlayerState,
-    {
-      kind: 'struct',
-      fields: [
-        ['isInitialized', 'bool'],
-        ['nick', 'string'],
-        ['pfpKey', { kind: 'option', type: 'publicKey' }],
-      ],
-    },
-  ],
-]);
-
 export class Vote implements IVote {
+  @field(publicKeyExt)
   voterKey!: PublicKey;
+  @field(publicKeyExt)
   voteeKey!: PublicKey;
+  @field('u8')
   voteType!: VoteType;
   constructor(fields: IVote) {
     Object.assign(this, fields);
@@ -129,9 +124,14 @@ export class Vote implements IVote {
 }
 
 export class ServerJoin implements IServerJoin {
+  @field(publicKeyExt)
   key!: PublicKey;
+  @field('string')
   endpoint!: string;
+  @field('u64')
   accessVersion!: bigint;
+  @field('string')
+  verifyKey!: string;
   constructor(fields: IServerJoin) {
     Object.assign(this, fields);
   }
@@ -140,15 +140,22 @@ export class ServerJoin implements IServerJoin {
       addr: this.key.toBase58(),
       endpoint: this.endpoint,
       accessVersion: this.accessVersion,
+      verifyKey: this.verifyKey,
     });
   }
 }
 
 export class PlayerJoin implements IPlayerJoin {
+  @field(publicKeyExt)
   key!: PublicKey;
+  @field('u64')
   balance!: bigint;
+  @field('u16')
   position!: number;
+  @field('u64')
   accessVersion!: bigint;
+  @field('string')
+  verifyKey!: string;
   constructor(fields: IPlayerJoin) {
     Object.assign(this, fields);
   }
@@ -158,40 +165,59 @@ export class PlayerJoin implements IPlayerJoin {
       position: this.position,
       balance: this.balance,
       accessVersion: this.accessVersion,
+      verifyKey: this.verifyKey,
     });
   }
 }
 
 export class GameState implements IGameState {
+  @field('bool')
   isInitialized!: boolean;
+  @field('string')
   title!: string;
+  @field(publicKeyExt)
   bundleKey!: PublicKey;
+  @field(publicKeyExt)
   stakeKey!: PublicKey;
+  @field(publicKeyExt)
   ownerKey!: PublicKey;
+  @field(publicKeyExt)
   tokenKey!: PublicKey;
+  @field('u64')
   minDeposit!: bigint;
+  @field('u64')
   maxDeposit!: bigint;
+  @field(option(publicKeyExt))
   transactorKey: PublicKey | undefined;
+  @field('u64')
   accessVersion!: bigint;
+  @field('u64')
   settleVersion!: bigint;
+  @field('u16')
   maxPlayers!: number;
+  @field(array(struct(PlayerJoin)))
   players!: PlayerJoin[];
+  @field(array(struct(ServerJoin)))
   servers!: ServerJoin[];
+  @field('u32')
   dataLen!: number;
+  @field('u8-array')
   data!: Uint8Array;
+  @field(array(struct(Vote)))
   votes!: Vote[];
+  @field(option('u64'))
   unlockTime: bigint | undefined;
 
   constructor(fields: IGameState) {
     Object.assign(this, fields);
   }
 
-  serialize(): Buffer {
-    return Buffer.from(borsh.serialize(gameStateSchema, this, ExtendedWriter));
+  serialize(): Uint8Array {
+    return serialize(this);
   }
 
-  static deserialize(data: Buffer): GameState {
-    return borsh.deserializeUnchecked(gameStateSchema, GameState, data, ExtendedReader);
+  static deserialize(data: Uint8Array): GameState {
+    return deserialize(GameState, data);
   }
 
   generalize(addr: PublicKey): RaceCore.GameAccount {
@@ -218,73 +244,14 @@ export class GameState implements IGameState {
   }
 }
 
-const gameStateSchema = new Map<Function, any>([
-  [
-    PlayerJoin,
-    {
-      kind: 'struct',
-      fields: [
-        ['key', 'publicKey'],
-        ['balance', 'bigint'],
-        ['position', 'u16'],
-        ['accessVersion', 'bigint'],
-      ],
-    },
-  ],
-  [
-    Vote,
-    {
-      kind: 'struct',
-      fields: [
-        ['voterKey', 'publicKey'],
-        ['voteeKey', 'publicKey'],
-        ['voteType', 'u8'],
-      ],
-    },
-  ],
-  [
-    ServerJoin,
-    {
-      kind: 'struct',
-      fields: [
-        ['key', 'publicKey'],
-        ['endpoint', 'string'],
-        ['accessVersion', 'bigint'],
-      ],
-    },
-  ],
-  [
-    GameState,
-    {
-      kind: 'struct',
-      fields: [
-        ['isInitialized', 'bool'],
-        ['title', 'string'],
-        ['bundleKey', 'publicKey'],
-        ['stakeKey', 'publicKey'],
-        ['ownerKey', 'publicKey'],
-        ['tokenKey', 'publicKey'],
-        ['minDeposit', 'bigint'],
-        ['maxDeposit', 'bigint'],
-        ['transactorKey', { kind: 'option', type: 'publicKey' }],
-        ['accessVersion', 'bigint'],
-        ['settleVersion', 'bigint'],
-        ['maxPlayers', 'u16'],
-        ['players', [PlayerJoin]],
-        ['servers', [ServerJoin]],
-        ['dataLen', 'u32'],
-        ['data', 'bytes'],
-        ['votes', [Vote]],
-        ['unlockTime', { kind: 'option', type: 'bigint' }],
-      ],
-    },
-  ],
-]);
-
 export class GameReg implements IGameReg {
+  @field('string')
   title!: string;
+  @field(publicKeyExt)
   gameKey!: PublicKey;
+  @field(publicKeyExt)
   bundleKey!: PublicKey;
+  @field('u64')
   regTime!: bigint;
   constructor(fields: IGameReg) {
     Object.assign(this, fields);
@@ -300,21 +267,26 @@ export class GameReg implements IGameReg {
 }
 
 export class RegistryState implements IRegistryState {
+  @field('bool')
   isInitialized!: boolean;
+  @field('bool')
   isPrivate!: boolean;
+  @field('u16')
   size!: number;
+  @field(publicKeyExt)
   ownerKey!: PublicKey;
+  @field(array(struct(GameReg)))
   games!: GameReg[];
   constructor(fields: IRegistryState) {
     Object.assign(this, fields);
   }
 
-  serialize(): Buffer {
-    return Buffer.from(borsh.serialize(registryStateSchema, this, ExtendedWriter));
+  serialize(): Uint8Array {
+    return serialize(this);
   }
 
-  static deserialize(data: Buffer): RegistryState {
-    return borsh.deserializeUnchecked(registryStateSchema, RegistryState, data, ExtendedReader);
+  static deserialize(data: Uint8Array): RegistryState {
+    return deserialize(RegistryState, data);
   }
 
   generalize(addr: PublicKey): RaceCore.RegistrationAccount {
@@ -328,50 +300,26 @@ export class RegistryState implements IRegistryState {
   }
 }
 
-const registryStateSchema = new Map<Function, any>([
-  [
-    GameReg,
-    {
-      kind: 'struct',
-      fields: [
-        ['title', 'string'],
-        ['gameKey', 'publicKey'],
-        ['bundleKey', 'publicKey'],
-        ['regTime', 'bigint'],
-      ],
-    },
-  ],
-  [
-    RegistryState,
-    {
-      kind: 'struct',
-      fields: [
-        ['isInitialized', 'bool'],
-        ['isPrivate', 'bool'],
-        ['size', 'u16'],
-        ['ownerKey', 'publicKey'],
-        ['games', [GameReg]],
-      ],
-    },
-  ],
-]);
-
 export class ServerState implements IServerState {
+  @field('bool')
   isInitialized!: boolean;
+  @field(publicKeyExt)
   key!: PublicKey;
+  @field(publicKeyExt)
   ownerKey!: PublicKey;
+  @field('string')
   endpoint!: string;
 
   constructor(fields: IServerState) {
     Object.assign(this, fields);
   }
 
-  serialize(): Buffer {
-    return Buffer.from(borsh.serialize(serverStateSchema, this, ExtendedWriter));
+  serialize(): Uint8Array {
+    return serialize(this);
   }
 
-  static deserialize(data: Buffer): ServerState {
-    return borsh.deserializeUnchecked(serverStateSchema, ServerState, data, ExtendedReader);
+  static deserialize(data: Uint8Array): ServerState {
+    return deserialize(this, data);
   }
 
   generalize(): RaceCore.ServerAccount {
@@ -381,18 +329,3 @@ export class ServerState implements IServerState {
     });
   }
 }
-
-const serverStateSchema = new Map([
-  [
-    ServerState,
-    {
-      kind: 'struct',
-      fields: [
-        ['isInitialized', 'bool'],
-        ['key', 'publicKey'],
-        ['ownerKey', 'publicKey'],
-        ['endpoint', 'string'],
-      ],
-    },
-  ],
-]);

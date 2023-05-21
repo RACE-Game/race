@@ -1,4 +1,4 @@
-import { field, vec, enums, option, variant, struct } from '@race/borsh';
+import { field, array, enums, option, variant, struct } from '@race/borsh';
 import { PlayerJoin, ServerJoin } from './accounts';
 import { Fields } from './types';
 
@@ -15,11 +15,11 @@ export class Random extends SecretShare {
   fromAddr!: string;
   @field(option('string'))
   toAddr!: string | undefined;
-  @field('u64')
-  randomId!: bigint;
-  @field('u32')
+  @field('usize')
+  randomId!: number;
+  @field('usize')
   index!: number;
-  @field(vec('u8'))
+  @field('u8-array')
   secret!: Uint8Array;
   constructor(fields: Fields<Random>) {
     super();
@@ -31,9 +31,9 @@ export class Random extends SecretShare {
 export class Answer extends SecretShare {
   @field('string')
   fromAddr!: string;
-  @field('u64')
-  decisionId!: bigint;
-  @field(vec('u8'))
+  @field('usize')
+  decisionId!: number;
+  @field('u8-array')
   secret!: Uint8Array;
   constructor(fields: Fields<Answer>) {
     super();
@@ -47,7 +47,7 @@ export abstract class GameEvent {}
 export class Custom extends GameEvent {
   @field('string')
   sender!: string;
-  @field(vec('u8'))
+  @field('u8-array')
   raw!: Uint8Array;
   constructor(fields: Fields<Custom>) {
     super();
@@ -73,7 +73,7 @@ export class Ready extends GameEvent {
 export class ShareSecrets extends GameEvent {
   @field('string')
   sender!: string;
-  @field(vec(enums(SecretShare)))
+  @field(array(enums(SecretShare)))
   shares!: SecretShare[];
   constructor(fields: Fields<ShareSecrets>) {
     super();
@@ -83,7 +83,7 @@ export class ShareSecrets extends GameEvent {
 
 @variant(3)
 export class OperationTimeout extends GameEvent {
-  @field(vec('string'))
+  @field(array('string'))
   addrs!: string[];
   constructor(fields: Fields<OperationTimeout>) {
     super();
@@ -95,9 +95,9 @@ export class OperationTimeout extends GameEvent {
 export class Mask extends GameEvent {
   @field('string')
   sender!: string;
-  @field('u64')
-  randomId!: bigint;
-  @field(vec(vec('u8')))
+  @field('usize')
+  randomId!: number;
+  @field(array('u8-array'))
   ciphertexts!: Uint8Array[];
   constructor(fields: Fields<Mask>) {
     super();
@@ -106,9 +106,9 @@ export class Mask extends GameEvent {
 }
 
 export class CiphertextAndDigest {
-  @field(vec('u8'))
+  @field('u8-array')
   ciphertext!: Uint8Array;
-  @field(vec('u8'))
+  @field('u8-array')
   digest!: Uint8Array;
   constructor(fields: Fields<CiphertextAndDigest>) {
     Object.assign(this, fields);
@@ -119,9 +119,9 @@ export class CiphertextAndDigest {
 export class Lock extends GameEvent {
   @field('string')
   sender!: string;
-  @field('u64')
-  randomId!: bigint;
-  @field(vec(struct(CiphertextAndDigest)))
+  @field('usize')
+  randomId!: number;
+  @field(array(struct(CiphertextAndDigest)))
   ciphertextsAndDigests!: CiphertextAndDigest[];
   constructor(fields: Fields<Lock>) {
     super();
@@ -131,8 +131,8 @@ export class Lock extends GameEvent {
 
 @variant(6)
 export class RandomnessReady extends GameEvent {
-  @field('u64')
-  randomId!: bigint;
+  @field('usize')
+  randomId!: number;
   constructor(fields: Fields<RandomnessReady>) {
     super();
     Object.assign(this, fields);
@@ -141,9 +141,9 @@ export class RandomnessReady extends GameEvent {
 
 @variant(7)
 export class Sync extends GameEvent {
-  @field(vec(struct(PlayerJoin)))
+  @field(array(struct(PlayerJoin)))
   newPlayers!: PlayerJoin[];
-  @field(vec(struct(ServerJoin)))
+  @field(array(struct(ServerJoin)))
   newServers!: ServerJoin[];
   @field('string')
   transactorAddr!: string;
@@ -198,9 +198,9 @@ export class WaitingTimeout extends GameEvent {
 export class DrawRandomItems extends GameEvent {
   @field('string')
   sender!: string;
-  @field('u64')
-  randomId!: bigint;
-  @field(vec('u32'))
+  @field('usize')
+  randomId!: number;
+  @field(array('usize'))
   indexes!: number[];
   constructor(fields: Fields<DrawRandomItems>) {
     super();
@@ -229,11 +229,11 @@ export class ActionTimeout extends GameEvent {
 export class AnswerDecision extends GameEvent {
   @field('string')
   sender!: string;
-  @field('u64')
-  decisionId!: bigint;
-  @field(vec('u8'))
+  @field('usize')
+  decisionId!: number;
+  @field('u8-array')
   ciphertext!: Uint8Array;
-  @field(vec('u8'))
+  @field('u8-array')
   digest!: Uint8Array;
   constructor(fields: Fields<AnswerDecision>) {
     super();

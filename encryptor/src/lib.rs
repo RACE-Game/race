@@ -47,7 +47,6 @@ fn aes_digest_iv() -> Vec<u8> {
 }
 
 fn base64_encode(data: &[u8]) -> String {
-    println!("Length of data: {}", data.len());
     let engine = base64::engine::general_purpose::STANDARD;
     engine.encode(data)
 }

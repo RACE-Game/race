@@ -1,27 +1,57 @@
 import { nanoid } from 'nanoid';
-import { IEncryptor } from './encryptor';
+import { IEncryptor, IPublicKeyRaws, PublicKeyRaws } from './encryptor';
 import { GameEvent } from './events';
-import { enums, field, variant } from '@race/borsh';
+import { deserialize, enums, field, serialize, struct, variant } from '@race/borsh';
+import { base64ToArrayBuffer, arrayBufferToBase64, base64ToUint8Array } from './utils';
 
-export interface AttachGameParams {
-  key: string;
+type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event';
+
+
+interface IAttachGameParams {
+  key: PublicKeyRaws;
+  signer: string;
 }
 
-export interface GetStateParams {
-  addr: string;
-}
-
-export interface ExitGameParams {}
-
-export interface SubscribeEventParams {
+interface ISubscribeEventParams {
   settleVersion: bigint;
 }
 
-export interface SubmitEventParams {
-  event: GameEvent;
+interface ISubmitEventParams {
+  event: GameEvent
 }
 
-export abstract class BroadcastFrame {}
+
+export class AttachGameParams implements IAttachGameParams {
+  @field(struct(PublicKeyRaws))
+  key: PublicKeyRaws;
+  @field('string')
+  signer: string;
+  constructor(fields: IAttachGameParams) {
+    this.key = fields.key;
+    this.signer = fields.signer;
+  }
+}
+
+export class ExitGameParams { }
+
+
+export class SubscribeEventParams implements ISubscribeEventParams {
+  @field('u64')
+  settleVersion: bigint;
+  constructor(fields: ISubscribeEventParams) {
+    this.settleVersion = fields.settleVersion;
+  }
+}
+
+export class SubmitEventParams implements ISubmitEventParams {
+  @field(enums(GameEvent))
+  event: GameEvent;
+  constructor(fields: ISubmitEventParams) {
+    this.event = fields.event;
+  }
+}
+
+export abstract class BroadcastFrame { }
 
 @variant(0)
 export class BroadcastFrameEvent extends BroadcastFrame {
@@ -64,10 +94,10 @@ export interface IConnection {
 
   exitGame(gameAddr: string, params: ExitGameParams): Promise<void>;
 
-  substribeEvents(gameAddr: string, params: SubscribeEventParams): AsyncGenerator<string | undefined>;
+  subscribeEvents(gameAddr: string, params: SubscribeEventParams): AsyncGenerator<BroadcastFrame | undefined>;
 }
 
-function* EventStream() {}
+function* EventStream() { }
 
 export class Connection implements IConnection {
   #playerAddr: string;
@@ -84,30 +114,40 @@ export class Connection implements IConnection {
   }
 
   async attachGame(gameAddr: string, params: AttachGameParams): Promise<void> {
-    await this.request('attach_game', gameAddr, params);
+    const req = this.makeReqNoSig(gameAddr, 'attach_game', params);
+    await this.requestXhr(req);
   }
 
   async submitEvent(gameAddr: string, params: SubmitEventParams): Promise<void> {
-    await this.request('submit_event', gameAddr, params);
+    const req = await this.makeReq(gameAddr, 'submit_event', params);
+    await this.requestXhr(req);
   }
 
   async exitGame(gameAddr: string, params: ExitGameParams): Promise<void> {
-    await this.request('exit_game', gameAddr, params);
+    const req = await this.makeReq(gameAddr, 'exit_game', params);
+    await this.requestXhr(req);
   }
 
-  async *substribeEvents(gameAddr: string, params: SubscribeEventParams): AsyncGenerator<string | undefined> {
-    await this.request('subscribe_event', gameAddr, params);
-    let messageQueue: string[] = [];
-    let resolve: undefined | ((value: string | undefined) => void);
-    let messagePromise = new Promise<string | undefined>(r => (resolve = r));
+  async *subscribeEvents(gameAddr: string, params: SubscribeEventParams): AsyncGenerator<BroadcastFrame | undefined> {
+    const req = this.makeReqNoSig(gameAddr, 'subscribe_event', params);
+    await this.requestWs(req);
+    let messageQueue: BroadcastFrame[] = [];
+    let resolve: undefined | ((value: BroadcastFrame | undefined) => void);
+    let messagePromise = new Promise<BroadcastFrame | undefined>(r => (resolve = r));
 
     this.#socket.onmessage = msg => {
       if (resolve !== undefined) {
-        let r = resolve;
-        resolve = undefined;
-        r(msg.data);
+        let frame = this.parseEventMessage(msg.data);
+        if (frame !== undefined) {
+          let r = resolve;
+          resolve = undefined;
+          r(frame);
+        }
       } else {
-        messageQueue.push(msg.data);
+        let frame = this.parseEventMessage(msg.data);
+        if (frame !== undefined) {
+          messageQueue.push(frame);
+        }
       }
     };
 
@@ -123,8 +163,25 @@ export class Connection implements IConnection {
       if (messageQueue.length > 0) {
         yield messageQueue.shift()!;
       } else {
-        yield messagePromise;
+        await new Promise(resolve => setTimeout(() => resolve(undefined), 100));
+        const p = messagePromise;
+        messagePromise = new Promise<BroadcastFrame | undefined>(r => (resolve = r));
+        yield p;
       }
+    }
+  }
+
+  parseEventMessage(raw: string): BroadcastFrame | undefined {
+    let resp = JSON.parse(raw);
+    if (resp.method === 's_event') {
+      let result: string = resp.params.result;
+      let data = base64ToUint8Array(result);
+      let frame = deserialize(BroadcastFrame, data);
+      console.log("Frame:", frame, "From:", frame);
+      return frame;
+    } else {
+      console.log("ignore", resp);
+      return undefined;
     }
   }
 
@@ -132,23 +189,47 @@ export class Connection implements IConnection {
     return new Connection(playerAddr, endpoint, encryptor);
   }
 
-  async request<P>(method: string, gameAddr: string, params: P): Promise<void> {
-    const message = gameAddr + '';
-    const textEncoder = new TextEncoder();
-    const signature = await this.#encryptor.sign(textEncoder.encode(message));
-    console.log('Signature:', signature);
-    const reqData = JSON.stringify(
-      {
-        jsonrpc: '2.0',
-        method,
-        id: nanoid(),
-        params: [gameAddr, params, signature],
-      },
-      (_key, value) => (typeof value === 'bigint' ? Number(value) : value)
-    );
-    console.log('Request data:', reqData);
+  async makeReq<P>(gameAddr: string, method: Method, params: P): Promise<string> {
+    const paramsBytes = serialize(params);
+    const sig = await this.#encryptor.sign(paramsBytes, this.#playerAddr);
+    const sigBytes = serialize(sig);
+    return JSON.stringify({
+      jsonrpc: '2.0',
+      method,
+      id: nanoid(),
+      params: [gameAddr, arrayBufferToBase64(paramsBytes), arrayBufferToBase64(sigBytes)]
+    });
+  }
+
+  makeReqNoSig<P>(gameAddr: string, method: Method, params: P): string {
+    const paramsBytes = serialize(params);
+    return JSON.stringify({
+      jsonrpc: '2.0',
+      method,
+      id: nanoid(),
+      params: [gameAddr, arrayBufferToBase64(paramsBytes)]
+    });
+  }
+
+  async requestWs(req: string): Promise<void> {
     await this.waitSocketReady();
-    this.#socket.send(reqData);
+    this.#socket.send(req);
+  }
+
+  async requestXhr<P>(req: string): Promise<P> {
+    const resp = await fetch(this.#endpoint.replace(/^ws/, 'http'),
+      {
+        method: 'POST',
+        body: req,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    if (resp.ok) {
+      return resp.json();
+    } else {
+      throw Error('Transactor request failed:' + resp.json());
+    }
   }
 
   waitSocketReady() {

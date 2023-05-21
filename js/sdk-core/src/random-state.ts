@@ -1,4 +1,4 @@
-import { field, map, variant, vec } from '@race/borsh';
+import { field, map, variant, array } from '@race/borsh';
 import { Ciphertext, Digest, Fields, Secret } from './types';
 import { CiphertextAndDigest } from './events';
 
@@ -17,7 +17,7 @@ export abstract class RandomSpec {
 
 @variant(0)
 export class ShuffledList extends RandomSpec {
-  @field(vec('string'))
+  @field(array('string'))
   options!: string[];
   constructor(fields: { options: string[] }) {
     super();

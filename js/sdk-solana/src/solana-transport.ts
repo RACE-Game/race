@@ -124,7 +124,7 @@ export class SolanaTransport implements ITransport {
 
   async join(wallet: IWallet, params: JoinParams): Promise<void> {
     const conn = this.#conn;
-    const { gameAddr, amount: amountRaw, accessVersion: accessVersionRaw, position } = params;
+    const { gameAddr, amount: amountRaw, accessVersion: accessVersionRaw, position, verifyKey } = params;
 
     const accessVersion = BigInt(accessVersionRaw);
     const playerKey = new PublicKey(wallet.walletAddr);
@@ -189,6 +189,7 @@ export class SolanaTransport implements ITransport {
       amount,
       accessVersion,
       position,
+      verifyKey
     });
     tx.add(joinGameIx);
 
@@ -282,11 +283,11 @@ export class SolanaTransport implements ITransport {
     console.log('uri:', uri);
     console.log('name:', name);
 
-    const response = await fetch(uri);
-    const metadata: any = await response.json();
+    // const response = await fetch(uri);
+    // const metadata: any = await response.json();
 
-    console.log('metadata:', metadata);
-    const wasm = metadata.properties.files.find((f: any) => f['type'] == 'application/wasm');
+    // console.log('metadata:', metadata);
+    // const wasm = metadata.properties.files.find((f: any) => f['type'] == 'application/wasm');
 
     // const respWasm = await fetch(wasm.uri);
     // const data = new Uint8Array(await respWasm.arrayBuffer());

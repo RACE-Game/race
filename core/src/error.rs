@@ -282,4 +282,7 @@ pub enum HandlerError {
 
     #[error("Malformed custom event")]
     MalformedCustomEvent,
+
+    #[error("Serialization error")]
+    SerializationError,
 }

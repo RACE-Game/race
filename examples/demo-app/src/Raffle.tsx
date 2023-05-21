@@ -102,7 +102,6 @@ function Raffle() {
                 let client = await AppClient.initialize(transport, wallet, addr, onEvent);
                 setClient(client);
                 await client.attachGame();
-                console.log("game attached")
             }
         };
         initClient();

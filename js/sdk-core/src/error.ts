@@ -53,6 +53,14 @@ export class MalformedCustomEvent extends HandlerError {
   }
 }
 
+@variant(7)
+export class SerializationError extends HandlerError {
+  constructor(_: any) {
+    super();
+  }
+}
+
+
 export class SdkError extends Error {
   constructor(message: string) {
     super(message);
