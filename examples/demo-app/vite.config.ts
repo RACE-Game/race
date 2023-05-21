@@ -6,12 +6,7 @@ export default defineConfig({
   plugins: [react({
     babel: {
       parserOpts: {
-        plugins: [
-          [
-            "@babel/plugin-proposal-decorators",
-            { loose: true, version: "2022-03" },
-          ],
-        ],
+        plugins: ['decorators-legacy', 'classProperties'],
       }
     }
   })],

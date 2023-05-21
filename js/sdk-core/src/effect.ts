@@ -1,5 +1,5 @@
 import { RandomSpec, RandomState } from './random-state';
-import { HandlerError } from './error';
+import { HandleError } from './error';
 import { GameContext } from './game-context';
 import { enums, field, map, option, struct, variant, array } from '@race/borsh';
 import { Fields } from './types';
@@ -162,8 +162,8 @@ export class Effect {
   @field(option('u8-array'))
   handlerState!: Uint8Array | undefined;
 
-  @field(option(enums(HandlerError)))
-  error: HandlerError | undefined;
+  @field(option(enums(HandleError)))
+  error: HandleError | undefined;
 
   @field('bool')
   allowExit!: boolean;

@@ -5,7 +5,7 @@ import { assert } from 'chai';
 describe('Test RandomSpec', () => {
   it('new RandomSpec', () => {
     const random = new ShuffledList({ options: ['a', 'b', 'c'] });
-    const state = new RandomState(0n, random, ['alice', 'bob', 'charlie']);
+    const state = new RandomState(0, random, ['alice', 'bob', 'charlie']);
     assert.equal(3, state.masks.length);
   });
 });
@@ -14,7 +14,7 @@ describe('Test RandomState', () => {
 
   it('mask', () => {
     const random = new ShuffledList({ options: ['a', 'b', 'c'] });
-    const state = new RandomState(0n, random, ['alice', 'bob']);
+    const state = new RandomState(0, random, ['alice', 'bob']);
 
     assert.deepEqual(state.status, { kind: 'masking', addr: 'alice' });
     state.mask('alice', [Uint8Array.of(1), Uint8Array.of(2), Uint8Array.of(3)]);
@@ -27,7 +27,7 @@ describe('Test RandomState', () => {
 
   it('addSecretShare', () => {
     const random = new ShuffledList({ options: ['a', 'b', 'c'] });
-    const state = new RandomState(0n, random, ['alice', 'bob']);
+    const state = new RandomState(0, random, ['alice', 'bob']);
     const share1 = new Share('alice', 0, undefined);
     const share2 = new Share('alice', 0, undefined);
     state.addSecretShare(share1);
@@ -37,7 +37,7 @@ describe('Test RandomState', () => {
 
   it('lock', () => {
     const random = new ShuffledList({ options: ['a', 'b', 'c'] });
-    const state = new RandomState(0n, random, ['alice', 'bob']);
+    const state = new RandomState(0, random, ['alice', 'bob']);
 
     state.mask('alice', [Uint8Array.of(1), Uint8Array.of(2), Uint8Array.of(3)]);
     state.mask('bob', [Uint8Array.of(1), Uint8Array.of(2), Uint8Array.of(3)]);
@@ -63,7 +63,7 @@ describe('Test RandomState', () => {
 
   it('listRequiredSecrets', () => {
     const random = new ShuffledList({ options: ['a', 'b', 'c'] });
-    const state = new RandomState(0n, random, ['alice', 'bob']);
+    const state = new RandomState(0, random, ['alice', 'bob']);
     state.mask('alice', [Uint8Array.of(1), Uint8Array.of(2), Uint8Array.of(3)]);
     state.mask('bob', [Uint8Array.of(1), Uint8Array.of(2), Uint8Array.of(3)]);
     state.lock('alice',

@@ -1,4 +1,5 @@
 import { IEncryptor } from './encryptor';
+import { Id } from './types';
 
 export class SecretState {
   #encryptor: IEncryptor;
@@ -8,9 +9,9 @@ export class SecretState {
 
   clear() {}
 
-  isRandomLoaded(id: bigint): boolean {
+  isRandomLoaded(id: Id): boolean {
     return true;
   }
 
-  genRandomStates(id: bigint, size: number): any {}
+  genRandomStates(id: Id, size: number): any {}
 }

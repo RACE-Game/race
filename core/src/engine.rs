@@ -4,7 +4,7 @@ use crate::{
     context::{GameContext, GameStatus},
     effect::Effect,
     encryptor::EncryptorT,
-    error::{Error, Result},
+    error::{HandleError, Error},
     event::Event,
     prelude::ServerJoin,
     types::{GameAccount, PlayerJoin, Settle},
@@ -66,8 +66,8 @@ impl InitAccount {
         }
     }
 
-    pub fn data<S: BorshDeserialize>(&self) -> Result<S> {
-        S::try_from_slice(&self.data).or(Err(Error::DeserializeError))
+    pub fn data<S: BorshDeserialize>(&self) -> Result<S, HandleError> {
+        S::try_from_slice(&self.data).or(Err(HandleError::MalformedGameAccountData))
     }
 
     /// Add a new player.  This function is only available in tests.
@@ -110,13 +110,16 @@ impl Default for InitAccount {
 
 pub trait GameHandler: Sized + BorshSerialize + BorshDeserialize {
     /// Initialize handler state with on-chain game account data.
-    fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self>;
+    fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError>;
 
     /// Handle event.
-    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<()>;
+    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<(), HandleError>;
 }
 
-pub fn general_init_state(_context: &mut GameContext, _init_account: &InitAccount) -> Result<()> {
+pub fn general_init_state(
+    _context: &mut GameContext,
+    _init_account: &InitAccount,
+) -> Result<(), HandleError> {
     Ok(())
 }
 
@@ -125,7 +128,7 @@ pub fn general_handle_event(
     context: &mut GameContext,
     event: &Event,
     encryptor: &dyn EncryptorT,
-) -> Result<()> {
+) -> Result<(), Error> {
     // General event handling
     match event {
         Event::Ready => Ok(()),
@@ -143,19 +146,28 @@ pub fn general_handle_event(
             decision_id,
             ciphertext,
             digest,
-        } => context.answer_decision(*decision_id, sender, ciphertext.clone(), digest.clone()),
+        } => {
+            context.answer_decision(*decision_id, sender, ciphertext.clone(), digest.clone())?;
+            Ok(())
+        }
 
         Event::Mask {
             sender,
             random_id,
             ciphertexts,
-        } => context.randomize_and_mask(sender, *random_id, ciphertexts.clone()),
+        } => {
+            context.randomize_and_mask(sender, *random_id, ciphertexts.clone())?;
+            Ok(())
+        }
 
         Event::Lock {
             sender,
             random_id,
             ciphertexts_and_digests: ciphertexts_and_tests,
-        } => context.lock(sender, *random_id, ciphertexts_and_tests.clone()),
+        } => {
+            context.lock(sender, *random_id, ciphertexts_and_tests.clone())?;
+            Ok(())
+        }
 
         Event::RandomnessReady { .. } => Ok(()),
 
@@ -188,7 +200,8 @@ pub fn general_handle_event(
             {
                 Err(Error::InvalidPlayerAddress)
             } else {
-                context.remove_player(player_addr)
+                context.remove_player(player_addr)?;
+                Ok(())
             }
         }
 
@@ -218,7 +231,7 @@ pub fn general_handle_event(
                     random_state.list_revealed_ciphertexts(),
                     random_state.list_revealed_secrets()?,
                     options,
-                )?;
+                ).or(Err(Error::DecryptionFailed))?;
                 res.push((random_state.id, revealed));
             }
             for (random_id, revealed) in res.into_iter() {
@@ -249,7 +262,10 @@ pub fn general_handle_event(
 }
 
 /// Context maintaining after event handling.
-pub fn post_handle_event(old_context: &GameContext, new_context: &mut GameContext) -> Result<()> {
+pub fn post_handle_event(
+    old_context: &GameContext,
+    new_context: &mut GameContext,
+) -> Result<(), Error> {
     // Find all leaving player, submit during the settlement.
     // Or create a settlement for just player leaving.
     let mut left_players = vec![];

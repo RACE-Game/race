@@ -1,5 +1,5 @@
 use crate::{
-    error::HandlerError,
+    error::HandleError,
     types::{Ciphertext, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -213,7 +213,7 @@ impl Event {
 }
 
 pub trait CustomEvent: Sized + BorshSerialize + BorshDeserialize {
-    fn try_parse(slice: &[u8]) -> Result<Self, HandlerError> {
-        Self::try_from_slice(slice).or(Err(HandlerError::MalformedCustomEvent))
+    fn try_parse(slice: &[u8]) -> Result<Self, HandleError> {
+        Self::try_from_slice(slice).or(Err(HandleError::MalformedCustomEvent))
     }
 }

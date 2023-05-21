@@ -4,6 +4,8 @@ use crate::context::ApplicationContext;
 use base64::Engine;
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
+use tokio::pin;
+use tokio_stream::StreamExt;
 use hyper::Method;
 use jsonrpsee::core::error::Error as RpcError;
 use jsonrpsee::core::error::SubscriptionClosed;
@@ -130,7 +132,7 @@ fn subscribe_event(
             histories.into_iter().for_each(|x| {
                 let v = x.try_to_vec().unwrap();
                 let s = base64_encode(&v);
-
+                info!("Push event history: {}", s);
                 sink.send(&s)
                     .map_err(|e| {
                         error!("Error occurred when broadcasting event histories: {:?}", e);
@@ -141,7 +143,19 @@ fn subscribe_event(
 
             drop(context);
 
-            match sink.pipe_from_try_stream(rx).await {
+            let serialized_rx = rx.map(|f| match f {
+                Ok(x) => {
+                    let v = x.try_to_vec().unwrap();
+                    let s = base64_encode(&v);
+                    info!("Push new event: {}", s);
+                    Ok(s)
+                }
+                Err(e) => Err(e),
+            });
+
+            pin!(serialized_rx);
+
+            match sink.pipe_from_try_stream(serialized_rx).await {
                 SubscriptionClosed::Success => {
                     info!("Subscription closed successfully");
                     sink.close(SubscriptionClosed::Success);

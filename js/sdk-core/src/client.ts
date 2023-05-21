@@ -4,25 +4,26 @@ import { ITransport } from './transport';
 import { SecretState } from './secret-state';
 import { makeCustomEvent } from './events';
 import { GameContext } from './game-context';
+import { Id } from './types';
 
 type OpIdent =
   | {
     kind: 'random-secret';
-    randomId: bigint;
+    randomId: Id;
     toAddr: string | undefined;
     index: number;
   }
   | {
     kind: 'answer-secret';
-    decisionId: bigint;
+    decisionId: Id;
   }
   | {
     kind: 'lock';
-    randomId: bigint;
+    randomId: Id;
   }
   | {
     kind: 'mask';
-    randomId: bigint;
+    randomId: Id;
   };
 
 export class Client {

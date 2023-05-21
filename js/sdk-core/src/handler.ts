@@ -1,4 +1,4 @@
-import { deserialize, serialize } from '@race/borsh';
+import { array, deserialize, field, serialize, struct } from '@race/borsh';
 import { GameAccount, GameBundle, PlayerJoin, ServerJoin } from './accounts';
 import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Sync } from './events';
 import { GameContext } from './game-context';
@@ -18,11 +18,17 @@ export interface IInitAccount {
 }
 
 export class InitAccount {
+  @field('string')
   readonly addr: string;
+  @field(array(struct(PlayerJoin)))
   readonly players: PlayerJoin[];
+  @field(array(struct(ServerJoin)))
   readonly servers: ServerJoin[];
+  @field('u8-array')
   readonly data: Uint8Array;
+  @field('u64')
   readonly accessVersion: bigint;
+  @field('u64')
   readonly settleVersion: bigint;
   constructor(fields: IInitAccount) {
     this.addr = fields.addr;

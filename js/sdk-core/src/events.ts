@@ -1,6 +1,6 @@
 import { field, array, enums, option, variant, struct } from '@race/borsh';
 import { PlayerJoin, ServerJoin } from './accounts';
-import { Fields } from './types';
+import { Fields, Id } from './types';
 
 export interface ICustomEvent {
   serialize(): Uint8Array;
@@ -16,7 +16,7 @@ export class Random extends SecretShare {
   @field(option('string'))
   toAddr!: string | undefined;
   @field('usize')
-  randomId!: number;
+  randomId!: Id;
   @field('usize')
   index!: number;
   @field('u8-array')
@@ -32,7 +32,7 @@ export class Answer extends SecretShare {
   @field('string')
   fromAddr!: string;
   @field('usize')
-  decisionId!: number;
+  decisionId!: Id;
   @field('u8-array')
   secret!: Uint8Array;
   constructor(fields: Fields<Answer>) {
@@ -96,7 +96,7 @@ export class Mask extends GameEvent {
   @field('string')
   sender!: string;
   @field('usize')
-  randomId!: number;
+  randomId!: Id;
   @field(array('u8-array'))
   ciphertexts!: Uint8Array[];
   constructor(fields: Fields<Mask>) {
@@ -120,7 +120,7 @@ export class Lock extends GameEvent {
   @field('string')
   sender!: string;
   @field('usize')
-  randomId!: number;
+  randomId!: Id;
   @field(array(struct(CiphertextAndDigest)))
   ciphertextsAndDigests!: CiphertextAndDigest[];
   constructor(fields: Fields<Lock>) {
@@ -132,7 +132,7 @@ export class Lock extends GameEvent {
 @variant(6)
 export class RandomnessReady extends GameEvent {
   @field('usize')
-  randomId!: number;
+  randomId!: Id;
   constructor(fields: Fields<RandomnessReady>) {
     super();
     Object.assign(this, fields);
@@ -199,7 +199,7 @@ export class DrawRandomItems extends GameEvent {
   @field('string')
   sender!: string;
   @field('usize')
-  randomId!: number;
+  randomId!: Id;
   @field(array('usize'))
   indexes!: number[];
   constructor(fields: Fields<DrawRandomItems>) {
@@ -230,7 +230,7 @@ export class AnswerDecision extends GameEvent {
   @field('string')
   sender!: string;
   @field('usize')
-  decisionId!: number;
+  decisionId!: Id;
   @field('u8-array')
   ciphertext!: Uint8Array;
   @field('u8-array')

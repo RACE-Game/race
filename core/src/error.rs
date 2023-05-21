@@ -2,13 +2,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;
 
 #[cfg(feature = "serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::types::DecisionId;
 
-#[derive(
-    Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq,
-)]
+#[derive(Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Error {
     #[error("Player already joined: {0}")]
@@ -258,10 +256,8 @@ impl From<std::io::Error> for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(
-    Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq,
-)]
-pub enum HandlerError {
+#[derive(Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq)]
+pub enum HandleError {
     #[error("Custom error: {0}")]
     CustomError(String),
 
@@ -285,4 +281,23 @@ pub enum HandlerError {
 
     #[error("Serialization error")]
     SerializationError,
+
+    #[error("Internal error: {message:?}")]
+    InternalError { message: String },
 }
+
+impl From<crate::error::Error> for HandleError {
+    fn from(value: crate::error::Error) -> Self {
+        HandleError::InternalError {
+            message: value.to_string(),
+        }
+    }
+}
+
+impl From<HandleError> for Error {
+    fn from(value: HandleError) -> Self {
+        Error::WasmExecutionError(value.to_string())
+    }
+}
+
+pub type HandleResult<T> = std::result::Result<T, HandleError>;

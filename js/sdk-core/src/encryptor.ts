@@ -375,7 +375,7 @@ export class Encryptor implements IEncryptor {
         const decrypted = await this.decryptAesMulti(secrets, ciphertext);
         const decryptedValue = textDecoder.decode(decrypted);
         if (validOptions.find(s => s === decryptedValue) === undefined) {
-          throw new Error('Invalid result');
+          throw new Error('Invalid result: [' + decryptedValue + "], options:" + validOptions.join(","));
         }
         res.set(idx, decryptedValue);
       }

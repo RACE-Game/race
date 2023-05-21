@@ -1,5 +1,5 @@
 import { field, map, variant, array } from '@race/borsh';
-import { Ciphertext, Digest, Fields, Secret } from './types';
+import { Ciphertext, Digest, Fields, Id, Secret } from './types';
 import { CiphertextAndDigest } from './events';
 
 const textEncoder = new TextEncoder();
@@ -7,7 +7,7 @@ const textEncoder = new TextEncoder();
 export interface SecretIdent {
   fromAddr: string;
   toAddr: string | undefined;
-  randomId: bigint;
+  randomId: Id;
   index: number;
 }
 
@@ -124,7 +124,7 @@ export type RandomStatus =
     };
 
 export class RandomState {
-  id: bigint;
+  id: Id;
   size: number;
   owners: string[];
   options: string[];
@@ -134,7 +134,7 @@ export class RandomState {
   secretShares: Share[];
   revealed: Map<number, string>;
 
-  constructor(id: bigint, spec: RandomSpec, owners: string[]) {
+  constructor(id: Id, spec: RandomSpec, owners: string[]) {
     if (owners.length === 0) {
       throw new Error('No enough servers');
     }

@@ -43,7 +43,7 @@ impl Raffle {
 
 impl GameHandler for Raffle {
     /// Initialize handler state with on-chain game account data.
-    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self> {
+    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> HandleResult<Self> {
         let players = init_account.players.into_iter().map(Into::into).collect();
         let draw_time = 0;
         Ok(Self {
@@ -55,7 +55,7 @@ impl GameHandler for Raffle {
     }
 
     /// Handle event.
-    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<()> {
+    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> HandleResult<()> {
         match event {
             Event::GameStart { .. } => {
                 // We need at least one player to start, otherwise we will skip this draw.

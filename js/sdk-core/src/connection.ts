@@ -163,10 +163,12 @@ export class Connection implements IConnection {
       if (messageQueue.length > 0) {
         yield messageQueue.shift()!;
       } else {
-        await new Promise(resolve => setTimeout(() => resolve(undefined), 100));
-        const p = messagePromise;
+        // await new Promise(resolve => setTimeout(() => resolve(undefined), 100));
+        // const p = messagePromise;
+        // messagePromise = new Promise<BroadcastFrame | undefined>(r => (resolve = r));
+        // yield p;
+        yield messagePromise;
         messagePromise = new Promise<BroadcastFrame | undefined>(r => (resolve = r));
-        yield p;
       }
     }
   }
@@ -177,10 +179,9 @@ export class Connection implements IConnection {
       let result: string = resp.params.result;
       let data = base64ToUint8Array(result);
       let frame = deserialize(BroadcastFrame, data);
-      console.log("Frame:", frame, "From:", frame);
+      console.log("parsed frame:", frame);
       return frame;
     } else {
-      console.log("ignore", resp);
       return undefined;
     }
   }

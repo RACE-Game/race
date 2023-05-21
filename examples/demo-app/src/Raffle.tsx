@@ -6,7 +6,8 @@ import { ProfileContext } from "./profile-context";
 // import { LogsContext } from "./logs-context";
 import { useGameContext } from "./App";
 import { createTransport, useWallet } from './integration';
-// import { deserialize, field, option, struct, vec } from '@race/borsh';
+import { deserialize, field, option, struct, array } from '@race/borsh';
+import { GameContextSnapshot } from "@race/sdk-core/lib/types/game-context-snapshot";
 
 interface IPlayer {
     addr: string;
@@ -16,33 +17,33 @@ interface IPlayer {
 interface IState {
     lastWinner: string | undefined;
     players: IPlayer[];
-    randomId: bigint;
+    randomId: number;
     draw_time: bigint;
 }
 
-// class Player {
-//     @field('string')
-//     addr!: string;
-//     @field('u64')
-//     balance!: bigint;
-//     constructor(fields: IPlayer) {
-//         Object.assign(this, fields);
-//     }
-// }
+class Player {
+    @field('string')
+    addr!: string;
+    @field('u64')
+    balance!: bigint;
+    constructor(fields: IPlayer) {
+        Object.assign(this, fields);
+    }
+}
 
-// class State {
-//     @field(option('string'))
-//     lastWinner: string | undefined;
-//     @field(vec(struct(Player)))
-//     players!: IPlayer[];
-//     @field('u64')
-//     randomId!: bigint;
-//     @field('u64')
-//     draw_time!: bigint;
-//     constructor(fields: IState) {
-//         Object.assign(this, fields);
-//     }
-// }
+class State {
+    @field(option('string'))
+    lastWinner: string | undefined;
+    @field(array(struct(Player)))
+    players!: IPlayer[];
+    @field('u64')
+    randomId!: number;
+    @field('u64')
+    draw_time!: bigint;
+    constructor(fields: IState) {
+        Object.assign(this, fields);
+    }
+}
 
 function Winner(props: { settleVersion: number, lastWinner: string | undefined }) {
 
@@ -75,22 +76,22 @@ function Raffle() {
     // let { addLog } = useContext(LogsContext);
 
     // Game event handler
-    const onEvent = (context: any, stateData: Uint8Array, event: GameEvent | undefined) => {
-        // const state = deserialize(State, stateData);
-        // console.log(context, state, event);
+    const onEvent = (context: GameContextSnapshot, stateData: Uint8Array, event: GameEvent | undefined) => {
+        console.log("on event");
+        const state = deserialize(State, stateData);
+        console.log("ONEVENT:", context, state, event);
         // if (event !== null) {
         //     addLog(event);
         // }
-        // setContext(context);
-        // setState(state);
+        setContext(context);
+        setState(state);
     }
 
     // Button callback to join the raffle
     const onJoin = async () => {
-        // if (client !== undefined) {
-        //     console.log(wallet);
-        //     await client.join(1000000000n);
-        // }
+        if (client !== undefined) {
+            await client.join({ amount: 10n, position: 0 });
+        }
     }
 
     // Initialize app client
@@ -99,7 +100,7 @@ function Raffle() {
             if (profile !== undefined && addr !== undefined) {
                 let rpc = CHAIN_TO_RPC[chain];
                 let transport = createTransport(chain, rpc);
-                let client = await AppClient.initialize(transport, wallet, addr, onEvent);
+                let client = await AppClient.initialize({ transport, wallet, gameAddr: addr, callback: onEvent });
                 setClient(client);
                 await client.attachGame();
             }
@@ -108,7 +109,10 @@ function Raffle() {
     }, [profile, addr]);
 
     if (state === undefined || context === undefined) {
-        return <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24"></svg>
+        console.log(state, context);
+        return <div className="h-full w-full grid place-items-center">
+            <svg className="animate-spin h-5 w-5 mr-3 border border-black" viewBox="0 0 24 24"></svg>
+        </div>
     } else {
         return (
             <div className="h-full w-full flex flex-col">

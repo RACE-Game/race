@@ -15,7 +15,7 @@ import {
 } from './events';
 import { Effect, Settle, SettleAdd, SettleEject, SettleSub } from './effect';
 import { GameAccount, PlayerJoin, ServerJoin } from './accounts';
-import { Ciphertext, Digest } from './types';
+import { Ciphertext, Digest, Id } from './types';
 
 const OPERATION_TIMEOUT = 15_000n;
 
@@ -155,39 +155,39 @@ export class GameContext {
     };
   }
 
-  getRandomState(randomId: bigint): RandomState {
-    if (randomId <= 0n) {
-      throw new Error('Invalid random id');
+  getRandomState(randomId: Id): RandomState {
+    if (randomId <= 0) {
+      throw new Error('Invalid random id: ' + randomId);
     }
-    const st = this.randomStates[Number(randomId)];
+    const st = this.randomStates[randomId - 1];
     if (st === undefined) {
-      throw new Error('Invalid random id');
+      throw new Error('Invalid random id: ' + randomId);
     }
     return st;
   }
 
-  getDecisionState(decisionId: bigint): DecisionState {
-    if (decisionId <= 0n) {
-      throw new Error('Invalid decision id');
+  getDecisionState(decisionId: Id): DecisionState {
+    if (decisionId <= 0) {
+      throw new Error('Invalid decision id: ' + decisionId);
     }
-    const st = this.decisionStates[Number(decisionId)];
+    const st = this.decisionStates[decisionId - 1];
     if (st === undefined) {
-      throw new Error('Invalid decision id');
+      throw new Error('Invalid decision id: ' + decisionId);
     }
     return st;
   }
 
-  assign(randomId: bigint, playerAddr: string, indexes: number[]) {
+  assign(randomId: Id, playerAddr: string, indexes: number[]) {
     const st = this.getRandomState(randomId);
     st.assign(playerAddr, indexes);
   }
 
-  reveal(randomId: bigint, indexes: number[]) {
+  reveal(randomId: Id, indexes: number[]) {
     const st = this.getRandomState(randomId);
     st.reveal(indexes);
   }
 
-  isRandomReady(randomId: bigint): boolean {
+  isRandomReady(randomId: Id): boolean {
     const k = this.getRandomState(randomId).status.kind;
     return k === 'ready' || k === 'waiting-secrets';
   }
@@ -265,8 +265,8 @@ export class GameContext {
     }
   }
 
-  initRandomState(spec: RandomSpec): bigint {
-    const randomId = BigInt(this.randomStates.length) + 1n;
+  initRandomState(spec: RandomSpec): Id {
+    const randomId = this.randomStates.length + 1;
     const owners = this.servers.filter(s => s.status.kind === 'ready').map(s => s.addr);
     const randomState = new RandomState(randomId, spec, owners);
     this.randomStates.push(randomState);
@@ -285,19 +285,19 @@ export class GameContext {
     }
   }
 
-  randomizeAndMask(addr: string, randomId: bigint, ciphertexts: Ciphertext[]) {
+  randomizeAndMask(addr: string, randomId: Id, ciphertexts: Ciphertext[]) {
     let st = this.getRandomState(randomId);
     st.mask(addr, ciphertexts);
     this.dispatchRandomizationTimeout(randomId);
   }
 
-  lock(addr: string, randomId: bigint, ciphertextsAndTests: CiphertextAndDigest[]) {
+  lock(addr: string, randomId: Id, ciphertextsAndTests: CiphertextAndDigest[]) {
     let st = this.getRandomState(randomId);
     st.lock(addr, ciphertextsAndTests);
     this.dispatchRandomizationTimeout(randomId);
   }
 
-  dispatchRandomizationTimeout(randomId: bigint) {
+  dispatchRandomizationTimeout(randomId: Id) {
     const noDispatch = this.dispatch === undefined;
     let st = this.getRandomState(randomId);
     const statusKind = st.status.kind;
@@ -360,29 +360,29 @@ export class GameContext {
     }
   }
 
-  addRevealedRandom(randomId: bigint, revealed: Map<number, string>) {
+  addRevealedRandom(randomId: Id, revealed: Map<number, string>) {
     const st = this.getRandomState(randomId);
     st.addRevealed(revealed);
   }
 
-  addRevealedAnswer(decisionId: bigint, revealed: string) {
+  addRevealedAnswer(decisionId: Id, revealed: string) {
     const st = this.getDecisionState(decisionId);
     st.addReleased(revealed);
   }
 
-  ask(owner: string): bigint {
-    const id = BigInt(this.decisionStates.length) + 1n;
+  ask(owner: string): Id {
+    const id =this.decisionStates.length + 1;
     const st = new DecisionState(id, owner);
     this.decisionStates.push(st);
     return id;
   }
 
-  answerDecision(id: bigint, owner: string, ciphertext: Ciphertext, digest: Digest) {
+  answerDecision(id: Id, owner: string, ciphertext: Ciphertext, digest: Digest) {
     const st = this.getDecisionState(id);
     st.setAnswer(owner, ciphertext, digest);
   }
 
-  getRevealed(randomId: bigint): Map<number, string> {
+  getRevealed(randomId: Id): Map<number, string> {
     let st = this.getRandomState(randomId);
     return st.revealed;
   }

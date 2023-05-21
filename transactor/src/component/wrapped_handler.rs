@@ -7,8 +7,8 @@ use race_core::context::GameContext;
 use race_core::effect::Effect;
 use race_core::encryptor::EncryptorT;
 use race_core::engine::{general_handle_event, general_init_state, post_handle_event, InitAccount};
-use race_core::error::{Error, Result};
 use race_core::event::Event;
+use race_core::error::{Error, Result};
 use race_core::types::{GameBundle, Settle};
 use race_encryptor::Encryptor;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
@@ -112,7 +112,7 @@ impl WrappedHandler {
         let mut effect =
             Effect::try_from_slice(&buf).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         if let Some(e) = effect.__take_error() {
-            Err(e)
+            Err(e.into())
         } else {
             context.apply_effect(effect)
         }
@@ -162,7 +162,7 @@ impl WrappedHandler {
         let mut effect =
             Effect::try_from_slice(&buf).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         if let Some(e) = effect.__take_error() {
-            Err(e)
+            Err(e.into())
         } else {
             context.apply_effect(effect)
         }

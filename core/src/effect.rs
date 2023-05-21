@@ -7,7 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use crate::{
     context::GameContext,
     engine::GameHandler,
-    error::{Error, HandlerError, Result},
+    error::{Error, HandleError, Result},
     random::RandomSpec,
     types::{DecisionId, RandomId, Settle},
 };
@@ -151,7 +151,7 @@ pub struct Effect {
     pub answered: BTreeMap<DecisionId, String>,
     pub settles: Vec<Settle>,
     pub handler_state: Option<Vec<u8>>,
-    pub error: Option<HandlerError>,
+    pub error: Option<HandleError>,
     pub allow_exit: bool,
 }
 
@@ -329,21 +329,21 @@ impl Effect {
         if let Ok(state) = handler_state.try_to_vec() {
             self.handler_state = Some(state);
         } else {
-            self.error = Some(HandlerError::SerializationError);
+            self.error = Some(HandleError::SerializationError);
         }
     }
 
     /// Set error.
     ///
     /// This is an internal function, DO NOT use in game handler.
-    pub fn __set_error(&mut self, error: HandlerError) {
+    pub fn __set_error(&mut self, error: HandleError) {
         self.error = Some(error);
     }
 
     /// Take error
     ///
     /// This is an internal function, DO NOT use in game handler.
-    pub fn __take_error(&mut self) -> Option<HandlerError> {
+    pub fn __take_error(&mut self) -> Option<HandleError> {
         std::mem::replace(&mut self.error, None)
     }
 }
@@ -397,7 +397,7 @@ mod tests {
             answered,
             settles: vec![Settle::add("alice", 200), Settle::sub("bob", 200)],
             handler_state: Some(vec![1, 2, 3, 4]),
-            error: Some(HandlerError::NoEnoughPlayers),
+            error: Some(HandleError::NoEnoughPlayers),
             allow_exit: true,
         };
         let bs = effect.try_to_vec()?;

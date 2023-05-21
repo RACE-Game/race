@@ -1,4 +1,4 @@
-import { Ciphertext, Digest, Secret } from './types';
+import { Ciphertext, Digest, Id, Secret } from './types';
 
 export type DecisionStatus = 'asked' | 'answered' | 'releasing' | 'released';
 
@@ -12,13 +12,13 @@ export class Answer {
 }
 
 export class DecisionState {
-  id: bigint;
+  id: Id;
   owner: string;
   status: DecisionStatus;
   answer: Answer | undefined;
   secret: Secret | undefined;
   value: string | undefined;
-  constructor(id: bigint, owner: string) {
+  constructor(id: Id, owner: string) {
     this.id = id;
     this.owner = owner;
     this.status = 'asked';
