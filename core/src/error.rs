@@ -4,7 +4,7 @@ use thiserror::Error;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::types::DecisionId;
+use crate::{types::DecisionId, prelude::RandomId};
 
 #[derive(Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -239,6 +239,12 @@ pub enum Error {
 
     #[error("Duplicated initialization")]
     DuplicatedInitialization,
+
+    #[error("Randomness is not revealed")]
+    RandomnessNotRevealed,
+
+    #[error("Random state not found: {0}")]
+    RandomStateNotFound(RandomId),
 }
 
 #[cfg(feature = "serde")]
@@ -259,13 +265,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq)]
 pub enum HandleError {
     #[error("Custom error: {0}")]
-    CustomError(String),
+    Custom(String),
 
     #[error("No enough players")]
     NoEnoughPlayers,
 
-    #[error("Player not in game")]
-    PlayerNotInGame,
+    #[error("Invalid player")]
+    InvalidPlayer,
 
     #[error("Can't leave game")]
     CantLeave,

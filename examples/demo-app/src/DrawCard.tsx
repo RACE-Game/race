@@ -1,7 +1,8 @@
 import React from "react";
 import { useContext, useEffect, useRef, useState } from "react";
+import { variant, field, array, struct, option, serialize, deserialize } from '@race/borsh';
 import { useParams } from 'react-router-dom';
-import { AppClient, GameEvent } from '@race/sdk-core';
+import { AppClient, GameContextSnapshot, GameEvent, ICustomEvent } from '@race/sdk-core';
 import { CHAIN_TO_RPC } from "./constants";
 import Card from './Card';
 import { PlayerProfile } from '@race/sdk-core';
@@ -11,34 +12,78 @@ import Header from "./Header";
 import { useWallet, createTransport } from './integration';
 import { useGameContext } from "./App";
 
-type GameStage = "Dealing" | "Betting" | "Reacting" | "Revealing";
-
 interface FormData {
     bet: bigint
 }
 
-interface Player {
-    addr: string,
-    balance: bigint,
-    bet: bigint,
+abstract class ActionEvent implements ICustomEvent {
+    serialize(): Uint8Array {
+        return serialize(this);
+    }
 }
 
-interface State {
-    last_winner: string | null,
-    random_id: number,
-    players: Player[],
-    stage: GameStage,
-    bet: bigint,
-    blind_bet: bigint,
-    min_bet: bigint,
-    max_bet: bigint,
+@variant(0)
+class Bet extends ActionEvent {
+    amount: bigint;
+    constructor(fields: { amount: bigint }) {
+        super();
+        this.amount = fields.amount;
+    }
+}
+
+@variant(1)
+class Call extends ActionEvent {
+    constructor() { super(); }
+}
+
+@variant(2)
+class Fold extends ActionEvent {
+    constructor() { super(); }
+}
+
+class Player {
+    @field('string')
+    addr!: string;
+    @field('u64')
+    balance!: bigint;
+    @field('u64')
+    bet!: bigint;
+    constructor(fields: any) {
+        Object.assign(this, fields);
+    }
+}
+
+enum GameStage {
+    Dealing = 0,
+    Betting,
+    Reacting,
+    Revealing,
+}
+
+class State {
+    @field(option('string'))
+    lastWinner!: string | undefined;
+    @field('u64')
+    randomId!: bigint;
+    @field(array(struct(Player)))
+    players!: Player[];
+    @field('u8')
+    stage!: GameStage;
+    @field('u64')
+    bet!: bigint
+    @field('u64')
+    blindBet!: bigint;
+    @field('u64')
+    minBet!: bigint;
+    @field('u64')
+    maxBet!: bigint;
 }
 
 function renderWaitingPlayers(state: State, profile: PlayerProfile, client: AppClient) {
     let n = state.players.length;
     let canJoin = state.players.find((p) => p.addr == profile.addr) === undefined;
     let onJoin = async () => {
-        client.join(1000n);
+        client.join({ amount: 1000n });
     };
 
     return <div className="w-full h-full flex justify-center items-center flex-col">
@@ -73,20 +118,20 @@ function DrawCard() {
 
     const onBet = async () => {
         if (client.current !== undefined) {
-            await client.current.submit_event({ 'Bet': Number(form.bet) });
+            await client.current.submitEvent(new Bet({ amount: form.bet }));
             setForm({ bet: 100n });
         }
     }
 
     const onCall = async () => {
         if (client.current !== undefined) {
-            await client.current.submit_event('Call');
+            await client.current.submitEvent(new Call());
         }
     }
 
     const onFold = async () => {
         if (client.current !== undefined) {
-            await client.current.submit_event('Fold');
+            await client.current.submitEvent(new Fold());
         }
     }
 
@@ -95,7 +140,8 @@ function DrawCard() {
         setForm({ bet: BigInt(value) })
     }
 
-    const onEvent = (context: any, state: State, event: Event | undefined) => {
+    const onEvent = (context: GameContextSnapshot, stateData: Uint8Array, event: GameEvent | undefined) => {
+        const state = deserialize(State, stateData);
         if (event !== undefined) {
             addLog(event);
         }
@@ -108,9 +154,9 @@ function DrawCard() {
             if (profile !== undefined && addr !== undefined) {
                 let rpc = CHAIN_TO_RPC[chain];
                 let transport = createTransport(chain, rpc);
-                let c = await AppClient.try_init(transport, wallet, addr, onEvent);
+                let c = await AppClient.initialize({ transport, wallet, gameAddr: addr, callback: onEvent });
                 client.current = c;
-                await c.attach_game();
+                await c.attachGame();
                 console.log("Attached to game");
             }
         };
@@ -134,11 +180,11 @@ function DrawCard() {
     // available.  The pot is displayed in the middle of the screen.
     let player = state.players.find((p: Player) => p.addr === playerAddr);
     let opponent = state.players.find((p: Player) => p.addr !== playerAddr);
-    let revealed_cards: Record<number, string> = {};
-    if (state.random_id > 0) {
+    let revealedCards: Map<number, string> = new Map();
+    if (state.randomId > 0) {
         try {
-            revealed_cards = client.current.get_revealed(state.random_id);
-            console.log("revealed_cards: ", revealed_cards);
+            revealedCards = client.current.getRevealed(state.randomId);
+            console.log("revealed_cards: ", revealedCards);
         } catch (e) { }
     }
 
@@ -147,20 +193,20 @@ function DrawCard() {
     }
 
     let [playerPos, opponentPos] = playerAddr == state.players[0]?.addr ? [0, 1] : [1, 0];
-    let myHand = revealed_cards[playerPos];
+    let myHand = revealedCards.get(playerPos);
     let myCard = myHand === undefined ? null :
         <Card value={myHand} />;
-    let opHand = revealed_cards[opponentPos];
+    let opHand = revealedCards.get(opponentPos);
     let opCard = opHand === undefined ?
         <Card value={null} /> :
         <Card value={opHand} />;
     let optionButtons = null;
 
-    if (state.stage === 'Betting' && playerPos === 0) {
+    if (state.stage === GameStage.Betting && playerPos === 0) {
         optionButtons = <React.Fragment>
             <input className="m-2 px-4 py-2 border border-black" onChange={onChangeBet} value={form.bet.toString()} />
             <button className="m-2 px-4 py-2 border border-black" onClick={onBet} >Bet</button></React.Fragment>;
-    } else if (state.stage === 'Reacting' && playerPos === 1) {
+    } else if (state.stage === GameStage.Reacting && playerPos === 1) {
         optionButtons = <React.Fragment>
             <button className="m-2 px-4 py-2 border border-black" onClick={onCall} >Call</button>
             <button className="m-2 px-4 py-2 border border-black" onClick={onFold} >Fold</button>

@@ -4,8 +4,6 @@ use crate::context::ApplicationContext;
 use base64::Engine;
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
-use tokio::pin;
-use tokio_stream::StreamExt;
 use hyper::Method;
 use jsonrpsee::core::error::Error as RpcError;
 use jsonrpsee::core::error::SubscriptionClosed;
@@ -14,10 +12,13 @@ use jsonrpsee::types::error::CallError;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
+use race_core::types::BroadcastFrame;
 use race_core::types::{
     AttachGameParams, ExitGameParams, Signature, SubmitEventParams, SubscribeEventParams,
 };
+use tokio::pin;
 use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::StreamExt;
 use tower::ServiceBuilder;
 use tower_http::cors::Any;
 use tower_http::cors::CorsLayer;
@@ -126,9 +127,13 @@ fn subscribe_event(
                     }
                 };
 
-            info!("Subscribe event stream: {:?}", game_addr);
-            let rx = BroadcastStream::new(receiver);
+            drop(context);
 
+            info!(
+                "Subscribe event stream: {:?}, histories: {}",
+                game_addr,
+                histories.len()
+            );
             histories.into_iter().for_each(|x| {
                 let v = x.try_to_vec().unwrap();
                 let s = base64_encode(&v);
@@ -141,8 +146,7 @@ fn subscribe_event(
                     .unwrap();
             });
 
-            drop(context);
-
+            let rx = BroadcastStream::new(receiver);
             let serialized_rx = rx.map(|f| match f {
                 Ok(x) => {
                     let v = x.try_to_vec().unwrap();
@@ -152,8 +156,6 @@ fn subscribe_event(
                 }
                 Err(e) => Err(e),
             });
-
-            pin!(serialized_rx);
 
             match sink.pipe_from_try_stream(serialized_rx).await {
                 SubscriptionClosed::Success => {

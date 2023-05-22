@@ -92,4 +92,21 @@ export class Client {
     this.#secretState.clear();
     this.#opHist.splice(0);
   }
+
+  async decrypt(ctx: GameContext, randomId: Id): Promise<Map<number, string>> {
+    let randomState = ctx.getRandomState(randomId);
+    let options = randomState.options;
+    let revealed = await this.#encryptor.decryptWithSecrets(
+      randomState.listRevealedCiphertexts(),
+      randomState.listRevealedSecrets(),
+      options
+    );
+    let assigned = await this.#encryptor.decryptWithSecrets(
+      randomState.listAssignedCiphertexts(this.#addr),
+      randomState.listSharedSecrets(this.#addr),
+      options
+    );
+
+    return new Map([...revealed, ...assigned]);
+  }
 }

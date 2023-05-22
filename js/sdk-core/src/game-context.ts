@@ -21,9 +21,9 @@ const OPERATION_TIMEOUT = 15_000n;
 
 export type NodeStatus =
   | {
-      kind: 'pending';
-      accessVersion: bigint;
-    }
+    kind: 'pending';
+    accessVersion: bigint;
+  }
   | { kind: 'ready' }
   | { kind: 'disconnected' };
 
@@ -63,43 +63,64 @@ export class GameContext {
   decisionStates: DecisionState[];
   settles: Settle[] | undefined;
 
-  constructor(gameAccount: GameAccount) {
-    const transactorAddr = gameAccount.transactorAddr;
-    if (transactorAddr === undefined) {
-      throw new Error('Game not served');
-    }
-    const players: IPlayer[] = gameAccount.players.map(p => ({
-      addr: p.addr,
-      balance: p.balance,
-      position: p.position,
-      status: {
-        kind: 'pending',
-        accessVersion: p.accessVersion,
-      },
-    }));
-    const servers: IServer[] = gameAccount.servers.map(s => ({
-      addr: s.addr,
-      endpoint: s.endpoint,
-      status: {
-        kind: 'pending',
-        accessVersion: s.accessVersion,
-      },
-    }));
+  constructor(context: GameContext);
+  constructor(gameAccount: GameAccount);
+  constructor(gameAccountOrContext: GameAccount | GameContext) {
+    if (gameAccountOrContext instanceof GameContext) {
+      const context = gameAccountOrContext;
+      this.gameAddr = context.gameAddr;
+      this.accessVersion = context.accessVersion;
+      this.settleVersion = context.settleVersion;
+      this.transactorAddr = context.transactorAddr;
+      this.status = context.status;
+      this.players = context.players.map(p => Object.assign({}, p));
+      this.servers = context.servers.map(s => Object.assign({}, s));
+      this.dispatch = context.dispatch;
+      this.handlerState = new Uint8Array(context.handlerState);
+      this.timestamp = context.timestamp;
+      this.allowExit = context.allowExit;
+      this.randomStates = context.randomStates;
+      this.decisionStates = context.decisionStates;
+      this.settles = context.settles;
+    } else {
+      const gameAccount = gameAccountOrContext;
+      const transactorAddr = gameAccount.transactorAddr;
+      if (transactorAddr === undefined) {
+        throw new Error('Game not served');
+      }
+      const players: IPlayer[] = gameAccount.players.map(p => ({
+        addr: p.addr,
+        balance: p.balance,
+        position: p.position,
+        status: {
+          kind: 'pending',
+          accessVersion: p.accessVersion,
+        },
+      }));
+      const servers: IServer[] = gameAccount.servers.map(s => ({
+        addr: s.addr,
+        endpoint: s.endpoint,
+        status: {
+          kind: 'pending',
+          accessVersion: s.accessVersion,
+        },
+      }));
 
-    this.gameAddr = gameAccount.addr;
-    this.transactorAddr = transactorAddr;
-    this.accessVersion = gameAccount.accessVersion;
-    this.settleVersion = gameAccount.settleVersion;
-    this.status = 'uninit';
-    this.dispatch = undefined;
-    this.players = players;
-    this.servers = servers;
-    this.timestamp = 0n;
-    this.allowExit = false;
-    this.randomStates = [];
-    this.decisionStates = [];
-    this.settles = undefined;
-    this.handlerState = Uint8Array.of();
+      this.gameAddr = gameAccount.addr;
+      this.transactorAddr = transactorAddr;
+      this.accessVersion = gameAccount.accessVersion;
+      this.settleVersion = gameAccount.settleVersion;
+      this.status = 'uninit';
+      this.dispatch = undefined;
+      this.players = players;
+      this.servers = servers;
+      this.timestamp = 0n;
+      this.allowExit = false;
+      this.randomStates = [];
+      this.decisionStates = [];
+      this.settles = undefined;
+      this.handlerState = Uint8Array.of();
+    }
   }
 
   getServerByAddress(addr: string): IServer | undefined {
@@ -371,7 +392,7 @@ export class GameContext {
   }
 
   ask(owner: string): Id {
-    const id =this.decisionStates.length + 1;
+    const id = this.decisionStates.length + 1;
     const st = new DecisionState(id, owner);
     this.decisionStates.push(st);
     return id;

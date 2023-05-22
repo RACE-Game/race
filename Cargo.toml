@@ -9,7 +9,6 @@ members = [
   "transport",
   "facade",
   "env",
-  "sdk",
   "client",
   "test",
   "contracts/solana",

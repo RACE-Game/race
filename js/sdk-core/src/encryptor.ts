@@ -366,6 +366,8 @@ export class Encryptor implements IEncryptor {
     secretMap: Map<number, Secret[]>,
     validOptions: string[]
   ): Promise<Map<number, string>> {
+    console.log("ciphertextMap:", ciphertextMap);
+    console.log("secretMap:", secretMap);
     const res = new Map();
     for (const [idx, ciphertext] of ciphertextMap) {
       const secrets = secretMap.get(idx);
@@ -373,6 +375,7 @@ export class Encryptor implements IEncryptor {
         throw new Error('Missing secrets');
       } else {
         const decrypted = await this.decryptAesMulti(secrets, ciphertext);
+        console.log(decrypted);
         const decryptedValue = textDecoder.decode(decrypted);
         if (validOptions.find(s => s === decryptedValue) === undefined) {
           throw new Error('Invalid result: [' + decryptedValue + "], options:" + validOptions.join(","));

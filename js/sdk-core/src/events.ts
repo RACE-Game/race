@@ -4,7 +4,6 @@ import { Fields, Id } from './types';
 
 export interface ICustomEvent {
   serialize(): Uint8Array;
-  deserialize(data: Uint8Array): ICustomEvent;
 }
 
 export abstract class SecretShare {}

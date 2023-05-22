@@ -9,6 +9,7 @@ import { SdkError } from './error';
 import { GameAccount, PlayerProfile } from './accounts';
 import { Client } from './client';
 import { Custom, GameEvent, ICustomEvent } from './events';
+import { ProfileCache } from './profile-cache';
 
 export type EventCallbackFunction = (context: GameContextSnapshot, state: Uint8Array, event: GameEvent | undefined) => void;
 
@@ -21,7 +22,7 @@ export type AppClientInitOpts = {
 
 export type JoinOpts = {
   amount: bigint,
-  position: number,
+  position?: number,
 };
 
 export class AppClient {
@@ -35,6 +36,7 @@ export class AppClient {
   #initGameAccount: GameAccount;
   #callback: EventCallbackFunction;
   #encryptor: IEncryptor;
+  #profileCaches: ProfileCache;
 
   constructor(
     gameAddr: string,
@@ -58,6 +60,7 @@ export class AppClient {
     this.#initGameAccount = initGameAccount;
     this.#callback = callback;
     this.#encryptor = encryptor;
+    this.#profileCaches = new ProfileCache(transport);
   }
 
   static async initialize(
@@ -98,6 +101,10 @@ export class AppClient {
     return this.#gameAddr;
   }
 
+  get gameContext(): GameContext {
+    return this.#gameContext;
+  }
+
   /**
    * Get player profile by its wallet address.
    */
@@ -105,8 +112,9 @@ export class AppClient {
     return await this.#transport.getPlayerProfile(addr);
   }
 
-  invokeCallback(event: GameEvent | undefined) {
+  async invokeCallback(event: GameEvent | undefined) {
     const snapshot = new GameContextSnapshot(this.#gameContext);
+    await this.#profileCaches.injectProfiles(snapshot);
     const state = this.#gameContext.handlerState;
     this.#callback(snapshot, state, event);
   }
@@ -119,18 +127,23 @@ export class AppClient {
     const settleVersion = this.#gameContext.settleVersion;
     let sub = this.#connection.subscribeEvents(this.#gameAddr, new SubscribeEventParams({ settleVersion }));
     for await (const frame of sub) {
-      console.log("Await frame:", frame);
       if (frame instanceof BroadcastFrameInit) {
         const { accessVersion, settleVersion } = frame;
         this.#gameContext.applyCheckpoint(accessVersion, settleVersion);
         const initAccount = InitAccount.createFromGameAccount(this.#initGameAccount, accessVersion, settleVersion);
-        this.#handler.initState(this.#gameContext, initAccount);
-        this.invokeCallback(undefined);
+        await this.#handler.initState(this.#gameContext, initAccount);
+        await this.invokeCallback(undefined);
       } else if (frame instanceof BroadcastFrameEvent) {
         const { event, timestamp } = frame;
         this.#gameContext.timestamp = timestamp;
-        this.#handler.handleEvent(this.#gameContext, event);
-        this.invokeCallback(event);
+        try {
+          let context = new GameContext(this.#gameContext);
+          await this.#handler.handleEvent(context, event);
+          this.#gameContext = context;
+        } catch (err) {
+          console.warn(err);
+        }
+        await this.invokeCallback(event);
       } else {
         throw new Error('Invalid broadcast frame');
       }
@@ -149,11 +162,13 @@ export class AppClient {
     if (gameAccount.maxPlayers <= playersCount) {
       throw new Error('Game is full');
     }
-    let position: number | undefined = undefined;
-    for (let i = 0; i < gameAccount.maxPlayers; i++) {
-      if (gameAccount.players.find(p => p.position === i) === undefined) {
-        position = i;
-        break;
+    let position: number | undefined = params.position;
+    if (position === undefined) {
+      for (let i = 0; i < gameAccount.maxPlayers; i++) {
+        if (gameAccount.players.find(p => p.position === i) === undefined) {
+          position = i;
+          break;
+        }
       }
     }
     if (position === undefined) {
@@ -174,15 +189,22 @@ export class AppClient {
   /**
    * Submit an event.
    */
-  async submitEvent(customEvent: ICustomEvent): Promise<void> {
-    const raw = customEvent.serialize();
+  submitEvent(raw: Uint8Array): Promise<void>;
+  submitEvent(customEvent: ICustomEvent): Promise<void>;
+  async submitEvent(arg: ICustomEvent | Uint8Array): Promise<void> {
+    let raw = arg instanceof Uint8Array ? arg : arg.serialize();
     const event = new Custom({ sender: this.playerAddr, raw });
     await this.#connection.submitEvent(this.#gameAddr, { event });
   }
 
-  getRevealed(randomId: bigint): Map<number, string> {
-    // this.#client.decrypt(context, randomId);
-    return new Map();
+  /**
+   * Get hidden knowledge by random id. The result contains both
+   * public and private information.  For performance reason, it's
+   * better to cache the result somewhere instead of calling this
+   * function frequently.
+   */
+  async getRevealed(randomId: number): Promise<Map<number, string>> {
+    return await this.#client.decrypt(this.#gameContext, randomId);
   }
 
   /**

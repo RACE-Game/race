@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { Outlet, useOutletContext, useNavigate } from 'react-router-dom';
 import Sidemenu from './Sidemenu';
 import Profile from './Profile';
-import { AppHelper, PlayerProfile } from '@race/sdk-core';
+import { AppHelper, GameEvent, PlayerProfile } from '@race/sdk-core';
 import './App.css'
 import { ProfileContext } from './profile-context';
-// import { LogsContext } from './logs-context';
+import { LogsContext } from './logs-context';
 import { HelperContext } from './helper-context';
-// import Logs from './Logs';
+import Logs from './Logs';
 import { CHAIN_TO_RPC } from './constants';
 import { Chain, isChain } from './types';
 import { createTransport, getWalletWrapper } from './integration';
@@ -15,7 +15,7 @@ import { createTransport, getWalletWrapper } from './integration';
 interface RenderContentProps {
     chain: Chain,
     setProfile: (profile: PlayerProfile) => void
-    logs: Array<Event>
+    logs: Array<GameEvent>
 }
 
 interface OutletContextType {
@@ -27,7 +27,7 @@ export function useGameContext() {
 }
 
 const Content = (props: RenderContentProps) => {
-    let { chain } = props;
+    let { chain, logs } = props;
     return (<div className="w-screen max-w-7xl min-h-screen grid grid-cols-4 grid-rows-6 p-4 gap-2">
         <div className="row-span-6">
             <Sidemenu chain={chain} />
@@ -37,6 +37,7 @@ const Content = (props: RenderContentProps) => {
         </div>
         <Profile updateProfile={props.setProfile} chain={chain} />
         <div className="row-span-5">
+            <Logs logs={logs} />
         </div>
     </div>
     )
@@ -46,14 +47,14 @@ function App() {
     const [chain, setChain] = useState<Chain | undefined>(undefined);
     const [helper, setHelper] = useState<AppHelper | undefined>(undefined);
     const [profile, setProfile] = useState<PlayerProfile | undefined>(undefined);
-    let [logs, setLogs] = useState<Array<Event>>([]);
+    let [logs, setLogs] = useState<Array<GameEvent>>([]);
     let nav = useNavigate();
 
     useEffect(() => {
         nav('/')
     }, []);
 
-    const addLog = (event: Event) => {
+    const addLog = (event: GameEvent) => {
         console.log("Add event log:", event);
         setLogs(logs => {
             let newLogs = [...logs, event];
@@ -104,9 +105,11 @@ function App() {
     return (
         <HelperContext.Provider value={helper}>
             <ProfileContext.Provider value={profile}>
-                <WalletWrapper>
-                    <Content logs={logs} setProfile={setProfile} chain={chain} />
-                </WalletWrapper>
+                <LogsContext.Provider value={{ addLog, clearLog }}>
+                    <WalletWrapper>
+                        <Content logs={logs} setProfile={setProfile} chain={chain} />
+                    </WalletWrapper>
+                </LogsContext.Provider>
             </ProfileContext.Provider>
         </HelperContext.Provider>
     );

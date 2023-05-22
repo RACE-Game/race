@@ -1,4 +1,4 @@
-import { variant } from '@race/borsh';
+import { field, variant } from '@race/borsh';
 
 export abstract class HandleError {}
 
@@ -62,13 +62,13 @@ export class SerializationError extends HandleError {
 
 @variant(8)
 export class InternalError extends HandleError {
+  @field('string')
   message: string;
   constructor(fields: { message: string }) {
     super();
     this.message = fields.message;
   }
 }
-
 
 export class SdkError extends Error {
   constructor(message: string) {

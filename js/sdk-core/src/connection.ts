@@ -179,7 +179,6 @@ export class Connection implements IConnection {
       let result: string = resp.params.result;
       let data = base64ToUint8Array(result);
       let frame = deserialize(BroadcastFrame, data);
-      console.log("parsed frame:", frame);
       return frame;
     } else {
       return undefined;
@@ -213,23 +212,33 @@ export class Connection implements IConnection {
   }
 
   async requestWs(req: string): Promise<void> {
-    await this.waitSocketReady();
-    this.#socket.send(req);
+    try {
+      await this.waitSocketReady();
+      this.#socket.send(req);
+    } catch (err) {
+      console.error("Failed to connect to current transactor: " + this.#endpoint);
+      throw err;
+    }
   }
 
   async requestXhr<P>(req: string): Promise<P> {
-    const resp = await fetch(this.#endpoint.replace(/^ws/, 'http'),
-      {
-        method: 'POST',
-        body: req,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-    if (resp.ok) {
-      return resp.json();
-    } else {
-      throw Error('Transactor request failed:' + resp.json());
+    try {
+      const resp = await fetch(this.#endpoint.replace(/^ws/, 'http'),
+        {
+          method: 'POST',
+          body: req,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+      if (resp.ok) {
+        return resp.json();
+      } else {
+        throw Error('Transactor request failed:' + resp.json());
+      }
+    } catch (err) {
+      console.error("Failed to connect to current transactor: " + this.#endpoint);
+      throw err;
     }
   }
 

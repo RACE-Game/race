@@ -14,7 +14,7 @@ use race_core::prelude::*;
 const ACTION_TIMEOUT: u64 = 30_000;
 const NEXT_GAME_TIMEOUT: u64 = 15_000;
 
-#[derive(Serialize, Deserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub enum GameEvent {
     Bet(u64),
     Call,
@@ -30,7 +30,7 @@ pub struct AccountData {
     pub max_bet: u64,
 }
 
-#[derive(Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default, Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub enum GameStage {
     #[default]
     Dealing,
@@ -40,7 +40,7 @@ pub enum GameStage {
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[derive(Serialize, Deserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct Player {
     pub addr: String,
     pub balance: u64,
@@ -48,7 +48,7 @@ pub struct Player {
 }
 
 #[game_handler]
-#[derive(Serialize, Deserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct DrawCard {
     pub last_winner: Option<String>,
     pub random_id: RandomId,
@@ -62,7 +62,7 @@ pub struct DrawCard {
 }
 
 impl DrawCard {
-    fn set_winner(&mut self, effect: &mut Effect, winner_index: usize) -> Result<()> {
+    fn set_winner(&mut self, effect: &mut Effect, winner_index: usize) -> Result<(), HandleError> {
         let players = array_mut_ref![self.players, 0, 2];
         let (player_0, player_1) = mut_array_refs![players, 1, 1];
         let player_0 = &mut player_0[0];
@@ -87,19 +87,19 @@ impl DrawCard {
         effect: &mut Effect,
         sender: String,
         event: GameEvent,
-    ) -> Result<()> {
+    ) -> Result<(), HandleError> {
         match event {
             GameEvent::Bet(amount) => {
                 if self.stage == GameStage::Betting {
                     let player = self
                         .players
                         .get_mut(0)
-                        .ok_or(Error::Custom("Player not found".into()))?;
+                        .ok_or(HandleError::Custom("Player not found".into()))?;
                     if sender.ne(&player.addr) {
-                        return Err(Error::InvalidCustomEvent);
+                        return Err(HandleError::InvalidPlayer);
                     }
                     if amount < self.min_bet || amount > self.max_bet || amount > player.balance {
-                        return Err(Error::InvalidAmount);
+                        return Err(HandleError::InvalidAmount);
                     }
                     player.bet += amount;
                     player.balance -= amount;
@@ -108,7 +108,7 @@ impl DrawCard {
                     self.stage = GameStage::Reacting;
                     // effect.action_timeout(player.addr.clone(), ACTION_TIMEOUT);
                 } else {
-                    return Err(Error::Custom("Can't bet".into()));
+                    return Err(HandleError::Custom("Can't bet".into()));
                 }
             }
             GameEvent::Call => {
@@ -116,9 +116,9 @@ impl DrawCard {
                     let player = self
                         .players
                         .get_mut(1)
-                        .ok_or(Error::Custom("Player not found".into()))?;
+                        .ok_or(HandleError::Custom("Player not found".into()))?;
                     if sender.ne(&player.addr) {
-                        return Err(Error::InvalidCustomEvent);
+                        return Err(HandleError::InvalidPlayer);
                     }
                     if self.bet > player.balance {
                         player.bet += player.balance;
@@ -132,7 +132,7 @@ impl DrawCard {
                     self.stage = GameStage::Revealing;
                     effect.reveal(self.random_id, vec![0, 1]);
                 } else {
-                    return Err(Error::Custom("Can't call".into()));
+                    return Err(HandleError::Custom("Can't call".into()));
                 }
             }
             GameEvent::Fold => return self.set_winner(effect, 0),
@@ -157,7 +157,7 @@ fn is_better_than(card_a: &str, card_b: &str) -> bool {
 }
 
 impl GameHandler for DrawCard {
-    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self> {
+    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
         let AccountData {
             blind_bet,
             min_bet,
@@ -185,12 +185,12 @@ impl GameHandler for DrawCard {
         })
     }
 
-    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<()> {
+    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<(), HandleError> {
         match event {
             // Custom events are the events we defined for this game particularly
             // See [[GameEvent]].
             Event::Custom { sender, raw } => {
-                let event = serde_json::from_str(&raw)?;
+                let event = GameEvent::try_parse(&raw)?;
                 self.custom_handle_event(effect, sender, event)?;
             }
 
@@ -205,7 +205,7 @@ impl GameHandler for DrawCard {
             // Reset current game state.  Set up randomness
             Event::GameStart { .. } => {
                 if effect.count_players() < 2 {
-                    return Err(Error::NoEnoughPlayers);
+                    return Err(HandleError::NoEnoughPlayers);
                 }
 
                 let rnd_spec = RandomSpec::deck_of_cards();
@@ -253,10 +253,10 @@ impl GameHandler for DrawCard {
                         println!("Revealed: {:?}", revealed);
                         let card_0 = revealed
                             .get(&0)
-                            .ok_or(Error::Custom("Can't get revealed card".into()))?;
+                            .ok_or(HandleError::Custom("Can't get revealed card".into()))?;
                         let card_1 = revealed
                             .get(&1)
-                            .ok_or(Error::Custom("Can't get revealed card".into()))?;
+                            .ok_or(HandleError::Custom("Can't get revealed card".into()))?;
                         if is_better_than(card_0, card_1) {
                             self.set_winner(effect, 0)?;
                         } else {
@@ -291,5 +291,16 @@ mod tests {
     }
 }
 
+// #[cfg(test)]
+// mod integration_test;
+
 #[cfg(test)]
-mod integration_test;
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test() {
+        let d = AccountData { min_bet: 1000000, max_bet: 1000000, blind_bet: 1000000 };
+        println(d.try_to_vec().unwrap());
+    }
+}

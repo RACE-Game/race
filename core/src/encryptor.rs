@@ -119,10 +119,13 @@ pub trait EncryptorT: std::fmt::Debug + Send + Sync {
         mut secret_map: HashMap<usize, Vec<SecretKey>>,
         valid_options: &[String],
     ) -> EncryptorResult<HashMap<usize, String>> {
+        println!("ciphertext_map: {:?}", ciphertext_map);
+        println!("secret_map: {:?}", secret_map);
         let mut ret = HashMap::new();
         for (i, mut buf) in ciphertext_map.into_iter() {
             if let Some(secrets) = secret_map.remove(&i) {
                 self.apply_multi(secrets, &mut buf);
+                println!("{:?}", buf);
                 let value = String::from_utf8(buf).or(Err(EncryptorError::DecodeFailed))?;
                 if !valid_options.contains(&value) {
                     return Err(EncryptorError::InvalidResult(value))?;

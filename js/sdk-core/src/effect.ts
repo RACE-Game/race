@@ -2,7 +2,7 @@ import { RandomSpec, RandomState } from './random-state';
 import { HandleError } from './error';
 import { GameContext } from './game-context';
 import { enums, field, map, option, struct, variant, array } from '@race/borsh';
-import { Fields } from './types';
+import { Fields, Id } from './types';
 
 export abstract class SettleOp {}
 
@@ -173,6 +173,14 @@ export class Effect {
   }
 
   static fromContext(context: GameContext) {
+    const revealed = new Map<Id, Map<number, string>>();
+    for (const st of context.randomStates) {
+      revealed.set(st.id, st.revealed);
+    }
+    const answered = new Map<Id, string>();
+    for (const st of context.decisionStates) {
+      answered.set(st.id, st.value!);
+    }
     const actionTimeout = undefined;
     const waitTimeout = undefined;
     const startGame = false;
@@ -188,8 +196,6 @@ export class Effect {
     const releases: Release[] = [];
     const reveals: Reveal[] = [];
     const initRandomStates: RandomSpec[] = [];
-    const revealed = new Map();
-    const answered = new Map();
     const settles: Settle[] = [];
     const handlerState = context.handlerState;
     const error = undefined;

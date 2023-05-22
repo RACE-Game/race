@@ -34,6 +34,7 @@ use race_core::{
 };
 
 type Aes128Ctr64LE = ctr::Ctr64LE<aes::Aes128>;
+type Aes128Ctr64BE = ctr::Ctr64BE<aes::Aes128>;
 
 // Since we use different secrets for each encryption,
 // we can use a fixed IV.
@@ -75,7 +76,9 @@ fn aes_generate() -> EncryptorResult<Vec<u8>> {
 }
 
 fn aes_encrypt(secret: &[u8], buffer: &mut [u8], iv: &[u8]) -> EncryptorResult<()> {
-    let mut cipher = Aes128Ctr64LE::new(secret.into(), iv.into());
+    println!("BUFFER: {:?}", buffer);
+    println!("COUNTER: {:?}", iv);
+    let mut cipher = Aes128Ctr64BE::new(secret.into(), iv.into());
     cipher.apply_keystream(buffer);
     Ok(())
 }
@@ -384,6 +387,33 @@ mod tests {
     use race_core::secret::SecretState;
 
     #[test]
+    fn test_decrypt_with_secrets() {
+        let ciphertext_map = HashMap::from([(
+            0,
+            vec![
+                76, 138, 120, 255, 162, 127, 170, 11, 107, 232, 184, 180, 152, 68, 232, 232, 63,
+                145, 52, 43, 24,
+            ],
+        )]);
+        let secret_map = HashMap::from([(
+            0,
+            vec![vec![
+                12, 179, 151, 39, 145, 110, 76, 130, 36, 68, 73, 93, 67, 112, 241, 203,
+            ]],
+        )]);
+        let encryptor = Encryptor::default();
+        let decrypted = encryptor.decrypt_with_secrets(
+            ciphertext_map,
+            secret_map,
+            &["OcPShKslbZKO5Gc_H-7WF".into()],
+        );
+        assert_eq!(
+            decrypted,
+            Ok(HashMap::from([(0, "OcPShKslbZKO5Gc_H-7WF".to_string())]))
+        );
+    }
+
+    #[test]
     fn test_sign_verify() {
         let e = Encryptor::default();
         let text = b"hello";
@@ -402,7 +432,10 @@ mod tests {
 
     #[test]
     fn test_wrap_unwrap_secret() {
-        let secret = vec![224, 94, 30, 52, 114, 149, 215, 66, 131, 241, 62, 207, 146, 217, 134, 53, 163, 3, 184, 130, 159, 236, 218, 174, 92, 16, 212, 159, 91, 85, 103, 87];
+        let secret = vec![
+            224, 94, 30, 52, 114, 149, 215, 66, 131, 241, 62, 207, 146, 217, 134, 53, 163, 3, 184,
+            130, 159, 236, 218, 174, 92, 16, 212, 159, 91, 85, 103, 87,
+        ];
         let e = Encryptor::default();
         let encrypted = e.encrypt(None, &secret).expect("Failed to encrypt");
         let decrypted = e.decrypt(&encrypted[..]).expect("Failed to decrypt");

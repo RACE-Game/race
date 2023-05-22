@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { AppClient, GameEvent } from '@race/sdk-core';
 import { CHAIN_TO_RPC } from "./constants";
 import { ProfileContext } from "./profile-context";
-// import { LogsContext } from "./logs-context";
+import { LogsContext } from "./logs-context";
 import { useGameContext } from "./App";
 import { createTransport, useWallet } from './integration';
 import { deserialize, field, option, struct, array } from '@race/borsh';
@@ -45,7 +45,7 @@ class State {
     }
 }
 
-function Winner(props: { settleVersion: number, lastWinner: string | undefined }) {
+function Winner(props: { settleVersion: bigint, lastWinner: string | undefined }) {
 
     const [fade, setFade] = useState(false);
 
@@ -67,22 +67,21 @@ function Winner(props: { settleVersion: number, lastWinner: string | undefined }
 
 function Raffle() {
     let [state, setState] = useState<IState | undefined>(undefined);
-    let [context, setContext] = useState<any | undefined>(undefined);
+    let [context, setContext] = useState<GameContextSnapshot | undefined>(undefined);
     let [client, setClient] = useState<AppClient | undefined>(undefined);
     let { addr } = useParams();
     let { chain } = useGameContext();
     let profile = useContext(ProfileContext);
     let wallet = useWallet(chain);
-    // let { addLog } = useContext(LogsContext);
+    let { addLog } = useContext(LogsContext);
 
     // Game event handler
     const onEvent = (context: GameContextSnapshot, stateData: Uint8Array, event: GameEvent | undefined) => {
-        console.log("on event");
         const state = deserialize(State, stateData);
         console.log("ONEVENT:", context, state, event);
-        // if (event !== null) {
-        //     addLog(event);
-        // }
+        if (event !== undefined) {
+            addLog(event);
+        }
         setContext(context);
         setState(state);
     }
@@ -90,7 +89,7 @@ function Raffle() {
     // Button callback to join the raffle
     const onJoin = async () => {
         if (client !== undefined) {
-            await client.join({ amount: 10n, position: 0 });
+            await client.join({ amount: 10n });
         }
     }
 
@@ -109,7 +108,6 @@ function Raffle() {
     }, [profile, addr]);
 
     if (state === undefined || context === undefined) {
-        console.log(state, context);
         return <div className="h-full w-full grid place-items-center">
             <svg className="animate-spin h-5 w-5 mr-3 border border-black" viewBox="0 0 24 24"></svg>
         </div>
@@ -130,9 +128,9 @@ function Raffle() {
                 </div>
                 <div>Players:</div>
                 {
-                    context.players.map((p: any, i: number) => {
+                    context.players.map((p, i) => {
                         return <div key={i} className="m-2 p-2 border border-black">
-                            {p.addr}
+                            {p.profile?.nick} @ [{p.addr}]
                         </div>
                     })
                 }
@@ -141,7 +139,7 @@ function Raffle() {
 
                 <Winner
                     lastWinner={state.lastWinner}
-                    settleVersion={context.settle_version} />
+                    settleVersion={context.settleVersion} />
             </div>
         );
     }

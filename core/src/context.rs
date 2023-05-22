@@ -396,12 +396,12 @@ impl GameContext {
     /// Get the random state by its id.
     pub fn get_random_state(&self, id: RandomId) -> Result<&RandomState> {
         if id == 0 {
-            return Err(Error::InvalidRandomId);
+            return Err(Error::RandomStateNotFound(id));
         }
         if let Some(rnd_st) = self.random_states.get(id as usize - 1) {
             Ok(rnd_st)
         } else {
-            Err(Error::InvalidRandomId)
+            Err(Error::RandomStateNotFound(id))
         }
     }
 
@@ -422,12 +422,12 @@ impl GameContext {
     /// Get the mutable random state by its id.
     pub fn get_random_state_mut(&mut self, id: RandomId) -> Result<&mut RandomState> {
         if id == 0 {
-            return Err(Error::InvalidRandomId);
+            return Err(Error::RandomStateNotFound(id));
         }
         if let Some(rnd_st) = self.random_states.get_mut(id as usize - 1) {
             Ok(rnd_st)
         } else {
-            Err(Error::InvalidRandomId)
+            Err(Error::RandomStateNotFound(id))
         }
     }
 

@@ -63,6 +63,7 @@ export class InitAccount {
   }
 }
 
+
 export interface IHandler {
   handleEvent(context: GameContext, event: GameEvent): Promise<void>;
 
@@ -90,6 +91,7 @@ export class Handler implements IHandler {
     };
     let initiatedSource;
     if (gameBundle.data.length === 0) {
+      console.debug("Initiate handler by streaming:", gameBundle.uri);
       initiatedSource = await WebAssembly.instantiateStreaming(fetch(gameBundle.uri), importObject);
     } else {
       initiatedSource = await WebAssembly.instantiate(gameBundle.data, importObject);
@@ -98,16 +100,16 @@ export class Handler implements IHandler {
   }
 
   async handleEvent(context: GameContext, event: GameEvent) {
-    this.generalPreHandleEvent(context, event, this.#encryptor);
-    this.customHandleEvent(context, event);
-    this.generalPostHandleEvent(context, event);
+    await this.generalPreHandleEvent(context, event, this.#encryptor);
+    await this.customHandleEvent(context, event);
+    await this.generalPostHandleEvent(context, event);
     context.applyAndTakeSettles();
   }
 
   async initState(context: GameContext, initAccount: InitAccount) {
-    this.generalPreInitState(context, initAccount);
-    this.customInitState(context, initAccount);
-    this.generalPostInitState(context, initAccount);
+    await this.generalPreInitState(context, initAccount);
+    await this.customInitState(context, initAccount);
+    await this.generalPostInitState(context, initAccount);
   }
 
   async generalPreInitState(_context: GameContext, _initAccount: InitAccount) {}
@@ -167,7 +169,7 @@ export class Handler implements IHandler {
     }
   }
 
-  async generalPostHandleEvent(context: GameContext, event: GameEvent) {}
+  async generalPostHandleEvent(_context: GameContext, _event: GameEvent) {}
 
   async customInitState(context: GameContext, initAccount: InitAccount) {
     const exports = this.#instance.exports;
@@ -175,7 +177,6 @@ export class Handler implements IHandler {
     let buf = new Uint8Array(mem.buffer);
 
     const effect = Effect.fromContext(context);
-    console.log("Effect:", effect);
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
 
@@ -194,6 +195,7 @@ export class Handler implements IHandler {
     const newEffect = deserialize(Effect, newEffectBytes);
 
     if (newEffect.error !== undefined) {
+      console.error(newEffect.error);
       throw newEffect.error;
     } else {
       context.applyEffect(newEffect);

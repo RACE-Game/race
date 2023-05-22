@@ -1,10 +1,12 @@
+import { PlayerProfile } from './accounts';
 import { GameContext, GameStatus, IPlayer, IServer, NodeStatus } from './game-context';
 
-export class Player {
+export class PlayerShapshot {
   readonly addr: string;
   readonly position: number;
   readonly balance: bigint;
   readonly status: NodeStatus;
+  profile?: PlayerProfile;
 
   constructor(o: IPlayer) {
     this.addr = o.addr;
@@ -14,7 +16,7 @@ export class Player {
   }
 }
 
-export class Server {
+export class ServerShapshot {
   readonly addr: string;
   readonly endpoint: string;
   readonly status: NodeStatus;
@@ -26,7 +28,6 @@ export class Server {
   }
 }
 
-
 export class GameContextSnapshot {
 
   readonly gameAddr: string;
@@ -34,8 +35,8 @@ export class GameContextSnapshot {
   readonly settleVersion: bigint;
   readonly status: GameStatus;
   readonly allowExit: boolean;
-  readonly players: Player[];
-  readonly servers: Server[];
+  readonly players: PlayerShapshot[];
+  readonly servers: ServerShapshot[];
 
   constructor(context: GameContext) {
     this.gameAddr = context.gameAddr;
@@ -43,7 +44,7 @@ export class GameContextSnapshot {
     this.settleVersion = context.settleVersion;
     this.status = context.status;
     this.allowExit = context.allowExit;
-    this.players = context.players.map(p => new Player(p));
-    this.servers = context.servers.map(s => new Server(s));
+    this.players = context.players.map(p => new PlayerShapshot(p));
+    this.servers = context.servers.map(s => new ServerShapshot(s));
   }
 }

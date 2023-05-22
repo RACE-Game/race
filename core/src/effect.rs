@@ -240,9 +240,9 @@ impl Effect {
 
     /// Return the revealed random items by id.
     ///
-    /// Return [`Error::InvalidRandomId`] when invalid random id is given.
+    /// Return [`Error::RandomnessNotRevealed`] when invalid random id is given.
     pub fn get_revealed(&self, random_id: RandomId) -> Result<&BTreeMap<usize, String>> {
-        self.revealed.get(&random_id).ok_or(Error::InvalidRandomId)
+        self.revealed.get(&random_id).ok_or(Error::RandomnessNotRevealed)
     }
 
     /// Return the answer of a decision by id.
