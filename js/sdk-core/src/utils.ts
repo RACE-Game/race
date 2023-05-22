@@ -1,36 +1,28 @@
-import * as borsh from 'borsh';
 
-export class ExtendedWriter extends borsh.BinaryWriter {
-  writeBool(value: boolean) {
-    this.writeU8(value === true ? 1 : 0);
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = '';
+  let bytes = new Uint8Array(buffer);
+  let len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
   }
-
-  writeBytes(value: Uint8Array) {
-    this.writeU32(value.length);
-    this.writeFixedArray(value);
-  }
-
-  writeBigint(value: bigint) {
-    let buf = Buffer.alloc(8);
-    buf.writeBigUInt64LE(value);
-    super.writeFixedArray(Uint8Array.from(buf));
-  }
+  return btoa(binary);
 }
 
-export class ExtendedReader extends borsh.BinaryReader {
-  readBool() {
-    const value = this.readU8();
-    return value === 1;
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const rawBytes = atob(base64);
+  const uint8Array = new Uint8Array(rawBytes.length);
+  for (let i = 0; i < rawBytes.length; i++) {
+    uint8Array[i] = rawBytes.charCodeAt(i);
   }
+  return uint8Array.buffer;
+}
 
-  readBigint() {
-    let arr = this.readFixedArray(8);
-    let buf = Buffer.from(arr);
-    return buf.readBigUInt64LE();
+export function base64ToUint8Array(base64: string): Uint8Array {
+  const rawBytes = atob(base64);
+  const uint8Array = new Uint8Array(rawBytes.length);
+  for (let i = 0; i < rawBytes.length; i++) {
+    uint8Array[i] = rawBytes.charCodeAt(i);
   }
-
-  readBytes() {
-    const len = this.readU32();
-    return this.readFixedArray(len);
-  }
+  return uint8Array;
 }

@@ -98,6 +98,12 @@ pub struct JoinParams {
     pub amount: u64,
     pub access_version: u64,
     pub position: u16,
+    pub verify_key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct ServeParams {
+    pub verify_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]

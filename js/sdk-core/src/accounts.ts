@@ -1,12 +1,11 @@
-import * as borsh from 'borsh';
-import { Buffer } from 'buffer';
-import { ExtendedReader, ExtendedWriter } from './utils';
+import { field, array, struct, option } from '@race/borsh';
 
 export interface IPlayerJoin {
   readonly addr: string;
   readonly position: number;
   readonly balance: bigint;
   readonly accessVersion: bigint;
+  readonly verifyKey: string;
 }
 
 export interface IPlayerDeposit {
@@ -19,6 +18,7 @@ export interface IServerJoin {
   readonly addr: string;
   readonly endpoint: string;
   readonly accessVersion: bigint;
+  readonly verifyKey: string;
 }
 
 export enum VoteType {
@@ -86,54 +86,51 @@ export interface IRegistrationAccount {
 }
 
 export class ServerAccount implements IServerAccount {
+  @field('string')
   readonly addr!: string;
+  @field('string')
   readonly endpoint!: string;
   constructor(fields: IServerAccount) {
     Object.assign(this, fields);
   }
-  serialize(): Uint8Array {
-    return borsh.serialize(serverAccountSchema, this, ExtendedWriter);
-  }
-  static deserialize(data: Uint8Array) {
-    return borsh.deserialize(serverAccountSchema, ServerAccount, Buffer.from(data), ExtendedReader);
-  }
 }
 
-const serverAccountSchema = new Map([
-  [
-    ServerAccount,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['endpoint', 'string'],
-      ],
-    },
-  ],
-]);
-
 export class PlayerJoin implements IPlayerJoin {
+  @field('string')
   readonly addr!: string;
+  @field('u16')
   readonly position!: number;
+  @field('u64')
   readonly balance!: bigint;
+  @field('u64')
   readonly accessVersion!: bigint;
+  @field('string')
+  readonly verifyKey!: string;
   constructor(fields: IPlayerJoin) {
     Object.assign(this, fields);
   }
 }
 
 export class ServerJoin implements IServerJoin {
+  @field('string')
   readonly addr!: string;
+  @field('string')
   readonly endpoint!: string;
+  @field('u64')
   readonly accessVersion!: bigint;
+  @field('string')
+  readonly verifyKey!: string;
   constructor(fields: IServerJoin) {
     Object.assign(this, fields);
   }
 }
 
 export class PlayerDeposit implements IPlayerDeposit {
+  @field('string')
   readonly addr!: string;
+  @field('u64')
   readonly amount!: bigint;
+  @field('u64')
   readonly settleVersion!: bigint;
   constructor(fields: IPlayerDeposit) {
     Object.assign(this, fields);
@@ -141,8 +138,11 @@ export class PlayerDeposit implements IPlayerDeposit {
 }
 
 export class Vote implements IVote {
+  @field('string')
   readonly voter!: string;
+  @field('string')
   readonly votee!: string;
+  @field('u8')
   readonly voteType!: VoteType;
   constructor(fields: IVote) {
     Object.assign(this, fields);
@@ -150,143 +150,68 @@ export class Vote implements IVote {
 }
 
 export class GameAccount implements IGameAccount {
+  @field('string')
   readonly addr!: string;
+  @field('string')
   readonly title!: string;
+  @field('string')
   readonly bundleAddr!: string;
+  @field('string')
   readonly tokenAddr!: string;
+  @field('string')
   readonly ownerAddr!: string;
+  @field('u64')
   readonly settleVersion!: bigint;
+  @field('u64')
   readonly accessVersion!: bigint;
+  @field(array(struct(PlayerJoin)))
   readonly players!: PlayerJoin[];
+  @field(array(struct(PlayerDeposit)))
   readonly deposits!: PlayerDeposit[];
+  @field(array(struct(ServerJoin)))
   readonly servers!: ServerJoin[];
+  @field(option('string'))
   readonly transactorAddr: string | undefined;
+  @field(array(struct(Vote)))
   readonly votes!: Vote[];
+  @field(option('u64'))
   readonly unlockTime: bigint | undefined;
+  @field('u16')
   readonly maxPlayers!: number;
-  readonly dataLen!: number;
-  readonly data!: Uint8Array;
+  @field('u64')
   readonly minDeposit!: bigint;
+  @field('u64')
   readonly maxDeposit!: bigint;
+  @field('u32')
+  readonly dataLen!: number;
+  @field('u8-array')
+  readonly data!: Uint8Array;
   constructor(fields: IGameAccount) {
     Object.assign(this, fields);
   }
-  serialize(): Uint8Array {
-    return borsh.serialize(gameAccountSchema, this, ExtendedWriter);
-  }
-  static deserialize(data: Uint8Array) {
-    return borsh.deserialize(gameAccountSchema, GameAccount, Buffer.from(data), ExtendedReader);
-  }
 }
 
-const gameAccountSchema = new Map<Function, any>([
-  [
-    PlayerJoin,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['position', 'u16'],
-        ['balance', 'bigint'],
-        ['accessVersion', 'bigint'],
-      ],
-    },
-  ],
-  [
-    ServerJoin,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['endpoint', 'string'],
-        ['accessVersion', 'bigint'],
-      ],
-    },
-  ],
-  [
-    PlayerDeposit,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['amount', 'bigint'],
-        ['settleVersion', 'bigint'],
-      ],
-    },
-  ],
-  [
-    Vote,
-    {
-      kind: 'struct',
-      fields: [
-        ['voter', 'string'],
-        ['votee', 'string'],
-        ['voteType', 'u8'],
-      ],
-    },
-  ],
-  [
-    GameAccount,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['title', 'string'],
-        ['bundleAddr', 'string'],
-        ['tokenAddr', 'string'],
-        ['ownerAddr', 'string'],
-        ['settleVersion', 'bigint'],
-        ['accessVersion', 'bigint'],
-        ['players', [PlayerJoin]],
-        ['deposits', [PlayerDeposit]],
-        ['servers', [ServerJoin]],
-        ['transactorAddr', { kind: 'option', type: 'string' }],
-        ['votes', [Vote]],
-        ['unlockTime', { kind: 'option', type: 'bigint' }],
-        ['maxPlayers', 'u16'],
-        ['minDeposit', 'bigint'],
-        ['maxDeposit', 'bigint'],
-        ['dataLen', 'u32'],
-        ['data', 'bytes'],
-      ],
-    },
-  ],
-]);
-
 export class GameBundle implements IGameBundle {
+  @field('string')
   readonly uri!: string;
+  @field('string')
   readonly name!: string;
+  @field('u8-array')
   readonly data!: Uint8Array;
 
   constructor(fields: IGameBundle) {
     Object.assign(this, fields);
   }
-  serialize(): Uint8Array {
-    return borsh.serialize(gameBundleSchema, this, ExtendedWriter);
-  }
-  static deserialize(data: Uint8Array) {
-    return borsh.deserialize(gameBundleSchema, GameBundle, Buffer.from(data), ExtendedReader);
-  }
 }
 
-const gameBundleSchema = new Map<Function, any>([
-  [
-    GameBundle,
-    {
-      kind: 'struct',
-      fields: [
-        ['uri', 'string'],
-        ['name', 'string'],
-        ['data', 'bytes'],
-      ],
-    },
-  ],
-]);
-
 export class GameRegistration implements IGameRegistration {
+  @field('string')
   readonly title!: string;
+  @field('string')
   readonly addr!: string;
+  @field('u64')
   readonly regTime!: bigint;
+  @field('string')
   readonly bundleAddr!: string;
   constructor(fields: IGameRegistration) {
     Object.assign(this, fields);
@@ -294,75 +219,29 @@ export class GameRegistration implements IGameRegistration {
 }
 
 export class RegistrationAccount implements IRegistrationAccount {
+  @field('string')
   readonly addr!: string;
+  @field('bool')
   readonly isPrivate!: boolean;
+  @field('u16')
   readonly size!: number;
+  @field(option('string'))
   readonly owner!: string | undefined;
+  @field(array(struct(GameRegistration)))
   readonly games!: GameRegistration[];
   constructor(fields: IRegistrationAccount) {
     Object.assign(this, fields);
   }
-  serialize(): Uint8Array {
-    return borsh.serialize(registrationAccountSchema, this, ExtendedWriter);
-  }
-  static deserialize(data: Uint8Array) {
-    return borsh.deserialize(registrationAccountSchema, RegistrationAccount, Buffer.from(data), ExtendedReader);
-  }
 }
 
-const registrationAccountSchema = new Map<Function, any>([
-  [
-    GameRegistration,
-    {
-      kind: 'struct',
-      fields: [
-        ['title', 'string'],
-        ['addr', 'string'],
-        ['regTime', 'bigint'],
-        ['bundleAddr', 'string'],
-      ],
-    },
-  ],
-  [
-    RegistrationAccount,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['isPrivate', 'bool'],
-        ['size', 'u16'],
-        ['owner', { kind: 'option', type: 'string' }],
-        ['games', [GameRegistration]],
-      ],
-    },
-  ],
-]);
-
 export class PlayerProfile implements IPlayerProfile {
+  @field('string')
   readonly addr!: string;
+  @field('string')
   readonly nick!: string;
+  @field(option('string'))
   readonly pfp: string | undefined;
   constructor(fields: IPlayerProfile) {
     Object.assign(this, fields);
   }
-  serialize(): Uint8Array {
-    return borsh.serialize(playerProfileSchema, this, ExtendedWriter);
-  }
-  static deserialize(data: Uint8Array) {
-    return borsh.deserialize(playerProfileSchema, PlayerProfile, Buffer.from(data), ExtendedReader);
-  }
 }
-
-const playerProfileSchema = new Map([
-  [
-    PlayerProfile,
-    {
-      kind: 'struct',
-      fields: [
-        ['addr', 'string'],
-        ['nick', 'string'],
-        ['pfp', { kind: 'option', type: 'string' }],
-      ],
-    },
-  ],
-]);

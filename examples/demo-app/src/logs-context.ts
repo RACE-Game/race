@@ -1,13 +1,13 @@
-import { Event } from 'race-sdk';
+import { GameEvent } from '@race/sdk-core';
 import React from 'react';
 
 export type LogsData = {
-  addLog: (e: Event) => void,
+  addLog: (e: GameEvent) => void,
   clearLog: () => void,
 };
 
 export const LogsContext =
   React.createContext<LogsData>({
-    addLog: (_: Event) => { },
-    clearLog: () => {},
+    addLog: (_: GameEvent) => { },
+    clearLog: () => { },
   });

@@ -1,8 +1,5 @@
 use std::collections::HashMap;
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use serde::Serialize;
-
 use crate::decision::DecisionState;
 use crate::effect::{Ask, Assign, Effect, Release, Reveal};
 use crate::engine::GameHandler;
@@ -17,10 +14,15 @@ use crate::{
     random::RandomState,
     types::{Ciphertext, GameAccount},
 };
+use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 const OPERATION_TIMEOUT: u64 = 15_000;
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Serialize)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum NodeStatus {
     Pending(u64),
     Ready,
@@ -37,9 +39,7 @@ impl std::fmt::Display for NodeStatus {
     }
 }
 
-#[derive(
-    Debug, Default, Serialize, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone,
-)]
+#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone)]
 pub enum GameStatus {
     #[default]
     Uninit,
@@ -57,7 +57,9 @@ impl std::fmt::Display for GameStatus {
     }
 }
 
-#[derive(Debug, Serialize, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Player {
     pub addr: String,
     pub position: usize,
@@ -184,7 +186,7 @@ pub struct GameContext {
     /// List of validators serving this game
     pub(crate) servers: Vec<Server>,
     pub(crate) dispatch: Option<DispatchEvent>,
-    pub(crate) handler_state: String,
+    pub(crate) handler_state: Vec<u8>,
     pub(crate) timestamp: u64,
     /// Whether a player can leave or not
     pub(crate) allow_exit: bool,
@@ -243,7 +245,7 @@ impl GameContext {
         self.allow_exit
     }
 
-    pub fn get_handler_state_raw(&self) -> &str {
+    pub fn get_handler_state_raw(&self) -> &Vec<u8> {
         &self.handler_state
     }
 
@@ -251,14 +253,14 @@ impl GameContext {
     where
         H: GameHandler,
     {
-        serde_json::from_str(&self.handler_state).unwrap()
+        H::try_from_slice(&self.handler_state).unwrap()
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
     where
         H: GameHandler,
     {
-        self.handler_state = serde_json::to_string(&handler).unwrap()
+        self.handler_state = handler.try_to_vec().unwrap()
     }
 
     pub fn get_servers(&self) -> &Vec<Server> {
@@ -289,12 +291,12 @@ impl GameContext {
         self.players.iter_mut().find(|p| p.addr.eq(addr))
     }
 
-    pub fn count_players(&self) -> usize {
-        self.players.len()
+    pub fn count_players(&self) -> u16 {
+        self.players.len() as u16
     }
 
-    pub fn count_servers(&self) -> usize {
-        self.servers.len()
+    pub fn count_servers(&self) -> u16 {
+        self.servers.len() as u16
     }
 
     pub fn gen_start_game_event(&self) -> Event {
@@ -347,10 +349,7 @@ impl GameContext {
     where
         E: CustomEvent,
     {
-        let event = Event::Custom {
-            sender: self.transactor_addr.to_owned(),
-            raw: serde_json::to_string(&e).unwrap(),
-        };
+        let event = Event::custom(self.transactor_addr.to_owned(), e);
         self.dispatch_event(event, timeout);
     }
 
@@ -397,24 +396,24 @@ impl GameContext {
     /// Get the random state by its id.
     pub fn get_random_state(&self, id: RandomId) -> Result<&RandomState> {
         if id == 0 {
-            return Err(Error::InvalidRandomId);
+            return Err(Error::RandomStateNotFound(id));
         }
-        if let Some(rnd_st) = self.random_states.get(id - 1) {
+        if let Some(rnd_st) = self.random_states.get(id as usize - 1) {
             Ok(rnd_st)
         } else {
-            Err(Error::InvalidRandomId)
+            Err(Error::RandomStateNotFound(id))
         }
     }
 
     pub fn get_random_state_unchecked(&self, id: RandomId) -> &RandomState {
-        &self.random_states[id - 1]
+        &self.random_states[id as usize - 1]
     }
 
     pub fn get_decision_state_mut(&mut self, id: DecisionId) -> Result<&mut DecisionState> {
         if id == 0 {
             return Err(Error::InvalidDecisionId);
         }
-        if let Some(st) = self.decision_states.get_mut(id - 1) {
+        if let Some(st) = self.decision_states.get_mut(id as usize - 1) {
             Ok(st)
         } else {
             Err(Error::InvalidDecisionId)
@@ -423,12 +422,12 @@ impl GameContext {
     /// Get the mutable random state by its id.
     pub fn get_random_state_mut(&mut self, id: RandomId) -> Result<&mut RandomState> {
         if id == 0 {
-            return Err(Error::InvalidRandomId);
+            return Err(Error::RandomStateNotFound(id));
         }
-        if let Some(rnd_st) = self.random_states.get_mut(id - 1) {
+        if let Some(rnd_st) = self.random_states.get_mut(id as usize - 1) {
             Ok(rnd_st)
         } else {
-            Err(Error::InvalidRandomId)
+            Err(Error::RandomStateNotFound(id))
         }
     }
 
@@ -466,13 +465,7 @@ impl GameContext {
         }
     }
 
-    pub fn is_all_random_ready(&self) -> bool {
-        self.random_states
-            .iter()
-            .all(|st| st.status == RandomStatus::Ready)
-    }
-
-    pub fn secrets_ready(&self) -> bool {
+    pub fn is_secrets_ready(&self) -> bool {
         self.random_states
             .iter()
             .all(|st| st.status == RandomStatus::Ready)
@@ -622,7 +615,7 @@ impl GameContext {
     pub fn randomize_and_mask(
         &mut self,
         addr: &str,
-        random_id: usize,
+        random_id: RandomId,
         ciphertexts: Vec<Ciphertext>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
@@ -633,7 +626,7 @@ impl GameContext {
     pub fn lock(
         &mut self,
         addr: &str,
-        random_id: usize,
+        random_id: RandomId,
         ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
@@ -778,7 +771,7 @@ impl GameContext {
 
     pub fn answer_decision(
         &mut self,
-        id: usize,
+        id: DecisionId,
         owner: &str,
         ciphertext: Ciphertext,
         digest: SecretDigest,
@@ -787,7 +780,7 @@ impl GameContext {
         st.answer(owner, ciphertext, digest)
     }
 
-    pub fn get_revealed(&self, random_id: usize) -> Result<&HashMap<usize, String>> {
+    pub fn get_revealed(&self, random_id: RandomId) -> Result<&HashMap<usize, String>> {
         let rnd_st = self.get_random_state(random_id)?;
         Ok(&rnd_st.revealed)
     }

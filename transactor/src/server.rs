@@ -1,78 +1,123 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use crate::context::ApplicationContext;
+use base64::Engine;
+use borsh::BorshDeserialize;
+use borsh::BorshSerialize;
+use hyper::Method;
+use jsonrpsee::core::error::Error as RpcError;
 use jsonrpsee::core::error::SubscriptionClosed;
-use jsonrpsee::core::Error;
+use jsonrpsee::server::AllowHosts;
 use jsonrpsee::types::error::CallError;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
+use race_core::types::BroadcastFrame;
 use race_core::types::{
     AttachGameParams, ExitGameParams, Signature, SubmitEventParams, SubscribeEventParams,
 };
+use tokio::pin;
 use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::StreamExt;
+use tower::ServiceBuilder;
+use tower_http::cors::Any;
+use tower_http::cors::CorsLayer;
 use tracing::{error, info, warn};
 
-type Result<T> = std::result::Result<T, Error>;
+fn base64_encode(data: &[u8]) -> String {
+    let engine = base64::engine::general_purpose::STANDARD;
+    engine.encode(data)
+}
+
+fn base64_decode(data: &str) -> Result<Vec<u8>, RpcError> {
+    let engine = base64::engine::general_purpose::STANDARD;
+    engine
+        .decode(data)
+        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))
+}
+
+fn parse_params_no_sig<T: BorshDeserialize>(params: Params<'_>) -> Result<(String, T), RpcError> {
+    let (game_addr, arg_base64) = params.parse::<(String, String)>()?;
+
+    let arg_vec = base64_decode(&arg_base64)?;
+
+    let arg = T::try_from_slice(&arg_vec)
+        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+    Ok((game_addr, arg))
+}
+
+fn parse_params<T: BorshDeserialize>(
+    params: Params<'_>,
+    context: &ApplicationContext,
+) -> Result<(String, T, Signature), RpcError> {
+    let (game_addr, arg_base64, sig_base64) = params.parse::<(String, String, String)>()?;
+    let arg_vec = base64_decode(&arg_base64)?;
+    let sig_vec = base64_decode(&sig_base64)?;
+
+    let signature = Signature::try_from_slice(&sig_vec)
+        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+
+    context
+        .verify(&arg_vec, &signature)
+        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+
+    let arg = T::try_from_slice(&arg_vec)
+        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+
+    Ok((game_addr, arg, signature))
+}
 
 /// Ask transactor to load game and provide client's public key for further encryption.
-async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<()> {
+async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
     info!("Attach to game");
-    let (_game_addr, AttachGameParams { key }, Signature { signer, .. }) =
-        params.parse::<(String, AttachGameParams, Signature)>()?;
-    // TODO: check signature
-    info!("Register the key provided by client {}", signer);
+
+    let (_game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
+
     context
         .register_key(signer, key)
         .await
-        .map_err(|e| Error::Call(CallError::InvalidParams(e.into())))
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
 
-async fn submit_event(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<()> {
-    let (game_addr, arg, sig) = params.parse::<(String, SubmitEventParams, Signature)>()?;
-    context.verify(&game_addr, &arg, &sig).await.map_err(|e| {
-        warn!("Reject event due to verification failed: {}", e);
-        Error::Call(CallError::InvalidParams(e.into()))
-    })?;
+async fn submit_event(
+    params: Params<'_>,
+    context: Arc<ApplicationContext>,
+) -> Result<(), RpcError> {
+    info!("Submit event");
+
+    let (game_addr, SubmitEventParams { event }, _sig) = parse_params(params, &context)?;
+
     context
-        .send_event(&game_addr, arg.event)
+        .send_event(&game_addr, event)
         .await
-        .map_err(|e| Error::Call(CallError::Failed(e.into())))
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
 
-async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<()> {
-    let (game_addr, arg, sig) = params.parse::<(String, ExitGameParams, Signature)>()?;
+async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
+    let (_game_addr, _arg, _sig) = params.parse::<(String, Vec<u8>, Signature)>()?;
 
-    context
-        .verify(&game_addr, &arg, &sig)
-        .await
-        .map_err(|e| Error::Call(CallError::Failed(e.into())))?;
+    info!("Exit game");
+
+    let (game_addr, ExitGameParams {}, sig) = parse_params(params, &context)?;
+
     context
         .eject_player(&game_addr, &sig.signer)
         .await
-        .map_err(|e| Error::Call(CallError::Failed(e.into())))
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
 
 fn subscribe_event(
     params: Params<'_>,
     mut sink: SubscriptionSink,
     context: Arc<ApplicationContext>,
-) -> std::result::Result<(), SubscriptionEmptyError> {
+) -> Result<(), SubscriptionEmptyError> {
     {
-        let (game_addr, arg, _sig) = params.parse::<(String, SubscribeEventParams, Signature)>()?;
+        let (game_addr, SubscribeEventParams { settle_version }) =
+            parse_params_no_sig(params).or(Err(SubscriptionEmptyError))?;
 
         tokio::spawn(async move {
-            // We don't need verification.
-            // if let Err(e) = context.verify(&game_addr, &arg, &sig).await {
-            //     error!("Subscription verification failed: {:?}", e);
-            //     sink.close(SubscriptionClosed::Failed(
-            //         CallError::Failed(e.into()).into(),
-            //     ));
-            //     return;
-            // }
-
             let (receiver, histories) =
-                match context.get_broadcast(&game_addr, arg.settle_version).await {
+                match context.get_broadcast(&game_addr, settle_version).await {
                     Ok(x) => x,
                     Err(e) => {
                         sink.close(SubscriptionClosed::Failed(
@@ -82,11 +127,18 @@ fn subscribe_event(
                     }
                 };
 
-            info!("Subscribe event stream: {:?}", game_addr);
-            let rx = BroadcastStream::new(receiver);
+            drop(context);
 
+            info!(
+                "Subscribe event stream: {:?}, histories: {}",
+                game_addr,
+                histories.len()
+            );
             histories.into_iter().for_each(|x| {
-                sink.send(&x)
+                let v = x.try_to_vec().unwrap();
+                let s = base64_encode(&v);
+                info!("Push event history: {}", s);
+                sink.send(&s)
                     .map_err(|e| {
                         error!("Error occurred when broadcasting event histories: {:?}", e);
                         e
@@ -94,9 +146,18 @@ fn subscribe_event(
                     .unwrap();
             });
 
-            drop(context);
+            let rx = BroadcastStream::new(receiver);
+            let serialized_rx = rx.map(|f| match f {
+                Ok(x) => {
+                    let v = x.try_to_vec().unwrap();
+                    let s = base64_encode(&v);
+                    info!("Push new event: {}", s);
+                    Ok(s)
+                }
+                Err(e) => Err(e),
+            });
 
-            match sink.pipe_from_try_stream(rx).await {
+            match sink.pipe_from_try_stream(serialized_rx).await {
                 SubscriptionClosed::Success => {
                     info!("Subscription closed successfully");
                     sink.close(SubscriptionClosed::Success);
@@ -115,11 +176,21 @@ fn subscribe_event(
 }
 
 pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
+    let cors = CorsLayer::new()
+        .allow_methods([Method::POST])
+        .allow_origin(Any)
+        .allow_headers([hyper::header::CONTENT_TYPE]);
+
+    let middleware = ServiceBuilder::new().layer(cors);
+
     let host = {
         let port = context.config.port;
         format!("0.0.0.0:{}", port)
     };
+
     let server = ServerBuilder::default()
+        .set_host_filtering(AllowHosts::Any)
+        .set_middleware(middleware)
         .max_request_body_size(100_1000)
         .build(host.parse::<SocketAddr>()?)
         .await?;

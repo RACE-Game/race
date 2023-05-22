@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)]
@@ -7,22 +8,10 @@ pub type Addr = String;
 pub type Amount = u64;
 #[allow(unused)]
 pub type RandomId = usize;
-pub type RandomIndex = usize;
 pub type DecisionId = usize;
 pub type Ciphertext = Vec<u8>;
 pub type SecretDigest = Vec<u8>;
-pub type SecretKeyRaw = [u8; 44]; // key: 32, nonce: 12
-                                  // There's an issue for serialization of arrary,
-                                  // So we have this vector type.
 pub type SecretKey = Vec<u8>;
-
-pub fn empty_secret_key_raw() -> SecretKeyRaw {
-    [0u8; 44]
-}
-
-pub fn empty_secret_key() -> SecretKey {
-    vec![0u8; 44]
-}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ClientMode {
@@ -31,10 +20,11 @@ pub enum ClientMode {
     Validator,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Signature {
     pub signer: String,
-    pub nonce: String,
     pub timestamp: u64,
     pub signature: String,
 }
@@ -43,25 +33,15 @@ impl std::fmt::Display for Signature {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[{}](signer: {}, timestamp: {}, nonce: {})",
-            self.signature, self.signer, self.timestamp, self.nonce
+            "[{}](signer: {}, timestamp: {})",
+            self.signature, self.signer, self.timestamp
         )
     }
 }
 
-#[derive(
-    Hash,
-    Debug,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-)]
+#[derive(Hash, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct SecretIdent {
     pub from_addr: String,
     pub to_addr: Option<String>,
@@ -98,9 +78,9 @@ impl SecretIdent {
     }
 }
 
-#[derive(
-    Hash, Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, PartialEq, Eq,
-)]
+#[derive(Hash, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum SecretShare {
     Random {
         from_addr: String,
@@ -152,7 +132,7 @@ impl std::fmt::Display for SecretShare {
 impl SecretShare {
     pub fn new_for_random(
         random_id: RandomId,
-        index: RandomIndex,
+        index: usize,
         from_addr: Addr,
         to_addr: Option<Addr>,
         secret: SecretKey,
@@ -175,7 +155,9 @@ impl SecretShare {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum VoteType {
     ServerVoteTransactorDropOff,
     ClientVoteTransactorDropOff,

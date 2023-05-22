@@ -1,18 +1,22 @@
-use crate::types::{
-    Ciphertext, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin,
+use crate::{
+    error::HandleError,
+    types::{Ciphertext, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// Game event structure
-#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum Event {
     /// Sent by player clients.  Represent game specific events, the `raw`
     /// parts is the serialized data from a custom game event which
     /// satisfies [`CustomEvent`].
     Custom {
         sender: String,
-        raw: String,
+        raw: Vec<u8>,
     },
 
     /// A event sent by system, the first event sent by transactor
@@ -203,9 +207,13 @@ impl Event {
     pub fn custom<S: Into<String>, E: CustomEvent>(sender: S, e: &E) -> Self {
         Self::Custom {
             sender: sender.into(),
-            raw: serde_json::to_string(&e).unwrap(),
+            raw: e.try_to_vec().unwrap(),
         }
     }
 }
 
-pub trait CustomEvent: Sized + Serialize + DeserializeOwned {}
+pub trait CustomEvent: Sized + BorshSerialize + BorshDeserialize {
+    fn try_parse(slice: &[u8]) -> Result<Self, HandleError> {
+        Self::try_from_slice(slice).or(Err(HandleError::MalformedCustomEvent))
+    }
+}

@@ -85,6 +85,10 @@ solana:
     (cd contracts/solana; cargo build-sbf)
     solana program deploy ./target/deploy/race_solana.so
 
+borsh:
+    npm --prefix ./js/borsh run build:js
+    npm --prefix ./js/borsh run build:typedefs
+
 sdk-core:
     npm --prefix ./js/sdk-core run build:js
     npm --prefix ./js/sdk-core run build:typedefs

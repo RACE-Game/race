@@ -50,9 +50,9 @@ describe('Test instruction serialization', () => {
   })
 
   it('JoinGame', () => {
-    const data = new JoinGameData(BigInt(1000), BigInt(0), 2);
+    const data = new JoinGameData(1000n, 0n, 2, "key0");
     const serialized = data.serialize();
-    const expected = Buffer.from([10, 232, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0]);
+    const expected = Buffer.from([10, 232, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 4, 0, 0, 0, 107, 101, 121, 48]);
     assert.deepStrictEqual(serialized, expected);
   })
 })

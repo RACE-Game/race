@@ -17,6 +17,7 @@ export const CHAIN_TO_RPC: Record<Chain, string> = {
 export let CHAIN_ADDR_GAME_MAPPING: Record<Chain, Record<string, string>> = {
   'facade': {
     'target>race_example_raffle>wasm': 'raffle',
+    'target>race_exmaple_draw_card>wasm': 'draw_card',
   },
   'solana-local': {
     '<INVALID>': 'raffle'
@@ -34,10 +35,8 @@ export let CHAIN_ADDR_GAME_MAPPING: Record<Chain, Record<string, string>> = {
     let resp = await fetch('http://localhost:8000/demo-app-data.json');
     if (resp.ok) {
       let data: any = await resp.json();
-      console.log("Data: ", data);
       CHAIN_TO_REG_ADDR = Object.assign(CHAIN_TO_REG_ADDR, data["CHAIN_TO_REG_ADDR"]);
       CHAIN_ADDR_GAME_MAPPING = Object.assign(CHAIN_ADDR_GAME_MAPPING, data["CHAIN_ADDR_GAME_MAPPING"]);
-      console.log("App data loaded");
     }
   } catch (e) {
     console.log("Skip local environment");

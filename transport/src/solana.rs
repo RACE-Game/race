@@ -322,6 +322,7 @@ impl TransportT for SolanaTransport {
                     amount: params.amount,
                     access_version: params.access_version,
                     position: params.position,
+                    verify_key: params.verify_key,
                 },
             },
             vec![
@@ -360,7 +361,11 @@ impl TransportT for SolanaTransport {
 
         let serve_game_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
-            &RaceInstruction::ServeGame,
+            &RaceInstruction::ServeGame {
+                params: solana_types::ServeParams {
+                    verify_key: params.verify_key,
+                },
+            },
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new(game_account_pubkey, false),
@@ -742,6 +747,7 @@ impl TransportT for SolanaTransport {
                     position: p.position,
                     balance: p.balance,
                     access_version: p.access_version,
+                    verify_key: p.verify_key,
                 })
                 .collect(),
             servers: state
@@ -751,6 +757,7 @@ impl TransportT for SolanaTransport {
                     addr: s.addr.to_string(),
                     endpoint: s.endpoint,
                     access_version: s.access_version,
+                    verify_key: s.verify_key,
                 })
                 .collect(),
             transactor_addr: state.transactor_addr.map(|pk| pk.to_string()),
@@ -1022,8 +1029,6 @@ mod tests {
         Ok(transport)
     }
 
-
-
     #[test]
     fn test_get_transport() -> anyhow::Result<()> {
         get_transport()?;
@@ -1118,7 +1123,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_register_server() -> anyhow::Result<()> {
         let transport = get_transport()?;
-        let endpoint = "https://api.testnet.solana.com".to_string();
+        let endpoint = "https://foo.bar".to_string();
         let addr = transport
             .register_server(RegisterServerParams {
                 endpoint: endpoint.clone(),
@@ -1161,6 +1166,7 @@ mod tests {
         let server_addr = transport
             .serve(ServeParams {
                 game_addr: game_addr.clone(),
+                verify_key: "VERIFY KEY".into()
             })
             .await?;
         let game = transport
@@ -1187,6 +1193,7 @@ mod tests {
                 amount: 500_000_000u64,
                 access_version: 0u64,
                 position: 0u16,
+                verify_key: "VERIFY KEY".into(),
             })
             .await?;
 
@@ -1204,7 +1211,8 @@ mod tests {
                 game_addr: game_addr.clone(),
                 amount: 500_000_000u64,
                 access_version: 0u64,
-                position: 1u16,
+                position: 0u16,
+                verify_key: "VERIFY KEY".into(),
             })
             .await?;
         let game = transport

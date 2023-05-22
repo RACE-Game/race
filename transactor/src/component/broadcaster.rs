@@ -93,6 +93,15 @@ impl Broadcaster {
                     settle_version,
                 },
             )
+        } else if let Some(last) = event_backups.back() {
+            histories.insert(
+                0,
+                BroadcastFrame::Init {
+                    game_addr: self.game_addr.clone(),
+                    access_version: last.access_version,
+                    settle_version: last.settle_version + 1
+                }
+            )
         }
 
         histories

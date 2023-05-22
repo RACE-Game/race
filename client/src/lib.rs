@@ -98,7 +98,13 @@ impl Client {
     pub async fn attach_game(&self) -> Result<()> {
         let key = self.encryptor.export_public_key(None)?;
         self.connection
-            .attach_game(&self.game_addr, AttachGameParams { key })
+            .attach_game(
+                &self.game_addr,
+                AttachGameParams {
+                    key,
+                    signer: self.addr.clone(),
+                },
+            )
             .await
     }
 

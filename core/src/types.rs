@@ -4,8 +4,8 @@ mod transactor_params;
 mod transport_params;
 
 pub use common::{
-    empty_secret_key, empty_secret_key_raw, Addr, Amount, Ciphertext, ClientMode, DecisionId,
-    RandomId, SecretDigest, SecretIdent, SecretKey, SecretKeyRaw, SecretShare, Signature, VoteType,
+    Addr, Amount, Ciphertext, ClientMode, DecisionId, RandomId, SecretDigest,
+    SecretIdent, SecretKey, SecretShare, Signature, VoteType,
 };
 
 pub use accounts::{
@@ -21,6 +21,5 @@ pub use transport_params::{
 };
 
 pub use transactor_params::{
-    AttachGameParams, BroadcastFrame, ExitGameParams, GetStateParams, RetrieveEventsParams,
-    SubmitEventParams, SubscribeEventParams, AttachResponse
+    AttachGameParams, BroadcastFrame, ExitGameParams, SubmitEventParams, SubscribeEventParams,
 };

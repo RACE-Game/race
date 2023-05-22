@@ -1,0 +1,35 @@
+{
+  "name": "@race/borsh",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "A borsh rewrite with decorator support",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "build:js": "tsc -p tsconfig.build.json",
+    "build:typedefs": "tsc -p tsconfig.d.json",
+    "format": "prettier \"src/**/*.ts\" -w",
+    "lint": "eslint"
+  },
+  "files": [
+    "lib/**/*"
+  ],
+  "module": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "test": "jest",
+  "test:watch": "jest --watch",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/chai": "^4.3.4",
+    "@types/jest": "^29.5.1",
+    "chai": "^4.3.7",
+    "eslint": "^8.40.0",
+    "jest": "^29.5.0",
+    "prettier": "^2.8.7",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.4"
+  }
+}

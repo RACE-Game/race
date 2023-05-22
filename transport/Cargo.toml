@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-race-core = { path = "../core" }
+race-core = { path = "../core", features = ["serde"] }
 race-env = { path = "../env" }
 async-trait = { workspace = true }
 thiserror = { workspace = true }

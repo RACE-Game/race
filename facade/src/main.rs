@@ -59,6 +59,7 @@ pub struct JoinInstruction {
     position: u16,
     access_version: u64,
     amount: u64,
+    verify_key: String,
 }
 
 #[derive(Deserialize)]
@@ -66,6 +67,7 @@ pub struct JoinInstruction {
 pub struct ServeInstruction {
     game_addr: String,
     server_addr: String,
+    verify_key: String,
 }
 
 #[derive(Deserialize)]
@@ -198,6 +200,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         access_version,
         position,
         player_addr,
+        verify_key,
     } = params.one()?;
     info!(
         "Join game: player: {}, game: {}, amount: {}, access version: {}",
@@ -226,6 +229,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                 position,
                 balance: amount,
                 access_version,
+                verify_key,
             };
             game_account.players.push(player_join);
             game_account.access_version = access_version;
@@ -432,6 +436,7 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
     let ServeInstruction {
         game_addr,
         server_addr,
+        verify_key,
     } = params.one()?;
     let mut context = context.lock().await;
 
@@ -483,6 +488,7 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
                 server_addr,
                 server_account.endpoint.clone(),
                 account.access_version,
+                verify_key,
             ));
         }
     }
@@ -535,31 +541,38 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
                 // Remove player
                 if let Some(index) = game.players.iter().position(|p| p.addr.eq(&s.addr)) {
                     let p = game.players.remove(index);
-                    let player = players
-                        .get_mut(&p.addr)
-                        .ok_or(custom_error(Error::InvalidSettle("Invalid player address".into())))?;
+                    let player =
+                        players
+                            .get_mut(&p.addr)
+                            .ok_or(custom_error(Error::InvalidSettle(
+                                "Invalid player address".into(),
+                            )))?;
                     player.balance += p.balance;
                 } else {
                     return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
                 }
             }
             SettleOp::Add(amount) => {
-                let p = game
-                    .players
-                    .iter_mut()
-                    .find(|p| p.addr.eq(&s.addr))
-                    .ok_or(custom_error(Error::InvalidSettle("Invalid player address".into())))?;
+                let p =
+                    game.players
+                        .iter_mut()
+                        .find(|p| p.addr.eq(&s.addr))
+                        .ok_or(custom_error(Error::InvalidSettle(
+                            "Invalid player address".into(),
+                        )))?;
                 p.balance = p
                     .balance
                     .checked_add(amount)
                     .ok_or(custom_error(Error::InvalidSettle("Math overflow".into())))?;
             }
             SettleOp::Sub(amount) => {
-                let p = game
-                    .players
-                    .iter_mut()
-                    .find(|p| p.addr.eq(&s.addr))
-                    .ok_or(custom_error(Error::InvalidSettle("Invalid player address".into())))?;
+                let p =
+                    game.players
+                        .iter_mut()
+                        .find(|p| p.addr.eq(&s.addr))
+                        .ok_or(custom_error(Error::InvalidSettle(
+                            "Invalid player address".into(),
+                        )))?;
                 p.balance = p
                     .balance
                     .checked_sub(amount)

@@ -64,7 +64,6 @@ impl DecisionState {
     }
 
     pub fn release(&mut self) -> Result<()> {
-        println!("Release");
         if self.status != DecisionStatus::Answered {
             Err(Error::InvalidDecisionStatus)
         } else {

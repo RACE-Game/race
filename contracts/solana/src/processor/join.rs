@@ -112,6 +112,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
         balance: params.amount,
         position,
         access_version: game_state.access_version,
+        verify_key: params.verify_key,
     });
 
     // Check player's deposit

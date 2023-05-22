@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import { IWallet } from 'race-sdk-core';
+import { IWallet } from '@race/sdk-core';
 
 export class FacadeWallet implements IWallet {
   #addr: string;

@@ -1,12 +1,13 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::types::DecisionId;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
-#[derive(
-    Error, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq,
-)]
+use crate::{types::DecisionId, prelude::RandomId};
+
+#[derive(Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Error {
     #[error("Player already joined: {0}")]
     PlayerAlreadyJoined(String),
@@ -238,8 +239,15 @@ pub enum Error {
 
     #[error("Duplicated initialization")]
     DuplicatedInitialization,
+
+    #[error("Randomness is not revealed")]
+    RandomnessNotRevealed,
+
+    #[error("Random state not found: {0}")]
+    RandomStateNotFound(RandomId),
 }
 
+#[cfg(feature = "serde")]
 impl From<serde_json::Error> for Error {
     fn from(e: serde_json::Error) -> Self {
         Error::MalformedData(e.to_string())
@@ -253,3 +261,49 @@ impl From<std::io::Error> for Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq)]
+pub enum HandleError {
+    #[error("Custom error: {0}")]
+    Custom(String),
+
+    #[error("No enough players")]
+    NoEnoughPlayers,
+
+    #[error("Invalid player")]
+    InvalidPlayer,
+
+    #[error("Can't leave game")]
+    CantLeave,
+
+    #[error("Invalid amount")]
+    InvalidAmount,
+
+    #[error("Malformed game account data")]
+    MalformedGameAccountData,
+
+    #[error("Malformed custom event")]
+    MalformedCustomEvent,
+
+    #[error("Serialization error")]
+    SerializationError,
+
+    #[error("Internal error: {message:?}")]
+    InternalError { message: String },
+}
+
+impl From<crate::error::Error> for HandleError {
+    fn from(value: crate::error::Error) -> Self {
+        HandleError::InternalError {
+            message: value.to_string(),
+        }
+    }
+}
+
+impl From<HandleError> for Error {
+    fn from(value: HandleError) -> Self {
+        Error::WasmExecutionError(value.to_string())
+    }
+}
+
+pub type HandleResult<T> = std::result::Result<T, HandleError>;

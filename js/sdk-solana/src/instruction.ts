@@ -1,8 +1,9 @@
-import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } from '@solana/web3.js';
-import * as borsh from 'borsh';
+import { PublicKey, SYSVAR_RENT_PUBKEY, TransactionInstruction } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { ExtendedWriter } from './utils';
+import { publicKeyExt } from './utils';
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID, PLAYER_PROFILE_SEED } from './constants';
+import { field, serialize } from '@race/borsh';
+import { Buffer } from 'buffer';
 
 // Instruction types
 
@@ -24,143 +25,90 @@ export enum Instruction {
 // Instruction data definitations
 
 abstract class Serialize {
-  schema: Map<any, any>;
-  constructor(schema: Map<any, any>) {
-    this.schema = schema;
-  }
   serialize(): Buffer {
-    return Buffer.from(borsh.serialize(this.schema, this, ExtendedWriter));
+    return Buffer.from(serialize(this));
   }
 }
 
 export class CreatePlayerProfileData extends Serialize {
+  @field('u8')
   instruction = Instruction.CreatePlayerProfile;
+  @field('string')
   nick: string;
 
   constructor(nick: string) {
-    super(createPlayerProfileDataScheme);
+    super();
     this.nick = nick;
   }
 }
 
-const createPlayerProfileDataScheme = new Map([
-  [
-    CreatePlayerProfileData,
-    {
-      kind: 'struct',
-      fields: [
-        ['instruction', 'u8'],
-        ['nick', 'string'],
-      ],
-    },
-  ],
-]);
-
 export class CloseGameAccountData extends Serialize {
+  @field('u8')
   instruction = Instruction.CloseGameAccount;
 
   constructor() {
-    super(closeGameAccountDataScheme);
+    super();
   }
 }
 
-const closeGameAccountDataScheme = new Map([
-  [
-    CloseGameAccountData,
-    {
-      kind: 'struct',
-      fields: [['instruction', 'u8']],
-    },
-  ],
-]);
-
 export class CreateGameAccountData extends Serialize {
+  @field('u8')
   instruction = Instruction.CreateGameAccount;
+  @field('string')
   title: string = '';
+  @field('u16')
   maxPlayers: number = 0;
+  @field('u64')
   minDeposit: bigint = 0n;
+  @field('u64')
   maxDeposit: bigint = 0n;
+  @field('u8-array')
   data: Uint8Array = Uint8Array.from([]);
 
   constructor(params: Partial<CreateGameAccountData>) {
-    super(createGameAccountDataSchema);
+    super();
     Object.assign(this, params);
   }
 }
 
-const createGameAccountDataSchema = new Map([
-  [
-    CreateGameAccountData,
-    {
-      kind: 'struct',
-      fields: [
-        ['instruction', 'u8'],
-        ['title', 'string'],
-        ['maxPlayers', 'u16'],
-        ['minDeposit', 'bigint'],
-        ['maxDeposit', 'bigint'],
-        ['data', 'bytes'],
-      ],
-    },
-  ],
-]);
-
 export class JoinGameData extends Serialize {
+  @field('u8')
   instruction = Instruction.JoinGame;
+  @field('u64')
   amount: bigint;
+  @field('u64')
   accessVersion: bigint;
+  @field('u16')
   position: number;
+  @field('string')
+  verifyKey: string;
 
-  constructor(amount: bigint, accessVersion: bigint, position: number) {
-    super(joinGameDataSchema);
+  constructor(amount: bigint, accessVersion: bigint, position: number, verifyKey: string) {
+    super();
     this.amount = amount;
     this.accessVersion = accessVersion;
     this.position = position;
+    this.verifyKey = verifyKey;
   }
 }
 
-const joinGameDataSchema = new Map([
-  [
-    JoinGameData,
-    {
-      kind: 'struct',
-      fields: [
-        ['instruction', 'u8'],
-        ['amount', 'bigint'],
-        ['accessVersion', 'bigint'],
-        ['position', 'u16'],
-      ],
-    },
-  ],
-]);
-
 export class PublishGameData extends Serialize {
+  @field('u8')
   instruction = Instruction.PublishGame;
+  @field('string')
   uri: string;
+  @field('string')
   name: string;
+  @field('string')
   symbol: string;
 
   constructor(uri: string, name: string, symbol: string) {
-    super(publishGameDataSchema);
+    super();
     this.uri = uri;
     this.name = name;
     this.symbol = symbol;
   }
 }
-
-const publishGameDataSchema = new Map([
-  [
-    PublishGameData,
-    {
-      kind: 'struct',
-      fields: [
-        ['uri', 'string'],
-        ['name', 'string'],
-        ['symbol', 'string'],
-      ],
-    },
-  ],
-]);
 
 // Instruction helpers
 
@@ -191,7 +139,7 @@ export function createPlayerProfile(
       },
     ],
     programId: PROGRAM_ID,
-    data,
+    data: Buffer.from(data),
   });
 }
 
@@ -305,15 +253,16 @@ export type JoinOptions = {
   amount: bigint;
   accessVersion: bigint;
   position: number;
+  verifyKey: string;
 };
 
 export async function join(opts: JoinOptions): Promise<TransactionInstruction> {
-  const { playerKey, paymentKey, gameAccountKey, mint, stakeAccountKey, amount, accessVersion, position } = opts;
+  const { playerKey, paymentKey, gameAccountKey, mint, stakeAccountKey, amount, accessVersion, position, verifyKey } = opts;
 
   const profileKey = await PublicKey.createWithSeed(playerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
 
   let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID);
-  const data = new JoinGameData(amount, accessVersion, position).serialize();
+  const data = new JoinGameData(amount, accessVersion, position, verifyKey).serialize();
 
   return new TransactionInstruction({
     keys: [

@@ -11,7 +11,6 @@ import {
 } from '../src/accounts';
 import { PublicKey } from '@solana/web3.js';
 import { ACCOUNT_DATA, REG_ACCOUNT_DATA } from './account_data';
-import { Creator, Metadata } from '../src/metadata';
 
 describe('Test account data serialization', () => {
   it('PlayerState', () => {
@@ -95,6 +94,7 @@ describe('Test account data serialization', () => {
           balance: BigInt(100),
           accessVersion: BigInt(1),
           position: 0,
+          verifyKey: "key0",
         })
       ],
       servers: [
@@ -102,6 +102,7 @@ describe('Test account data serialization', () => {
           key: PublicKey.unique(),
           endpoint: 'http://foo.bar',
           accessVersion: BigInt(2),
+          verifyKey: "key1",
         })
       ],
       dataLen: 10,

@@ -11,9 +11,6 @@ use solana_program::{
 #[cfg(feature = "sdk")]
 use solana_sdk::pubkey::Pubkey;
 
-// =======================================================
-// ====================== GAME ACCOUNT ===================
-// =======================================================
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone, Debug)]
 pub struct PlayerJoin {
@@ -21,6 +18,7 @@ pub struct PlayerJoin {
     pub balance: u64,
     pub position: u16,
     pub access_version: u64,
+    pub verify_key: String,
 }
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -29,6 +27,7 @@ pub struct ServerJoin {
     pub addr: Pubkey,
     pub endpoint: String,
     pub access_version: u64,
+    pub verify_key: String,
 }
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -126,6 +125,7 @@ mod tests {
                 addr: Pubkey::default(),
                 endpoint: s.clone(),
                 access_version: 0,
+                verify_key: "key0".into(),
             };
             state.servers.push(s);
         }
@@ -142,9 +142,10 @@ mod tests {
             balance: 1,
             position: 1,
             access_version: 1,
+            verify_key: "key0".into(),
         };
         println!("data: {:?}", state.try_to_vec().unwrap());
-        assert_eq!(1, 2);
+        // assert_eq!(1, 2);
     }
 
     pub fn make_game_state() -> GameState {

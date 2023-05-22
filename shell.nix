@@ -15,6 +15,6 @@ pkgs.mkShell rec {
     nixpkgs-fmt
     binaryen
   ];
-  RUST_LOG = "info,wasmer_compiler_cranelift=error,solana_rpc_client=error";
+  RUST_LOG = "info,wasmer_compiler_cranelift=error,solana_rpc_client=error,jsonrpsee_server=debug";
   RUST_BACKTRACE = 1;
 }

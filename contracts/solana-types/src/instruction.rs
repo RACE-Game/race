@@ -1,6 +1,6 @@
 use crate::types::{
     CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, JoinParams,
-    PublishParams, RegisterServerParams, SettleParams, VoteParams,
+    PublishParams, RegisterServerParams, SettleParams, VoteParams, ServeParams,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
@@ -83,7 +83,7 @@ pub enum RaceInstruction {
     /// 0. `[signer]` The payer acount (the server itself)
     /// 1. `[writable]` The game account to be served
     /// 2. `[]` The server account
-    ServeGame,
+    ServeGame{ params: ServeParams },
 
     /// # Register a game to the registry
     ///
@@ -187,12 +187,13 @@ mod tests {
                 amount: 1000u64,
                 access_version: 0u64,
                 position: 2u16,
+                verify_key: "key0".into(),
             }
         };
 
         let join_ix_ser = join_ix.try_to_vec().unwrap();
         println!("join ix serialized {:?}", join_ix);
-        let join_bytes = [10, 232, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0];
+        let join_bytes = [10, 232, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 4, 0, 0, 0, 107, 101, 121, 48];
         assert_eq!(join_ix_ser, join_bytes);
 
 

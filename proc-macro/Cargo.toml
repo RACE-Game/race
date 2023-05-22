@@ -12,6 +12,4 @@ quote = "1.0.23"
 
 [dev-dependencies]
 race-core = { path = "../core" }
-serde_json = "1.0.85"
-serde = "1.0.144"
 borsh = "0.9.3"

@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-race-core = { path = "../core" }
+race-core = { path = "../core", features = ["serde"] }
 race-transport = { path = "../transport" }
 race-encryptor = { path = "../encryptor" }
 race-client = { path = "../client" }

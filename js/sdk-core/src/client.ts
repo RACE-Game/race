@@ -1,28 +1,29 @@
-import { IConnection } from './connection';
+import { AttachGameParams, IConnection, SubmitEventParams } from './connection';
 import { IEncryptor } from './encryptor';
 import { ITransport } from './transport';
 import { SecretState } from './secret-state';
 import { makeCustomEvent } from './events';
 import { GameContext } from './game-context';
+import { Id } from './types';
 
 type OpIdent =
-  {
+  | {
     kind: 'random-secret';
-    randomId: bigint;
+    randomId: Id;
     toAddr: string | undefined;
-    index: number
-  } |
-  {
+    index: number;
+  }
+  | {
     kind: 'answer-secret';
-    decisionId: bigint;
-  } |
-  {
-    kind: 'lock',
-    randomId: bigint;
-  } |
-  {
-    kind: 'mask',
-    randomId: bigint;
+    decisionId: Id;
+  }
+  | {
+    kind: 'lock';
+    randomId: Id;
+  }
+  | {
+    kind: 'mask';
+    randomId: Id;
   };
 
 export class Client {
@@ -45,27 +46,28 @@ export class Client {
   }
 
   async attachGame(): Promise<void> {
-    const key = this.#encryptor.exportPublicKey(undefined);
-    await this.#connection.attachGame({
-      addr: this.#gameAddr,
-      key
-    });
+    const key = await this.#encryptor.exportPublicKey(undefined);
+    await this.#connection.attachGame(this.#gameAddr,
+      new AttachGameParams({
+        signer: this.#addr,
+        key,
+      })
+    );
   }
 
   async submitEvent(event: any): Promise<void> {
-    await this.#connection.submitEvent({
-      addr: this.#gameAddr,
-      event
-    });
+    await this.#connection.submitEvent(this.#gameAddr,
+      new SubmitEventParams({
+        event,
+      }));
   }
 
   async submitCustomEvent(customEvent: any): Promise<void> {
     const event = makeCustomEvent(this.#gameAddr, customEvent);
-    await this.#connection.submitEvent(
-      {
-        addr: this.#gameAddr,
-        event
-      });
+    await this.#connection.submitEvent(this.#gameAddr,
+      new SubmitEventParams({
+        event,
+      }));
   }
 
   async handleDecision(ctx: GameContext): Promise<Event[]> {
@@ -73,7 +75,7 @@ export class Client {
   }
 
   loadRandomStates(ctx: GameContext) {
-    for (let randomState of ctx.listRandomStates()) {
+    for (let randomState of ctx.randomStates) {
       if (!this.#secretState.isRandomLoaded(randomState.id)) {
         this.#secretState.genRandomStates(randomState.id, randomState.size);
       }
@@ -89,5 +91,22 @@ export class Client {
   flushSecretStates() {
     this.#secretState.clear();
     this.#opHist.splice(0);
+  }
+
+  async decrypt(ctx: GameContext, randomId: Id): Promise<Map<number, string>> {
+    let randomState = ctx.getRandomState(randomId);
+    let options = randomState.options;
+    let revealed = await this.#encryptor.decryptWithSecrets(
+      randomState.listRevealedCiphertexts(),
+      randomState.listRevealedSecrets(),
+      options
+    );
+    let assigned = await this.#encryptor.decryptWithSecrets(
+      randomState.listAssignedCiphertexts(this.#addr),
+      randomState.listSharedSecrets(this.#addr),
+      options
+    );
+
+    return new Map([...revealed, ...assigned]);
   }
 }

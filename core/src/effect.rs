@@ -3,12 +3,11 @@
 use std::collections::BTreeMap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::Serialize;
 
 use crate::{
     context::GameContext,
     engine::GameHandler,
-    error::{Error, Result},
+    error::{Error, HandleError, Result},
     random::RandomSpec,
     types::{DecisionId, RandomId, Settle},
 };
@@ -62,7 +61,7 @@ pub struct ActionTimeout {
 /// use race_core::random::RandomSpec;
 /// let mut effect = Effect::default();
 /// let random_spec = RandomSpec::deck_of_cards();
-/// let random_id: usize = effect.init_random_state(random_spec);
+/// let random_id = effect.init_random_state(random_spec);
 /// ```
 ///
 /// To assign some items of the randomness to a specific player, use [`Effect::assign`].
@@ -89,7 +88,7 @@ pub struct ActionTimeout {
 /// ```
 /// # use race_core::effect::Effect;
 /// let mut effect = Effect::default();
-/// let decision_id: usize = effect.ask("Alice");
+/// let decision_id = effect.ask("Alice");
 /// ```
 ///
 /// To reveal the answer, use [`Effect::reveal_answer`].
@@ -141,18 +140,18 @@ pub struct Effect {
     pub timestamp: u64,
     pub curr_random_id: RandomId,
     pub curr_decision_id: DecisionId,
-    pub players_count: usize,
-    pub servers_count: usize,
+    pub players_count: u16,
+    pub servers_count: u16,
     pub asks: Vec<Ask>,
     pub assigns: Vec<Assign>,
     pub reveals: Vec<Reveal>,
     pub releases: Vec<Release>,
     pub init_random_states: Vec<RandomSpec>,
-    pub revealed: BTreeMap<usize, BTreeMap<usize, String>>,
-    pub answered: BTreeMap<usize, String>,
+    pub revealed: BTreeMap<RandomId, BTreeMap<usize, String>>,
+    pub answered: BTreeMap<DecisionId, String>,
     pub settles: Vec<Settle>,
-    pub handler_state: Option<String>,
-    pub error: Option<Error>,
+    pub handler_state: Option<Vec<u8>>,
+    pub error: Option<HandleError>,
     pub allow_exit: bool,
 }
 
@@ -204,12 +203,12 @@ impl Effect {
 
     /// Return the number of players, including both the pending and joined.
     pub fn count_players(&self) -> usize {
-        self.players_count
+        self.players_count as usize
     }
 
     /// Return the number of servers, including both the pending and joined.
     pub fn count_servers(&self) -> usize {
-        self.servers_count
+        self.servers_count as usize
     }
 
     /// Initialize a random state with random spec, return random id.
@@ -241,9 +240,9 @@ impl Effect {
 
     /// Return the revealed random items by id.
     ///
-    /// Return [`Error::InvalidRandomId`] when invalid random id is given.
+    /// Return [`Error::RandomnessNotRevealed`] when invalid random id is given.
     pub fn get_revealed(&self, random_id: RandomId) -> Result<&BTreeMap<usize, String>> {
-        self.revealed.get(&random_id).ok_or(Error::InvalidRandomId)
+        self.revealed.get(&random_id).ok_or(Error::RandomnessNotRevealed)
     }
 
     /// Return the answer of a decision by id.
@@ -320,31 +319,31 @@ impl Effect {
     where
         S: GameHandler,
     {
-        serde_json::from_str(self.handler_state.as_ref().unwrap()).unwrap()
+        S::try_from_slice(self.handler_state.as_ref().unwrap()).unwrap()
     }
 
     /// Set handler state.
     ///
     /// This is an internal function, DO NOT use in game handler.
-    pub fn __set_handler_state<S: Serialize>(&mut self, handler_state: S) {
-        if let Ok(state) = serde_json::to_string(&handler_state) {
+    pub fn __set_handler_state<S: BorshSerialize>(&mut self, handler_state: S) {
+        if let Ok(state) = handler_state.try_to_vec() {
             self.handler_state = Some(state);
         } else {
-            self.error = Some(Error::SerializationError);
+            self.error = Some(HandleError::SerializationError);
         }
     }
 
     /// Set error.
     ///
     /// This is an internal function, DO NOT use in game handler.
-    pub fn __set_error(&mut self, error: Error) {
+    pub fn __set_error(&mut self, error: HandleError) {
         self.error = Some(error);
     }
 
     /// Take error
     ///
     /// This is an internal function, DO NOT use in game handler.
-    pub fn __take_error(&mut self) -> Option<Error> {
+    pub fn __take_error(&mut self) -> Option<HandleError> {
         std::mem::replace(&mut self.error, None)
     }
 }
@@ -357,13 +356,13 @@ mod tests {
     #[test]
     fn test_serialization() -> anyhow::Result<()> {
         let mut answered = BTreeMap::new();
-        answered.insert(1, "A".into());
+        answered.insert(33, "A".into());
 
         let mut revealed = BTreeMap::new();
         {
             let mut m = BTreeMap::new();
-            m.insert(1, "B".into());
-            revealed.insert(2, m);
+            m.insert(11, "B".into());
+            revealed.insert(22, m);
         }
 
         let effect = Effect {
@@ -385,25 +384,27 @@ mod tests {
             }],
             assigns: vec![Assign {
                 player_addr: "bob".into(),
-                random_id: 1,
+                random_id: 5,
                 indexes: vec![0, 1, 2],
             }],
             reveals: vec![Reveal {
-                random_id: 1,
+                random_id: 6,
                 indexes: vec![0, 1, 2],
             }],
-            releases: vec![Release { decision_id: 1 }],
+            releases: vec![Release { decision_id: 7 }],
             init_random_states: vec![RandomSpec::shuffled_list(vec!["a".into(), "b".into()])],
             revealed,
             answered,
-            settles: vec![Settle::add("alice", 200), Settle::add("bob", 200)],
-            handler_state: Some("".into()),
-            error: Some(Error::NoEnoughPlayers),
+            settles: vec![Settle::add("alice", 200), Settle::sub("bob", 200)],
+            handler_state: Some(vec![1, 2, 3, 4]),
+            error: Some(HandleError::NoEnoughPlayers),
             allow_exit: true,
         };
         let bs = effect.try_to_vec()?;
 
+        println!("Effect: {:?}", bs);
         let parsed = Effect::try_from_slice(&bs)?;
+
         assert_eq!(effect, parsed);
         Ok(())
     }
