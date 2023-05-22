@@ -106,6 +106,7 @@ impl WrappedHandler {
         }
 
         let mut buf = vec![0; len as _];
+        let mem_view = memory.view(&self.store);
         mem_view
             .read(1u64, &mut buf)
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
@@ -156,6 +157,7 @@ impl WrappedHandler {
         }
 
         let mut buf = vec![0; len as _];
+        let mem_view = memory.view(&self.store);
         mem_view
             .read(1u64, &mut buf)
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;

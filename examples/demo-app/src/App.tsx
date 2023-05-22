@@ -55,7 +55,6 @@ function App() {
     }, []);
 
     const addLog = (event: GameEvent) => {
-        console.log("Add event log:", event);
         setLogs(logs => {
             let newLogs = [...logs, event];
             if (newLogs.length > 30) {

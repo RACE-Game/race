@@ -67,30 +67,37 @@ export class AppClient {
     opts: AppClientInitOpts
   ): Promise<AppClient> {
     const { transport, wallet, gameAddr, callback } = opts;
-
-    const encryptor = await Encryptor.create();
-    const playerAddr = wallet.walletAddr;
-    const gameAccount = await transport.getGameAccount(gameAddr);
-    if (gameAccount === undefined) {
-      throw SdkError.gameAccountNotFound(gameAddr);
+    console.group("AppClient initialization");
+    try {
+      const encryptor = await Encryptor.create();
+      const playerAddr = wallet.walletAddr;
+      const gameAccount = await transport.getGameAccount(gameAddr);
+      if (gameAccount === undefined) {
+        throw SdkError.gameAccountNotFound(gameAddr);
+      }
+      console.log("Game account:", gameAccount);
+      const gameBundle = await transport.getGameBundle(gameAccount.bundleAddr);
+      if (gameBundle === undefined) {
+        throw SdkError.gameBundleNotFound(gameAccount.bundleAddr);
+      }
+      console.log("Game bundle:", gameBundle);
+      const transactorAddr = gameAccount.transactorAddr;
+      if (transactorAddr === undefined) {
+        throw SdkError.gameNotServed(gameAddr);
+      }
+      console.log("Transactor address:", transactorAddr);
+      const transactorAccount = await transport.getServerAccount(transactorAddr);
+      if (transactorAccount === undefined) {
+        throw SdkError.transactorAccountNotFound(transactorAddr);
+      }
+      const handler = await Handler.initialize(gameBundle, encryptor);
+      const connection = Connection.initialize(playerAddr, transactorAccount.endpoint, encryptor);
+      const client = new Client(playerAddr, gameAddr, transport, encryptor, connection);
+      const gameContext = new GameContext(gameAccount);
+      return new AppClient(gameAddr, handler, wallet, client, transport, connection, gameContext, gameAccount, callback, encryptor);
+    } finally {
+      console.groupEnd();
     }
-    const gameBundle = await transport.getGameBundle(gameAccount.bundleAddr);
-    if (gameBundle === undefined) {
-      throw SdkError.gameBundleNotFound(gameAccount.bundleAddr);
-    }
-    const transactorAddr = gameAccount.transactorAddr;
-    if (transactorAddr === undefined) {
-      throw SdkError.gameNotServed(gameAddr);
-    }
-    const transactorAccount = await transport.getServerAccount(transactorAddr);
-    if (transactorAccount === undefined) {
-      throw SdkError.transactorAccountNotFound(transactorAddr);
-    }
-    const handler = await Handler.initialize(gameBundle, encryptor);
-    const connection = Connection.initialize(playerAddr, transactorAccount.endpoint, encryptor);
-    const client = new Client(playerAddr, gameAddr, transport, encryptor, connection);
-    const gameContext = new GameContext(gameAccount);
-    return new AppClient(gameAddr, handler, wallet, client, transport, connection, gameContext, gameAccount, callback, encryptor);
   }
 
   get playerAddr() {
@@ -128,22 +135,37 @@ export class AppClient {
     let sub = this.#connection.subscribeEvents(this.#gameAddr, new SubscribeEventParams({ settleVersion }));
     for await (const frame of sub) {
       if (frame instanceof BroadcastFrameInit) {
-        const { accessVersion, settleVersion } = frame;
-        this.#gameContext.applyCheckpoint(accessVersion, settleVersion);
-        const initAccount = InitAccount.createFromGameAccount(this.#initGameAccount, accessVersion, settleVersion);
-        await this.#handler.initState(this.#gameContext, initAccount);
-        await this.invokeCallback(undefined);
-      } else if (frame instanceof BroadcastFrameEvent) {
-        const { event, timestamp } = frame;
-        this.#gameContext.timestamp = timestamp;
+        console.group('Initialize handler state')
         try {
-          let context = new GameContext(this.#gameContext);
-          await this.#handler.handleEvent(context, event);
-          this.#gameContext = context;
-        } catch (err) {
-          console.warn(err);
+          const { accessVersion, settleVersion } = frame;
+          console.log('Access version:', accessVersion);
+          console.log('Settle version:', settleVersion);
+          this.#gameContext.applyCheckpoint(accessVersion, settleVersion);
+          const initAccount = InitAccount.createFromGameAccount(this.#initGameAccount, accessVersion, settleVersion);
+          console.log('Init account:', initAccount);
+          await this.#handler.initState(this.#gameContext, initAccount);
+          await this.invokeCallback(undefined);
+        } finally {
+          console.groupEnd();
         }
-        await this.invokeCallback(event);
+      } else if (frame instanceof BroadcastFrameEvent) {
+        console.group('Handle event');
+        try {
+          const { event, timestamp } = frame;
+          console.log('Event:', event);
+          console.log('Timestamp:', new Date(Number(timestamp)).toLocaleTimeString());
+          this.#gameContext.timestamp = timestamp;
+          try {
+            let context = new GameContext(this.#gameContext);
+            await this.#handler.handleEvent(context, event);
+            this.#gameContext = context;
+          } catch (err) {
+            console.warn(err);
+          }
+          await this.invokeCallback(event);
+        } finally {
+          console.groupEnd();
+        }
       } else {
         throw new Error('Invalid broadcast frame');
       }

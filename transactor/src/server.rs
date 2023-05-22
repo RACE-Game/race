@@ -12,11 +12,9 @@ use jsonrpsee::types::error::CallError;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
-use race_core::types::BroadcastFrame;
 use race_core::types::{
     AttachGameParams, ExitGameParams, Signature, SubmitEventParams, SubscribeEventParams,
 };
-use tokio::pin;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
 use tower::ServiceBuilder;

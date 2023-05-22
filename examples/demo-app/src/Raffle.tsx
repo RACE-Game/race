@@ -78,7 +78,6 @@ function Raffle() {
     // Game event handler
     const onEvent = (context: GameContextSnapshot, stateData: Uint8Array, event: GameEvent | undefined) => {
         const state = deserialize(State, stateData);
-        console.log("ONEVENT:", context, state, event);
         if (event !== undefined) {
             addLog(event);
         }

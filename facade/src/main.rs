@@ -455,8 +455,8 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
         .ok_or(custom_error(Error::GameAccountNotFound))?;
 
     if account.transactor_addr.is_none() {
-        info!(
-            "Set game transactor, game: {}, transactor: {}",
+        println!(
+            "! Set game transactor, game: {}, transactor: {}",
             game_addr, server_addr
         );
         account.transactor_addr = Some(server_addr.clone());
@@ -511,7 +511,7 @@ async fn get_account_info(
 
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
     let SettleParams { addr, settles } = params.one()?;
-    info!("Handle settlements {}, with {:?} ", addr, settles);
+    println!("! Handle settlements {}, with {:?} ", addr, settles);
     let mut context = context.lock().await;
     let Context {
         ref mut games,
