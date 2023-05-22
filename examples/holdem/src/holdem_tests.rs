@@ -1,13 +1,15 @@
-// use std::collections::HashMap;
+use std::collections::HashMap;
+use super::*;
 use race_core::{
     context::{DispatchEvent, GameContext, GameStatus},
-    error::{Error, Result},
+    error:: Result,
     event::Event,
     random::RandomStatus,
     types::{ClientMode, PlayerJoin},
 };
-use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
-use super::*;
+use race_test::{
+    transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler,
+};
 
 type Game = (InitAccount, GameContext, TestHandler<Holdem>, TestClient);
 
@@ -28,16 +30,15 @@ fn set_up() -> Game {
 
 fn create_sync_event(ctx: &GameContext, players: Vec<String>) -> Event {
     let av = ctx.get_access_version() + 1;
+
     let mut new_players = Vec::new();
     for (i, p) in players.iter().enumerate() {
-        new_players.push(
-            PlayerJoin {
-                addr: p.into(),
-                balance: 10_000,
-                position: i,
-                access_version: av,
-            }
-        )
+        new_players.push(PlayerJoin {
+            addr: p.into(),
+            balance: 10_000,
+            position: i as u16,
+            access_version: av,
+        })
     }
 
     Event::Sync {
@@ -46,46 +47,117 @@ fn create_sync_event(ctx: &GameContext, players: Vec<String>) -> Event {
         transactor_addr: transactor_account_addr(),
         access_version: av,
     }
-
 }
 
 #[test]
-#[ignore]
+fn test_players_order() -> Result<()> {
+    let (game_acct, mut ctx, mut handler, mut transactor) = set_up();
+
+    let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
+    let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
+    let mut carol = TestClient::new("Carol".into(), game_acct.addr.clone(), ClientMode::Player);
+    let mut dave = TestClient::new("Dave".into(), game_acct.addr.clone(), ClientMode::Player);
+    let mut eva = TestClient::new("Eva".into(), game_acct.addr.clone(), ClientMode::Player);
+
+    let sync_evt = create_sync_event(
+        &ctx,
+        vec![
+            "Alice".to_string(),
+            "Bob".to_string(),
+            "Carol".to_string(),
+            "Dave".to_string(),
+            "Eva".to_string(),
+        ],
+    );
+
+    // ------------------------- GAMESTART ------------------------
+    println!("-- Syncing players --");
+    handler.handle_until_no_events(
+        &mut ctx,
+        &sync_evt,
+        vec![
+            &mut alice,
+            &mut bob,
+            &mut carol,
+            &mut dave,
+            &mut eva,
+            &mut transactor,
+        ],
+    )?;
+    println!("-- Syncing done --");
+
+    // BTN is 4 so players should be arranged like below:
+    // Alice (SB), Bob (BB), Carol (UTG), Dave (MID), Eva (BTN)
+    {
+        let state = handler.get_state();
+        assert_eq!(
+            state.players,
+            vec![
+                "Alice".to_string(),
+                "Bob".to_string(),
+                "Carol".to_string(),
+                "Dave".to_string(),
+                "Eva".to_string(),
+            ]
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_runner() -> Result<()> {
     let (game_acct, mut ctx, mut handler, mut transactor) = set_up();
     let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
     let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
     let sync_evt = create_sync_event(&ctx, vec!["Alice".to_string(), "Bob".to_string()]);
 
-    // ------------------------- GAMESTART ------------------------
+    // Syncing players to the game, i.e. they join the game and game kicks start
     handler.handle_until_no_events(
         &mut ctx,
         &sync_evt,
         vec![&mut alice, &mut bob, &mut transactor],
     )?;
+
+    let runner_revealed = HashMap::from([
+        // Alice
+        (0, "st".to_string()),
+        (1, "ct".to_string()),
+        // Bob
+        (2, "ht".to_string()),
+        (3, "dt".to_string()),
+        // Board
+        (4, "s5".to_string()),
+        (5, "c6".to_string()),
+        (6, "h2".to_string()),
+        (7, "h8".to_string()),
+        (8, "d7".to_string()),
+    ]);
+    let holdem_state = handler.get_state();
+    ctx.add_revealed_random(holdem_state.deck_random_id, runner_revealed)?;
+    println!("-- Cards {:?}", ctx.get_revealed(holdem_state.deck_random_id)?);
+
+    // With everything ready, game enters preflop
     {
-        // Randomness and Secrets will be ready before blind bets
         assert_eq!(
             RandomStatus::Ready,
             ctx.get_random_state_unchecked(1).status
         );
 
-        // This is the preflop round, sb will be asked to act
         let state = handler.get_state();
-        assert_eq!(Street::Preflop, state.street);
-        assert_eq!(2, ctx.count_players());
-        assert_eq!(GameStatus::Running, ctx.get_status());
+        assert_eq!(state.street, Street::Preflop,);
+        assert_eq!(ctx.count_players(), 2);
+        assert_eq!(ctx.get_status(), GameStatus::Running);
         assert_eq!(
+            *ctx.get_dispatch(),
             Some(DispatchEvent {
                 timeout: 30_000,
                 event: Event::ActionTimeout {
                     player_addr: "Alice".into()
                 },
-            }),
-            *ctx.get_dispatch()
+            })
         );
         assert!(state.is_acting_player(&"Alice".to_string()));
-
     }
 
     // ------------------------- PREFLOP ------------------------
@@ -106,57 +178,12 @@ fn test_runner() -> Result<()> {
     )?;
 
     // ------------------------- RUNNER ------------------------
-    // {
-    //     let state = handler.get_state();
-    //     assert_eq!(2, state.pots.len());
-    //     assert_eq!(2, state.pots[0].owners.len());
-    //     assert_eq!(1, state.pots[0].winners.len());
-    // }
-
-    Ok(())
-}
-
-#[test]
-#[ignore]
-fn test_players_order() -> Result<()> {
-    let (game_acct, mut ctx, mut handler, mut transactor) = set_up();
-
-    let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut carol = TestClient::new("Carol".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut dave = TestClient::new("Dave".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut eva = TestClient::new("Eva".into(), game_acct.addr.clone(), ClientMode::Player);
-
-    let sync_evt = create_sync_event(
-        &ctx,
-        vec!["Alice".to_string(),
-             "Bob".to_string(),
-             "Carol".to_string(),
-             "Dave".to_string(),
-             "Eva".to_string(),
-        ]
-    );
-
-    // ------------------------- GAMESTART ------------------------
-    handler.handle_until_no_events(
-        &mut ctx,
-        &sync_evt,
-        vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
-    )?;
-
-    // BTN is 4 so players should be arranged like below
-    // Alice (SB), Bob (BB), Carol (UTG), Dave (MID), Eva (BTN)
     {
         let state = handler.get_state();
-        assert_eq!(
-            vec!["Alice".to_string(), "Bob".to_string(),
-                 "Carol".to_string(), "Dave".to_string(), "Eva".to_string(),
-            ],
-            state.players
-        );
+        assert_eq!(state.pots.len(), 1);
+        // assert_eq!(2, state.pots[0].owners.len());
+        // assert_eq!(1, state.pots[0].winners.len());
     }
-
-    // ------------------------- BLIND BETS ------------------------
 
     Ok(())
 }
@@ -164,8 +191,6 @@ fn test_players_order() -> Result<()> {
 #[test]
 fn test_play_game() -> Result<()> {
     let (game_acct, mut ctx, mut handler, mut transactor) = set_up();
-
-
     let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
     let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
     let mut carol = TestClient::new("Carol".into(), game_acct.addr.clone(), ClientMode::Player);
@@ -174,20 +199,60 @@ fn test_play_game() -> Result<()> {
 
     let sync_evt = create_sync_event(
         &ctx,
-        vec!["Alice".to_string(),
-             "Bob".to_string(),
-             "Carol".to_string(),
-             "Dave".to_string(),
-             "Eva".to_string(),
-        ]
+        vec![
+            "Alice".to_string(),
+            "Bob".to_string(),
+            "Carol".to_string(),
+            "Dave".to_string(),
+            "Eva".to_string(),
+        ],
     );
+
 
     // ------------------------- GAMESTART ------------------------
     handler.handle_until_no_events(
         &mut ctx,
         &sync_evt,
-        vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+        vec![
+            &mut alice,
+            &mut bob,
+            &mut carol,
+            &mut dave,
+            &mut eva,
+            &mut transactor,
+        ],
     )?;
+
+    // After game starts, a random state will be initialized and ready for game
+    // In this stage, players are assigned/dealt folded cards
+    // Pin the randomness for testing purposes
+    let revealed = HashMap::from([
+        // Alice Pair: TT
+        (0, "st".to_string()),
+        (1, "ct".to_string()),
+        // Bob Pair: 88
+        (2, "ht".to_string()),
+        (3, "d8".to_string()),
+        // Carol will fold
+        (4, "h3".to_string()),
+        (5, "dk".to_string()),
+        // Dave will fold
+        (6, "sq".to_string()),
+        (7, "d2".to_string()),
+        // Eva Straight: 56789
+        (8, "c9".to_string()),
+        (9, "d3".to_string()),
+        // Board
+        (10, "s5".to_string()),
+        (11, "c6".to_string()),
+        (12, "h2".to_string()),
+        (13, "h8".to_string()),
+        (14, "d7".to_string()),
+    ]);
+    let holdem_state = handler.get_state();
+    ctx.add_revealed_random(holdem_state.deck_random_id, revealed)?;
+    println!("-- Cards {:?}", ctx.get_revealed(holdem_state.deck_random_id)?);
+
 
     // ------------------------- BLIND BETS ----------------------
     {
@@ -198,7 +263,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &carol_fold,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         // MID calls
@@ -206,7 +278,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &dave_call,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         // BTN calls
@@ -214,7 +293,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &eva_call,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         // SB calls
@@ -222,14 +308,23 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &alice_call,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         {
             let state = handler.get_state();
-            assert_eq!(Street::Preflop, state.street);
-            assert_eq!(PlayerStatus::Fold,
-                       state.player_map.get(&"Carol".to_string()).unwrap().status);
+            assert_eq!(state.street, Street::Preflop,);
+            assert_eq!(
+                state.player_map.get(&"Carol".to_string()).unwrap().status,
+                PlayerStatus::Fold
+            );
             assert!(state.acting_player.is_some());
             assert!(matches!(state.acting_player.clone(),
                              Some(player) if player == ("Bob".to_string(), 1)));
@@ -240,7 +335,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &bob_check,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
     }
 
@@ -249,12 +351,12 @@ fn test_play_game() -> Result<()> {
         // Test pots
         {
             let state = handler.get_state();
-            assert_eq!(Street::Flop, state.street);
-            assert_eq!(0, state.street_bet);
-            assert_eq!(20, state.min_raise);
-            assert_eq!(1, state.pots.len());
-            assert_eq!(80, state.pots[0].amount);
-            assert_eq!(4, state.pots[0].owners.len());
+            assert_eq!(state.street, Street::Flop);
+            assert_eq!(state.street_bet, 0);
+            assert_eq!(state.min_raise, 20);
+            assert_eq!(state.pots.len(), 1);
+            assert_eq!(state.pots[0].amount, 80);
+            assert_eq!(state.pots[0].owners.len(), 4);
         }
 
         // Alice (SB) bets 1BB
@@ -262,7 +364,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &alice_bet,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         // Bob (BB) calls
@@ -270,7 +379,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &bob_call,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         // Dave calls (Carol folded in the preflop)
@@ -278,19 +394,33 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &dave_call,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
         {
             let state = handler.get_state();
-            assert_eq!(4, state.get_ref_positon());
+            assert_eq!(state.get_ref_positon(), 4);
         }
 
         // Eva calls and then game goes to Turn
-        let eva_call =eva.custom_event(GameEvent::Call);
+        let eva_call = eva.custom_event(GameEvent::Call);
         handler.handle_until_no_events(
             &mut ctx,
             &eva_call,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
     }
 
@@ -299,12 +429,12 @@ fn test_play_game() -> Result<()> {
         {
             // Test pots
             let state = handler.get_state();
-            assert_eq!(Street::Turn, state.street);
-            assert_eq!(0, state.street_bet);
-            assert_eq!(20, state.min_raise);
-            assert_eq!(1, state.pots.len());
-            assert_eq!(160, state.pots[0].amount);
-            assert_eq!(4, state.pots[0].owners.len());
+            assert_eq!(state.street, Street::Turn);
+            assert_eq!(state.street_bet, 0);
+            assert_eq!(state.min_raise, 20);
+            assert_eq!(state.pots.len(), 1);
+            assert_eq!(state.pots[0].amount, 160);
+            assert_eq!(state.pots[0].owners.len(), 4);
             assert!(state.pots[0].owners.contains(&"Alice".to_string()));
             assert!(state.pots[0].owners.contains(&"Bob".to_string()));
             assert!(state.pots[0].owners.contains(&"Dave".to_string()));
@@ -316,7 +446,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &alice_bet,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         {
@@ -331,14 +468,21 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &bob_raise,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         {
             // Test min raise
             let state = handler.get_state();
-            assert_eq!(60, state.street_bet);
-            assert_eq!(40, state.min_raise);
+            assert_eq!(state.street_bet, 60);
+            assert_eq!(state.min_raise, 40);
         }
 
         // Dave folds
@@ -346,7 +490,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &dave_fold,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         // Eva calls
@@ -354,7 +505,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &eva_call,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         // Alice can call, re-raise, or fold
@@ -363,7 +521,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &alice_call,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
     }
 
@@ -372,20 +537,20 @@ fn test_play_game() -> Result<()> {
         {
             // Test pots
             let state = handler.get_state();
-            assert_eq!(Street::River, state.street);
-            assert_eq!(0, state.street_bet);
-            assert_eq!(20, state.min_raise);
-            assert_eq!(2, state.pots.len());
+            assert_eq!(state.street, Street::River);
+            assert_eq!(state.street_bet, 0);
+            assert_eq!(state.min_raise, 20);
+            assert_eq!(state.pots.len(), 2);
             // Pot 1
-            assert_eq!(160, state.pots[0].amount);
-            assert_eq!(4, state.pots[0].owners.len());
+            assert_eq!(state.pots[0].amount, 160);
+            assert_eq!(state.pots[0].owners.len(), 4);
             assert!(state.pots[0].owners.contains(&"Alice".to_string()));
             assert!(state.pots[0].owners.contains(&"Bob".to_string()));
             assert!(state.pots[0].owners.contains(&"Dave".to_string()));
             assert!(state.pots[0].owners.contains(&"Eva".to_string()));
             // Pot 2
-            assert_eq!(180, state.pots[1].amount);
-            assert_eq!(3, state.pots[1].owners.len());
+            assert_eq!(state.pots[1].amount, 180);
+            assert_eq!(state.pots[1].owners.len(), 3);
             assert!(state.pots[0].owners.contains(&"Alice".to_string()));
             assert!(state.pots[0].owners.contains(&"Bob".to_string()));
             assert!(state.pots[0].owners.contains(&"Eva".to_string()));
@@ -396,7 +561,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &alice_bet,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         // Bob calls
@@ -404,7 +576,14 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &bob_call,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
 
         // Eva calls so it's showdown time
@@ -412,38 +591,21 @@ fn test_play_game() -> Result<()> {
         handler.handle_until_no_events(
             &mut ctx,
             &eva_call,
-            vec![&mut alice, &mut bob, &mut carol, &mut dave, &mut eva, &mut transactor]
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
         )?;
+
 
         // {
         //     let state = handler.get_state();
-        //     assert_eq!(Street::Showdown, state.street);
-        //     assert_eq!(40, state.street_bet);
-        //     assert_eq!(20, state.min_raise);
-        //     assert_eq!(2, state.pots.len());
-        //     // Pot 1
-        //     assert_eq!(160, state.pots[0].amount);
-        //     assert_eq!(4, state.pots[0].owners.len());
-        //     assert!(state.pots[0].owners.contains(&"Alice".to_string()));
-        //     assert!(state.pots[0].owners.contains(&"Bob".to_string()));
-        //     assert!(state.pots[0].owners.contains(&"Dave".to_string()));
-        //     assert!(state.pots[0].owners.contains(&"Eva".to_string()));
-        //     // Pot 2
-        //     assert_eq!(300, state.pots[1].amount);
-        //     assert_eq!(3, state.pots[1].owners.len());
-        //     assert!(state.pots[0].owners.contains(&"Alice".to_string()));
-        //     assert!(state.pots[0].owners.contains(&"Bob".to_string()));
-        //     assert!(state.pots[0].owners.contains(&"Eva".to_string()));
+        //     assert_eq!(state.prize_map.get("Eva"), Some(&460));
         // }
-        // Alice got hole cards [s7, s3] A High
-        // Bob got hole cards [ca, cj]   Two Pairs
-        // Carol got hole cards [dj, st] Fold J Pair
-        // Dave got hole cards [sk, dt]  Fold A High
-        // Eva got hole cards [sa, s4]   A Pair
-
-        // ["da", "d9", "c6", "hj", "d8"]
-        // Bob,
-
     }
     Ok(())
 }

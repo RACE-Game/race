@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use race_client::Client;
+#[allow(unused_imports)]
 use race_core::{
     connection::ConnectionT,
     context::GameContext,
@@ -9,11 +10,12 @@ use race_core::{
     event::{CustomEvent, Event},
     secret::SecretState,
     types::{AttachGameParams, ClientMode, DecisionId, ExitGameParams, SubmitEventParams},
+    transport::TransportT,
 };
 use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, Mutex};
 
-use crate::DummyTransport;
+use crate::transport_helpers::DummyTransport;
 
 pub struct TestClient {
     client: Client,
