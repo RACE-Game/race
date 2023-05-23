@@ -1,15 +1,13 @@
-import { nanoid } from 'nanoid';
-import { IEncryptor, IPublicKeyRaws, PublicKeyRaws } from './encryptor';
+import { IEncryptor, PublicKeyRaws } from './encryptor';
 import { GameEvent } from './events';
 import { deserialize, enums, field, serialize, struct, variant } from '@race/borsh';
-import { base64ToArrayBuffer, arrayBufferToBase64, base64ToUint8Array } from './utils';
+import { arrayBufferToBase64, base64ToUint8Array } from './utils';
 
 type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event';
 
-
 interface IAttachGameParams {
-  key: PublicKeyRaws;
   signer: string;
+  key: PublicKeyRaws;
 }
 
 interface ISubscribeEventParams {
@@ -20,12 +18,12 @@ interface ISubmitEventParams {
   event: GameEvent
 }
 
-
-export class AttachGameParams implements IAttachGameParams {
-  @field(struct(PublicKeyRaws))
-  key: PublicKeyRaws;
+export class AttachGameParams {
   @field('string')
   signer: string;
+  @field(struct(PublicKeyRaws))
+  key: PublicKeyRaws;
+
   constructor(fields: IAttachGameParams) {
     this.key = fields.key;
     this.signer = fields.signer;
@@ -34,8 +32,7 @@ export class AttachGameParams implements IAttachGameParams {
 
 export class ExitGameParams { }
 
-
-export class SubscribeEventParams implements ISubscribeEventParams {
+export class SubscribeEventParams {
   @field('u64')
   settleVersion: bigint;
   constructor(fields: ISubscribeEventParams) {
@@ -43,7 +40,7 @@ export class SubscribeEventParams implements ISubscribeEventParams {
   }
 }
 
-export class SubmitEventParams implements ISubmitEventParams {
+export class SubmitEventParams {
   @field(enums(GameEvent))
   event: GameEvent;
   constructor(fields: ISubmitEventParams) {
@@ -196,7 +193,7 @@ export class Connection implements IConnection {
     return JSON.stringify({
       jsonrpc: '2.0',
       method,
-      id: nanoid(),
+      id: crypto.randomUUID(),
       params: [gameAddr, arrayBufferToBase64(paramsBytes), arrayBufferToBase64(sigBytes)]
     });
   }
@@ -206,7 +203,7 @@ export class Connection implements IConnection {
     return JSON.stringify({
       jsonrpc: '2.0',
       method,
-      id: nanoid(),
+      id: crypto.randomUUID(),
       params: [gameAddr, arrayBufferToBase64(paramsBytes)]
     });
   }

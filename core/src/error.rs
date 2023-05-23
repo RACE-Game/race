@@ -292,6 +292,9 @@ pub enum HandleError {
     #[error("Serialization error")]
     SerializationError,
 
+    #[error("No enough servers")]
+    NoEnoughServers,
+
     #[error("Internal error: {message:?}")]
     InternalError { message: String },
 }

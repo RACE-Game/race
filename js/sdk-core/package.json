@@ -34,8 +34,7 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "@race/borsh": "0.0.1",
-    "nanoid": "^4.0.2"
+    "@race/borsh": "0.0.1"
   },
   "testDependencies": {
     "crypto": "1.0.1"

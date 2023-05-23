@@ -7,8 +7,8 @@ use race_core::context::GameContext;
 use race_core::effect::Effect;
 use race_core::encryptor::EncryptorT;
 use race_core::engine::{general_handle_event, general_init_state, post_handle_event, InitAccount};
-use race_core::event::Event;
 use race_core::error::{Error, Result};
+use race_core::event::Event;
 use race_core::types::{GameBundle, Settle};
 use race_encryptor::Encryptor;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
@@ -30,7 +30,8 @@ impl WrappedHandler {
         encryptor: Arc<dyn EncryptorT>,
     ) -> Result<Self> {
         let mut store = Store::default();
-        let module = Module::from_binary(&store, &bundle.data).or(Err(Error::MalformedGameBundle))?;
+        let module =
+            Module::from_binary(&store, &bundle.data).or(Err(Error::MalformedGameBundle))?;
         let import_object = imports![];
         let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
         Ok(Self {
@@ -195,9 +196,12 @@ impl WrappedHandler {
 
 #[cfg(test)]
 mod tests {
-    use race_core::{context::GameStatus, prelude::CustomEvent, types::GameAccount};
+    use race_core::{
+        context::GameStatus,
+        prelude::{CustomEvent, HandleError},
+        types::GameAccount,
+    };
     use race_test::*;
-    use serde::{Deserialize, Serialize};
 
     use super::*;
 
@@ -206,12 +210,16 @@ mod tests {
         init_n: u64,
     }
 
-    #[derive(Deserialize, Serialize)]
+    #[derive(BorshDeserialize, BorshSerialize)]
     enum MinimalEvent {
         Increment(u64),
     }
 
-    impl CustomEvent for MinimalEvent {}
+    impl CustomEvent for MinimalEvent {
+        fn try_parse(slice: &[u8]) -> std::result::Result<Self, HandleError> {
+            Ok(MinimalEvent::try_from_slice(slice).or(Err(HandleError::MalformedCustomEvent))?)
+        }
+    }
 
     fn make_game_account() -> GameAccount {
         let data = MinimalAccountData { init_n: 42 };
@@ -234,7 +242,7 @@ mod tests {
         let init_account = InitAccount::from_game_account(&game_account);
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
-        assert_eq!(ctx.get_handler_state_raw(), "{\"n\":42}");
+        assert_eq!(&vec![42u8, 0, 0, 0, 0, 0, 0, 0], ctx.get_handler_state_raw());
     }
 
     #[test]
@@ -249,7 +257,7 @@ mod tests {
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
-        assert_eq!(ctx.get_handler_state_raw(), "{\"n\":42}");
+        assert_eq!(&vec![42u8, 0, 0, 0, 0, 0, 0, 0], ctx.get_handler_state_raw());
         assert_eq!(ctx.get_status(), GameStatus::Running);
     }
 
@@ -263,6 +271,6 @@ mod tests {
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
-        assert_eq!(ctx.get_handler_state_raw(), "{\"n\":43}");
+        assert_eq!(&vec![43u8, 0, 0, 0, 0, 0, 0, 0], ctx.get_handler_state_raw());
     }
 }

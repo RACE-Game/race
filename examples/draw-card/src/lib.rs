@@ -209,6 +209,10 @@ impl GameHandler for DrawCard {
                     return Err(HandleError::NoEnoughPlayers);
                 }
 
+                if effect.servers_count == 0 {
+                    return Err(HandleError::NoEnoughServers)
+                }
+
                 let rnd_spec = RandomSpec::deck_of_cards();
                 // Reset the state when starting
                 self.pot = 0;

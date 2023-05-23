@@ -463,14 +463,14 @@ export class GameContext {
     }
     this.players = this.players.filter(p => {
       if (p.status.kind === 'pending') {
-        return p.status.accessVersion < accessVersion;
+        return p.status.accessVersion <= accessVersion;
       } else {
         return true;
       }
     });
     this.servers = this.servers.filter(s => {
       if (s.status.kind === 'pending') {
-        return s.status.accessVersion < accessVersion;
+        return s.status.accessVersion <= accessVersion;
       } else {
         return true;
       }

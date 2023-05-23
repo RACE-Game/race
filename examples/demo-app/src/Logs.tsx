@@ -1,7 +1,24 @@
 import { GameEvent } from '@race/sdk-core';
 
-const replacer = (_key: string, value: any) =>
-    typeof value === "bigint" ? value.toString() : value;
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
+    let binary = '';
+    let bytes = new Uint8Array(buffer);
+    let len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+const replacer = (_key: string, value: any) => {
+    if (typeof value === "bigint") {
+        return value.toString();
+    } else if (value instanceof Uint8Array) {
+        return arrayBufferToBase64(value);
+    } else {
+        return value;
+    }
+}
 
 function LogItem(props: { event: GameEvent }) {
 

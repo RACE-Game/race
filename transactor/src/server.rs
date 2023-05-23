@@ -67,9 +67,9 @@ fn parse_params<T: BorshDeserialize>(
 
 /// Ask transactor to load game and provide client's public key for further encryption.
 async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
-    info!("Attach to game");
-
     let (_game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
+
+    info!("Attach to game, signer: {}, key: {:?}", signer, key);
 
     context
         .register_key(signer, key)
@@ -81,9 +81,9 @@ async fn submit_event(
     params: Params<'_>,
     context: Arc<ApplicationContext>,
 ) -> Result<(), RpcError> {
-    info!("Submit event");
-
     let (game_addr, SubmitEventParams { event }, _sig) = parse_params(params, &context)?;
+
+    info!("Submit event, game_addr: {}, event: {}", game_addr, event);
 
     context
         .send_event(&game_addr, event)
@@ -207,4 +207,22 @@ pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
     info!("Server started at {:?}", host);
     handle.stopped().await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test() {
+        let data = "ABUAAABIVWlXWm1zRm00SXhWLVpndmVCR1EJAAAAAGQAAAAAAAAA";
+        let v = base64_decode(data).unwrap();
+        let p = SubmitEventParams::try_from_slice(&v);
+        println!("Params: {:?}", p);
+        let sig = "FQAAAEhVaVdabXNGbTRJeFYtWmd2ZUJHUTutKUmIAQAAQAAAALUql7fxjNhbQtNq2M5xKe9SnAz5ZEchVxTcxfAEDpg9Dx4RlFTr7tx+M5BhUw3fddmVsmiWzJXmi/4mr5SgJss=";
+        let v = base64_decode(sig).unwrap();
+        let s = Signature::try_from_slice(&v);
+        println!("Signature: {:?}", s);
+    }
 }

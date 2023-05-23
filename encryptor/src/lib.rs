@@ -281,11 +281,11 @@ impl EncryptorT for Encryptor {
     fn sign(&self, message: &[u8], signer: String) -> EncryptorResult<Signature> {
         let timestamp = chrono::Utc::now().timestamp_millis() as _;
         let message = [message, &u64::to_le_bytes(timestamp)].concat();
-        let sig = self.sign_raw(&message)?;
+        let signature = self.sign_raw(&message)?;
         Ok(Signature {
             signer,
             timestamp: timestamp as _,
-            signature: base64_encode(&sig),
+            signature
         })
     }
 
@@ -325,7 +325,6 @@ impl EncryptorT for Encryptor {
             signature,
         } = signature;
         // TODO: We should check timestamp here.
-        let signature = base64_decode(signature)?;
         let message = [message, &u64::to_le_bytes(*timestamp)].concat();
         self.verify_raw(Some(&signer), &message, &signature)
     }

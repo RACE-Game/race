@@ -1,4 +1,4 @@
-import { BroadcastFrameEvent, BroadcastFrameInit, Connection, IConnection, SubscribeEventParams } from './connection';
+import { BroadcastFrameEvent, BroadcastFrameInit, Connection, IConnection, SubmitEventParams, SubscribeEventParams } from './connection';
 import { GameContext } from './game-context';
 import { GameContextSnapshot } from './game-context-snapshot';
 import { ITransport } from './transport';
@@ -168,8 +168,7 @@ export class AppClient {
           console.groupEnd();
         }
       } else {
-        console.warn(frame);
-        throw new Error('Invalid broadcast frame');
+        break;
       }
     }
   }
@@ -218,7 +217,9 @@ export class AppClient {
   async submitEvent(arg: ICustomEvent | Uint8Array): Promise<void> {
     let raw = arg instanceof Uint8Array ? arg : arg.serialize();
     const event = new Custom({ sender: this.playerAddr, raw });
-    await this.#connection.submitEvent(this.#gameAddr, { event });
+    await this.#connection.submitEvent(this.#gameAddr, new SubmitEventParams({
+      event
+    }));
   }
 
   /**

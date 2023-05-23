@@ -61,6 +61,13 @@ export class SerializationError extends HandleError {
 }
 
 @variant(8)
+export class NoEnoughServers extends HandleError {
+  constructor(_: any) {
+    super();
+  }
+}
+
+@variant(9)
 export class InternalError extends HandleError {
   @field('string')
   message: string;

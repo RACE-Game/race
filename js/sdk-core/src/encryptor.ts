@@ -37,7 +37,7 @@ export interface IPublicKeyRaws {
   ec: string;
 }
 
-export class PublicKeyRaws implements IPublicKeyRaws {
+export class PublicKeyRaws {
   @field('string')
   rsa: string;
   @field('string')
@@ -358,7 +358,7 @@ export class Encryptor implements IEncryptor {
       rsa = publicKeys.rsa;
       ec = publicKeys.ec;
     }
-    return { rsa: await exportRsaPublicKey(rsa), ec: await exportEcPublicKey(ec) };
+    return new PublicKeyRaws({ rsa: await exportRsaPublicKey(rsa), ec: await exportEcPublicKey(ec) });
   }
 
   async decryptWithSecrets(

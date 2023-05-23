@@ -24,6 +24,7 @@ abstract class ActionEvent implements ICustomEvent {
 
 @variant(0)
 class Bet extends ActionEvent {
+    @field('u64')
     amount: bigint;
     constructor(fields: { amount: bigint }) {
         super();
@@ -121,6 +122,7 @@ function DrawCard() {
 
     const onBet = async () => {
         if (client.current !== undefined) {
+            console.log('onBet', form.bet);
             await client.current.submitEvent(new Bet({ amount: form.bet }));
             setForm({ bet: 100n });
         }

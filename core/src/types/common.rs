@@ -22,18 +22,17 @@ pub enum ClientMode {
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Signature {
     pub signer: String,
     pub timestamp: u64,
-    pub signature: String,
+    pub signature: Vec<u8>,
 }
 
 impl std::fmt::Display for Signature {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[{}](signer: {}, timestamp: {})",
+            "[{:?}](signer: {}, timestamp: {})",
             self.signature, self.signer, self.timestamp
         )
     }
