@@ -4,7 +4,7 @@ use race_core::{
     error::{Error, Result},
     event::Event,
     random::RandomStatus,
-    types::{ClientMode, PlayerJoin},
+    types::{ClientMode, PlayerJoin}, prelude::HandleError,
 };
 use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
 
@@ -55,7 +55,7 @@ fn test() -> Result<()> {
     println!("Start game, without players");
     let first_event = ctx.gen_start_game_event();
     let ret = handler.handle_event(&mut ctx, &first_event);
-    assert_eq!(ret, Err(Error::NoEnoughPlayers));
+    assert_eq!(ret, Err(Error::HandleError(HandleError::NoEnoughPlayers)));
 
     {
         let state: &DrawCard = handler.get_state();
@@ -72,6 +72,7 @@ fn test() -> Result<()> {
             balance: 10000,
             position: 1,
             access_version: av,
+            verify_key: "".into(),
         }],
         new_servers: vec![],
         transactor_addr: transactor_account_addr(),

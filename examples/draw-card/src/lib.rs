@@ -48,6 +48,7 @@ pub struct Player {
 }
 
 #[game_handler]
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct DrawCard {
     pub last_winner: Option<String>,
@@ -106,7 +107,7 @@ impl DrawCard {
                     self.bet = amount;
                     self.pot += amount;
                     self.stage = GameStage::Reacting;
-                    // effect.action_timeout(player.addr.clone(), ACTION_TIMEOUT);
+                    effect.action_timeout(player.addr.clone(), ACTION_TIMEOUT);
                 } else {
                     return Err(HandleError::Custom("Can't bet".into()));
                 }
@@ -276,6 +277,12 @@ impl GameHandler for DrawCard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn test_state_deser() {
+        let data = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,100,0,0,0,0,0,0,0,100,0,0,0,0,0,0,0,232,3,0,0,0,0,0,0];
+        let state = DrawCard::try_from_slice(&data);
+        println!("state: {:?}", state);
+    }
 
     #[test]
     fn test_account_data() {
@@ -291,16 +298,5 @@ mod tests {
     }
 }
 
-// #[cfg(test)]
-// mod integration_test;
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test() {
-        let d = AccountData { min_bet: 1000000, max_bet: 1000000, blind_bet: 1000000 };
-        println(d.try_to_vec().unwrap());
-    }
-}
+mod integration_test;

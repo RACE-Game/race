@@ -2,7 +2,7 @@ import React from "react";
 import { useContext, useEffect, useRef, useState } from "react";
 import { variant, field, array, struct, option, serialize, deserialize } from '@race/borsh';
 import { useParams } from 'react-router-dom';
-import { AppClient, GameContextSnapshot, GameEvent, ICustomEvent } from '@race/sdk-core';
+import { AppClient, GameContextSnapshot, GameEvent, ICustomEvent, SecretsReady } from '@race/sdk-core';
 import { CHAIN_TO_RPC } from "./constants";
 import Card from './Card';
 import { PlayerProfile } from '@race/sdk-core';
@@ -63,8 +63,8 @@ enum GameStage {
 class State {
     @field(option('string'))
     lastWinner!: string | undefined;
-    @field('u64')
-    randomId!: bigint;
+    @field('usize')
+    randomId!: number;
     @field(array(struct(Player)))
     players!: Player[];
     @field('u8')
@@ -77,6 +77,9 @@ class State {
     minBet!: bigint;
     @field('u64')
     maxBet!: bigint;
+    constructor(fields: any) {
+        Object.assign(this, fields);
+    }
 }
 
 function renderWaitingPlayers(state: State, profile: PlayerProfile, client: AppClient) {
@@ -107,7 +110,7 @@ function renderWaitingConnecting() {
 function DrawCard() {
     let [state, setState] = useState<State | undefined>(undefined);
     let [form, setForm] = useState<FormData>({ bet: 100n });
-    let [setContext] = useState<any | undefined>(undefined);
+    let [revealedCards, setRevealedCards] = useState<Map<number, string> | undefined>(undefined);
     let client = useRef<AppClient | undefined>(undefined);
     let { chain } = useGameContext();
     let { addr } = useParams();
@@ -140,12 +143,22 @@ function DrawCard() {
         setForm({ bet: BigInt(value) })
     }
 
-    const onEvent = (context: GameContextSnapshot, stateData: Uint8Array, event: GameEvent | undefined) => {
+    const onEvent = async (_context: GameContextSnapshot, stateData: Uint8Array, event: GameEvent | undefined) => {
+        console.log(stateData);
         const state = deserialize(State, stateData);
+        console.log("State:", state);
         if (event !== undefined) {
             addLog(event);
+            if (event instanceof SecretsReady && client.current && state) {
+                try {
+                    revealedCards = await client.current.getRevealed(state.randomId);
+                    console.log("revealed_cards: ", revealedCards);
+                    setRevealedCards(revealedCards);
+                } catch (e) {
+                    console.error(e);
+                }
+            }
         }
-        setContext(context);
         setState(state);
     }
 
@@ -180,23 +193,17 @@ function DrawCard() {
     // available.  The pot is displayed in the middle of the screen.
     let player = state.players.find((p: Player) => p.addr === playerAddr);
     let opponent = state.players.find((p: Player) => p.addr !== playerAddr);
-    let revealedCards: Map<number, string> = new Map();
-    if (state.randomId > 0) {
-        try {
-            revealedCards = client.current.getRevealed(state.randomId);
-            console.log("revealed_cards: ", revealedCards);
-        } catch (e) { }
-    }
 
     if (player === undefined || opponent === undefined) {
         return renderWaitingPlayers(state, profile, client.current);
     }
 
     let [playerPos, opponentPos] = playerAddr == state.players[0]?.addr ? [0, 1] : [1, 0];
-    let myHand = revealedCards.get(playerPos);
+
+    let myHand = revealedCards?.get(playerPos);
     let myCard = myHand === undefined ? null :
         <Card value={myHand} />;
-    let opHand = revealedCards.get(opponentPos);
+    let opHand = revealedCards?.get(opponentPos);
     let opCard = opHand === undefined ?
         <Card value={null} /> :
         <Card value={opHand} />;

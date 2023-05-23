@@ -10,8 +10,8 @@ interface SidemenuProps {
 }
 
 function GameItem(props: GameRegistration & { chain: Chain }) {
-    const game = CHAIN_ADDR_GAME_MAPPING[props.chain][props.bundleAddr]
 
+  const game = CHAIN_ADDR_GAME_MAPPING[props.chain][props.bundleAddr]
     return <Link className="flex flex-col my-4"
         to={`${game}/${props.addr}`}>
         <h2 className="w-full text-xl underline cursor-pointer hover:scale-[105%] transition-all">{props.title}</h2>
@@ -45,7 +45,5 @@ function Sidemenu(props: SidemenuProps) {
         </div>
     )
 }
-
-// Sidemenu.contextType = AppHelper;
 
 export default Sidemenu;

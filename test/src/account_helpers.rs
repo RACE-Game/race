@@ -98,6 +98,7 @@ impl TestGameAccountBuilder {
                 addr.clone(),
                 "".into(),
                 self.account.access_version,
+                "".into(),
             ));
         }
         self
@@ -120,6 +121,7 @@ impl TestGameAccountBuilder {
                 position: i as u16,
                 access_version: self.account.access_version,
                 balance: DEFAULT_DEPOSIT_AMOUNT,
+                verify_key: "".into(),
             });
         }
         self
@@ -132,6 +134,7 @@ impl TestGameAccountBuilder {
                 position: *position,
                 access_version: *access_version,
                 balance: *amount,
+                verify_key: "".into(),
             });
         }
         self

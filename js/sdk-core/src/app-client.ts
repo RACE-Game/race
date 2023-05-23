@@ -149,9 +149,9 @@ export class AppClient {
           console.groupEnd();
         }
       } else if (frame instanceof BroadcastFrameEvent) {
-        console.group('Handle event');
+        const { event, timestamp } = frame;
+        console.group('Handle event: ' + event.constructor.name);
         try {
-          const { event, timestamp } = frame;
           console.log('Event:', event);
           console.log('Timestamp:', new Date(Number(timestamp)).toLocaleTimeString());
           this.#gameContext.timestamp = timestamp;
@@ -159,6 +159,7 @@ export class AppClient {
             let context = new GameContext(this.#gameContext);
             await this.#handler.handleEvent(context, event);
             this.#gameContext = context;
+            console.log('Game context:', this.#gameContext);
           } catch (err) {
             console.warn(err);
           }
@@ -167,6 +168,7 @@ export class AppClient {
           console.groupEnd();
         }
       } else {
+        console.warn(frame);
         throw new Error('Invalid broadcast frame');
       }
     }

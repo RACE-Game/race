@@ -140,7 +140,7 @@ impl Context {
         };
         self.bundles.insert(bundle_addr.to_owned(), bundle);
         self.games.insert(game_addr.to_owned(), game);
-        println!("Load game from `{}`", spec_path);
+        println!("! Load game from `{}`", spec_path);
         println!("+ Game: {}", game_addr);
         println!("+ Bundle: {}", bundle_addr);
     }

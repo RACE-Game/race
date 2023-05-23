@@ -2,7 +2,7 @@
   "title": "Simple Card Game",
   "bundle": "target/race_example_draw_card.wasm",
   "max_players": 2,
-  "min_deposit": 1000000000,
-  "max_deposit": 1000000000,
-  "data": []
+  "min_deposit": 1000,
+  "max_deposit": 1000,
+  "data": [100, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0]
 }

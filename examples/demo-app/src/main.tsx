@@ -3,8 +3,8 @@ import App from './App'
 import './index.css'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Raffle from './Raffle';
+import DrawCard from './DrawCard';
 // import Chat from './Chat';
-// import DrawCard from './DrawCard';
 
 const router = createBrowserRouter([
   {
@@ -19,10 +19,10 @@ const router = createBrowserRouter([
         path: "raffle/:addr",
         element: <Raffle />,
       },
-      // {
-      //   path: 'draw-card/:addr',
-      //   element: <DrawCard />,
-      // }
+      {
+        path: 'draw-card/:addr',
+        element: <DrawCard />,
+      }
     ]
   }
 ]);

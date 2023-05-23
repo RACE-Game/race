@@ -245,6 +245,9 @@ pub enum Error {
 
     #[error("Random state not found: {0}")]
     RandomStateNotFound(RandomId),
+
+    #[error("Wasm execution error: {0}")]
+    HandleError(HandleError),
 }
 
 #[cfg(feature = "serde")]
@@ -263,6 +266,7 @@ impl From<std::io::Error> for Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum HandleError {
     #[error("Custom error: {0}")]
     Custom(String),
@@ -302,7 +306,7 @@ impl From<crate::error::Error> for HandleError {
 
 impl From<HandleError> for Error {
     fn from(value: HandleError) -> Self {
-        Error::WasmExecutionError(value.to_string())
+        Error::HandleError(value)
     }
 }
 

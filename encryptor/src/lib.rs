@@ -76,8 +76,6 @@ fn aes_generate() -> EncryptorResult<Vec<u8>> {
 }
 
 fn aes_encrypt(secret: &[u8], buffer: &mut [u8], iv: &[u8]) -> EncryptorResult<()> {
-    println!("BUFFER: {:?}", buffer);
-    println!("COUNTER: {:?}", iv);
     let mut cipher = Aes128Ctr64BE::new(secret.into(), iv.into());
     cipher.apply_keystream(buffer);
     Ok(())
