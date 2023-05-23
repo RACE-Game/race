@@ -139,9 +139,11 @@ export class RandomState {
       throw new Error('No enough servers');
     }
     this.owners = owners;
-    this.options = spec.asOptions();
-    this.size = this.options.length;
-    this.ciphertexts = this.options.map(o => new LockedCiphertext(textEncoder.encode(o)));
+    const options = spec.asOptions();
+    const ciphertexts = options.map(o => new LockedCiphertext(new TextEncoder().encode(o)));
+    this.options = options
+    this.size = options.length;
+    this.ciphertexts = ciphertexts;
     this.masks = owners.map(o => new Mask(o));
     this.id = id;
     this.revealed = new Map();
@@ -198,7 +200,7 @@ export class RandomState {
       }
       mask.status = 'removed';
       for (let i = 0; i < this.ciphertexts.length; i++) {
-        const { ciphertext, digest } = ciphertextsAndDigests[0];
+        const { ciphertext, digest } = ciphertextsAndDigests[i];
         this.ciphertexts[i].ciphertext = ciphertext;
         this.ciphertexts[i].locks.push(new Lock(addr, digest));
       }
@@ -290,6 +292,7 @@ export class RandomState {
     for (let i = 0; i < this.ciphertexts.length; i++) {
       const c = this.ciphertexts[i];
       if (c.owner.kind === 'assigned' && c.owner.addr === addr) {
+        console.log("index", i, "cipher", c);
         res.set(i, c.ciphertext);
       }
     }

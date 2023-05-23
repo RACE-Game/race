@@ -14,7 +14,9 @@ if (typeof global === 'object') {
   subtle = window.crypto.subtle;
 }
 
-export const aesContentIv = Uint8Array.of(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+export const aesContentIv = Uint8Array.of(
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0);
 
 export const aesDigestIv = Uint8Array.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
 
@@ -102,7 +104,7 @@ export async function encryptAes(key: CryptoKey, text: Uint8Array, iv: Uint8Arra
       {
         name: 'AES-CTR',
         counter: iv,
-        length: 128,
+        length: 64,
       },
       key,
       text
@@ -116,7 +118,7 @@ export async function decryptAes(key: CryptoKey, text: Ciphertext, iv: Uint8Arra
       {
         name: 'AES-CTR',
         counter: iv,
-        length: 128,
+        length: 64,
       },
       key,
       text
@@ -281,6 +283,7 @@ export class Encryptor implements IEncryptor {
 
   async decryptAes(secret: Secret, text: Ciphertext): Promise<Ciphertext> {
     const key = await importAes(secret);
+    console.log(aesContentIv);
     return await decryptAes(key, text, aesContentIv);
   }
 
@@ -366,6 +369,8 @@ export class Encryptor implements IEncryptor {
     secretMap: Map<number, Secret[]>,
     validOptions: string[]
   ): Promise<Map<number, string>> {
+    console.log("Ciphertext Map:", ciphertextMap);
+    console.log("Secret Map:", secretMap);
     const res = new Map();
     for (const [idx, ciphertext] of ciphertextMap) {
       const secrets = secretMap.get(idx);
@@ -375,6 +380,8 @@ export class Encryptor implements IEncryptor {
         const decrypted = await this.decryptAesMulti(secrets, ciphertext);
         const decryptedValue = textDecoder.decode(decrypted);
         if (validOptions.find(s => s === decryptedValue) === undefined) {
+          console.log("Options:", validOptions);
+          console.log(decryptedValue);
           throw new Error('Invalid result: [' + decryptedValue + "], options:" + validOptions.join(","));
         }
         res.set(idx, decryptedValue);

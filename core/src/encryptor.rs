@@ -124,6 +124,7 @@ pub trait EncryptorT: std::fmt::Debug + Send + Sync {
         let mut ret = HashMap::new();
         for (i, mut buf) in ciphertext_map.into_iter() {
             if let Some(secrets) = secret_map.remove(&i) {
+                println!("{:?}", buf);
                 self.apply_multi(secrets, &mut buf);
                 println!("{:?}", buf);
                 let value = String::from_utf8(buf).or(Err(EncryptorError::DecodeFailed))?;

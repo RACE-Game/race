@@ -23,12 +23,12 @@ describe('Test utilities', () => {
     const key1 = await generateAes();
     // console.log(await exportAes(key0));
     // console.log(await exportAes(key1));
-    const data0 = Uint8Array.of(1, 2, 3, 4, 5, 6);
+    const data0 = new TextEncoder().encode('OcPShKslbZKO5Gc_H-7WF');
     let data = await encryptAes(key0, data0, aesContentIv);
     data = await encryptAes(key1, data, aesContentIv);
     // console.log(data);
-    data = await decryptAes(key0, data, aesContentIv);
     data = await decryptAes(key1, data, aesContentIv);
+    data = await decryptAes(key0, data, aesContentIv);
     assert.deepEqual(data, data0);
   });
 

@@ -40,7 +40,7 @@ type Aes128Ctr64BE = ctr::Ctr64BE<aes::Aes128>;
 // we can use a fixed IV.
 
 fn aes_content_iv() -> Vec<u8> {
-    vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 }
 
 fn aes_digest_iv() -> Vec<u8> {
@@ -76,7 +76,7 @@ fn aes_generate() -> EncryptorResult<Vec<u8>> {
 }
 
 fn aes_encrypt(secret: &[u8], buffer: &mut [u8], iv: &[u8]) -> EncryptorResult<()> {
-    let mut cipher = Aes128Ctr64BE::new(secret.into(), iv.into());
+    let mut cipher = Aes128Ctr64LE::new(secret.into(), iv.into());
     cipher.apply_keystream(buffer);
     Ok(())
 }
@@ -481,7 +481,7 @@ mod tests {
     #[test]
     fn test_aes_encryption() -> anyhow::Result<()> {
         let aes = aes_generate()?;
-        let mut message = vec![1u8, 2, 3, 4, 5, 6];
+        let mut message = vec![1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
         let message0 = message.clone();
         let iv = aes_content_iv();
         aes_encrypt(&aes, &mut message, &iv)?;
