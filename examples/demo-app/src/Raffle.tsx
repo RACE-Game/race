@@ -8,6 +8,7 @@ import { useGameContext } from "./App";
 import { createTransport, useWallet } from './integration';
 import { deserialize, field, option, struct, array } from '@race/borsh';
 import { GameContextSnapshot } from "@race/sdk-core/lib/types/game-context-snapshot";
+import Header from "./Header";
 
 interface IPlayer {
     addr: string;
@@ -86,9 +87,9 @@ function Raffle() {
     }
 
     // Button callback to join the raffle
-    const onJoin = async () => {
+    const onJoin = async (amount: bigint) => {
         if (client !== undefined) {
-            await client.join({ amount: 10n });
+            await client.join({ amount });
         }
     }
 
@@ -106,20 +107,14 @@ function Raffle() {
         initClient();
     }, [profile, addr]);
 
-    if (state === undefined || context === undefined) {
+    if (addr === undefined || state === undefined || context === undefined) {
         return <div className="h-full w-full grid place-items-center">
             <svg className="animate-spin h-5 w-5 mr-3 border border-black" viewBox="0 0 24 24"></svg>
         </div>
     } else {
         return (
             <div className="h-full w-full flex flex-col">
-                <div className="font-bold m-4 flex">
-                    <div>Raffle @ {addr}</div>
-                    <div className="flex-1"></div>
-                    <button
-                        onClick={onJoin}
-                        className="px-4 py-1 bg-black text-white rounded-md">Join</button>
-                </div>
+                <Header gameAddr={addr} onJoin={onJoin} />
                 <div>
                     Next draw: {
                         state.draw_time ? new Date(Number(state.draw_time)).toLocaleTimeString() : "N/A"

@@ -235,7 +235,8 @@ export class AppClient {
   /**
    * Close current event subscription.
    */
-  async close() { }
+  async close() {
+  }
 
   /**
    * Exit current game.

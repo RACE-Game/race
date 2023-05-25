@@ -37,6 +37,7 @@ pub enum GameStage {
     Betting,
     Reacting,
     Revealing,
+    Ending,
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
@@ -136,7 +137,14 @@ impl DrawCard {
                     return Err(HandleError::Custom("Can't call".into()));
                 }
             }
-            GameEvent::Fold => return self.set_winner(effect, 0),
+            GameEvent::Fold => {
+                if self.stage == GameStage::Reacting {
+                    self.stage = GameStage::Ending;
+                    self.set_winner(effect, 0)?;
+                } else {
+                    return Err(HandleError::Custom("Can't fold".into()))
+                }
+            }
         }
 
         Ok(())
@@ -210,7 +218,7 @@ impl GameHandler for DrawCard {
                 }
 
                 if effect.servers_count == 0 {
-                    return Err(HandleError::NoEnoughServers)
+                    return Err(HandleError::NoEnoughServers);
                 }
 
                 let rnd_spec = RandomSpec::deck_of_cards();
@@ -222,6 +230,8 @@ impl GameHandler for DrawCard {
                 }
                 self.stage = GameStage::Dealing;
                 self.random_id = effect.init_random_state(rnd_spec);
+                self.players.rotate_right(1);
+                effect.allow_exit(false);
             }
 
             Event::RandomnessReady { .. } => {
@@ -250,12 +260,12 @@ impl GameHandler for DrawCard {
                         // Now it's the first player's turn to act.
                         // So we dispatch an action timeout event.
                         self.stage = GameStage::Betting;
-                        // effect.action_timeout(self.players[0].addr.clone(), ACTION_TIMEOUT);
+                        effect.action_timeout(self.players[0].addr.clone(), ACTION_TIMEOUT);
+                        effect.allow_exit(true);
                     }
                     GameStage::Revealing => {
                         // Reveal and compare the hands to decide who is the winner
                         let revealed = effect.get_revealed(self.random_id)?;
-                        println!("Revealed: {:?}", revealed);
                         let card_0 = revealed
                             .get(&0)
                             .ok_or(HandleError::Custom("Can't get revealed card".into()))?;
@@ -271,6 +281,16 @@ impl GameHandler for DrawCard {
                     _ => (),
                 }
             }
+
+            Event::Leave { player_addr } => {
+                if let Some(player_idx) = self.players.iter().position(|p| p.addr.eq(&player_addr))
+                {
+                    self.set_winner(effect, if player_idx == 0 { 1 } else { 0 })?;
+                    effect.settle(Settle::eject(player_addr));
+                } else {
+                    return Err(HandleError::InvalidPlayer);
+                }
+            }
             _ => (),
         }
 
@@ -283,7 +303,10 @@ mod tests {
     use super::*;
     #[test]
     fn test_state_deser() {
-        let data = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,100,0,0,0,0,0,0,0,100,0,0,0,0,0,0,0,232,3,0,0,0,0,0,0];
+        let data = vec![
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 100, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0,
+        ];
         let state = DrawCard::try_from_slice(&data);
         println!("state: {:?}", state);
     }

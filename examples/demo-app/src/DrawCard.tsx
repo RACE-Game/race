@@ -59,6 +59,7 @@ enum GameStage {
     Betting,
     Reacting,
     Revealing,
+    Ending,
 }
 
 class State {
