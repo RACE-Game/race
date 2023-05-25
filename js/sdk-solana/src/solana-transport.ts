@@ -36,6 +36,8 @@ import {
   PlayerProfile,
   ServerAccount,
   RegistrationAccount,
+  IToken,
+  INft,
 } from '@race/sdk-core';
 import * as instruction from './instruction';
 
@@ -120,7 +122,7 @@ export class SolanaTransport implements ITransport {
     return gameAccountKey.toBase58();
   }
 
-  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> {}
+  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> { }
 
   async join(wallet: IWallet, params: JoinParams): Promise<void> {
     const conn = this.#conn;
@@ -198,13 +200,13 @@ export class SolanaTransport implements ITransport {
     await wallet.sendTransaction(tx, this.#conn);
   }
 
-  async deposit(wallet: IWallet, params: DepositParams): Promise<void> {}
+  async deposit(wallet: IWallet, params: DepositParams): Promise<void> { }
 
   async publishGame(wallet: IWallet, params: PublishGameParams): Promise<string> {
     return '';
   }
 
-  async vote(wallet: IWallet, params: VoteParams): Promise<void> {}
+  async vote(wallet: IWallet, params: VoteParams): Promise<void> { }
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void> {
     const { nick, pfp } = params;
@@ -248,9 +250,9 @@ export class SolanaTransport implements ITransport {
     return '';
   }
 
-  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> {}
+  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> { }
 
-  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> {}
+  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> { }
 
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
     const gameAccountKey = new PublicKey(addr);
@@ -327,6 +329,65 @@ export class SolanaTransport implements ITransport {
     if (regState !== undefined) {
       return regState.generalize(regKey);
     } else {
+      return undefined;
+    }
+  }
+
+  async getToken(addr: string): Promise<IToken | undefined> {
+    const mintKey = new PublicKey(addr);
+    try {
+      const mint = await getMint(this.#conn, mintKey, 'finalized');
+      const [metadataKey] = PublicKey.findProgramAddressSync(
+        [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
+        METAPLEX_PROGRAM_ID
+      );
+      const metadataAccount = await this.#conn.getAccountInfo(metadataKey);
+      let metadataState;
+      if (metadataAccount !== null) {
+        metadataState = Metadata.deserialize(metadataAccount.data);
+      }
+      if (metadataState !== undefined) {
+        return {
+          addr: mint.address.toBase58(),
+          decimals: mint.decimals,
+          name: metadataState.data.name,
+          symbol: metadataState.data.symbol,
+          icon: metadataState.data.uri,
+        }
+      } else {
+        return undefined;
+      }
+    } catch (e) {
+      console.warn(e);
+      return undefined;
+    }
+  }
+
+  async getNft(addr: string): Promise<INft | undefined> {
+    const mintKey = new PublicKey(addr);
+    try {
+      const mint = await getMint(this.#conn, mintKey, 'finalized');
+      const [metadataKey] = PublicKey.findProgramAddressSync(
+        [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
+        METAPLEX_PROGRAM_ID
+      );
+      const metadataAccount = await this.#conn.getAccountInfo(metadataKey);
+      let metadataState;
+      if (metadataAccount !== null) {
+        metadataState = Metadata.deserialize(metadataAccount.data);
+      }
+      if (metadataState !== undefined) {
+        return {
+          addr: mint.address.toBase58(),
+          name: metadataState.data.name,
+          symbol: metadataState.data.symbol,
+          image: metadataState.data.uri,
+        }
+      } else {
+        return undefined;
+      }
+    } catch (e) {
+      console.warn(e);
       return undefined;
     }
   }

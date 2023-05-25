@@ -85,6 +85,21 @@ export interface IRegistrationAccount {
   readonly games: GameRegistration[];
 }
 
+export interface IToken {
+  readonly addr: string;
+  readonly icon: string;
+  readonly name: string;
+  readonly symbol: string;
+  readonly decimals: number;
+}
+
+export interface INft {
+  readonly addr: string;
+  readonly image: string;
+  readonly name: string;
+  readonly symbol: string;
+}
+
 export class ServerAccount implements IServerAccount {
   @field('string')
   readonly addr!: string;

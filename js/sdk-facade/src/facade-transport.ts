@@ -7,6 +7,8 @@ import {
   DepositParams,
   GameAccount,
   GameBundle,
+  INft,
+  IToken,
   ITransport,
   IWallet,
   JoinParams,
@@ -102,6 +104,20 @@ export class FacadeTransport implements ITransport {
     return deserialize(RegistrationAccount, data);
   }
 
+  async getToken(addr: string): Promise<IToken | undefined> {
+    return {
+      addr,
+      icon: '',
+      name: 'Fake Token',
+      symbol: 'FT',
+      decimals: 0,
+    };
+  }
+
+  async getNft(_addr: string): Promise<INft | undefined> {
+    return undefined;
+  }
+
   async sendInstruction(method: string, ix: any) {
     const reqData = JSON.stringify(
       {
@@ -148,4 +164,5 @@ export class FacadeTransport implements ITransport {
       return undefined;
     }
   }
+
 }
