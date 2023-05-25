@@ -1,11 +1,11 @@
 import React from "react";
 import { useContext, useEffect, useRef, useState } from "react";
-import { variant, field, array, struct, option, serialize, deserialize } from '@race/borsh';
+import { variant, field, array, struct, option, serialize, deserialize } from '@race-foundation/borsh';
 import { useParams } from 'react-router-dom';
-import { AppClient, GameContextSnapshot, GameEvent, ICustomEvent, SecretsReady } from '@race/sdk-core';
+import { AppClient, GameContextSnapshot, GameEvent, ICustomEvent, SecretsReady } from '@race-foundation/sdk-core';
 import { CHAIN_TO_RPC } from "./constants";
 import Card from './Card';
-import { PlayerProfile } from '@race/sdk-core';
+import { PlayerProfile } from '@race-foundation/sdk-core';
 import { ProfileContext } from "./profile-context";
 import { LogsContext } from "./logs-context";
 import Header from "./Header";

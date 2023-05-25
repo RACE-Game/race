@@ -1,9 +1,9 @@
 import { PublicKey } from '@solana/web3.js';
 import * as borsh from 'borsh';
 import { publicKeyExt } from './utils';
-import * as RaceCore from '@race/sdk-core';
-import { VoteType } from '@race/sdk-core';
-import { deserialize, serialize, field, option, array, struct } from '@race/borsh';
+import * as RaceCore from '@race-foundation/sdk-core';
+import { VoteType } from '@race-foundation/sdk-core';
+import { deserialize, serialize, field, option, array, struct } from '@race-foundation/borsh';
 
 export interface IPlayerState {
   isInitialized: boolean;

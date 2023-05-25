@@ -1,4 +1,4 @@
-import { field, map, variant, array } from '@race/borsh';
+import { field, map, variant, array } from '@race-foundation/borsh';
 import { Ciphertext, Digest, Fields, Id, Secret } from './types';
 import { CiphertextAndDigest } from './events';
 

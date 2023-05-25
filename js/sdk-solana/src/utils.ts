@@ -1,5 +1,5 @@
 import { PublicKey } from '@solana/web3.js';
-import { IExtendWriter, IExtendReader, extend } from '@race/borsh';
+import { IExtendWriter, IExtendReader, extend } from '@race-foundation/borsh';
 
 class PublicKeyWriter implements IExtendWriter<PublicKey> {
   write(value: PublicKey, buf: Uint8Array, offset: number) {

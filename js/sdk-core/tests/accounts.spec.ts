@@ -1,4 +1,4 @@
-import { serialize, deserialize } from '@race/borsh';
+import { serialize, deserialize } from '@race-foundation/borsh';
 import { assert } from 'chai';
 import * as sut from '../src/accounts';
 

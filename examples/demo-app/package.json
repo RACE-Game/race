@@ -10,10 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@race/borsh": "file:../../js/borsh",
-    "@race/sdk-core": "file:../../js/sdk-core",
-    "@race/sdk-facade": "file:../../js/sdk-facade",
-    "@race/sdk-solana": "file:../../js/sdk-solana",
+    "@race-foundation/borsh": "file:../../js/borsh",
+    "@race-foundation/sdk-core": "file:../../js/sdk-core",
+    "@race-foundation/sdk-facade": "file:../../js/sdk-facade",
+    "@race-foundation/sdk-solana": "file:../../js/sdk-solana",
     "@solana/wallet-adapter-base": "^0.9.22",
     "@solana/wallet-adapter-react": "^0.15.32",
     "@solana/wallet-adapter-react-ui": "^0.9.31",

@@ -1,5 +1,5 @@
 {
-  "name": "@race/sdk-solana",
+  "name": "@race-foundation/sdk-solana",
   "type": "module",
   "version": "0.0.1",
   "description": "The Solana support for Race SDK",
@@ -29,8 +29,8 @@
   "author": "Race Team",
   "license": "ISC",
   "dependencies": {
-    "@race/borsh": "0.0.1",
-    "@race/sdk-core": "0.0.1",
+    "@race-foundation/borsh": "0.0.1",
+    "@race-foundation/sdk-core": "0.0.1",
     "@solana/spl-token": "^0.3.7",
     "@solana/web3.js": "^1.75.0"
   },

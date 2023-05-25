@@ -3,7 +3,7 @@ import { useContext, useState, useEffect } from 'react';
 import { HelperContext } from './helper-context';
 import { Chain } from './types';
 import { CHAIN_ADDR_GAME_MAPPING, CHAIN_TO_REG_ADDR } from './constants';
-import { AppHelper, GameRegistration } from '@race/sdk-core';
+import { AppHelper, GameRegistration } from '@race-foundation/sdk-core';
 
 interface SidemenuProps {
     chain: Chain,

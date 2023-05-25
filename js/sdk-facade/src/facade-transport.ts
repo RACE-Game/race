@@ -19,8 +19,8 @@ import {
   ServerAccount,
   UnregisterGameParams,
   VoteParams,
-} from '@race/sdk-core';
-import { deserialize } from '@race/borsh';
+} from '@race-foundation/sdk-core';
+import { deserialize } from '@race-foundation/borsh';
 
 interface JoinInstruction {
   playerAddr: string;

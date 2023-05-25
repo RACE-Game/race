@@ -1,5 +1,5 @@
 {
-  "name": "@race/sdk-core",
+  "name": "@race-foundation/sdk-core",
   "version": "0.0.1",
   "description": "The type definitions for Race SDK",
   "scripts": {
@@ -43,7 +43,7 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "@race/borsh": "0.0.1"
+    "@race-foundation/borsh": "0.0.1"
   },
   "testDependencies": {
     "crypto": "1.0.1"

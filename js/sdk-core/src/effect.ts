@@ -1,7 +1,7 @@
 import { RandomSpec } from './random-state';
 import { HandleError } from './error';
 import { GameContext } from './game-context';
-import { enums, field, map, option, struct, variant, array } from '@race/borsh';
+import { enums, field, map, option, struct, variant, array } from '@race-foundation/borsh';
 import { Fields, Id } from './types';
 
 export abstract class SettleOp { }

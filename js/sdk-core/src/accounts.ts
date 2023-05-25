@@ -1,4 +1,4 @@
-import { field, array, struct, option } from '@race/borsh';
+import { field, array, struct, option } from '@race-foundation/borsh';
 
 export interface IPlayerJoin {
   readonly addr: string;

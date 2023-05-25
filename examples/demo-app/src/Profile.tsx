@@ -1,7 +1,7 @@
 import React, { useContext, useState, useEffect, FC } from 'react';
 import { HelperContext } from './helper-context';
 import { ProfileContext } from './profile-context';
-import { PlayerProfile } from '@race/sdk-core';
+import { PlayerProfile } from '@race-foundation/sdk-core';
 import { useWallet } from './integration';
 import { Chain } from './types';
 

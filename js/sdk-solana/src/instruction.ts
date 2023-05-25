@@ -2,7 +2,7 @@ import { PublicKey, SYSVAR_RENT_PUBKEY, TransactionInstruction } from '@solana/w
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { publicKeyExt } from './utils';
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID, PLAYER_PROFILE_SEED } from './constants';
-import { field, serialize } from '@race/borsh';
+import { field, serialize } from '@race-foundation/borsh';
 import { Buffer } from 'buffer';
 
 // Instruction types

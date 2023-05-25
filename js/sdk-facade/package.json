@@ -1,5 +1,5 @@
 {
-  "name": "@race/sdk-facade",
+  "name": "@race-foundation/sdk-facade",
   "type": "module",
   "version": "0.0.1",
   "description": "The Facade integration for Race SDK",
@@ -30,8 +30,8 @@
   "author": "Race Team",
   "license": "ISC",
   "dependencies": {
-    "@race/sdk-core": "0.0.1",
-    "@race/borsh": "^0.0.1",
+    "@race-foundation/sdk-core": "0.0.1",
+    "@race-foundation/borsh": "^0.0.1",
     "nanoid": "^4.0.2"
   },
   "devDependencies": {

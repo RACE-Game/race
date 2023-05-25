@@ -1,4 +1,4 @@
-import { GameEvent } from '@race/sdk-core';
+import { GameEvent } from '@race-foundation/sdk-core';
 
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
     let binary = '';

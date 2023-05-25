@@ -1,6 +1,6 @@
 import { SdkError } from './error';
 import { Secret, Ciphertext } from './types';
-import { field } from '@race/borsh';
+import { field } from '@race-foundation/borsh';
 import { base64ToArrayBuffer, arrayBufferToBase64 } from './utils';
 
 let subtle: SubtleCrypto;

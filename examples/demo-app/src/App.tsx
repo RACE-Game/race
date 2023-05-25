@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, useOutletContext, useNavigate } from 'react-router-dom';
 import Sidemenu from './Sidemenu';
 import Profile from './Profile';
-import { AppHelper, GameEvent, PlayerProfile } from '@race/sdk-core';
+import { AppHelper, GameEvent, PlayerProfile } from '@race-foundation/sdk-core';
 import './App.css'
 import { ProfileContext } from './profile-context';
 import { LogsContext } from './logs-context';

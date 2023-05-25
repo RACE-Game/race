@@ -38,7 +38,7 @@ import {
   RegistrationAccount,
   IToken,
   INft,
-} from '@race/sdk-core';
+} from '@race-foundation/sdk-core';
 import * as instruction from './instruction';
 
 import { GAME_ACCOUNT_LEN, NAME_LEN, PROFILE_ACCOUNT_LEN, PLAYER_PROFILE_SEED, SERVER_PROFILE_SEED } from './constants';

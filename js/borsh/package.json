@@ -1,5 +1,5 @@
 {
-  "name": "@race/borsh",
+  "name": "@race-foundation/borsh",
   "version": "0.0.1",
   "description": "A borsh implementation with decorator support",
   "repository": {

@@ -1,13 +1,13 @@
 import { useContext, useEffect, useState } from "react";
 import { useParams } from 'react-router-dom';
-import { AppClient, GameEvent } from '@race/sdk-core';
+import { AppClient, GameEvent } from '@race-foundation/sdk-core';
 import { CHAIN_TO_RPC } from "./constants";
 import { ProfileContext } from "./profile-context";
 import { LogsContext } from "./logs-context";
 import { useGameContext } from "./App";
 import { createTransport, useWallet } from './integration';
-import { deserialize, field, option, struct, array } from '@race/borsh';
-import { GameContextSnapshot } from "@race/sdk-core/lib/types/game-context-snapshot";
+import { deserialize, field, option, struct, array } from '@race-foundation/borsh';
+import { GameContextSnapshot } from "@race-foundation/sdk-core/lib/types/game-context-snapshot";
 import Header from "./Header";
 
 interface IPlayer {

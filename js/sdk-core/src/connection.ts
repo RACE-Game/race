@@ -1,6 +1,6 @@
 import { IEncryptor, PublicKeyRaws } from './encryptor';
 import { GameEvent } from './events';
-import { deserialize, enums, field, serialize, struct, variant } from '@race/borsh';
+import { deserialize, enums, field, serialize, struct, variant } from '@race-foundation/borsh';
 import { arrayBufferToBase64, base64ToUint8Array } from './utils';
 
 type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event';

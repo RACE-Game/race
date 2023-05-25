@@ -1,6 +1,6 @@
 import { makeCustomEvent, ICustomEvent, Custom, Ready, SecretsReady, Shutdown, ShareSecrets, Random, Answer, GameEvent, OperationTimeout, Mask, Lock, CiphertextAndDigest, RandomnessReady, Sync, ServerLeave, Leave, WaitingTimeout, GameStart, DrawRandomItems } from '../src/events';
 import { assert } from 'chai';
-import { deserialize, serialize, field } from '@race/borsh';
+import { deserialize, serialize, field } from '@race-foundation/borsh';
 import { ServerJoin, PlayerJoin } from '../src/accounts';
 
 class TestCustom implements ICustomEvent {

@@ -1,5 +1,5 @@
 import { Connection, PublicKey, TransactionInstruction } from '@solana/web3.js';
-import { IWallet } from '@race/sdk-core';
+import { IWallet } from '@race-foundation/sdk-core';
 
 export class SolanaWalletAdapter implements IWallet {
   #wallet: any;

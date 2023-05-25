@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from "react";
 import { HelperContext } from "./helper-context";
-import { GameAccount } from "@race/sdk-core";
+import { GameAccount } from "@race-foundation/sdk-core";
 
 export type JoinHandler = (amount: bigint) => void;
 export type ExitHandler = () => void;

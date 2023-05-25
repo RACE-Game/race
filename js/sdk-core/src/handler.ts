@@ -1,4 +1,4 @@
-import { array, deserialize, field, serialize, struct } from '@race/borsh';
+import { array, deserialize, field, serialize, struct } from '@race-foundation/borsh';
 import { GameAccount, GameBundle, PlayerJoin, ServerJoin } from './accounts';
 import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Sync } from './events';
 import { GameContext } from './game-context';

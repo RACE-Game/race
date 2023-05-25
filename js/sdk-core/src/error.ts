@@ -1,4 +1,4 @@
-import { field, variant } from '@race/borsh';
+import { field, variant } from '@race-foundation/borsh';
 
 export abstract class HandleError {}
 

@@ -1,4 +1,4 @@
-import { AppClient } from '@race/sdk-core';
+import { AppClient } from '@race-foundation/sdk-core';
 import React from 'react';
 
 export type GameContextData = {

@@ -1,6 +1,6 @@
 import { PublicKey } from '@solana/web3.js';
 import { publicKeyExt } from './utils';
-import { deserialize, field, array, struct, option } from '@race/borsh';
+import { deserialize, field, array, struct, option } from '@race-foundation/borsh';
 
 /**
  * A partial port of Metaplex's Metadata layout.

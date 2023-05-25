@@ -1,4 +1,4 @@
-import { AppClient, GameEvent } from '@race/sdk-core';
+import { AppClient, GameEvent } from '@race-foundation/sdk-core';
 import { useParams } from 'react-router-dom';
 import { useContext, useEffect, useState } from 'react';
 import { CHAIN_TO_RPC } from './constants';
