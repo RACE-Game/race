@@ -86,22 +86,18 @@ solana:
     solana program deploy ./target/deploy/race_solana.so
 
 borsh:
-    npm --prefix ./js/borsh run build:js
-    npm --prefix ./js/borsh run build:typedefs
+    npm --prefix ./js/borsh run build
 
 sdk-core:
-    npm --prefix ./js/sdk-core run build:js
-    npm --prefix ./js/sdk-core run build:typedefs
+    npm --prefix ./js/sdk-core run build
 
 sdk-solana:
-    npm --prefix ./js/sdk-solana run build:js
-    npm --prefix ./js/sdk-solana run build:typedefs
+    npm --prefix ./js/sdk-solana run build
 
 sdk-facade:
-    npm --prefix ./js/sdk-facade run build:js
-    npm --prefix ./js/sdk-facade run build:typedefs
+    npm --prefix ./js/sdk-facade run build
 
-ts-sdk: sdk-core sdk-solana sdk-facade
+ts-sdk: borsh sdk-core sdk-solana sdk-facade
 
 publish name url:
     cargo run -p race-cli -- -e local publish solana {{name}} {{url}}

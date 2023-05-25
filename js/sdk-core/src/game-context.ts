@@ -371,6 +371,7 @@ export class GameContext {
     }
 
     this.bumpSettleVersion();
+    return settles;
   }
 
   addSettle(settle: Settle) {

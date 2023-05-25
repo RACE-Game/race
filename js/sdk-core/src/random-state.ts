@@ -2,8 +2,6 @@ import { field, map, variant, array } from '@race/borsh';
 import { Ciphertext, Digest, Fields, Id, Secret } from './types';
 import { CiphertextAndDigest } from './events';
 
-const textEncoder = new TextEncoder();
-
 export interface SecretIdent {
   fromAddr: string;
   toAddr: string | undefined;

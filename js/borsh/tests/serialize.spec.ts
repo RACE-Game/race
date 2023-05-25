@@ -50,8 +50,8 @@ describe('Test serialize', () => {
       }
     };
     const c = new C({
-      x: BigInt(12345678901),
-      y: BigInt(312312312312)
+      x: 12345678901n,
+      y: 312312312312n
     });
     const bs = serialize(c);
     assert.deepEqual(bs, Uint8Array.from([53, 28, 220, 223, 2, 0, 0, 0, 248, 177, 67, 183, 72, 0, 0, 0]));

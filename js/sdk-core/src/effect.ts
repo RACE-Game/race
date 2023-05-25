@@ -1,10 +1,10 @@
-import { RandomSpec, RandomState } from './random-state';
+import { RandomSpec } from './random-state';
 import { HandleError } from './error';
 import { GameContext } from './game-context';
 import { enums, field, map, option, struct, variant, array } from '@race/borsh';
 import { Fields, Id } from './types';
 
-export abstract class SettleOp {}
+export abstract class SettleOp { }
 
 @variant(0)
 export class SettleAdd extends SettleOp {

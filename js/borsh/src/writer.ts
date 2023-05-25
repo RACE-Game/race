@@ -191,7 +191,7 @@ export class BinaryWriter {
     this.#writes.push(w);
   }
 
-  writeU128(value: bigint) {
+  writeU128() {
     throw new Error('Not implemented yet!');
   }
 

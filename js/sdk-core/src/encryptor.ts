@@ -4,13 +4,10 @@ import { field } from '@race/borsh';
 import { base64ToArrayBuffer, arrayBufferToBase64 } from './utils';
 
 let subtle: SubtleCrypto;
-let crypto: Crypto;
 if (typeof global === 'object') {
   const _crypto = require('crypto');
-  crypto = _crypto.webcrypto;
   subtle = _crypto.webcrypto.subtle;
 } else {
-  crypto = window.crypto;
   subtle = window.crypto.subtle;
 }
 

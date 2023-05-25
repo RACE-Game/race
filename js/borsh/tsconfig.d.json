@@ -1,7 +1,0 @@
-{
-  "extends": "../config/tsconfig.d.json",
-  "include": ["src/**/*"],
-  "compilerOptions": {
-    "outDir": "./lib/types"
-  }
-}

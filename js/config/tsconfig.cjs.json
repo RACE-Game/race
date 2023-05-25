@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./lib/cjs",
+    "declaration": true,
+    "esModuleInterop": true,
+    "module": "commonjs"
+  },
+  "include": ["src/**/*"]
+}

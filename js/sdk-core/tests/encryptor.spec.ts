@@ -47,7 +47,7 @@ describe('Test utilities', () => {
     const keypair = await generateRsaKeypair();
     // console.log(await exportRsa(keypair));
     const encrypted = await encryptRsa(keypair.publicKey, plain);
-    // console.log(encrypted);
+    console.log(encrypted);
   })
 
   it('ECDSA sign/verify', async () => {

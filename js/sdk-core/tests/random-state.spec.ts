@@ -1,5 +1,5 @@
 import { CiphertextAndDigest } from '../src/events';
-import { RandomState, RandomSpec, RandomStatus, ShuffledList, Share } from '../src/random-state';
+import { RandomState, ShuffledList, Share } from '../src/random-state';
 import { assert } from 'chai';
 
 describe('Test RandomSpec', () => {

@@ -1,8 +1,8 @@
 import { assert } from 'chai';
 import { ActionTimeout, Ask, Assign, Effect, Release, Reveal, Settle, SettleAdd, SettleSub } from '../src/effect';
 import { serialize } from '@race/borsh';
-import { RandomSpec, ShuffledList } from '../src/random-state';
-import { HandleError, NoEnoughPlayers } from '../src/error';
+import { ShuffledList } from '../src/random-state';
+import { NoEnoughPlayers } from '../src/error';
 
 
 describe('Test effect serialization', () => {
