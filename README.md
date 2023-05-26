@@ -22,6 +22,21 @@ Users' assets are secured as the funds flow is controlled exclusively by the sma
 
 Work in progress, not ready to accept contributions yet.
 
+# Packages
+
+## TypeScript
+
+| Package                     | Version                                                                                                                                         | Description                                    |
+|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------|
+| @race-foundation/borsh      | [![NPM](https://img.shields.io/npm/v/@race-foundation/borsh?color=blue&logo=npm)](https://www.npmjs.com/package/@race-foundation/borsh)         | A borsh implementation with decorators support |
+| @race-fonudation/sdk-core   | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?color=blue&logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-core)   | SDK for RACE Protocol                          |
+| @race-fonudation/sdk-solana | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?color=blue&logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-solana) | SDK integration for Solana blockchain          |
+| @race-fonudation/sdk-facade | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?color=blue&logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-facade) | SDK integration for local facade server        |
+
+## Rust
+
+TBD
+
 # Core Concepts
 
 [Terminology](docs/terminology.md)
