@@ -1,4 +1,4 @@
-# Race Protocol
+# Race Protocol ![GitHub](https://img.shields.io/github/license/RACE-Game/race) [![Rust](https://github.com/RACE-Game/race/actions/workflows/rust.yml/badge.svg)](https://github.com/RACE-Game/race/actions/workflows/rust.yml)
 
 Race Protocol is a multi-chain infrastructure for asymmetric competitive games.
 
