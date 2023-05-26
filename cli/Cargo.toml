@@ -1,12 +1,22 @@
 [package]
 name = "race-cli"
-version = "0.1.0"
-edition = "2021"
+description = "Command line tools for RACE Protocol"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+readme.workspace = true
+publish = true
 
 [dependencies]
-race-core = { path = "../core" }
-race-transport = { path = "../transport" }
-race-env = { path = "../env" }
+race-core = { workspace = true }
+race-transport = { workspace = true }
+race-env = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 uuid = { workspace = true, features = ["v4", "fast-rng"] }
 clap = { workspace = true, features = ["derive"] }

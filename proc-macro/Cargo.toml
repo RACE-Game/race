@@ -1,15 +1,24 @@
 [package]
 name = "race-proc-macro"
-version = "0.1.0"
-edition = "2021"
+description = "RACE Protocol proc macros"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+readme.workspace = true
+publish = true
 
 [lib]
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0.107", features = ["full"] }
-quote = "1.0.23"
+syn = { workspace = true, features = ["full"] }
+quote = { workspace = true }
 
 [dev-dependencies]
-race-core = { path = "../core" }
-borsh = "0.9.3"
+borsh = { workspace = true }

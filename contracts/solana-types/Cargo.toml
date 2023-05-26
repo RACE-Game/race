@@ -1,7 +1,17 @@
 [package]
 name = "race-solana-types"
-version = "0.1.0"
-edition = "2021"
+description = "Type definitions for Race Solana integration"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+readme.workspace = true
+publish = true
 
 [dependencies]
 solana-program = { workspace = true, optional = true }

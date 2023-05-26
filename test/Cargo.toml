@@ -1,12 +1,22 @@
 [package]
 name = "race-test"
-version = "0.1.0"
-edition = "2021"
+description = "Testkit for RACE Protocol"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+readme.workspace = true
+publish = true
 
 [dependencies]
-race-core = { path = "../core" }
-race-client = { path = "../client" }
-race-encryptor = { path = "../encryptor" }
+race-core = { workspace = true }
+race-client = { workspace = true }
+race-encryptor = { workspace = true }
 borsh = { workspace = true }
 async-trait = { workspace = true }
 rand = { workspace = true }

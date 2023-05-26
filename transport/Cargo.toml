@@ -1,11 +1,21 @@
 [package]
 name = "race-transport"
-version = "0.1.0"
-edition = "2021"
+description = "Blockchain transport module for RACE Protocol"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+readme.workspace = true
+publish = true
 
 [dependencies]
-race-core = { path = "../core", features = ["serde"] }
-race-env = { path = "../env" }
+race-core = { workspace = true, features = ["serde"] }
+race-env = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 serde_json = { workspace = true }

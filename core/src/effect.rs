@@ -129,7 +129,7 @@ pub struct ActionTimeout {
 /// effect.settle(Settle::eject("Charlie"));
 /// ```
 
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Default, BorshSerialize, BorshDeserialize, Debug)]
 pub struct Effect {
     pub action_timeout: Option<ActionTimeout>,

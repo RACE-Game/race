@@ -1,7 +1,17 @@
 [package]
 name = "race-core"
-version = "0.1.0"
-edition = "2021"
+description = "RACE Protocol core lib"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+readme.workspace = true
+publish = true
 
 [dependencies]
 async-trait = { workspace = true }
@@ -9,7 +19,7 @@ thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
 borsh = { workspace = true }
-race-proc-macro = { path = "../proc-macro" }
+race-proc-macro = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }

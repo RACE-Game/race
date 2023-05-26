@@ -1,10 +1,20 @@
 [package]
 name = "race-facade"
-version = "0.1.0"
-edition = "2021"
+description = "Chain facade for RACE Protocol"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+readme.workspace = true
+publish = true
 
 [dependencies]
-race-core = { path = "../core", features = ["serde"] }
+race-core = { workspace = true, features = ["serde"] }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 base64 = { workspace = true }

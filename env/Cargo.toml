@@ -1,7 +1,17 @@
 [package]
 name = "race-env"
-version = "0.1.0"
-edition = "2021"
+description = "Environment module for RACE Protocol"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+readme.workspace = true
+publish = true
 
 [dependencies]
 toml = { workspace = true }
