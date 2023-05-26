@@ -35,7 +35,9 @@ Work in progress, not ready to accept contributions yet.
 
 ## Rust
 
-TBD
+| Package         | Version                                                                              | Description     |
+|-----------------|--------------------------------------------------------------------------------------|-----------------|
+| race-proc-macro | ![Crates.io](https://img.shields.io/crates/v/race-proc-macro?color=yellow&logo=rust) | SDK proc macros |
 
 # Core Concepts
 
