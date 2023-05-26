@@ -1,15 +1,18 @@
 use std::collections::HashMap;
-use super::*;
 use race_core::{
     context::{DispatchEvent, GameContext, GameStatus},
     error:: Result,
     event::Event,
+    prelude::InitAccount,
     random::RandomStatus,
     types::{ClientMode, PlayerJoin},
 };
 use race_test::{
     transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler,
 };
+
+use crate::essential::*;
+use crate::game::*;
 
 type Game = (InitAccount, GameContext, TestHandler<Holdem>, TestClient);
 
@@ -259,6 +262,7 @@ fn test_play_game() -> Result<()> {
     {
         // BTN is 0 so players in the order of action:
         // Dave (UTG), Eva (MID), Alice (BTN), Bob (SB), Carol (BB)
+        // In state: [Bob, Carol, Dave, Eva, Alice]
         // UTG folds
         let dave_fold = dave.custom_event(GameEvent::Fold);
         handler.handle_until_no_events(
@@ -604,7 +608,7 @@ fn test_play_game() -> Result<()> {
 
 
         // Wait for 5 secs and game should start again
-        handler.handle_dispatch_event(&mut ctx);
+        handler.handle_dispatch_event(&mut ctx)?;
         {
             let state = handler.get_state();
             assert_eq!(state.btn, 1);

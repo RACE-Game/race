@@ -1,9 +1,11 @@
+//! Functions and structs used to compare (evaluate) players' hands
+
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 /// Cards are consisted of 5 community cards + 2 hole cards.
 /// Each card is represented with a string literal where
-/// suit comes first, then kind: "ca" (Club Ace).
+/// suit comes first, then kind. For example: "ca" represents Club Ace.
 /// A hand (or picks) is the best 5 out of 7.
 /// Cards can be sorted in two ways:
 /// 1. by their kinds, for finding straights;
@@ -120,9 +122,9 @@ pub enum Category {
 
 #[derive(Debug)]
 pub struct PlayerHand<'a> {
-    pub category: Category,  // ranking
-    pub picks: Vec<&'a str>, // Best 5 of 7
-    pub value: Vec<u8>,      // Values of Best 5 Kinds + category value
+    pub category: Category,  // rankings
+    pub picks: Vec<&'a str>, // Best 5 out of 7
+    pub value: Vec<u8>,      // [value, category_order ...]
 }
 
 // TODO: Try to impl eq for PlayerHand?
