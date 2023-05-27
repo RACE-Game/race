@@ -17,5 +17,11 @@ jobs:
     - name: Install Dependencies
       run: npm i -ws --prefix ./js
 
+    - name: Build borsh
+      run: npm run build --prefix ./js/borsh
+
+    - name: Build SDK Core
+      run: npm run build --prefix ./js/sdk-core
+
     - name: Check
       run: npm test -ws --prefix ./js
