@@ -2205,8 +2205,6 @@ dependencies = [
  "race-core",
  "race-proc-macro",
  "race-test",
- "serde",
- "serde_json",
 ]
 
 [[package]]

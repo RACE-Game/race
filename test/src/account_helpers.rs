@@ -96,9 +96,9 @@ impl TestGameAccountBuilder {
             self.account.access_version += 1;
             self.account.servers.push(ServerJoin::new(
                 addr.clone(),
-                "".into(),
+                "".into(),      // server addr
                 self.account.access_version,
-                "".into(),
+                "".into()       // verify key
             ));
         }
         self

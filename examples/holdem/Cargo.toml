@@ -9,12 +9,9 @@ crate-type = ["cdylib"]
 [dependencies]
 race-core = { path = "../../core" }
 race-proc-macro = { path = "../../proc-macro" }
-serde_json = "1.0.85"
-serde = "1.0.144"
 borsh = "0.9.3"
 
 [dev-dependencies]
-# testing = { path = "./tests" }
 race-test = { path = "../../test" }
 log = "0.4.17"
 env_logger = "0.10.0"
