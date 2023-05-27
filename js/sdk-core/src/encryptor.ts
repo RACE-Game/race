@@ -3,13 +3,7 @@ import { Secret, Ciphertext } from './types';
 import { field } from '@race-foundation/borsh';
 import { base64ToArrayBuffer, arrayBufferToBase64 } from './utils';
 
-let subtle: SubtleCrypto;
-if (typeof global === 'object') {
-  const _crypto = require('crypto');
-  subtle = _crypto.webcrypto.subtle;
-} else {
-  subtle = window.crypto.subtle;
-}
+let subtle: SubtleCrypto = crypto.subtle;
 
 export const aesContentIv = Uint8Array.of(
   0, 0, 0, 0, 0, 0, 0, 0,

@@ -1,7 +1,7 @@
 {
   "name": "@race-foundation/sdk-facade",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "The Facade integration for Race SDK",
   "main": "lib/cjs/index.ts",
   "module": "lib/esm/index.js",
@@ -30,7 +30,7 @@
   "author": "Race Team",
   "license": "ISC",
   "dependencies": {
-    "@race-foundation/sdk-core": "0.0.1",
+    "@race-foundation/sdk-core": "0.0.2",
     "@race-foundation/borsh": "^0.0.1",
     "nanoid": "^4.0.2"
   },
