@@ -28,16 +28,20 @@ Work in progress, not ready to accept contributions yet.
 
 | Package                     | Version                                                                                                                                         | Description                                    |
 |-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------|
-| @race-foundation/borsh      | [![NPM](https://img.shields.io/npm/v/@race-foundation/borsh?color=blue&logo=npm)](https://www.npmjs.com/package/@race-foundation/borsh)         | A borsh implementation with decorators support |
-| @race-fonudation/sdk-core   | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?color=blue&logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-core)   | SDK for RACE Protocol                          |
-| @race-fonudation/sdk-solana | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?color=blue&logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-solana) | SDK integration for Solana blockchain          |
-| @race-fonudation/sdk-facade | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?color=blue&logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-facade) | SDK integration for local facade server        |
+| @race-foundation/borsh      | [![NPM](https://img.shields.io/npm/v/@race-foundation/borsh?logo=npm)](https://www.npmjs.com/package/@race-foundation/borsh)         | A borsh implementation with decorators support |
+| @race-fonudation/sdk-core   | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-core)   | SDK for RACE Protocol                          |
+| @race-fonudation/sdk-solana | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-solana) | SDK integration for Solana blockchain          |
+| @race-fonudation/sdk-facade | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-facade) | SDK integration for local facade server        |
 
 ## Rust
 
-| Package         | Version                                                                              | Description     |
-|-----------------|--------------------------------------------------------------------------------------|-----------------|
-| race-proc-macro | ![Crates.io](https://img.shields.io/crates/v/race-proc-macro?color=yellow&logo=rust) | SDK proc macros |
+| Package         | Version                                                                 | Description        |
+|-----------------|-------------------------------------------------------------------------|--------------------|
+| race-core       | ![Crates.io](https://img.shields.io/crates/v/race-core?logo=rust)       | Core lib           |
+| race-proc-macro | ![Crates.io](https://img.shields.io/crates/v/race-proc-macro?logo=rust) | SDK proc macros    |
+| race-env        | ![Crates.io](https://img.shields.io/crates/v/race-env?logo=rust)        | Environment module |
+| race-encryptor  | ![Crates.io](https://img.shields.io/crates/v/race-encryptor?logo=rust)  | Encryptor module   |
+
 
 # Core Concepts
 
