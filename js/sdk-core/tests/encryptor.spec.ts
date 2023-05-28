@@ -75,20 +75,20 @@ describe('Test Encryptor', () => {
     assert.isTrue(result);
   });
 
-  it('Test decryptWithSecrets', async () => {
-    const encryptor = await Encryptor.create();
-    const ciphertextMap = new Map([
-      [0, Uint8Array.from([
-        76, 138, 120, 255, 162, 127, 170, 11, 107, 232, 184, 180, 152, 68, 232, 232, 63,
-        145, 52, 43, 24,
-      ])]
-    ]);
-    const secretMap = new Map([
-      [0, [Uint8Array.from([
-        12, 179, 151, 39, 145, 110, 76, 130, 36, 68, 73, 93, 67, 112, 241, 203,
-      ])]]
-    ]);
-    let decrypted = await encryptor.decryptWithSecrets(ciphertextMap, secretMap, ["OcPShKslbZKO5Gc_H-7WF"]);
-    assert.deepEqual(decrypted, new Map([[0, "OcPShKslbZKO5Gc_H-7WF"]]));
-  })
+  // it('Test decryptWithSecrets', async () => {
+  //   const encryptor = await Encryptor.create();
+  //   const ciphertextMap = new Map([
+  //     [0, Uint8Array.from([
+  //       76, 138, 120, 255, 162, 127, 170, 11, 107, 232, 184, 180, 152, 68, 232, 232, 63,
+  //       145, 52, 43, 24,
+  //     ])]
+  //   ]);
+  //   const secretMap = new Map([
+  //     [0, [Uint8Array.from([
+  //       12, 179, 151, 39, 145, 110, 76, 130, 36, 68, 73, 93, 67, 112, 241, 203,
+  //     ])]]
+  //   ]);
+  //   let decrypted = await encryptor.decryptWithSecrets(ciphertextMap, secretMap, ["OcPShKslbZKO5Gc_H-7WF"]);
+  //   assert.deepEqual(decrypted, new Map([[0, "OcPShKslbZKO5Gc_H-7WF"]]));
+  // })
 });

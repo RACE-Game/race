@@ -3,6 +3,8 @@ import { Secret, Ciphertext } from './types';
 import { field } from '@race-foundation/borsh';
 import { base64ToArrayBuffer, arrayBufferToBase64 } from './utils';
 
+
+console.log("crypto ===> ", crypto);
 let subtle: SubtleCrypto = crypto.subtle;
 
 export const aesContentIv = Uint8Array.of(

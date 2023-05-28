@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 module.exports = {
   transform: {
     "\.ts$": ['ts-jest', {
@@ -8,4 +10,5 @@ module.exports = {
   testMatch: [
     '<rootDir>/tests/**/*.spec.ts',
   ],
+  setupFiles: ['../config/jest.setup.js']
 }
