@@ -5,8 +5,8 @@ use race_proc_macro::game_handler;
 use std::collections::BTreeMap;
 
 use crate::essential::{
-    ActingPlayer, Bet, GameEvent, HoldemAccount, HoldemStage, Player, PlayerStatus, Pot, Street,
-    ACTION_TIMEOUT, WAIT_TIMEOUT,
+    ActingPlayer, Bet, GameEvent, HoldemAccount, HoldemMode, HoldemStage, Player, PlayerStatus,
+    Pot, Street, ACTION_TIMEOUT, WAIT_TIMEOUT,
 };
 use crate::evaluator::{compare_hands, create_cards, evaluate_cards, PlayerHand};
 
@@ -15,14 +15,12 @@ use crate::evaluator::{compare_hands, create_cards, evaluate_cards, PlayerHand};
 #[derive(BorshSerialize, BorshDeserialize, Clone, Default)]
 pub struct Holdem {
     pub deck_random_id: RandomId,
-    pub dealer_idx: usize,
     pub sb: u64,
     pub bb: u64,
     pub min_raise: u64,
-    pub buyin: u64,
     pub btn: usize,
-    pub rake: f32,
-    pub size: u32,
+    pub rake: u8,
+    pub mode: HoldemMode,
     pub stage: HoldemStage,
     pub street: Street,
     pub street_bet: u64,
@@ -30,7 +28,7 @@ pub struct Holdem {
     pub bet_map: BTreeMap<String, Bet>,
     pub prize_map: BTreeMap<String, u64>,
     pub player_map: BTreeMap<String, Player>,
-    pub players: Vec<String>, // represents the up-to-date player order
+    pub players: Vec<String>, // up-to-date player order
     pub acting_player: Option<ActingPlayer>,
     pub pots: Vec<Pot>,
 }
@@ -613,7 +611,7 @@ impl Holdem {
                         players_to_stay.push(addr);
                         players_allin.push(addr);
                     }
-                    PlayerStatus::Fold  => {}
+                    PlayerStatus::Fold => {}
                 }
             }
         }
@@ -910,19 +908,16 @@ impl Holdem {
 }
 
 impl GameHandler for Holdem {
-    fn init_state(_effect: &mut Effect, _init_account: InitAccount) -> Result<Self, HandleError> {
-        // TODO: Use GameAccount to initialize the Game State
-        // let account = HoldemAccount::try_from_slice(&init_account.data).unwrap();
+    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
+        let HoldemAccount { sb, bb, rake, mode } = init_account.data()?;
         Ok(Self {
             deck_random_id: 1,
-            dealer_idx: 0,
-            sb: 10,
-            bb: 20,
-            min_raise: 20,
-            buyin: 400,
+            sb,
+            bb,
+            min_raise: bb,
             btn: 0,
-            size: 6,
-            rake: 0.2,
+            rake,
+            mode,
             stage: HoldemStage::Init,
             street: Street::Init,
             street_bet: 0,
@@ -930,7 +925,6 @@ impl GameHandler for Holdem {
             bet_map: BTreeMap::<String, Bet>::new(),
             prize_map: BTreeMap::<String, u64>::new(),
             player_map: BTreeMap::<String, Player>::new(),
-            // p[0] sb, p[1] bb, p[2] 1st to act, p[n-1] (last) btn; when 2 players, btn == sb
             players: Vec::<String>::new(),
             pots: Vec::<Pot>::new(),
             acting_player: None,
@@ -1060,7 +1054,6 @@ impl GameHandler for Holdem {
                     self.single_player_win(effect, vec![remained_players])?;
                 } else {
                     // TODO: remove the leaving player and let game continue?
-
                 }
 
                 Ok(())

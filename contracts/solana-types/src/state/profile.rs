@@ -71,8 +71,6 @@ mod tests {
             get_instance_packed_len(&player)?
         );
         println!("data: {:?}", player.try_to_vec().unwrap());
-        // assert_eq!(get_instance_packed_len(&player)?, PlayerState::LEN);
-        // assert_eq!(1, 2);
         Ok(())
     }
 }

@@ -2,6 +2,7 @@
 //! Helper functions used in tests
 use std::collections::BTreeMap;
 
+use borsh::BorshSerialize;
 use race_core::{
     context::GameContext,
     error::Result,
@@ -17,16 +18,18 @@ use race_test::{
 use crate::essential::*;
 use crate::game::*;
 
-// Heplers for unit tests
-pub fn initial_players() -> [(String, Player); 6] {
-    [
+// ====================================================
+// Heplers for unit tests that focus on game state
+// ====================================================
+pub fn initial_players() -> BTreeMap<String, Player> {
+    BTreeMap::from([
         ("Alice".into(), Player::new("Alice".into(), 1000, 0usize)),
         ("Bob".into(), Player::new("Bob".into(), 1000, 1usize)),
         ("Carol".into(), Player::new("Carol".into(), 1000, 2usize)),
         ("Dave".into(), Player::new("Dave".into(), 1000, 3usize)),
         ("Eva".into(), Player::new("Eva".into(), 1000, 4usize)),
         ("Frank".into(), Player::new("Frank".into(), 1000, 5usize)),
-    ]
+    ])
 }
 
 impl Player {
@@ -77,21 +80,19 @@ pub fn setup_holdem_state() -> Result<Holdem> {
     let players_map = initial_players();
     let mut state = Holdem {
         deck_random_id: 1,
-        dealer_idx: 0,
         sb: 10,
         bb: 20,
         min_raise: 20,
-        buyin: 400,
         btn: 0,
-        size: 6,
-        rake: 0.2,
+        rake: 3,
+        mode: HoldemMode::CASH,
         stage: HoldemStage::Init,
         street: Street::Init,
         street_bet: 0,
         board: Vec::<String>::with_capacity(5),
         bet_map: BTreeMap::<String, Bet>::new(),
         prize_map: BTreeMap::<String, u64>::new(),
-        player_map: BTreeMap::from(players_map),
+        player_map: players_map,
         players: Vec::<String>::new(),
         pots: Vec::<Pot>::new(),
         acting_player: None,
@@ -103,17 +104,22 @@ pub fn setup_holdem_state() -> Result<Holdem> {
 pub fn setup_context() -> GameContext {
     let game_account = TestGameAccountBuilder::default().add_servers(1).build();
     // let init_account = InitAccount::from_game_account(&game_account);
-    let mut context = GameContext::try_new(&game_account).unwrap();
+    let context = GameContext::try_new(&game_account).unwrap();
     context
 }
 
 
-
+// ====================================================
 // Helpers for testing Holdem with the protocol
-// Five players finish a complete hand
+// ====================================================
 type Game = (InitAccount, GameContext, TestHandler<Holdem>, TestClient);
+
 pub fn setup_holdem_game() -> Game {
-    let game_account = TestGameAccountBuilder::default().add_servers(1).build();
+    let holdem_account = HoldemAccount::default();
+    let holdem_data = holdem_account.try_to_vec().unwrap();
+    let mut game_account = TestGameAccountBuilder::default().add_servers(1).build();
+    game_account.data = holdem_data;
+
     let init_account = InitAccount::from_game_account(&game_account);
     let mut context = GameContext::try_new(&game_account).unwrap();
     let handler = TestHandler::<Holdem>::init_state(&mut context, &game_account).unwrap();

@@ -1,61 +1,19 @@
 use std::collections::HashMap;
 use race_core::{
-    context::{DispatchEvent, GameContext, GameStatus},
+    context::{DispatchEvent, GameStatus},
     error:: Result,
     event::Event,
-    prelude::InitAccount,
     random::RandomStatus,
-    types::{ClientMode, PlayerJoin},
+    types::ClientMode,
 };
-use race_test::{
-    transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler,
-};
+use race_test::TestClient;
 
 use crate::essential::*;
-use crate::game::*;
-
-type Game = (InitAccount, GameContext, TestHandler<Holdem>, TestClient);
-
-fn set_up() -> Game {
-    let game_account = TestGameAccountBuilder::default().add_servers(1).build();
-    let init_account = InitAccount::from_game_account(&game_account);
-    let mut context = GameContext::try_new(&game_account).unwrap();
-    let handler = TestHandler::<Holdem>::init_state(&mut context, &game_account).unwrap();
-    let transactor_addr = game_account.transactor_addr.as_ref().unwrap().clone();
-    let transactor = TestClient::new(
-        transactor_addr.clone(),
-        game_account.addr.clone(),
-        ClientMode::Transactor,
-    );
-
-    (init_account, context, handler, transactor)
-}
-
-fn create_sync_event(ctx: &GameContext, players: Vec<String>) -> Event {
-    let av = ctx.get_access_version() + 1;
-
-    let mut new_players = Vec::new();
-    for (i, p) in players.iter().enumerate() {
-        new_players.push(PlayerJoin {
-            addr: p.into(),
-            balance: 10_000,
-            position: i as u16,
-            access_version: av,
-            verify_key: "".into(),
-        })
-    }
-
-    Event::Sync {
-        new_players,
-        new_servers: vec![],
-        transactor_addr: transactor_account_addr(),
-        access_version: av,
-    }
-}
+use crate::tests::helper::{setup_holdem_game, create_sync_event};
 
 #[test]
 fn test_players_order() -> Result<()> {
-    let (game_acct, mut ctx, mut handler, mut transactor) = set_up();
+    let (game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
 
     let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
     let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
@@ -91,17 +49,17 @@ fn test_players_order() -> Result<()> {
     println!("-- Syncing done --");
 
     // BTN is 4 so players should be arranged like below:
-    // Alice (SB), Bob (BB), Carol (UTG), Dave (MID), Eva (BTN)
+    // Bob (SB), Carol (BB), Dave (UTG), Eva(MID), Alice(BTN)
     {
         let state = handler.get_state();
         assert_eq!(
             state.players,
             vec![
-                "Alice".to_string(),
                 "Bob".to_string(),
                 "Carol".to_string(),
                 "Dave".to_string(),
                 "Eva".to_string(),
+                "Alice".to_string(),
             ]
         );
     }
@@ -111,7 +69,7 @@ fn test_players_order() -> Result<()> {
 
 #[test]
 fn test_runner() -> Result<()> {
-    let (game_acct, mut ctx, mut handler, mut transactor) = set_up();
+    let (game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
     let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
     let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
     let sync_evt = create_sync_event(&ctx, vec!["Alice".to_string(), "Bob".to_string()]);
@@ -157,36 +115,37 @@ fn test_runner() -> Result<()> {
             Some(DispatchEvent {
                 timeout: 30_000,
                 event: Event::ActionTimeout {
-                    player_addr: "Alice".into()
+                    player_addr: "Bob".into()
                 },
             })
         );
-        assert!(state.is_acting_player(&"Alice".to_string()));
+        assert!(state.is_acting_player(&"Bob".to_string()));
     }
 
     // ------------------------- PREFLOP ------------------------
-    // Alice is SB and she decides to go all in
-    let alice_allin = alice.custom_event(GameEvent::Raise(10_000));
-    handler.handle_until_no_events(
-        &mut ctx,
-        &alice_allin,
-        vec![&mut alice, &mut bob, &mut transactor],
-    )?;
-
-    // Bob decides to call and thus leads game to runner
-    let bob_allin = bob.custom_event(GameEvent::Call);
+    // Bob decides to go all in
+    let bob_allin = bob.custom_event(GameEvent::Raise(10_000));
     handler.handle_until_no_events(
         &mut ctx,
         &bob_allin,
         vec![&mut alice, &mut bob, &mut transactor],
     )?;
 
+    // Alice is BB and she decides to make a hero call
+    let alice_allin = alice.custom_event(GameEvent::Call);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &alice_allin,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+
+
     // ------------------------- RUNNER ------------------------
     {
         let state = handler.get_state();
         assert_eq!(state.pots.len(), 1);
-        // assert_eq!(2, state.pots[0].owners.len());
-        // assert_eq!(1, state.pots[0].winners.len());
+        assert_eq!(state.pots[0].owners.len(), 2);
+        assert_eq!(state.pots[0].winners.len(), 2); // a draw
     }
 
     Ok(())
@@ -194,7 +153,7 @@ fn test_runner() -> Result<()> {
 
 #[test]
 fn test_play_game() -> Result<()> {
-    let (game_acct, mut ctx, mut handler, mut transactor) = set_up();
+    let (game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
     let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
     let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
     let mut carol = TestClient::new("Carol".into(), game_acct.addr.clone(), ClientMode::Player);

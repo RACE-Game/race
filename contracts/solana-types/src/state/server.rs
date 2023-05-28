@@ -56,7 +56,6 @@ mod tests {
         server.owner = Pubkey::new_unique();
         server.endpoint = "https------------------------------".to_string();
         println!("Server account len {}", get_instance_packed_len(&server)?); // 104
-        assert_eq!(1, 2);
         Ok(())
     }
 }

@@ -6,7 +6,6 @@ use crate::tests::helper::{
     initial_players, make_even_betmap, make_uneven_betmap, setup_context, setup_holdem_state,
 };
 use crate::essential::Bet;
-use race_core::context::GameContext;
 use race_core::prelude::{Effect, HandleError};
 use std::collections::BTreeMap;
 
@@ -368,9 +367,4 @@ fn test_blind_bets() -> Result<(), HandleError> {
         })
     );
     Ok(())
-}
-
-#[test]
-fn test_next_state() {
-    todo!()
 }

@@ -91,7 +91,6 @@ mod tests {
             "Registry account aligned len {}",
             get_instance_packed_len(&registry)?
         );
-        assert_eq!(1, 2);
         Ok(())
     }
 

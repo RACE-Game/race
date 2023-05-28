@@ -145,7 +145,6 @@ mod tests {
             verify_key: "key0".into(),
         };
         println!("data: {:?}", state.try_to_vec().unwrap());
-        // assert_eq!(1, 2);
     }
 
     pub fn make_game_state() -> GameState {
