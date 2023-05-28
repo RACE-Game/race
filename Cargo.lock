@@ -3585,6 +3585,7 @@ dependencies = [
 name = "race-client"
 version = "0.0.1"
 dependencies = [
+ "borsh",
  "race-core",
  "race-encryptor",
  "race-test",
@@ -3641,17 +3642,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "race-example-chat"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "race-core",
- "race-proc-macro",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "race-example-draw-card"
 version = "0.1.0"
 dependencies = [
@@ -3684,18 +3674,6 @@ dependencies = [
  "borsh",
  "race-core",
  "race-proc-macro",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "race-example-roshambo"
-version = "0.1.0"
-dependencies = [
- "arrayref",
- "borsh",
- "race-core",
- "race-test",
  "serde",
  "serde_json",
 ]
@@ -3765,6 +3743,7 @@ dependencies = [
 name = "race-test"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
  "async-trait",
  "base64 0.21.0",
  "borsh",

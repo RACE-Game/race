@@ -3,7 +3,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "program")]
 use solana_program::pubkey::Pubkey;
-#[cfg(feature = "sdk")]
+#[cfg(not(feature = "program"))]
 use solana_sdk::pubkey::Pubkey;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]

@@ -7,7 +7,7 @@ use solana_program::{
     program_pack::{IsInitialized, Pack, Sealed},
     pubkey::Pubkey,
 };
-#[cfg(feature = "sdk")]
+#[cfg(not(feature = "program"))]
 use solana_sdk::pubkey::Pubkey;
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]

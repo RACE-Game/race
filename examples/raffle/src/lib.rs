@@ -141,11 +141,13 @@ mod tests {
                 position: 0,
                 balance: 100,
                 access_version: 0,
+                verify_key: "".into(),
             }],
             new_servers: vec![ServerJoin {
                 addr: "foo".into(),
                 endpoint: "foo.endpoint".into(),
                 access_version: 0,
+                verify_key: "".into(),
             }],
             transactor_addr: "".into(),
             access_version: 0,

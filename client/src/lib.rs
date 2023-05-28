@@ -405,14 +405,13 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    use race_core::context::GameContext;
     use race_core::error::Result;
     use race_core::event::{CustomEvent, Event};
+    use race_core::prelude::{BorshSerialize, BorshDeserialize};
     use race_core::types::{ClientMode, GameAccount};
     use race_encryptor::Encryptor;
 
     use race_test::*;
-    use serde::{Deserialize, Serialize};
 
     fn setup() -> (Client, Arc<Encryptor>, Arc<DummyConnection>, GameAccount) {
         let transport = Arc::new(DummyTransport::default());
@@ -441,7 +440,7 @@ mod tests {
         Ok(())
     }
 
-    #[derive(Serialize, Deserialize)]
+    #[derive(BorshSerialize, BorshDeserialize)]
     pub enum MyEvent {
         Foo,
     }

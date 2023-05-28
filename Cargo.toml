@@ -13,13 +13,13 @@ members = [
   "test",
   "contracts/solana",
   "contracts/solana-types",
-  # "examples/blackjack",
   "examples/draw-card",
-  "examples/roshambo",
-  "examples/chat",
   "examples/minimal",
   "examples/raffle",
   "examples/holdem",
+  # "examples/blackjack",
+  # "examples/roshambo",
+  # "examples/chat",
 ]
 
 [profile.release]

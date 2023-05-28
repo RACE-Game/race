@@ -156,15 +156,16 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_get_bundle() {
+    async fn test_get_bundle() -> anyhow::Result<()> {
         let transport = DummyTransport::default();
         let addr = game_bundle_addr();
-        let bundle = transport.get_game_bundle(&addr).await.unwrap();
+        let bundle = transport.get_game_bundle(&addr).await?.unwrap();
         assert_ne!(0, bundle.data.len());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_get_state() {
+    async fn test_get_state() -> anyhow::Result<()> {
         let transport = DummyTransport::default();
         let ga_0 = GameAccount {
             addr: game_account_addr(),
@@ -182,6 +183,7 @@ mod tests {
         assert_eq!(Some(ga_1), transport.get_game_account(&addr).await?);
         assert_eq!(Some(ga_2), transport.get_game_account(&addr).await?);
         assert_eq!(None, transport.get_game_account(&addr).await?);
+        Ok(())
     }
 
     #[tokio::test]
