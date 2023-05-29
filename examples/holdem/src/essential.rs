@@ -133,19 +133,12 @@ pub enum HoldemStage {
     Showdown,
 }
 
-#[derive(Default, BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
-pub enum HoldemMode {
-    #[default]
-    CASH,
-    SNG,
-}
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug)]
 pub struct HoldemAccount {
     pub sb: u64,
     pub bb: u64,
-    pub rake: u8,               // an integer representing the rake percent
-    pub mode: HoldemMode,       // game type: cash, sng or tourney?
+    pub rake: u16,               // an integer representing the rake percent
 }
 
 impl Default for HoldemAccount {
@@ -153,8 +146,7 @@ impl Default for HoldemAccount {
         Self {
             sb: 10,
             bb: 20,
-            rake: 3u8,
-            mode: HoldemMode::CASH,
+            rake: 3u16,
         }
     }
 }

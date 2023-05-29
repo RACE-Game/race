@@ -5,7 +5,7 @@ use race_proc_macro::game_handler;
 use std::collections::BTreeMap;
 
 use crate::essential::{
-    ActingPlayer, Bet, GameEvent, HoldemAccount, HoldemMode, HoldemStage, Player, PlayerStatus,
+    ActingPlayer, Bet, GameEvent, HoldemAccount, HoldemStage, Player, PlayerStatus,
     Pot, Street, ACTION_TIMEOUT, WAIT_TIMEOUT,
 };
 use crate::evaluator::{compare_hands, create_cards, evaluate_cards, PlayerHand};
@@ -19,8 +19,7 @@ pub struct Holdem {
     pub bb: u64,
     pub min_raise: u64,
     pub btn: usize,
-    pub rake: u8,
-    pub mode: HoldemMode,
+    pub rake: u16,
     pub stage: HoldemStage,
     pub street: Street,
     pub street_bet: u64,
@@ -909,7 +908,7 @@ impl Holdem {
 
 impl GameHandler for Holdem {
     fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
-        let HoldemAccount { sb, bb, rake, mode } = init_account.data()?;
+        let HoldemAccount { sb, bb, rake } = init_account.data()?;
         Ok(Self {
             deck_random_id: 1,
             sb,
@@ -917,7 +916,6 @@ impl GameHandler for Holdem {
             min_raise: bb,
             btn: 0,
             rake,
-            mode,
             stage: HoldemStage::Init,
             street: Street::Init,
             street_bet: 0,

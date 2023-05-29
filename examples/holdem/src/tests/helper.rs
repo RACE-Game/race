@@ -85,7 +85,6 @@ pub fn setup_holdem_state() -> Result<Holdem> {
         min_raise: 20,
         btn: 0,
         rake: 3,
-        mode: HoldemMode::CASH,
         stage: HoldemStage::Init,
         street: Street::Init,
         street_bet: 0,
