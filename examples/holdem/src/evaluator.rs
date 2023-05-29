@@ -63,7 +63,7 @@ pub fn validate_cards(cards: &Vec<&str>) -> bool {
 /// If two groups have equal number of cards, the higher-kind group wins:
 /// Input:  ["ht", "s8", "st", "c8", "h5", "d3", "h3"]
 /// Output: ["ht", "st", "s8", "c8", "d3", "h3", "h5"]
-pub fn sort_grouped_cards<'a>(cards: &Vec<&'a str>) -> Vec<&'a str> {
+fn sort_grouped_cards<'a>(cards: &Vec<&'a str>) -> Vec<&'a str> {
     // Group cards by their kinds
     let cards_to_kinds: Vec<u8> = cards.iter().map(|&c| kind_to_order(c)).collect();
     let mut groups: HashMap<u8, Vec<&str>> = HashMap::with_capacity(7);
@@ -140,7 +140,7 @@ fn tag_value(picked: &Vec<&str>, catetogry_orderv: u8) -> Vec<u8> {
 }
 
 /// Decide the category of the input
-pub fn check_same_kinds(sorted_kinds: &Vec<&str>, category: Category) -> bool {
+fn check_same_kinds(sorted_kinds: &Vec<&str>, category: Category) -> bool {
     match category {
         Category::FourOfAKind => sorted_kinds[0..4].iter().all(|&c| c == sorted_kinds[0]),
         Category::FullHouse => {
@@ -159,7 +159,7 @@ pub fn check_same_kinds(sorted_kinds: &Vec<&str>, category: Category) -> bool {
 /// Search for flush cards from the 7.
 /// This fn accept sorted-by-kind or unsorted cards (preferable).
 /// It returns sorted-by-kind cards anyway.
-pub fn find_flush<'a>(cards: &Vec<&'a str>) -> (bool, Vec<&'a str>) {
+fn find_flush<'a>(cards: &Vec<&'a str>) -> (bool, Vec<&'a str>) {
     let mut groups: HashMap<&'a str, Vec<&'a str>> = HashMap::with_capacity(7);
 
     for card in cards {
@@ -213,7 +213,7 @@ fn match_straight<'a>(cards: Vec<&'a str>, result: &mut Vec<Vec<&'a str>>) {
 }
 
 /// This fn accpets only sorted-by-kind cards
-pub fn find_straights<'a>(cards: &Vec<&'a str>) -> (bool, Vec<Vec<&'a str>>) {
+fn find_straights<'a>(cards: &Vec<&'a str>) -> (bool, Vec<Vec<&'a str>>) {
     let sorted_by_kinds: Vec<&str> = cards.iter().copied().collect();
     // In theory, 7 cards can yeild at most 4 straights?
     let mut result: Vec<Vec<&str>> = vec![];
@@ -235,7 +235,7 @@ pub fn find_straights<'a>(cards: &Vec<&'a str>) -> (bool, Vec<Vec<&'a str>>) {
     // No card has the same kind
     else if groups.len() == 7 {
         // 5 high straight is the only special case where
-        // Ace ("?a") need to be moved to last before any other operation
+        // Ace ("_a") need to be moved to last before any other operation
         let mut tmp_cards: Vec<&str> = sorted_by_kinds[..].to_vec();
         if tmp_cards[0].contains("a") && !tmp_cards[1].contains("k") {
             let ace: &str = tmp_cards.remove(0);
@@ -321,7 +321,7 @@ pub fn find_straights<'a>(cards: &Vec<&'a str>) -> (bool, Vec<Vec<&'a str>>) {
 
 /// This fn accepts either sorted-by-kind or unsorted cards (preferable).
 /// It returns sorted-by-kind cards anyway.
-pub fn find_royal_flush<'a>(cards: &Vec<&'a str>) -> (bool, Vec<&'a str>) {
+fn find_royal_flush<'a>(cards: &Vec<&'a str>) -> (bool, Vec<&'a str>) {
     let royal_flush: [[&str; 5]; 4] = [
         ["ca", "ck", "cq", "cj", "ct"],
         ["da", "dk", "dq", "dj", "dt"],
@@ -347,7 +347,7 @@ pub fn find_royal_flush<'a>(cards: &Vec<&'a str>) -> (bool, Vec<&'a str>) {
 }
 
 /// Search for straight flush from all found straights and flushes
-pub fn find_straight_flush<'a>(
+fn find_straight_flush<'a>(
     flush: &Vec<&'a str>,
     straights: &Vec<Vec<&'a str>>,
 ) -> Vec<Vec<&'a str>> {
@@ -525,7 +525,6 @@ mod tests {
     use std::cmp::Ordering;
 
     #[test]
-    // #[ignore]
     fn sorting_cards() {
         // A single card is a 2-char string literal: Suit-Kind
         // For example, "hq" represents Heart Queen
@@ -545,7 +544,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
     fn test_flush() {
         // Test flush
         let hand2: [&str; 2] = ["d2", "h9"];
@@ -560,7 +558,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
     fn test_straights() {
         // Test one normal straight: two _6 cards lead to 2 straights
         // ["d9", "d8", "c7", "d6", "s5"] and ["d9", "d8", "c7", "h6", "s5"]
@@ -625,7 +622,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
     fn test_royal_flush() {
         let hole_cards: [&str; 2] = ["sa", "sq"];
         let cmt_cards: [&str; 5] = ["sk", "hk", "hj", "sj", "st"];
@@ -639,7 +635,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
     fn test_straight_flush() {
         let hole_cards: [&str; 2] = ["ha", "h5"];
         let cmt_cards: [&str; 5] = ["h7", "h6", "h2", "h3", "h4"];
@@ -660,7 +655,6 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
     fn test_various_pairs() {
         let hole_cards: [&str; 2] = ["ha", "h5"];
         let cmt_cards: [&str; 5] = ["d7", "c6", "s7", "c7", "st"];
@@ -674,15 +668,10 @@ mod tests {
             })
             .collect();
 
-        // assert!(check_same_kinds(&sorted_kinds, SameKind::FourOfAKind));
-        // assert!(check_same_kinds(&sorted_kinds, SameKind::FullHouse));
         assert!(check_same_kinds(&sorted_kinds, Category::ThreeOfAKind));
-        // assert!(check_same_kinds(&sorted_kinds, SameKind::TwoPairs));
-        // assert!(check_same_kinds(&sorted_kinds, SameKind::Pair));
     }
 
     #[test]
-    // #[ignore]
     fn test_evaluator() {
         let hole_cards: [&str; 2] = ["ha", "h5"];
         let cmt_cards: [&str; 5] = ["d7", "c6", "s7", "c7", "st"];
