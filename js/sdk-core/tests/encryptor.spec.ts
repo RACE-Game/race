@@ -1,5 +1,5 @@
 import { assert } from 'chai';
-import { encryptAes, decryptAes, exportRsa, generateAes, generateRsaKeypair, importRsa, decryptRsa, encryptRsa, generateEcKeypair, exportEc, importEc, signEc, verifyEc, Encryptor, exportAes, aesContentIv } from '../src/encryptor';
+import { encryptAes, decryptAes, exportRsa, generateAes, generateRsaKeypair, importRsa, decryptRsa, encryptRsa, generateEcKeypair, exportEc, importEc, signEc, verifyEc, Encryptor, exportAes, aesContentIv, decryptChacha20, encryptChacha20, generateChacha20, chacha20Nonce } from '../src/encryptor';
 
 describe('Test utilities', () => {
   it('RSA key creation', async () => {
@@ -21,14 +21,22 @@ describe('Test utilities', () => {
   it('AES-CTR encryption/decryption', async () => {
     const key0 = await generateAes();
     const key1 = await generateAes();
-    // console.log(await exportAes(key0));
-    // console.log(await exportAes(key1));
     const data0 = new TextEncoder().encode('OcPShKslbZKO5Gc_H-7WF');
     let data = await encryptAes(key0, data0, aesContentIv);
     data = await encryptAes(key1, data, aesContentIv);
-    // console.log(data);
     data = await decryptAes(key1, data, aesContentIv);
     data = await decryptAes(key0, data, aesContentIv);
+    assert.deepEqual(data, data0);
+  });
+
+  it('Chacha20 encryption/decryption', async () => {
+    const key0 = generateChacha20();
+    const key1 = generateChacha20();
+    const data0 = new TextEncoder().encode('OcPShKslbZKO5Gc_H-7WF');
+    let data = encryptChacha20(key0, data0, chacha20Nonce);
+    data = encryptChacha20(key1, data, chacha20Nonce);
+    data = decryptChacha20(key1, data, chacha20Nonce);
+    data = decryptChacha20(key0, data, chacha20Nonce);
     assert.deepEqual(data, data0);
   });
 

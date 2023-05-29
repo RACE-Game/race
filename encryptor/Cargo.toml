@@ -28,6 +28,7 @@ aes = { workspace = true }
 ctr = { workspace = true }
 chrono = { workspace = true }
 openssl = { workspace = true }
+chacha20 = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = { workspace = true }

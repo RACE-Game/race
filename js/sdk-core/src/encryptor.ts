@@ -2,14 +2,15 @@ import { SdkError } from './error';
 import { Secret, Ciphertext } from './types';
 import { field } from '@race-foundation/borsh';
 import { base64ToArrayBuffer, arrayBufferToBase64 } from './utils';
+import { Chacha20 } from 'ts-chacha20';
 
-
-console.log("crypto ===> ", crypto);
 let subtle: SubtleCrypto = crypto.subtle;
 
 export const aesContentIv = Uint8Array.of(
   0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0);
+
+export const chacha20Nonce = Uint8Array.of(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
 export const aesDigestIv = Uint8Array.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
 
@@ -91,6 +92,14 @@ export async function verifyEc(publicKey: CryptoKey, signature: Uint8Array, mess
   return await subtle.verify({ name: 'ECDSA', hash: { name: 'SHA-256' } }, publicKey, signature, message);
 }
 
+export function encryptChacha20(key: Uint8Array, text: Uint8Array, nonce: Uint8Array): Uint8Array {
+  return new Chacha20(key, nonce).encrypt(text);
+}
+
+export function decryptChacha20(key: Uint8Array, text: Uint8Array, nonce: Uint8Array): Uint8Array {
+  return new Chacha20(key, nonce).decrypt(text);
+}
+
 export async function encryptAes(key: CryptoKey, text: Uint8Array, iv: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(
     await subtle.encrypt(
@@ -166,6 +175,12 @@ export async function generateRsaKeypair(): Promise<CryptoKeyPair> {
   );
 }
 
+export function generateChacha20(): Uint8Array {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  return arr;
+}
+
 export async function generateAes(): Promise<CryptoKey> {
   const k = await subtle.generateKey(
     {
@@ -214,6 +229,10 @@ export interface IEncryptor {
   decryptAes(secret: Secret, text: Ciphertext): Promise<Ciphertext>;
 
   decryptAesMulti(secrets: Secret[], text: Ciphertext): Promise<Ciphertext>;
+
+  encryptChacha20(secret: Secret, text: Ciphertext): Ciphertext;
+
+  decryptChacha20(secret: Secret, text: Ciphertext): Ciphertext;
 
   sign(message: Uint8Array, signer: string): Promise<Signature>;
 
@@ -283,6 +302,21 @@ export class Encryptor implements IEncryptor {
   async decryptAesMulti(secrets: Secret[], text: Ciphertext): Promise<Ciphertext> {
     for (const secret of secrets) {
       text = await this.decryptAes(secret, text);
+    }
+    return text;
+  }
+
+  encryptChacha20(secret: Secret, text: Ciphertext): Ciphertext {
+    return encryptChacha20(secret, text, chacha20Nonce);
+  }
+
+  decryptChacha20(secret: Secret, text: Ciphertext): Ciphertext {
+    return decryptChacha20(secret, text, chacha20Nonce);
+  }
+
+  decryptChacha20Multi(secrets: Secret[], text: Ciphertext): Ciphertext {
+    for (const secret of secrets) {
+      text = this.decryptChacha20(secret, text);
     }
     return text;
   }
@@ -370,7 +404,7 @@ export class Encryptor implements IEncryptor {
       if (secrets === undefined) {
         throw new Error('Missing secrets');
       } else {
-        const decrypted = await this.decryptAesMulti(secrets, ciphertext);
+        const decrypted = await this.decryptChacha20Multi(secrets, ciphertext);
         const decryptedValue = textDecoder.decode(decrypted);
         if (validOptions.find(s => s === decryptedValue) === undefined) {
           console.log("Options:", validOptions);

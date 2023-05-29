@@ -42,7 +42,8 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "@race-foundation/borsh": "0.0.1"
+    "@race-foundation/borsh": "0.0.1",
+    "ts-chacha20": "^1.2.0"
   },
   "testDependencies": {
     "crypto": "1.0.1"
