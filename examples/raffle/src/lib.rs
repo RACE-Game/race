@@ -117,6 +117,9 @@ impl GameHandler for Raffle {
 
 #[cfg(test)]
 mod tests {
+    use race_core::{context::GameContext, types::ClientMode};
+    use race_test::{game_account_addr, TestClient, TestHandler, TestGameAccountBuilder};
+
     use super::*;
 
     #[test]
@@ -126,15 +129,18 @@ mod tests {
         let state = Raffle::init_state(&mut effect, init_account).expect("Failed to init state");
         assert_eq!(state.random_id, 0);
         assert_eq!(state.players, Vec::new());
-        assert_eq!(state.draw_time, 30_000);
+        assert_eq!(state.draw_time, 0);
     }
 
     #[test]
-    fn test_game_start() {
+    fn test_sync() {
         let mut effect = Effect::default();
-        let init_account = InitAccount::default();
-        let mut state =
-            Raffle::init_state(&mut effect, init_account).expect("Failed to init state");
+        let mut state = Raffle {
+            draw_time: 0,
+            last_winner: None,
+            players: vec![],
+            random_id: 0,
+        };
         let event = Event::Sync {
             new_players: vec![PlayerJoin {
                 addr: "alice".into(),
@@ -154,5 +160,7 @@ mod tests {
         };
 
         state.handle_event(&mut effect, event).unwrap();
+        assert_eq!(state.players.len(), 1);
+        assert_eq!(effect.wait_timeout, Some(DRAW_TIMEOUT));
     }
 }

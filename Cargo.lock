@@ -3685,9 +3685,7 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "race-core",
- "race-proc-macro",
- "serde",
- "serde_json",
+ "race-test",
 ]
 
 [[package]]

@@ -18,11 +18,7 @@ Edit `Cargo.toml` to add:
 crate-type = ["cdylib"]
 
 [dependencies]
-race-core = { path = "../../core" }
-race-proc-macro = { path = "../../proc-macro" }
-serde_json = "1.0.85"
-serde = "1.0.144"
-borsh = "0.9.3"
+race-core = "0.0.1"
 ```
 
 Now, we are going to write the game logic.  Open `src/lib.rs` in your code editor:
@@ -38,19 +34,28 @@ struct Player {
     pub balance: u64,
 }
 
+impl From<PlayerJoin> for Player {
+    fn from(value: PlayerJoin) -> Self {
+        Self {
+            addr: value.addr,
+            balance: value.balance,
+        }
+    }
+}
+
 #[derive(BorshDeserialize, BorshSerialize)]
 #[game_handler]
 struct Raffle {
-    previous_winner: Option<String>,
-    random_id: RandomId,
-    next_draw: u64,
+    last_winner: Option<String>,
     players: Vec<Player>,
+    random_id: RandomId,
+    draw_time: u64,
 }
 ```
 
 Firstly, we need a vector of `Player` to represent all participants.
-A game handler must track the player status itself.  Here, only
-address and balance is required for a player state.
+A game handler must track the player status. For each player, we save its
+address and balance.
 
 Secondly, we need to track all random ids used in the game.  In a
 raffle, we only need one randomness, saved as `random_id`.  The zero
@@ -66,8 +71,6 @@ serialization/deserialization.
 ## Implement GameHandler Trait
 
 ```rust
-use race::core::prelude::*;
-
 impl GameHandler for Raffle {
     ...
 }
@@ -76,25 +79,17 @@ impl GameHandler for Raffle {
 To make our `Raffle` a game handler, two functions must be implemented:
 
 - `init_state`, is called when the game is loaded.
-- `handle_event`, is called each time a message is received.
+- `handle_event`, is called each time an event is received.
 
 ### init_state
 
 ```rust
 impl GameHandler for Raffle {
-    fn init_state(context: &mut Effect, init_account: GameAccount) -> Result<Self> {
-        let players = init_account
-            .players
-            .into_iter()
-            .map(|p| Player {
-                addr: p.addr,
-                balance: p.balance,
-            })
-            .collect();
-
-        let draw_time = context.timestamp() + 30_000;
-
+    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> HandleResult<Self> {
+        let players = init_account.players.into_iter().map(Into::into).collect();
+        let draw_time = 0;
         Ok(Self {
+            last_winner: None,
             players,
             random_id: 0,
             draw_time,
@@ -105,52 +100,57 @@ impl GameHandler for Raffle {
 }
 ```
 
-The implementation is pretty straight forward, we take the players
-information from account, and set a draw time at 30 seconds later.
+The `Effect` is the bridge between runtime and wasm. The `InitAccount` is the onchain game account snapshot. In `init_state`, we initialize the game state, and do necessary validation.
+
+The implementation is pretty straight forward, we take the players information from account.
 
 ### handle_event
 
 ```rust
+const DRAW_TIMEOUT: u64 = 30_000;
+
 impl GameHandler for Raffle {
     ...
 
-    fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()> {
+    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> HandleResult<()> {
         match event {
             Event::GameStart { .. } => {
                 // We need at least one player to start, otherwise we will skip this draw.
-                if context.count_players() >= 1 {
+                if effect.count_players() >= 1 {
                     let options = self.players.iter().map(|p| p.addr.to_owned()).collect();
                     let rnd_spec = RandomSpec::shuffled_list(options);
-                    self.random_id = context.init_random_state(rnd_spec);
-                } else {
-                    self.draw_time = context.timestamp() + 30_000;
-                    context.wait_timeout(30_000);
+                    self.random_id = effect.init_random_state(rnd_spec);
                 }
             }
 
             Event::Sync { new_players, .. } => {
                 let players = new_players.into_iter().map(Into::into);
                 self.players.extend(players);
+                if self.players.len() >= 1 && self.draw_time == 0 {
+                    self.draw_time = effect.timestamp() + DRAW_TIMEOUT;
+                    effect.wait_timeout(DRAW_TIMEOUT);
+                }
             }
 
             // Reveal the first address when randomness is ready.
             Event::RandomnessReady { .. } => {
-                context.reveal(self.random_id, vec![0]);
+                effect.reveal(self.random_id, vec![0]);
             }
 
             // Start game when we have enough players.
             Event::WaitingTimeout => {
-                context.start_game();
+                if self.players.len() >= 1 {
+                    effect.start_game();
+                }
             }
 
             // Eject all players when encryption failed.
             Event::OperationTimeout { .. } => {
-                context.wait_timeout(60_000);
                 self.cleanup();
             }
 
             Event::SecretsReady => {
-                let winner = context
+                let winner = effect
                     .get_revealed(self.random_id)?
                     .get(&0)
                     .unwrap()
@@ -158,12 +158,11 @@ impl GameHandler for Raffle {
 
                 for p in self.players.iter() {
                     if p.addr.ne(&winner) {
-                        context.settle(Settle::add(&winner, p.balance));
-                        context.settle(Settle::sub(&p.addr, p.balance));
+                        effect.settle(Settle::add(&winner, p.balance));
+                        effect.settle(Settle::sub(&p.addr, p.balance));
                     }
-                    context.settle(Settle::eject(&p.addr));
+                    effect.settle(Settle::eject(&p.addr));
                 }
-                context.wait_timeout(5_000);
                 self.last_winner = Some(winner);
                 self.cleanup();
             }
@@ -175,16 +174,64 @@ impl GameHandler for Raffle {
 ```
 
 Here we are at the most difficult part.  There are a lot of events we
-will receive, but we only deal the ones we care about.
+will receive, but we only deal those we care. Following is the list of relevant events in the order of occurrence.
 
+- Sync: We receive this event after a new player or a server joined. We want to schedule the game start when we have players in game, so we dispatch `WaitingTimeout` event.
+- WaitingTimeout: Check if we have enough players, then start the game.
+- GameStart: We receive this event when game is started. We must make sure that we have at least 1 player in the game. During the start up, we create one shuffled list of player addresses, and save its random id in game state.
+- RandomnessReady: We receive this event when the randomness is ready, which means all shuffling and encryption is done. We simply reveal the first item as the winner address.
+- SecretsReady: We receive this event when secrets are shared, which means we are able to check the value of first item now. We take the winner address, and generate a list of settles as game result.
 
 ### Testing
 
 The game handler itself is testable. Let's test some simple cases.
 
-```rust
+#### Unit Tests
 
+We can write unit tests for each event.
+
+- Initiate `Effect`, `Event` and `State`.
+- Call `handle_event`.
+- Do assertion for updated `Effect` and `State`.
+
+```rust
+#[test]
+fn test_sync() {
+    let mut effect = Effect::default();
+    let mut state = Raffle {
+        draw_time: 0,
+        last_winner: None,
+        players: vec![],
+        random_id: 0,
+    };
+    let event = Event::Sync {
+        new_players: vec![PlayerJoin {
+            addr: "alice".into(),
+            position: 0,
+            balance: 100,
+            access_version: 0,
+            verify_key: "".into(),
+        }],
+        new_servers: vec![ServerJoin {
+            addr: "foo".into(),
+            endpoint: "foo.endpoint".into(),
+            access_version: 0,
+            verify_key: "".into(),
+        }],
+        transactor_addr: "".into(),
+        access_version: 0,
+    };
+
+    state.handle_event(&mut effect, event).unwrap();
+    assert_eq!(state.players.len(), 1);
+    assert_eq!(effect.wait_timeout, Some(DRAW_TIMEOUT));
+}
 ```
+
+### Integration Tests
+
+TBD
+
 
 ### Summary
 
