@@ -18,4 +18,8 @@ proc-macro = true
 
 [dependencies]
 syn = { workspace = true, features = ["full"] }
-quote = { workspace = true }
+quote.workspace = true
+
+[dev-dependencies]
+race-core.workspace = true
+borsh.workspace = true

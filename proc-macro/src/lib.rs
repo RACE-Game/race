@@ -15,11 +15,11 @@ use syn::{parse_macro_input, ItemStruct};
 /// struct S {}
 ///
 /// impl GameHandler for S {
-///     fn init_state(context: &mut Effect, init_account: InitAccount) -> Result<Self> {
+///     fn init_state(context: &mut Effect, init_account: InitAccount) -> HandleResult<Self> {
 ///         Ok(Self {})
 ///     }
 
-///     fn handle_event(&mut self, context: &mut Effect, event: Event) -> Result<()> {
+///     fn handle_event(&mut self, context: &mut Effect, event: Event) -> HandleResult<()> {
 ///         Ok(())
 ///     }
 /// }

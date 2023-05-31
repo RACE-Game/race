@@ -3571,7 +3571,9 @@ dependencies = [
 name = "race-proc-macro"
 version = "0.0.2"
 dependencies = [
+ "borsh",
  "quote 1.0.26",
+ "race-core",
  "syn 1.0.109",
 ]
 
