@@ -1,19 +1,11 @@
 set dotenv-load
 
-build: build-sdk build-transactor build-cli
+build: build-transactor build-cli
 
 dep:
     cargo fetch
     npm --prefix ./js i -ws
     npm --prefix ./examples/demo-app i
-
-build-sdk:
-    wasm-pack build --release --target web sdk
-    patch ./sdk/pkg/package.json < ./sdk/package.json.patch
-
-dev-sdk:
-    wasm-pack build --dev --target web sdk
-    patch ./sdk/pkg/package.json < ./sdk/package.json.patch
 
 build-facade:
     cargo build -r -p race-facade
