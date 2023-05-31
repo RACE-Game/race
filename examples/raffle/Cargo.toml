@@ -8,5 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 race-core.workspace = true
-race-test.workspace = true
 borsh.workspace = true
+
+[dev-dependencies]
+race-test.workspace = true

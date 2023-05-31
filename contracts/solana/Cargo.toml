@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 solana-program = { workspace = true }
 spl-token = { workspace = true, features = ["no-entrypoint"]}
 spl-associated-token-account = { workspace = true, features = ["no-entrypoint"] }
-race-solana-types = { path = "../solana-types", features = ["program"] }
+race-solana-types = { workspace = true, features = ["program"] }
 borsh = { workspace = true }
 arrayref = { workspace = true }
 thiserror = { workspace = true }

@@ -3520,13 +3520,8 @@ version = "0.1.0"
 dependencies = [
  "arrayref",
  "borsh",
- "env_logger 0.10.0",
- "log",
  "race-core",
- "race-proc-macro",
  "race-test",
- "serde",
- "serde_json",
 ]
 
 [[package]]

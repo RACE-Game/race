@@ -10,8 +10,6 @@ use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, Tes
 
 #[test]
 fn test() -> Result<()> {
-    env_logger::builder().is_test(true).try_init().unwrap();
-
     // Initialize the game account, with 1 player joined.
     // The game account must be served, so we add one server which is the transactor.
     let account_data = AccountData {
