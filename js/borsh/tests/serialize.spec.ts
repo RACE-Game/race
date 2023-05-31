@@ -204,7 +204,7 @@ describe('Test serialize', () => {
       }
     };
     let c = new C({
-      x: new Date('2022-01-01T00:00:00')
+      x: new Date(1640966400000)
     });
     let bs = serialize(c);
     assert.deepEqual(bs, Uint8Array.from([0, 40, 56, 17, 126, 1, 0, 0]));
