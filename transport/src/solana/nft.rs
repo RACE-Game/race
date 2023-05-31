@@ -50,6 +50,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_fetch_wasm_from_game_bundle() -> anyhow::Result<()> {
         let data = fetch_wasm_from_game_bundle(
             "https://arweave.net/qXM8gjD1sxey90T-U8KPz_Cuj-APuq3hu34AIWz9SXc",

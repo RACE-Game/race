@@ -82,7 +82,6 @@ pub struct SolanaTransport {
 }
 
 #[async_trait]
-#[allow(unused_variables)]
 impl TransportT for SolanaTransport {
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
         // TODO: Discuss title allowed len
@@ -1002,12 +1001,14 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_read_program_id() -> anyhow::Result<()> {
         read_program_id()?;
         Ok(())
     }
 
     #[test]
+    #[ignore]
     fn test_read_keypair() -> anyhow::Result<()> {
         let keypair = read_keypair(
             shellexpand::tilde("~/.config/solana/id.json")
@@ -1030,6 +1031,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_get_transport() -> anyhow::Result<()> {
         get_transport()?;
         Ok(())
@@ -1073,6 +1075,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_game_create_get_close() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let addr = create_game(&transport).await?;
@@ -1093,6 +1096,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_registry_create_get() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let addr = create_reg(&transport).await?;
@@ -1121,6 +1125,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_register_server() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let endpoint = "https://foo.bar".to_string();
@@ -1140,6 +1145,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_create_player_profile() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let nick = "Foo".to_string();
@@ -1160,6 +1166,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_serve_game() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let game_addr = create_game(&transport).await?;
@@ -1182,6 +1189,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_join() -> anyhow::Result<()> {
         let transport = get_transport()?;
         create_player(&transport).await?;
@@ -1225,6 +1233,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
     async fn test_publish_game() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let params = PublishGameParams {
@@ -1249,6 +1258,7 @@ mod tests {
     }
 
     #[allow(dead_code)]
+    #[ignore]
     async fn test_settle() -> anyhow::Result<()> {
         // let game_addr = create_game();
         Ok(())
