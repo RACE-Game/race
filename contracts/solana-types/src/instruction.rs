@@ -10,8 +10,6 @@ use solana_program::program_error::ProgramError;
 pub enum RaceInstruction {
     /// # Create a new game
     ///
-    /// TODO: pass bundle_addr as account
-    ///
     /// Accounts expected:
     /// 0. `[signer]` The account of transactor.
     /// 1. `[writable]` The game account, hold all necessary info about the game.
@@ -31,7 +29,6 @@ pub enum RaceInstruction {
     /// 3. `[writable]` The stake account of game.
     /// 4. `[]` PDA account.
     /// 5. `[]` Token program.
-    // TODO: add registration center account to this ix?
     CloseGameAccount,
 
     /// # Create an on-chain "lobby" for game registration
@@ -195,7 +192,6 @@ mod tests {
         println!("join ix serialized {:?}", join_ix);
         let join_bytes = [10, 232, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 4, 0, 0, 0, 107, 101, 121, 48];
         assert_eq!(join_ix_ser, join_bytes);
-
 
         Ok(())
     }

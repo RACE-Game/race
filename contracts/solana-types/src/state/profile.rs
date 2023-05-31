@@ -59,18 +59,24 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
-    pub fn test_player_account_len() -> anyhow::Result<()> {
+    fn test_player_account_len() -> anyhow::Result<()> {
         let player = create_player();
+        let unpadded_len = get_instance_packed_len(&player)?;
         println!(
-            "Player account non-aligned len {}",
-            get_instance_packed_len(&player)?
+            "Player account len {}",
+            unpadded_len
         );
-        println!(
-            "Player account aligned len {}",
-            get_instance_packed_len(&player)?
-        );
-        println!("data: {:?}", player.try_to_vec().unwrap());
+        assert!(unpadded_len <= PROFILE_ACCOUNT_LEN);
+        assert_eq!(unpadded_len, 54);
+        Ok(())
+    }
+
+    #[test]
+    fn test_deserialize_player() -> anyhow::Result<()> {
+        let player = create_player();
+        let unpadded_data = [1, 16, 0, 0, 0, 49, 54, 45, 99, 104, 97, 114, 95, 110, 105, 99, 107, 110, 97, 109, 101, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let player_ser = player.try_to_vec().unwrap();
+        assert_eq!(player_ser, unpadded_data);
         Ok(())
     }
 }

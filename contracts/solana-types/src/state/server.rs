@@ -49,13 +49,15 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
-    pub fn test_server_account_len() -> anyhow::Result<()> {
+    fn test_server_account_len() -> anyhow::Result<()> {
         let mut server = ServerState::default();
         server.addr = Pubkey::new_unique();
         server.owner = Pubkey::new_unique();
         server.endpoint = "https------------------------------".to_string();
-        println!("Server account len {}", get_instance_packed_len(&server)?); // 104
+        let unpadded_len = get_instance_packed_len(&server)?;
+        println!("Server account len {}", unpadded_len);
+        assert!(unpadded_len <= SERVER_ACCOUNT_LEN);
+        assert_eq!(get_instance_packed_len(&server)?, 104);
         Ok(())
     }
 }

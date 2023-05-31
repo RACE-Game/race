@@ -40,8 +40,6 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         return Err(ProcessError::InvalidPDA)?;
     }
 
-    // TODO: unregister game from reg center?
-
     let close_ix = close_account(
         token_program.key,
         stake_account.key,

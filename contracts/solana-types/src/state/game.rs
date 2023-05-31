@@ -110,8 +110,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
-    pub fn test_state_len() -> anyhow::Result<()> {
+    fn test_state_len() -> anyhow::Result<()> {
         let mut state = GameState::default();
         state.is_initialized = true;
         let s: String = "ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDE".into();
@@ -131,23 +130,31 @@ mod tests {
         }
         let game_state_len = get_instance_packed_len(&state)?;
         println!("Game state len: {}", game_state_len);
-        assert_eq!(GAME_ACCOUNT_LEN, game_state_len);
+        assert!(game_state_len <= GAME_ACCOUNT_LEN);
+        assert_eq!(game_state_len, 3978);
         Ok(())
     }
 
     #[test]
-    pub fn test_usize() {
+    fn test_serialize_state() {
         let state = PlayerJoin {
-            addr: Pubkey::default(),
+            addr: Pubkey::new_unique(),
             balance: 1,
             position: 1,
             access_version: 1,
             verify_key: "key0".into(),
         };
-        println!("data: {:?}", state.try_to_vec().unwrap());
+        let data = [
+            0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 107, 101,
+            121, 48,
+        ];
+
+        let ser = state.try_to_vec().unwrap();
+        assert_eq!(ser, data);
     }
 
-    pub fn make_game_state() -> GameState {
+    fn make_game_state() -> GameState {
         let mut state = GameState::default();
         state.is_initialized = true;
         for i in 0..16 {
@@ -159,8 +166,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
-    pub fn test_ser() -> anyhow::Result<()> {
+    fn test_pack_game_state() -> anyhow::Result<()> {
         let state = make_game_state();
         let mut buf = [0u8; GameState::LEN];
         GameState::pack(state, &mut buf)?;
@@ -169,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_deser() -> anyhow::Result<()> {
+    fn test_deser_game_state() -> anyhow::Result<()> {
         let state = make_game_state();
         let mut buf = [0u8; GameState::LEN];
         GameState::pack(state.clone(), &mut buf)?;

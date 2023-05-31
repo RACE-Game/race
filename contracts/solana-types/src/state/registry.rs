@@ -70,8 +70,7 @@ mod tests {
         state
     }
     #[test]
-    #[ignore]
-    pub fn test_registry_account_len() -> anyhow::Result<()> {
+    fn test_registry_account_len() -> anyhow::Result<()> {
         let mut registry = make_registry_state();
         println!(
             "Registry account len {}",
@@ -83,28 +82,21 @@ mod tests {
                 addr: Pubkey::new_unique(),
                 reg_time: 1111111111111u64 + (i as u64),
                 bundle_addr: Pubkey::new_unique(),
-                // is_hidden: params.is_hidden,
             };
             registry.games.push(reg_game);
         }
+        let unpadded_len = get_instance_packed_len(&registry)?;
         println!(
             "Registry account aligned len {}",
-            get_instance_packed_len(&registry)?
+            unpadded_len
         );
+        assert!(unpadded_len <= REGISTRY_ACCOUNT_LEN);
+        assert_eq!(unpadded_len, 9240);
         Ok(())
     }
 
     #[test]
-    pub fn test_ser() -> anyhow::Result<()> {
-        let state = make_registry_state();
-        println!("Game registry len {}", get_instance_packed_len(&state)?);
-        let mut buf = [0u8; RegistryState::LEN];
-        RegistryState::pack(state, &mut buf)?;
-        Ok(())
-    }
-
-    #[test]
-    pub fn test_deser() -> anyhow::Result<()> {
+    fn test_deser() -> anyhow::Result<()> {
         let state = make_registry_state();
         let mut buf = [0u8; RegistryState::LEN];
         RegistryState::pack(state.clone(), &mut buf)?;
