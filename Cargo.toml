@@ -30,14 +30,14 @@ opt-level = 3
 gloo-timers = { git = "https://github.com/rustwasm/gloo" }
 
 [workspace.dependencies]
-race-core = { path = "core", version = "0.0.1" }
-race-proc-macro = { path = "proc-macro", version = "0.0.1" }
-race-client = { path = "client", version = "0.0.1" }
-race-encryptor = { path = "encryptor", version = "0.0.1" }
-race-env = { path = "env", version = "0.0.1" }
-race-test = { path = "test", version = "0.0.1" }
-race-solana-types = { path = "contracts/solana-types", version = "0.0.1" }
-race-transport = { path = "transport", version = "0.0.1" }
+race-core = { path = "core", version = "0.0.2" }
+race-proc-macro = { path = "proc-macro", version = "0.0.2" }
+race-client = { path = "client", version = "0.0.2" }
+race-encryptor = { path = "encryptor", version = "0.0.2" }
+race-env = { path = "env", version = "0.0.2" }
+race-test = { path = "test", version = "0.0.2" }
+race-solana-types = { path = "contracts/solana-types", version = "0.0.2" }
+race-transport = { path = "transport", version = "0.0.2" }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 syn = "1.0.107"
 quote = "1.0.23"
@@ -62,10 +62,10 @@ async-stream = "0.3.3"
 async-trait = "0.1.58"
 futures = "0.3.25"
 base64 = "0.21.0"
-solana-program = "1.15.2"
-solana-program-test = "1.15.2"
-solana-client = "1.15.2"
-solana-sdk = "1.15.2"
+solana-program = "1.14.18"
+solana-program-test = "1.14.18"
+solana-client = "1.14.18"
+solana-sdk = "1.14.18"
 spl-token = "3.5.0"
 spl-associated-token-account = "1.1.2"
 mpl-token-metadata = "1.9.1"
@@ -91,7 +91,7 @@ chacha20 = "0.9.1"
 
 [workspace.package]
 authors = ["RACE Foundation <race.game.team@gmail.com>"]
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 rust-version = "1.69.0"
 license = "MPL-2.0"

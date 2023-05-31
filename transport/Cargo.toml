@@ -16,6 +16,7 @@ publish = true
 [dependencies]
 race-core = { workspace = true, features = ["serde"] }
 race-env = { workspace = true }
+race-solana-types = { workspace = true, features = ["sdk"], default-features = false }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 serde_json = { workspace = true }
@@ -28,7 +29,6 @@ solana-sdk = { workspace = true }
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
 mpl-token-metadata = { workspace = true }
-race-solana-types = { path = "../contracts/solana-types", features = ["sdk"], default-features = false }
 reqwest = { workspace = true, features = [ "json"] }
 
 [dev-dependencies]

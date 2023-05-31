@@ -35,13 +35,14 @@ Work in progress, not ready to accept contributions yet.
 
 ## Rust
 
-| Package         | Version                                                                 | Description        |
-|-----------------|-------------------------------------------------------------------------|--------------------|
-| race-core       | ![Crates.io](https://img.shields.io/crates/v/race-core?logo=rust)       | Core lib           |
-| race-proc-macro | ![Crates.io](https://img.shields.io/crates/v/race-proc-macro?logo=rust) | SDK proc macros    |
-| race-env        | ![Crates.io](https://img.shields.io/crates/v/race-env?logo=rust)        | Environment module |
-| race-encryptor  | ![Crates.io](https://img.shields.io/crates/v/race-encryptor?logo=rust)  | Encryptor module   |
-
+| Package           | Version                                                                   | Description                             |
+|-------------------|---------------------------------------------------------------------------|-----------------------------------------|
+| race-core         | ![Crates.io](https://img.shields.io/crates/v/race-core?logo=rust)         | Core lib                                |
+| race-proc-macro   | ![Crates.io](https://img.shields.io/crates/v/race-proc-macro?logo=rust)   | SDK proc macros                         |
+| race-env          | ![Crates.io](https://img.shields.io/crates/v/race-env?logo=rust)          | Environment module                      |
+| race-encryptor    | ![Crates.io](https://img.shields.io/crates/v/race-encryptor?logo=rust)    | Encryptor module                        |
+| race-transport    | ![Crates.io](https://img.shields.io/crates/v/race-transport?logo=rust)    | Transport module                        |
+| race-solana-types | ![Crates.io](https://img.shields.io/crates/v/race-solana-types?logo=rust) | Type definitions for Solana integration |
 
 # Core Concepts
 
