@@ -51,11 +51,10 @@ describe('Test utilities', () => {
   it('RSA encrypt AES key', async () => {
     const aes = await generateAes();
     const plain = await exportAes(aes);
-    // console.log(plain);
     const keypair = await generateRsaKeypair();
-    // console.log(await exportRsa(keypair));
     const encrypted = await encryptRsa(keypair.publicKey, plain);
-    console.log(encrypted);
+    const decrypted = await decryptRsa(keypair.privateKey, encrypted);
+    assert.deepEqual(decrypted, plain);
   })
 
   it('ECDSA sign/verify', async () => {

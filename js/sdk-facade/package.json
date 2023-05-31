@@ -31,8 +31,7 @@
   "license": "ISC",
   "dependencies": {
     "@race-foundation/sdk-core": "0.0.2",
-    "@race-foundation/borsh": "^0.0.1",
-    "nanoid": "^4.0.2"
+    "@race-foundation/borsh": "^0.0.1"
   },
   "devDependencies": {
     "@types/chai": "^4.3.4",
