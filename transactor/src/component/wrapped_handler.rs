@@ -231,7 +231,7 @@ mod tests {
 
     fn make_wrapped_handler() -> WrappedHandler {
         let proj_root = project_root::get_project_root().expect("No project root found");
-        let bundle_path = proj_root.join("target/race_example_minimal.wasm");
+        let bundle_path = proj_root.join("examples/minimal/minimal.wasm");
         WrappedHandler::load_by_path(bundle_path).unwrap()
     }
 
