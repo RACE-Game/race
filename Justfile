@@ -109,4 +109,22 @@ create-game spec:
     cargo run -p race-cli -- -e local create-game solana {{spec}}
 
 validator:
-  solana-test-validator --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s token_metadata_program.so
+    solana-test-validator --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s token_metadata_program.so
+
+publish-npmjs:
+    npm --prefix ./js/borsh publish
+    npm --prefix ./js/sdk-core publish
+    npm --prefix ./js/sdk-facade publish
+    npm --prefix ./js/sdk-solana publish
+
+publish-crates:
+    cargo publish -p race-proc-macro
+    cargo publish -p race-core
+    cargo publish -p race-env
+    cargo publish -p race-encryptor
+    cargo publish -p race-solana-types
+    cargo publish -p race-transport
+    cargo publish -p race-test
+    cargo publish -p race-client
+    cargo publish -p race-cli
+    cargo publish -p race-transactor
