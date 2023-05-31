@@ -117,9 +117,6 @@ impl GameHandler for Raffle {
 
 #[cfg(test)]
 mod tests {
-    use race_core::{context::GameContext, types::ClientMode};
-    use race_test::{game_account_addr, TestClient, TestHandler, TestGameAccountBuilder};
-
     use super::*;
 
     #[test]

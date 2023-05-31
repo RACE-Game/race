@@ -17,10 +17,7 @@ use race_core::{
     },
 };
 
-#[cfg(not(target_arch = "wasm32"))]
 use race_core::transport::TransportT;
-#[cfg(target_arch = "wasm32")]
-use race_transport::wasm_trait::TransportLocalT as TransportT;
 
 /// Operation Ident
 ///
@@ -455,7 +452,7 @@ mod tests {
             connection.take().await.unwrap(),
             Event::Custom {
                 sender: game_account_addr(),
-                raw: "\"Foo\"".into()
+                raw: vec![0],
             }
         );
         Ok(())

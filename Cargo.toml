@@ -81,7 +81,7 @@ wasm-bindgen-test = "0.3.33"
 js-sys = "0.3.60"
 project-root = "0.2.2"
 reqwest = "0.11.16"
-openssl = "0.10"
+openssl = { version = "^0.10", features = ["vendored"]}
 prettytable-rs = "^0.10"
 sha1 = { version = "0.10.5", default-features = false, features = ["oid"] }
 aes = "0.8.2"

@@ -34,7 +34,7 @@ impl PortsHandle {
             let rx = std::mem::replace(&mut self.close_rx, None);
             let reason = rx.unwrap().await.unwrap();
             match reason {
-                CloseReason::Complete => todo!(),
+                CloseReason::Complete => (),
                 CloseReason::Fault(e) => {
                     error!("Recieved an error: {}", e.to_string());
                 }

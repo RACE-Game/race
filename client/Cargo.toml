@@ -17,8 +17,6 @@ publish = true
 
 [dependencies]
 race-core = { workspace = true }
-race-transport = { workspace = true }
-tracing = { workspace = true }
 
 [dev-dependencies]
 race-test = { workspace = true }

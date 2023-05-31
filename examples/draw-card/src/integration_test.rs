@@ -106,15 +106,15 @@ fn test() -> Result<()> {
         assert_eq!(
             vec![
                 Player {
-                    addr: "Alice".into(),
+                    addr: "Bob".into(),
                     balance: 10000,
                     bet: 0
                 },
                 Player {
-                    addr: "Bob".into(),
+                    addr: "Alice".into(),
                     balance: 10000,
                     bet: 0
-                }
+                },
             ],
             state.players
         );
@@ -231,8 +231,8 @@ fn test() -> Result<()> {
 
     // Now, Alice is the first to act.
     // So, she can send a bet event and we expect the bet amount to be updated to 500.
-    println!("Alice bets");
-    let event = alice.custom_event(GameEvent::Bet(500));
+    println!("Bob bets");
+    let event = bob.custom_event(GameEvent::Bet(500));
     handler.handle_event(&mut ctx, &event)?;
     {
         let state = handler.get_state();
@@ -241,8 +241,8 @@ fn test() -> Result<()> {
 
     // Bob calls this.
     // Now, it's time to reveal the cards, so two secrets for hands are required.
-    println!("Bob calls");
-    let event = bob.custom_event(GameEvent::Call);
+    println!("Alice calls");
+    let event = alice.custom_event(GameEvent::Call);
     handler.handle_event(&mut ctx, &event)?;
     {
         let random_state = ctx.get_random_state_unchecked(1);

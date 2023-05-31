@@ -18,7 +18,6 @@ race-core = { workspace = true }
 race-transport = { workspace = true }
 race-env = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-uuid = { workspace = true, features = ["v4", "fast-rng"] }
 clap = { workspace = true, features = ["derive"] }
 jsonrpsee = { workspace = true, features = ["http-client"] }
 anyhow = { workspace = true }

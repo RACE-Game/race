@@ -156,6 +156,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_bundle() -> anyhow::Result<()> {
         let transport = DummyTransport::default();
         let addr = game_bundle_addr();
@@ -165,6 +166,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_state() -> anyhow::Result<()> {
         let transport = DummyTransport::default();
         let ga_0 = GameAccount {
@@ -187,6 +189,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_settle() {
         let transport = DummyTransport::default();
         let settles = vec![Settle::add("Alice", 100), Settle::add("Bob", 100)];

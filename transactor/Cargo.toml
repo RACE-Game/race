@@ -38,7 +38,6 @@ thiserror = { workspace = true }
 wasmer = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 arrayref = { workspace = true }
-hex = { workspace = true }
 async-stream = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
