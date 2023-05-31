@@ -22,3 +22,6 @@ jobs:
 
     - name: Check
       run: cargo check
+
+    - name: Run Tests
+      run: cargo test
