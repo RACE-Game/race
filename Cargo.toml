@@ -30,14 +30,14 @@ opt-level = 3
 gloo-timers = { git = "https://github.com/rustwasm/gloo" }
 
 [workspace.dependencies]
-race-core = { path = "core", version = "0.0.2" }
-race-proc-macro = { path = "proc-macro", version = "0.0.2" }
-race-client = { path = "client", version = "0.0.2" }
-race-encryptor = { path = "encryptor", version = "0.0.2" }
-race-env = { path = "env", version = "0.0.2" }
-race-test = { path = "test", version = "0.0.2" }
-race-solana-types = { path = "contracts/solana-types", version = "0.0.2", default-features = false }
-race-transport = { path = "transport", version = "0.0.2" }
+race-core = { path = "core", version = ">= 0.0.3" }
+race-proc-macro = { path = "proc-macro", version = ">= 0.0.4" }
+race-client = { path = "client", version = ">= 0.0.4" }
+race-encryptor = { path = "encryptor", version = ">= 0.0.4" }
+race-env = { path = "env", version = ">= 0.0.4" }
+race-test = { path = "test", version = ">= 0.0.4" }
+race-solana-types = { path = "contracts/solana-types", version = ">= 0.0.4", default-features = false }
+race-transport = { path = "transport", version = "0.0.4" }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 syn = "1.0.107"
 quote = "1.0.23"
@@ -91,7 +91,7 @@ chacha20 = "0.9.1"
 
 [workspace.package]
 authors = ["RACE Foundation <race.game.team@gmail.com>"]
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 rust-version = "1.65.0"
 license = "MPL-2.0"

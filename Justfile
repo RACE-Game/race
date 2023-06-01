@@ -116,7 +116,8 @@ publish-crates:
     cargo publish -p race-encryptor
     cargo publish -p race-solana-types
     cargo publish -p race-transport
-    cargo publish -p race-test
     cargo publish -p race-client
+    cargo publish -p race-test
     cargo publish -p race-cli
+    cargo publish -p race-facade
     cargo publish -p race-transactor

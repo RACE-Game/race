@@ -3442,7 +3442,7 @@ dependencies = [
 
 [[package]]
 name = "race-cli"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "base64 0.21.0",
@@ -3460,20 +3460,14 @@ dependencies = [
 
 [[package]]
 name = "race-client"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
- "borsh",
  "race-core",
- "race-encryptor",
- "race-test",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
 name = "race-core"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3486,7 +3480,7 @@ dependencies = [
 
 [[package]]
 name = "race-encryptor"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "aes 0.8.2",
  "anyhow",
@@ -3506,7 +3500,7 @@ dependencies = [
 
 [[package]]
 name = "race-env"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "serde",
  "shellexpand",
@@ -3546,7 +3540,7 @@ dependencies = [
 
 [[package]]
 name = "race-facade"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3569,7 +3563,7 @@ dependencies = [
 
 [[package]]
 name = "race-proc-macro"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "borsh",
  "quote 1.0.26",
@@ -3594,7 +3588,7 @@ dependencies = [
 
 [[package]]
 name = "race-solana-types"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3607,7 +3601,7 @@ dependencies = [
 
 [[package]]
 name = "race-test"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3624,7 +3618,7 @@ dependencies = [
 
 [[package]]
 name = "race-transactor"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -3658,7 +3652,7 @@ dependencies = [
 
 [[package]]
 name = "race-transport"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "async-trait",

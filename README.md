@@ -42,7 +42,12 @@ Work in progress, not ready to accept contributions yet.
 | race-env          | ![Crates.io](https://img.shields.io/crates/v/race-env?logo=rust)          | Environment module                      |
 | race-encryptor    | ![Crates.io](https://img.shields.io/crates/v/race-encryptor?logo=rust)    | Encryptor module                        |
 | race-transport    | ![Crates.io](https://img.shields.io/crates/v/race-transport?logo=rust)    | Transport module                        |
+| race-client       | ![Crates.io](https://img.shields.io/crates/v/race-client?logo=rust)       | Client module                           |
 | race-solana-types | ![Crates.io](https://img.shields.io/crates/v/race-solana-types?logo=rust) | Type definitions for Solana integration |
+| race-test         | ![Crates.io](https://img.shields.io/crates/v/race-test?logo=rust)         | Testkit                                 |
+| race-cli          | ![Crates.io](https://img.shields.io/crates/v/race-cli?logo=rust)          | Command Line tools                      |
+| race-facade       | ![Crates.io](https://img.shields.io/crates/v/race-facade?logo=rust)       | Chain replacement for quick test        |
+| race-transactor   | ![Crates.io](https://img.shields.io/crates/v/race-transactor?logo=rust)   | Node Server                             |
 
 # Core Concepts
 
