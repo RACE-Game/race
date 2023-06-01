@@ -48,7 +48,7 @@ function Chat() {
                 console.log("Create AppClient");
                 let rpc = CHAIN_TO_RPC[chain];
               let transport = createTransport(chain, rpc);
-              let client = await AppClient.initialize(transport, wallet, addr, onEvent);
+              let client = await AppClient.initialize({ transport, wallet, gameAddr: addr, callback: onEvent });
                 setClient(client);
                 await client.attachGame();
             }
