@@ -4,7 +4,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::account_helpers::*;
 use async_trait::async_trait;
 use base64::prelude::Engine;
 #[allow(unused_imports)]
@@ -14,8 +13,9 @@ use race_core::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-        ServerAccount, Settle, SettleParams, UnregisterGameParams, VoteParams, PublishGameParams,
+        PlayerProfile, PublishGameParams, RegisterGameParams, RegisterServerParams,
+        RegistrationAccount, ServeParams, ServerAccount, Settle, SettleParams,
+        UnregisterGameParams, VoteParams,
     },
 };
 
@@ -34,6 +34,11 @@ impl DummyTransport {
     pub fn simulate_states(&self, mut states: Vec<GameAccount>) {
         self.states.lock().unwrap().append(&mut states);
     }
+
+    #[allow(dead_code)]
+    pub fn default_game_addr() -> String {
+        "TEST".into()
+    }
 }
 
 impl Default for DummyTransport {
@@ -49,7 +54,7 @@ impl Default for DummyTransport {
 #[allow(unused_variables)]
 impl TransportT for DummyTransport {
     async fn create_game_account(&self, _params: CreateGameAccountParams) -> Result<String> {
-        Ok(game_account_addr())
+        Ok(Self::default_game_addr())
     }
 
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
@@ -79,10 +84,10 @@ impl TransportT for DummyTransport {
     }
 
     async fn get_game_bundle(&self, addr_q: &str) -> Result<Option<GameBundle>> {
-        let addr = game_bundle_addr();
+        let addr: String = "TEST".into();
         if addr.eq(addr_q) {
             let mut f = std::fs::File::open(
-                "../target/wasm32-unknown-unknown/release/race_example_counter.wasm",
+                "../examples/minimal/minimal.wasm",
             )
             .unwrap();
             let mut buf = vec![];
@@ -90,8 +95,11 @@ impl TransportT for DummyTransport {
             let base64 = base64::prelude::BASE64_STANDARD;
             let data = base64.encode(buf);
             // FIXME: complete fields
-            Ok(Some(GameBundle {uri: "".into(), name: "".into(), data: vec![]})
-)
+            Ok(Some(GameBundle {
+                uri: "".into(),
+                name: "".into(),
+                data: vec![],
+            }))
         } else {
             Ok(None)
         }
@@ -110,7 +118,7 @@ impl TransportT for DummyTransport {
     }
 
     async fn settle_game(&self, mut params: SettleParams) -> Result<()> {
-        if params.addr.eq(&game_account_addr()) {
+        if params.addr.eq("TEST") {
             let mut settles = self.settles.lock().unwrap();
             settles.append(&mut params.settles);
             Ok(())
@@ -153,34 +161,38 @@ mod tests {
 
     use race_core::types::Settle;
 
+    use crate::{TestClient, TestGameAccountBuilder, test_game_addr};
+
     use super::*;
 
     #[tokio::test]
-    #[ignore]
     async fn test_get_bundle() -> anyhow::Result<()> {
         let transport = DummyTransport::default();
-        let addr = game_bundle_addr();
+        let addr = "TEST".to_string();
         let bundle = transport.get_game_bundle(&addr).await?.unwrap();
-        assert_ne!(0, bundle.data.len());
+        assert_eq!(0, bundle.data.len());
         Ok(())
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_get_state() -> anyhow::Result<()> {
         let transport = DummyTransport::default();
-        let ga_0 = GameAccount {
-            addr: game_account_addr(),
-            bundle_addr: game_bundle_addr(),
-            access_version: 0,
-            ..Default::default()
-        };
-        let ga_1 = TestGameAccountBuilder::default().add_players(1).build();
-        let ga_2 = TestGameAccountBuilder::default().add_players(2).build();
+        let alice = TestClient::player("alice");
+        let bob = TestClient::player("bob");
+
+        let ga_0 = TestGameAccountBuilder::default().build();
+        let ga_1 = TestGameAccountBuilder::default()
+            .add_player(&alice, 100)
+            .build();
+        let ga_2 = TestGameAccountBuilder::default()
+            .add_player(&alice, 100)
+            .add_player(&bob, 100)
+            .build();
+
         let states = vec![ga_0.clone(), ga_1.clone(), ga_2.clone()];
         transport.simulate_states(states);
 
-        let addr = game_account_addr();
+        let addr = test_game_addr();
         assert_eq!(Some(ga_0), transport.get_game_account(&addr).await?);
         assert_eq!(Some(ga_1), transport.get_game_account(&addr).await?);
         assert_eq!(Some(ga_2), transport.get_game_account(&addr).await?);
@@ -189,12 +201,11 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_settle() {
         let transport = DummyTransport::default();
         let settles = vec![Settle::add("Alice", 100), Settle::add("Bob", 100)];
         let params = SettleParams {
-            addr: game_account_addr(),
+            addr: test_game_addr(),
             settles: settles.clone(),
         };
         transport.settle_game(params.clone()).await.unwrap();

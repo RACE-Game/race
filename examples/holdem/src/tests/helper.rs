@@ -4,16 +4,10 @@ use std::collections::BTreeMap;
 
 use borsh::BorshSerialize;
 use race_core::{
-    context::GameContext,
-    error::Result,
-    event::Event,
-    prelude::InitAccount,
-    types::{ClientMode, PlayerJoin},
+    context::GameContext, error::Result, event::Event, prelude::InitAccount, types::PlayerJoin,
 };
 
-use race_test::{
-    transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler,
-};
+use race_test::{TestClient, TestGameAccountBuilder, TestHandler};
 
 use crate::essential::*;
 use crate::game::*;
@@ -47,12 +41,30 @@ impl Player {
 
 pub fn gaming_players() -> [(String, Player); 6] {
     [
-        ("Alice".into(), Player::new_with_status("Alice".into(), 1000, 0usize, PlayerStatus::Acting)),
-        ("Bob".into(), Player::new_with_status("Bob".into(), 1000, 1usize, PlayerStatus::Acted)),
-        ("Carol".into(), Player::new_with_status("Carol".into(), 1000, 2usize, PlayerStatus::Allin)),
-        ("Dave".into(), Player::new_with_status("Dave".into(), 1000, 3usize, PlayerStatus::Acted)),
-        ("Eva".into(), Player::new_with_status("Eva".into(), 1000, 4usize, PlayerStatus::Acted)),
-        ("Frank".into(), Player::new_with_status("Frank".into(), 1000, 5usize, PlayerStatus::Fold)),
+        (
+            "Alice".into(),
+            Player::new_with_status("Alice".into(), 1000, 0usize, PlayerStatus::Acting),
+        ),
+        (
+            "Bob".into(),
+            Player::new_with_status("Bob".into(), 1000, 1usize, PlayerStatus::Acted),
+        ),
+        (
+            "Carol".into(),
+            Player::new_with_status("Carol".into(), 1000, 2usize, PlayerStatus::Allin),
+        ),
+        (
+            "Dave".into(),
+            Player::new_with_status("Dave".into(), 1000, 3usize, PlayerStatus::Acted),
+        ),
+        (
+            "Eva".into(),
+            Player::new_with_status("Eva".into(), 1000, 4usize, PlayerStatus::Acted),
+        ),
+        (
+            "Frank".into(),
+            Player::new_with_status("Frank".into(), 1000, 5usize, PlayerStatus::Fold),
+        ),
     ]
 }
 
@@ -101,12 +113,14 @@ pub fn setup_holdem_state() -> Result<Holdem> {
 }
 
 pub fn setup_context() -> GameContext {
-    let game_account = TestGameAccountBuilder::default().add_servers(1).build();
+    let transactor = TestClient::transactor("foo");
+    let game_account = TestGameAccountBuilder::default()
+        .set_transactor(&transactor)
+        .build();
     // let init_account = InitAccount::from_game_account(&game_account);
     let context = GameContext::try_new(&game_account).unwrap();
     context
 }
-
 
 // ====================================================
 // Helpers for testing Holdem with the protocol
@@ -116,29 +130,25 @@ type Game = (InitAccount, GameContext, TestHandler<Holdem>, TestClient);
 pub fn setup_holdem_game() -> Game {
     let holdem_account = HoldemAccount::default();
     let holdem_data = holdem_account.try_to_vec().unwrap();
-    let mut game_account = TestGameAccountBuilder::default().add_servers(1).build();
+    let transactor = TestClient::transactor("foo");
+    let mut game_account = TestGameAccountBuilder::default()
+        .set_transactor(&transactor)
+        .build();
     game_account.data = holdem_data;
 
     let init_account = InitAccount::from_game_account(&game_account);
     let mut context = GameContext::try_new(&game_account).unwrap();
     let handler = TestHandler::<Holdem>::init_state(&mut context, &game_account).unwrap();
-    let transactor_addr = game_account.transactor_addr.as_ref().unwrap().clone();
-    let transactor = TestClient::new(
-        transactor_addr.clone(),
-        game_account.addr.clone(),
-        ClientMode::Transactor,
-    );
-
     (init_account, context, handler, transactor)
 }
 
-pub fn create_sync_event(ctx: &GameContext, players: Vec<String>) -> Event {
+pub fn create_sync_event(ctx: &GameContext, players: &[&TestClient], transactor: &TestClient) -> Event {
     let av = ctx.get_access_version() + 1;
 
     let mut new_players = Vec::new();
     for (i, p) in players.iter().enumerate() {
         new_players.push(PlayerJoin {
-            addr: p.into(),
+            addr: p.get_addr(),
             balance: 10_000,
             position: i as u16,
             access_version: av,
@@ -149,7 +159,7 @@ pub fn create_sync_event(ctx: &GameContext, players: Vec<String>) -> Event {
     Event::Sync {
         new_players,
         new_servers: vec![],
-        transactor_addr: transactor_account_addr(),
+        transactor_addr: transactor.get_addr(),
         access_version: av,
     }
 }

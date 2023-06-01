@@ -165,7 +165,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_broadcast_event() {
-        let game_account = TestGameAccountBuilder::default().add_players(2).build();
+        let alice = TestClient::player("alice");
+        let bob = TestClient::player("bob");
+        let game_account = TestGameAccountBuilder::default()
+            .add_player(&alice, 100)
+            .add_player(&bob, 100)
+            .build();
         let (broadcaster, ctx) = Broadcaster::init(&game_account);
         let handle = broadcaster.start(ctx);
         let mut rx = broadcaster.get_broadcast_rx();

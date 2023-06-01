@@ -1,36 +1,26 @@
-use std::collections::HashMap;
 use race_core::{
     context::{DispatchEvent, GameStatus},
-    error:: Result,
+    error::Result,
     event::Event,
     random::RandomStatus,
-    types::ClientMode,
 };
 use race_test::TestClient;
+use std::collections::HashMap;
 
 use crate::essential::*;
-use crate::tests::helper::{setup_holdem_game, create_sync_event};
+use crate::tests::helper::{create_sync_event, setup_holdem_game};
 
 #[test]
 fn test_players_order() -> Result<()> {
-    let (game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
+    let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
 
-    let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut carol = TestClient::new("Carol".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut dave = TestClient::new("Dave".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut eva = TestClient::new("Eva".into(), game_acct.addr.clone(), ClientMode::Player);
+    let mut alice = TestClient::player("Alice");
+    let mut bob = TestClient::player("Bob");
+    let mut carol = TestClient::player("Carol");
+    let mut dave = TestClient::player("Dave");
+    let mut eva = TestClient::player("Eva");
 
-    let sync_evt = create_sync_event(
-        &ctx,
-        vec![
-            "Alice".to_string(),
-            "Bob".to_string(),
-            "Carol".to_string(),
-            "Dave".to_string(),
-            "Eva".to_string(),
-        ],
-    );
+    let sync_evt = create_sync_event(&ctx, &[&alice, &bob, &carol, &dave, &eva], &transactor);
 
     // ------------------------- GAMESTART ------------------------
     println!("-- Syncing players --");
@@ -69,10 +59,10 @@ fn test_players_order() -> Result<()> {
 
 #[test]
 fn test_runner() -> Result<()> {
-    let (game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
-    let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
-    let sync_evt = create_sync_event(&ctx, vec!["Alice".to_string(), "Bob".to_string()]);
+    let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
+    let mut alice = TestClient::player("Alice");
+    let mut bob = TestClient::player("Bob");
+    let sync_evt = create_sync_event(&ctx, &[&alice, &bob], &transactor);
 
     // Syncing players to the game, i.e. they join the game and game kicks start
     handler.handle_until_no_events(
@@ -97,7 +87,10 @@ fn test_runner() -> Result<()> {
     ]);
     let holdem_state = handler.get_state();
     ctx.add_revealed_random(holdem_state.deck_random_id, runner_revealed)?;
-    println!("-- Cards {:?}", ctx.get_revealed(holdem_state.deck_random_id)?);
+    println!(
+        "-- Cards {:?}",
+        ctx.get_revealed(holdem_state.deck_random_id)?
+    );
 
     // With everything ready, game enters preflop
     {
@@ -139,7 +132,6 @@ fn test_runner() -> Result<()> {
         vec![&mut alice, &mut bob, &mut transactor],
     )?;
 
-
     // ------------------------- RUNNER ------------------------
     {
         let state = handler.get_state();
@@ -153,24 +145,14 @@ fn test_runner() -> Result<()> {
 
 #[test]
 fn test_play_game() -> Result<()> {
-    let (game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
-    let mut alice = TestClient::new("Alice".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut bob = TestClient::new("Bob".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut carol = TestClient::new("Carol".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut dave = TestClient::new("Dave".into(), game_acct.addr.clone(), ClientMode::Player);
-    let mut eva = TestClient::new("Eva".into(), game_acct.addr.clone(), ClientMode::Player);
+    let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
+    let mut alice = TestClient::player("Alice");
+    let mut bob = TestClient::player("Bob");
+    let mut carol = TestClient::player("Carol");
+    let mut dave = TestClient::player("Dave");
+    let mut eva = TestClient::player("Eva");
 
-    let sync_evt = create_sync_event(
-        &ctx,
-        vec![
-            "Alice".to_string(),
-            "Bob".to_string(),
-            "Carol".to_string(),
-            "Dave".to_string(),
-            "Eva".to_string(),
-        ],
-    );
-
+    let sync_evt = create_sync_event(&ctx, &[&alice, &bob, &carol, &dave, &eva], &transactor);
 
     // ------------------------- GAMESTART ------------------------
     handler.handle_until_no_events(
@@ -214,8 +196,10 @@ fn test_play_game() -> Result<()> {
     ]);
     let holdem_state = handler.get_state();
     ctx.add_revealed_random(holdem_state.deck_random_id, revealed)?;
-    println!("-- Cards {:?}", ctx.get_revealed(holdem_state.deck_random_id)?);
-
+    println!(
+        "-- Cards {:?}",
+        ctx.get_revealed(holdem_state.deck_random_id)?
+    );
 
     // ------------------------- BLIND BETS ----------------------
     {
@@ -564,7 +548,6 @@ fn test_play_game() -> Result<()> {
                 &mut transactor,
             ],
         )?;
-
 
         // Wait for 5 secs and game should start again
         handler.handle_dispatch_event(&mut ctx)?;

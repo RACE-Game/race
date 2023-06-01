@@ -1,33 +1,9 @@
-use crate::constants::*;
+use crate::TestClient;
 use borsh::BorshSerialize;
-use race_core::types::{GameAccount, PlayerJoin, ServerAccount, ServerJoin};
+use race_core::types::{ClientMode, GameAccount, PlayerJoin, ServerJoin};
 
-pub fn player_account_addr(idx: usize) -> String {
-    PLAYER_ADDRS[idx].to_owned()
-}
-
-pub fn server_account_addr(idx: usize) -> String {
-    SERVER_ADDRS[idx].to_owned()
-}
-
-pub fn game_account_addr() -> String {
-    TEST_GAME_ACCOUNT_ADDR.into()
-}
-
-pub fn game_bundle_addr() -> String {
-    TEST_GAME_BUNDLE_ADDR.into()
-}
-
-pub fn transactor_account_addr() -> String {
-    TEST_TRANSACTOR_ACCOUNT_ADDR.into()
-}
-
-pub fn transactor_owner_addr() -> String {
-    TEST_TRANSACTOR_OWNER_ADDR.into()
-}
-
-pub fn transactor_endpoint() -> String {
-    TEST_TRANSACTOR_ENDPOINT.into()
+pub fn test_game_addr() -> String {
+    "TEST".into()
 }
 
 pub struct TestGameAccountBuilder {
@@ -37,10 +13,10 @@ pub struct TestGameAccountBuilder {
 impl Default for TestGameAccountBuilder {
     fn default() -> Self {
         let account = GameAccount {
-            addr: game_account_addr(),
+            addr: "TEST".into(),
             title: "Unnamed".into(),
-            bundle_addr: game_bundle_addr(),
-            owner_addr: "8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu".to_string(),
+            bundle_addr: "".into(),
+            owner_addr: "".into(),
             settle_version: 0,
             access_version: 0,
             players: vec![],
@@ -54,14 +30,11 @@ impl Default for TestGameAccountBuilder {
             deposits: vec![],
             max_deposit: 2,
             min_deposit: 1,
-            token_addr: "RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ".to_string(),
+            token_addr: "".into(),
         };
         TestGameAccountBuilder { account }
     }
 }
-
-/// A tuple of (address, deposit, position, access_version),
-type TestPlayerInfo = (String, u64, u16, u64);
 
 impl TestGameAccountBuilder {
     pub fn new() -> Self {
@@ -78,65 +51,105 @@ impl TestGameAccountBuilder {
         self.account
     }
 
-    pub fn default_players() {}
-
-    pub fn add_servers(mut self, num_of_servers: usize) -> Self {
-        if num_of_servers > 3 {
-            panic!("num_of_servers must be less than or equal to 3");
+    pub fn with_max_players(mut self, max_players: u16) -> Self {
+        if max_players < self.account.players.len() as _ {
+            panic!("Invalid max_players specified, more players were added");
         }
-
-        for addr in SERVER_ADDRS
-            .iter()
-            .skip(self.account.servers.len())
-            .take(num_of_servers)
-        {
-            if self.account.transactor_addr.is_none() {
-                self.account.transactor_addr = Some(addr.to_string());
-            }
-            self.account.access_version += 1;
-            self.account.servers.push(ServerJoin::new(
-                addr.clone(),
-                "".into(),      // server addr
-                self.account.access_version,
-                "".into()       // verify key
-            ));
-        }
+        self.account.max_players = max_players;
         self
     }
 
-    pub fn add_players(mut self, num_of_players: usize) -> Self {
-        if num_of_players > 6 {
-            panic!("num_of_players must be less than or equal to 6");
+    pub fn with_deposit_range(mut self, min: u64, max: u64) -> Self {
+        if max < min {
+            panic!("Invalid deposit value, the max must be greater than the min");
         }
+        self.account.max_deposit = max;
+        self.account.min_deposit = min;
+        self
+    }
 
-        for (i, addr) in PLAYER_ADDRS
-            .iter()
-            .enumerate()
-            .skip(self.account.players.len())
-            .take(num_of_players)
-        {
-            self.account.access_version += 1;
-            self.account.players.push(PlayerJoin {
-                addr: addr.to_string(),
-                position: i as u16,
+    pub fn set_transactor(mut self, server: &TestClient) -> Self {
+        if server.get_mode().ne(&ClientMode::Transactor) {
+            panic!("A test client in TRANSACTOR Mode is required");
+        }
+        if self.account.transactor_addr.is_some() {
+            panic!("Only one transactor is allowed");
+        }
+        if self.account.servers.iter().find(|s| s.addr.eq(&server.get_addr())).is_some() {
+            panic!("Server already added")
+        }
+        self.account.transactor_addr = Some(server.get_addr());
+        self.account.access_version += 1;
+        self.account.servers.insert(
+            0,
+            ServerJoin {
+                addr: server.get_addr(),
+                endpoint: "".into(),
                 access_version: self.account.access_version,
-                balance: DEFAULT_DEPOSIT_AMOUNT,
                 verify_key: "".into(),
-            });
-        }
+            },
+        );
         self
     }
 
-    pub fn with_players(mut self, players: &[TestPlayerInfo]) -> Self {
-        for (addr, amount, position, access_version) in players.iter() {
-            self.account.players.push(PlayerJoin {
-                addr: addr.to_owned(),
-                position: *position,
-                access_version: *access_version,
-                balance: *amount,
-                verify_key: "".into(),
-            });
+    pub fn add_validator(mut self, server: &TestClient) -> Self {
+        if server.get_mode().ne(&ClientMode::Validator) {
+            panic!("A test client in VALIDATOR Mode is required");
         }
+        if self.account.servers.iter().find(|s| s.addr.eq(&server.get_addr())).is_some() {
+            panic!("Server already added")
+        }
+        self.account.access_version += 1;
+        self.account.servers.push(ServerJoin {
+            addr: server.get_addr(),
+            endpoint: "".into(),
+            access_version: self.account.access_version,
+            verify_key: "".into(),
+        });
+        self
+    }
+
+    pub fn add_player(self, player: &TestClient, deposit: u64) -> Self {
+        let mut position = None;
+        for i in 0..self.account.max_players {
+            if self.account.players.iter().find(|p| p.position == i).is_some() {
+                continue;
+            } else {
+                position = Some(i);
+                break;
+            }
+        }
+        if let Some(position) = position {
+            self.add_player_with_position(player, deposit, position)
+        } else {
+            panic!("Can't add player, game account is full");
+        }
+    }
+
+
+    pub fn add_player_with_position(mut self, player: &TestClient, deposit: u64, position: u16) -> Self {
+        if self.account.players.iter().find(|p| p.addr.eq(&player.get_addr())).is_some() {
+            panic!("Player already added")
+        }
+        if player.get_mode().ne(&ClientMode::Player) {
+            panic!("A test client in PLAYER mode is required");
+        }
+        self.account.access_version += 1;
+        for p in self.account.players.iter() {
+            if p.position == position {
+                panic!("Player position occupied");
+            }
+        }
+        if position >= self.account.max_players {
+            panic!("Player position occupied");
+        }
+        self.account.players.push(PlayerJoin {
+            addr: player.get_addr(),
+            position,
+            access_version: self.account.access_version,
+            balance: deposit,
+            verify_key: "".into(),
+        });
         self
     }
 
@@ -149,12 +162,5 @@ impl TestGameAccountBuilder {
         self.account.data_len = data.len() as _;
         self.account.data = data;
         self
-    }
-}
-
-pub fn transactor_account() -> ServerAccount {
-    ServerAccount {
-        addr: transactor_account_addr(),
-        endpoint: transactor_endpoint(),
     }
 }

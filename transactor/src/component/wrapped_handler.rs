@@ -223,9 +223,10 @@ mod tests {
 
     fn make_game_account() -> GameAccount {
         let data = MinimalAccountData { init_n: 42 };
+        let transactor = TestClient::transactor("transactor");
         TestGameAccountBuilder::default()
+            .set_transactor(&transactor)
             .with_data(data)
-            .add_servers(1)
             .build()
     }
 

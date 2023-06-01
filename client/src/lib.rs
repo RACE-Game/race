@@ -414,17 +414,17 @@ mod tests {
         let transport = Arc::new(DummyTransport::default());
         let connection = Arc::new(DummyConnection::default());
         let encryptor = Arc::new(Encryptor::default());
+        let transactor = TestClient::transactor("transactor");
         let client = Client::new(
-            server_account_addr(0),
-            game_account_addr(),
+            transactor.get_addr(),
+            test_game_addr(),
             ClientMode::Transactor,
             transport.clone(),
             encryptor.clone(),
             connection.clone(),
         );
         let game_account = TestGameAccountBuilder::default()
-            .add_players(2)
-            .add_servers(2)
+            .set_transactor(&transactor)
             .build();
         (client, encryptor, connection, game_account)
     }
@@ -451,7 +451,7 @@ mod tests {
         assert_eq!(
             connection.take().await.unwrap(),
             Event::Custom {
-                sender: game_account_addr(),
+                sender: test_game_addr(),
                 raw: vec![0],
             }
         );

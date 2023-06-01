@@ -78,7 +78,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_settle() {
-        let game_account = TestGameAccountBuilder::default().add_players(2).build();
+        let alice = TestClient::player("alice");
+        let bob = TestClient::player("bob");
+        let game_account = TestGameAccountBuilder::default()
+            .add_player(&alice, 100)
+            .add_player(&bob, 100)
+            .build();
         let transport = Arc::new(DummyTransport::default());
         let (submitter, ctx) = Submitter::init(&game_account, transport.clone());
         let settles = vec![Settle::add("Alice", 100)];

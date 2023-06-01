@@ -13,7 +13,7 @@ use race_core::{
 use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, Mutex};
 
-use crate::transport_helpers::DummyTransport;
+use crate::{transport_helpers::DummyTransport, test_game_addr};
 
 pub struct TestClient {
     client: Client,
@@ -63,13 +63,33 @@ impl ConnectionT for DummyConnection {
 }
 
 impl TestClient {
-    pub fn new(addr: String, game_addr: String, mode: ClientMode) -> Self {
+    pub fn new<S: Into<String>>(addr: S, mode: ClientMode) -> Self {
+        let addr = addr.into();
         let transport = Arc::new(DummyTransport::default());
         let encryptor = Arc::new(Encryptor::default());
         let connection = Arc::new(DummyConnection::default());
         Self {
-            client: Client::new(addr, game_addr, mode, transport, encryptor, connection),
+            client: Client::new(
+                addr,
+                test_game_addr(),
+                mode,
+                transport,
+                encryptor,
+                connection,
+            ),
         }
+    }
+
+    pub fn player<S: Into<String>>(addr: S) -> Self {
+        Self::new(addr, ClientMode::Player)
+    }
+
+    pub fn transactor<S: Into<String>>(addr: S) -> Self {
+        Self::new(addr, ClientMode::Transactor)
+    }
+
+    pub fn validator<S: Into<String>>(addr: S) -> Self {
+        Self::new(addr, ClientMode::Validator)
     }
 
     pub fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<Vec<Event>> {
@@ -78,6 +98,10 @@ impl TestClient {
 
     pub fn get_mode(&self) -> ClientMode {
         self.client.mode.clone()
+    }
+
+    pub fn get_addr(&self) -> String {
+        self.client.addr.clone()
     }
 
     pub fn decrypt(

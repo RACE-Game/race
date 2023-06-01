@@ -144,12 +144,19 @@ mod tests {
         PortsHandle,
         Arc<DummyConnection>,
     ) {
+        let alice = TestClient::player("alice");
+        let bob = TestClient::player("bob");
+        let transactor = TestClient::transactor("transactor");
         let game_account = TestGameAccountBuilder::default()
-            .add_players(2)
-            .add_servers(1)
+            .add_player(&alice, 100)
+            .add_player(&bob, 100)
+            .set_transactor(&transactor)
             .build();
         let encryptor = Arc::new(Encryptor::default());
-        let transactor_account = transactor_account();
+        let transactor_account = ServerAccount {
+            addr: transactor.get_addr(),
+            endpoint: "".into(),
+        };
         let connection = Arc::new(DummyConnection::default());
         let transport = Arc::new(DummyTransport::default());
         let (client, client_ctx) = WrappedClient::init(
@@ -174,7 +181,7 @@ mod tests {
         let rid = ctx.init_random_state(random).unwrap();
         let random_state = ctx.get_random_state_mut(rid).unwrap();
         random_state
-            .mask(transactor_account_addr(), vec![vec![0], vec![0], vec![0]])
+            .mask("transactor".to_string(), vec![vec![0], vec![0], vec![0]])
             .unwrap();
 
         let event_frame = EventFrame::ContextUpdated { context: ctx };
@@ -189,7 +196,7 @@ mod tests {
                 ciphertexts_and_digests,
             } => {
                 assert_eq!(rid, random_id);
-                assert_eq!(sender, transactor_account_addr());
+                assert_eq!(sender, "transactor".to_string());
                 assert_eq!(3, ciphertexts_and_digests.len());
             }
             _ => panic!("Invalid event type"),
@@ -218,7 +225,7 @@ mod tests {
                 ciphertexts,
             } => {
                 assert_eq!(rid, random_id);
-                assert_eq!(sender, transactor_account_addr());
+                assert_eq!(sender, "transactor".to_string());
                 assert_eq!(3, ciphertexts.len());
             }
             _ => panic!("Invalid event type"),

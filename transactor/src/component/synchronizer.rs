@@ -111,13 +111,19 @@ mod tests {
     #[tokio::test]
     async fn test_sync_state() {
         let transport = Arc::new(DummyTransport::default());
+        let alice = TestClient::player("alice");
+        let bob = TestClient::player("bob");
+        let foo = TestClient::transactor("foo");
+        let bar = TestClient::validator("bar");
         let ga_0 = TestGameAccountBuilder::default()
-            .add_players(1)
-            .add_servers(1)
+            .add_player(&alice, 100)
+            .set_transactor(&foo)
             .build();
-        let ga_1 = TestGameAccountBuilder::from_account(&ga_0)
-            .add_players(1)
-            .add_servers(1)
+        let ga_1 = TestGameAccountBuilder::default()
+            .add_player(&alice, 100)
+            .set_transactor(&foo)
+            .add_player(&bob, 100)
+            .add_validator(&bar)
             .build();
 
         println!("ga_0: {:?}", ga_0);
@@ -137,7 +143,7 @@ mod tests {
         } = frame
         {
             assert_eq!(access_version, av);
-            assert_eq!(transactor_addr, transactor_account_addr());
+            assert_eq!(transactor_addr, foo.get_addr());
             assert_eq!(new_players.len(), 1);
             assert_eq!(new_servers.len(), 1);
         } else {

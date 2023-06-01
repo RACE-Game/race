@@ -1,15 +1,24 @@
-use crate::{AccountData, DrawCard, GameEvent, Player, GameStage};
+use crate::{AccountData, DrawCard, GameEvent, GameStage, Player};
 use race_core::{
     context::{DispatchEvent, GameContext, GameStatus},
     error::{Error, Result},
     event::Event,
+    prelude::HandleError,
     random::RandomStatus,
-    types::{ClientMode, PlayerJoin}, prelude::HandleError,
+    types::PlayerJoin,
 };
-use race_test::{transactor_account_addr, TestClient, TestGameAccountBuilder, TestHandler};
+use race_test::{TestClient, TestGameAccountBuilder, TestHandler};
 
 #[test]
 fn test() -> Result<()> {
+    // Initialize player client, which simulates the behavior of player.
+    println!("Create test clients");
+    let mut alice = TestClient::player("Alice");
+    let mut bob = TestClient::player("Bob");
+
+    // Initialize the client, which simulates the behavior of transactor.
+    let mut transactor = TestClient::transactor("transactor");
+
     // Initialize the game account, with 1 player joined.
     // The game account must be served, so we add one server which is the transactor.
     let account_data = AccountData {
@@ -19,27 +28,11 @@ fn test() -> Result<()> {
     };
     println!("Create game account");
     let game_account = TestGameAccountBuilder::default()
-        .add_servers(1)
-        .add_players(1)
+        .set_transactor(&transactor)
+        .add_player(&alice, 10000)
         .with_data(account_data)
         .build();
     let transactor_addr = game_account.transactor_addr.as_ref().unwrap().clone();
-
-    // Initialize player client, which simulates the behavior of player.
-    println!("Create test clients");
-    let mut alice = TestClient::new(
-        "Alice".into(),
-        game_account.addr.clone(),
-        ClientMode::Player,
-    );
-    let mut bob = TestClient::new("Bob".into(), game_account.addr.clone(), ClientMode::Player);
-
-    // Initialize the client, which simulates the behavior of transactor.
-    let mut transactor = TestClient::new(
-        transactor_addr.clone(),
-        game_account.addr.clone(),
-        ClientMode::Transactor,
-    );
 
     // Create game context and test handler.
     // Initalize the handler state with game account.
@@ -73,7 +66,7 @@ fn test() -> Result<()> {
             verify_key: "".into(),
         }],
         new_servers: vec![],
-        transactor_addr: transactor_account_addr(),
+        transactor_addr: transactor.get_addr(),
         access_version: av,
     };
 
@@ -212,7 +205,7 @@ fn test() -> Result<()> {
     println!("Dispatch `SecretsReady` event, update game stage to `Betting`");
     handler.handle_dispatch_event(&mut ctx)?;
     {
-        let state =  handler.get_state();
+        let state = handler.get_state();
         assert_eq!(GameStage::Betting, state.stage);
     }
 
