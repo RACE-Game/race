@@ -37,17 +37,17 @@ Work in progress, not ready to accept contributions yet.
 
 | Package           | Version                                                                   | Description                             |
 |-------------------|---------------------------------------------------------------------------|-----------------------------------------|
-| race-core         | ![Crates.io](https://img.shields.io/crates/v/race-core?logo=rust)         | Core lib                                |
-| race-proc-macro   | ![Crates.io](https://img.shields.io/crates/v/race-proc-macro?logo=rust)   | SDK proc macros                         |
-| race-env          | ![Crates.io](https://img.shields.io/crates/v/race-env?logo=rust)          | Environment module                      |
-| race-encryptor    | ![Crates.io](https://img.shields.io/crates/v/race-encryptor?logo=rust)    | Encryptor module                        |
-| race-transport    | ![Crates.io](https://img.shields.io/crates/v/race-transport?logo=rust)    | Transport module                        |
-| race-client       | ![Crates.io](https://img.shields.io/crates/v/race-client?logo=rust)       | Client module                           |
-| race-solana-types | ![Crates.io](https://img.shields.io/crates/v/race-solana-types?logo=rust) | Type definitions for Solana integration |
-| race-test         | ![Crates.io](https://img.shields.io/crates/v/race-test?logo=rust)         | Testkit                                 |
-| race-cli          | ![Crates.io](https://img.shields.io/crates/v/race-cli?logo=rust)          | Command Line tools                      |
-| race-facade       | ![Crates.io](https://img.shields.io/crates/v/race-facade?logo=rust)       | Chain replacement for quick test        |
-| race-transactor   | ![Crates.io](https://img.shields.io/crates/v/race-transactor?logo=rust)   | Node Server                             |
+| race-core         | [![Crates.io](https://img.shields.io/crates/v/race-core?logo=rust)](https://crates.io/crates/race-core)         | Core lib                                |
+| race-proc-macro   | [![Crates.io](https://img.shields.io/crates/v/race-proc-macro?logo=rust)](https://crates.io/crates/race-proc-macro)   | SDK proc macros                         |
+| race-env          | [![Crates.io](https://img.shields.io/crates/v/race-env?logo=rust)](https://crates.io/crates/race-env)          | Environment module                      |
+| race-encryptor    | [![Crates.io](https://img.shields.io/crates/v/race-encryptor?logo=rust)](https://crates.io/crates/race-encryptor)    | Encryptor module                        |
+| race-transport    | [![Crates.io](https://img.shields.io/crates/v/race-transport?logo=rust)](https://crates.io/crates/race-transport)    | Transport module                        |
+| race-client       | [![Crates.io](https://img.shields.io/crates/v/race-client?logo=rust)](https://crates.io/crates/race-client)       | Client module                           |
+| race-solana-types | [![Crates.io](https://img.shields.io/crates/v/race-solana-types?logo=rust)](https://crates.io/crates/race-solana-types) | Type definitions for Solana integration |
+| race-test         | [![Crates.io](https://img.shields.io/crates/v/race-test?logo=rust)](https://crates.io/crates/race-test)         | Testkit                                 |
+| race-cli          | [![Crates.io](https://img.shields.io/crates/v/race-cli?logo=rust)](https://crates.io/crates/race-cli)          | Command Line tools                      |
+| race-facade       | [![Crates.io](https://img.shields.io/crates/v/race-facade?logo=rust)](https://crates.io/crates/race-facade)       | Chain replacement for quick test        |
+| race-transactor   | [![Crates.io](https://img.shields.io/crates/v/race-transactor?logo=rust)](https://crates.io/crates/race-transactor)   | Node Server                             |
 
 # Core Concepts
 

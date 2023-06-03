@@ -12,9 +12,9 @@ use race_test::{TestClient, TestGameAccountBuilder, TestHandler};
 use crate::essential::*;
 use crate::game::*;
 
-// ====================================================
-// Heplers for unit tests that focus on game state
-// ====================================================
+// ======================================================
+// Heplers for unit tests that focus on holdem game state
+// ======================================================
 pub fn initial_players() -> BTreeMap<String, Player> {
     BTreeMap::from([
         ("Alice".into(), Player::new("Alice".into(), 1000, 0usize)),
@@ -39,33 +39,33 @@ impl Player {
     }
 }
 
-pub fn gaming_players() -> [(String, Player); 6] {
-    [
+pub fn gaming_players() -> BTreeMap<String, Player> {
+    BTreeMap::from([
         (
             "Alice".into(),
             Player::new_with_status("Alice".into(), 1000, 0usize, PlayerStatus::Acting),
         ),
         (
             "Bob".into(),
-            Player::new_with_status("Bob".into(), 1000, 1usize, PlayerStatus::Acted),
+            Player::new_with_status("Bob".into(), 200, 1usize, PlayerStatus::Acted),
         ),
         (
             "Carol".into(),
-            Player::new_with_status("Carol".into(), 1000, 2usize, PlayerStatus::Allin),
+            Player::new_with_status("Carol".into(), 0, 2usize, PlayerStatus::Allin),
         ),
         (
             "Dave".into(),
-            Player::new_with_status("Dave".into(), 1000, 3usize, PlayerStatus::Acted),
+            Player::new_with_status("Dave".into(), 780, 3usize, PlayerStatus::Acted),
         ),
         (
             "Eva".into(),
-            Player::new_with_status("Eva".into(), 1000, 4usize, PlayerStatus::Acted),
+            Player::new_with_status("Eva".into(), 650, 4usize, PlayerStatus::Acted),
         ),
         (
             "Frank".into(),
-            Player::new_with_status("Frank".into(), 1000, 5usize, PlayerStatus::Fold),
+            Player::new_with_status("Frank".into(), 800, 5usize, PlayerStatus::Fold),
         ),
-    ]
+    ])
 }
 
 pub fn make_even_betmap() -> BTreeMap<String, Bet> {
@@ -88,6 +88,31 @@ pub fn make_uneven_betmap() -> BTreeMap<String, Bet> {
     ])
 }
 
+pub fn make_prize_map() -> BTreeMap<String, u64> {
+    BTreeMap::from([("Bob".into(), 220u64), ("Carol".into(), 160u64)])
+}
+
+pub fn make_pots() -> Vec<Pot> {
+    vec![
+        Pot {
+            owners: vec![
+                "Alice".into(),
+                "Bob".into(),
+                "Carol".into(),
+                "Dave".into(),
+                "Eva".into(),
+            ],
+            winners: vec![],
+            amount: 100u64,
+        },
+        Pot {
+            owners: vec!["Bob".into(), "Carol".into(), "Dave".into(), "Eva".into()],
+            winners: vec![],
+            amount: 120u64,
+        },
+    ]
+}
+
 pub fn setup_holdem_state() -> Result<Holdem> {
     let players_map = initial_players();
     let mut state = Holdem {
@@ -99,7 +124,7 @@ pub fn setup_holdem_state() -> Result<Holdem> {
         rake: 3,
         stage: HoldemStage::Init,
         street: Street::Init,
-        street_bet: 0,
+        street_bet: 20,
         board: Vec::<String>::with_capacity(5),
         bet_map: BTreeMap::<String, Bet>::new(),
         prize_map: BTreeMap::<String, u64>::new(),
@@ -110,6 +135,28 @@ pub fn setup_holdem_state() -> Result<Holdem> {
     };
     state.arrange_players(0usize)?;
     Ok(state)
+}
+
+pub fn setup_real_holdem() -> Holdem {
+    let mut holdem = setup_holdem_state().unwrap();
+    let player_map = gaming_players();
+    let bet_map = make_even_betmap();
+    let pots = make_pots();
+    let board = vec![
+        "sa".into(),
+        "dt".into(),
+        "c9".into(),
+        "c2".into(),
+        "hq".into(),
+    ];
+    let prize_map = make_prize_map();
+    holdem.bet_map = bet_map;
+    holdem.board = board;
+    holdem.player_map = player_map;
+    holdem.prize_map = prize_map;
+    holdem.pots = pots;
+    holdem.acting_player = Some(("Bob".into(), 1usize));
+    holdem
 }
 
 pub fn setup_context() -> GameContext {
@@ -142,7 +189,11 @@ pub fn setup_holdem_game() -> Game {
     (init_account, context, handler, transactor)
 }
 
-pub fn create_sync_event(ctx: &GameContext, players: &[&TestClient], transactor: &TestClient) -> Event {
+pub fn create_sync_event(
+    ctx: &GameContext,
+    players: &[&TestClient],
+    transactor: &TestClient,
+) -> Event {
     let av = ctx.get_access_version() + 1;
 
     let mut new_players = Vec::new();

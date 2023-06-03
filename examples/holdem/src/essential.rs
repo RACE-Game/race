@@ -133,7 +133,6 @@ pub enum HoldemStage {
     Showdown,
 }
 
-
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug)]
 pub struct HoldemAccount {
     pub sb: u64,
@@ -151,7 +150,8 @@ impl Default for HoldemAccount {
     }
 }
 
-#[derive(BorshSerialize, BorshDeserialize)]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum GameEvent {
     Bet(u64),
     Check,

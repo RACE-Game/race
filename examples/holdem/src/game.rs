@@ -1,7 +1,6 @@
 //! Game state machine (or handler) of Holdem: the core of this lib.
-
-use race_core::prelude::*;
 use race_proc_macro::game_handler;
+use race_core::prelude::*;
 use std::collections::BTreeMap;
 
 use crate::essential::{
@@ -11,6 +10,7 @@ use crate::essential::{
 use crate::evaluator::{compare_hands, create_cards, evaluate_cards, PlayerHand};
 
 // Holdem: the game state
+#[cfg_attr(test, derive(Debug, PartialEq))]
 #[game_handler]
 #[derive(BorshSerialize, BorshDeserialize, Clone, Default)]
 pub struct Holdem {
