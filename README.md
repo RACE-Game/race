@@ -49,6 +49,12 @@ Work in progress, not ready to accept contributions yet.
 | race-facade       | [![Crates.io](https://img.shields.io/crates/v/race-facade?logo=rust)](https://crates.io/crates/race-facade)       | Chain replacement for quick test        |
 | race-transactor   | [![Crates.io](https://img.shields.io/crates/v/race-transactor?logo=rust)](https://crates.io/crates/race-transactor)   | Node Server                             |
 
+## Contracts
+
+| Blockchain | Address                                                                                                                 |
+|------------|-------------------------------------------------------------------------------------------------------------------------|
+| Solana     | [8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu](https://solscan.io/account/8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu) |
+
 # Core Concepts
 
 [Terminology](docs/terminology.md)
@@ -72,3 +78,7 @@ Work in progress, not ready to accept contributions yet.
 [Testing](docs/testing.md)
 
 [Command Line Tools](docs/command-line.md)
+
+# License
+
+Race is licensed under [MPL-2.0](./LICENSE).
