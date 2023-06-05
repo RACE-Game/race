@@ -54,6 +54,10 @@ example-draw-card:
     mkdir -p dev/dist
     cp target/race_example_draw_card.wasm dev/dist/
 
+example-holdem:
+    cargo build -r -p race-example-holdem --target wasm32-unknown-unknown
+    wasm-opt -Oz target/wasm32-unknown-unknown/release/race_example_holdem.wasm -o target/race_example_holdem.wasm
+
 dev-demo-app:
     npm --prefix ./examples/demo-app run dev
 

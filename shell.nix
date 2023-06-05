@@ -1,4 +1,5 @@
-{ pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/645bc49f34fa8eff95479f0345ff57e55b53437e.tar.gz") { } }:
+# Nixpgs unstable branch
+{ pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/dd4982554e18b936790da07c4ea2db7c7600f283.tar.gz") { } }:
 
 pkgs.mkShell rec {
   buildInputs = with pkgs; [
@@ -7,7 +8,8 @@ pkgs.mkShell rec {
     openssl
     rust-analyzer
     simple-http-server
-    nodejs-16_x
+    # Current LST
+    nodejs_18
     just
     git
     tokei
