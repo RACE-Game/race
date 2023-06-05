@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid';
+import { makeid } from './utils';
 import {
   CloseGameAccountParams,
   CreateGameAccountParams,
@@ -123,7 +123,7 @@ export class FacadeTransport implements ITransport {
       {
         jsonrpc: '2.0',
         method,
-        id: nanoid(),
+        id: makeid(16),
         params: [ix],
       },
       (_key, value) => (typeof value === 'bigint' ? Number(value) : value)
@@ -144,7 +144,7 @@ export class FacadeTransport implements ITransport {
     const reqData = JSON.stringify({
       jsonrpc: '2.0',
       method,
-      id: nanoid(),
+      id: makeid(16),
       params: [addr],
     });
     const resp = await fetch(this.#url, {

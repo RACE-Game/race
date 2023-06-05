@@ -45,11 +45,14 @@ example-chat:
 example-raffle:
     cargo build -r -p race-example-raffle --target wasm32-unknown-unknown
     wasm-opt -Oz target/wasm32-unknown-unknown/release/race_example_raffle.wasm -o target/race_example_raffle.wasm
+    mkdir -p dev/dist
     cp target/race_example_raffle.wasm dev/dist/
 
 example-draw-card:
     cargo build -r -p race-example-draw-card --target wasm32-unknown-unknown
     wasm-opt -Oz target/wasm32-unknown-unknown/release/race_example_draw_card.wasm -o target/race_example_draw_card.wasm
+    mkdir -p dev/dist
+    cp target/race_example_draw_card.wasm dev/dist/
 
 dev-demo-app:
     npm --prefix ./examples/demo-app run dev
