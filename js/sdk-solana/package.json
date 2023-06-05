@@ -1,6 +1,6 @@
 {
   "name": "@race-foundation/sdk-solana",
-  "version": "0.0.3",
+  "version": "0.0.6",
   "description": "The Solana support for Race SDK",
   "scripts": {
     "test": "jest",
@@ -27,12 +27,6 @@
   },
   "author": "Race Team",
   "license": "ISC",
-  "dependencies": {
-    "@race-foundation/borsh": "0.0.1",
-    "@race-foundation/sdk-core": "0.0.2",
-    "@solana/spl-token": "^0.3.7",
-    "@solana/web3.js": "^1.75.0"
-  },
   "devDependencies": {
     "@types/bn.js": "^5.1.1",
     "@types/chai": "^4.3.4",
@@ -45,6 +39,12 @@
     "prettier": "^2.8.7",
     "ts-jest": "^29.1.0",
     "typescript": "^5.0.4"
+  },
+  "peerDependencies": {
+    "@race-foundation/borsh": "*",
+    "@race-foundation/sdk-core": "*",
+    "@solana/spl-token": "^0.3.7",
+    "@solana/web3.js": "^1.75.0"
   },
   "testDependencies": {
     "crypto": "1.0.1"

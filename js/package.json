@@ -1,3 +1,12 @@
 {
-  "workspaces": ["./sdk-core", "./sdk-solana", "./sdk-facade", "./borsh"]
+  "scripts": {
+    "version": "npm version $npm_package_version --workspaces && git add **/package.json"
+  },
+  "workspaces": [
+    "./sdk-core",
+    "./sdk-solana",
+    "./sdk-facade",
+    "./borsh"
+  ],
+  "version": "0.0.6"
 }

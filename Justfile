@@ -111,11 +111,14 @@ validator:
     solana-test-validator --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s token_metadata_program.so
 
 publish-npmjs pkg:
+    npm --prefix ./js/{{pkg}} run build
     (cd js/{{pkg}}; npm publish --access=public)
 
 publish-npmjs-all: (publish-npmjs "borsh") (publish-npmjs "sdk-core") (publish-npmjs "sdk-facade") (publish-npmjs "sdk-solana")
 
 publish-crates pkg:
+    cargo check -p {{pkg}}
+    cargo test -p {{pkg}}
     cargo publish -p {{pkg}}
 
 publish-crates-all: (publish-crates "race-env") (publish-crates "race-encryptor") (publish-crates "race-solana-types") (publish-crates "race-transport") (publish-crates "race-client") (publish-crates "race-test") (publish-crates "race-cli") (publish-crates "race-facade") (publish-crates "race-transactor")

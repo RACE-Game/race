@@ -1,6 +1,6 @@
 {
   "name": "@race-foundation/sdk-core",
-  "version": "0.0.3",
+  "version": "0.0.6",
   "description": "The type definitions for Race SDK",
   "scripts": {
     "test": "jest",
@@ -41,10 +41,8 @@
     "ts-jest": "^29.1.0",
     "typescript": "^5.0.4"
   },
-  "dependencies": {
-    "@race-foundation/borsh": "0.0.1"
-  },
   "peerDependencies": {
+    "@race-foundation/borsh": "*",
     "ts-chacha20": "^1.2.0"
   },
   "testDependencies": {
