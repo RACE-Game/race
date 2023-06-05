@@ -110,21 +110,12 @@ create-game spec:
 validator:
     solana-test-validator --bpf-program metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s token_metadata_program.so
 
-publish-npmjs:
-    npm --prefix ./js/borsh publish
-    npm --prefix ./js/sdk-core publish
-    npm --prefix ./js/sdk-facade publish
-    npm --prefix ./js/sdk-solana publish
+publish-npmjs pkg:
+    (cd js/{{pkg}}; npm publish --access=public)
 
-publish-crates:
-    cargo publish -p race-proc-macro
-    cargo publish -p race-core
-    cargo publish -p race-env
-    cargo publish -p race-encryptor
-    cargo publish -p race-solana-types
-    cargo publish -p race-transport
-    cargo publish -p race-client
-    cargo publish -p race-test
-    cargo publish -p race-cli
-    cargo publish -p race-facade
-    cargo publish -p race-transactor
+publish-npmjs-all: (publish-npmjs "borsh") (publish-npmjs "sdk-core") (publish-npmjs "sdk-facade") (publish-npmjs "sdk-solana")
+
+publish-crates pkg:
+    cargo publish -p {{pkg}}
+
+publish-crates-all: (publish-crates "race-env") (publish-crates "race-encryptor") (publish-crates "race-solana-types") (publish-crates "race-transport") (publish-crates "race-client") (publish-crates "race-test") (publish-crates "race-cli") (publish-crates "race-facade") (publish-crates "race-transactor")
