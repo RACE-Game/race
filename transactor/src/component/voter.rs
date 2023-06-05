@@ -52,6 +52,7 @@ impl Component<PipelinePorts, VoterContext> for Voter {
         while let Some(frame) = ports.recv().await {
             match frame {
                 EventFrame::Vote { votee, vote_type } => {
+                    warn!("Send vote, votee: {}, type: {:?}", votee, vote_type);
                     let params = VoteParams {
                         game_addr: ctx.game_addr.clone(),
                         vote_type,

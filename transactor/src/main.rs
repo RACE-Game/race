@@ -1,3 +1,4 @@
+mod utils;
 mod game_manager;
 mod component;
 mod context;

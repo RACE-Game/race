@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use crate::context::ApplicationContext;
-use base64::Engine;
+use crate::utils;
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
 use hyper::Method;
@@ -22,16 +22,8 @@ use tower_http::cors::Any;
 use tower_http::cors::CorsLayer;
 use tracing::{error, info, warn};
 
-fn base64_encode(data: &[u8]) -> String {
-    let engine = base64::engine::general_purpose::STANDARD;
-    engine.encode(data)
-}
-
 fn base64_decode(data: &str) -> Result<Vec<u8>, RpcError> {
-    let engine = base64::engine::general_purpose::STANDARD;
-    engine
-        .decode(data)
-        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))
+    utils::base64_decode(data).map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))
 }
 
 fn parse_params_no_sig<T: BorshDeserialize>(params: Params<'_>) -> Result<(String, T), RpcError> {
@@ -134,7 +126,7 @@ fn subscribe_event(
             );
             histories.into_iter().for_each(|x| {
                 let v = x.try_to_vec().unwrap();
-                let s = base64_encode(&v);
+                let s = utils::base64_encode(&v);
                 info!("Push event history: {}", s);
                 sink.send(&s)
                     .map_err(|e| {
@@ -148,7 +140,7 @@ fn subscribe_event(
             let serialized_rx = rx.map(|f| match f {
                 Ok(x) => {
                     let v = x.try_to_vec().unwrap();
-                    let s = base64_encode(&v);
+                    let s = utils::base64_encode(&v);
                     info!("Push new event: {}", s);
                     Ok(s)
                 }

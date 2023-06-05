@@ -20,6 +20,7 @@ use super::{event_bus::CloseReason, RemoteConnection};
 
 pub struct SubscriberContext {
     game_addr: String,
+    #[allow(unused)]
     server_addr: String,
     transactor_addr: String,
     start_settle_version: u64,
@@ -58,7 +59,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
     async fn run(ports: ProducerPorts, ctx: SubscriberContext) {
         let SubscriberContext {
             game_addr,
-            server_addr,
+            server_addr: _,
             transactor_addr,
             start_settle_version,
             connection,
@@ -68,7 +69,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
         let mut retries = 0;
         let sub = loop {
             match connection
-                .subscribe_events(&game_addr, &server_addr, start_settle_version)
+                .subscribe_events(&game_addr, start_settle_version)
                 .await
             {
                 Ok(sub) => break sub,
@@ -98,6 +99,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
             }
         };
 
+        info!("Subscription established");
         pin_mut!(sub);
 
         while let Some(frame) = sub.next().await {
@@ -109,8 +111,8 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                     settle_version,
                     ..
                 } => {
-                    ports
-                        .send(EventFrame::InitState {
+                    let r = ports
+                        .try_send(EventFrame::InitState {
                             init_account: InitAccount::new(
                                 init_game_account.clone(),
                                 access_version,
@@ -118,22 +120,22 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                             ),
                         })
                         .await;
+                    if let Err(e) = r {
+                        error!("Send init state error: {}", e);
+                    }
                 }
 
                 // Forward event to event bus
                 BroadcastFrame::Event { event, .. } => {
-                    if ports
-                        .try_send(EventFrame::SendServerEvent { event })
-                        .await
-                        .is_err()
-                    {
+                    if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event }).await {
+                        error!("Send server event error: {}", e);
                         break;
                     }
                 }
             }
         }
 
-        // Vote for disconnecting
+        warn!("Vote for disconnecting");
         ports
             .send(EventFrame::Vote {
                 votee: transactor_addr,
