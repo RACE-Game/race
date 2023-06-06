@@ -1,4 +1,6 @@
-![Race Protocol](assets/logo.svg)
+<div align="center">
+  <img src="assets/logo.svg"/>
+</div>
 
 # Race Protocol ![GitHub](https://img.shields.io/github/license/RACE-Game/race) [![Rust](https://github.com/RACE-Game/race/actions/workflows/rust.yml/badge.svg)](https://github.com/RACE-Game/race/actions/workflows/rust.yml) [![TS Tests](https://github.com/RACE-Game/race/actions/workflows/typescript.yml/badge.svg)](https://github.com/RACE-Game/race/actions/workflows/typescript.yml)
 
