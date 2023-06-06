@@ -1,11 +1,4 @@
 //! This server is the replacement for blockchains in testing and development
-//!
-//! A list of default accounts will be created during the start:
-//! COUNTER_GAME_ADDRESS - A game account of counter example
-//! COUNTER_BUNDLE_ADDRESS - The game bundle of counter example
-//! DEFAULT_REGISTRATION_ADDRESS - The default registration account which contains all games above
-//! DEFAULT_TRANSACTOR_ADDRESS - The address for a transactor
-//! DEFAULT_OWNER_ADDRESS - The address of the owner
 
 use clap::Parser;
 use hyper::Method;
@@ -17,7 +10,7 @@ use race_core::prelude::BorshSerialize;
 use race_core::types::{
     DepositParams, GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin,
     PlayerProfile, RegistrationAccount, ServerAccount, ServerJoin, SettleOp, SettleParams, Vote,
-    VoteParams, VoteType,
+    VoteParams, VoteType, TokenAccount,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -33,13 +26,13 @@ use tracing::{debug, info};
 
 type RpcResult<T> = std::result::Result<T, RpcError>;
 
-// const DEFAULT_MAX_PLAYERS: usize = 10;
 const DEFAULT_MAX_SERVERS: usize = 3;
 const DEFAULT_VOTES_THRESHOLD: usize = 2;
 
 const DEFAULT_BALANCE: u64 = 10000;
 
 const HTTP_HOST: &str = "0.0.0.0:12002";
+
 
 #[derive(Deserialize)]
 pub struct GameSpec {
@@ -87,6 +80,7 @@ pub struct CreatePlayerProfileInstruction {
 
 #[derive(Default)]
 pub struct Context {
+    tokens: HashMap<String, TokenAccount>,
     players: HashMap<String, PlayerInfo>,
     servers: HashMap<String, ServerAccount>,
     games: HashMap<String, GameAccount>,
@@ -104,6 +98,41 @@ impl Context {
         for spec_path in spec_paths.into_iter() {
             self.add_game(&spec_path);
         }
+    }
+
+    fn add_token(&mut self, token_account: TokenAccount) {
+        self.tokens.insert(token_account.addr.clone(), token_account);
+    }
+
+    fn load_default_tokens(&mut self) {
+        self.add_token(TokenAccount {
+            name: "USD Coin".into(),
+            symbol: "USDC".into(),
+            decimals: 6,
+            icon: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png".into(),
+            addr: "FACADE_USDC".into(),
+        });
+        self.add_token(TokenAccount {
+            name: "Tether USD".into(),
+            symbol: "USDT".into(),
+            decimals: 6,
+            icon: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg".into(),
+            addr: "FACADE_USDT".into(),
+        });
+        self.add_token(TokenAccount {
+            name: "Native Token".into(),
+            symbol: "NATIVE".into(),
+            decimals: 9,
+            icon: "https://arweave.net/SH106hrChudKjQ_c6e6yd0tsGUbFIScv2LL6Dp-LDiI".into(),
+            addr: "FACADE_NATIVE".into(),
+        });
+        self.add_token(TokenAccount {
+            name: "Race Protocol".into(),
+            symbol: "RACE".into(),
+            decimals: 9,
+            icon: "".into(),
+            addr: "FACADE_RACE".into(),
+        });
     }
 
     fn add_game(&mut self, spec_path: &str) {
@@ -509,6 +538,16 @@ async fn get_account_info(
     }
 }
 
+async fn list_tokens(
+    _params: Params<'_>,
+    context: Arc<Mutex<Context>>
+) -> RpcResult<Vec<u8>> {
+    let context = context.lock().await;
+    let tokens: Vec<&TokenAccount> = context.tokens.values().collect();
+    let bytes = tokens.try_to_vec()?;
+    Ok(bytes)
+}
+
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
     let SettleParams { addr, settles } = params.one()?;
     println!("! Handle settlements {}, with {:?} ", addr, settles);
@@ -612,6 +651,7 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     module.register_async_method("deposit", deposit)?;
     module.register_async_method("settle", settle)?;
     module.register_async_method("vote", vote)?;
+    module.register_async_method("list_tokens", list_tokens)?;
     let handle = http_server.start(module)?;
     Ok(handle)
 }
@@ -629,6 +669,7 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let mut context = Context::default();
     context.load_games(args.specs);
+    context.load_default_tokens();
     let server_handle = run_server(context).await?;
     server_handle.stopped().await;
     Ok(())

@@ -10,7 +10,7 @@ pub use common::{
 
 pub use accounts::{
     GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin, PlayerProfile,
-    RegistrationAccount, ServerAccount, ServerJoin, Vote,
+    RegistrationAccount, ServerAccount, ServerJoin, Vote, TokenAccount
 };
 
 pub use transport_params::{
