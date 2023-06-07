@@ -97,4 +97,6 @@ export interface ITransport {
   getToken(addr: string): Promise<IToken | undefined>;
 
   getNft(addr: string): Promise<INft | undefined>;
+
+  listTokens(): Promise<IToken[]>;
 }

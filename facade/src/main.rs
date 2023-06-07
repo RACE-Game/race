@@ -130,7 +130,7 @@ impl Context {
             name: "Race Protocol".into(),
             symbol: "RACE".into(),
             decimals: 9,
-            icon: "".into(),
+            icon: "https://raw.githubusercontent.com/NutsPokerTeam/token-list/main/assets/mainnet/RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ/logo.svg".into(),
             addr: "FACADE_RACE".into(),
         });
     }

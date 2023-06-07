@@ -68,6 +68,39 @@ export class FacadeTransport implements ITransport {
     throw new Error('Method not implemented.');
   }
 
+  async listTokens(): Promise<IToken[]> {
+    return [
+      {
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 6,
+        icon: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png",
+        addr: "FACADE_USDC",
+      },
+      {
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 6,
+        icon: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg",
+        addr: "FACADE_USDT",
+      },
+      {
+        name: "Native Token",
+        symbol: "NATIVE",
+        decimals: 9,
+        icon: "https://arweave.net/SH106hrChudKjQ_c6e6yd0tsGUbFIScv2LL6Dp-LDiI",
+        addr: "FACADE_NATIVE"
+      },
+      {
+        name: "Race Protocol",
+        symbol: "RACE",
+        decimals: 9,
+        icon: "",
+        addr: "FACADE_RACE",
+      },
+    ];
+  }
+
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void> {
     const playerAddr = wallet.walletAddr;
     const ix: CreatePlayerProfileInstruction = { playerAddr, ...params };

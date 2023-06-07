@@ -363,6 +363,29 @@ export class SolanaTransport implements ITransport {
     }
   }
 
+  /**
+   * List popular tokens.
+   *
+   * [USDT, USDC, SOL, RACE]
+   */
+  async listTokens(): Promise<IToken[]> {
+    const popularTokenAddrs = [
+      "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+      "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "So11111111111111111111111111111111111111112",
+      "RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ"
+    ];
+
+    let tokens = [];
+    for (const addr of popularTokenAddrs) {
+      const tokenInfo = await this.getToken(addr);
+      if (tokenInfo !== undefined) {
+        tokens.push(tokenInfo);
+      }
+    }
+    return tokens;
+  }
+
   async getNft(addr: string): Promise<INft | undefined> {
     const mintKey = new PublicKey(addr);
     try {
