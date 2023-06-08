@@ -42,6 +42,7 @@ fn test_serde_holdem_account() {
         rake: 3,
     };
     let acct_ser = acct.try_to_vec().unwrap();
+    println!("Game Account Ser data {:?}", acct_ser);
     let acct_de = HoldemAccount::try_from_slice(&acct_ser).unwrap();
     assert_eq!(acct_de, acct);
 }
