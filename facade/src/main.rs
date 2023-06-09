@@ -146,8 +146,8 @@ impl Context {
             data: spec_data,
         } = serde_json::from_reader(f).expect(&format!("Invalid spec file: {}", spec_path));
 
-        let bundle_addr = bundle.clone().replace("/", ">").replace(".", ">");
-        let game_addr = spec_path.to_owned().replace("/", ">").replace(".", ">");
+        let bundle_addr = bundle.clone().replace("/", "_").replace(".", "_");
+        let game_addr = spec_path.to_owned().replace("/", "_").replace(".", "_");
         let mut f = File::open(&bundle).expect(&format!("Bundle {} not found", &bundle));
         let mut data = vec![];
         f.read_to_end(&mut data).unwrap();
@@ -506,7 +506,6 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
         // However, this transaction should be avoid.
     } else {
         // Should be larger in real case
-        //
         if account.servers.len() >= DEFAULT_MAX_SERVERS {
             return Err(custom_error(Error::ServerQueueIsFull(
                 DEFAULT_MAX_SERVERS as _,
