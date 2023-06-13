@@ -1,4 +1,4 @@
-import { GameAccount, GameRegistration, PlayerProfile } from './accounts';
+import { GameAccount, GameRegistration, IToken, PlayerProfile } from './accounts';
 import { CreateGameAccountParams, ITransport } from './transport';
 import { IWallet } from './wallet';
 
@@ -105,5 +105,14 @@ export class AppHelper {
       }
     }
     return games;
+  }
+
+  /**
+   * List available tokens.
+   *
+   * @return A list of token info.
+   */
+  async listTokens(): Promise<IToken[]> {
+    return await this.#transport.listTokens();
   }
 }
