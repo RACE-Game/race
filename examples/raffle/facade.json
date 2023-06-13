@@ -1,6 +1,7 @@
 {
   "title": "1RACE Raffle",
   "bundle": "target/race_example_raffle.wasm",
+  "token": "FACADE_USDT",
   "max_players": 6,
   "min_deposit": 100,
   "max_deposit": 100,

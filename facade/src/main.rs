@@ -38,6 +38,7 @@ const HTTP_HOST: &str = "0.0.0.0:12002";
 pub struct GameSpec {
     title: String,
     bundle: String,
+    token: String,
     max_players: u16,
     min_deposit: u64,
     max_deposit: u64,
@@ -140,6 +141,7 @@ impl Context {
         let GameSpec {
             title,
             bundle,
+            token,
             max_players,
             min_deposit,
             max_deposit,
@@ -159,6 +161,7 @@ impl Context {
         let game = GameAccount {
             addr: game_addr.clone(),
             title,
+            token_addr: token.to_owned(),
             bundle_addr: bundle_addr.to_owned(),
             data_len: spec_data.len() as u32,
             data: spec_data,
