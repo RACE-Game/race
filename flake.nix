@@ -26,6 +26,7 @@
               rnix-lsp
               nixpkgs-fmt
               binaryen
+              nodePackages.typescript-language-server
             ];
             RUST_LOG = "info,wasmer_compiler_cranelift=error,solana_rpc_client=error";
             RUST_BACKTRACE = 1;

@@ -16,6 +16,7 @@ import {
   PublishGameParams,
   RegisterGameParams,
   RegistrationAccount,
+  RegistrationWithGames,
   ServerAccount,
   UnregisterGameParams,
   VoteParams,
@@ -135,6 +136,20 @@ export class FacadeTransport implements ITransport {
     const data: Uint8Array | undefined = await this.fetchState('get_registration_info', addr);
     if (data === undefined) return undefined;
     return deserialize(RegistrationAccount, data);
+  }
+
+  async getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {
+    const data: Uint8Array | undefined = await this.fetchState('get_registration_info', addr);
+    if (data === undefined) return undefined;
+    const regAccount = deserialize(RegistrationAccount, data);
+    const promises = regAccount.games.map(async g => {
+      return await this.getGameAccount(g.addr);
+    });
+    const games = await Promise.all(promises);
+    return new RegistrationWithGames({
+      ...regAccount,
+      games
+    })
   }
 
   async getToken(addr: string): Promise<IToken | undefined> {

@@ -249,6 +249,20 @@ export class RegistrationAccount implements IRegistrationAccount {
   }
 }
 
+/**
+ * The registration account data with games consolidated.
+ */
+export class RegistrationWithGames {
+  readonly addr!: string;
+  readonly isPrivate!: boolean;
+  readonly size!: number;
+  readonly owner: string | undefined;
+  readonly games!: GameAccount[];
+  constructor(fields: Object) {
+    Object.assign(this, fields)
+  }
+}
+
 export class PlayerProfile implements IPlayerProfile {
   @field('string')
   readonly addr!: string;

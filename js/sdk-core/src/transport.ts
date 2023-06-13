@@ -1,5 +1,5 @@
 import { IWallet } from './wallet';
-import { GameAccount, GameBundle, ServerAccount, PlayerProfile, VoteType, RegistrationAccount, INft, IToken } from './accounts';
+import { GameAccount, GameBundle, ServerAccount, PlayerProfile, VoteType, RegistrationAccount, INft, IToken, RegistrationWithGames } from './accounts';
 
 export type CreateGameAccountParams = {
   title: string;
@@ -93,6 +93,8 @@ export interface ITransport {
   getServerAccount(addr: string): Promise<ServerAccount | undefined>;
 
   getRegistration(addr: string): Promise<RegistrationAccount | undefined>;
+
+  getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined>;
 
   getToken(addr: string): Promise<IToken | undefined>;
 

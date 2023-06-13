@@ -38,6 +38,7 @@ import {
   RegistrationAccount,
   IToken,
   INft,
+  RegistrationWithGames,
 } from '@race-foundation/sdk-core';
 import * as instruction from './instruction';
 
@@ -285,15 +286,6 @@ export class SolanaTransport implements ITransport {
     console.log('uri:', uri);
     console.log('name:', name);
 
-    // const response = await fetch(uri);
-    // const metadata: any = await response.json();
-
-    // console.log('metadata:', metadata);
-    // const wasm = metadata.properties.files.find((f: any) => f['type'] == 'application/wasm');
-
-    // const respWasm = await fetch(wasm.uri);
-    // const data = new Uint8Array(await respWasm.arrayBuffer());
-
     return new GameBundle({ uri, name, data: new Uint8Array(0) });
   }
 
@@ -331,6 +323,26 @@ export class SolanaTransport implements ITransport {
     } else {
       return undefined;
     }
+  }
+
+  async getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {
+    const regAccount = await this.getRegistration(addr);
+    if (regAccount === undefined) return undefined;
+    const keys = regAccount.games.map(g => new PublicKey(g.addr));
+    const gameStates = await this._getMultiGameStates(keys);
+    let games: Array<GameAccount | undefined> = [];
+    for (let i = 0; i < gameStates.length; i ++) {
+      const gs = gameStates[i];
+      if (gs === undefined) {
+        games.push(undefined);
+      } else {
+        games.push(gs.generalize(keys[i]));
+      }
+    }
+    return new RegistrationWithGames({
+      ...regAccount,
+      games
+    });
   }
 
   async getToken(addr: string): Promise<IToken | undefined> {
@@ -424,6 +436,20 @@ export class SolanaTransport implements ITransport {
     } else {
       return undefined;
     }
+  }
+
+  async _getMultiGameStates(gameAccountKeys: PublicKey[]): Promise<Array<GameState | undefined>> {
+    const conn = this.#conn;
+    const accountsInfo = await conn.getMultipleAccountsInfo(gameAccountKeys);
+    const ret: Array<GameState | undefined> = [];
+    for (const accountInfo of accountsInfo) {
+      if (accountInfo === null) {
+        ret.push(undefined);
+      } else {
+        ret.push(GameState.deserialize(accountInfo.data));
+      }
+    }
+    return ret;
   }
 
   async _getRegState(regKey: PublicKey): Promise<RegistryState | undefined> {

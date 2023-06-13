@@ -94,10 +94,10 @@ export class AppHelper {
    * @param registrationAddrs - The addresses of registration accounts
    * @return A list of games
    */
-  async listGames(registrationAddrs: string[]): Promise<GameRegistration[]> {
-    let games: GameRegistration[] = [];
+  async listGames(registrationAddrs: string[]): Promise<GameAccount[]> {
+    let games: GameAccount[] = [];
     for (const addr of registrationAddrs) {
-      const reg = await this.#transport.getRegistration(addr);
+      const reg = await this.#transport.getRegistrationWithGames(addr);
       if (reg !== undefined) {
         for (const game of reg.games) {
           games.push(game);

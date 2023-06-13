@@ -3,15 +3,15 @@ import { useContext, useState, useEffect } from 'react';
 import { HelperContext } from './helper-context';
 import { Chain } from './types';
 import { CHAIN_ADDR_GAME_MAPPING, CHAIN_TO_REG_ADDR } from './constants';
-import { AppHelper, GameRegistration } from '@race-foundation/sdk-core';
+import { AppHelper, GameAccount } from '@race-foundation/sdk-core';
 
 interface SidemenuProps {
     chain: Chain,
 }
 
-function GameItem(props: GameRegistration & { chain: Chain }) {
+function GameItem(props: GameAccount & { chain: Chain }) {
 
-  const game = CHAIN_ADDR_GAME_MAPPING[props.chain][props.bundleAddr]
+    const game = CHAIN_ADDR_GAME_MAPPING[props.chain][props.bundleAddr]
     return <Link className="flex flex-col my-4"
         to={`${game}/${props.addr}`}>
         <h2 className="w-full text-xl underline cursor-pointer hover:scale-[105%] transition-all">{props.title}</h2>
@@ -22,7 +22,7 @@ function GameItem(props: GameRegistration & { chain: Chain }) {
 function Sidemenu(props: SidemenuProps) {
     const { chain } = props;
     const helper = useContext(HelperContext);
-    const [games, setGames] = useState<GameRegistration[] | undefined>(undefined);
+    const [games, setGames] = useState<GameAccount[] | undefined>(undefined);
 
     useEffect(() => {
         if (helper !== undefined) {
