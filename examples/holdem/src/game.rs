@@ -496,12 +496,14 @@ impl Holdem {
 
         let chips_change_map = self.update_chips_map()?;
 
+        println!("Chips change map is {:?}", chips_change_map);
+
         // Add or reduce players chips according to chips change map
         for (player, chips_change) in chips_change_map.iter() {
             if *chips_change > 0 {
                 effect.settle(Settle::add(player, *chips_change as u64))
             } else if *chips_change < 0 {
-                effect.settle(Settle::sub(player, *chips_change as u64))
+                effect.settle(Settle::sub(player, -*chips_change as u64))
             }
         }
         // Eject those whose lost all chips
@@ -574,7 +576,7 @@ impl Holdem {
             if *chips_change > 0 {
                 effect.settle(Settle::add(player, *chips_change as u64))
             } else if *chips_change < 0 {
-                effect.settle(Settle::sub(player, *chips_change as u64))
+                effect.settle(Settle::sub(player, -*chips_change as u64))
             }
         }
         // Eject those whose lost all chips
@@ -910,7 +912,7 @@ impl GameHandler for Holdem {
     fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
         let HoldemAccount { sb, bb, rake } = init_account.data()?;
         Ok(Self {
-            deck_random_id: 1,
+            deck_random_id: 0,
             sb,
             bb,
             min_raise: bb,

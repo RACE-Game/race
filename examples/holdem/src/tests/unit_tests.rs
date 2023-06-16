@@ -3,7 +3,7 @@
 //! event_tests.rs.  For the a complete test of Holdem games, see holdem_test.rs
 //! in the same dir.
 use crate::tests::helper::{
-    initial_players, make_even_betmap, make_uneven_betmap, setup_context, setup_holdem_state,
+    initial_players, initial_two_players, make_even_betmap, make_uneven_betmap, setup_context, setup_holdem_state,
 };
 use crate::essential::Bet;
 use race_core::prelude::{Effect, HandleError};
@@ -338,6 +338,15 @@ fn test_update_chips_map() -> Result<(), HandleError> {
         assert_eq!(chips_change_map.get("Bob"), Some(&20));
         assert_eq!(chips_change_map.get("Carol"), Some(&-100));
         assert_eq!(chips_change_map.get("Eva"), Some(&-100));
+
+        for (player, chips_change) in chips_change_map.iter() {
+            if *chips_change > 0 {
+                println!("Player + chips {:?}", *chips_change as u64);
+                // effect.settle(Settle::add(player, *chips_change as u64))
+            } else if *chips_change < 0 {
+                println!("Player - chips {:?}", *chips_change as u64);
+            }
+        }
     }
     Ok(())
 }

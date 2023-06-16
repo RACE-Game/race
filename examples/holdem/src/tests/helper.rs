@@ -15,6 +15,13 @@ use crate::game::*;
 // ======================================================
 // Heplers for unit tests that focus on holdem game state
 // ======================================================
+pub fn initial_two_players() -> BTreeMap<String, Player> {
+    BTreeMap::from([
+        ("Alice".into(), Player::new("Alice".into(), 1000, 0usize)),
+        ("Bob".into(), Player::new("Bob".into(), 1000, 1usize)),
+    ])
+}
+
 pub fn initial_players() -> BTreeMap<String, Player> {
     BTreeMap::from([
         ("Alice".into(), Player::new("Alice".into(), 1000, 0usize)),
