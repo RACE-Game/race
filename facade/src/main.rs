@@ -90,7 +90,7 @@ pub struct Context {
 
 #[derive(Clone)]
 pub struct PlayerInfo {
-    balance: u64,
+    balances: HashMap<String, u64>, // token address to balance
     profile: PlayerProfile,
 }
 
@@ -234,8 +234,8 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         player_addr,
         verify_key,
     } = params.one()?;
-    info!(
-        "Join game: player: {}, game: {}, amount: {}, access version: {}",
+    println!(
+        "! Join game: player: {}, game: {}, amount: {}, access version: {}",
         player_addr, game_addr, amount, access_version
     );
     let mut context = context.lock().await;
@@ -279,8 +279,8 @@ async fn deposit(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<
         amount,
         settle_version,
     } = params.one()?;
-    info!(
-        "Deposit game: player: {}, game: {}, amount: {}",
+    println!(
+        "! Deposit game: player: {}, game: {}, amount: {}",
         player_addr, game_addr, amount
     );
     let mut context = context.lock().await;
@@ -346,7 +346,12 @@ async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
     context.players.insert(
         player_addr.clone(),
         PlayerInfo {
-            balance: DEFAULT_BALANCE,
+            balances: HashMap::from([
+                ("FAKE_USDC".to_string(), DEFAULT_BALANCE),
+                ("FAKE_USDT".to_string(), DEFAULT_BALANCE),
+                ("FAKE_NATIVE".to_string(), DEFAULT_BALANCE),
+                ("RACE".to_string(), DEFAULT_BALANCE),
+            ]),
             profile: PlayerProfile {
                 addr: player_addr.clone(),
                 nick,
@@ -377,8 +382,8 @@ async fn vote(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         votee_addr,
         game_addr,
     } = params.one()?;
-    info!(
-        "Vote for game {}, voter: {}, votee: {}, type: {:?}",
+    println!(
+        "! Vote for game {}, voter: {}, votee: {}, type: {:?}",
         game_addr, voter_addr, votee_addr, vote_type
     );
     let mut context = context.lock().await;
@@ -445,7 +450,7 @@ async fn vote(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         if game_account.votes.len() >= DEFAULT_VOTES_THRESHOLD {
             for p in game_account.players.iter() {
                 let player = players.get_mut(&p.addr).unwrap();
-                player.balance += p.balance;
+                player.balances.entry(game_account.token_addr.to_owned()).and_modify(|b| *b += p.balance);
             }
             game_account.players.clear();
             game_account.servers.clear();
@@ -526,6 +531,23 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
     Ok(())
 }
 
+async fn get_balance(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<u64> {
+    let player_addr: String = params.one()?;
+    let token_addr: String = params.one()?;
+    let context = context.lock().await;
+    if let Some(player) = context.players.get(&player_addr) {
+        if let Some(balance) = player.balances.get(&token_addr) {
+            Ok(*balance)
+        } else {
+            println!("? get_balance, token_addr: {}, not found", token_addr);
+            Ok(0)
+        }
+    } else {
+        println!("? get_balance, player_addr: {}, not found", player_addr);
+        Ok(0)
+    }
+}
+
 async fn get_account_info(
     params: Params<'_>,
     context: Arc<Mutex<Context>>,
@@ -588,7 +610,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
                             .ok_or(custom_error(Error::InvalidSettle(
                                 "Invalid player address".into(),
                             )))?;
-                    player.balance += p.balance;
+                    player.balances.entry(game.token_addr.to_owned()).and_modify(|b| *b += p.balance);
                 } else {
                     return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
                 }
@@ -645,6 +667,7 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     module.register_async_method("get_server_info", get_server_info)?;
     module.register_async_method("get_game_bundle", get_game_bundle)?;
     module.register_async_method("get_registration_info", get_registration_info)?;
+    module.register_async_method("get_balance", get_balance)?;
     module.register_async_method("register_server", register_server)?;
     module.register_async_method("create_profile", create_profile)?;
     module.register_async_method("get_profile", get_profile)?;
