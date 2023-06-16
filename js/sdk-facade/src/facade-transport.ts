@@ -96,7 +96,7 @@ export class FacadeTransport implements ITransport {
         name: "Race Protocol",
         symbol: "RACE",
         decimals: 9,
-        icon: "",
+        icon: "https://raw.githubusercontent.com/NutsPokerTeam/token-list/main/assets/mainnet/RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ/logo.svg",
         addr: "FACADE_RACE",
       },
     ];
@@ -113,33 +113,33 @@ export class FacadeTransport implements ITransport {
     await this.sendInstruction('join', ix);
   }
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
-    const data: Uint8Array | undefined = await this.fetchState('get_account_info', addr);
+    const data: Uint8Array | undefined = await this.fetchState('get_account_info', [addr]);
     if (data === undefined) return undefined;
     return deserialize(GameAccount, data);
   }
   async getGameBundle(addr: string): Promise<GameBundle | undefined> {
-    const data: Uint8Array | undefined = await this.fetchState('get_game_bundle', addr);
+    const data: Uint8Array | undefined = await this.fetchState('get_game_bundle', [addr]);
     if (data === undefined) return undefined;
     return deserialize(GameBundle, data);
   }
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
-    const data: Uint8Array | undefined = await this.fetchState('get_profile', addr);
+    const data: Uint8Array | undefined = await this.fetchState('get_profile', [addr]);
     if (data === undefined) return undefined;
     return deserialize(PlayerProfile, data);
   }
   async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
-    const data: Uint8Array | undefined = await this.fetchState('get_server_info', addr);
+    const data: Uint8Array | undefined = await this.fetchState('get_server_info', [addr]);
     if (data === undefined) return undefined;
     return deserialize(ServerAccount, data);
   }
   async getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
-    const data: Uint8Array | undefined = await this.fetchState('get_registration_info', addr);
+    const data: Uint8Array | undefined = await this.fetchState('get_registration_info', [addr]);
     if (data === undefined) return undefined;
     return deserialize(RegistrationAccount, data);
   }
 
   async getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {
-    const data: Uint8Array | undefined = await this.fetchState('get_registration_info', addr);
+    const data: Uint8Array | undefined = await this.fetchState('get_registration_info', [addr]);
     if (data === undefined) return undefined;
     const regAccount = deserialize(RegistrationAccount, data);
     const promises = regAccount.games.map(async g => {
@@ -160,6 +160,15 @@ export class FacadeTransport implements ITransport {
       symbol: 'FT',
       decimals: 0,
     };
+  }
+
+  async fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>> {
+    let ret = new Map();
+    for (const addr of tokenAddrs) {
+      const balance = await this.fetchState("get_balance", [walletAddr, addr]);
+      ret.set(addr, balance);
+    }
+    return ret;
   }
 
   async getNft(_addr: string): Promise<INft | undefined> {
@@ -188,12 +197,12 @@ export class FacadeTransport implements ITransport {
     }
   }
 
-  async fetchState(method: string, addr: string): Promise<Uint8Array | undefined> {
+  async fetchState(method: string, params: any): Promise<Uint8Array | undefined> {
     const reqData = JSON.stringify({
       jsonrpc: '2.0',
       method,
       id: makeid(16),
-      params: [addr],
+      params,
     });
     const resp = await fetch(this.#url, {
       method: 'POST',
@@ -203,7 +212,7 @@ export class FacadeTransport implements ITransport {
       },
     });
     if (!resp.ok) {
-      throw new Error('Failed to fetch data at :' + addr);
+      throw new Error('Failed to fetch data at :' + params);
     }
     const { result } = await resp.json();
     if (result !== null) {

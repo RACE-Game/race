@@ -101,4 +101,6 @@ export interface ITransport {
   getNft(addr: string): Promise<INft | undefined>;
 
   listTokens(): Promise<IToken[]>;
+
+  fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>>;
 }

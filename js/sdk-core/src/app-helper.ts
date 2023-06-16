@@ -115,4 +115,11 @@ export class AppHelper {
   async listTokens(): Promise<IToken[]> {
     return await this.#transport.listTokens();
   }
+
+  /**
+   * Fetch the balances of given token addresses.
+   */
+  async fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>> {
+    return await this.#transport.fetchBalances(walletAddr, tokenAddrs);
+  }
 }

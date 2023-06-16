@@ -398,6 +398,24 @@ export class SolanaTransport implements ITransport {
     return tokens;
   }
 
+  async fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>> {
+    const walletKey = new PublicKey(walletAddr);
+    let ret = new Map<string, bigint>();
+    const resp = await this.#conn.getTokenLargestAccounts(walletKey);
+    const pairs = resp.value;
+    for (const pair of pairs) {
+      ret.set(pair.address.toBase58(), BigInt(pair.amount));
+    }
+    for (const tokenAddr of tokenAddrs) {
+      if (!ret.has(tokenAddr)) {
+        const tokenAccountKey = getAssociatedTokenAddressSync(new PublicKey(tokenAddr), walletKey);
+        const resp = await this.#conn.getTokenAccountBalance(tokenAccountKey);
+        ret.set(tokenAddr, BigInt(resp.value.amount));
+      }
+    }
+    return ret;
+  }
+
   async getNft(addr: string): Promise<INft | undefined> {
     const mintKey = new PublicKey(addr);
     try {
