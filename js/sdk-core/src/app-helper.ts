@@ -112,7 +112,7 @@ export class AppHelper {
    *
    * @return A list of token info.
    */
-  async listTokens(): Promise<Token[]> {
+  async listTokens(): Promise<IToken[]> {
     return await this.#transport.listTokens();
   }
 
