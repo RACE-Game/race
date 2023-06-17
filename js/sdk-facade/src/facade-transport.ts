@@ -37,6 +37,18 @@ interface CreatePlayerProfileInstruction {
   pfp?: string;
 }
 
+interface CreateGameAccountInstruction {
+  walletAddr: string;
+  gameAddr: string;
+  title: string;
+  bundleAddr: string;
+  tokenAddr: string;
+  maxPlayers: number;
+  minDeposit: bigint;
+  maxDeposit: bigint;
+  data: number[];
+}
+
 export class FacadeTransport implements ITransport {
   #url: string;
 
@@ -44,8 +56,13 @@ export class FacadeTransport implements ITransport {
     this.#url = url;
   }
 
-  createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string> {
-    throw new Error('Method not implemented.');
+  async createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string> {
+    const walletAddr = wallet.walletAddr;
+    const gameAddr = makeid(16);
+    const data = [...params.data];
+    const ix: CreateGameAccountInstruction = { walletAddr, gameAddr, ...params, data };
+    await this.sendInstruction('create_account', ix);
+    return gameAddr;
   }
   closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> {
     throw new Error('Method not implemented.');

@@ -22,7 +22,6 @@ use std::time::UNIX_EPOCH;
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
-use tracing::{debug, info};
 
 type RpcResult<T> = std::result::Result<T, RpcError>;
 
@@ -77,6 +76,20 @@ pub struct CreatePlayerProfileInstruction {
     player_addr: String,
     nick: String,
     pfp: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateGameAccountInstruction {
+    wallet_addr: String,
+    game_addr: String,
+    title: String,
+    bundle_addr: String,
+    token_addr: String,
+    max_players: u16,
+    min_deposit: u64,
+    max_deposit: u64,
+    data: Vec<u8>,
 }
 
 #[derive(Default)]
@@ -187,11 +200,11 @@ async fn get_game_bundle(
     context: Arc<Mutex<Context>>,
 ) -> RpcResult<Option<Vec<u8>>> {
     let addr: String = params.one()?;
-    debug!("Get game bundle: {:?}", addr);
     let context = context.lock().await;
     if let Some(bundle) = context.bundles.get(&addr) {
         Ok(Some(bundle.to_owned().try_to_vec().unwrap()))
     } else {
+        println!("? get_game_bundle, addr: {}, not found", addr);
         Ok(None)
     }
 }
@@ -334,6 +347,26 @@ async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rp
     context.servers.insert(server_addr.clone(), transactor);
     println!("+ Server: {}", server_addr);
     Ok(())
+}
+
+async fn create_account(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {
+    let CreateGameAccountInstruction { wallet_addr, game_addr, title, bundle_addr, token_addr, max_players, min_deposit, max_deposit, data } =
+        params.one()?;
+    let mut context = context.lock().await;
+    context.games.insert(game_addr.clone(), GameAccount {
+        addr: game_addr.clone(),
+        title,
+        bundle_addr,
+        token_addr,
+        owner_addr: wallet_addr,
+        min_deposit,
+        max_deposit,
+        max_players,
+        data_len: data.len() as _,
+        data,
+        ..Default::default()
+    });
+    Ok(game_addr)
 }
 
 async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
@@ -671,6 +704,7 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     module.register_async_method("register_server", register_server)?;
     module.register_async_method("create_profile", create_profile)?;
     module.register_async_method("get_profile", get_profile)?;
+    module.register_async_method("create_account", create_account)?;
     module.register_async_method("serve", serve)?;
     module.register_async_method("join", join)?;
     module.register_async_method("deposit", deposit)?;
