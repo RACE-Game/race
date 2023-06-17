@@ -58,7 +58,7 @@ const Profile: FC<ProfileProps> = ({ chain, updateProfile }) => {
     }
 
     return (
-        <div className="grid place-items-center border border-gray-500 rounded-lg">
+        <div className="grid place-items-center border border-gray-500">
             <input
                 className="text-gray-800 focus:text-black bg-transparent border-b border-black outline-none text-center p-4 text-lg"
                 name="nick"

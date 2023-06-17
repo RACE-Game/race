@@ -32,7 +32,7 @@ function LogItem(props: { event: GameEvent }) {
     let data = JSON.stringify(event, replacer);
 
     return (
-        <div className="p-2 mb-2 flex-col items-stretch w-full border border-black rounded-lg">
+        <div className="p-2 mb-2 flex-col items-stretch w-full border border-gray-500">
             <div className="font-bold flex-1">
                 {kind}
             </div>
@@ -50,7 +50,7 @@ function LogItem(props: { event: GameEvent }) {
 function Logs(props: { logs: Array<GameEvent> }) {
     return (
         <div className="h-full w-full relative">
-            <div className="absolute p-4 rounded-lg border border-gray-500 inset-0 overflow-y-scroll">
+            <div className="absolute p-4 border border-gray-500 inset-0 overflow-y-scroll">
                 <h4 className="font-bold">Events:</h4>
 
                 <div className="flex flex-col-reverse">

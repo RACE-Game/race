@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, useOutletContext, useNavigate } from 'react-router-dom';
 import Sidemenu from './Sidemenu';
 import Profile from './Profile';
+import TokenList from './TokenList';
 import { AppHelper, GameEvent, PlayerProfile } from '@race-foundation/sdk-core';
 import './App.css'
 import { ProfileContext } from './profile-context';
@@ -29,7 +30,7 @@ export function useGameContext() {
 const Content = (props: RenderContentProps) => {
     let { chain, logs } = props;
     return (<div className="w-screen max-w-7xl min-h-screen grid grid-cols-4 grid-rows-6 p-4 gap-2">
-        <div className="row-span-6">
+        <div className="row-span-3">
             <Sidemenu chain={chain} />
         </div>
         <div className="row-span-6 col-span-2">
@@ -38,6 +39,9 @@ const Content = (props: RenderContentProps) => {
         <Profile updateProfile={props.setProfile} chain={chain} />
         <div className="row-span-5">
             <Logs logs={logs} />
+        </div>
+        <div className="row-span-3">
+            <TokenList />
         </div>
     </div>
     )

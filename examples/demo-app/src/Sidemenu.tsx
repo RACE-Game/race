@@ -35,8 +35,8 @@ function Sidemenu(props: SidemenuProps) {
     }, [helper]);
 
     return (
-        <div className="p-4">
-            <h3 className="font-bold">Demos:</h3>
+        <div className="h-full w-full flex flex-col overflow-scroll-y border border-gray-500 p-4">
+            <h3 className="uppercase font-bold">Demos</h3>
             {
                 games !== undefined ?
                     games.map((game) => <GameItem key={game.addr} chain={chain} {...game} />) :

@@ -3,15 +3,11 @@ import {
   Connection,
   PublicKey,
   Transaction,
-  clusterApiUrl,
-  TransactionInstruction,
-  sendAndConfirmTransaction,
   Keypair,
 } from '@solana/web3.js';
 import {
   AccountLayout,
   NATIVE_MINT,
-  NATIVE_MINT_2022,
   TOKEN_PROGRAM_ID,
   createInitializeAccountInstruction,
   createTransferInstruction,
@@ -46,16 +42,34 @@ import { GAME_ACCOUNT_LEN, NAME_LEN, PROFILE_ACCOUNT_LEN, PLAYER_PROFILE_SEED, S
 
 import { GameState, PlayerState, RegistryState, ServerState } from './accounts';
 
-import { SolanaWalletAdapter } from './solana-wallet';
 import { join } from './instruction';
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants';
 import { Metadata } from './metadata';
 
+function trimString(s: string): string {
+  return s.replace(/\0/g, '');
+}
+
+type LegacyToken = {
+  name: string,
+  symbol: string,
+  logoURI: string,
+  address: string,
+  decimals: number,
+};
+
 export class SolanaTransport implements ITransport {
   #conn: Connection;
+  #legacyTokens?: LegacyToken[];
 
   constructor(endpoint: string) {
     this.#conn = new Connection(endpoint, 'confirmed');
+  }
+
+  async _fetchLegacyTokens() {
+    const resp = await fetch("https://cdn.jsdelivr.net/gh/solflare-wallet/token-list/solana-tokenlist.json");
+    const m = await resp.json();
+    this.#legacyTokens = m['tokens'];
   }
 
   async createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string> {
@@ -123,7 +137,7 @@ export class SolanaTransport implements ITransport {
     return gameAccountKey.toBase58();
   }
 
-  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> { }
+  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> {}
 
   async join(wallet: IWallet, params: JoinParams): Promise<void> {
     const conn = this.#conn;
@@ -201,13 +215,13 @@ export class SolanaTransport implements ITransport {
     await wallet.sendTransaction(tx, this.#conn);
   }
 
-  async deposit(wallet: IWallet, params: DepositParams): Promise<void> { }
+  async deposit(wallet: IWallet, params: DepositParams): Promise<void> {}
 
   async publishGame(wallet: IWallet, params: PublishGameParams): Promise<string> {
     return '';
   }
 
-  async vote(wallet: IWallet, params: VoteParams): Promise<void> { }
+  async vote(wallet: IWallet, params: VoteParams): Promise<void> {}
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void> {
     const { nick, pfp } = params;
@@ -251,9 +265,9 @@ export class SolanaTransport implements ITransport {
     return '';
   }
 
-  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> { }
+  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> {}
 
-  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> { }
+  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> {}
 
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
     const gameAccountKey = new PublicKey(addr);
@@ -280,13 +294,8 @@ export class SolanaTransport implements ITransport {
     const metadataState = Metadata.deserialize(metadataAccount.data);
     console.log('Metadata state:', metadataState);
     let { uri, name } = metadataState.data;
-    uri = uri.replace(/\0/g, '');
-    name = name.replace(/\0/g, '');
 
-    console.log('uri:', uri);
-    console.log('name:', name);
-
-    return new GameBundle({ uri, name, data: new Uint8Array(0) });
+    return new GameBundle({ uri: trimString(uri), name: trimString(name), data: new Uint8Array(0) });
   }
 
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
@@ -331,7 +340,7 @@ export class SolanaTransport implements ITransport {
     const keys = regAccount.games.map(g => new PublicKey(g.addr));
     const gameStates = await this._getMultiGameStates(keys);
     let games: Array<GameAccount | undefined> = [];
-    for (let i = 0; i < gameStates.length; i ++) {
+    for (let i = 0; i < gameStates.length; i++) {
       const gs = gameStates[i];
       if (gs === undefined) {
         games.push(undefined);
@@ -358,19 +367,31 @@ export class SolanaTransport implements ITransport {
       if (metadataAccount !== null) {
         metadataState = Metadata.deserialize(metadataAccount.data);
       }
+
+      // Get from legacy token
+      if (this.#legacyTokens === undefined) {
+        await this._fetchLegacyTokens();
+      }
+      let legacyToken: LegacyToken | undefined = undefined;
+      if (this.#legacyTokens !== undefined) {
+        legacyToken = this.#legacyTokens.find(t => t.address === addr);
+      }
+
       if (metadataState !== undefined) {
-        return {
-          addr: mint.address.toBase58(),
-          decimals: mint.decimals,
-          name: metadataState.data.name,
-          symbol: metadataState.data.symbol,
-          icon: metadataState.data.uri,
-        }
+        const addr = mint.address.toBase58();
+        const decimals = mint.decimals;
+        const name = metadataState.data.name ? trimString(metadataState.data.name) :
+          legacyToken ? legacyToken.name :
+            '';
+        const symbol = metadataState.data.symbol ? trimString(metadataState.data.symbol) :
+          legacyToken ? legacyToken.symbol :
+            '';
+        const icon = legacyToken?.logoURI ? legacyToken.logoURI : '';
+        return { addr, decimals, name, symbol, icon };
       } else {
         return undefined;
       }
     } catch (e) {
-      console.warn(e);
       return undefined;
     }
   }
@@ -401,16 +422,13 @@ export class SolanaTransport implements ITransport {
   async fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>> {
     const walletKey = new PublicKey(walletAddr);
     let ret = new Map<string, bigint>();
-    const resp = await this.#conn.getTokenLargestAccounts(walletKey);
-    const pairs = resp.value;
-    for (const pair of pairs) {
-      ret.set(pair.address.toBase58(), BigInt(pair.amount));
-    }
     for (const tokenAddr of tokenAddrs) {
-      if (!ret.has(tokenAddr)) {
-        const tokenAccountKey = getAssociatedTokenAddressSync(new PublicKey(tokenAddr), walletKey);
+      const tokenAccountKey = getAssociatedTokenAddressSync(new PublicKey(tokenAddr), walletKey);
+      try {
         const resp = await this.#conn.getTokenAccountBalance(tokenAccountKey);
         ret.set(tokenAddr, BigInt(resp.value.amount));
+      } catch (e) {
+        ret.set(tokenAddr, 0n);
       }
     }
     return ret;
@@ -432,9 +450,9 @@ export class SolanaTransport implements ITransport {
       if (metadataState !== undefined) {
         return {
           addr: mint.address.toBase58(),
-          name: metadataState.data.name,
-          symbol: metadataState.data.symbol,
-          image: metadataState.data.uri,
+          name: trimString(metadataState.data.name),
+          symbol: trimString(metadataState.data.symbol),
+          image: trimString(metadataState.data.uri),
         }
       } else {
         return undefined;

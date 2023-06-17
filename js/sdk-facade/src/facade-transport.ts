@@ -182,8 +182,12 @@ export class FacadeTransport implements ITransport {
   async fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>> {
     let ret = new Map();
     for (const addr of tokenAddrs) {
-      const balance = await this.fetchState("get_balance", [walletAddr, addr]);
-      ret.set(addr, balance);
+      const data = await this.fetchState("get_balance", [walletAddr, addr]);
+      if (data !== undefined) {
+        const view = new DataView(data.buffer);
+        const balance = view.getBigUint64(0, true);
+        ret.set(addr, balance);
+      }
     }
     return ret;
   }

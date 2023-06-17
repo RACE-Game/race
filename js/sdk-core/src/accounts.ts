@@ -93,6 +93,32 @@ export interface IToken {
   readonly decimals: number;
 }
 
+export class Token implements IToken {
+  readonly addr!: string;
+  readonly icon!: string;
+  readonly name!: string;
+  readonly symbol!: string;
+  readonly decimals!: number;
+  constructor(fields: IToken) {
+    Object.assign(this, fields);
+  }
+}
+
+export class TokenWithBalance implements IToken {
+  readonly addr!: string;
+  readonly icon!: string;
+  readonly name!: string;
+  readonly symbol!: string;
+  readonly decimals!: number;
+  readonly amount!: bigint;
+  readonly uiAmount!: string;
+  constructor(token: IToken, amount: bigint) {
+    Object.assign(this, token);
+    this.amount = amount;
+    this.uiAmount = (Number(amount) / Math.pow(10, token.decimals)).toLocaleString();
+  }
+}
+
 export interface INft {
   readonly addr: string;
   readonly image: string;

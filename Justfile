@@ -96,7 +96,7 @@ sdk-solana:
 sdk-facade:
     npm --prefix ./js/sdk-facade run build
 
-ts-sdk: borsh sdk-core sdk-solana sdk-facade
+sdk: borsh sdk-core sdk-solana sdk-facade
 
 publish name url:
     cargo run -p race-cli -- -e local publish solana {{name}} {{url}}

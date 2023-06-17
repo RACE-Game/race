@@ -9,8 +9,8 @@ use race_core::error::Error;
 use race_core::prelude::BorshSerialize;
 use race_core::types::{
     DepositParams, GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin,
-    PlayerProfile, RegistrationAccount, ServerAccount, ServerJoin, SettleOp, SettleParams, Vote,
-    VoteParams, VoteType, TokenAccount,
+    PlayerProfile, RegistrationAccount, ServerAccount, ServerJoin, SettleOp, SettleParams,
+    TokenAccount, Vote, VoteParams, VoteType,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -28,10 +28,9 @@ type RpcResult<T> = std::result::Result<T, RpcError>;
 const DEFAULT_MAX_SERVERS: usize = 3;
 const DEFAULT_VOTES_THRESHOLD: usize = 2;
 
-const DEFAULT_BALANCE: u64 = 10000;
+const DEFAULT_BALANCE: u64 = 10000000;
 
 const HTTP_HOST: &str = "0.0.0.0:12002";
-
 
 #[derive(Deserialize)]
 pub struct GameSpec {
@@ -115,7 +114,8 @@ impl Context {
     }
 
     fn add_token(&mut self, token_account: TokenAccount) {
-        self.tokens.insert(token_account.addr.clone(), token_account);
+        self.tokens
+            .insert(token_account.addr.clone(), token_account);
     }
 
     fn load_default_tokens(&mut self) {
@@ -350,22 +350,34 @@ async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rp
 }
 
 async fn create_account(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {
-    let CreateGameAccountInstruction { wallet_addr, game_addr, title, bundle_addr, token_addr, max_players, min_deposit, max_deposit, data } =
-        params.one()?;
-    let mut context = context.lock().await;
-    context.games.insert(game_addr.clone(), GameAccount {
-        addr: game_addr.clone(),
+    let CreateGameAccountInstruction {
+        wallet_addr,
+        game_addr,
         title,
         bundle_addr,
         token_addr,
-        owner_addr: wallet_addr,
+        max_players,
         min_deposit,
         max_deposit,
-        max_players,
-        data_len: data.len() as _,
         data,
-        ..Default::default()
-    });
+    } = params.one()?;
+    let mut context = context.lock().await;
+    context.games.insert(
+        game_addr.clone(),
+        GameAccount {
+            addr: game_addr.clone(),
+            title,
+            bundle_addr,
+            token_addr,
+            owner_addr: wallet_addr,
+            min_deposit,
+            max_deposit,
+            max_players,
+            data_len: data.len() as _,
+            data,
+            ..Default::default()
+        },
+    );
     Ok(game_addr)
 }
 
@@ -380,10 +392,10 @@ async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
         player_addr.clone(),
         PlayerInfo {
             balances: HashMap::from([
-                ("FAKE_USDC".to_string(), DEFAULT_BALANCE),
-                ("FAKE_USDT".to_string(), DEFAULT_BALANCE),
-                ("FAKE_NATIVE".to_string(), DEFAULT_BALANCE),
-                ("RACE".to_string(), DEFAULT_BALANCE),
+                ("FACADE_USDC".to_string(), DEFAULT_BALANCE),
+                ("FACADE_USDT".to_string(), DEFAULT_BALANCE),
+                ("FACADE_NATIVE".to_string(), DEFAULT_BALANCE),
+                ("FACADE_RACE".to_string(), DEFAULT_BALANCE),
             ]),
             profile: PlayerProfile {
                 addr: player_addr.clone(),
@@ -483,7 +495,10 @@ async fn vote(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         if game_account.votes.len() >= DEFAULT_VOTES_THRESHOLD {
             for p in game_account.players.iter() {
                 let player = players.get_mut(&p.addr).unwrap();
-                player.balances.entry(game_account.token_addr.to_owned()).and_modify(|b| *b += p.balance);
+                player
+                    .balances
+                    .entry(game_account.token_addr.to_owned())
+                    .and_modify(|b| *b += p.balance);
             }
             game_account.players.clear();
             game_account.servers.clear();
@@ -564,21 +579,20 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
     Ok(())
 }
 
-async fn get_balance(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<u64> {
-    let player_addr: String = params.one()?;
-    let token_addr: String = params.one()?;
+async fn get_balance(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<Vec<u8>> {
+    let (player_addr, token_addr) = params.parse::<(String, String)>()?;
     let context = context.lock().await;
+    let mut amount = 0u64;
     if let Some(player) = context.players.get(&player_addr) {
         if let Some(balance) = player.balances.get(&token_addr) {
-            Ok(*balance)
+            amount = *balance;
         } else {
             println!("? get_balance, token_addr: {}, not found", token_addr);
-            Ok(0)
         }
     } else {
         println!("? get_balance, player_addr: {}, not found", player_addr);
-        Ok(0)
     }
+    Ok(amount.try_to_vec().unwrap())
 }
 
 async fn get_account_info(
@@ -595,10 +609,7 @@ async fn get_account_info(
     }
 }
 
-async fn list_tokens(
-    _params: Params<'_>,
-    context: Arc<Mutex<Context>>
-) -> RpcResult<Vec<u8>> {
+async fn list_tokens(_params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<Vec<u8>> {
     let context = context.lock().await;
     let tokens: Vec<&TokenAccount> = context.tokens.values().collect();
     let bytes = tokens.try_to_vec()?;
@@ -643,7 +654,10 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
                             .ok_or(custom_error(Error::InvalidSettle(
                                 "Invalid player address".into(),
                             )))?;
-                    player.balances.entry(game.token_addr.to_owned()).and_modify(|b| *b += p.balance);
+                    player
+                        .balances
+                        .entry(game.token_addr.to_owned())
+                        .and_modify(|b| *b += p.balance);
                 } else {
                     return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
                 }

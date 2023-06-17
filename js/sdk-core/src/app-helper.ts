@@ -1,4 +1,4 @@
-import { GameAccount, GameRegistration, IToken, PlayerProfile } from './accounts';
+import { GameAccount, GameRegistration, IToken, PlayerProfile, TokenWithBalance } from './accounts';
 import { CreateGameAccountParams, ITransport } from './transport';
 import { IWallet } from './wallet';
 
@@ -112,14 +112,27 @@ export class AppHelper {
    *
    * @return A list of token info.
    */
-  async listTokens(): Promise<IToken[]> {
+  async listTokens(): Promise<Token[]> {
     return await this.#transport.listTokens();
   }
 
   /**
-   * Fetch the balances of given token addresses.
+   * Fetch balances for a list of tokens.
+   *
+   * @param walletAddr - The player's wallet address
+   * @param tokens - A list of tokens to query
+   *
+   * @return The list of tokens with `amount` and `uiAmount` added.
    */
-  async fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>> {
-    return await this.#transport.fetchBalances(walletAddr, tokenAddrs);
+  async fetchTokenBalances(walletAddr: string, tokens: IToken[]): Promise<TokenWithBalance[]> {
+    const tokenAddrs = tokens.map(t => t.addr);
+    const balanceMap = await this.#transport.fetchBalances(walletAddr, tokenAddrs);
+    return tokens.map(t => {
+      let balance = balanceMap.get(t.addr);
+      if (balance === undefined) {
+        balance = 0n;
+      }
+      return new TokenWithBalance(t, balance);
+    })
   }
 }
