@@ -117,15 +117,14 @@ export class AppHelper {
   }
 
   /**
-   * Fetch balances for a list of tokens.
+   * Fetch tokens and balances
    *
-   * @param wallet - The player's wallet
-   * @param tokens - A list of tokens to query
+   * @param walletAddr - The player's wallet address
    *
    * @return The list of tokens with `amount` and `uiAmount` added.
    */
-  async fetchTokenBalances(wallet: IWallet, tokens: IToken[]): Promise<TokenWithBalance[]> {
-    const walletAddr = wallet.walletAddr;
+  async listTokensWithBalance(walletAddr: string): Promise<TokenWithBalance[]> {
+    const tokens = await this.listTokens();
     const tokenAddrs = tokens.map(t => t.addr);
     const balanceMap = await this.#transport.fetchBalances(walletAddr, tokenAddrs);
     return tokens.map(t => {

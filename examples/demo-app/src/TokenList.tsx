@@ -1,6 +1,6 @@
 import { useContext, useState, useEffect, FC } from 'react';
 import { HelperContext } from './helper-context';
-import { AppHelper, IToken, PlayerProfile } from '@race-foundation/sdk-core';
+import { AppHelper, IToken, PlayerProfile, TokenWithBalance } from '@race-foundation/sdk-core';
 import { ProfileContext } from './profile-context';
 
 function formatBalance(token: IToken, balance: bigint | undefined): string {
@@ -12,18 +12,14 @@ function formatBalance(token: IToken, balance: bigint | undefined): string {
 const TokenList: FC = () => {
     const helper = useContext<AppHelper | undefined>(HelperContext);
     const profile = useContext<PlayerProfile | undefined>(ProfileContext);
-    const [tokens, setTokens] = useState<IToken[]>([]);
-    const [balances, setBalances] = useState<Map<string, bigint>>(new Map());
+    const [tokens, setTokens] = useState<TokenWithBalance[]>([]);
 
     useEffect(() => {
         if (helper !== undefined && profile !== undefined) {
             const fetchTokens = async () => {
                 console.log("fetch tokens")
                 const tokens = await helper.listTokens();
-                setTokens(tokens);
-                const tokenAddrs = tokens.map(t => t.addr);
-                const walletAddr = profile.addr;
-                const balances = await helper.fetchBalances(walletAddr, tokenAddrs);
+              const tokensWithBalance = await helper.fetchTokenBalances()
                 setBalances(balances);
             };
             fetchTokens();
