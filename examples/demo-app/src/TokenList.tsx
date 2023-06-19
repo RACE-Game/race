@@ -3,26 +3,33 @@ import { HelperContext } from './helper-context';
 import { AppHelper, IToken, PlayerProfile, TokenWithBalance } from '@race-foundation/sdk-core';
 import { ProfileContext } from './profile-context';
 
-function formatBalance(token: IToken, balance: bigint | undefined): string {
-    if (balance === undefined) return '--';
-    const amt = Number(balance) / Math.pow(10, token.decimals);
-    return '' + amt;
+function formatBalance(token: IToken | TokenWithBalance): string {
+    if ('amount' in token) {
+        const amt = Number(token.amount) / Math.pow(10, token.decimals);
+        return '' + amt;
+    } else {
+        return '--';
+    }
 }
 
 const TokenList: FC = () => {
     const helper = useContext<AppHelper | undefined>(HelperContext);
     const profile = useContext<PlayerProfile | undefined>(ProfileContext);
-    const [tokens, setTokens] = useState<TokenWithBalance[]>([]);
+    const [tokens, setTokens] = useState<(IToken | TokenWithBalance)[]>([]);
 
     useEffect(() => {
         if (helper !== undefined && profile !== undefined) {
-            const fetchTokens = async () => {
-                console.log("fetch tokens")
+            // Fetch tokens
+            (async () => {
+                const tokens = await helper.listTokensWithBalance(profile.addr);
+                setTokens(tokens);
+            })();
+        } else if (helper !== undefined) {
+            // Fetch tokens with balances
+            (async () => {
                 const tokens = await helper.listTokens();
-              const tokensWithBalance = await helper.fetchTokenBalances()
-                setBalances(balances);
-            };
-            fetchTokens();
+                setTokens(tokens);
+            })();
         }
     }, [helper, profile]);
 
@@ -37,7 +44,7 @@ const TokenList: FC = () => {
                             <div>{token.symbol}</div>
                             <div className="text-gray-400">{token.name}</div>
                         </div>
-                        <div className="flex-1 flex justify-end items-center">{formatBalance(token, balances.get(token.addr))}</div>
+                        <div className="flex-1 flex justify-end items-center">{formatBalance(token)}</div>
                     </div>
                 ))
             }
