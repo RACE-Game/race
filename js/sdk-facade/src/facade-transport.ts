@@ -196,6 +196,10 @@ export class FacadeTransport implements ITransport {
     return undefined;
   }
 
+  async listNfts(_: string): Promise<INft[]> {
+    return [];
+  }
+
   async sendInstruction(method: string, ix: any) {
     const reqData = JSON.stringify(
       {

@@ -434,10 +434,23 @@ export class SolanaTransport implements ITransport {
     return ret;
   }
 
-  async getNft(addr: string): Promise<INft | undefined> {
-    const mintKey = new PublicKey(addr);
+  async getNft(addr: string | PublicKey): Promise<INft | undefined> {
+    let mintKey: PublicKey;
+
+    if (addr instanceof PublicKey) {
+      mintKey = addr;
+    } else {
+      mintKey = new PublicKey(addr);
+    }
+
     try {
       const mint = await getMint(this.#conn, mintKey, 'finalized');
+
+      // Non-zero decimals stands for a fungible token
+      if (mint.decimals !== 0) {
+        return undefined;
+      }
+
       const [metadataKey] = PublicKey.findProgramAddressSync(
         [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
         METAPLEX_PROGRAM_ID
@@ -453,6 +466,7 @@ export class SolanaTransport implements ITransport {
           name: trimString(metadataState.data.name),
           symbol: trimString(metadataState.data.symbol),
           image: trimString(metadataState.data.uri),
+          collection: metadataState?.collection?.key.toBase58(),
         }
       } else {
         return undefined;
@@ -461,6 +475,23 @@ export class SolanaTransport implements ITransport {
       console.warn(e);
       return undefined;
     }
+  }
+
+  async listNfts(walletAddr: string): Promise<INft[]> {
+    let nfts = [];
+    const ownerKey = new PublicKey(walletAddr);
+    const parsedTokenAccounts = await this.#conn.getParsedTokenAccountsByOwner(ownerKey, { programId: TOKEN_PROGRAM_ID });
+    for (const a of parsedTokenAccounts.value) {
+      if (a.account.data.parsed.info.tokenAmount.amount !== '1'
+        || a.account.data.parsed.info.tokenAmount.decimals !== 0) {
+        continue;
+      }
+      const nft = await this.getNft(a.account.data.parsed.info.mint);
+      if (nft !== undefined) {
+        nfts.push(nft);
+      }
+    }
+    return nfts;
   }
 
   async _getGameState(gameAccoutKey: PublicKey): Promise<GameState | undefined> {
@@ -505,7 +536,6 @@ export class SolanaTransport implements ITransport {
     const serverAccount = await conn.getAccountInfo(profileKey);
     if (serverAccount !== null) {
       const data = serverAccount.data;
-      console.log('Server account data:', data);
       return ServerState.deserialize(data);
     } else {
       return undefined;

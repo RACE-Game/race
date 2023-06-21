@@ -1,4 +1,4 @@
-import { GameAccount, GameRegistration, IToken, PlayerProfile, TokenWithBalance } from './accounts';
+import { GameAccount, GameRegistration, INft, IToken, PlayerProfile, TokenWithBalance } from './accounts';
 import { CreateGameAccountParams, ITransport } from './transport';
 import { IWallet } from './wallet';
 
@@ -114,6 +114,23 @@ export class AppHelper {
    */
   async listTokens(): Promise<IToken[]> {
     return await this.#transport.listTokens();
+  }
+
+  /**
+   * List all nfts owned by a wallet.
+   *
+   * @param walletAddr - wallet address.
+   * @param collectionName - The collection name for filtering, pass `undefined` for no filtering.
+   *
+   * @return A list of nfts.
+   */
+  async listNfts(walletAddr: string, collection: string | undefined = undefined): Promise<INft[]> {
+    const nfts = await this.#transport.listNfts(walletAddr);
+    if (collection === undefined) {
+      return nfts;
+    } else {
+      return nfts.filter(nft => nft.collection === collection);
+    }
   }
 
   /**

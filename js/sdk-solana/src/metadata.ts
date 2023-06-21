@@ -3,7 +3,7 @@ import { publicKeyExt } from './utils';
 import { deserialize, field, array, struct, option } from '@race-foundation/borsh';
 
 /**
- * A partial port of Metaplex's Metadata layout.
+ * A port of Metaplex's Metadata layout.
  *
  * Metaplex library introduces extra dependencies that requires node
  * polyfill, And we only use a small set of its features.
@@ -13,7 +13,42 @@ export interface IMetadata {
   updateAuthority: PublicKey;
   mint: PublicKey;
   data: Data;
+  primarySaleHappened: boolean;
+  isMutable: boolean;
+  editionNonce: number | undefined;
+  tokenStandard: TokenStandard | undefined;
+  collection: ICollection | undefined;
+  uses: IUses | undefined;
 }
+
+export interface ICollection {
+  verified: boolean;
+  key: PublicKey;
+}
+
+export const USE_METHOD = {
+  Burn: 0,
+  Multiple: 1,
+  Single: 2,
+} as const;
+
+type UseMethod = typeof USE_METHOD[keyof typeof USE_METHOD];
+
+export interface IUses {
+  useMethod: UseMethod;
+  remaining: bigint;
+  total: bigint;
+}
+
+export const TOKEN_STANDARD = {
+  NonFungible: 0,
+  FungibleAsset: 1,
+  Fungible: 2,
+  NonFungibleEdition: 3,
+  ProgrammableNonFungible: 4,
+} as const;
+
+export type TokenStandard = typeof TOKEN_STANDARD[keyof typeof TOKEN_STANDARD];
 
 export interface ICreator {
   address: PublicKey;
@@ -59,6 +94,29 @@ export class Data implements IData {
   }
 }
 
+export class Collection implements ICollection {
+  @field('bool')
+  verified!: boolean;
+  @field(publicKeyExt)
+  key!: PublicKey;
+
+  constructor(fields: IData) {
+    Object.assign(this, fields);
+  }
+}
+
+export class Uses implements IUses {
+  @field('u8')
+  useMethod!: UseMethod;
+  @field('u64')
+  remaining!: bigint;
+  @field('u64')
+  total!: bigint;
+
+  constructor(fields: IData) {
+    Object.assign(this, fields);
+  }
+}
 
 export class Metadata implements IMetadata {
   @field('u8')
@@ -69,6 +127,19 @@ export class Metadata implements IMetadata {
   mint!: PublicKey;
   @field(struct(Data))
   data!: Data;
+  @field('bool')
+  primarySaleHappened!: boolean;
+  @field('bool')
+  isMutable!: boolean;
+  @field(option('u8'))
+  editionNonce!: number | undefined;
+  @field(option('u8'))
+  tokenStandard!: TokenStandard | undefined;
+  @field(option(struct(Collection)))
+  collection!: Collection | undefined;
+  @field(option(struct(Uses)))
+  uses!: Uses | undefined;
+
   constructor(fields: IMetadata) {
     Object.assign(this, fields);
   }

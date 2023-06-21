@@ -124,6 +124,7 @@ export interface INft {
   readonly image: string;
   readonly name: string;
   readonly symbol: string;
+  readonly collection: string | undefined;
 }
 
 export class ServerAccount implements IServerAccount {
