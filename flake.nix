@@ -17,6 +17,7 @@
               rustup
               wasm-pack
               openssl
+              pkg-config
               rust-analyzer
               simple-http-server
               nodejs_18
