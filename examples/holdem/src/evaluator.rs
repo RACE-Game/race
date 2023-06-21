@@ -31,7 +31,11 @@ fn kind_to_order(card: &str) -> u8 {
     } else if kind == "t" {
         10
     } else {
-        kind.parse::<u8>().unwrap()
+        // FIXME: handle this error in a better way
+        let Ok(kind_num) = kind.parse::<u8>() else {
+            return 0;
+        };
+        kind_num
     } // 2-9
 }
 
