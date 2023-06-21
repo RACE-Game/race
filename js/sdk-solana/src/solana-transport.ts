@@ -354,6 +354,16 @@ export class SolanaTransport implements ITransport {
     });
   }
 
+  async _fetchImageFromDataUri(dataUri: string): Promise<string | undefined> {
+    try {
+      const resp = await fetch(dataUri);
+      const data = await resp.json();
+      return data.image;
+    } catch (e) {
+      return undefined;
+    }
+  }
+
   async getToken(addr: string): Promise<IToken | undefined> {
     const mintKey = new PublicKey(addr);
     try {
@@ -380,13 +390,14 @@ export class SolanaTransport implements ITransport {
       if (metadataState !== undefined) {
         const addr = mint.address.toBase58();
         const decimals = mint.decimals;
+        const image = await this._fetchImageFromDataUri(metadataState.data.uri);
         const name = metadataState.data.name ? trimString(metadataState.data.name) :
           legacyToken ? legacyToken.name :
             '';
         const symbol = metadataState.data.symbol ? trimString(metadataState.data.symbol) :
           legacyToken ? legacyToken.symbol :
             '';
-        const icon = legacyToken?.logoURI ? legacyToken.logoURI : '';
+        const icon = image ? image : legacyToken?.logoURI ? legacyToken.logoURI : '';
         return { addr, decimals, name, symbol, icon };
       } else {
         return undefined;
@@ -461,11 +472,13 @@ export class SolanaTransport implements ITransport {
         metadataState = Metadata.deserialize(metadataAccount.data);
       }
       if (metadataState !== undefined) {
+        const image = await this._fetchImageFromDataUri(metadataState.data.uri);
+        if (image === undefined) return undefined;
         return {
           addr: mint.address.toBase58(),
           name: trimString(metadataState.data.name),
           symbol: trimString(metadataState.data.symbol),
-          image: trimString(metadataState.data.uri),
+          image,
           collection: metadataState?.collection?.key.toBase58(),
         }
       } else {
