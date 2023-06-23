@@ -256,7 +256,9 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         if access_version != game_account.access_version {
             return Err(custom_error(Error::TransactionExpired));
         }
-        if game_account.players.len() >= game_account.max_players as _ {
+        if amount < game_account.min_deposit || amount > game_account.max_deposit {
+            return Err(custom_error(Error::InvalidAmount));
+        } else if game_account.players.len() >= game_account.max_players as _ {
             return Err(custom_error(Error::GameIsFull(
                 game_account.max_players as _,
             )));
