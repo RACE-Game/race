@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 #[test]
 fn test_initial_btn() -> Result<(), HandleError> {
     let mut state = setup_holdem_state()?;
-    state.get_next_btn(0)?;
+    state.get_next_btn()?;
     assert_eq!(state.btn, 0);
     Ok(())
 }
