@@ -58,6 +58,48 @@ fn test_players_order() -> Result<()> {
 }
 
 #[test]
+fn test_get_holecards() -> Result<()> {
+    let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
+    let mut alice = TestClient::player("Alice");
+    let mut bob = TestClient::player("Bob");
+    let sync_evt = create_sync_event(&ctx, &[&alice, &bob], &transactor);
+    // Syncing players to the game, i.e. they join the game and game kicks start
+    handler.handle_until_no_events(
+        &mut ctx,
+        &sync_evt,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+
+    let runner_revealed = HashMap::from([
+        // Alice
+        (0, "st".to_string()),
+        (1, "ct".to_string()),
+        // Bob
+        (2, "ht".to_string()),
+        (3, "dt".to_string()),
+        // Board
+        (4, "s5".to_string()),
+        (5, "c6".to_string()),
+        (6, "h2".to_string()),
+        (7, "h8".to_string()),
+        (8, "d7".to_string()),
+    ]);
+    let holdem_state = handler.get_state();
+    ctx.add_revealed_random(holdem_state.deck_random_id, runner_revealed)?;
+
+    {
+        println!(
+            "-- Player hand index map {:?}",
+            holdem_state.hand_index_map
+        );
+
+        let alice_hand_index = holdem_state.hand_index_map.get(&"Alice".to_string()).unwrap();
+        assert_eq!(alice_hand_index, &vec![0, 1]);
+    }
+    Ok(())
+}
+
+#[test]
 fn test_runner() -> Result<()> {
     let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
     let mut alice = TestClient::player("Alice");

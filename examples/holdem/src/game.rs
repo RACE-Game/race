@@ -24,6 +24,7 @@ pub struct Holdem {
     pub street: Street,
     pub street_bet: u64,
     pub board: Vec<String>,
+    pub hand_index_map: BTreeMap<String, Vec<usize>>,
     pub bet_map: BTreeMap<String, Bet>,
     pub prize_map: BTreeMap<String, u64>,
     pub player_map: BTreeMap<String, Player>,
@@ -42,6 +43,7 @@ impl Holdem {
         self.acting_player = None;
         self.pots = Vec::<Pot>::new();
         self.board = Vec::<String>::with_capacity(5);
+        self.hand_index_map = BTreeMap::<String, Vec<usize>>::new();
         self.bet_map = BTreeMap::<String, Bet>::new();
         self.prize_map = BTreeMap::<String, u64>::new();
 
@@ -1028,6 +1030,7 @@ impl GameHandler for Holdem {
             street: Street::Init,
             street_bet: 0,
             board: Vec::<String>::with_capacity(5),
+            hand_index_map: BTreeMap::<String, Vec<usize>>::new(),
             bet_map: BTreeMap::<String, Bet>::new(),
             prize_map: BTreeMap::<String, u64>::new(),
             player_map: BTreeMap::<String, Player>::new(),
@@ -1168,7 +1171,9 @@ impl GameHandler for Holdem {
                 // Cards are dealt to players but remain invisible to them
                 for (idx, (addr, _)) in self.player_map.iter().enumerate() {
                     effect.assign(self.deck_random_id, addr, vec![idx * 2, idx * 2 + 1]);
+                    self.hand_index_map.insert(addr.clone(), vec![idx * 2, idx * 2 + 1]);
                 }
+
                 Ok(())
             }
 

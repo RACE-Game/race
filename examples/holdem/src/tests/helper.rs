@@ -133,6 +133,7 @@ pub fn setup_holdem_state() -> Result<Holdem> {
         street: Street::Init,
         street_bet: 20,
         board: Vec::<String>::with_capacity(5),
+        hand_index_map: BTreeMap::<String, Vec<usize>>::new(),
         bet_map: BTreeMap::<String, Bet>::new(),
         prize_map: BTreeMap::<String, u64>::new(),
         player_map: players_map,

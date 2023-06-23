@@ -86,6 +86,9 @@ export class Holdem {
   @field(array('string'))
   board!: string[];
 
+  @field(map('string', array('usize')))
+  handIndexMap!: Map<string, number[]>;
+
   @field(map('string', struct(Bet)))
   betMap!: Map<string, Bet>;
 
