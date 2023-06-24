@@ -541,7 +541,6 @@ impl Holdem {
         self.assign_winners(winners)?;
         self.calc_prize()?;
         self.apply_prize()?;
-        self.update_chips_map()?;
 
         let chips_change_map = self.update_chips_map()?;
 
@@ -560,14 +559,7 @@ impl Holdem {
             }
         }
 
-        let next_btn = self.get_next_btn()?;
-        println!("Next BTN: {}", next_btn);
-        if effect.count_players() >= 2 && effect.count_servers() >= 1 {
-            self.btn = next_btn;
-            effect.start_game();
-        }
-        println!("== Game starts again");
-
+        effect.wait_timeout(WAIT_TIMEOUT);
         Ok(())
     }
 
@@ -577,18 +569,38 @@ impl Holdem {
         let board: Vec<&str> = self.board.iter().map(|c| c.as_str()).collect();
         // Player hands
         let mut player_hands: Vec<(String, PlayerHand)> = Vec::with_capacity(self.players.len());
-        for player in self.player_map.values() {
+        for (addr, idxs) in self.hand_index_map.iter() {
+            if idxs.len() != 2 {
+                return Err(HandleError::Custom(
+                    "Invalid hole-card idx vec: length not equal to 2".to_string(),
+                ));
+            }
+
+            let Some(player) = self.player_map.get(addr) else {
+                return Err(HandleError::Custom(
+                    "Player not found in game".to_string()
+                ));
+            };
+
             if player.status != PlayerStatus::Fold {
-                let first_card_index = player.position * 2;
-                let Some(first_card) = decryption.get(&first_card_index) else {
+                let Some(first_card_idx) = idxs.first() else {
                     return Err(HandleError::Custom(
-                        "Failed to get first (left) hole card from the revealed info".to_string()
+                        "Failed to extract index for 1st hole card".to_string()
                     ));
                 };
-                let second_card_index = player.position * 2 + 1;
-                let Some(second_card) = decryption.get(&second_card_index) else {
+                let Some(first_card) = decryption.get(first_card_idx) else {
                     return Err(HandleError::Custom(
-                        "Failed to get second () hole card from the revealed info".to_string()
+                        "Failed to get 1st hole card from the revealed info".to_string()
+                    ));
+                };
+                let Some(second_card_idx) = idxs.last() else {
+                    return Err(HandleError::Custom(
+                        "Failed to extract index for 2nd hole card".to_string()
+                    ));
+                };
+                let Some(second_card) = decryption.get(second_card_idx) else {
+                    return Err(HandleError::Custom(
+                        "Failed to get 2nd hole card from the revealed info".to_string()
                     ));
                 };
                 let hole_cards = [first_card.as_str(), second_card.as_str()];
@@ -608,7 +620,7 @@ impl Holdem {
         // Each hand is either equal to or weaker than winner (1st)
         let Some((winner, highest_hand)) = player_hands.first() else {
             return Err(HandleError::Custom(
-                "".to_string()
+                "Failed to spot the strongest hand".to_string()
             ));
         };
 
@@ -744,15 +756,15 @@ impl Holdem {
 
             // Reveal all cards at once
             let players_cnt = self.players.len() * 2;
-            let mut indexes = Vec::<usize>::new();
+            let mut idxs = Vec::<usize>::new();
             for (idx, player) in self.player_map.values().enumerate() {
                 if player.status != PlayerStatus::Fold {
-                    indexes.push(idx * 2);
-                    indexes.push(idx * 2 + 1);
+                    idxs.push(idx * 2);
+                    idxs.push(idx * 2 + 1);
                 }
             }
-            indexes.extend_from_slice(&(players_cnt..(players_cnt + 5)).collect::<Vec<usize>>());
-            effect.reveal(self.deck_random_id, indexes);
+            idxs.extend_from_slice(&(players_cnt..(players_cnt + 5)).collect::<Vec<usize>>());
+            effect.reveal(self.deck_random_id, idxs);
 
             Ok(())
         }
@@ -765,11 +777,21 @@ impl Holdem {
         // Showdown
         else {
             println!("[Next State]: Showdown");
-            self.street = Street::Showdown;
+            self.stage = HoldemStage::Showdown;
             self.collect_bets()?;
-            self.settle(effect)?;
-            self.reset_holdem_state()?;
-            effect.wait_timeout(WAIT_TIMEOUT);
+
+            // Reveal players' hole cards
+            let mut idxs = Vec::<usize>::new();
+            for (idx, player) in self.player_map.values().enumerate() {
+                if player.status != PlayerStatus::Fold {
+                    idxs.push(idx * 2);
+                    idxs.push(idx * 2 + 1);
+                }
+            }
+            effect.reveal(self.deck_random_id, idxs);
+            // self.settle(effect)?;
+            // self.reset_holdem_state()?;
+            // effect.wait_timeout(WAIT_TIMEOUT);
 
             Ok(())
         }
@@ -1024,15 +1046,15 @@ impl GameHandler for Holdem {
             }
 
             Event::ActionTimeout { player_addr } => {
+                let Some(player) = self.player_map.get_mut(&player_addr) else {
+                    return Err(HandleError::Custom("Player not found in game".to_string()));
+                };
+
                 let street_bet = self.street_bet;
                 let bet = if let Some(player_bet) = self.bet_map.get(&player_addr) {
                     player_bet.amount
                 } else {
                     0
-                };
-
-                let Some(player) = self.player_map.get_mut(&player_addr) else {
-                    return Err(HandleError::Custom("Player not found in game".to_string()));
                 };
 
                 if bet == street_bet {
@@ -1075,6 +1097,7 @@ impl GameHandler for Holdem {
             }
 
             Event::GameStart { .. } => {
+                self.reset_holdem_state()?;
                 self.street = Street::Init;
                 self.stage = HoldemStage::Play;
                 let player_num = self.player_map.len();
@@ -1216,23 +1239,15 @@ impl GameHandler for Holdem {
                     }
                 }
 
-                HoldemStage::Runner => {
-                    if self.street == Street::Showdown {
-                        self.update_board(effect)?;
-                        self.settle(effect)?;
+                // TODO: Stage should be upper class and include street
+                HoldemStage::Runner | HoldemStage::Showdown => {
+                    self.update_board(effect)?;
+                    self.settle(effect)?;
 
-                        let next_btn = self.get_next_btn()?;
-                        if effect.count_players() >= 2 && effect.count_servers() >= 1 {
-                            self.btn = next_btn;
-                            effect.start_game();
-                        }
-
-                        println!("== Game starts again");
-                        Ok(())
-                    } else {
-                        Err(HandleError::Custom("Runner with wrong street".to_string()))
-                    }
+                    effect.wait_timeout(WAIT_TIMEOUT);
+                    Ok(())
                 }
+
                 // Other Holdem Stages
                 _ => Ok(()),
             },
