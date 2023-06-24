@@ -6,7 +6,7 @@ import { IWallet } from './wallet';
 import { Handler, InitAccount } from './handler';
 import { Encryptor, IEncryptor } from './encryptor';
 import { SdkError } from './error';
-import { GameAccount, PlayerProfile } from './accounts';
+import { GameAccount, IToken, PlayerProfile } from './accounts';
 import { Client } from './client';
 import { Custom, GameEvent, ICustomEvent } from './events';
 import { ProfileCache } from './profile-cache';
@@ -25,6 +25,14 @@ export type JoinOpts = {
   position?: number,
 };
 
+export type GameInfo = {
+  title: string;
+  maxPlayers: number;
+  minDeposit: bigint;
+  maxDeposit: bigint;
+  token: IToken;
+};
+
 export class AppClient {
   #gameAddr: string;
   #handler: Handler;
@@ -37,6 +45,7 @@ export class AppClient {
   #callback: EventCallbackFunction;
   #encryptor: IEncryptor;
   #profileCaches: ProfileCache;
+  #info: GameInfo;
 
   constructor(
     gameAddr: string,
@@ -49,6 +58,7 @@ export class AppClient {
     initGameAccount: GameAccount,
     callback: EventCallbackFunction,
     encryptor: IEncryptor,
+    info: GameInfo,
   ) {
     this.#gameAddr = gameAddr;
     this.#handler = handler;
@@ -61,6 +71,7 @@ export class AppClient {
     this.#callback = callback;
     this.#encryptor = encryptor;
     this.#profileCaches = new ProfileCache(transport);
+    this.#info = info;
   }
 
   static async initialize(
@@ -94,7 +105,18 @@ export class AppClient {
       const connection = Connection.initialize(playerAddr, transactorAccount.endpoint, encryptor);
       const client = new Client(playerAddr, gameAddr, transport, encryptor, connection);
       const gameContext = new GameContext(gameAccount);
-      return new AppClient(gameAddr, handler, wallet, client, transport, connection, gameContext, gameAccount, callback, encryptor);
+      const token = await transport.getToken(gameAccount.tokenAddr);
+      if (token === undefined) {
+        throw SdkError.tokenNotFound(gameAccount.tokenAddr);
+      }
+      const info = {
+        title: gameAccount.title,
+        minDeposit: gameAccount.minDeposit,
+        maxDeposit: gameAccount.maxDeposit,
+        maxPlayers: gameAccount.maxPlayers,
+        token
+      };
+      return new AppClient(gameAddr, handler, wallet, client, transport, connection, gameContext, gameAccount, callback, encryptor, info);
     } finally {
       console.groupEnd();
     }
@@ -243,5 +265,9 @@ export class AppClient {
    */
   async exit() {
     await this.#connection.exitGame(this.#gameAddr, {});
+  }
+
+  get info(): GameInfo {
+    return this.#info;
   }
 }

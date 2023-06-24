@@ -101,4 +101,8 @@ export class SdkError extends Error {
   static gameNotServed(addr: string) {
     return new SdkError(`Game at ${addr} is not served`);
   }
+
+  static tokenNotFound(addr: string) {
+    return new SdkError(`Token ${addr} not found`);
+  }
 }
