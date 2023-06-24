@@ -4,7 +4,8 @@ import { Fields, Id } from './types';
 
 type EventFields<T> = Omit<Fields<T>, 'kind'>
 
-export type EventKind = 'Custom'
+export type EventKind = 'Invalid' // an invalid value
+  | 'Custom'
   | 'Ready'
   | 'ShareSecrets'
   | 'OperationTimeout'
@@ -28,7 +29,7 @@ export interface ICustomEvent {
 }
 
 interface IEventKind {
-  kind(): string;
+  kind(): EventKind;
 }
 
 export abstract class SecretShare {}
@@ -49,9 +50,6 @@ export class Random extends SecretShare {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
-    return 'Random';
-  }
 }
 
 @variant(1)
@@ -69,8 +67,8 @@ export class Answer extends SecretShare {
 }
 
 export abstract class GameEvent implements IEventKind {
-  kind(): string {
-    return 'GameEvent';
+  kind(): EventKind {
+    return 'Invalid';
   }
 }
 
@@ -84,7 +82,7 @@ export class Custom extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'Custom';
   }
 }
@@ -101,7 +99,7 @@ export class Ready extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
   }
-  kind(): string {
+  kind(): EventKind {
     return 'Ready';
   }
 }
@@ -116,7 +114,7 @@ export class ShareSecrets extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'ShareSecrets';
   }
 }
@@ -129,7 +127,7 @@ export class OperationTimeout extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'OperationTimeout';
   }
 }
@@ -146,7 +144,7 @@ export class Mask extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'Mask';
   }
 }
@@ -173,7 +171,7 @@ export class Lock extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'Lock';
   }
 }
@@ -186,7 +184,7 @@ export class RandomnessReady extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'RandomnessReady';
   }
 }
@@ -205,7 +203,7 @@ export class Sync extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'Sync';
   }
 }
@@ -220,7 +218,7 @@ export class ServerLeave extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'ServerLeave';
   }
 }
@@ -233,7 +231,7 @@ export class Leave extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'Leave';
   }
 }
@@ -246,7 +244,7 @@ export class GameStart extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'GameStart';
   }
 }
@@ -256,7 +254,7 @@ export class WaitingTimeout extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
   }
-  kind(): string {
+  kind(): EventKind {
     return 'WaitingTimeout';
   }
 }
@@ -273,7 +271,7 @@ export class DrawRandomItems extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'DrawRandomItems';
   }
 }
@@ -283,7 +281,7 @@ export class DrawTimeout extends GameEvent implements IEventKind {
   constructor(_: {}) {
     super();
   }
-  kind(): string {
+  kind(): EventKind {
     return 'DrawTimeout';
   }
 }
@@ -296,7 +294,7 @@ export class ActionTimeout extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'ActionTimeout'
   }
 }
@@ -315,7 +313,7 @@ export class AnswerDecision extends GameEvent implements IEventKind {
     super();
     Object.assign(this, fields);
   }
-  kind(): string {
+  kind(): EventKind {
     return 'AnswerDecision';
   }
 }
@@ -325,7 +323,7 @@ export class SecretsReady extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
   }
-  kind(): string {
+  kind(): EventKind {
     return 'SecretsReady';
   }
 }
@@ -335,7 +333,7 @@ export class Shutdown extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
   }
-  kind(): string {
+  kind(): EventKind {
     return 'Shutdown';
   }
 }
