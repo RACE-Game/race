@@ -2,8 +2,33 @@ import { field, array, enums, option, variant, struct } from '@race-foundation/b
 import { PlayerJoin, ServerJoin } from './accounts';
 import { Fields, Id } from './types';
 
+type EventFields<T> = Omit<Fields<T>, 'kind'>
+
+export type EventKind = 'Custom'
+  | 'Ready'
+  | 'ShareSecrets'
+  | 'OperationTimeout'
+  | 'Mask'
+  | 'Lock'
+  | 'RandomnessReady'
+  | 'Sync'
+  | 'ServerLeave'
+  | 'Leave'
+  | 'GameStart'
+  | 'WaitingTimeout'
+  | 'DrawRandomItems'
+  | 'DrawTimeout'
+  | 'ActionTimeout'
+  | 'AnswerDecision'
+  | 'SecretsReady'
+  | 'Shutdown';
+
 export interface ICustomEvent {
   serialize(): Uint8Array;
+}
+
+interface IEventKind {
+  kind(): string;
 }
 
 export abstract class SecretShare {}
@@ -20,9 +45,12 @@ export class Random extends SecretShare {
   index!: number;
   @field('u8-array')
   secret!: Uint8Array;
-  constructor(fields: Fields<Random>) {
+  constructor(fields: EventFields<Random>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'Random';
   }
 }
 
@@ -34,23 +62,30 @@ export class Answer extends SecretShare {
   decisionId!: Id;
   @field('u8-array')
   secret!: Uint8Array;
-  constructor(fields: Fields<Answer>) {
+  constructor(fields: EventFields<Answer>) {
     super();
     Object.assign(this, fields);
   }
 }
 
-export abstract class GameEvent {}
+export abstract class GameEvent implements IEventKind {
+  kind(): string {
+    return 'GameEvent';
+  }
+}
 
 @variant(0)
-export class Custom extends GameEvent {
+export class Custom extends GameEvent implements IEventKind {
   @field('string')
   sender!: string;
   @field('u8-array')
   raw!: Uint8Array;
-  constructor(fields: Fields<Custom>) {
+  constructor(fields: EventFields<Custom>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'Custom';
   }
 }
 
@@ -62,45 +97,57 @@ export function makeCustomEvent(sender: string, customEvent: ICustomEvent): Cust
 }
 
 @variant(1)
-export class Ready extends GameEvent {
+export class Ready extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
+  }
+  kind(): string {
+    return 'Ready';
   }
 }
 
 @variant(2)
-export class ShareSecrets extends GameEvent {
+export class ShareSecrets extends GameEvent implements IEventKind {
   @field('string')
   sender!: string;
   @field(array(enums(SecretShare)))
   shares!: SecretShare[];
-  constructor(fields: Fields<ShareSecrets>) {
+  constructor(fields: EventFields<ShareSecrets>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'ShareSecrets';
   }
 }
 
 @variant(3)
-export class OperationTimeout extends GameEvent {
+export class OperationTimeout extends GameEvent implements IEventKind {
   @field(array('string'))
   addrs!: string[];
-  constructor(fields: Fields<OperationTimeout>) {
+  constructor(fields: EventFields<OperationTimeout>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'OperationTimeout';
   }
 }
 
 @variant(4)
-export class Mask extends GameEvent {
+export class Mask extends GameEvent implements IEventKind {
   @field('string')
   sender!: string;
   @field('usize')
   randomId!: Id;
   @field(array('u8-array'))
   ciphertexts!: Uint8Array[];
-  constructor(fields: Fields<Mask>) {
+  constructor(fields: EventFields<Mask>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'Mask';
   }
 }
 
@@ -109,37 +156,43 @@ export class CiphertextAndDigest {
   ciphertext!: Uint8Array;
   @field('u8-array')
   digest!: Uint8Array;
-  constructor(fields: Fields<CiphertextAndDigest>) {
+  constructor(fields: EventFields<CiphertextAndDigest>) {
     Object.assign(this, fields);
   }
 }
 
 @variant(5)
-export class Lock extends GameEvent {
+export class Lock extends GameEvent implements IEventKind {
   @field('string')
   sender!: string;
   @field('usize')
   randomId!: Id;
   @field(array(struct(CiphertextAndDigest)))
   ciphertextsAndDigests!: CiphertextAndDigest[];
-  constructor(fields: Fields<Lock>) {
+  constructor(fields: EventFields<Lock>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'Lock';
   }
 }
 
 @variant(6)
-export class RandomnessReady extends GameEvent {
+export class RandomnessReady extends GameEvent implements IEventKind {
   @field('usize')
   randomId!: Id;
-  constructor(fields: Fields<RandomnessReady>) {
+  constructor(fields: EventFields<RandomnessReady>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'RandomnessReady';
   }
 }
 
 @variant(7)
-export class Sync extends GameEvent {
+export class Sync extends GameEvent implements IEventKind {
   @field(array(struct(PlayerJoin)))
   newPlayers!: PlayerJoin[];
   @field(array(struct(ServerJoin)))
@@ -148,84 +201,108 @@ export class Sync extends GameEvent {
   transactorAddr!: string;
   @field('u64')
   accessVersion!: bigint;
-  constructor(fields: Fields<Sync>) {
+  constructor(fields: EventFields<Sync>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'Sync';
   }
 }
 
 @variant(8)
-export class ServerLeave extends GameEvent {
+export class ServerLeave extends GameEvent implements IEventKind {
   @field('string')
   serverAddr!: string;
   @field('string')
   transactorAddr!: string;
-  constructor(fields: Fields<ServerLeave>) {
+  constructor(fields: EventFields<ServerLeave>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'ServerLeave';
   }
 }
 
 @variant(9)
-export class Leave extends GameEvent {
+export class Leave extends GameEvent implements IEventKind {
   @field('string')
   playerAddr!: string;
-  constructor(fields: Fields<Leave>) {
+  constructor(fields: EventFields<Leave>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'Leave';
   }
 }
 
 @variant(10)
-export class GameStart extends GameEvent {
+export class GameStart extends GameEvent implements IEventKind {
   @field('u64')
   accessVersion!: bigint;
-  constructor(fields: Fields<GameStart>) {
+  constructor(fields: EventFields<GameStart>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'GameStart';
   }
 }
 
 @variant(11)
-export class WaitingTimeout extends GameEvent {
+export class WaitingTimeout extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
+  }
+  kind(): string {
+    return 'WaitingTimeout';
   }
 }
 
 @variant(12)
-export class DrawRandomItems extends GameEvent {
+export class DrawRandomItems extends GameEvent implements IEventKind {
   @field('string')
   sender!: string;
   @field('usize')
   randomId!: Id;
   @field(array('usize'))
   indexes!: number[];
-  constructor(fields: Fields<DrawRandomItems>) {
+  constructor(fields: EventFields<DrawRandomItems>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'DrawRandomItems';
   }
 }
 
 @variant(13)
-export class DrawTimeout extends GameEvent {
+export class DrawTimeout extends GameEvent implements IEventKind {
   constructor(_: {}) {
     super();
+  }
+  kind(): string {
+    return 'DrawTimeout';
   }
 }
 
 @variant(14)
-export class ActionTimeout extends GameEvent {
+export class ActionTimeout extends GameEvent implements IEventKind {
   @field('string')
   playerAddr!: string;
-  constructor(fields: Fields<ActionTimeout>) {
+  constructor(fields: EventFields<ActionTimeout>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'ActionTimeout'
   }
 }
 
 @variant(15)
-export class AnswerDecision extends GameEvent {
+export class AnswerDecision extends GameEvent implements IEventKind {
   @field('string')
   sender!: string;
   @field('usize')
@@ -234,22 +311,31 @@ export class AnswerDecision extends GameEvent {
   ciphertext!: Uint8Array;
   @field('u8-array')
   digest!: Uint8Array;
-  constructor(fields: Fields<AnswerDecision>) {
+  constructor(fields: EventFields<AnswerDecision>) {
     super();
     Object.assign(this, fields);
+  }
+  kind(): string {
+    return 'AnswerDecision';
   }
 }
 
 @variant(16)
-export class SecretsReady extends GameEvent {
+export class SecretsReady extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
+  }
+  kind(): string {
+    return 'SecretsReady';
   }
 }
 
 @variant(17)
-export class Shutdown extends GameEvent {
+export class Shutdown extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
+  }
+  kind(): string {
+    return 'Shutdown';
   }
 }

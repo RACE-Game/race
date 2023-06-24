@@ -28,7 +28,7 @@ function LogItem(props: { event: GameEvent }) {
     }
 
     let sender = 'sender' in event ? '' + event.sender : '(SYSTEM)';
-    let kind = event.constructor.name;
+    let kind = event.kind();
     let data = JSON.stringify(event, replacer);
 
     return (

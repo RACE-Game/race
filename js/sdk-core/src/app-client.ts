@@ -150,7 +150,7 @@ export class AppClient {
         }
       } else if (frame instanceof BroadcastFrameEvent) {
         const { event, timestamp } = frame;
-        console.group('Handle event: ' + event.constructor.name);
+        console.group('Handle event: ' + event.kind());
         try {
           console.log('Event:', event);
           console.log('Timestamp:', new Date(Number(timestamp)).toLocaleTimeString());
