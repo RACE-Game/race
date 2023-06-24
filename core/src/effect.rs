@@ -402,7 +402,6 @@ mod tests {
         };
         let bs = effect.try_to_vec()?;
 
-        println!("Effect: {:?}", bs);
         let parsed = Effect::try_from_slice(&bs)?;
 
         assert_eq!(effect, parsed);

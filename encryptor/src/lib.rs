@@ -570,7 +570,6 @@ mod tests {
         let ec = ec_generate()?;
         let message = vec![1u8, 2, 3, 4, 5, 6];
         let signature = ec_sign(&ec, &message)?;
-        println!("{:?}", signature);
         let result = ec_verify(&ec, &message, &signature)?;
         assert_eq!(result, true);
         Ok(())
