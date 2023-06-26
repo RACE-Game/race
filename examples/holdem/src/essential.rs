@@ -69,11 +69,11 @@ impl Player {
     // 3. the player's remaining chips after the bet
     pub fn take_bet(&mut self, bet: u64) -> (bool, u64) {
         if bet < self.chips {
-            println!("Take {} from {}", bet, &self.addr);
+            println!("== Take {} from {}", bet, &self.addr);
             self.chips -= bet;
             (false, bet)
         } else {
-            println!("{} ALL IN: {}", &self.addr, bet);
+            println!("== {} ALL IN: {}", &self.addr, bet);
             let real_bet = self.chips;
             self.chips = 0;
             (true, real_bet)

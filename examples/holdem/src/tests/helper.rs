@@ -120,6 +120,7 @@ pub fn make_pots() -> Vec<Pot> {
     ]
 }
 
+// Set up a holdem state with multi players joined
 pub fn setup_holdem_state() -> Result<Holdem> {
     let players_map = initial_players();
     let mut state = Holdem {
@@ -145,6 +146,33 @@ pub fn setup_holdem_state() -> Result<Holdem> {
     Ok(state)
 }
 
+// Set up a holdem state with two players joined
+pub fn setup_two_player_holdem() -> Result<Holdem> {
+    let players_map = initial_two_players();
+    let mut state = Holdem {
+        deck_random_id: 1,
+        sb: 10,
+        bb: 20,
+        min_raise: 20,
+        btn: 0,
+        rake: 3,
+        stage: HoldemStage::Init,
+        street: Street::Init,
+        street_bet: 20,
+        board: Vec::<String>::with_capacity(5),
+        hand_index_map: BTreeMap::<String, Vec<usize>>::new(),
+        bet_map: BTreeMap::<String, Bet>::new(),
+        prize_map: BTreeMap::<String, u64>::new(),
+        player_map: players_map,
+        players: Vec::<String>::new(),
+        pots: Vec::<Pot>::new(),
+        acting_player: None,
+    };
+    state.arrange_players(0usize)?;
+    Ok(state)
+}
+
+// Set up a holdem scene simiar to those in real world
 pub fn setup_real_holdem() -> Holdem {
     let mut holdem = setup_holdem_state().unwrap();
     let player_map = gaming_players();
@@ -172,7 +200,6 @@ pub fn setup_context() -> GameContext {
     let game_account = TestGameAccountBuilder::default()
         .set_transactor(&transactor)
         .build();
-    // let init_account = InitAccount::from_game_account(&game_account);
     let context = GameContext::try_new(&game_account).unwrap();
     context
 }

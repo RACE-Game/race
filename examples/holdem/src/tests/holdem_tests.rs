@@ -1,3 +1,7 @@
+//! Test Holdem game and its several key points such as
+//! the order of players, the runner stage and hole-card
+//! dealing.  The last test shows a complete hand.
+
 use race_core::{
     context::{DispatchEvent, GameStatus},
     error::Result,
@@ -23,7 +27,6 @@ fn test_players_order() -> Result<()> {
     let sync_evt = create_sync_event(&ctx, &[&alice, &bob, &carol, &dave, &eva], &transactor);
 
     // ------------------------- GAMESTART ------------------------
-    println!("-- Syncing players --");
     handler.handle_until_no_events(
         &mut ctx,
         &sync_evt,
@@ -36,7 +39,6 @@ fn test_players_order() -> Result<()> {
             &mut transactor,
         ],
     )?;
-    println!("-- Syncing done --");
 
     // BTN is 4 so players should be arranged like below:
     // Bob (SB), Carol (BB), Dave (UTG), Eva(MID), Alice(BTN)
@@ -162,7 +164,7 @@ fn test_runner() -> Result<()> {
 
     // ------------------------- PREFLOP ------------------------
     // Bob decides to go all in
-    let bob_allin = bob.custom_event(GameEvent::Raise(10_000));
+    let bob_allin = bob.custom_event(GameEvent::Raise(9990));
     handler.handle_until_no_events(
         &mut ctx,
         &bob_allin,
@@ -594,13 +596,12 @@ fn test_play_game() -> Result<()> {
             ],
         )?;
 
-        // Wait for 5 secs and game should start again
-        // handler.handle_dispatch_event(&mut ctx)?;
-        // {
-        //     let state = handler.get_state();
-        //     assert_eq!(state.btn, 1);
-        //     // assert_eq!(s)
-        // }
+        // Wait for 10 secs and game should start again
+        handler.handle_dispatch_event(&mut ctx)?;
+        {
+            let state = handler.get_state();
+            assert_eq!(state.btn, 1);
+        }
     }
     Ok(())
 }

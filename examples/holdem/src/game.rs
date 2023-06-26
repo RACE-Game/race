@@ -296,9 +296,17 @@ impl Holdem {
             let amount = actual_bet * owners.len() as u64;
             // Pot with only 1 owner should return the bet in it to the owner
             if owners.len() == 1 {
-                if let Some(receiver) = self.player_map.get_mut(&owners[0]) {
-                    receiver.chips += amount;
-                } // TODO: handle the error here?
+                let Some(owner) = owners.first() else {
+                    return Err(HandleError::Custom(
+                        "Failed to get the only owner".to_string()
+                    ));
+                };
+                let Some(receiver) = self.player_map.get_mut(owner) else {
+                    return Err(HandleError::Custom(
+                        "Failed to find the owner in player map".to_string()
+                    ));
+                };
+                receiver.chips += amount;
                 continue;
             } else {
                 new_pots.push(Pot {
@@ -442,7 +450,7 @@ impl Holdem {
             };
         };
         println!(
-            "Player {} to get the {} odd chips",
+            "== Player {} to get the {} odd chips",
             remainder_player, odd_chips
         );
         prize_map
@@ -941,7 +949,7 @@ impl Holdem {
                 }
 
                 if let Some(player) = self.player_map.get_mut(&sender) {
-                    println!("Player {} folds", sender);
+                    println!("== Player {} folds", sender);
                     player.status = PlayerStatus::Fold;
                     self.next_state(effect)?;
                     Ok(())
@@ -975,8 +983,8 @@ impl Holdem {
 
                 if let Some(player) = self.player_map.get_mut(&sender) {
                     if let Some(betted) = self.bet_map.get_mut(&sender) {
-                        let added_bet = amount - betted.amount;
-                        let (allin, real_bet) = player.take_bet(added_bet);
+                        // let added_bet = amount - betted.amount;
+                        let (allin, real_bet) = player.take_bet(amount);
                         let new_street_bet = betted.amount + real_bet;
                         let new_min_raise = new_street_bet - self.street_bet;
                         self.street_bet = new_street_bet;
@@ -988,9 +996,10 @@ impl Holdem {
                         };
                         betted.amount += real_bet;
                         self.next_state(effect)?;
-                    } else {
-                        let added_bet = amount;
-                        let (allin, real_bet) = player.take_bet(added_bet);
+                    }
+                    else {
+                        // let added_bet = amount;
+                        let (allin, real_bet) = player.take_bet(amount);
                         let new_min_raise = real_bet - self.street_bet;
                         self.street_bet = real_bet;
                         self.min_raise = new_min_raise;
@@ -1098,15 +1107,13 @@ impl GameHandler for Holdem {
 
             Event::GameStart { .. } => {
                 self.reset_holdem_state()?;
-                self.street = Street::Init;
                 self.stage = HoldemStage::Play;
                 let player_num = self.player_map.len();
-                // BTN starts from 0, then 1, and so on ...
-                if self.btn > 0 {
-                    let btn = self.get_next_btn()?;
-                    self.btn = btn;
-                }
                 println!("== {} players join game", player_num);
+
+                // let btn = self.get_next_btn()?;
+                // println!("Next BTN: {}", btn);
+                // self.btn = btn;
 
                 // Get the randomness (shuffled and dealt cards) ready
                 let rnd_spec = RandomSpec::deck_of_cards();
