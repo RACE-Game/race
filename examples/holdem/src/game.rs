@@ -1082,6 +1082,11 @@ impl GameHandler for Holdem {
             Event::WaitingTimeout => {
                 let next_btn = self.get_next_btn()?;
                 println!("Next BTN: {}", next_btn);
+
+                for player in self.player_map.values_mut() {
+                    player.status = PlayerStatus::Wait
+                }
+
                 if effect.count_players() >= 2 && effect.count_servers() >= 1 {
                     self.btn = next_btn;
                     effect.start_game();
