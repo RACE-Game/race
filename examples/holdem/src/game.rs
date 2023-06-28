@@ -55,8 +55,9 @@ impl Holdem {
             if let Some(player) = self.player_map.get(addr) {
                 if let Some(bet) = self.bet_map.get(addr) {
                     if bet.amount < self.street_bet || player.status == PlayerStatus::Wait {
-                        println!("== {}' current bet amount {}", addr, bet.amount);
+                        println!("== {} current bet amount {}", addr, bet.amount);
                         println!("== Current street bet: {}", self.street_bet);
+                        println!("== The next to act is: {}", addr);
                         return Some(addr.clone());
                     }
                 } else if player.status == PlayerStatus::Wait {
@@ -85,30 +86,26 @@ impl Holdem {
 
     // BTN moves clockwise.  The next BTN is calculated base on the current one
     pub fn get_next_btn(&mut self) -> Result<usize, HandleError> {
-        let ref_pos = if self.btn == self.players.len() - 1 {
-            0
-        } else {
-            self.btn + 1
-        };
+        let mut player_positions: Vec<usize> =
+            self.player_map.values().map(|p| p.position).collect();
+        player_positions.sort();
 
-        let next_positions: Vec<usize> = self
-            .player_map
-            .values()
-            .filter(|p| p.position >= ref_pos)
-            .map(|p| p.position)
+        let next_positions: Vec<usize> = player_positions
+            .iter()
+            .filter(|pos| **pos > self.btn)
+            .map(|p| *p)
             .collect();
 
         if next_positions.is_empty() {
-            if let Some((_, first_player)) = self.player_map.first_key_value() {
-                Ok(first_player.position)
-            } else {
+            let Some(next_btn) = player_positions.first() else {
                 return Err(HandleError::Custom(
                     "Failed to find a player for the next button".to_string(),
                 ));
-            }
+            };
+            Ok(*next_btn)
         } else {
-            if let Some(pos) = next_positions.first() {
-                Ok(*pos)
+            if let Some(next_btn) = next_positions.first() {
+                Ok(*next_btn)
             } else {
                 return Err(HandleError::Custom(
                     "Failed to find a proper position for the next button".to_string(),
@@ -850,7 +847,6 @@ impl Holdem {
             }
 
             GameEvent::Call => {
-                // TODO: handle errors
                 if !self.is_acting_player(&sender) {
                     return Err(HandleError::Custom(
                         "Player is NOT the acting player so can't call".to_string(),
@@ -996,8 +992,7 @@ impl Holdem {
                         };
                         betted.amount += real_bet;
                         self.next_state(effect)?;
-                    }
-                    else {
+                    } else {
                         // let added_bet = amount;
                         let (allin, real_bet) = player.take_bet(amount);
                         let new_min_raise = real_bet - self.street_bet;
@@ -1115,10 +1110,6 @@ impl GameHandler for Holdem {
                 self.stage = HoldemStage::Play;
                 let player_num = self.player_map.len();
                 println!("== {} players join game", player_num);
-
-                // let btn = self.get_next_btn()?;
-                // println!("Next BTN: {}", btn);
-                // self.btn = btn;
 
                 // Get the randomness (shuffled and dealt cards) ready
                 let rnd_spec = RandomSpec::deck_of_cards();
