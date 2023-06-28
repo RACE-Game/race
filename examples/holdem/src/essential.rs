@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::prelude::{CustomEvent, HandleError};
 
 // Bet
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug)]
 pub struct Bet {
     pub owner: String,
     pub amount: u64,
@@ -17,7 +17,7 @@ impl Bet {
 }
 
 // Player
-#[derive(BorshSerialize, BorshDeserialize, Default, PartialEq, Clone, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Default, PartialEq, Debug)]
 pub enum PlayerStatus {
     #[default]
     Wait,
@@ -25,19 +25,16 @@ pub enum PlayerStatus {
     Acting,
     Allin,
     Fold,
+    Init,            // Indicating new players ready for the next hand
     // Leave,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Default, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub struct Player {
     pub addr: String,
     pub chips: u64,
     pub position: usize, // zero indexed
     pub status: PlayerStatus,
-    // pub online_status
-    // pub drop_count
-    // pub timebank
-    // pub nickname
 }
 
 impl PartialEq for Player {
@@ -47,18 +44,27 @@ impl PartialEq for Player {
 }
 
 impl Player {
-    pub fn new(addr: String, chips: u64, position: usize) -> Player {
+    pub fn new(addr: String, chips: u64, position: u16) -> Player {
         Self {
             addr,
             chips,
-            position,
+            position: position as usize,
             status: PlayerStatus::default(),
+        }
+    }
+
+    pub fn init(addr: String, chips: u64, position: u16) -> Player {
+        Self {
+            addr,
+            chips,
+            position: position as usize,
+            status: PlayerStatus::Init,
         }
     }
 
     pub fn next_to_act(&self) -> bool {
         match self.status {
-            PlayerStatus::Allin | PlayerStatus::Fold => false,
+            PlayerStatus::Allin | PlayerStatus::Fold | PlayerStatus::Init => false,
             _ => true,
         }
     }
@@ -85,7 +91,7 @@ pub type ActingPlayer = (String, usize);
 
 
 // Pot
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Default, Clone, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Pot {
     pub owners: Vec<String>,
     pub winners: Vec<String>,
@@ -109,7 +115,7 @@ impl Pot {
 
 
 // Street
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Default, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Default)]
 pub enum Street {
     #[default]
     Init,
@@ -122,7 +128,7 @@ pub enum Street {
 
 
 // Misc
-#[derive(Default, BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+#[derive(Default, BorshSerialize, BorshDeserialize, PartialEq, Debug)]
 pub enum HoldemStage {
     #[default]
     Init,

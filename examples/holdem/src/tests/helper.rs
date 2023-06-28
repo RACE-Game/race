@@ -17,19 +17,19 @@ use crate::game::*;
 // ======================================================
 pub fn initial_two_players() -> BTreeMap<String, Player> {
     BTreeMap::from([
-        ("Alice".into(), Player::new("Alice".into(), 1000, 0usize)),
-        ("Bob".into(), Player::new("Bob".into(), 1000, 1usize)),
+        ("Alice".into(), Player::new("Alice".into(), 1000, 0u16)),
+        ("Bob".into(), Player::new("Bob".into(), 1000, 1u16)),
     ])
 }
 
 pub fn initial_players() -> BTreeMap<String, Player> {
     BTreeMap::from([
-        ("Alice".into(), Player::new("Alice".into(), 1000, 0usize)),
-        ("Bob".into(), Player::new("Bob".into(), 1000, 1usize)),
-        ("Carol".into(), Player::new("Carol".into(), 1000, 2usize)),
-        ("Dave".into(), Player::new("Dave".into(), 1000, 3usize)),
-        ("Eva".into(), Player::new("Eva".into(), 1000, 4usize)),
-        ("Frank".into(), Player::new("Frank".into(), 1000, 5usize)),
+        ("Alice".into(), Player::new("Alice".into(), 1000, 0u16)),
+        ("Bob".into(), Player::new("Bob".into(), 1000, 1u16)),
+        ("Carol".into(), Player::new("Carol".into(), 1000, 2u16)),
+        ("Dave".into(), Player::new("Dave".into(), 1000, 3u16)),
+        ("Eva".into(), Player::new("Eva".into(), 1000, 4u16)),
+        ("Frank".into(), Player::new("Frank".into(), 1000, 5u16)),
     ])
 }
 
