@@ -169,4 +169,4 @@ pub enum GameEvent {
 impl CustomEvent for GameEvent {}
 
 pub const ACTION_TIMEOUT: u64 = 30_000;
-pub const WAIT_TIMEOUT: u64 = 10_000;
+pub const WAIT_TIMEOUT: u64 = 60_000;
