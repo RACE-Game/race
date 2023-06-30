@@ -794,6 +794,7 @@ impl Holdem {
         else {
             println!("[Next State]: Showdown");
             self.stage = HoldemStage::Showdown;
+            self.street = Street::Showdown;
             self.collect_bets()?;
 
             // Reveal players' hole cards
@@ -1149,7 +1150,8 @@ impl GameHandler for Holdem {
 
             Event::GameStart { .. } => {
                 self.reset_holdem_state()?;
-                self.stage = HoldemStage::Play;
+                self.street = Street::Init;
+                self.stage = HoldemStage::Init;
                 let player_num = self.player_map.len();
                 println!("== {} players join game", player_num);
 
@@ -1273,11 +1275,12 @@ impl GameHandler for Holdem {
                     Ok(())
                 }
 
-                HoldemStage::Play => {
+                // Shuffling deck
+                HoldemStage::Init => {
                     match self.street {
                         Street::Init => {
                             self.street = Street::Preflop;
-                            self.stage = HoldemStage::ShareKey;
+                            self.stage = HoldemStage::Play;
                             self.next_state(effect)?;
                             Ok(())
                         }
@@ -1287,7 +1290,7 @@ impl GameHandler for Holdem {
                     }
                 }
 
-                // TODO: Stage should be upper class and include street
+                // Ending, comparing cards
                 HoldemStage::Runner | HoldemStage::Showdown => {
                     self.update_board(effect)?;
                     self.settle(effect)?;

@@ -269,7 +269,7 @@ export class RandomState {
 
   listRevealedSecrets(): Map<number, Secret[]> {
     if (this.status.kind !== 'ready') {
-      throw new Error('Secrets not ready');
+      throw new Error('Secrets not ready, current status: ' + this.status.kind);
     }
     let res = new Map<number, Secret[]>();
     for (const ss of this.secretShares) {
@@ -310,7 +310,7 @@ export class RandomState {
 
   listSharedSecrets(toAddr: string): Map<number, Secret[]> {
     if (this.status.kind !== 'ready') {
-      throw new Error('Secrets not ready');
+      throw new Error('Secrets not ready, current status: ' + this.status.kind);
     }
     let res = new Map<number, Secret[]>();
     for (const ss of this.secretShares) {
