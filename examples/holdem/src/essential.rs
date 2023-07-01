@@ -168,5 +168,31 @@ pub enum GameEvent {
 
 impl CustomEvent for GameEvent {}
 
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+pub struct Prize {
+    winner: String,
+    amount: u64,
+}
+
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+pub struct HoleCards {
+    player: String,
+    card_idxs: Vec<usize>,
+}
+
+/// Used for animation (with necessary audio effects)
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+pub enum Display {
+    DealCards,
+    CollectBets,
+    UpdateChips,
+    AwardPots,
+    GivePrize(Prize),
+    ShowHoleCards(HoleCards),
+}
+
 pub const ACTION_TIMEOUT: u64 = 30_000;
 pub const WAIT_TIMEOUT: u64 = 10_000;

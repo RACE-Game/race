@@ -138,9 +138,10 @@ pub fn setup_holdem_state() -> Result<Holdem> {
         bet_map: BTreeMap::<String, Bet>::new(),
         prize_map: BTreeMap::<String, u64>::new(),
         player_map: players_map,
-        players: Vec::<String>::new(),
+        player_order: Vec::<String>::new(),
         pots: Vec::<Pot>::new(),
         acting_player: None,
+        display: Vec::<Display>::new(),
     };
     state.arrange_players(0usize)?;
     Ok(state)
@@ -164,9 +165,10 @@ pub fn setup_two_player_holdem() -> Result<Holdem> {
         bet_map: BTreeMap::<String, Bet>::new(),
         prize_map: BTreeMap::<String, u64>::new(),
         player_map: players_map,
-        players: Vec::<String>::new(),
+        player_order: Vec::<String>::new(),
         pots: Vec::<Pot>::new(),
         acting_player: None,
+        display: Vec::<Display>::new(),
     };
     state.arrange_players(0usize)?;
     Ok(state)

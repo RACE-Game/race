@@ -45,7 +45,7 @@ fn test_players_order() -> Result<()> {
     {
         let state = handler.get_state();
         assert_eq!(
-            state.players,
+            state.player_order,
             vec![
                 "Bob".to_string(),
                 "Carol".to_string(),
