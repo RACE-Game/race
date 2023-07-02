@@ -1,18 +1,10 @@
 //! Test serializing and deserializing verious structs used by Holdem
 //! as well as the Holdem struct itself
 
-use crate::essential::{ActingPlayer, Bet, GameEvent, HoldemAccount, Player, Pot};
+use crate::essential::{ActingPlayer, GameEvent, HoldemAccount, Player, Pot};
 use crate::game::Holdem;
 use crate::tests::helper::{setup_holdem_state, setup_real_holdem};
 use borsh::{BorshDeserialize, BorshSerialize};
-
-#[test]
-fn test_serde_bet() {
-    let bet = Bet::new("Alice".into(), 1000);
-    let bet_ser = bet.try_to_vec().unwrap();
-    let bet_de = Bet::try_from_slice(&bet_ser).unwrap();
-    assert_eq!(bet_de, bet);
-}
 
 #[test]
 fn test_serde_player() {

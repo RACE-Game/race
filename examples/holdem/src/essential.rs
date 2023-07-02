@@ -2,19 +2,7 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::prelude::{CustomEvent, HandleError};
-
-// Bet
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug)]
-pub struct Bet {
-    pub owner: String,
-    pub amount: u64,
-}
-
-impl Bet {
-    pub fn new(owner: String, amount: u64) -> Self {
-        Self { owner, amount }
-    }
-}
+use std::collections::BTreeMap;
 
 // Player
 #[derive(BorshSerialize, BorshDeserialize, Default, PartialEq, Debug)]
@@ -26,6 +14,7 @@ pub enum PlayerStatus {
     Allin,
     Fold,
     Init,            // Indicating new players ready for the next hand
+    Winner,
     // Leave,
 }
 
@@ -168,30 +157,16 @@ pub enum GameEvent {
 
 impl CustomEvent for GameEvent {}
 
-#[cfg_attr(test, derive(PartialEq))]
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub struct Prize {
-    winner: String,
-    amount: u64,
-}
-
-#[cfg_attr(test, derive(PartialEq))]
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub struct HoleCards {
-    player: String,
-    card_idxs: Vec<usize>,
-}
-
 /// Used for animation (with necessary audio effects)
 #[cfg_attr(test, derive(PartialEq))]
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum Display {
     DealCards,
-    CollectBets,
-    UpdateChips,
-    AwardPots,
-    GivePrize(Prize),
-    ShowHoleCards(HoleCards),
+    CollectBets { bet_map: BTreeMap<String, u64> },
+    UpdateChips { player: String, chips: u64 },
+    AwardPots { pots: Vec<Pot> },
+    GivePrizes { prize_map: BTreeMap<String, u64> },
+    ShowHoleCards { player: String, card_idxs: Vec<usize> },
 }
 
 pub const ACTION_TIMEOUT: u64 = 30_000;

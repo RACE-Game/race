@@ -34,7 +34,6 @@ pub fn initial_players() -> BTreeMap<String, Player> {
 }
 
 impl Player {
-    // TODO: consider moving this to lib
     #[allow(dead_code)]
     fn new_with_status(addr: String, chips: u64, position: usize, status: PlayerStatus) -> Player {
         Self {
@@ -75,23 +74,23 @@ pub fn gaming_players() -> BTreeMap<String, Player> {
     ])
 }
 
-pub fn make_even_betmap() -> BTreeMap<String, Bet> {
+pub fn make_even_betmap() -> BTreeMap<String, u64> {
     BTreeMap::from([
-        ("Alice".into(), Bet::new("Alice".into(), 40)),
-        ("Bob".into(), Bet::new("Bob".into(), 40)),
-        ("Carol".into(), Bet::new("Carol".into(), 40)),
-        ("Dave".into(), Bet::new("Dave".into(), 40)),
-        ("Eva".into(), Bet::new("Eva".into(), 40)),
+        ("Alice".into(), 40u64),
+        ("Bob".into(), 40u64),
+        ("Carol".into(), 40u64),
+        ("Dave".into(), 40u64),
+        ("Eva".into(), 40u64),
     ])
 }
 
-pub fn make_uneven_betmap() -> BTreeMap<String, Bet> {
+pub fn make_uneven_betmap() -> BTreeMap<String, u64> {
     BTreeMap::from([
-        ("Alice".into(), Bet::new("Alice".into(), 20)),
-        ("Bob".into(), Bet::new("Bob".into(), 100)),
-        ("Carol".into(), Bet::new("Carol".into(), 100)),
-        ("Dave".into(), Bet::new("Dave".into(), 60)),
-        ("Eva".into(), Bet::new("Eva".into(), 100)),
+        ("Alice".into(), 20u64),
+        ("Bob".into(), 100u64),
+        ("Carol".into(), 100u64),
+        ("Dave".into(), 60u64),
+        ("Eva".into(), 100u64),
     ])
 }
 
@@ -135,7 +134,7 @@ pub fn setup_holdem_state() -> Result<Holdem> {
         street_bet: 20,
         board: Vec::<String>::with_capacity(5),
         hand_index_map: BTreeMap::<String, Vec<usize>>::new(),
-        bet_map: BTreeMap::<String, Bet>::new(),
+        bet_map: BTreeMap::<String, u64>::new(),
         prize_map: BTreeMap::<String, u64>::new(),
         player_map: players_map,
         player_order: Vec::<String>::new(),
@@ -162,7 +161,7 @@ pub fn setup_two_player_holdem() -> Result<Holdem> {
         street_bet: 20,
         board: Vec::<String>::with_capacity(5),
         hand_index_map: BTreeMap::<String, Vec<usize>>::new(),
-        bet_map: BTreeMap::<String, Bet>::new(),
+        bet_map: BTreeMap::<String, u64>::new(),
         prize_map: BTreeMap::<String, u64>::new(),
         player_map: players_map,
         player_order: Vec::<String>::new(),

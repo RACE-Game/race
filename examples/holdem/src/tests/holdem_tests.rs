@@ -60,7 +60,7 @@ fn test_players_order() -> Result<()> {
 }
 
 #[test]
-fn test_get_holecards() -> Result<()> {
+fn test_get_holecards_idxs() -> Result<()> {
     let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
     let mut alice = TestClient::player("Alice");
     let mut bob = TestClient::player("Bob");
@@ -72,23 +72,7 @@ fn test_get_holecards() -> Result<()> {
         vec![&mut alice, &mut bob, &mut transactor],
     )?;
 
-    // let runner_revealed = HashMap::from([
-    //     // Alice
-    //     (0, "st".to_string()),
-    //     (1, "ct".to_string()),
-    //     // Bob
-    //     (2, "ht".to_string()),
-    //     (3, "dt".to_string()),
-    //     // Board
-    //     (4, "s5".to_string()),
-    //     (5, "c6".to_string()),
-    //     (6, "h2".to_string()),
-    //     (7, "h8".to_string()),
-    //     (8, "d7".to_string()),
-    // ]);
     let holdem_state = handler.get_state();
-    // ctx.add_revealed_random(holdem_state.deck_random_id, runner_revealed)?;
-
     {
         println!(
             "-- Player hand index map {:?}",
@@ -160,6 +144,7 @@ fn test_runner() -> Result<()> {
             })
         );
         assert!(state.is_acting_player(&"Bob".to_string()));
+
     }
 
     // ------------------------- PREFLOP ------------------------
@@ -185,6 +170,11 @@ fn test_runner() -> Result<()> {
         assert_eq!(state.pots.len(), 1);
         assert_eq!(state.pots[0].owners.len(), 2);
         assert_eq!(state.pots[0].winners.len(), 2); // a draw
+
+        let alice = state.player_map.get("Alice").unwrap();
+        let bob = state.player_map.get("Bob").unwrap();
+        assert_eq!(alice.status, PlayerStatus::Winner);
+        assert_eq!(bob.status, PlayerStatus::Winner);
     }
 
     Ok(())

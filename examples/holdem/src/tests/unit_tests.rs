@@ -2,10 +2,10 @@
 //! Those functions that require `Effect' as their arguments are tested in
 //! event_tests.rs.  For the a complete test of Holdem games, see holdem_test.rs
 //! in the same dir.
+use crate::essential::Display;
 use crate::tests::helper::{
     initial_players, make_even_betmap, make_uneven_betmap, setup_context, setup_holdem_state,
 };
-use crate::essential::Bet;
 use race_core::prelude::{Effect, HandleError};
 use std::collections::BTreeMap;
 
@@ -28,7 +28,12 @@ fn test_collect_bets() -> Result<(), HandleError> {
         assert_eq!(state.pots.len(), 1);
         assert_eq!(state.pots[0].owners.len(), 5);
         assert_eq!(state.pots[0].amount, 200);
-
+        assert_eq!(
+            state.display,
+            vec![Display::CollectBets {
+                bet_map: make_even_betmap()
+            }]
+        );
         state.pots = vec![];
     }
 
@@ -361,19 +366,7 @@ fn test_blind_bets() -> Result<(), HandleError> {
     state.blind_bets(&mut efx)?;
     assert_eq!(state.acting_player, Some(("Dave".to_string(), 3)));
     assert_eq!(state.bet_map.len(), 2);
-    assert_eq!(
-        state.bet_map.get("Bob"),
-        Some(&Bet {
-            owner: "Bob".to_string(),
-            amount: state.sb
-        })
-    );
-    assert_eq!(
-        state.bet_map.get("Carol"),
-        Some(&Bet {
-            owner: "Carol".to_string(),
-            amount: state.bb
-        })
-    );
+    assert_eq!(state.bet_map.get("Bob"), Some(&state.sb));
+    assert_eq!(state.bet_map.get("Carol"), Some(&state.bb));
     Ok(())
 }

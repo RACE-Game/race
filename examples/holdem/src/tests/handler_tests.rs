@@ -72,9 +72,9 @@ fn test_next_state() -> Result<(), HandleError> {
     let mut effect = Effect::from_context(&ctx);
     // SB folds so next state: single player wins
     {
-        let bet_map: BTreeMap<String, Bet> = BTreeMap::from([
-          ("Alice".into(), Bet::new("Alice".into(), 20)), // BB
-          ("Bob".into(), Bet::new("Bob".into(), 10)),     // SB
+        let bet_map: BTreeMap<String, u64> = BTreeMap::from([
+          ("Alice".into(), 20u64), // BB
+          ("Bob".into(), 10u64),     // SB
         ]);
         state.bet_map = bet_map;
         state.street = Street::Preflop;
