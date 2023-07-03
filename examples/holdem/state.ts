@@ -44,6 +44,13 @@ export class Pot {
   }
 }
 
+export class AwardPot {
+  @field(array('string'))
+  winners!: string[];
+
+  @field('u64')
+  amount!: bigint;
+}
 
 export abstract class Display {}
 
@@ -55,6 +62,20 @@ export class DealCards extends Display {
 }
 
 @variant(1)
+export class DealBoard extends Display {
+  @field('usize')
+  prev!: number;
+
+  @field(array('string'))
+  board!: string[];
+
+  constructor(fields: any) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(2)
 export class CollectBets extends Display {
   @field(map('string', 'u64'))
   betMap!: Map<string, bigint>;
@@ -65,24 +86,16 @@ export class CollectBets extends Display {
   }
 }
 
-@variant(2)
+@variant(3)
 export class UpdateChips extends Display {
   @field('string')
   player!: string;
 
   @field('u64')
-  chips!: bigint;
+  before!: bigint;
 
-  constructor(fields: any) {
-    super();
-    Object.assign(this, fields);
-  }
-}
-
-@variant(3)
-export class AwardPots extends Display {
-  @field(array(Pot))
-  pots!: Pot[];
+  @field('u64')
+  after!: bigint;
 
   constructor(fields: any) {
     super();
@@ -91,23 +104,9 @@ export class AwardPots extends Display {
 }
 
 @variant(4)
-export class GivePrizes extends Display {
-  @field(map('string', 'u64'))
-  prizeMap!: Map<string, bigint>;
-
-  constructor(fields: any) {
-    super();
-    Object.assign(this, fields);
-  }
-}
-
-@variant(5)
-export class ShowHoleCards extends Display {
-  @field('string')
-  player!: string;
-
-  @field(array('usize'))
-  cardIdxs!: number[];
+export class AwardPots extends Display {
+  @field(array(AwardPot))
+  pots!: AwardPot[];
 
   constructor(fields: any) {
     super();

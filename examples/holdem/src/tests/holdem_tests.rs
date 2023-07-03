@@ -175,6 +175,9 @@ fn test_runner() -> Result<()> {
         let bob = state.player_map.get("Bob").unwrap();
         assert_eq!(alice.status, PlayerStatus::Winner);
         assert_eq!(bob.status, PlayerStatus::Winner);
+
+        assert_eq!(state.board.len(), 5);
+        assert!(state.display.len() >= 1);
     }
 
     Ok(())

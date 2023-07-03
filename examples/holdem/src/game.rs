@@ -4,8 +4,8 @@ use race_proc_macro::game_handler;
 use std::collections::BTreeMap;
 
 use crate::essential::{
-    ActingPlayer, Display, GameEvent, HoldemAccount, HoldemStage, Player, PlayerStatus, Pot,
-    Street, ACTION_TIMEOUT, WAIT_TIMEOUT,
+    ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, HoldemStage, Player, PlayerStatus,
+    Pot, Street, ACTION_TIMEOUT, WAIT_TIMEOUT,
 };
 use crate::evaluator::{compare_hands, create_cards, evaluate_cards, PlayerHand};
 
@@ -424,7 +424,7 @@ impl Holdem {
         Ok(())
     }
 
-    /// Build the prize map for rewarding
+    /// Build the prize map for awarding chips
     pub fn calc_prize(&mut self) -> Result<(), HandleError> {
         let pots = &mut self.pots;
         let mut prize_map = BTreeMap::<String, u64>::new();
@@ -461,10 +461,6 @@ impl Holdem {
             .entry(remainder_player)
             .and_modify(|prize| *prize += odd_chips)
             .or_insert(odd_chips);
-
-        self.display.push(Display::GivePrizes {
-            prize_map: prize_map.clone(),
-        });
 
         self.prize_map = prize_map;
         Ok(())
@@ -526,9 +522,18 @@ impl Holdem {
                 }
             }
         }
-        self.display.push(Display::AwardPots {
-            pots: self.pots.clone(),
-        });
+
+        let award_pots = self
+            .pots
+            .iter()
+            .map(|pot| {
+                let winners = pot.winners.clone();
+                let amount = pot.amount;
+                AwardPot { winners, amount }
+            })
+            .collect();
+        self.display.push(Display::AwardPots { pots: award_pots });
+
         Ok(())
     }
 
@@ -561,6 +566,36 @@ impl Holdem {
         }
 
         println!("== Chips map after awarding: {:?}", chips_change_map);
+
+        // Prepare for Display
+        // A map that records each player's current chips
+        let tmp_chips_map: BTreeMap<String, u64> = self
+            .player_map
+            .values()
+            .map(|p| (p.addr.clone(), p.chips))
+            .collect();
+
+        for (addr, change) in chips_change_map.iter() {
+            let Some(chips_after_bet) = tmp_chips_map.get(addr) else {
+                return Err(HandleError::Custom(
+                    "Player did not bet but chips changed".to_string()
+                ));
+            };
+
+            if *change >= 0i64 {
+                self.display.push(Display::UpdateChips {
+                    player: addr.clone(),
+                    before: *chips_after_bet,
+                    after: *chips_after_bet + *change as u64,
+                });
+            } else {
+                self.display.push(Display::UpdateChips {
+                    player: addr.clone(),
+                    before: *chips_after_bet + (-*change as u64),
+                    after: *chips_after_bet,
+                });
+            }
+        }
 
         Ok(chips_change_map)
     }
@@ -1065,6 +1100,15 @@ impl Holdem {
 
 impl GameHandler for Holdem {
     fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
+        let player_map: BTreeMap<String, Player> = init_account
+            .players
+            .iter()
+            .map(|p| {
+                let addr = p.addr.clone();
+                let player = Player::new(p.addr.clone(), p.balance, p.position);
+                (addr, player)
+            })
+            .collect();
         let HoldemAccount { sb, bb, rake } = init_account.data()?;
         Ok(Self {
             deck_random_id: 0,
@@ -1080,7 +1124,7 @@ impl GameHandler for Holdem {
             hand_index_map: BTreeMap::<String, Vec<usize>>::new(),
             bet_map: BTreeMap::<String, u64>::new(),
             prize_map: BTreeMap::<String, u64>::new(),
-            player_map: BTreeMap::<String, Player>::new(),
+            player_map,
             player_order: Vec::<String>::new(),
             pots: Vec::<Pot>::new(),
             acting_player: None,
@@ -1260,6 +1304,7 @@ impl GameHandler for Holdem {
                 HoldemStage::ShareKey => {
                     self.display.clear();
                     let players_cnt = self.count_ingame_players() * 2;
+                    let board_prev_cnt = self.board.len();
                     self.stage = HoldemStage::Play;
 
                     match self.street {
@@ -1271,7 +1316,11 @@ impl GameHandler for Holdem {
                             let decryption = effect.get_revealed(self.deck_random_id)?;
                             for i in players_cnt..(players_cnt + 3) {
                                 if let Some(card) = decryption.get(&i) {
-                                    self.board.push(card.clone())
+                                    self.board.push(card.clone());
+                                    self.display.push(Display::DealBoard {
+                                        prev: board_prev_cnt,
+                                        board: self.board.clone(),
+                                    });
                                 } else {
                                     return Err(HandleError::Custom(
                                         "Failed to reveal the 3 flop cards".to_string(),
@@ -1287,6 +1336,10 @@ impl GameHandler for Holdem {
                             let card_index = players_cnt + 3;
                             if let Some(card) = decryption.get(&card_index) {
                                 self.board.push(card.clone());
+                                self.display.push(Display::DealBoard {
+                                    prev: board_prev_cnt,
+                                    board: self.board.clone(),
+                                });
                             } else {
                                 return Err(HandleError::Custom(
                                     "Failed to reveal the turn card".to_string(),
@@ -1301,6 +1354,10 @@ impl GameHandler for Holdem {
                             let card_index = players_cnt + 4;
                             if let Some(card) = decryption.get(&card_index) {
                                 self.board.push(card.clone());
+                                self.display.push(Display::DealBoard {
+                                    prev: board_prev_cnt,
+                                    board: self.board.clone(),
+                                });
                             } else {
                                 return Err(HandleError::Custom(
                                     "Failed to reveal the river card".to_string(),
@@ -1332,8 +1389,13 @@ impl GameHandler for Holdem {
 
                 // Ending, comparing cards
                 HoldemStage::Runner | HoldemStage::Showdown => {
+                    let board_prev_cnt = self.board.len();
                     self.display.clear();
                     self.update_board(effect)?;
+                    self.display.push(Display::DealBoard {
+                        prev: board_prev_cnt,
+                        board: self.board.clone(),
+                    });
                     self.settle(effect)?;
 
                     effect.wait_timeout(WAIT_TIMEOUT);

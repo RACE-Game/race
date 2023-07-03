@@ -1,10 +1,12 @@
 //! Test serializing and deserializing verious structs used by Holdem
 //! as well as the Holdem struct itself
 
-use crate::essential::{ActingPlayer, GameEvent, HoldemAccount, Player, Pot};
+use crate::essential::{ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, Player, Pot};
 use crate::game::Holdem;
 use crate::tests::helper::{setup_holdem_state, setup_real_holdem};
 use borsh::{BorshDeserialize, BorshSerialize};
+
+use super::helper::make_uneven_betmap;
 
 #[test]
 fn test_serde_player() {
@@ -49,9 +51,54 @@ fn test_serde_game_event() {
         GameEvent::Raise(60),
     ];
     for evt in evts.into_iter() {
+        println!("Event: {:?}", evt);
         let evt_ser = evt.try_to_vec().unwrap();
         let evt_de = GameEvent::try_from_slice(&evt_ser).unwrap();
         assert_eq!(evt_de, evt);
+    }
+}
+
+#[test]
+fn test_serde_display() {
+    let display = vec![
+        Display::DealCards,
+        Display::DealBoard {
+            prev: 3usize,
+            board: vec![
+                "sq".to_string(),
+                "hq".to_string(),
+                "ca".to_string(),
+                "dt".to_string(),
+                "c6".to_string(),
+            ],
+        },
+        Display::AwardPots {
+            pots: vec![
+                AwardPot {
+                    winners: vec!["Alice".to_string(), "Bob".to_string()],
+                    amount: 200,
+                },
+                AwardPot {
+                    winners: vec!["Bob".to_string()],
+                    amount: 40,
+                },
+            ],
+        },
+        Display::UpdateChips {
+            player: "Alice".to_string(),
+            before: 200,
+            after: 300
+        },
+        Display::CollectBets {
+            bet_map: make_uneven_betmap()
+        }
+    ];
+
+    for dlp in display.into_iter() {
+        println!("Display: {:?}", dlp);
+        let dlp_ser = dlp.try_to_vec().unwrap();
+        let dlp_de = Display::try_from_slice(&dlp_ser).unwrap();
+        assert_eq!(dlp_de, dlp);
     }
 }
 
