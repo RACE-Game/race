@@ -390,7 +390,7 @@ impl Holdem {
             Street::Turn => {
                 effect.reveal(
                     self.deck_random_id,
-                    (players_cnt..(players_cnt + 4)).collect::<Vec<usize>>(),
+                    vec![players_cnt + 3]
                 );
                 self.stage = HoldemStage::ShareKey;
                 println!("== Board is {:?}", self.board);
@@ -399,7 +399,7 @@ impl Holdem {
             Street::River => {
                 effect.reveal(
                     self.deck_random_id,
-                    (players_cnt..(players_cnt + 5)).collect::<Vec<usize>>(),
+                    vec![players_cnt + 4]
                 );
                 self.stage = HoldemStage::ShareKey;
                 println!("== Board is {:?}", self.board);
@@ -1388,10 +1388,10 @@ impl GameHandler for Holdem {
                 }
 
                 // Ending, comparing cards
-                HoldemStage::Runner | HoldemStage::Showdown => {
+                HoldemStage::Runner => {
+                    self.update_board(effect)?;
                     let board_prev_cnt = self.board.len();
                     self.display.clear();
-                    self.update_board(effect)?;
                     self.display.push(Display::DealBoard {
                         prev: board_prev_cnt,
                         board: self.board.clone(),
@@ -1400,6 +1400,20 @@ impl GameHandler for Holdem {
 
                     effect.wait_timeout(WAIT_TIMEOUT);
                     Ok(())
+                }
+
+                HoldemStage::Showdown => {
+                    let board_prev_cnt = self.board.len();
+                    self.display.clear();
+                    self.display.push(Display::DealBoard {
+                        prev: board_prev_cnt,
+                        board: self.board.clone(),
+                    });
+                    self.settle(effect)?;
+
+                    effect.wait_timeout(WAIT_TIMEOUT);
+                    Ok(())
+
                 }
 
                 // Other Holdem Stages
