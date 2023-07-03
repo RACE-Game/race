@@ -87,11 +87,11 @@ fn test_serde_display() {
         Display::UpdateChips {
             player: "Alice".to_string(),
             before: 200,
-            after: 300
+            after: 300,
         },
         Display::CollectBets {
-            bet_map: make_uneven_betmap()
-        }
+            bet_map: make_uneven_betmap(),
+        },
     ];
 
     for dlp in display.into_iter() {
@@ -151,8 +151,8 @@ fn test_serde_holdem() {
             5, 0, 0, 0, 70, 114, 97, 110, 107, 5, 0, 0, 0, 70, 114, 97, 110, 107, 232, 3, 0, 0, 0,
             0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 3, 0, 0, 0, 66, 111, 98, 5, 0, 0, 0,
             67, 97, 114, 111, 108, 4, 0, 0, 0, 68, 97, 118, 101, 3, 0, 0, 0, 69, 118, 97, 5, 0, 0,
-            0, 70, 114, 97, 110, 107, 5, 0, 0, 0, 65, 108, 105, 99, 101, 1, 5, 0, 0, 0, 65, 108,
-            105, 99, 101, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 70, 114, 97, 110, 107, 5, 0, 0, 0, 65, 108, 105, 99, 101, 0, 0, 0, 0, 1, 5, 0, 0, 0,
+            65, 108, 105, 99, 101, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
         assert_eq!(holdem_ser, holdem_ser_data);
         let holdem_de = Holdem::try_from_slice(&holdem_ser).unwrap();
