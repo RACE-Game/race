@@ -29,8 +29,8 @@ pub struct Holdem {
     pub prize_map: BTreeMap<String, u64>,
     pub player_map: BTreeMap<String, Player>,
     pub player_order: Vec<String>,
-    pub acting_player: Option<ActingPlayer>,
     pub pots: Vec<Pot>,
+    pub acting_player: Option<ActingPlayer>,
     pub display: Vec<Display>,
 }
 
