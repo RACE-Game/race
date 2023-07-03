@@ -160,11 +160,11 @@ export class Holdem {
   @field(array('string'))
   playerOrder!: string[];
 
-  @field(option(struct(ActingPlayer)))
-  actingPlayer!: ActingPlayer | undefined;
-
   @field(array(struct(Pot)))
   pots!: Pot[];
+
+  @field(option(struct(ActingPlayer)))
+  actingPlayer!: ActingPlayer | undefined;
 
   @field(array(enum(Display)))
   display!: Display[];
