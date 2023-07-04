@@ -148,6 +148,7 @@ impl Holdem {
         let mut player_pos: Vec<(String, usize)> = self
             .player_map
             .values()
+            .filter(|p| p.status != PlayerStatus::Init)
             .map(|p| {
                 if p.position > last_pos {
                     (p.addr.clone(), p.position - last_pos)
@@ -259,6 +260,7 @@ impl Holdem {
         }
         self.min_raise = self.bb;
         self.street_bet = self.bb;
+        // TODO: Move display a bit earlier than first SecretsReady
         self.display.push(Display::DealCards);
         Ok(())
     }
@@ -409,6 +411,7 @@ impl Holdem {
             }
 
             Street::Showdown => {
+                self.board.clear();
                 let decryption = effect.get_revealed(self.deck_random_id)?;
                 for i in players_cnt..(players_cnt + 5) {
                     if let Some(card) = decryption.get(&i) {
@@ -795,6 +798,7 @@ impl Holdem {
         }
         // Single player wins because there is one player only
         else if ingame_players.len() == 1 {
+            self.acting_player = None;
             let Some(winner) = ingame_players.first() else {
                 return Err(HandleError::Custom(
                     "Failed to get the only player".to_string()
@@ -804,8 +808,9 @@ impl Holdem {
             self.single_player_win(effect, vec![vec![winner.clone()]])?;
             Ok(())
         }
-        // Singple players wins because others all folded
+        // Single players wins because others all folded
         else if players_to_stay.len() == 1 {
+            self.acting_player = None;
             let Some(winner) = players_to_stay.first() else {
                 return Err(HandleError::Custom(
                     "Failed to get the single winner left".to_string()
@@ -839,6 +844,7 @@ impl Holdem {
             println!("[Next State]: Runner");
             self.street = Street::Showdown;
             self.stage = HoldemStage::Runner;
+            self.acting_player = None;
             self.collect_bets()?;
 
             // Reveal all cards for eligible players: not folded and without init status
@@ -870,20 +876,20 @@ impl Holdem {
             println!("[Next State]: Showdown");
             self.stage = HoldemStage::Showdown;
             self.street = Street::Showdown;
+            self.acting_player = None;
             self.collect_bets()?;
 
             // Reveal players' hole cards
-            let mut idxs = Vec::<usize>::new();
-            for (idx, player) in self.player_map.values().enumerate() {
-                match player.status {
-                    PlayerStatus::Init | PlayerStatus::Fold => {}
-                    _ => {
-                        idxs.push(idx * 2);
-                        idxs.push(idx * 2 + 1);
-                    }
+            for (addr, idxs) in self.hand_index_map.iter() {
+                let Some(player) = self.player_map.get(addr) else {
+                    return Err(HandleError::Custom(
+                        "Player not found in player map".to_string()
+                    ));
+                };
+                if matches!(player.status, PlayerStatus::Acted | PlayerStatus::Allin) {
+                    effect.reveal(self.deck_random_id, idxs.clone());
                 }
             }
-            effect.reveal(self.deck_random_id, idxs);
 
             Ok(())
         }
@@ -1173,12 +1179,7 @@ impl GameHandler for Holdem {
 
             Event::WaitingTimeout => {
                 self.display.clear();
-                for player in self.player_map.values_mut() {
-                    if player.status == PlayerStatus::Init {
-                        self.player_order.push(player.addr.clone());
-                    }
-                    player.status = PlayerStatus::Wait
-                }
+
 
                 let next_btn = self.get_next_btn()?;
                 println!("Next BTN: {}", next_btn);
@@ -1233,8 +1234,15 @@ impl GameHandler for Holdem {
             Event::GameStart { .. } => {
                 self.display.clear();
                 self.reset_holdem_state()?;
+
+                for player in self.player_map.values_mut() {
+                    player.status = PlayerStatus::Wait;
+                    self.player_order.push(player.addr.clone());
+                }
+
                 self.street = Street::Init;
                 self.stage = HoldemStage::Init;
+
                 let player_num = self.player_map.len();
                 println!("== {} players join game", player_num);
 
