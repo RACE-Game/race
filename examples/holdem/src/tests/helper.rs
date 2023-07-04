@@ -192,7 +192,11 @@ pub fn setup_real_holdem() -> Holdem {
     holdem.player_map = player_map;
     holdem.prize_map = prize_map;
     holdem.pots = pots;
-    holdem.acting_player = Some(("Bob".into(), 1usize));
+    holdem.acting_player = Some(ActingPlayer {
+        addr: "Bob".into(),
+        position: 1usize,
+        timeout: 30_000u64,
+    });
     holdem
 }
 

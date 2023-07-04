@@ -4,6 +4,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::prelude::{CustomEvent, HandleError};
 use std::collections::BTreeMap;
 
+pub const ACTION_TIMEOUT: u64 = 30_000;
+pub const WAIT_TIMEOUT: u64 = 10_000;
+
 #[derive(BorshSerialize, BorshDeserialize, Default, PartialEq, Debug)]
 pub enum PlayerStatus {
     #[default]
@@ -75,7 +78,12 @@ impl Player {
     }
 }
 
-pub type ActingPlayer = (String, usize);
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct ActingPlayer {
+    pub addr: String,
+    pub position: usize,
+    pub timeout: u64,
+}
 
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -172,6 +180,3 @@ pub enum Display {
     UpdateChips { player: String, before: u64, after: u64 },
     AwardPots { pots: Vec<AwardPot> },
 }
-
-pub const ACTION_TIMEOUT: u64 = 30_000;
-pub const WAIT_TIMEOUT: u64 = 10_000;

@@ -23,6 +23,9 @@ export class ActingPlayer {
   @field('usize')
   position!: number;
 
+  @field('u64')
+  timeout!: bigint;
+
   constructor(fields: any) {
     Object.assign(this, fields);
   }

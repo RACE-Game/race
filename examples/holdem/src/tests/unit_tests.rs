@@ -2,7 +2,7 @@
 //! Those functions that require `Effect' as their arguments are tested in
 //! event_tests.rs.  For the a complete test of Holdem games, see holdem_test.rs
 //! in the same dir.
-use crate::essential::Display;
+use crate::essential::{ActingPlayer, Display};
 use crate::tests::helper::{
     initial_players, make_even_betmap, make_uneven_betmap, setup_context, setup_holdem_state,
 };
@@ -364,7 +364,14 @@ fn test_blind_bets() -> Result<(), HandleError> {
     let mut efx = Effect::from_context(&ctx);
 
     state.blind_bets(&mut efx)?;
-    assert_eq!(state.acting_player, Some(("Dave".to_string(), 3)));
+    assert_eq!(
+        state.acting_player,
+        Some(ActingPlayer {
+            addr: "Dave".to_string(),
+            position: 3usize,
+            timeout: 30_000u64
+        })
+    );
     assert_eq!(state.bet_map.len(), 2);
     assert_eq!(state.bet_map.get("Bob"), Some(&state.sb));
     assert_eq!(state.bet_map.get("Carol"), Some(&state.bb));

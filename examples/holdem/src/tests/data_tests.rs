@@ -1,7 +1,9 @@
 //! Test serializing and deserializing verious structs used by Holdem
 //! as well as the Holdem struct itself
 
-use crate::essential::{ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, Player, Pot};
+use crate::essential::{
+    ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, Player, Pot, ACTION_TIMEOUT,
+};
 use crate::game::Holdem;
 use crate::tests::helper::{setup_holdem_state, setup_real_holdem};
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -10,7 +12,7 @@ use super::helper::make_uneven_betmap;
 
 #[test]
 fn test_serde_player() {
-    let player = Player::new("Alice".into(), 1000, 1);
+    let player = Player::new("Alice".into(), 1000, 1u16);
     let player_ser = player.try_to_vec().unwrap();
     let player_de = Player::try_from_slice(&player_ser).unwrap();
     assert_eq!(player_de, player);
@@ -133,7 +135,7 @@ fn test_serde_holdem() {
 
     // With acting player
     {
-        let acting_player: Option<ActingPlayer> = Some(("Alice".into(), 1));
+        let acting_player: Option<ActingPlayer> = Some(ActingPlayer { addr: "Alice".into(), position: 1usize, timeout: ACTION_TIMEOUT});
         holdem.acting_player = acting_player;
         let holdem_ser = holdem.try_to_vec().unwrap();
         println!("== Holdem with an actiing player");
@@ -152,7 +154,7 @@ fn test_serde_holdem() {
             0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 3, 0, 0, 0, 66, 111, 98, 5, 0, 0, 0,
             67, 97, 114, 111, 108, 4, 0, 0, 0, 68, 97, 118, 101, 3, 0, 0, 0, 69, 118, 97, 5, 0, 0,
             0, 70, 114, 97, 110, 107, 5, 0, 0, 0, 65, 108, 105, 99, 101, 0, 0, 0, 0, 1, 5, 0, 0, 0,
-            65, 108, 105, 99, 101, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            65, 108, 105, 99, 101, 1, 0, 0, 0, 0, 0, 0, 0, 48, 117, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
         assert_eq!(holdem_ser, holdem_ser_data);
         let holdem_de = Holdem::try_from_slice(&holdem_ser).unwrap();

@@ -74,16 +74,15 @@ fn test_get_holecards_idxs() -> Result<()> {
 
     let holdem_state = handler.get_state();
     {
-        println!(
-            "-- Player hand index map {:?}",
-            holdem_state.hand_index_map
-        );
+        println!("-- Player hand index map {:?}", holdem_state.hand_index_map);
         let alice_hole_cards = alice.decrypt(&ctx, holdem_state.deck_random_id);
         println!("Alice hole cards {:?}", alice_hole_cards);
 
-        let alice_hand_index = holdem_state.hand_index_map.get(&"Alice".to_string()).unwrap();
+        let alice_hand_index = holdem_state
+            .hand_index_map
+            .get(&"Alice".to_string())
+            .unwrap();
         assert_eq!(alice_hand_index, &vec![0, 1]);
-
     }
     Ok(())
 }
@@ -144,7 +143,14 @@ fn test_runner() -> Result<()> {
             })
         );
         assert!(state.is_acting_player(&"Bob".to_string()));
-
+        assert_eq!(
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Bob".to_string(),
+                position: 1usize,
+                timeout: 30_000u64,
+            })
+        );
     }
 
     // ------------------------- PREFLOP ------------------------
@@ -313,9 +319,16 @@ fn test_play_game() -> Result<()> {
                 state.player_map.get(&"Dave".to_string()).unwrap().status,
                 PlayerStatus::Fold
             );
+            // Acting player is the next player, BB, Carol
             assert!(state.acting_player.is_some());
-            // assert!(matches!(state.acting_player.clone(),
-            //                  Some(player) if player == ("Carol".to_string(), 1)));
+            assert_eq!(
+                state.acting_player,
+                Some(ActingPlayer {
+                    addr: "Carol".to_string(),
+                    position: 2usize,
+                    timeout: 30_000u64
+                })
+            );
         }
 
         // BB checks then game goes to flop

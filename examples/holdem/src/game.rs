@@ -71,14 +71,19 @@ impl Holdem {
 
     pub fn is_acting_player(&self, player_addr: &String) -> bool {
         match &self.acting_player {
-            Some((addr, _)) => addr == player_addr,
+            Some(ActingPlayer { addr, .. }) => addr == player_addr,
             None => false,
         }
     }
 
     // Return either acting player position or btn for reference
     pub fn get_ref_position(&self) -> usize {
-        if let Some((_, position)) = self.acting_player {
+        if let Some(ActingPlayer {
+            addr: _,
+            position,
+            timeout: _,
+        }) = self.acting_player
+        {
             position
         } else {
             self.btn
@@ -123,7 +128,11 @@ impl Holdem {
         if let Some(player) = self.player_map.get_mut(&player_addr) {
             println!("== Asking {} to act", player.addr);
             player.status = PlayerStatus::Acting;
-            self.acting_player = Some((player.addr.clone(), player.position));
+            self.acting_player = Some(ActingPlayer {
+                addr: player.addr.clone(),
+                position: player.position,
+                timeout: ACTION_TIMEOUT,
+            });
             effect.action_timeout(player_addr, ACTION_TIMEOUT); // in secs
             Ok(())
         } else {
@@ -388,19 +397,13 @@ impl Holdem {
             }
 
             Street::Turn => {
-                effect.reveal(
-                    self.deck_random_id,
-                    vec![players_cnt + 3]
-                );
+                effect.reveal(self.deck_random_id, vec![players_cnt + 3]);
                 self.stage = HoldemStage::ShareKey;
                 println!("== Board is {:?}", self.board);
             }
 
             Street::River => {
-                effect.reveal(
-                    self.deck_random_id,
-                    vec![players_cnt + 4]
-                );
+                effect.reveal(self.deck_random_id, vec![players_cnt + 4]);
                 self.stage = HoldemStage::ShareKey;
                 println!("== Board is {:?}", self.board);
             }
@@ -1413,7 +1416,6 @@ impl GameHandler for Holdem {
 
                     effect.wait_timeout(WAIT_TIMEOUT);
                     Ok(())
-
                 }
 
                 // Other Holdem Stages
