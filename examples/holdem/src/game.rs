@@ -131,7 +131,7 @@ impl Holdem {
             self.acting_player = Some(ActingPlayer {
                 addr: player.addr.clone(),
                 position: player.position,
-                timeout: ACTION_TIMEOUT,
+                timeout: effect.timestamp() + ACTION_TIMEOUT,
             });
             effect.action_timeout(player_addr, ACTION_TIMEOUT); // in secs
             Ok(())
@@ -593,12 +593,6 @@ impl Holdem {
                     player: addr.clone(),
                     before: *chips_after_bet,
                     after: *chips_after_bet + *change as u64,
-                });
-            } else {
-                self.display.push(Display::UpdateChips {
-                    player: addr.clone(),
-                    before: *chips_after_bet + (-*change as u64),
-                    after: *chips_after_bet,
                 });
             }
         }
