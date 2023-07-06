@@ -421,6 +421,7 @@ export class GameContext {
     } else if (effect.cancelDispatch) {
       this.dispatch = undefined;
     }
+    this.setAllowExit(effect.allowExit);
     for (const assign of effect.assigns) {
       this.assign(assign.randomId, assign.playerAddr, assign.indexes);
     }

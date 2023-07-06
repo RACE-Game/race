@@ -799,6 +799,7 @@ impl GameContext {
             init_random_states,
             settles,
             handler_state,
+            allow_exit,
             ..
         } = effect;
 
@@ -814,6 +815,8 @@ impl GameContext {
         } else if cancel_dispatch {
             self.cancel_dispatch();
         }
+
+        self.set_allow_exit(allow_exit);
 
         for Assign {
             random_id,

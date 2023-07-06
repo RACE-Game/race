@@ -30,8 +30,8 @@ Work in progress, not ready to accept contributions yet.
 
 ## TypeScript
 
-| Package                     | Version                                                                                                                                         | Description                                    |
-|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------|
+| Package                     | Version                                                                                                                              | Description                                    |
+|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------|
 | @race-foundation/borsh      | [![NPM](https://img.shields.io/npm/v/@race-foundation/borsh?logo=npm)](https://www.npmjs.com/package/@race-foundation/borsh)         | A borsh implementation with decorators support |
 | @race-fonudation/sdk-core   | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-core)   | SDK for RACE Protocol                          |
 | @race-fonudation/sdk-solana | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-solana) | SDK integration for Solana blockchain          |
@@ -39,19 +39,19 @@ Work in progress, not ready to accept contributions yet.
 
 ## Rust
 
-| Package           | Version                                                                   | Description                             |
-|-------------------|---------------------------------------------------------------------------|-----------------------------------------|
-| race-core         | [![Crates.io](https://img.shields.io/crates/v/race-core?logo=rust)](https://crates.io/crates/race-core)         | Core lib                                |
-| race-proc-macro   | [![Crates.io](https://img.shields.io/crates/v/race-proc-macro?logo=rust)](https://crates.io/crates/race-proc-macro)   | SDK proc macros                         |
-| race-env          | [![Crates.io](https://img.shields.io/crates/v/race-env?logo=rust)](https://crates.io/crates/race-env)          | Environment module                      |
-| race-encryptor    | [![Crates.io](https://img.shields.io/crates/v/race-encryptor?logo=rust)](https://crates.io/crates/race-encryptor)    | Encryptor module                        |
-| race-transport    | [![Crates.io](https://img.shields.io/crates/v/race-transport?logo=rust)](https://crates.io/crates/race-transport)    | Transport module                        |
-| race-client       | [![Crates.io](https://img.shields.io/crates/v/race-client?logo=rust)](https://crates.io/crates/race-client)       | Client module                           |
+| Package           | Version                                                                                                                 | Description                             |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|
+| race-core         | [![Crates.io](https://img.shields.io/crates/v/race-core?logo=rust)](https://crates.io/crates/race-core)                 | Core lib                                |
+| race-proc-macro   | [![Crates.io](https://img.shields.io/crates/v/race-proc-macro?logo=rust)](https://crates.io/crates/race-proc-macro)     | SDK proc macros                         |
+| race-env          | [![Crates.io](https://img.shields.io/crates/v/race-env?logo=rust)](https://crates.io/crates/race-env)                   | Environment module                      |
+| race-encryptor    | [![Crates.io](https://img.shields.io/crates/v/race-encryptor?logo=rust)](https://crates.io/crates/race-encryptor)       | Encryptor module                        |
+| race-transport    | [![Crates.io](https://img.shields.io/crates/v/race-transport?logo=rust)](https://crates.io/crates/race-transport)       | Transport module                        |
+| race-client       | [![Crates.io](https://img.shields.io/crates/v/race-client?logo=rust)](https://crates.io/crates/race-client)             | Client module                           |
 | race-solana-types | [![Crates.io](https://img.shields.io/crates/v/race-solana-types?logo=rust)](https://crates.io/crates/race-solana-types) | Type definitions for Solana integration |
-| race-test         | [![Crates.io](https://img.shields.io/crates/v/race-test?logo=rust)](https://crates.io/crates/race-test)         | Testkit                                 |
-| race-cli          | [![Crates.io](https://img.shields.io/crates/v/race-cli?logo=rust)](https://crates.io/crates/race-cli)          | Command Line tools                      |
-| race-facade       | [![Crates.io](https://img.shields.io/crates/v/race-facade?logo=rust)](https://crates.io/crates/race-facade)       | Chain replacement for quick test        |
-| race-transactor   | [![Crates.io](https://img.shields.io/crates/v/race-transactor?logo=rust)](https://crates.io/crates/race-transactor)   | Node Server                             |
+| race-test         | [![Crates.io](https://img.shields.io/crates/v/race-test?logo=rust)](https://crates.io/crates/race-test)                 | Testkit                                 |
+| race-cli          | [![Crates.io](https://img.shields.io/crates/v/race-cli?logo=rust)](https://crates.io/crates/race-cli)                   | Command Line tools                      |
+| race-facade       | [![Crates.io](https://img.shields.io/crates/v/race-facade?logo=rust)](https://crates.io/crates/race-facade)             | Chain replacement for quick test        |
+| race-transactor   | [![Crates.io](https://img.shields.io/crates/v/race-transactor?logo=rust)](https://crates.io/crates/race-transactor)     | Node Server                             |
 
 ## Contracts
 
