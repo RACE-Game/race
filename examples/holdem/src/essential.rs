@@ -17,7 +17,7 @@ pub enum PlayerStatus {
     Fold,
     Init,            // Indicating new players ready for the next hand
     Winner,
-    // Leave,
+    Leave,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -51,6 +51,10 @@ impl Player {
             position: position as usize,
             status: PlayerStatus::Init,
         }
+    }
+
+    pub fn addr(&self) -> String {
+        self.addr.clone()
     }
 
     pub fn next_to_act(&self) -> bool {
@@ -128,7 +132,6 @@ pub enum HoldemStage {
     ShareKey,
     Play,
     Runner,
-    Settle,
     Showdown,
 }
 

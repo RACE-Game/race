@@ -252,11 +252,13 @@ fn test_play_game() -> Result<()> {
         // BTN is 0 so players in the order of action:
         // Dave (UTG), Eva (MID), Alice (BTN), Bob (SB), Carol (BB)
         // In state: [Bob, Carol, Dave, Eva, Alice]
-        // UTG folds
-        let dave_fold = dave.custom_event(GameEvent::Fold);
+
+        // UTG decides to leave
+        println!("Dave is going to leave");
+        let dave_leave = Event::Leave {player_addr: "Dave".to_string()};
         handler.handle_until_no_events(
             &mut ctx,
-            &dave_fold,
+            &dave_leave,
             vec![
                 &mut alice,
                 &mut bob,
@@ -322,7 +324,7 @@ fn test_play_game() -> Result<()> {
             assert_eq!(state.street, Street::Preflop,);
             assert_eq!(
                 state.player_map.get(&"Dave".to_string()).unwrap().status,
-                PlayerStatus::Fold
+                PlayerStatus::Leave
             );
             // Acting player is the next player, BB, Carol
             assert!(state.acting_player.is_some());
@@ -643,7 +645,7 @@ fn test_play_game() -> Result<()> {
         {
             let state = handler.get_state();
             assert_eq!(state.btn, 1);
-            assert_eq!(state.player_map.len(), 6);
+            assert_eq!(state.player_map.len(), 5);
             // Player order has not been cleared yet
             assert_eq!(state.player_order.len(), 5);
         }
@@ -652,7 +654,7 @@ fn test_play_game() -> Result<()> {
         handler.handle_dispatch_event(&mut ctx)?;
         {
             let state = handler.get_state();
-            assert_eq!(state.player_map.len(), 6);
+            assert_eq!(state.player_map.len(), 5);
             assert_eq!(state.player_order.len(), 0);
             assert_eq!(state.hand_index_map.len(), 0);
         }
