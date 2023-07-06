@@ -1,6 +1,6 @@
 {
   "name": "@race-foundation/sdk-core",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "The type definitions for Race SDK",
   "scripts": {
     "test": "jest",
