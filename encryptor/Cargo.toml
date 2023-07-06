@@ -24,7 +24,7 @@ base64 = { workspace = true }
 arrayref = { workspace = true }
 aes = { workspace = true }
 chrono = { workspace = true }
-openssl = { workspace = true, features = ["vendored"] }
+openssl = { workspace = true }
 chacha20 = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
