@@ -77,6 +77,8 @@ Work in progress, not ready to accept contributions yet.
 
 [Synchronization](docs/synchronization.md)
 
+[Contract](docs/contract.md)
+
 [Payment](docs/payment.md)
 
 [Testing](docs/testing.md)
