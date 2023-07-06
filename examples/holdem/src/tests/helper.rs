@@ -235,15 +235,25 @@ pub fn create_sync_event(
     transactor: &TestClient,
 ) -> Event {
     let av = ctx.get_access_version() + 1;
-
+    let max_players = 9usize;
+    let used_pos: Vec<usize> = ctx.get_players().iter().map(|p| p.position).collect();
     let mut new_players = Vec::new();
     for (i, p) in players.iter().enumerate() {
+        let mut position = i;
+        // If a position already taken, append the new player to the last
+        if used_pos.get(position).is_some() {
+            if position + 1 < max_players {
+                position = ctx.count_players() as usize + 1;
+            } else {
+                println!("Game is full");
+            }
+        }
         new_players.push(PlayerJoin {
             addr: p.get_addr(),
             balance: 10_000,
-            position: i as u16,
+            position: position as u16,
             access_version: av,
-            verify_key: "".into(),
+            verify_key: p.get_addr(),
         })
     }
 

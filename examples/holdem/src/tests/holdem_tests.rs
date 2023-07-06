@@ -314,6 +314,11 @@ fn test_play_game() -> Result<()> {
 
         {
             let state = handler.get_state();
+
+            for p in state.player_map.values() {
+                println!("-- Player {} position {}", p.addr, p.position);
+            }
+
             assert_eq!(state.street, Street::Preflop,);
             assert_eq!(
                 state.player_map.get(&"Dave".to_string()).unwrap().status,
@@ -358,6 +363,37 @@ fn test_play_game() -> Result<()> {
             assert_eq!(state.pots.len(), 1);
             assert_eq!(state.pots[0].amount, 80);
             assert_eq!(state.pots[0].owners.len(), 4);
+        }
+
+        // Frank Joins:
+        // 1. Frank's status should be `Init'
+        // 2. Frank should be in player_map but not in player_order
+        // 3. Frank should not be assgined any cards, i.e., not in hand_index_map
+        let mut frank = TestClient::player("Frank");
+        let frank_join = create_sync_event(&ctx, &[&frank], &transactor);
+
+        handler.handle_until_no_events(
+            &mut ctx,
+            &frank_join,
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut frank,
+                &mut transactor,
+            ],
+        )?;
+        {
+            let state = handler.get_state();
+            assert_eq!(state.player_map.len(), 6);
+            assert_eq!(state.player_order.len(), 5);
+            assert!(matches!(
+                state.player_map.get("Frank").unwrap().status,
+                PlayerStatus::Init
+            ));
+            assert_eq!(state.hand_index_map.get("Frank"), None);
         }
 
         // Bob (SB) bets 1BB
@@ -607,6 +643,18 @@ fn test_play_game() -> Result<()> {
         {
             let state = handler.get_state();
             assert_eq!(state.btn, 1);
+            assert_eq!(state.player_map.len(), 6);
+            // Player order has not been cleared yet
+            assert_eq!(state.player_order.len(), 5);
+        }
+
+        // Handle GameStart
+        handler.handle_dispatch_event(&mut ctx)?;
+        {
+            let state = handler.get_state();
+            assert_eq!(state.player_map.len(), 6);
+            assert_eq!(state.player_order.len(), 0);
+            assert_eq!(state.hand_index_map.len(), 0);
         }
     }
     Ok(())
