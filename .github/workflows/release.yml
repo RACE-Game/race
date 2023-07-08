@@ -8,21 +8,21 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-  permissions:
-    contents: write
-  steps:
-  - uses: actions/checkout@v3
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v3
 
-  - name: Rust Cache
-    uses: Swatinem/rust-cache@v2.2.0
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2.2.0
 
-  - name: Build Transactor
-    run: cargo build -r -p race-transactor
+    - name: Build Transactor
+      run: cargo build -r -p race-transactor
 
-  - name: Build CLI
-    run: cargo build -r -p race-cli
+    - name: Build CLI
+      run: cargo build -r -p race-cli
 
-  - name: Release
-    uses: ncipollo/release-action@v1
-    with:
-      artifacts: "target/release/race-transactor,target/release/race-cli"
+    - name: Release
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "target/release/race-transactor,target/release/race-cli"
