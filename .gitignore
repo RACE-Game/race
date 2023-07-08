@@ -5,3 +5,4 @@ dist
 .log
 test-ledger/
 result
+.direnv
