@@ -7,12 +7,15 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = inputs: with inputs;
+  outputs = { nixpkgs, flake-utils, rust-overlay, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        overlays = [ (import rust-overlay) ];
+        pkgs = import nixpkgs {
+          inherit system overlays;
+        };
         code = pkgs.callPackage ./. { inherit nixpkgs system rust-overlay; };
-      in {
+      in rec {
         packages = {
           race-transactor = code.race-transactor;
           race-cli = code.race-cli;
@@ -25,10 +28,13 @@
         default = packages.all;
 
         devShell = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            openssl
-            rustc
+          nativeBuildInputs = with pkgs; [
+            (rust-bin.stable.latest.default.override {
+              extensions = [ "rust-src" ];
+              targets = [ "wasm32-unknown-unknown" ];
+            })
             cargo
+            openssl
             pkg-config
             rust-analyzer
             simple-http-server
