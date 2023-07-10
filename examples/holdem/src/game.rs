@@ -621,11 +621,12 @@ impl Holdem {
                 effect.settle(Settle::sub(player, -*chips_change as u64));
             }
         }
-        // Eject those whose lost all their chips
+
+        // Eject those whose lost all their chips or has left
         let to_eject: Vec<String> = self
             .player_map
             .values()
-            .filter(|p| p.chips == 0)
+            .filter(|p| p.chips == 0 || p.status == PlayerStatus::Leave)
             .map(|p| p.addr())
             .collect();
 
@@ -740,7 +741,7 @@ impl Holdem {
         let to_eject: Vec<String> = self
             .player_map
             .values()
-            .filter(|p| p.chips == 0)
+            .filter(|p| p.chips == 0 || p.status == PlayerStatus::Leave)
             .map(|p| p.addr())
             .collect();
 
@@ -1177,18 +1178,6 @@ impl GameHandler for Holdem {
 
             Event::WaitingTimeout => {
                 self.display.clear();
-                let to_eject: Vec<String> = self
-                    .player_map
-                    .values()
-                    .filter(|p| p.status == PlayerStatus::Leave)
-                    .map(|p| p.addr())
-                    .collect();
-
-                // Remove and eject those with `Leave' status
-                for player in to_eject.iter() {
-                    self.player_map.remove_entry(player);
-                    effect.settle(Settle::eject(player));
-                }
 
                 for player in self.player_map.values_mut() {
                     player.status = PlayerStatus::Wait;
