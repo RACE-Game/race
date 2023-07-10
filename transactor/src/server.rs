@@ -84,11 +84,8 @@ async fn submit_event(
 }
 
 async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
-    let (_game_addr, _arg, _sig) = params.parse::<(String, Vec<u8>, Signature)>()?;
-
-    info!("Exit game");
-
     let (game_addr, ExitGameParams {}, sig) = parse_params(params, &context)?;
+    info!("Exit game");
 
     context
         .eject_player(&game_addr, &sig.signer)
@@ -127,7 +124,7 @@ fn subscribe_event(
             histories.into_iter().for_each(|x| {
                 let v = x.try_to_vec().unwrap();
                 let s = utils::base64_encode(&v);
-                info!("Push event history: {}", s);
+                // info!("Push event history: {}", s);
                 sink.send(&s)
                     .map_err(|e| {
                         error!("Error occurred when broadcasting event histories: {:?}", e);
@@ -141,7 +138,7 @@ fn subscribe_event(
                 Ok(x) => {
                     let v = x.try_to_vec().unwrap();
                     let s = utils::base64_encode(&v);
-                    info!("Push new event: {}", s);
+                    // info!("Push new event: {}", s);
                     Ok(s)
                 }
                 Err(e) => Err(e),

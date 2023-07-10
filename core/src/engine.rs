@@ -200,7 +200,6 @@ pub fn general_handle_event(
             {
                 Err(Error::InvalidPlayerAddress)
             } else {
-                context.remove_player(player_addr)?;
                 Ok(())
             }
         }

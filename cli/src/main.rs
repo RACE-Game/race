@@ -39,10 +39,10 @@ fn cli() -> Command {
         .arg(arg!(-r <rpc> "The endpoint of RPC service"))
         .arg(arg!(-k <keyfile> "The path to keyfile"))
         .arg(arg!(-e <env> "The environment"))
+        .arg(arg!(-c <chain> "The chain to interact"))
         .subcommand(
             Command::new("publish")
                 .about("Publish a game bundle")
-                .arg(arg!(<CHAIN> "The chain to interact"))
                 .arg(arg!(<NAME> "The name of game"))
                 .arg(arg!(<BUNDLE> "The path to the WASM bundle"))
                 .arg_required_else_help(true),
@@ -57,41 +57,35 @@ fn cli() -> Command {
         .subcommand(
             Command::new("game-info")
                 .about("Query game account information")
-                .arg(arg!(<CHAIN> "The chain to interact"))
                 .arg(arg!(<ADDRESS> "The game account address"))
                 .arg_required_else_help(true),
         )
         .subcommand(
             Command::new("server-info")
                 .about("Query server account information")
-                .arg(arg!(<CHAIN> "The chain to interact"))
                 .arg(arg!(<ADDRESS> "The server account address"))
                 .arg_required_else_help(true),
         )
         .subcommand(
             Command::new("create-reg")
                 .about("Create registration center")
-                .arg(arg!(<CHAIN> "The chain to interact"))
                 .arg_required_else_help(true),
         )
         .subcommand(
             Command::new("reg-info")
                 .about("Query registration center")
-                .arg(arg!(<CHAIN> "The chain to interact"))
                 .arg(arg!(<ADDRESS> "The address of registration account"))
                 .arg_required_else_help(true),
         )
         .subcommand(
             Command::new("create-game")
                 .about("Create game account")
-                .arg(arg!(<CHAIN> "The chain to interact"))
                 .arg(arg!(<SPEC_FILE> "The path to specification file"))
                 .arg_required_else_help(true),
         )
         .subcommand(
             Command::new("unreg-game")
                 .about("Unregister game account")
-                .arg(arg!(<CHAIN> "The chain to interact"))
                 .arg(arg!(<REG> "The address of registration account"))
                 .arg(arg!(<GAME> "The address of game account"))
                 .arg_required_else_help(true),

@@ -149,8 +149,6 @@ export class Handler implements IHandler {
       const exist = context.players.find(p => p.addr === playerAddr);
       if (exist === undefined) {
         throw new Error('Invalid player address');
-      } else {
-        context.removePlayer(playerAddr);
       }
     } else if (event instanceof GameStart) {
       const { accessVersion } = event;
