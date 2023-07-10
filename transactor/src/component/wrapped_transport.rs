@@ -1,12 +1,10 @@
 //! Wrapped transport, which support retry
 
-use std::time::Duration;
-
 use jsonrpsee::core::async_trait;
 use race_core::error::Result;
 use race_core::types::{
-    CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, RegisterGameParams,
-    ServeParams, UnregisterGameParams, VoteParams, PublishGameParams,
+    CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, PublishGameParams,
+    RegisterGameParams, ServeParams, UnregisterGameParams, VoteParams,
 };
 use race_core::{
     transport::TransportT,
@@ -17,6 +15,7 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
+use std::time::Duration;
 use tracing::error;
 
 pub struct WrappedTransport {
