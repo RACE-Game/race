@@ -20,23 +20,22 @@ pub fn create_cards<'a>(community_cards: &[&'a str], hole_cards: &[&'a str]) -> 
 
 fn kind_to_order(card: &str) -> u8 {
     let (_, kind) = card.split_at(1);
-    if kind == "a" {
-        14
-    } else if kind == "k" {
-        13
-    } else if kind == "q" {
-        12
-    } else if kind == "j" {
-        11
-    } else if kind == "t" {
-        10
-    } else {
-        // FIXME: handle this error in a better way
-        let Ok(kind_num) = kind.parse::<u8>() else {
-            return 0;
-        };
-        kind_num
-    } // 2-9
+    match kind {
+        "a" => 14,
+        "k" => 13,
+        "q" => 12,
+        "j" => 11,
+        "t" => 10,
+        "9" => 9,
+        "8" => 8,
+        "7" => 7,
+        "6" => 6,
+        "5" => 5,
+        "4" => 4,
+        "3" => 3,
+        "2" => 2,
+        _ => 0
+    }
 }
 
 /// After sorting, higher card (kind) will come first in the vec.
