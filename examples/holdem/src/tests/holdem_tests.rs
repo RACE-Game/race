@@ -159,6 +159,76 @@ fn test_eject_timeout() -> Result<()> {
 }
 
 #[test]
+fn test_player_leave() -> Result<()> {
+    let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
+    let mut alice = TestClient::player("Alice");
+    let mut bob = TestClient::player("Bob");
+
+    let sync_evt = create_sync_event(&ctx, &[&alice, &bob], &transactor);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &sync_evt,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+
+    {
+        let state = handler.get_state();
+        assert_eq!(
+            state.player_order,
+            vec!["Bob".to_string(), "Alice".to_string()]
+        );
+        assert_eq!(
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Bob".into(),
+                position: 1,
+                clock: 30_000
+            })
+        );
+    }
+
+    // Bob (SB/BTN) is the acting player and decides to leave
+    let bob_leave = Event::Leave {
+        player_addr: "Bob".to_string(),
+    };
+    handler.handle_until_no_events(
+        &mut ctx,
+        &bob_leave,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+
+    {
+        let state = handler.get_state();
+        assert_eq!(state.player_map.len(), 1);
+        assert_eq!(
+            state.player_map.get("Alice").unwrap().status,
+            PlayerStatus::Winner
+        );
+        // assert_eq!(state.stage, HoldemStage::Init);
+    }
+
+    // Handle the dispatched wait timeout event
+    handler.handle_dispatch_event(&mut ctx)?;
+
+    // Alice (BB) wins and leaves as well
+    let alice_leave = Event::Leave {
+        player_addr: "Alice".to_string(),
+    };
+    handler.handle_until_no_events(
+        &mut ctx,
+        &alice_leave,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+
+    {
+        let state = handler.get_state();
+        println!("state {:?}", state);
+        assert_eq!(state.player_map.len(), 0);
+    }
+
+    Ok(())
+}
+#[test]
 fn test_get_holecards_idxs() -> Result<()> {
     let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
     let mut alice = TestClient::player("Alice");

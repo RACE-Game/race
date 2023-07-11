@@ -4,8 +4,8 @@ use race_proc_macro::game_handler;
 use std::collections::BTreeMap;
 
 use crate::essential::{
-    ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, HoldemStage, Player, PlayerStatus,
-    Pot, Street, ACTION_TIMEOUT, WAIT_TIMEOUT, ChipsChange,
+    ActingPlayer, AwardPot, ChipsChange, Display, GameEvent, HoldemAccount, HoldemStage, Player,
+    PlayerStatus, Pot, Street, ACTION_TIMEOUT, WAIT_TIMEOUT,
 };
 use crate::evaluator::{compare_hands, create_cards, evaluate_cards, PlayerHand};
 
@@ -1202,6 +1202,7 @@ impl GameHandler for Holdem {
             }
 
             Event::WaitingTimeout => {
+                self.stage = HoldemStage::Init;
                 self.display.clear();
 
                 for player in self.player_map.values_mut() {
@@ -1275,7 +1276,8 @@ impl GameHandler for Holdem {
             Event::Leave { player_addr } => {
                 // TODO: Leaving is not allowed in SNG game
                 println!("== Player {} decides to leave game", player_addr);
-                match self.stage {                    HoldemStage::Init => {
+                match self.stage {
+                    HoldemStage::Init => {
                         self.player_map.remove_entry(&player_addr);
                         effect.settle(Settle::eject(&player_addr));
                         effect.wait_timeout(WAIT_TIMEOUT);
