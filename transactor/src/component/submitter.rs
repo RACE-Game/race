@@ -30,11 +30,13 @@ impl Submitter {
         )
     }
 
-    /// This fn takes a vector of `Settle' structs to build a settle map
-    /// which stores the squashed settles.  These results will later
-    /// be used to make the real settles to be submitted.
-    pub fn squash(settles: &Vec<Settle>) -> BTreeMap<String, SettleOp> {
+    /// This fn takes a vector of `Settle' structs to build a settle
+    /// map which stores the squashed settles and a list contains all
+    /// eject settles.  These results will later be used to make the
+    /// real settles to be submitted.
+    pub fn squash(settles: &Vec<Settle>) -> (BTreeMap<String, SettleOp>, Vec<Settle>) {
         let mut settle_map = BTreeMap::<String, SettleOp>::new();
+        let mut settle_ejects = Vec::<Settle>::new();
         for settle in settles.iter() {
             match settle.op {
                 SettleOp::Add(amt) => {
@@ -82,13 +84,11 @@ impl Submitter {
                 }
 
                 SettleOp::Eject => {
-                    settle_map
-                        .entry(settle.addr.clone())
-                        .or_insert(SettleOp::Eject);
+                    settle_ejects.push(settle.clone());
                 }
             }
         }
-        settle_map
+        (settle_map, settle_ejects)
     }
 }
 
@@ -102,7 +102,7 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
         while let Some(event) = ports.recv().await {
             match event {
                 EventFrame::Settle { settles } => {
-                    let settle_map = Self::squash(&settles);
+                    let (settle_map, mut settle_ejects) = Self::squash(&settles);
 
                     // Settle `Leave` or `Eject` as soon as we receive it
                     if settles
@@ -110,10 +110,12 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
                         .any(|Settle { addr: _, op }| matches!(op, SettleOp::Eject))
                         || settle_map.len() >= 2
                     {
-                        let settles = settle_map
+                        let mut settles = settle_map
                             .into_iter()
                             .map(|(addr, op)| Settle { addr, op })
                             .collect::<Vec<Settle>>();
+
+                        settles.append(&mut settle_ejects);
 
                         // The wrapped transport will return only when the transaction succeeds.
                         // So here we assume the settle version is updated.
