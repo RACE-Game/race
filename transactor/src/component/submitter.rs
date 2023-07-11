@@ -176,7 +176,7 @@ mod tests {
             Settle::eject("charlie"),
         ];
 
-        let settle_map = Submitter::squash(&settles);
+        let (settle_map, _settle_rejects) = Submitter::squash(&settles);
         println!("-- settle map {:?}", settle_map);
 
         let squashed_settles = settle_map
