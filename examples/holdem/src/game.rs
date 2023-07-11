@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::essential::{
     ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, HoldemStage, Player, PlayerStatus,
-    Pot, Street, ACTION_TIMEOUT, WAIT_TIMEOUT,
+    Pot, Street, ACTION_TIMEOUT, WAIT_TIMEOUT, ChipsChange,
 };
 use crate::evaluator::{compare_hands, create_cards, evaluate_cards, PlayerHand};
 
@@ -583,6 +583,8 @@ impl Holdem {
             .map(|p| (p.addr(), p.chips))
             .collect();
 
+        let mut chips_changes = Vec::<ChipsChange>::new();
+
         for (addr, change) in chips_change_map.iter() {
             let Some(chips_after_bet) = tmp_chips_map.get(addr) else {
                 return Err(HandleError::Custom(
@@ -590,14 +592,18 @@ impl Holdem {
                 ));
             };
 
-            if *change >= 0i64 {
-                self.display.push(Display::UpdateChips {
-                    player: addr.clone(),
+            if *change > 0i64 {
+                let change = ChipsChange {
+                    addr: addr.clone(),
                     before: *chips_after_bet,
                     after: *chips_after_bet + *change as u64,
-                });
+                };
+                chips_changes.push(change);
             }
         }
+        self.display.push(Display::ChangeChips {
+            changes: chips_changes,
+        });
 
         Ok(chips_change_map)
     }

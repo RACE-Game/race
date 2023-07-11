@@ -176,6 +176,14 @@ pub struct AwardPot {
     pub amount: u64,
 }
 
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct ChipsChange {
+    pub addr: String,
+    pub before: u64,
+    pub after: u64,
+}
+
 /// Used for animation (with necessary audio effects)
 #[cfg_attr(test, derive(PartialEq))]
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -183,6 +191,6 @@ pub enum Display {
     DealCards,
     DealBoard { prev: usize, board: Vec<String> },
     CollectBets { bet_map: BTreeMap<String, u64> },
-    UpdateChips { player: String, before: u64, after: u64 },
+    ChangeChips { changes: Vec<ChipsChange> },
     AwardPots { pots: Vec<AwardPot> },
 }

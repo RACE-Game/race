@@ -2,7 +2,7 @@
 //! Those functions that require `Effect' as their arguments are tested in
 //! event_tests.rs.  For the a complete test of Holdem games, see holdem_test.rs
 //! in the same dir.
-use crate::essential::{ActingPlayer, Display};
+use crate::essential::{ActingPlayer, Display, ChipsChange};
 use crate::tests::helper::{
     initial_players, make_even_betmap, make_uneven_betmap, setup_context, setup_holdem_state,
 };
@@ -311,13 +311,21 @@ fn test_update_chips_map() -> Result<(), HandleError> {
         state.assign_winners(winners)?;
         state.calc_prize()?;
         let chips_change_map = state.update_chips_map()?;
-
         assert_eq!(chips_change_map.get("Bob"), Some(&160));
         assert_eq!(chips_change_map.get("Alice"), Some(&-40));
         assert_eq!(chips_change_map.get("Dave"), Some(&-40));
         assert_eq!(chips_change_map.get("Carol"), Some(&-40));
         assert_eq!(chips_change_map.get("Eva"), Some(&-40));
-
+        // println!("-- Display {:?}", state.display);
+        assert!(state.display.contains(&Display::ChangeChips {
+            changes: vec![
+                ChipsChange {
+                    addr: "Bob".to_string(),
+                    before: 1000,
+                    after: 1160,
+                },
+            ]
+        }));
         state.pots = vec![];
         state.prize_map = BTreeMap::new();
     }
@@ -344,14 +352,36 @@ fn test_update_chips_map() -> Result<(), HandleError> {
         assert_eq!(chips_change_map.get("Carol"), Some(&-100));
         assert_eq!(chips_change_map.get("Eva"), Some(&-100));
 
-        for (_, chips_change) in chips_change_map.iter() {
+        for (addr, chips_change) in chips_change_map.iter() {
             if *chips_change > 0 {
                 println!("Player + chips {:?}", *chips_change as u64);
-                // effect.settle(Settle::add(player, *chips_change as u64))
+                assert!(matches!(addr.as_str(), "Alice" | "Dave" | "Bob" ));
             } else if *chips_change < 0 {
-                println!("Player - chips {:?}", *chips_change as u64);
+                println!("Player - chips {:?}", -*chips_change as u64);
+                assert!(matches!(addr.as_str(), "Carol" | "Eva" ));
             }
         }
+        // println!("-- Display {:?}", state.display);
+        assert!(state.display.contains(&Display::ChangeChips {
+            changes: vec![
+                ChipsChange {
+                    addr: "Alice".to_string(),
+                    before: 1000,
+                    after: 1080,
+                },
+                ChipsChange {
+                    addr: "Bob".to_string(),
+                    before: 1000,
+                    after: 1020,
+                },
+                ChipsChange {
+                    addr: "Dave".to_string(),
+                    before: 1000,
+                    after: 1100,
+                }
+            ]
+        }));
+
     }
     Ok(())
 }

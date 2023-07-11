@@ -58,6 +58,17 @@ export class AwardPot {
   amount!: bigint;
 }
 
+export class ChipsChange {
+  @field('string')
+  addr!: string;
+
+  @field('u64')
+  before!: bigint;
+
+  @field('u64')
+  after!: bigint;
+}
+
 export abstract class Display {}
 
 @variant(0)
@@ -93,15 +104,9 @@ export class CollectBets extends Display {
 }
 
 @variant(3)
-export class UpdateChips extends Display {
-  @field('string')
-  player!: string;
-
-  @field('u64')
-  before!: bigint;
-
-  @field('u64')
-  after!: bigint;
+export class ChangeChips extends Display {
+  @field(array(ChipsChange))
+  changes!: ChipsChange[];
 
   constructor(fields: any) {
     super();

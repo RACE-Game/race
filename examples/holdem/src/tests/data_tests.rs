@@ -2,7 +2,7 @@
 //! as well as the Holdem struct itself
 
 use crate::essential::{
-    ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, Player, Pot, ACTION_TIMEOUT,
+    ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, Player, Pot, ACTION_TIMEOUT, ChipsChange,
 };
 use crate::game::Holdem;
 use crate::tests::helper::{setup_holdem_state, setup_real_holdem};
@@ -86,10 +86,19 @@ fn test_serde_display() {
                 },
             ],
         },
-        Display::UpdateChips {
-            player: "Alice".to_string(),
-            before: 200,
-            after: 300,
+        Display::ChangeChips {
+            changes: vec![
+                ChipsChange {
+                    addr: "Alice".to_string(),
+                    before: 200,
+                    after: 300,
+                },
+                ChipsChange {
+                    addr: "Bob".to_string(),
+                    before: 150,
+                    after: 200,
+                }
+            ]
         },
         Display::CollectBets {
             bet_map: make_uneven_betmap(),
