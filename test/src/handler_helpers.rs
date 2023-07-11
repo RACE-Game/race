@@ -102,4 +102,8 @@ impl<H: GameHandler> TestHandler<H> {
     pub fn get_state(&self) -> &H {
         &self.handler
     }
+
+    pub fn get_mut_state(&mut self) -> &mut H {
+        &mut self.handler
+    }
 }

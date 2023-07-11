@@ -41,6 +41,7 @@ impl Player {
             chips,
             position,
             status,
+            timeout: 0,
         }
     }
 }
@@ -195,7 +196,7 @@ pub fn setup_real_holdem() -> Holdem {
     holdem.acting_player = Some(ActingPlayer {
         addr: "Bob".into(),
         position: 1usize,
-        timeout: 30_000u64,
+        clock: 30_000u64,
     });
     holdem
 }

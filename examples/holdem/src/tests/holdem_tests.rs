@@ -60,6 +60,105 @@ fn test_players_order() -> Result<()> {
 }
 
 #[test]
+fn test_eject_timeout() -> Result<()> {
+    let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
+    let mut charlie = TestClient::player("Charlie");
+    let mut alice = TestClient::player("Alice");
+    let mut bob = TestClient::player("Bob");
+
+    let sync_evt = create_sync_event(&ctx, &[&charlie, &alice, &bob], &transactor);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &sync_evt,
+        vec![&mut charlie, &mut alice, &mut bob, &mut transactor],
+    )?;
+
+    // --------------------- INIT ------------------------
+    {
+        let state = handler.get_mut_state();
+        let charlie = state.player_map.get_mut("Charlie").unwrap();
+        charlie.timeout = 3;
+        assert_eq!(
+            state.player_order,
+            vec![
+                "Alice".to_string(),
+                "Bob".to_string(),
+                "Charlie".to_string() // UTG + BTN
+            ]
+        );
+
+        for p in state.player_map.values() {
+            if p.addr == "Alice".to_string() || p.addr == "Bob".to_string() {
+                assert_eq!(p.timeout, 0)
+            } else {
+                assert_eq!(p.timeout, 3)
+            }
+        }
+
+        assert_eq!(
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Charlie".to_string(),
+                position: 0,
+                clock: 30_000
+            })
+        );
+    }
+
+    // --------------------- PREFLOP ------------------------
+    // Charlie (UTG/BTN) reaches action timeout, meets 3 action timeout
+    let charlie_timeout = Event::ActionTimeout {
+        player_addr: "Charlie".to_string(),
+    };
+    handler.handle_until_no_events(
+        &mut ctx,
+        &charlie_timeout,
+        vec![&mut charlie, &mut alice, &mut bob, &mut transactor],
+    )?;
+
+    {
+        let state = handler.get_state();
+        assert_eq!(
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Alice".to_string(),
+                position: 1,
+                clock: 30_000
+            })
+        );
+        for p in state.player_map.values() {
+            if p.addr == "Alice".to_string() {
+                assert_eq!(p.timeout, 0);
+            } else if p.addr == "Bob".to_string() {
+                assert_eq!(p.status, PlayerStatus::Wait);
+                assert_eq!(p.timeout, 0);
+            } else {
+                assert_eq!(p.status, PlayerStatus::Leave);
+                assert_eq!(p.timeout, 3);
+            }
+        }
+    }
+
+    // and will be marked `Leave'
+    // Alice (SB) folds, and Bob (BB) wins
+    let alice_fold = alice.custom_event(GameEvent::Fold);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &alice_fold,
+        vec![&mut charlie, &mut alice, &mut bob, &mut transactor],
+    )?;
+
+    {
+        let state = handler.get_state();
+        assert_eq!(state.player_map.len(), 2);
+        assert!(state.player_map.contains_key(&"Alice".to_string()));
+        assert!(state.player_map.contains_key(&"Bob".to_string()));
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_get_holecards_idxs() -> Result<()> {
     let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
     let mut alice = TestClient::player("Alice");
@@ -148,7 +247,7 @@ fn test_runner() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Bob".to_string(),
                 position: 1usize,
-                timeout: 30_000u64,
+                clock: 30_000u64,
             })
         );
     }
@@ -352,7 +451,7 @@ fn test_play_game() -> Result<()> {
                 Some(ActingPlayer {
                     addr: "Carol".to_string(),
                     position: 2usize,
-                    timeout: 30_000u64
+                    clock: 30_000u64
                 })
             );
         }

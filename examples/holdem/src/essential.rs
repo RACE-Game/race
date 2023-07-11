@@ -24,8 +24,9 @@ pub enum PlayerStatus {
 pub struct Player {
     pub addr: String,
     pub chips: u64,
-    pub position: usize, // zero indexed
+    pub position: usize,        // zero indexed
     pub status: PlayerStatus,
+    pub timeout: u8,            // count the times of action timeout
 }
 
 impl PartialEq for Player {
@@ -41,6 +42,7 @@ impl Player {
             chips,
             position: position as usize,
             status: PlayerStatus::default(),
+            timeout: 0,
         }
     }
 
@@ -50,6 +52,7 @@ impl Player {
             chips,
             position: position as usize,
             status: PlayerStatus::Init,
+            timeout: 0,
         }
     }
 
@@ -86,7 +89,7 @@ impl Player {
 pub struct ActingPlayer {
     pub addr: String,
     pub position: usize,
-    pub timeout: u64,
+    pub clock: u64,             // action clock
 }
 
 

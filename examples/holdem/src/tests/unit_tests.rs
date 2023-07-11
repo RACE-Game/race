@@ -369,7 +369,7 @@ fn test_blind_bets() -> Result<(), HandleError> {
         Some(ActingPlayer {
             addr: "Dave".to_string(),
             position: 3usize,
-            timeout: 30_000u64
+            clock: 30_000u64
         })
     );
     assert_eq!(state.bet_map.len(), 2);

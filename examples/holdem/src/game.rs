@@ -82,7 +82,7 @@ impl Holdem {
         if let Some(ActingPlayer {
             addr: _,
             position,
-            timeout: _,
+            clock: _,
         }) = self.acting_player
         {
             position
@@ -132,7 +132,7 @@ impl Holdem {
             self.acting_player = Some(ActingPlayer {
                 addr: player.addr(),
                 position: player.position,
-                timeout: effect.timestamp() + ACTION_TIMEOUT,
+                clock: effect.timestamp() + ACTION_TIMEOUT,
             });
             effect.action_timeout(player_addr, ACTION_TIMEOUT); // in secs
             Ok(())
@@ -1108,8 +1108,8 @@ impl Holdem {
 }
 
 impl GameHandler for Holdem {
-    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
-        let player_map: BTreeMap<String, Player> = init_account
+    fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
+        let mut player_map: BTreeMap<String, Player> = init_account
             .players
             .iter()
             .map(|p| {
@@ -1118,6 +1118,14 @@ impl GameHandler for Holdem {
                 (addr, player)
             })
             .collect();
+        // Kick out any players who've gotten stuck in on-chain game account
+        if !player_map.is_empty() {
+            for addr in player_map.keys() {
+                effect.settle(Settle::eject(addr));
+            }
+        }
+        player_map.clear();
+
         let HoldemAccount { sb, bb, rake } = init_account.data()?;
         Ok(Self {
             deck_random_id: 0,
@@ -1156,6 +1164,16 @@ impl GameHandler for Holdem {
                 let Some(player) = self.player_map.get_mut(&player_addr) else {
                     return Err(HandleError::Custom("Player not found in game".to_string()));
                 };
+
+                // Mark those who've reached T/O for 3 times with `Leave' status
+                if player.timeout > 2 {
+                    player.status = PlayerStatus::Leave;
+                    self.acting_player = None;
+                    self.next_state(effect)?;
+                    return Ok(());
+                } else {
+                    player.timeout += 1;
+                }
 
                 let street_bet = self.street_bet;
                 let bet = if let Some(player_bet) = self.bet_map.get(&player_addr) {
@@ -1251,8 +1269,7 @@ impl GameHandler for Holdem {
             Event::Leave { player_addr } => {
                 // TODO: Leaving is not allowed in SNG game
                 println!("== Player {} decides to leave game", player_addr);
-                match self.stage {
-                    HoldemStage::Init => {
+                match self.stage {                    HoldemStage::Init => {
                         self.player_map.remove_entry(&player_addr);
                         effect.settle(Settle::eject(&player_addr));
                         effect.wait_timeout(WAIT_TIMEOUT);

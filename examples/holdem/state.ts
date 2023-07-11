@@ -11,6 +11,9 @@ export class Player {
   @field('u8')
   status!: number;
 
+  @field('u8')
+  timeout!: number;
+
   constructor(fields: any) {
     Object.assign(this, fields)
   }
@@ -24,7 +27,7 @@ export class ActingPlayer {
   position!: number;
 
   @field('u64')
-  timeout!: bigint;
+  clock!: bigint;
 
   constructor(fields: any) {
     Object.assign(this, fields);
