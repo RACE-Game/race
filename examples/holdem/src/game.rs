@@ -382,7 +382,7 @@ impl Holdem {
     pub fn count_ingame_players(&self) -> usize {
         self.player_map
             .values()
-            .filter(|p| p.status != PlayerStatus::Init && p.status != PlayerStatus::Leave)
+            .filter(|p| p.status != PlayerStatus::Init)
             .count()
     }
 
@@ -411,6 +411,7 @@ impl Holdem {
                 println!("== Board is {:?}", self.board);
             }
 
+            // For Runner, update 5 community cards at once
             Street::Showdown => {
                 self.board.clear();
                 let decryption = effect.get_revealed(self.deck_random_id)?;
@@ -1340,16 +1341,16 @@ impl GameHandler for Holdem {
                             for i in players_cnt..(players_cnt + 3) {
                                 if let Some(card) = decryption.get(&i) {
                                     self.board.push(card.clone());
-                                    self.display.push(Display::DealBoard {
-                                        prev: board_prev_cnt,
-                                        board: self.board.clone(),
-                                    });
                                 } else {
                                     return Err(HandleError::Custom(
                                         "Failed to reveal the 3 flop cards".to_string(),
                                     ));
                                 }
                             }
+                            self.display.push(Display::DealBoard {
+                                prev: board_prev_cnt,
+                                board: self.board.clone(),
+                            });
 
                             self.next_state(effect)?;
                         }
@@ -1412,11 +1413,10 @@ impl GameHandler for Holdem {
 
                 // Ending, comparing cards
                 HoldemStage::Runner => {
-                    self.update_board(effect)?;
-                    let board_prev_cnt = self.board.len();
                     self.display.clear();
+                    self.update_board(effect)?;
                     self.display.push(Display::DealBoard {
-                        prev: board_prev_cnt,
+                        prev: 0,
                         board: self.board.clone(),
                     });
                     self.settle(effect)?;
@@ -1426,14 +1426,8 @@ impl GameHandler for Holdem {
                 }
 
                 HoldemStage::Showdown => {
-                    let board_prev_cnt = self.board.len();
                     self.display.clear();
-                    self.display.push(Display::DealBoard {
-                        prev: board_prev_cnt,
-                        board: self.board.clone(),
-                    });
                     self.settle(effect)?;
-
                     effect.wait_timeout(WAIT_TIMEOUT);
                     Ok(())
                 }

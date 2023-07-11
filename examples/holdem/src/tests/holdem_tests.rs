@@ -182,8 +182,25 @@ fn test_runner() -> Result<()> {
         assert_eq!(alice.status, PlayerStatus::Winner);
         assert_eq!(bob.status, PlayerStatus::Winner);
 
+        println!("-- Display {:?}", state.display);
         assert_eq!(state.board.len(), 5);
         assert!(state.display.len() >= 1);
+        assert!(state.display.contains(&Display::DealBoard {
+            prev: 0,
+            board: vec![
+                "s5".to_string(),
+                "c6".to_string(),
+                "h2".to_string(),
+                "h8".to_string(),
+                "d7".to_string(),
+            ]
+        }));
+        assert!(state.display.contains(&Display::AwardPots {
+            pots: vec![AwardPot {
+                winners: vec!["Bob".to_string(), "Alice".to_string()],
+                amount: 20000
+            }]
+        }))
     }
 
     Ok(())
@@ -255,7 +272,9 @@ fn test_play_game() -> Result<()> {
 
         // UTG decides to leave
         println!("Dave is going to leave");
-        let dave_leave = Event::Leave {player_addr: "Dave".to_string()};
+        let dave_leave = Event::Leave {
+            player_addr: "Dave".to_string(),
+        };
         handler.handle_until_no_events(
             &mut ctx,
             &dave_leave,
@@ -365,6 +384,11 @@ fn test_play_game() -> Result<()> {
             assert_eq!(state.pots.len(), 1);
             assert_eq!(state.pots[0].amount, 80);
             assert_eq!(state.pots[0].owners.len(), 4);
+            println!("-- Display {:?}", state.display);
+            assert!(state.display.contains(&Display::DealBoard {
+                prev: 0,
+                board: vec!["s5".to_string(), "c6".to_string(), "h2".to_string(),]
+            }));
         }
 
         // Frank Joins:
@@ -478,6 +502,24 @@ fn test_play_game() -> Result<()> {
             assert!(state.pots[0].owners.contains(&"Bob".to_string()));
             assert!(state.pots[0].owners.contains(&"Carol".to_string()));
             assert!(state.pots[0].owners.contains(&"Eva".to_string()));
+            assert_eq!(
+                state.board,
+                vec![
+                    "s5".to_string(),
+                    "c6".to_string(),
+                    "h2".to_string(),
+                    "h8".to_string(),
+                ]
+            );
+            assert!(state.display.contains(&Display::DealBoard {
+                prev: 3,
+                board: vec![
+                    "s5".to_string(),
+                    "c6".to_string(),
+                    "h2".to_string(),
+                    "h8".to_string(),
+                ]
+            }));
         }
 
         // Bob (SB) decides to c-bet 1BB
@@ -593,6 +635,26 @@ fn test_play_game() -> Result<()> {
             assert!(state.pots[0].owners.contains(&"Alice".to_string()));
             assert!(state.pots[0].owners.contains(&"Bob".to_string()));
             assert!(state.pots[0].owners.contains(&"Carol".to_string()));
+            assert_eq!(
+                state.board,
+                vec![
+                    "s5".to_string(),
+                    "c6".to_string(),
+                    "h2".to_string(),
+                    "h8".to_string(),
+                    "d7".to_string(),
+                ]
+            );
+            assert!(state.display.contains(&Display::DealBoard {
+                prev: 4,
+                board: vec![
+                    "s5".to_string(),
+                    "c6".to_string(),
+                    "h2".to_string(),
+                    "h8".to_string(),
+                    "d7".to_string(),
+                ]
+            }));
         }
 
         // Bob continues to bet
