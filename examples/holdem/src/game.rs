@@ -1209,11 +1209,7 @@ impl GameHandler for Holdem {
                     player.status = PlayerStatus::Wait;
                 }
 
-                let next_btn = self.get_next_btn()?;
-                println!("Next BTN: {}", next_btn);
-
                 if effect.count_players() >= 2 && effect.count_servers() >= 1 {
-                    self.btn = next_btn;
                     effect.start_game();
                 }
 
@@ -1262,6 +1258,10 @@ impl GameHandler for Holdem {
 
             Event::GameStart { .. } => {
                 self.display.clear();
+
+                let next_btn = self.get_next_btn()?;
+                println!("Next BTN: {}", next_btn);
+                self.btn = next_btn;
 
                 let player_num = self.player_map.len();
                 println!("== {} players in game", player_num);

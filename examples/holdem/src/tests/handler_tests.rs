@@ -33,15 +33,15 @@ fn test_preflop_fold() -> CoreResult<()> {
     {
         let state = handler.get_state();
         assert_eq!(state.street, Street::Preflop);
-        assert_eq!(state.btn, 0);
-        assert!(state.is_acting_player(&"Bob".to_string()));
+        assert_eq!(state.btn, 1);
+        assert!(state.is_acting_player(&"Alice".to_string()));
     }
 
-    // SB (Bob) folds so BB Alice, the single player, wins
-    let bob_fold = bob.custom_event(GameEvent::Fold);
+    // SB(Alice) folds so BB(Bob), the single player, wins
+    let alice_fold = alice.custom_event(GameEvent::Fold);
     handler.handle_until_no_events(
         &mut ctx,
-        &bob_fold,
+        &alice_fold,
         vec![&mut alice, &mut bob, &mut transactor],
     )?;
 
@@ -51,8 +51,9 @@ fn test_preflop_fold() -> CoreResult<()> {
         let bob = state.player_map.get("Bob").unwrap();
         // Street should remain unchanged
         assert_eq!(state.street, Street::Preflop);
-        assert_eq!(alice.chips, 10_010);
-        assert_eq!(bob.chips, 9990);
+        assert_eq!(alice.chips, 9990);
+        assert_eq!(bob.chips, 10_010);
+        assert_eq!(state.player_map.get("Bob").unwrap().status, PlayerStatus::Winner);
     }
 
     // Game should be able to start again
