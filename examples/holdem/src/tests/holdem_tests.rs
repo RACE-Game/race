@@ -878,7 +878,7 @@ fn test_play_game() -> Result<()> {
             assert_eq!(state.btn, 1);
             assert_eq!(state.player_map.len(), 5);
             // Player order has not been cleared yet
-            assert_eq!(state.player_order.len(), 5);
+            assert_eq!(state.player_order.len(), 0);
         }
 
         // Handle GameStart

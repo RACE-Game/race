@@ -1202,8 +1202,8 @@ impl GameHandler for Holdem {
             }
 
             Event::WaitingTimeout => {
-                self.stage = HoldemStage::Init;
                 self.display.clear();
+                self.reset_holdem_state()?;
 
                 for player in self.player_map.values_mut() {
                     player.status = PlayerStatus::Wait;
@@ -1262,7 +1262,6 @@ impl GameHandler for Holdem {
 
             Event::GameStart { .. } => {
                 self.display.clear();
-                self.reset_holdem_state()?;
 
                 let player_num = self.player_map.len();
                 println!("== {} players in game", player_num);
