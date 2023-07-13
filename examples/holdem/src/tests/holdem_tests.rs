@@ -161,6 +161,160 @@ fn test_eject_timeout() -> Result<()> {
 }
 
 #[test]
+fn test_eject_loser() -> Result<()> {
+    let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
+    let mut alice = TestClient::player("Alice");
+    let mut bob = TestClient::player("Bob");
+    let mut charlie = TestClient::player("Charlie");
+
+    let sync_evt = create_sync_event(&ctx, &[&alice, &bob, &charlie], &transactor);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &sync_evt,
+        vec![&mut alice, &mut bob, &mut charlie, &mut transactor],
+    )?;
+    {
+        let state = handler.get_state();
+        assert_eq!(state.street, Street::Preflop);
+        assert_eq!(state.stage, HoldemStage::Play);
+        assert_eq!(
+            state.player_order,
+            vec![
+                "Charlie".to_string(), // SB
+                "Alice".to_string(),   // BB
+                "Bob".to_string()      // BTN
+            ]
+        );
+        assert_eq!(
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Bob".to_string(),
+                position: 1,
+                clock: 30_000
+            })
+        );
+    }
+
+    // Pin the settle result for test purposes
+    let runner_revealed = HashMap::from([
+        // Alice
+        (0, "st".to_string()),
+        (1, "ct".to_string()),
+        // Bob
+        (2, "ht".to_string()),
+        (3, "dq".to_string()),
+        // Charlie
+        (4, "s2".to_string()),
+        (5, "d5".to_string()),
+        // Board
+        (6, "s5".to_string()),
+        (7, "c6".to_string()),
+        (8, "h2".to_string()),
+        (9, "h8".to_string()),
+        (10, "d7".to_string()),
+    ]);
+    let holdem_state = handler.get_state();
+    ctx.add_revealed_random(holdem_state.deck_random_id, runner_revealed)?;
+    println!(
+        "-- Cards {:?}",
+        ctx.get_revealed(holdem_state.deck_random_id)?
+    );
+
+    // BTN goes all in
+    let bob_allin = bob.custom_event(GameEvent::Raise(10_000));
+    handler.handle_until_no_events(
+        &mut ctx,
+        &bob_allin,
+        vec![&mut alice, &mut bob, &mut charlie, &mut transactor],
+    )?;
+
+    {
+        let state = handler.get_state();
+        assert_eq!(
+            state.player_map.get("Bob").unwrap().status,
+            PlayerStatus::Allin
+        );
+        assert_eq!(state.street_bet, 10_000);
+        assert_eq!(state.min_raise, 9980);
+        assert_eq!(
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Charlie".to_string(),
+                position: 2,
+                clock: 30_000
+            })
+        );
+    }
+
+    // SB folds,
+    let charlie_fold = charlie.custom_event(GameEvent::Fold);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &charlie_fold,
+        vec![&mut alice, &mut bob, &mut charlie, &mut transactor],
+    )?;
+    {
+        let state = handler.get_state();
+        assert_eq!(
+            state.player_map.get("Charlie").unwrap().status,
+            PlayerStatus::Fold
+        );
+        assert_eq!(
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Alice".to_string(),
+                position: 0,
+                clock: 30_000
+            })
+        );
+    }
+
+    // BB chooses to make a hero call
+    let alice_allin = alice.custom_event(GameEvent::Call);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &alice_allin,
+        vec![&mut alice, &mut bob, &mut charlie, &mut transactor],
+    )?;
+
+    // Game enters Runner and Alice wins
+    {
+        let state = handler.get_state();
+        assert_eq!(state.stage, HoldemStage::Runner);
+        assert_eq!(state.street, Street::Showdown);
+        assert_eq!(state.street_bet, 0);
+        assert_eq!(state.min_raise, 0);
+        assert_eq!(state.player_map.len(), 3);
+        assert_eq!(state.acting_player, None);
+        for player in state.player_map.values() {
+            if player.addr == "Charlie".to_string() {
+                assert_eq!(player.status, PlayerStatus::Fold);
+            } else if player.addr == "Bob".to_string()  {
+                assert_eq!(player.status, PlayerStatus::Out);
+                assert_eq!(player.chips, 0);
+            } else {
+                assert_eq!(player.status, PlayerStatus::Winner);
+                assert_eq!(player.chips, 20_010);
+            }
+        }
+    }
+
+    // Handle the Waitimeout Event
+    handler.handle_dispatch_event(&mut ctx)?;
+
+    // Game should start again and Bob gets removed from player map
+    {
+        let state = handler.get_state();
+        assert_eq!(state.player_map.len(), 2);
+        assert!(!state.player_map.contains_key(&"Bob".to_string()));
+        assert_eq!(state.stage, HoldemStage::Init);
+        assert_eq!(state.street, Street::Init);
+        assert!(state.player_map.values().all(|p| p.status == PlayerStatus::Wait));
+    }
+    Ok(())
+}
+
+#[test]
 fn test_player_leave() -> Result<()> {
     let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
     let mut alice = TestClient::player("Alice");
@@ -371,6 +525,94 @@ fn test_runner() -> Result<()> {
                 amount: 20000
             }]
         }))
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_settle_stage() -> Result<()> {
+    let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
+    let mut alice = TestClient::player("Alice");
+    let mut bob = TestClient::player("Bob");
+    let mut charlie = TestClient::player("Charlie");
+    let sync_evt = create_sync_event(&ctx, &[&alice, &bob, &charlie], &transactor);
+
+    // Syncing players to the game, i.e. they join the game and game kicks start
+    handler.handle_until_no_events(
+        &mut ctx,
+        &sync_evt,
+        vec![&mut alice, &mut bob, &mut charlie, &mut transactor],
+    )?;
+
+    {
+        let state = handler.get_state();
+        assert_eq!(state.street, Street::Preflop);
+        assert_eq!(state.stage, HoldemStage::Play);
+        assert_eq!(state.street_bet, 20);
+        assert_eq!(state.min_raise, 20);
+        assert_eq!(
+            state.player_order,
+            vec![
+                "Charlie".to_string(), // SB
+                "Alice".to_string(),   // BB
+                "Bob".to_string()      // BTN
+            ]
+        );
+        assert_eq!(
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Bob".to_string(),
+                position: 1,
+                clock: 30_000
+            })
+        );
+    }
+
+    // BTN and SB all decide to fold so BB (single player) wins
+    let bob_fold = bob.custom_event(GameEvent::Fold);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &bob_fold,
+        vec![&mut alice, &mut bob, &mut charlie, &mut transactor],
+    )?;
+
+    {
+        let state = handler.get_state();
+        assert_eq!(
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Charlie".to_string(),
+                position: 2,
+                clock: 30_000
+            })
+        );
+        assert_eq!(state.street_bet, 20);
+        assert_eq!(state.min_raise, 20);
+    }
+
+    let charlie_fold = charlie.custom_event(GameEvent::Fold);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &charlie_fold,
+        vec![&mut alice, &mut bob, &mut charlie, &mut transactor],
+    )?;
+
+    // Game then should enter into `Settle' stage
+    {
+        let state = handler.get_state();
+        assert_eq!(state.street, Street::Preflop);
+        assert_eq!(state.stage, HoldemStage::Settle);
+        assert_eq!(state.street_bet, 0);
+        assert_eq!(state.min_raise, 0);
+        assert_eq!(state.acting_player, None);
+        for player in state.player_map.values() {
+            if player.addr == "Charlie".to_string() || player.addr == "Bob".to_string() {
+                assert!(matches!(player.status, PlayerStatus::Fold));
+            } else {
+                assert_eq!(player.status, PlayerStatus::Winner);
+            }
+        }
     }
 
     Ok(())

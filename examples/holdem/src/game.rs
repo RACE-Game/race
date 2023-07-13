@@ -36,12 +36,42 @@ pub struct Holdem {
 
 // Methods that mutate or query the game state
 impl Holdem {
-    fn reset_holdem_state(&mut self) -> Result<(), HandleError> {
-        self.street = Street::Init;
-        self.stage = HoldemStage::Init;
+    // Remove players with `Out' status
+    fn remove_out_players(&mut self) -> Result<(), HandleError> {
+        let to_remove: Vec<String> = self
+            .player_map
+            .values()
+            .filter(|p| p.status == PlayerStatus::Out)
+            .map(|p| p.addr())
+            .collect();
+
+        for player in to_remove.into_iter() {
+            self.player_map.remove_entry(&player);
+        }
+
+        Ok(())
+    }
+
+    // Make All eligible players Wait
+    fn reset_player_map_status(&mut self) -> Result<(), HandleError> {
+        for player in self.player_map.values_mut() {
+            player.status = PlayerStatus::Wait;
+        }
+        Ok(())
+    }
+
+    // Clear data that don't belong to a running game, indicating game end
+    fn signal_game_end(&mut self) -> Result<(), HandleError> {
         self.street_bet = 0;
         self.min_raise = 0;
         self.acting_player = None;
+
+        Ok(())
+    }
+
+    fn reset_holdem_state(&mut self) -> Result<(), HandleError> {
+        self.street = Street::Init;
+        self.stage = HoldemStage::Init;
         self.pots = Vec::<Pot>::new();
         self.board = Vec::<String>::with_capacity(5);
         self.player_order = Vec::<String>::new();
@@ -629,11 +659,20 @@ impl Holdem {
             }
         }
 
-        // Eject those whose lost all their chips or has left
+        // Mark and eject those who have lost all their chips with status `Out'
+        // They will remain in player map to help UI and be removed later
+        for player in self.player_map.values_mut() {
+            if player.chips == 0 {
+                player.status = PlayerStatus::Out;
+                effect.settle(Settle::eject(&player.addr));
+            }
+        }
+
+        // Eject those who have decided to leave
         let to_eject: Vec<String> = self
             .player_map
             .values()
-            .filter(|p| p.chips == 0 || p.status == PlayerStatus::Leave)
+            .filter(|p| p.status == PlayerStatus::Leave)
             .map(|p| p.addr())
             .collect();
 
@@ -744,11 +783,20 @@ impl Holdem {
                 effect.settle(Settle::sub(player, -*chips_change as u64))
             }
         }
+
+        // Mark those who have lost all their chips
+        for player in self.player_map.values_mut() {
+            if player.chips == 0 {
+                player.status = PlayerStatus::Out;
+                effect.settle(Settle::eject(&player.addr));
+            }
+        }
+
         // Eject those whose lost all chips
         let to_eject: Vec<String> = self
             .player_map
             .values()
-            .filter(|p| p.chips == 0 || p.status == PlayerStatus::Leave)
+            .filter(|p| p.status == PlayerStatus::Leave)
             .map(|p| p.addr())
             .collect();
 
@@ -804,19 +852,21 @@ impl Holdem {
         }
         // Single player wins because there is one player only
         else if ingame_players.len() == 1 {
-            self.acting_player = None;
+            self.stage = HoldemStage::Settle;
+            self.signal_game_end()?;
             let Some(winner) = ingame_players.first() else {
                 return Err(HandleError::Custom(
                     "Failed to get the only player".to_string()
                 ));
             };
-            println!("[Next State]: Single winner : {}", winner);
+            println!("[Next State]: Single winner: {}", winner);
             self.single_player_win(effect, winner.clone())?;
             Ok(())
         }
         // Single players wins because others all folded
         else if players_to_stay.len() == 1 {
-            self.acting_player = None;
+            self.stage = HoldemStage::Settle;
+            self.signal_game_end()?;
             let Some(winner) = players_to_stay.first() else {
                 return Err(HandleError::Custom(
                     "Failed to get the single winner left".to_string()
@@ -850,7 +900,7 @@ impl Holdem {
             println!("[Next State]: Runner");
             self.street = Street::Showdown;
             self.stage = HoldemStage::Runner;
-            self.acting_player = None;
+            self.signal_game_end()?;
             self.collect_bets()?;
 
             // Reveal all cards for eligible players: not folded and without init status
@@ -882,7 +932,7 @@ impl Holdem {
             println!("[Next State]: Showdown");
             self.stage = HoldemStage::Showdown;
             self.street = Street::Showdown;
-            self.acting_player = None;
+            self.signal_game_end()?;
             self.collect_bets()?;
 
             // Reveal players' hole cards
@@ -1203,11 +1253,9 @@ impl GameHandler for Holdem {
 
             Event::WaitingTimeout => {
                 self.display.clear();
+                self.remove_out_players()?;
                 self.reset_holdem_state()?;
-
-                for player in self.player_map.values_mut() {
-                    player.status = PlayerStatus::Wait;
-                }
+                self.reset_player_map_status()?;
 
                 if effect.count_players() >= 2 && effect.count_servers() >= 1 {
                     effect.start_game();
@@ -1276,7 +1324,7 @@ impl GameHandler for Holdem {
                 // TODO: Leaving is not allowed in SNG game
                 println!("== Player {} decides to leave game", player_addr);
                 match self.stage {
-                    HoldemStage::Init => {
+                    HoldemStage::Init | HoldemStage::Settle => {
                         self.player_map.remove_entry(&player_addr);
                         effect.settle(Settle::eject(&player_addr));
                         effect.wait_timeout(WAIT_TIMEOUT);

@@ -18,6 +18,7 @@ pub enum PlayerStatus {
     Init,            // Indicating new players ready for the next hand
     Winner,
     Leave,
+    Out,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
@@ -135,6 +136,7 @@ pub enum HoldemStage {
     ShareKey,
     Play,
     Runner,
+    Settle,
     Showdown,
 }
 
