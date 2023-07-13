@@ -31,6 +31,7 @@ pub struct Holdem {
     pub player_order: Vec<String>,
     pub pots: Vec<Pot>,
     pub acting_player: Option<ActingPlayer>,
+    pub winners: Vec<String>,
     pub display: Vec<Display>,
 }
 
@@ -85,15 +86,23 @@ impl Holdem {
     fn next_action_player(&mut self, next_players: Vec<&String>) -> Option<String> {
         for addr in next_players {
             if let Some(player) = self.player_map.get(addr) {
-                if let Some(bet) = self.bet_map.get(addr) {
-                    if *bet < self.street_bet || player.status == PlayerStatus::Wait {
-                        println!("== {} current bet amount {}", addr, bet);
-                        println!("== Current street bet: {}", self.street_bet);
-                        println!("== The next to act is: {}", addr);
+                match self.bet_map.get(addr) {
+                    Some(bet) => {
+                        if *bet < self.street_bet || player.status == PlayerStatus::Wait {
+                            println!("== {} current bet amount {}", addr, bet);
+                            println!("== Current street bet: {}", self.street_bet);
+                            println!(
+                                "== {} needs to call at least {}",
+                                addr,
+                                self.street_bet - bet
+                            );
+                            return Some(addr.clone());
+                        }
+                    }
+                    // bet == 0 which still meets bet < street_bet
+                    None => {
                         return Some(addr.clone());
                     }
-                } else if player.status == PlayerStatus::Wait {
-                    return Some(addr.clone());
                 }
             };
         }
@@ -616,7 +625,7 @@ impl Holdem {
         let mut chips_changes = Vec::<ChipsChange>::new();
 
         for (addr, change) in chips_change_map.iter() {
-            let Some(chips_after_bet) = tmp_chips_map.get(addr) else {
+            let Some(current_chips) = tmp_chips_map.get(addr) else {
                 return Err(HandleError::Custom(
                     "Player did not bet but chips changed".to_string()
                 ));
@@ -625,12 +634,21 @@ impl Holdem {
             if *change > 0i64 {
                 let change = ChipsChange {
                     addr: addr.clone(),
-                    before: *chips_after_bet,
-                    after: *chips_after_bet + *change as u64,
+                    before: *current_chips,
+                    after: *current_chips + *change as u64,
                 };
                 chips_changes.push(change);
             }
         }
+
+        // Store winners and chips changes for UI
+        let winners = chips_change_map
+            .iter()
+            .filter(|(_, change)| **change > 0)
+            .map(|(addr, _)| addr.clone())
+            .collect::<Vec<String>>();
+        self.winners = winners;
+
         self.display.push(Display::ChangeChips {
             changes: chips_changes,
         });
@@ -837,7 +855,7 @@ impl Holdem {
             }
         }
 
-        println!("Players to act are: {:?}", players_to_act);
+        println!("== Players to act are: {:?}", players_to_act);
 
         let next_player = self.next_action_player(players_to_act);
         let new_street = self.next_street();
@@ -1201,6 +1219,7 @@ impl GameHandler for Holdem {
             player_order: Vec::<String>::new(),
             pots: Vec::<Pot>::new(),
             acting_player: None,
+            winners: Vec::<String>::new(),
             display: Vec::<Display>::new(),
         })
     }

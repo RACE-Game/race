@@ -289,7 +289,7 @@ fn test_eject_loser() -> Result<()> {
         for player in state.player_map.values() {
             if player.addr == "Charlie".to_string() {
                 assert_eq!(player.status, PlayerStatus::Fold);
-            } else if player.addr == "Bob".to_string()  {
+            } else if player.addr == "Bob".to_string() {
                 assert_eq!(player.status, PlayerStatus::Out);
                 assert_eq!(player.chips, 0);
             } else {
@@ -309,7 +309,10 @@ fn test_eject_loser() -> Result<()> {
         assert!(!state.player_map.contains_key(&"Bob".to_string()));
         assert_eq!(state.stage, HoldemStage::Init);
         assert_eq!(state.street, Street::Init);
-        assert!(state.player_map.values().all(|p| p.status == PlayerStatus::Wait));
+        assert!(state
+            .player_map
+            .values()
+            .all(|p| p.status == PlayerStatus::Wait));
     }
     Ok(())
 }
@@ -355,6 +358,7 @@ fn test_player_leave() -> Result<()> {
 
     {
         let state = handler.get_state();
+        println!("-- Display {:?}", state.display);
         assert_eq!(state.player_map.len(), 1);
         assert_eq!(
             state.player_map.get("Bob").unwrap().status,
@@ -377,7 +381,8 @@ fn test_player_leave() -> Result<()> {
 
     {
         let state = handler.get_state();
-        println!("state {:?}", state);
+        println!("-- State {:?}", state);
+        println!("-- Display {:?}", state.display);
         assert_eq!(state.player_map.len(), 0);
     }
 
@@ -613,11 +618,98 @@ fn test_settle_stage() -> Result<()> {
                 assert_eq!(player.status, PlayerStatus::Winner);
             }
         }
+        assert_eq!(state.winners, vec!["Alice".to_string()]);
     }
 
     Ok(())
 }
 
+#[test]
+#[ignore]
+// For debugging purposes only
+fn test_abnormal_street() -> Result<()> {
+    let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
+    let mut alice = TestClient::player("Alice");
+    let mut bob = TestClient::player("Bob");
+    let sync_evt = create_sync_event(&ctx, &[&alice, &bob], &transactor);
+
+    handler.handle_until_no_events(
+        &mut ctx,
+        &sync_evt,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+
+    {
+        let state = handler.get_state();
+        assert_eq!(state.street, Street::Preflop);
+        assert_eq!(
+            state.player_order,
+            vec!["Alice".to_string(), "Bob".to_string(),]
+        );
+        assert_eq!(
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Alice".to_string(),
+                position: 0,
+                clock: 30_000
+            })
+        );
+    }
+    // SB calls and BB checks --> Flop
+    let sb_call = alice.custom_event(GameEvent::Call);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &sb_call,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+
+    let bb_check = bob.custom_event(GameEvent::Check);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &bb_check,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+
+    {
+        let state = handler.get_state();
+        println!("-- Bet map {:?}", state.bet_map);
+        assert_eq!(state.street, Street::Flop);
+        assert_eq!(
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Alice".to_string(),
+                position: 0,
+                clock: 30_000
+            })
+        );
+    }
+
+    // To reproduce the bug, in flop, player A checks and player B bets,
+    // Expected: game remains in flop and player A is asked to act
+    // Got: game enters turn
+    let sb_check = alice.custom_event(GameEvent::Check);
+    handler.handle_until_no_events(
+        &mut ctx,
+        &sb_check,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+
+    let bb_bet = bob.custom_event(GameEvent::Bet(40));
+    handler.handle_until_no_events(
+        &mut ctx,
+        &bb_bet,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+
+    {
+        let state = handler.get_state();
+        assert_eq!(state.player_map.get("Bob").unwrap().chips, 9940);
+        println!("-- State {:?}", state);
+        assert_eq!(state.street, Street::Flop);
+    }
+
+    Ok(())
+}
 #[test]
 #[ignore]
 fn test_play_game() -> Result<()> {

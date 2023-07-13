@@ -141,6 +141,7 @@ pub fn setup_holdem_state() -> Result<Holdem> {
         player_order: Vec::<String>::new(),
         pots: Vec::<Pot>::new(),
         acting_player: None,
+        winners: Vec::<String>::new(),
         display: Vec::<Display>::new(),
     };
     state.arrange_players(0usize)?;
@@ -168,6 +169,7 @@ pub fn setup_two_player_holdem() -> Result<Holdem> {
         player_order: Vec::<String>::new(),
         pots: Vec::<Pot>::new(),
         acting_player: None,
+        winners: Vec::<String>::new(),
         display: Vec::<Display>::new(),
     };
     state.arrange_players(0usize)?;
