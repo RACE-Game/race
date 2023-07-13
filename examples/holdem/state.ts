@@ -177,6 +177,9 @@ export class Holdem {
   @field(option(struct(ActingPlayer)))
   actingPlayer!: ActingPlayer | undefined;
 
+  @field(array('string'))
+  winners!: string[];
+
   @field(array(enum(Display)))
   display!: Display[];
 

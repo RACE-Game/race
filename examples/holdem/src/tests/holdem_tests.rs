@@ -344,6 +344,9 @@ fn test_player_leave() -> Result<()> {
                 clock: 30_000
             })
         );
+        println!("-- Display {:?}", state.display);
+        assert_eq!(state.display.len(), 1);
+        assert!(state.display.contains(&Display::DealCards));
     }
 
     // Alice (SB/BTN) is the acting player and decides to leave

@@ -1341,6 +1341,7 @@ impl GameHandler for Holdem {
 
             Event::Leave { player_addr } => {
                 // TODO: Leaving is not allowed in SNG game
+                self.display.clear();
                 println!("== Player {} decides to leave game", player_addr);
                 match self.stage {
                     HoldemStage::Init | HoldemStage::Settle => {
