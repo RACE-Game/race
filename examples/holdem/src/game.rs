@@ -53,6 +53,18 @@ impl Holdem {
         Ok(())
     }
 
+    // fn remove_leave_players(&mut self) -> Result<(), HandleError> {
+    //     // Eject those who have decided to leave
+    //     let to_eject: Vec<String> = self
+    //         .player_map
+    //         .values()
+    //         .filter(|p| p.status == PlayerStatus::Leave)
+    //         .map(|p| p.addr())
+    //         .collect();
+    //
+    //     Ok(())
+    // }
+
     // Make All eligible players Wait
     fn reset_player_map_status(&mut self) -> Result<(), HandleError> {
         for player in self.player_map.values_mut() {
@@ -788,6 +800,7 @@ impl Holdem {
         }
 
         println!("== Player rankings in order: {:?}", winners);
+
         self.assign_winners(winners)?;
         self.calc_prize()?;
         self.apply_prize()?;
@@ -855,10 +868,11 @@ impl Holdem {
             }
         }
 
-        println!("== Players to act are: {:?}", players_to_act);
-
         let next_player = self.next_action_player(players_to_act);
-        let new_street = self.next_street();
+        println!("== Next player is: {:?}", next_player);
+
+        let next_street = self.next_street();
+        println!("== Next street is: {:?}", next_street);
 
         println!("== Current GAME BETS are {:?}", self.bet_map);
 
@@ -940,9 +954,9 @@ impl Holdem {
             Ok(())
         }
         // Next Street
-        else if new_street != Street::Showdown {
-            println!("[Next State]: Move to next street: {:?}", new_street);
-            self.change_street(effect, new_street)?;
+        else if next_street != Street::Showdown {
+            println!("[Next State]: Move to next street: {:?}", next_street);
+            self.change_street(effect, next_street)?;
             Ok(())
         }
         // Showdown
@@ -1064,41 +1078,51 @@ impl Holdem {
                 }
                 match self.street {
                     Street::Preflop => {
-                        if let Some(player_bet) = self.bet_map.get(&sender) {
-                            if self.street_bet != *player_bet {
-                                return Err(HandleError::Custom("Player can't check".to_string()));
+                        match self.bet_map.get(&sender) {
+                            Some(player_bet) => {
+                                if self.street_bet != *player_bet {
+                                    return Err(HandleError::Custom(
+                                        "Player can't check because of not enough bet".to_string(),
+                                    ));
+                                } else {
+                                    let Some(player) = self.player_map.get_mut(&sender) else {
+                                        return Err(HandleError::Custom(
+                                            "Player not found [Check, Preflop]".to_string(),
+                                        ));
+                                    };
+                                    player.status = PlayerStatus::Acted;
+                                    self.next_state(effect)?;
+                                    Ok(())
+                                }
                             }
 
-                            if let Some(player) = self.player_map.get_mut(&sender) {
-                                player.status = PlayerStatus::Acted;
-                                self.next_state(effect)?;
-                                Ok(())
-                            } else {
+                            // Player has not betted in preflop
+                            None => {
                                 return Err(HandleError::Custom(
-                                    "Player not found [Check, Preflop]".to_string(),
+                                    "Player has not betted in Preflop so can't check".to_string(),
                                 ));
                             }
-                        } else {
-                            return Err(HandleError::Custom("Player hasnt bet yet".to_string()));
                         }
                     }
-
                     Street::Flop | Street::Turn | Street::River => {
+                        let Some(player) = self.player_map.get_mut(&sender) else {
+                            return Err(HandleError::Custom(
+                                "Player not found [Check, Flop|Turn|River]".to_string()
+                            ));
+                        };
+
                         if self.bet_map.is_empty() {
-                            let Some(player) = self.player_map.get_mut(&sender) else {
-                                return Err(HandleError::Custom(
-                                    "Player not found [Check, Flop|Turn|River]".to_string()
-                                ));
-                            };
                             player.status = PlayerStatus::Acted;
                             self.next_state(effect)?;
                             Ok(())
                         } else {
-                            return Err(HandleError::Custom("Player hasnt bet yet".to_string()));
+                            return Err(HandleError::Custom(
+                                "Player hasnt bet yet so cant check".to_string(),
+                            ));
                         }
                     }
                     _ => Err(HandleError::Custom(
-                        "Invalid Street so player can't check".to_string(),
+                        "Invalid street and not betting allowed".to_string(),
                     )),
                 }
             }
@@ -1343,46 +1367,45 @@ impl GameHandler for Holdem {
                 // TODO: Leaving is not allowed in SNG game
                 self.display.clear();
                 println!("== Player {} decides to leave game", player_addr);
+
+                let Some(leaving_player) = self.player_map.get_mut(&player_addr) else {
+                    return Err(HandleError::Custom(
+                        "Player not found in game [Leave]".to_string()
+                    ));
+                };
+                leaving_player.status = PlayerStatus::Leave;
+
+                let remained_players: Vec<String> = self
+                    .player_map
+                    .values()
+                    .filter(|p| {
+                        matches!(
+                            p.status,
+                            PlayerStatus::Allin
+                                | PlayerStatus::Acted
+                                | PlayerStatus::Acting
+                                | PlayerStatus::Wait
+                        )
+                    })
+                    .map(|p| p.addr())
+                    .collect();
+
                 match self.stage {
-                    HoldemStage::Init | HoldemStage::Settle => {
+                    HoldemStage::Init => {
                         self.player_map.remove_entry(&player_addr);
                         effect.settle(Settle::eject(&player_addr));
                         effect.wait_timeout(WAIT_TIMEOUT);
                     }
 
-                    HoldemStage::ShareKey | HoldemStage::Runner | HoldemStage::Showdown => {
-                        let Some(leaving_player) = self.player_map.get_mut(&player_addr) else {
-                            return Err(HandleError::Custom(
-                                "Player not found in game [Leave]".to_string()
-                            ));
-                        };
-                        leaving_player.status = PlayerStatus::Leave;
+                    HoldemStage::ShareKey
+                    | HoldemStage::Runner
+                    | HoldemStage::Showdown
+                    | HoldemStage::Settle => {
+                        self.player_map.remove_entry(&player_addr);
+                        effect.settle(Settle::eject(&player_addr));
                     }
 
                     HoldemStage::Play => {
-                        let Some(leaving_player) = self.player_map.get_mut(&player_addr) else {
-                                return Err(HandleError::Custom(
-                                    "Player not found in game [Leave]".to_string()
-                                ));
-                            };
-                        leaving_player.status = PlayerStatus::Leave;
-
-                        // Since game is running, remained players >= 1
-                        let remained_players: Vec<String> = self
-                            .player_map
-                            .values()
-                            .filter(|p| {
-                                matches!(
-                                    p.status,
-                                    PlayerStatus::Allin
-                                        | PlayerStatus::Acted
-                                        | PlayerStatus::Acting
-                                        | PlayerStatus::Wait
-                                )
-                            })
-                            .map(|p| p.addr())
-                            .collect();
-
                         if remained_players.len() == 1 {
                             let winner = remained_players[0].clone();
                             self.single_player_win(effect, winner)?;
@@ -1517,6 +1540,7 @@ impl GameHandler for Holdem {
                     Ok(())
                 }
 
+                // Ending, comparing cards
                 HoldemStage::Showdown => {
                     self.display.clear();
                     self.settle(effect)?;
