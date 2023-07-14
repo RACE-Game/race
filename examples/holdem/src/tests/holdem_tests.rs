@@ -43,7 +43,7 @@ fn test_players_order() -> Result<()> {
     )?;
 
     // BTN will be 1 so players should be arranged like below:
-    // Bob (SB), Carol (BB), Dave (UTG), Eva(MID), Bob(BTN)
+    // Bob (SB), Carol (BB), Dave (UTG), Eva(CO), Bob(BTN)
     {
         let state = handler.get_state();
         assert_eq!(
@@ -638,6 +638,7 @@ fn test_abnormal_street() -> Result<()> {
 
     Ok(())
 }
+
 #[test]
 #[ignore]
 fn test_play_game() -> Result<()> {
@@ -700,12 +701,12 @@ fn test_play_game() -> Result<()> {
     // ------------------------- BLIND BETS ----------------------
     {
         // BTN will be 1 so players in the order of action:
-        // Eva (UTG), Alice (MID), Bob (BTN), Carol (SB), Dave (BB)
+        // Eva (UTG), Alice (CO), Bob (BTN), Carol (SB), Dave (BB)
         // In state.player_order: [Carol, Dave, Eva, Alice, Bob]
 
         // UTG decides to leave
         let eva_leave = Event::Leave {
-            player_addr: "Carol".to_string(),
+            player_addr: "Eva".to_string(),
         };
         handler.handle_until_no_events(
             &mut ctx,
@@ -720,7 +721,7 @@ fn test_play_game() -> Result<()> {
             ],
         )?;
 
-        // MID calls
+        // CO calls
         let dave_call = dave.custom_event(GameEvent::Call);
         handler.handle_until_no_events(
             &mut ctx,

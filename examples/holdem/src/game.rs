@@ -98,30 +98,16 @@ impl Holdem {
     fn next_action_player(&mut self, next_players: Vec<&String>) -> Option<String> {
         for addr in next_players {
             if let Some(player) = self.player_map.get(addr) {
-                match self.bet_map.get(addr) {
-                    Some(bet) => {
-                        if *bet < self.street_bet || player.status == PlayerStatus::Wait {
-                            println!("== {} current bet amount {}", addr, bet);
-                            println!("== Current street bet: {}", self.street_bet);
-                            println!(
-                                "== {} needs to call at least {}",
-                                addr,
-                                self.street_bet - bet
-                            );
-                            return Some(addr.clone());
-                        }
-                    }
-                    // bet == 0 which still meets bet < street_bet
-                    None => {
-                        return Some(addr.clone());
-                    }
+                let curr_bet: u64 = self.bet_map.get(addr).map(|b| *b).unwrap_or(0);
+                if curr_bet < self.street_bet || player.status == PlayerStatus::Wait {
+                    return Some(addr.clone())
                 }
-            };
+            }
         }
         None
     }
 
-    pub fn is_acting_player(&self, player_addr: &String) -> bool {
+    pub fn is_acting_player(&self, player_addr: &str) -> bool {
         match &self.acting_player {
             Some(ActingPlayer { addr, .. }) => addr == player_addr,
             None => false,
@@ -1029,6 +1015,7 @@ impl Holdem {
 
             GameEvent::Call => {
                 if !self.is_acting_player(&sender) {
+                    println!("Current acting player: {:?}", self.acting_player);
                     return Err(HandleError::Custom(
                         "Player is NOT the acting player so can't call".to_string(),
                     ));
@@ -1076,54 +1063,20 @@ impl Holdem {
                         "Player is NOT the acting player so can't check".to_string(),
                     ));
                 }
-                match self.street {
-                    Street::Preflop => {
-                        match self.bet_map.get(&sender) {
-                            Some(player_bet) => {
-                                if self.street_bet != *player_bet {
-                                    return Err(HandleError::Custom(
-                                        "Player can't check because of not enough bet".to_string(),
-                                    ));
-                                } else {
-                                    let Some(player) = self.player_map.get_mut(&sender) else {
-                                        return Err(HandleError::Custom(
-                                            "Player not found [Check, Preflop]".to_string(),
-                                        ));
-                                    };
-                                    player.status = PlayerStatus::Acted;
-                                    self.next_state(effect)?;
-                                    Ok(())
-                                }
-                            }
 
-                            // Player has not betted in preflop
-                            None => {
-                                return Err(HandleError::Custom(
-                                    "Player has not betted in Preflop so can't check".to_string(),
-                                ));
-                            }
-                        }
-                    }
-                    Street::Flop | Street::Turn | Street::River => {
-                        let Some(player) = self.player_map.get_mut(&sender) else {
-                            return Err(HandleError::Custom(
-                                "Player not found [Check, Flop|Turn|River]".to_string()
-                            ));
-                        };
-
-                        if self.bet_map.is_empty() {
-                            player.status = PlayerStatus::Acted;
-                            self.next_state(effect)?;
-                            Ok(())
-                        } else {
-                            return Err(HandleError::Custom(
-                                "Player hasnt bet yet so cant check".to_string(),
-                            ));
-                        }
-                    }
-                    _ => Err(HandleError::Custom(
-                        "Invalid street and not betting allowed".to_string(),
-                    )),
+                // Check is only available when player's current bet equals street bet.
+                let curr_bet: u64 = self.bet_map.get(&sender).map(|x| *x).unwrap_or(0);
+                if curr_bet == self.street_bet {
+                    let Some(player) = self.player_map.get_mut(&sender) else {
+                        return Err(HandleError::Custom("Player not found".to_string()));
+                    };
+                    player.status = PlayerStatus::Acted;
+                    self.next_state(effect)?;
+                    Ok(())
+                } else {
+                    return Err(HandleError::Custom(
+                        "Player can't check because of not enough bet".to_string(),
+                    ));
                 }
             }
 
@@ -1254,6 +1207,7 @@ impl GameHandler for Holdem {
             Event::Custom { sender, raw } => {
                 self.display.clear();
                 let event: GameEvent = GameEvent::try_parse(&raw)?;
+                println!("== Player action event: {:?}, sender: {:?}", event, sender);
                 self.handle_custom_event(effect, event, sender.clone())?;
                 Ok(())
             }
@@ -1375,49 +1329,53 @@ impl GameHandler for Holdem {
                 };
                 leaving_player.status = PlayerStatus::Leave;
 
-                let remained_players: Vec<String> = self
-                    .player_map
-                    .values()
-                    .filter(|p| {
-                        matches!(
-                            p.status,
-                            PlayerStatus::Allin
-                                | PlayerStatus::Acted
-                                | PlayerStatus::Acting
-                                | PlayerStatus::Wait
-                        )
-                    })
-                    .map(|p| p.addr())
-                    .collect();
-
                 match self.stage {
-                    HoldemStage::Init => {
+                    // If current stage is not playing, the player can
+                    // leave with a settlement instantly.
+                    HoldemStage::Init
+                    | HoldemStage::Settle
+                    | HoldemStage::Runner
+                    | HoldemStage::Showdown => {
                         self.player_map.remove_entry(&player_addr);
                         effect.settle(Settle::eject(&player_addr));
                         effect.wait_timeout(WAIT_TIMEOUT);
                     }
 
-                    HoldemStage::ShareKey
-                    | HoldemStage::Runner
-                    | HoldemStage::Showdown
-                    | HoldemStage::Settle => {
-                        self.player_map.remove_entry(&player_addr);
-                        effect.settle(Settle::eject(&player_addr));
-                    }
-
-                    HoldemStage::Play => {
+                    // If current stage is playing, the player will be
+                    // marked as `Leave`.  There are 3 cases to
+                    // handle:
+                    //
+                    // 1. The leaving player is the
+                    // second last player, so the remaining player
+                    // just wins.
+                    //
+                    // 2. The leaving player is in acting.  In such
+                    // case, we just fold this player and do next
+                    // state calculation.
+                    //
+                    // 3. The leaving player is not the acting player,
+                    // and the game can continue.
+                    HoldemStage::Play | HoldemStage::ShareKey => {
+                        let remained_players: Vec<String> = self
+                            .player_map
+                            .values()
+                            .filter(|p| {
+                                matches!(
+                                    p.status,
+                                    PlayerStatus::Allin
+                                        | PlayerStatus::Acted
+                                        | PlayerStatus::Acting
+                                        | PlayerStatus::Wait
+                                )
+                            })
+                            .map(|p| p.addr())
+                            .collect();
                         if remained_players.len() == 1 {
                             let winner = remained_players[0].clone();
                             self.single_player_win(effect, winner)?;
-                        } else {
-                            match &self.acting_player {
-                                Some(acting_player) => {
-                                    if player_addr == acting_player.addr {
-                                        self.next_state(effect)?;
-                                    }
-                                }
-                                None => {}
-                            }
+                        } else if self.is_acting_player(&player_addr)
+                        {
+                            self.next_state(effect)?;
                         }
                     }
                 }

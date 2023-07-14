@@ -94,7 +94,9 @@ impl<H: GameHandler> TestHandler<H> {
                 evts.extend_from_slice(&cli_evts);
             }
 
-            println!("[HP] Context dispatch: {:?}", context.get_dispatch());
+            if let Some(dispatch) = context.get_dispatch() {
+                println!("[HP] Context dispatch: {:?}", dispatch);
+            }
         }
         Ok(())
     }
