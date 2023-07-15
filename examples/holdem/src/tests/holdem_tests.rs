@@ -284,7 +284,7 @@ fn test_eject_loser() -> Result<()> {
         assert_eq!(state.street, Street::Showdown);
         assert_eq!(state.street_bet, 0);
         assert_eq!(state.min_raise, 0);
-        assert_eq!(state.player_map.len(), 3);
+        assert_eq!(state.player_map.len(), 2);
         assert_eq!(state.acting_player, None);
         for player in state.player_map.values() {
             if player.addr == "Charlie".to_string() {
@@ -302,17 +302,13 @@ fn test_eject_loser() -> Result<()> {
     // Handle the Waitimeout Event
     handler.handle_dispatch_event(&mut ctx)?;
 
-    // Game should start again and Bob gets removed from player map
+    // Game should start again and Bob gets marked as out
     {
         let state = handler.get_state();
         assert_eq!(state.player_map.len(), 2);
-        assert!(!state.player_map.contains_key(&"Bob".to_string()));
+        assert!(state.player_map.iter().all(|(_, p)| p.status == PlayerStatus::Wait));
         assert_eq!(state.stage, HoldemStage::Init);
         assert_eq!(state.street, Street::Init);
-        assert!(state
-            .player_map
-            .values()
-            .all(|p| p.status == PlayerStatus::Wait));
     }
     Ok(())
 }
@@ -531,7 +527,7 @@ fn test_settle_stage() -> Result<()> {
         vec![&mut alice, &mut bob, &mut charlie, &mut transactor],
     )?;
 
-    // Game then should enter into `Settle' stage
+    // Game then should enter into `Settle` stage
     {
         let state = handler.get_state();
         assert_eq!(state.street, Street::Preflop);
@@ -825,7 +821,7 @@ fn test_play_game() -> Result<()> {
         }
 
         // Frank Joins:
-        // 1. Frank's status should be `Init'
+        // 1. Frank's status should be `Init`
         // 2. Frank should be in player_map but not in player_order
         // 3. Frank should not be assgined any cards, i.e., not in hand_index_map
         let mut frank = TestClient::player("Frank");

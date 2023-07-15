@@ -4,8 +4,8 @@ use race_proc_macro::game_handler;
 use std::collections::BTreeMap;
 
 use crate::essential::{
-    ActingPlayer, AwardPot, ChipsChange, Display, GameEvent, HoldemAccount, HoldemStage, Player,
-    PlayerStatus, Pot, Street, ACTION_TIMEOUT, WAIT_TIMEOUT,
+    ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, HoldemStage, Player, PlayerResult,
+    PlayerStatus, Pot, Street, ACTION_TIMEOUT, MAX_ACTION_TIMEOUT_COUNT, WAIT_TIMEOUT,
 };
 use crate::evaluator::{compare_hands, create_cards, evaluate_cards, PlayerHand};
 
@@ -37,38 +37,40 @@ pub struct Holdem {
 
 // Methods that mutate or query the game state
 impl Holdem {
-    // Remove players with `Out' status
-    fn remove_out_players(&mut self) -> Result<(), HandleError> {
-        let to_remove: Vec<String> = self
-            .player_map
-            .values()
-            .filter(|p| p.status == PlayerStatus::Out)
-            .map(|p| p.addr())
-            .collect();
-
-        for player in to_remove.into_iter() {
-            self.player_map.remove_entry(&player);
+    // Mark out players.
+    // An out player is one with zero chips.
+    fn mark_out_players(&mut self) {
+        for (_, v) in self.player_map.iter_mut() {
+            if v.status != PlayerStatus::Leave && v.chips == 0 {
+                v.status = PlayerStatus::Out;
+                // Here we use timeout for rebuy timeout.
+                v.timeout = 0;
+            };
         }
-
-        Ok(())
     }
 
-    // fn remove_leave_players(&mut self) -> Result<(), HandleError> {
-    //     // Eject those who have decided to leave
-    //     let to_eject: Vec<String> = self
-    //         .player_map
-    //         .values()
-    //         .filter(|p| p.status == PlayerStatus::Leave)
-    //         .map(|p| p.addr())
-    //         .collect();
-    //
-    //     Ok(())
-    // }
+    // Remove players with `Leave` status.
+    fn remove_leave_and_out_players(&mut self) -> Vec<String> {
+        let mut removed = Vec::with_capacity(self.player_map.len());
+        self.player_map.retain(|_, p| {
+            if p.status == PlayerStatus::Leave || p.status == PlayerStatus::Out {
+                removed.push(p.addr.clone());
+                false
+            } else {
+                true
+            }
+        });
+        removed
+    }
 
     // Make All eligible players Wait
     fn reset_player_map_status(&mut self) -> Result<(), HandleError> {
         for player in self.player_map.values_mut() {
-            player.status = PlayerStatus::Wait;
+            if player.status == PlayerStatus::Out {
+                player.timeout += 1;
+            } else {
+                player.status = PlayerStatus::Wait;
+            }
         }
         Ok(())
     }
@@ -100,7 +102,7 @@ impl Holdem {
             if let Some(player) = self.player_map.get(addr) {
                 let curr_bet: u64 = self.bet_map.get(addr).map(|b| *b).unwrap_or(0);
                 if curr_bet < self.street_bet || player.status == PlayerStatus::Wait {
-                    return Some(addr.clone())
+                    return Some(addr.clone());
                 }
             }
         }
@@ -415,7 +417,7 @@ impl Holdem {
         }
     }
 
-    // Count players whose status is not `Init'
+    // Count players whose status is not `Init`
     pub fn count_ingame_players(&self) -> usize {
         self.player_map
             .values()
@@ -585,13 +587,25 @@ impl Holdem {
     /// Update the map that records players chips change (increased or decreased)
     /// Used for settlement
     pub fn update_chips_map(&mut self) -> Result<BTreeMap<String, i64>, HandleError> {
+        // The i64 change for each player.  The amount = total pots
+        // earned - total bet.  This map will be returned for furture
+        // calculation.
         let mut chips_change_map: BTreeMap<String, i64> = self
             .player_map
             .keys()
             .map(|addr| (addr.clone(), 0))
             .collect();
 
+        // The players for game result information.  The `chips` is
+        // the amount before the settlement, the `prize` is the sum of
+        // pots earned during the settlement.  This map will be added
+        // to display.
+        let mut result_player_map = BTreeMap::<String, PlayerResult>::new();
+
+        self.winners = Vec::<String>::with_capacity(self.player_map.len());
+
         println!("== Chips map before awarding: {:?}", chips_change_map);
+        println!("== Prize map: {:?}", self.prize_map);
 
         // Player's chips change = prize - betted
         for pot in self.pots.iter() {
@@ -605,6 +619,9 @@ impl Holdem {
         }
 
         for (player, prize) in self.prize_map.iter() {
+            if *prize > 0 {
+                self.winners.push(player.clone());
+            }
             chips_change_map
                 .entry(player.clone())
                 .and_modify(|chips| *chips += *prize as i64);
@@ -612,43 +629,22 @@ impl Holdem {
 
         println!("== Chips map after awarding: {:?}", chips_change_map);
 
-        // Prepare for Display
-        // A map that records each player's current chips
-        let tmp_chips_map: BTreeMap<String, u64> = self
-            .player_map
-            .values()
-            .map(|p| (p.addr(), p.chips))
-            .collect();
+        for (addr, player) in self.player_map.iter() {
+            let prize = self.prize_map.get(addr).copied();
 
-        let mut chips_changes = Vec::<ChipsChange>::new();
-
-        for (addr, change) in chips_change_map.iter() {
-            let Some(current_chips) = tmp_chips_map.get(addr) else {
-                return Err(HandleError::Custom(
-                    "Player did not bet but chips changed".to_string()
-                ));
+            let result = PlayerResult {
+                addr: addr.clone(),
+                position: player.position,
+                status: player.status,
+                chips: player.chips,
+                prize,
             };
 
-            if *change > 0i64 {
-                let change = ChipsChange {
-                    addr: addr.clone(),
-                    before: *current_chips,
-                    after: *current_chips + *change as u64,
-                };
-                chips_changes.push(change);
-            }
+            result_player_map.insert(addr.clone(), result);
         }
 
-        // Store winners and chips changes for UI
-        let winners = chips_change_map
-            .iter()
-            .filter(|(_, change)| **change > 0)
-            .map(|(addr, _)| addr.clone())
-            .collect::<Vec<String>>();
-        self.winners = winners;
-
-        self.display.push(Display::ChangeChips {
-            changes: chips_changes,
+        self.display.push(Display::GameResult {
+            player_map: result_player_map,
         });
 
         Ok(chips_change_map)
@@ -675,26 +671,11 @@ impl Holdem {
             }
         }
 
-        // Mark and eject those who have lost all their chips with status `Out'
-        // They will remain in player map to help UI and be removed later
-        for player in self.player_map.values_mut() {
-            if player.chips == 0 {
-                player.status = PlayerStatus::Out;
-                effect.settle(Settle::eject(&player.addr));
-            }
-        }
+        self.mark_out_players();
 
-        // Eject those who have decided to leave
-        let to_eject: Vec<String> = self
-            .player_map
-            .values()
-            .filter(|p| p.status == PlayerStatus::Leave)
-            .map(|p| p.addr())
-            .collect();
-
-        for player in to_eject.into_iter() {
-            self.player_map.remove_entry(&player);
-            effect.settle(Settle::eject(&player));
+        let removed_addrs = self.remove_leave_and_out_players();
+        for addr in removed_addrs {
+            effect.settle(Settle::eject(addr));
         }
 
         effect.wait_timeout(WAIT_TIMEOUT);
@@ -801,26 +782,13 @@ impl Holdem {
             }
         }
 
-        // Mark those who have lost all their chips
-        for player in self.player_map.values_mut() {
-            if player.chips == 0 {
-                player.status = PlayerStatus::Out;
-                effect.settle(Settle::eject(&player.addr));
-            }
-        }
+        self.mark_out_players();
+        let removed_addrs = self.remove_leave_and_out_players();
 
-        // Eject those whose lost all chips
-        let to_eject: Vec<String> = self
-            .player_map
-            .values()
-            .filter(|p| p.status == PlayerStatus::Leave)
-            .map(|p| p.addr())
-            .collect();
-
-        for player in to_eject.into_iter() {
-            self.player_map.remove_entry(&player);
-            effect.settle(Settle::eject(&player));
+        for addr in removed_addrs {
+            effect.settle(Settle::eject(addr));
         }
+        effect.wait_timeout(WAIT_TIMEOUT);
 
         Ok(())
     }
@@ -829,7 +797,7 @@ impl Holdem {
     pub fn next_state(&mut self, effect: &mut Effect) -> Result<(), HandleError> {
         let last_pos = self.get_ref_position();
         self.arrange_players(last_pos)?;
-        // ingame_players exclude anyone with `Init' status
+        // ingame_players exclude anyone with `Init` status
         let ingame_players = self.player_order.clone();
         let mut players_to_stay = Vec::<&String>::new();
         let mut players_to_act = Vec::<&String>::new();
@@ -1015,7 +983,6 @@ impl Holdem {
 
             GameEvent::Call => {
                 if !self.is_acting_player(&sender) {
-                    println!("Current acting player: {:?}", self.acting_player);
                     return Err(HandleError::Custom(
                         "Player is NOT the acting player so can't call".to_string(),
                     ));
@@ -1218,8 +1185,9 @@ impl GameHandler for Holdem {
                     return Err(HandleError::Custom("Player not found in game".to_string()));
                 };
 
-                // Mark those who've reached T/O for 3 times with `Leave' status
-                if player.timeout > 2 {
+                // Mark those who've reached T/O for
+                // MAX_ACTION_TIMEOUT_COUNT times with `Leave` status
+                if player.timeout > MAX_ACTION_TIMEOUT_COUNT {
                     player.status = PlayerStatus::Leave;
                     self.acting_player = None;
                     self.next_state(effect)?;
@@ -1250,7 +1218,6 @@ impl GameHandler for Holdem {
 
             Event::WaitingTimeout => {
                 self.display.clear();
-                self.remove_out_players()?;
                 self.reset_holdem_state()?;
                 self.reset_player_map_status()?;
 
@@ -1373,8 +1340,7 @@ impl GameHandler for Holdem {
                         if remained_players.len() == 1 {
                             let winner = remained_players[0].clone();
                             self.single_player_win(effect, winner)?;
-                        } else if self.is_acting_player(&player_addr)
-                        {
+                        } else if self.is_acting_player(&player_addr) {
                             self.next_state(effect)?;
                         }
                     }

@@ -1,9 +1,10 @@
 //! Test serializing and deserializing verious structs used by Holdem
 //! as well as the Holdem struct itself
 
+use std::collections::BTreeMap;
+
 use crate::essential::{
-    ActingPlayer, AwardPot, ChipsChange, Display, GameEvent, HoldemAccount, Player, Pot,
-    ACTION_TIMEOUT,
+    ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, Player, Pot, ACTION_TIMEOUT, PlayerResult, PlayerStatus,
 };
 use crate::game::Holdem;
 use crate::tests::helper::{setup_holdem_state, setup_real_holdem};
@@ -12,7 +13,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use super::helper::make_uneven_betmap;
 
 #[test]
-fn test_serde_player() {
+fn test_borsh_player() {
     let player = Player::new("Alice".into(), 1000, 1u16);
     let player_ser = player.try_to_vec().unwrap();
     let player_de = Player::try_from_slice(&player_ser).unwrap();
@@ -20,7 +21,7 @@ fn test_serde_player() {
 }
 
 #[test]
-fn test_serde_pot() {
+fn test_borsh_pot() {
     let pot = Pot {
         owners: vec!["Alice".into(), "Bob".into(), "Carol".into()],
         winners: vec!["Alice".into()],
@@ -32,7 +33,7 @@ fn test_serde_pot() {
 }
 
 #[test]
-fn test_serde_holdem_account() {
+fn test_borsh_holdem_account() {
     let acct = HoldemAccount {
         sb: 10,
         bb: 20,
@@ -45,7 +46,7 @@ fn test_serde_holdem_account() {
 }
 
 #[test]
-fn test_serde_game_event() {
+fn test_borsh_game_event() {
     let evts = vec![
         GameEvent::Call,
         GameEvent::Bet(20),
@@ -62,7 +63,7 @@ fn test_serde_game_event() {
 }
 
 #[test]
-fn test_serde_display() {
+fn test_borsh_display() {
     let display = vec![
         Display::DealCards,
         Display::DealBoard {
@@ -87,19 +88,25 @@ fn test_serde_display() {
                 },
             ],
         },
-        Display::ChangeChips {
-            changes: vec![
-                ChipsChange {
-                    addr: "Alice".to_string(),
-                    before: 200,
-                    after: 300,
-                },
-                ChipsChange {
-                    addr: "Bob".to_string(),
-                    before: 150,
-                    after: 200,
-                },
-            ],
+        Display::GameResult {
+            player_map: BTreeMap::from([
+                ("Alice".to_string(),
+                    PlayerResult {
+                        addr: "Alice".to_string(),
+                        position: 0,
+                        status: PlayerStatus::Wait,
+                        chips: 100,
+                        prize: Some(100),
+                    }),
+                ("Bob".to_string(),
+                    PlayerResult {
+                        addr: "Bob".to_string(),
+                        position: 1,
+                        status: PlayerStatus::Out,
+                        chips: 0,
+                        prize: None,
+                })
+            ]),
         },
         Display::CollectBets {
             bet_map: make_uneven_betmap(),
@@ -115,7 +122,7 @@ fn test_serde_display() {
 }
 
 #[test]
-fn test_serde_holdem() {
+fn test_borsh_holdem() {
     let mut holdem = setup_holdem_state().unwrap();
     // Without acting player
     {

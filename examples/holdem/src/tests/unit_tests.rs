@@ -2,7 +2,7 @@
 //! Those functions that require `Effect' as their arguments are tested in
 //! event_tests.rs.  For the a complete test of Holdem games, see holdem_test.rs
 //! in the same dir.
-use crate::essential::{ActingPlayer, Display, ChipsChange};
+use crate::essential::{ActingPlayer, Display};
 use crate::tests::helper::{
     initial_players, make_even_betmap, make_uneven_betmap, setup_context, setup_holdem_state,
 };
@@ -18,63 +18,63 @@ fn test_initial_btn() -> Result<(), HandleError> {
 }
 
 #[test]
-fn test_collect_bets() -> Result<(), HandleError> {
+fn test_collect_bets_with_even_bets() -> Result<(), HandleError> {
     let mut state = setup_holdem_state()?;
-    // Even bets
-    {
-        let bet_map = make_even_betmap();
-        state.bet_map = bet_map;
-        state.collect_bets()?;
-        assert_eq!(state.pots.len(), 1);
-        assert_eq!(state.pots[0].owners.len(), 5);
-        assert_eq!(state.pots[0].amount, 200);
-        assert_eq!(
-            state.display,
-            vec![Display::CollectBets {
-                bet_map: make_even_betmap()
-            }]
-        );
-        state.pots = vec![];
-    }
 
-    // Uneven bets
-    {
-        let bet_map = make_uneven_betmap();
-        state.bet_map = bet_map;
-        state.collect_bets()?;
-        assert_eq!(state.pots.len(), 3);
-        assert_eq!(state.pots[0].amount, 100); // 20 * 5
-        assert_eq!(state.pots[0].owners.len(), 5);
-        assert_eq!(
-            state.pots[0].owners,
-            vec![
-                "Alice".to_string(),
-                "Bob".to_string(),
-                "Carol".to_string(),
-                "Dave".to_string(),
-                "Eva".to_string(),
-            ]
-        );
+    let bet_map = make_even_betmap();
+    state.bet_map = bet_map;
+    state.collect_bets()?;
+    assert_eq!(state.pots.len(), 1);
+    assert_eq!(state.pots[0].owners.len(), 5);
+    assert_eq!(state.pots[0].amount, 200);
+    assert_eq!(
+        state.display,
+        vec![Display::CollectBets {
+            bet_map: make_even_betmap()
+        }]
+    );
+    state.pots = vec![];
+    Ok(())
+}
 
-        assert_eq!(state.pots[1].amount, 160); // 40 * 4
-        assert_eq!(state.pots[1].owners.len(), 4);
-        assert_eq!(
-            state.pots[1].owners,
-            vec![
-                "Bob".to_string(),
-                "Carol".to_string(),
-                "Dave".to_string(),
-                "Eva".to_string(),
-            ]
-        );
+#[test]
+fn test_collect_bets_with_uneven_bets() -> Result<(), HandleError> {
+    let mut state = setup_holdem_state()?;
+    let bet_map = make_uneven_betmap();
+    state.bet_map = bet_map;
+    state.collect_bets()?;
+    assert_eq!(state.pots.len(), 3);
+    assert_eq!(state.pots[0].amount, 100); // 20 * 5
+    assert_eq!(state.pots[0].owners.len(), 5);
+    assert_eq!(
+        state.pots[0].owners,
+        vec![
+            "Alice".to_string(),
+            "Bob".to_string(),
+            "Carol".to_string(),
+            "Dave".to_string(),
+            "Eva".to_string(),
+        ]
+    );
 
-        assert_eq!(state.pots[2].amount, 120); // 40 * 3
-        assert_eq!(state.pots[2].owners.len(), 3);
-        assert_eq!(
-            state.pots[2].owners,
-            vec!["Bob".to_string(), "Carol".to_string(), "Eva".to_string(),]
-        );
-    }
+    assert_eq!(state.pots[1].amount, 160); // 40 * 4
+    assert_eq!(state.pots[1].owners.len(), 4);
+    assert_eq!(
+        state.pots[1].owners,
+        vec![
+            "Bob".to_string(),
+            "Carol".to_string(),
+            "Dave".to_string(),
+            "Eva".to_string(),
+        ]
+    );
+
+    assert_eq!(state.pots[2].amount, 120); // 40 * 3
+    assert_eq!(state.pots[2].owners.len(), 3);
+    assert_eq!(
+        state.pots[2].owners,
+        vec!["Bob".to_string(), "Carol".to_string(), "Eva".to_string(),]
+    );
 
     Ok(())
 }
@@ -289,100 +289,87 @@ fn test_apply_prize() -> Result<(), HandleError> {
     Ok(())
 }
 
-// NOTE: ChipsChange (in a pot) = ChipsBetted - ChipsWon.
 // The final change of a player's chips is calculated by combining all his gains and lost
 // from each pot he has betted.
 #[test]
-fn test_update_chips_map() -> Result<(), HandleError> {
+fn test_update_chips_map_singe_pot() -> Result<(), HandleError> {
     let mut state = setup_holdem_state()?;
 
-    // Single winner takes all from the only pot
-    {
-        let bet_map = make_even_betmap();
-        state.bet_map = bet_map;
-        state.collect_bets()?;
-        let winners = vec![
-            vec!["Bob".to_string()], // single winner
-            vec!["Alice".to_string()],
-            vec!["Dave".to_string()],
-            vec!["Carol".to_string()],
-            vec!["Eva".to_string()],
-        ];
-        state.assign_winners(winners)?;
-        state.calc_prize()?;
-        let chips_change_map = state.update_chips_map()?;
-        assert_eq!(chips_change_map.get("Bob"), Some(&160));
-        assert_eq!(chips_change_map.get("Alice"), Some(&-40));
-        assert_eq!(chips_change_map.get("Dave"), Some(&-40));
-        assert_eq!(chips_change_map.get("Carol"), Some(&-40));
-        assert_eq!(chips_change_map.get("Eva"), Some(&-40));
-        // println!("-- Display {:?}", state.display);
-        assert!(state.display.contains(&Display::ChangeChips {
-            changes: vec![
-                ChipsChange {
-                    addr: "Bob".to_string(),
-                    before: 1000,
-                    after: 1160,
-                },
-            ]
-        }));
-        state.pots = vec![];
-        state.prize_map = BTreeMap::new();
-    }
+    let bet_map = make_even_betmap();
+    state.bet_map = bet_map;
+    state.collect_bets()?;
+    let winners = vec![
+        vec!["Bob".to_string()], // single winner
+        vec!["Alice".to_string()],
+        vec!["Dave".to_string()],
+        vec!["Carol".to_string()],
+        vec!["Eva".to_string()],
+    ];
+    state.assign_winners(winners)?;
+    state.calc_prize()?;
+    let chips_change_map = state.update_chips_map()?;
+    assert_eq!(chips_change_map.get("Bob"), Some(&160));
+    assert_eq!(chips_change_map.get("Alice"), Some(&-40));
+    assert_eq!(chips_change_map.get("Dave"), Some(&-40));
+    assert_eq!(chips_change_map.get("Carol"), Some(&-40));
+    assert_eq!(chips_change_map.get("Eva"), Some(&-40));
+    let Some(Display::GameResult{ player_map }) = state.display.iter().find(|d| matches!(d, Display::GameResult { .. }))
+        else {
+            panic!("GameResult display is missing");
+        };
+    assert_eq!(player_map.get("Bob").unwrap().prize, Some(200));
+    assert_eq!(player_map.get("Alice").unwrap().prize, None);
+    assert_eq!(player_map.get("Dave").unwrap().prize, None);
+    assert_eq!(player_map.get("Carol").unwrap().prize, None);
+    assert_eq!(player_map.get("Eva").unwrap().prize, None);
+    state.pots = vec![];
+    state.prize_map = BTreeMap::new();
 
-    // Multi-pots
-    {
-        let bet_map = make_uneven_betmap();
-        state.bet_map = bet_map;
-        state.collect_bets()?;
-        let winners = vec![
-            vec!["Alice".to_string()], // winner of main pot
-            vec!["Dave".to_string()],  // winner of side pot 1
-            vec!["Bob".to_string()],   // winner of side pot 2
-            vec!["Carol".to_string()],
-            vec!["Eva".to_string()],
-        ];
-        state.assign_winners(winners)?;
-        state.calc_prize()?;
-        let chips_change_map = state.update_chips_map()?;
+    Ok(())
+}
 
-        assert_eq!(chips_change_map.get("Alice"), Some(&80));
-        assert_eq!(chips_change_map.get("Dave"), Some(&100));
-        assert_eq!(chips_change_map.get("Bob"), Some(&20));
-        assert_eq!(chips_change_map.get("Carol"), Some(&-100));
-        assert_eq!(chips_change_map.get("Eva"), Some(&-100));
+#[test]
+fn test_update_chips_map_with_multiple_pot() -> Result<(), HandleError> {
+    let mut state = setup_holdem_state()?;
 
-        for (addr, chips_change) in chips_change_map.iter() {
-            if *chips_change > 0 {
-                println!("Player + chips {:?}", *chips_change as u64);
-                assert!(matches!(addr.as_str(), "Alice" | "Dave" | "Bob" ));
-            } else if *chips_change < 0 {
-                println!("Player - chips {:?}", -*chips_change as u64);
-                assert!(matches!(addr.as_str(), "Carol" | "Eva" ));
-            }
+    let bet_map = make_uneven_betmap();
+    state.bet_map = bet_map;
+    state.collect_bets()?;
+    let winners = vec![
+        vec!["Alice".to_string()], // winner of main pot
+        vec!["Dave".to_string()],  // winner of side pot 1
+        vec!["Bob".to_string()],   // winner of side pot 2
+        vec!["Carol".to_string()],
+        vec!["Eva".to_string()],
+    ];
+    state.assign_winners(winners)?;
+    state.calc_prize()?;
+    let chips_change_map = state.update_chips_map()?;
+
+    assert_eq!(chips_change_map.get("Alice"), Some(&80));
+    assert_eq!(chips_change_map.get("Dave"), Some(&100));
+    assert_eq!(chips_change_map.get("Bob"), Some(&20));
+    assert_eq!(chips_change_map.get("Carol"), Some(&-100));
+    assert_eq!(chips_change_map.get("Eva"), Some(&-100));
+
+    for (addr, chips_change) in chips_change_map.iter() {
+        if *chips_change > 0 {
+            println!("Player + chips {:?}", *chips_change as u64);
+            assert!(matches!(addr.as_str(), "Alice" | "Dave" | "Bob"));
+        } else if *chips_change < 0 {
+            println!("Player - chips {:?}", -*chips_change as u64);
+            assert!(matches!(addr.as_str(), "Carol" | "Eva"));
         }
-        // println!("-- Display {:?}", state.display);
-        assert!(state.display.contains(&Display::ChangeChips {
-            changes: vec![
-                ChipsChange {
-                    addr: "Alice".to_string(),
-                    before: 1000,
-                    after: 1080,
-                },
-                ChipsChange {
-                    addr: "Bob".to_string(),
-                    before: 1000,
-                    after: 1020,
-                },
-                ChipsChange {
-                    addr: "Dave".to_string(),
-                    before: 1000,
-                    after: 1100,
-                }
-            ]
-        }));
-
     }
+    // println!("-- Display {:?}", state.display);
+    let Some(Display::GameResult { player_map }) = state.display.iter().find(|d| matches!(d, Display::GameResult {..})) else {
+        panic!("GameResult display not found");
+    };
+    assert_eq!(player_map.get("Alice").unwrap().prize, Some(100));
+    assert_eq!(player_map.get("Bob").unwrap().prize, Some(120));
+    assert_eq!(player_map.get("Dave").unwrap().prize, Some(160));
+    assert_eq!(player_map.get("Carol").unwrap().prize, None);
+    assert_eq!(player_map.get("Eva").unwrap().prize, None);
     Ok(())
 }
 

@@ -1,13 +1,12 @@
 //! Test varisou types of Leave events.  It is crucial for players to
 //! correctly leave the game.
 
-use race_core::{
-    error::Result,
-    event::Event,
-};
-use race_test::TestClient;
+use std::collections::HashMap;
+
 use crate::essential::*;
 use crate::tests::helper::{create_sync_event, setup_holdem_game};
+use race_core::{error::Result, event::Event};
+use race_test::TestClient;
 
 // Two players leave one after another
 #[test]
@@ -95,6 +94,10 @@ fn test_players_leave() -> Result<()> {
 }
 
 // Test one player leaving in settle
+// Two players in game: Alice(SB/BTN) and Bob(BB)
+// Alice folds then BB wins
+// Alice leaves the game
+// Expect Alice to leave instantly
 #[test]
 fn test_settle_leave() -> Result<()> {
     let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
@@ -166,11 +169,29 @@ fn test_settle_leave() -> Result<()> {
 }
 
 // Test player leaving in runner
+// Two players in the game: Alice(SB/BTN) and Bob(BB).
+// Alice goes all-in, then Bob do a hero call.
+// Alice leaves the game while the stage is Runner.
+// Expect alice to leave instantly.
 #[test]
 fn test_runner_leave() -> Result<()> {
     let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
     let mut alice = TestClient::player("Alice");
     let mut bob = TestClient::player("Bob");
+    let revealed = HashMap::from([
+        // Bob
+        (0, "ck".to_string()),
+        (1, "ca".to_string()),
+        // Alice
+        (2, "c2".to_string()),
+        (3, "c7".to_string()),
+        // Board
+        (4, "sa".to_string()),
+        (5, "sk".to_string()),
+        (6, "h3".to_string()),
+        (7, "ha".to_string()),
+        (8, "d4".to_string()),
+    ]);
 
     let sync_evt = create_sync_event(&ctx, &[&alice, &bob], &transactor);
     handler.handle_until_no_events(
@@ -194,6 +215,7 @@ fn test_runner_leave() -> Result<()> {
             })
         );
     }
+    ctx.add_revealed_random(1, revealed)?;
 
     // Alice (SB/BTN) is the acting player and decides to go allin
     let sb_allin = alice.custom_event(GameEvent::Raise(9990));
@@ -226,7 +248,7 @@ fn test_runner_leave() -> Result<()> {
         assert_eq!(state.street, Street::Showdown);
         assert_eq!(state.stage, HoldemStage::Runner);
         assert_eq!(state.acting_player, None);
-        assert_eq!(state.player_map.len(), 2);
+        assert_eq!(state.player_map.len(), 1);
     }
 
     // Alice then decides to leave
@@ -243,8 +265,7 @@ fn test_runner_leave() -> Result<()> {
         let state = handler.get_state();
         assert_eq!(state.stage, HoldemStage::Runner);
         assert_eq!(state.acting_player, None);
-        assert_eq!(state.player_map.len(), 1);
-        assert!(state.player_map.contains_key(&"Bob".to_string()));
+        assert_eq!(state.player_map.len(), 0);
         println!("Game state {:?}", state);
     }
 
@@ -253,7 +274,6 @@ fn test_runner_leave() -> Result<()> {
 
 // Test player leaving in showdown
 #[test]
-#[ignore]
 fn test_showdown_leave() -> Result<()> {
     let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
     let mut alice = TestClient::player("Alice");
@@ -321,7 +341,7 @@ fn test_showdown_leave() -> Result<()> {
     }
 
     // From this point on, two players keep checking until showdown
-    // First, Turn
+    // Flop -> Turn
     let sb_check = alice.custom_event(GameEvent::Check);
     handler.handle_until_no_events(
         &mut ctx,
@@ -339,16 +359,14 @@ fn test_showdown_leave() -> Result<()> {
     {
         let state = handler.get_state();
         assert_eq!(state.stage, HoldemStage::Play);
-        println!("-- Street bet {}", state.street_bet);
-        // assert_eq!(state.street, Street::Turn);
-        // Acting player is Alice (SB)
+        assert_eq!(state.street, Street::Turn);
         assert_eq!(
             state.player_map.get("Alice").unwrap().status,
             PlayerStatus::Acting
         );
     }
 
-    // Second, River
+    // Turn -> River
     let sb_check = alice.custom_event(GameEvent::Check);
     handler.handle_until_no_events(
         &mut ctx,
@@ -365,21 +383,24 @@ fn test_showdown_leave() -> Result<()> {
         let state = handler.get_state();
         assert_eq!(state.stage, HoldemStage::Play);
         assert_eq!(state.street, Street::River);
-        // Acting player is Alice (SB)
         assert_eq!(
-            state.player_map.get("Alice").unwrap().status,
-            PlayerStatus::Acting
+            state.acting_player,
+            Some(ActingPlayer {
+                addr: "Alice".to_string(),
+                position: 0,
+                clock: 30_000
+            })
         );
     }
 
-    // Last, Showdown
+    // River -> Showdown
     let sb_check = alice.custom_event(GameEvent::Check);
     handler.handle_until_no_events(
         &mut ctx,
         &sb_check,
         vec![&mut alice, &mut bob, &mut transactor],
     )?;
-    let bb_check = alice.custom_event(GameEvent::Check);
+    let bb_check = bob.custom_event(GameEvent::Check);
     handler.handle_until_no_events(
         &mut ctx,
         &bb_check,
@@ -387,18 +408,26 @@ fn test_showdown_leave() -> Result<()> {
     )?;
     {
         let state = handler.get_state();
-        assert_eq!(state.stage, HoldemStage::Play);
+        assert_eq!(state.stage, HoldemStage::Showdown);
         assert_eq!(state.street, Street::Showdown);
-        // No acting player
-        assert_eq!(
-            state.acting_player,
-            None
-        );
+        assert_eq!(state.acting_player, None);
     }
 
     // Alice decides to leave
-
-
+    let sb_leave = Event::Leave {
+        player_addr: "Alice".to_string(),
+    };
+    handler.handle_until_no_events(
+        &mut ctx,
+        &sb_leave,
+        vec![&mut alice, &mut bob, &mut transactor],
+    )?;
+    {
+        let state = handler.get_state();
+        assert_eq!(state.stage, HoldemStage::Showdown);
+        assert_eq!(state.player_map.len(), 1);
+        assert!(!state.player_map.contains_key("Alice"));
+    }
 
     Ok(())
 }

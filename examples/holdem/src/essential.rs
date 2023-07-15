@@ -4,10 +4,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::prelude::{CustomEvent, HandleError};
 use std::collections::BTreeMap;
 
+pub const MAX_ACTION_TIMEOUT_COUNT: u8 = 2;
 pub const ACTION_TIMEOUT: u64 = 30_000;
 pub const WAIT_TIMEOUT: u64 = 10_000;
 
-#[derive(BorshSerialize, BorshDeserialize, Default, PartialEq, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Default, PartialEq, Debug, Clone, Copy)]
 pub enum PlayerStatus {
     #[default]
     Wait,
@@ -15,7 +16,7 @@ pub enum PlayerStatus {
     Acting,
     Allin,
     Fold,
-    Init,            // Indicating new players ready for the next hand
+    Init, // Indicating new players ready for the next hand
     Winner,
     Leave,
     Out,
@@ -25,9 +26,9 @@ pub enum PlayerStatus {
 pub struct Player {
     pub addr: String,
     pub chips: u64,
-    pub position: usize,        // zero indexed
+    pub position: usize, // zero indexed
     pub status: PlayerStatus,
-    pub timeout: u8,            // count the times of action timeout
+    pub timeout: u8, // count the times of action timeout
 }
 
 impl PartialEq for Player {
@@ -90,9 +91,8 @@ impl Player {
 pub struct ActingPlayer {
     pub addr: String,
     pub position: usize,
-    pub clock: u64,             // action clock
+    pub clock: u64, // action clock
 }
-
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct Pot {
@@ -116,7 +116,6 @@ impl Pot {
     }
 }
 
-
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Default)]
 pub enum Street {
     #[default]
@@ -127,7 +126,6 @@ pub enum Street {
     River,
     Showdown,
 }
-
 
 #[derive(Default, BorshSerialize, BorshDeserialize, PartialEq, Debug)]
 pub enum HoldemStage {
@@ -144,7 +142,7 @@ pub enum HoldemStage {
 pub struct HoldemAccount {
     pub sb: u64,
     pub bb: u64,
-    pub rake: u16,               // an integer representing the rake percent
+    pub rake: u16, // an integer representing the rake percent
 }
 
 impl Default for HoldemAccount {
@@ -169,7 +167,6 @@ pub enum GameEvent {
 
 impl CustomEvent for GameEvent {}
 
-
 // A pot used for awarding winners
 #[cfg_attr(test, derive(PartialEq))]
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
@@ -179,11 +176,13 @@ pub struct AwardPot {
 }
 
 #[cfg_attr(test, derive(PartialEq))]
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
-pub struct ChipsChange {
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+pub struct PlayerResult {
     pub addr: String,
-    pub before: u64,
-    pub after: u64,
+    pub chips: u64,
+    pub prize: Option<u64>,
+    pub status: PlayerStatus,
+    pub position: usize,
 }
 
 /// Used for animation (with necessary audio effects)
@@ -191,8 +190,17 @@ pub struct ChipsChange {
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum Display {
     DealCards,
-    DealBoard { prev: usize, board: Vec<String> },
-    CollectBets { bet_map: BTreeMap<String, u64> },
-    ChangeChips { changes: Vec<ChipsChange> },
-    AwardPots { pots: Vec<AwardPot> },
+    DealBoard {
+        prev: usize,
+        board: Vec<String>,
+    },
+    CollectBets {
+        bet_map: BTreeMap<String, u64>,
+    },
+    AwardPots {
+        pots: Vec<AwardPot>,
+    },
+    GameResult {
+        player_map: BTreeMap<String, PlayerResult>,
+    },
 }
