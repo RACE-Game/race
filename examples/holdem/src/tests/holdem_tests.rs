@@ -306,7 +306,10 @@ fn test_eject_loser() -> Result<()> {
     {
         let state = handler.get_state();
         assert_eq!(state.player_map.len(), 2);
-        assert!(state.player_map.iter().all(|(_, p)| p.status == PlayerStatus::Wait));
+        assert!(state
+            .player_map
+            .iter()
+            .all(|(_, p)| p.status == PlayerStatus::Wait));
         assert_eq!(state.stage, HoldemStage::Init);
         assert_eq!(state.street, Street::Init);
     }
@@ -636,7 +639,6 @@ fn test_abnormal_street() -> Result<()> {
 }
 
 #[test]
-#[ignore]
 fn test_play_game() -> Result<()> {
     let (_game_acct, mut ctx, mut handler, mut transactor) = setup_holdem_game();
     let mut alice = TestClient::player("Alice");
@@ -718,10 +720,10 @@ fn test_play_game() -> Result<()> {
         )?;
 
         // CO calls
-        let dave_call = dave.custom_event(GameEvent::Call);
+        let alice_call = alice.custom_event(GameEvent::Call);
         handler.handle_until_no_events(
             &mut ctx,
-            &dave_call,
+            &alice_call,
             vec![
                 &mut alice,
                 &mut bob,
@@ -733,10 +735,10 @@ fn test_play_game() -> Result<()> {
         )?;
 
         // BTN calls
-        let eva_call = eva.custom_event(GameEvent::Call);
+        let bob_call = bob.custom_event(GameEvent::Call);
         handler.handle_until_no_events(
             &mut ctx,
-            &eva_call,
+            &bob_call,
             vec![
                 &mut alice,
                 &mut bob,
@@ -748,10 +750,10 @@ fn test_play_game() -> Result<()> {
         )?;
 
         // SB calls
-        let alice_call = alice.custom_event(GameEvent::Call);
+        let carol_call = carol.custom_event(GameEvent::Call);
         handler.handle_until_no_events(
             &mut ctx,
-            &alice_call,
+            &carol_call,
             vec![
                 &mut alice,
                 &mut bob,
@@ -771,26 +773,26 @@ fn test_play_game() -> Result<()> {
 
             assert_eq!(state.street, Street::Preflop,);
             assert_eq!(
-                state.player_map.get(&"Carol".to_string()).unwrap().status,
+                state.player_map.get(&"Eva".to_string()).unwrap().status,
                 PlayerStatus::Leave
             );
-            // Acting player is the next player, BB, Carol
+            // Acting player is the next player, BB, Dave
             assert!(state.acting_player.is_some());
             assert_eq!(
                 state.acting_player,
                 Some(ActingPlayer {
-                    addr: "Carol".to_string(),
-                    position: 2usize,
+                    addr: "Dave".to_string(),
+                    position: 3usize,
                     clock: 30_000u64
                 })
             );
         }
 
         // BB checks then game goes to flop
-        let carol_check = carol.custom_event(GameEvent::Check);
+        let dave_check = dave.custom_event(GameEvent::Check);
         handler.handle_until_no_events(
             &mut ctx,
-            &carol_check,
+            &dave_check,
             vec![
                 &mut alice,
                 &mut bob,
@@ -803,6 +805,7 @@ fn test_play_game() -> Result<()> {
     }
 
     // ------------------------- THE FLOP ------------------------
+    // Remained players: Carol (SB), Dave (BB), Alice (CO), Bob (BTN)
     {
         // Test pots
         {
@@ -849,13 +852,14 @@ fn test_play_game() -> Result<()> {
                 PlayerStatus::Init
             ));
             assert_eq!(state.hand_index_map.get("Frank"), None);
+            assert_eq!(state.acting_player.as_ref().unwrap().addr, "Carol".to_string());
         }
 
-        // Bob (SB) bets 1BB
-        let bob_bet = bob.custom_event(GameEvent::Bet(20));
+        // Carol(SB) bets 1BB
+        let carol_bet = carol.custom_event(GameEvent::Bet(20));
         handler.handle_until_no_events(
             &mut ctx,
-            &bob_bet,
+            &carol_bet,
             vec![
                 &mut alice,
                 &mut bob,
@@ -866,41 +870,28 @@ fn test_play_game() -> Result<()> {
             ],
         )?;
 
-        // Carol (BB) calls
-        let carol_call = carol.custom_event(GameEvent::Call);
-        handler.handle_until_no_events(
-            &mut ctx,
-            &carol_call,
-            vec![
-                &mut alice,
-                &mut bob,
-                &mut carol,
-                &mut dave,
-                &mut eva,
-                &mut transactor,
-            ],
-        )?;
-
-        // Eva calls
-        let eva_call = eva.custom_event(GameEvent::Call);
-        handler.handle_until_no_events(
-            &mut ctx,
-            &eva_call,
-            vec![
-                &mut alice,
-                &mut bob,
-                &mut carol,
-                &mut dave,
-                &mut eva,
-                &mut transactor,
-            ],
-        )?;
         {
             let state = handler.get_state();
-            assert_eq!(state.get_ref_position(), 0);
+            assert_eq!(state.street_bet, 20);
         }
 
-        // Alice(BTN) calls and then game goes to Turn
+
+        // Dave(BB) calls
+        let dave_call = dave.custom_event(GameEvent::Call);
+        handler.handle_until_no_events(
+            &mut ctx,
+            &dave_call,
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
+        )?;
+
+        // Alice(CO) calls
         let alice_call = alice.custom_event(GameEvent::Call);
         handler.handle_until_no_events(
             &mut ctx,
@@ -914,9 +905,25 @@ fn test_play_game() -> Result<()> {
                 &mut transactor,
             ],
         )?;
+
+        // Bob(BTN) calls
+        let bob_call = bob.custom_event(GameEvent::Call);
+        handler.handle_until_no_events(
+            &mut ctx,
+            &bob_call,
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
+        )?;
     }
 
     // ------------------------- THE TURN ------------------------
+    // Remained players: Carol (SB), Dave (BB), Alice (CO), Bob (BTN)
     {
         {
             // Test pots
@@ -930,7 +937,7 @@ fn test_play_game() -> Result<()> {
             assert!(state.pots[0].owners.contains(&"Alice".to_string()));
             assert!(state.pots[0].owners.contains(&"Bob".to_string()));
             assert!(state.pots[0].owners.contains(&"Carol".to_string()));
-            assert!(state.pots[0].owners.contains(&"Eva".to_string()));
+            assert!(state.pots[0].owners.contains(&"Dave".to_string()));
             assert_eq!(
                 state.board,
                 vec![
@@ -951,11 +958,11 @@ fn test_play_game() -> Result<()> {
             }));
         }
 
-        // Bob (SB) decides to c-bet 1BB
-        let bob_bet = bob.custom_event(GameEvent::Bet(20));
+        // Carol (SB) decides to c-bet 1BB
+        let carol_bet = carol.custom_event(GameEvent::Bet(20));
         handler.handle_until_no_events(
             &mut ctx,
-            &bob_bet,
+            &carol_bet,
             vec![
                 &mut alice,
                 &mut bob,
@@ -973,11 +980,11 @@ fn test_play_game() -> Result<()> {
             assert_eq!(20, state.min_raise);
         }
 
-        // Carol (BB) decides to raise
-        let carol_raise = carol.custom_event(GameEvent::Raise(60));
+        // Dave (BB) decides to raise
+        let dave_raise = dave.custom_event(GameEvent::Raise(60));
         handler.handle_until_no_events(
             &mut ctx,
-            &carol_raise,
+            &dave_raise,
             vec![
                 &mut alice,
                 &mut bob,
@@ -995,11 +1002,11 @@ fn test_play_game() -> Result<()> {
             assert_eq!(state.min_raise, 40);
         }
 
-        // eva folds
-        let eva_fold = eva.custom_event(GameEvent::Fold);
+        // Alice(SB) folds
+        let alice_fold = alice.custom_event(GameEvent::Fold);
         handler.handle_until_no_events(
             &mut ctx,
-            &eva_fold,
+            &alice_fold,
             vec![
                 &mut alice,
                 &mut bob,
@@ -1010,23 +1017,7 @@ fn test_play_game() -> Result<()> {
             ],
         )?;
 
-        // Alice calls
-        let alice_call = alice.custom_event(GameEvent::Call);
-        handler.handle_until_no_events(
-            &mut ctx,
-            &alice_call,
-            vec![
-                &mut alice,
-                &mut bob,
-                &mut carol,
-                &mut dave,
-                &mut eva,
-                &mut transactor,
-            ],
-        )?;
-
-        // Bob (SB) can call, re-raise, or fold
-        // He decides to call and games enter the last street: River
+        // Bob (BTN) calls
         let bob_call = bob.custom_event(GameEvent::Call);
         handler.handle_until_no_events(
             &mut ctx,
@@ -1040,9 +1031,25 @@ fn test_play_game() -> Result<()> {
                 &mut transactor,
             ],
         )?;
+
+        // Carol (SB) calls
+        let carol_call = carol.custom_event(GameEvent::Call);
+        handler.handle_until_no_events(
+            &mut ctx,
+            &carol_call,
+            vec![
+                &mut alice,
+                &mut bob,
+                &mut carol,
+                &mut dave,
+                &mut eva,
+                &mut transactor,
+            ],
+        )?;
     }
 
     // ------------------------- THE RIVER ------------------------
+    // Remained players: Carol (SB), Dave (BB), Bob (BTN)
     {
         {
             // Test pots
@@ -1057,13 +1064,13 @@ fn test_play_game() -> Result<()> {
             assert!(state.pots[0].owners.contains(&"Alice".to_string()));
             assert!(state.pots[0].owners.contains(&"Bob".to_string()));
             assert!(state.pots[0].owners.contains(&"Carol".to_string()));
-            assert!(state.pots[0].owners.contains(&"Eva".to_string()));
+            assert!(state.pots[0].owners.contains(&"Dave".to_string()));
             // Pot 2
             assert_eq!(state.pots[1].amount, 180);
             assert_eq!(state.pots[1].owners.len(), 3);
-            assert!(state.pots[0].owners.contains(&"Alice".to_string()));
-            assert!(state.pots[0].owners.contains(&"Bob".to_string()));
-            assert!(state.pots[0].owners.contains(&"Carol".to_string()));
+            assert!(state.pots[1].owners.contains(&"Bob".to_string()));
+            assert!(state.pots[1].owners.contains(&"Carol".to_string()));
+            assert!(state.pots[1].owners.contains(&"Dave".to_string()));
             assert_eq!(
                 state.board,
                 vec![
@@ -1086,11 +1093,11 @@ fn test_play_game() -> Result<()> {
             }));
         }
 
-        // Bob continues to bet
-        let bob_bet = bob.custom_event(GameEvent::Bet(40));
+        // Carol continues to bet
+        let carol_bet = carol.custom_event(GameEvent::Bet(40));
         handler.handle_until_no_events(
             &mut ctx,
-            &bob_bet,
+            &carol_bet,
             vec![
                 &mut alice,
                 &mut bob,
@@ -1101,11 +1108,11 @@ fn test_play_game() -> Result<()> {
             ],
         )?;
 
-        // Carol (BB) calls
-        let carol_call = carol.custom_event(GameEvent::Call);
+        // Dave calls
+        let dave_call = dave.custom_event(GameEvent::Call);
         handler.handle_until_no_events(
             &mut ctx,
-            &carol_call,
+            &dave_call,
             vec![
                 &mut alice,
                 &mut bob,
@@ -1116,11 +1123,11 @@ fn test_play_game() -> Result<()> {
             ],
         )?;
 
-        // Alice calls so it's showdown time
-        let alice_call = alice.custom_event(GameEvent::Call);
+        // Bob calls so it's showdown time
+        let bob_call = bob.custom_event(GameEvent::Call);
         handler.handle_until_no_events(
             &mut ctx,
-            &alice_call,
+            &bob_call,
             vec![
                 &mut alice,
                 &mut bob,

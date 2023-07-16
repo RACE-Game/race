@@ -823,12 +823,7 @@ impl Holdem {
         }
 
         let next_player = self.next_action_player(players_to_act);
-        println!("== Next player is: {:?}", next_player);
-
         let next_street = self.next_street();
-        println!("== Next street is: {:?}", next_street);
-
-        println!("== Current GAME BETS are {:?}", self.bet_map);
 
         // Blind bets
         if self.street == Street::Preflop && self.bet_map.is_empty() {
