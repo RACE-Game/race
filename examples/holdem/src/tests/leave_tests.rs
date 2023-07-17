@@ -54,19 +54,12 @@ fn test_players_leave() -> Result<()> {
     {
         let state = handler.get_state();
         println!("-- Display {:?}", state.display);
-        assert_eq!(state.stage, HoldemStage::Play);
-        assert_eq!(
-            state.acting_player,
-            Some(ActingPlayer {
-                addr: "Alice".to_string(),
-                position: 0,
-                clock: 30_000
-            })
-        );
+        assert_eq!(state.stage, HoldemStage::Settle);
+        assert_eq!(state.acting_player, None);
         assert_eq!(state.player_map.len(), 1);
         assert_eq!(
             state.player_map.get("Bob").unwrap().status,
-            PlayerStatus::Winner
+            PlayerStatus::Wait
         );
     }
 
@@ -142,7 +135,7 @@ fn test_settle_leave() -> Result<()> {
         assert_eq!(state.player_map.len(), 2);
         assert_eq!(
             state.player_map.get("Bob").unwrap().status,
-            PlayerStatus::Winner
+            PlayerStatus::Wait
         );
     }
 
@@ -476,7 +469,7 @@ fn test_play_leave() -> Result<()> {
         assert_eq!(state.player_map.len(), 2);
         assert_eq!(
             state.player_map.get("Bob").unwrap().status,
-            PlayerStatus::Winner
+            PlayerStatus::Wait
         );
     }
 

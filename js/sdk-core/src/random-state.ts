@@ -290,7 +290,6 @@ export class RandomState {
     for (let i = 0; i < this.ciphertexts.length; i++) {
       const c = this.ciphertexts[i];
       if (c.owner.kind === 'assigned' && c.owner.addr === addr) {
-        console.log("index", i, "cipher", c);
         res.set(i, c.ciphertext);
       }
     }

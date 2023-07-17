@@ -295,7 +295,6 @@ export class Encryptor implements IEncryptor {
 
   async decryptAes(secret: Secret, text: Ciphertext): Promise<Ciphertext> {
     const key = await importAes(secret);
-    console.log(aesContentIv);
     return await decryptAes(key, text, aesContentIv);
   }
 
@@ -396,19 +395,15 @@ export class Encryptor implements IEncryptor {
     secretMap: Map<number, Secret[]>,
     validOptions: string[]
   ): Promise<Map<number, string>> {
-    console.log("Ciphertext Map:", ciphertextMap);
-    console.log("Secret Map:", secretMap);
     const res = new Map();
     for (const [idx, ciphertext] of ciphertextMap) {
       const secrets = secretMap.get(idx);
       if (secrets === undefined) {
         throw new Error('Missing secrets');
       } else {
-        const decrypted = await this.decryptChacha20Multi(secrets, ciphertext);
+        const decrypted = this.decryptChacha20Multi(secrets, ciphertext);
         const decryptedValue = textDecoder.decode(decrypted);
         if (validOptions.find(s => s === decryptedValue) === undefined) {
-          console.log("Options:", validOptions);
-          console.log(decryptedValue);
           throw new Error('Invalid result: [' + decryptedValue + "], options:" + validOptions.join(","));
         }
         res.set(idx, decryptedValue);

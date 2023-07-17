@@ -100,7 +100,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                 EventFrame::ContextUpdated { ref context } => {
                     match client.handle_updated_context(context) {
                         Ok(events) => {
-                            info!("{} events generated", events.len());
+                            // info!("{} events generated", events.len());
                             for event in events.into_iter() {
                                 info!("Connection send event: {}", event);
                                 if let Err(_e) = client.submit_event(event).await {

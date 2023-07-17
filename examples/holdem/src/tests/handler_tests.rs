@@ -53,7 +53,7 @@ fn test_preflop_fold() -> CoreResult<()> {
         assert_eq!(state.street, Street::Preflop);
         assert_eq!(alice.chips, 9990);
         assert_eq!(bob.chips, 10_010);
-        assert_eq!(state.player_map.get("Bob").unwrap().status, PlayerStatus::Winner);
+        assert_eq!(state.player_map.get("Bob").unwrap().status, PlayerStatus::Wait);
     }
 
     // Game should be able to start again

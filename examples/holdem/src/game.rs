@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 
 use crate::essential::{
     ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, HoldemStage, Player, PlayerResult,
-    PlayerStatus, Pot, Street, ACTION_TIMEOUT, MAX_ACTION_TIMEOUT_COUNT, WAIT_TIMEOUT,
+    PlayerStatus, Pot, Street, ACTION_TIMEOUT, MAX_ACTION_TIMEOUT_COUNT, WAIT_TIMEOUT_DEFAULT,
+    WAIT_TIMEOUT_LAST_PLAYER, WAIT_TIMEOUT_RUNNER, WAIT_TIMEOUT_SHOWDOWN,
 };
 use crate::evaluator::{compare_hands, create_cards, evaluate_cards, PlayerHand};
 
@@ -542,12 +543,11 @@ impl Holdem {
                 // A pot should have at least one winner
                 if real_winners.len() >= 1 {
                     for w in real_winners.iter() {
-                        let Some(player) = self.player_map.get_mut(w) else {
+                        let Some(_player) = self.player_map.get_mut(w) else {
                             return Err(HandleError::Custom(
                                 "Winner not found in player map".to_string()
                             ));
                         };
-                        player.status = PlayerStatus::Winner;
                     }
                     pot.winners = real_winners;
                     break;
@@ -557,15 +557,15 @@ impl Holdem {
             }
 
             // If a pot fails to have any winners, its owners split the pot
+            // FIXME: This should never happen.
             if pot.winners.len() == 0 {
                 pot.winners = pot.owners.clone();
                 for w in pot.winners.iter() {
-                    let Some(player) = self.player_map.get_mut(w) else {
+                    let Some(_player) = self.player_map.get_mut(w) else {
                         return Err(HandleError::Custom(
                             "Winner not found in player map".to_string()
                         ));
                     };
-                    player.status = PlayerStatus::Winner;
                 }
             }
         }
@@ -630,7 +630,15 @@ impl Holdem {
         println!("== Chips map after awarding: {:?}", chips_change_map);
 
         for (addr, player) in self.player_map.iter() {
-            let prize = self.prize_map.get(addr).copied();
+            let prize = if let Some(p) = self.prize_map.get(addr).copied() {
+                if p == 0 {
+                    None
+                } else {
+                    Some(p)
+                }
+            } else {
+                None
+            };
 
             let result = PlayerResult {
                 addr: addr.clone(),
@@ -658,9 +666,8 @@ impl Holdem {
         self.collect_bets()?;
         self.assign_winners(vec![vec![winner]])?;
         self.calc_prize()?;
-        self.apply_prize()?;
-
         let chips_change_map = self.update_chips_map()?;
+        self.apply_prize()?;
 
         // Add or reduce players chips according to chips change map
         for (player, chips_change) in chips_change_map.iter() {
@@ -678,7 +685,7 @@ impl Holdem {
             effect.settle(Settle::eject(addr));
         }
 
-        effect.wait_timeout(WAIT_TIMEOUT);
+        effect.wait_timeout(WAIT_TIMEOUT_LAST_PLAYER);
         Ok(())
     }
 
@@ -770,8 +777,8 @@ impl Holdem {
 
         self.assign_winners(winners)?;
         self.calc_prize()?;
-        self.apply_prize()?;
         let chips_change_map = self.update_chips_map()?;
+        self.apply_prize()?;
 
         // Add or reduce players chips according to chips change map
         for (player, chips_change) in chips_change_map.iter() {
@@ -788,7 +795,6 @@ impl Holdem {
         for addr in removed_addrs {
             effect.settle(Settle::eject(addr));
         }
-        effect.wait_timeout(WAIT_TIMEOUT);
 
         Ok(())
     }
@@ -1300,7 +1306,8 @@ impl GameHandler for Holdem {
                     | HoldemStage::Showdown => {
                         self.player_map.remove_entry(&player_addr);
                         effect.settle(Settle::eject(&player_addr));
-                        effect.wait_timeout(WAIT_TIMEOUT);
+                        effect.wait_timeout(WAIT_TIMEOUT_DEFAULT);
+                        self.signal_game_end()?;
                     }
 
                     // If current stage is playing, the player will be
@@ -1317,27 +1324,10 @@ impl GameHandler for Holdem {
                     //
                     // 3. The leaving player is not the acting player,
                     // and the game can continue.
+                    //
+                    // All these cases are handled in next state.
                     HoldemStage::Play | HoldemStage::ShareKey => {
-                        let remained_players: Vec<String> = self
-                            .player_map
-                            .values()
-                            .filter(|p| {
-                                matches!(
-                                    p.status,
-                                    PlayerStatus::Allin
-                                        | PlayerStatus::Acted
-                                        | PlayerStatus::Acting
-                                        | PlayerStatus::Wait
-                                )
-                            })
-                            .map(|p| p.addr())
-                            .collect();
-                        if remained_players.len() == 1 {
-                            let winner = remained_players[0].clone();
-                            self.single_player_win(effect, winner)?;
-                        } else if self.is_acting_player(&player_addr) {
-                            self.next_state(effect)?;
-                        }
+                        self.next_state(effect)?;
                     }
                 }
 
@@ -1455,7 +1445,7 @@ impl GameHandler for Holdem {
                     });
                     self.settle(effect)?;
 
-                    effect.wait_timeout(WAIT_TIMEOUT);
+                    effect.wait_timeout(WAIT_TIMEOUT_RUNNER);
                     Ok(())
                 }
 
@@ -1463,7 +1453,7 @@ impl GameHandler for Holdem {
                 HoldemStage::Showdown => {
                     self.display.clear();
                     self.settle(effect)?;
-                    effect.wait_timeout(WAIT_TIMEOUT);
+                    effect.wait_timeout(WAIT_TIMEOUT_SHOWDOWN);
                     Ok(())
                 }
 

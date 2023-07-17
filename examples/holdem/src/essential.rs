@@ -6,7 +6,11 @@ use std::collections::BTreeMap;
 
 pub const MAX_ACTION_TIMEOUT_COUNT: u8 = 2;
 pub const ACTION_TIMEOUT: u64 = 30_000;
-pub const WAIT_TIMEOUT: u64 = 10_000;
+
+pub const WAIT_TIMEOUT_DEFAULT: u64 = 5_000;
+pub const WAIT_TIMEOUT_LAST_PLAYER: u64 = 5_000;
+pub const WAIT_TIMEOUT_SHOWDOWN: u64 = 7_000;
+pub const WAIT_TIMEOUT_RUNNER: u64 = 13_000;
 
 #[derive(BorshSerialize, BorshDeserialize, Default, PartialEq, Debug, Clone, Copy)]
 pub enum PlayerStatus {
@@ -17,7 +21,6 @@ pub enum PlayerStatus {
     Allin,
     Fold,
     Init, // Indicating new players ready for the next hand
-    Winner,
     Leave,
     Out,
 }

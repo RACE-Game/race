@@ -293,7 +293,7 @@ fn test_eject_loser() -> Result<()> {
                 assert_eq!(player.status, PlayerStatus::Out);
                 assert_eq!(player.chips, 0);
             } else {
-                assert_eq!(player.status, PlayerStatus::Winner);
+                assert_eq!(player.status, PlayerStatus::Allin);
                 assert_eq!(player.chips, 20_010);
             }
         }
@@ -436,8 +436,8 @@ fn test_runner() -> Result<()> {
 
         let alice = state.player_map.get("Alice").unwrap();
         let bob = state.player_map.get("Bob").unwrap();
-        assert_eq!(alice.status, PlayerStatus::Winner);
-        assert_eq!(bob.status, PlayerStatus::Winner);
+        assert_eq!(alice.status, PlayerStatus::Allin);
+        assert_eq!(bob.status, PlayerStatus::Allin);
 
         println!("-- Display {:?}", state.display);
         assert_eq!(state.board.len(), 5);
@@ -542,7 +542,7 @@ fn test_settle_stage() -> Result<()> {
             if player.addr == "Charlie".to_string() || player.addr == "Bob".to_string() {
                 assert!(matches!(player.status, PlayerStatus::Fold));
             } else {
-                assert_eq!(player.status, PlayerStatus::Winner);
+                assert_eq!(player.status, PlayerStatus::Wait);
             }
         }
         assert_eq!(state.winners, vec!["Alice".to_string()]);
