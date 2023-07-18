@@ -4,8 +4,14 @@ import { makeid } from './utils';
 export class FacadeWallet implements IWallet {
   #addr: string;
 
-  constructor() {
-    this.#addr = makeid(16);
+  constructor();
+  constructor(addr: string);
+  constructor(addr?: string) {
+    if (addr === undefined) {
+      this.#addr = makeid(16);
+    } else {
+      this.#addr = addr;
+    }
   }
 
   get isConnected() {
