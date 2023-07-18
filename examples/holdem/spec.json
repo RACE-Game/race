@@ -1,0 +1,10 @@
+{
+  "title": "RHT01",
+  "reg_addr": "DkSrrSzDmF9BbjLSpqaBkVDPZJmw58gYtDvye77V5HQs",
+  "bundle_addr": "DcLto1pxUeMA2byoXDv8kQe4R8AtbLi4xEAHTmbCaMmF",
+  "token_addr": "RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ",
+  "max_players": 6,
+  "min_deposit": 20000000000,
+  "max_deposit": 50000000000,
+  "data": [0,202,154,59,0,0,0,0,0,148,53,119,0,0,0,0,3,0]
+}

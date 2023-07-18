@@ -840,10 +840,10 @@ impl TransportT for SolanaTransport {
 }
 
 impl SolanaTransport {
-    pub fn try_new(rpc: String, keyfile: PathBuf) -> TransportResult<Self> {
+    pub fn try_new(rpc: String, keyfile: PathBuf, skip_preflight: bool) -> TransportResult<Self> {
         let keypair = read_keypair(keyfile)?;
         let program_id = Pubkey::from_str(PROGRAM_ID)?;
-        SolanaTransport::try_new_with_program_id(rpc, keypair, program_id)
+        SolanaTransport::try_new_with_program_id(rpc, keypair, program_id, skip_preflight)
     }
 
     #[allow(unused)]
@@ -855,6 +855,7 @@ impl SolanaTransport {
         rpc: String,
         keypair: Keypair,
         program_id: Pubkey,
+        skip_preflight: bool
     ) -> TransportResult<Self> {
         println!(
             "Create Solana transport: RPC: {}, program_id: {:?}",
@@ -865,7 +866,7 @@ impl SolanaTransport {
         } else {
             CommitmentConfig::finalized()
         };
-        let debug = rpc.eq("http://localhost:8899");
+        let debug = skip_preflight;
         let client = RpcClient::new_with_commitment(rpc, commitment);
         Ok(Self {
             client,

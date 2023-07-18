@@ -13,6 +13,9 @@ pub struct TransportBuilder {
     rpc: Option<String>,
     keyfile: Option<PathBuf>,
     address: Option<String>,
+
+    // Solana
+    skip_preflight: Option<bool>,
 }
 
 impl TransportBuilder {
@@ -59,6 +62,7 @@ impl TransportBuilder {
                             .keyfile
                             .clone(),
                     );
+                    self.skip_preflight = config.solana.as_ref().and_then(|c| c.skip_preflight.clone());
                 }
                 ChainType::Bnb => {
                     self.rpc = Some(
@@ -94,7 +98,8 @@ impl TransportBuilder {
                 ChainType::Solana => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
                     let keyfile = self.keyfile.ok_or(TransportError::UnspecifiedSigner)?;
-                    Ok(Box::new(solana::SolanaTransport::try_new(rpc, keyfile)?))
+                    let skip_preflight = self.skip_preflight.unwrap_or(false);
+                    Ok(Box::new(solana::SolanaTransport::try_new(rpc, keyfile, skip_preflight)?))
                 }
                 ChainType::Facade => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;

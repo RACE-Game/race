@@ -15,6 +15,7 @@ pub struct FacadeConfig {
 pub struct SolanaConfig {
     pub rpc: String,
     pub keyfile: PathBuf,
+    pub skip_preflight: Option<bool>,
 }
 
 #[derive(Deserialize)]
