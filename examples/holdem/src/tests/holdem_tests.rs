@@ -102,7 +102,7 @@ fn test_eject_timeout() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Bob".to_string(),
                 position: 1,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_POSTFLOP
             })
         );
     }
@@ -125,7 +125,7 @@ fn test_eject_timeout() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Charlie".to_string(),
                 position: 2,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_PREFLOP
             })
         );
         for p in state.player_map.values() {
@@ -190,7 +190,7 @@ fn test_eject_loser() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Bob".to_string(),
                 position: 1,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_POSTFLOP
             })
         );
     }
@@ -241,7 +241,7 @@ fn test_eject_loser() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Charlie".to_string(),
                 position: 2,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_POSTFLOP
             })
         );
     }
@@ -264,7 +264,7 @@ fn test_eject_loser() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Alice".to_string(),
                 position: 0,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_POSTFLOP
             })
         );
     }
@@ -393,7 +393,7 @@ fn test_runner() -> Result<()> {
         assert_eq!(
             *ctx.get_dispatch(),
             Some(DispatchEvent {
-                timeout: 30_000,
+                timeout: ACTION_TIMEOUT_POSTFLOP,
                 event: Event::ActionTimeout {
                     player_addr: "Alice".into()
                 },
@@ -405,7 +405,7 @@ fn test_runner() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Alice".to_string(),
                 position: 0,
-                clock: 30_000u64,
+                clock: ACTION_TIMEOUT_POSTFLOP,
             })
         );
     }
@@ -496,7 +496,7 @@ fn test_settle_stage() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Bob".to_string(),
                 position: 1,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_POSTFLOP
             })
         );
     }
@@ -516,7 +516,7 @@ fn test_settle_stage() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Charlie".to_string(),
                 position: 2,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_PREFLOP
             })
         );
         assert_eq!(state.street_bet, 20);
@@ -783,7 +783,7 @@ fn test_play_game() -> Result<()> {
                 Some(ActingPlayer {
                     addr: "Dave".to_string(),
                     position: 3usize,
-                    clock: 30_000u64
+                    clock: 12_000u64
                 })
             );
         }

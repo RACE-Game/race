@@ -38,6 +38,7 @@
             pkg-config
             rust-analyzer
             simple-http-server
+            solana-cli
             nodejs_18
             just
             binaryen

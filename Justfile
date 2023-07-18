@@ -82,6 +82,8 @@ facade-transactor num:
 
 solana:
     (cd contracts/solana; cargo build-sbf)
+
+solana-local: solana
     solana program deploy ./target/deploy/race_solana.so
 
 borsh:

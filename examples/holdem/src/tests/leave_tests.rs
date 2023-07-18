@@ -33,7 +33,7 @@ fn test_players_leave() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Alice".into(),
                 position: 0,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_POSTFLOP
             })
         );
         println!("-- Display {:?}", state.display);
@@ -115,7 +115,7 @@ fn test_settle_leave() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Alice".into(),
                 position: 0,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_POSTFLOP
             })
         );
     }
@@ -204,7 +204,7 @@ fn test_runner_leave() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Alice".into(),
                 position: 0,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_POSTFLOP
             })
         );
     }
@@ -290,7 +290,7 @@ fn test_showdown_leave() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Alice".into(),
                 position: 0,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_POSTFLOP
             })
         );
     }
@@ -449,7 +449,7 @@ fn test_play_leave() -> Result<()> {
             Some(ActingPlayer {
                 addr: "Alice".into(),
                 position: 0,
-                clock: 30_000
+                clock: ACTION_TIMEOUT_POSTFLOP
             })
         );
     }
