@@ -166,6 +166,7 @@ export class AppClient {
           const initAccount = InitAccount.createFromGameAccount(this.#initGameAccount, accessVersion, settleVersion);
           console.log('Init account:', initAccount);
           await this.#handler.initState(this.#gameContext, initAccount);
+          console.log('Context created:', this.#gameContext);
           await this.invokeCallback(undefined);
         } finally {
           console.groupEnd();
@@ -182,8 +183,8 @@ export class AppClient {
             await this.#handler.handleEvent(context, event);
             this.#gameContext = context;
             console.log('Game context:', this.#gameContext);
-          } catch (err) {
-            console.warn(err);
+          } catch (err: any) {
+            console.error(`Handle error: ${err.message}`);
           }
           await this.invokeCallback(event);
         } finally {

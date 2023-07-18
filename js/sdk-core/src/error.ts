@@ -1,6 +1,6 @@
 import { field, variant } from '@race-foundation/borsh';
 
-export abstract class HandleError {}
+export abstract class HandleError extends Error {}
 
 @variant(0)
 export class CustomError extends HandleError {
@@ -15,6 +15,7 @@ export class CustomError extends HandleError {
 export class NoEnoughPlayers extends HandleError {
   constructor(_: any) {
     super();
+    this.message = 'No enough players';
   }
 }
 
@@ -22,6 +23,7 @@ export class NoEnoughPlayers extends HandleError {
 export class PlayerNotInGame extends HandleError {
   constructor(_: any) {
     super();
+    this.message = 'Player not in game';
   }
 }
 
@@ -29,6 +31,7 @@ export class PlayerNotInGame extends HandleError {
 export class CantLeave extends HandleError {
   constructor(_: any) {
     super();
+    this.message = "Can't leave game";
   }
 }
 
@@ -36,6 +39,7 @@ export class CantLeave extends HandleError {
 export class InvalidAmount extends HandleError {
   constructor(_: any) {
     super();
+    this.message = 'Invalid amount';
   }
 }
 
@@ -43,6 +47,7 @@ export class InvalidAmount extends HandleError {
 export class MalformedGameAccountData extends HandleError {
   constructor(_: any) {
     super();
+    this.message = 'Malformed game account data';
   }
 }
 
@@ -50,6 +55,7 @@ export class MalformedGameAccountData extends HandleError {
 export class MalformedCustomEvent extends HandleError {
   constructor(_: any) {
     super();
+    this.message = 'Malformed custom event';
   }
 }
 
@@ -57,6 +63,7 @@ export class MalformedCustomEvent extends HandleError {
 export class SerializationError extends HandleError {
   constructor(_: any) {
     super();
+    this.message = 'Serilization error';
   }
 }
 
@@ -64,6 +71,7 @@ export class SerializationError extends HandleError {
 export class NoEnoughServers extends HandleError {
   constructor(_: any) {
     super();
+    this.message = 'No enough servers';
   }
 }
 
@@ -73,7 +81,7 @@ export class InternalError extends HandleError {
   message: string;
   constructor(fields: { message: string }) {
     super();
-    this.message = fields.message;
+    this.message = `Internal error: ${fields.message}`;
   }
 }
 

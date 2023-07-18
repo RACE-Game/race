@@ -247,10 +247,6 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         player_addr,
         verify_key,
     } = params.one()?;
-    println!(
-        "! Join game: player: {}, game: {}, amount: {}, access version: {}",
-        player_addr, game_addr, amount, access_version
-    );
     let mut context = context.lock().await;
     if let Some(game_account) = context.games.get_mut(&game_addr) {
         if access_version != game_account.access_version {
@@ -270,16 +266,23 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         {
             return Err(custom_error(Error::PlayerAlreadyJoined(player_addr)));
         } else {
-            let access_version = game_account.access_version + 1;
+            game_account.access_version += 1;
             let player_join = PlayerJoin {
                 addr: player_addr.clone(),
                 position,
                 balance: amount,
-                access_version,
+                access_version: game_account.access_version,
                 verify_key,
             };
             game_account.players.push(player_join);
-            game_account.access_version = access_version;
+            println!(
+                "! Join game: player: {}, game: {}, amount: {}, access version: {} -> {}",
+                player_addr,
+                game_addr,
+                amount,
+                game_account.access_version - 1,
+                game_account.access_version
+            );
             Ok(())
         }
     } else {
@@ -390,9 +393,15 @@ async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
         pfp,
     } = params.one()?;
     let mut context = context.lock().await;
-    context.players.insert(
-        player_addr.clone(),
-        PlayerInfo {
+
+    context
+        .players
+        .entry(player_addr.clone())
+        .and_modify(|pi| {
+            pi.profile.nick = nick.clone();
+            pi.profile.pfp = pfp.clone();
+        })
+        .or_insert(PlayerInfo {
             balances: HashMap::from([
                 ("FACADE_USDC".to_string(), DEFAULT_BALANCE),
                 ("FACADE_USDT".to_string(), DEFAULT_BALANCE),
@@ -404,9 +413,9 @@ async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
                 nick,
                 pfp,
             },
-        },
-    );
+        });
     println!("+ Player profile: {}", player_addr);
+
     Ok(())
 }
 
@@ -526,6 +535,7 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
         verify_key,
     } = params.one()?;
     let mut context = context.lock().await;
+    let mut is_transactor = false;
 
     if !context.servers.contains_key(&server_addr) {
         return Err(custom_error(Error::ServerAccountNotFound));
@@ -542,10 +552,7 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
         .ok_or(custom_error(Error::GameAccountNotFound))?;
 
     if account.transactor_addr.is_none() {
-        println!(
-            "! Set game transactor, game: {}, transactor: {}",
-            game_addr, server_addr
-        );
+        is_transactor = true;
         account.transactor_addr = Some(server_addr.clone());
     }
 
@@ -571,13 +578,20 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
         } else {
             account.access_version += 1;
             account.servers.push(ServerJoin::new(
-                server_addr,
+                server_addr.clone(),
                 server_account.endpoint.clone(),
                 account.access_version,
                 verify_key,
             ));
         }
     }
+    println!(
+        "! Serve game, server: {}, is_transactor: {}, access version: {} -> {}",
+        server_addr,
+        is_transactor,
+        account.access_version - 1,
+        account.access_version
+    );
     Ok(())
 }
 

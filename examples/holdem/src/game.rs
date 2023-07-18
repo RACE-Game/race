@@ -1145,8 +1145,8 @@ impl Holdem {
 }
 
 impl GameHandler for Holdem {
-    fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
-        let mut player_map: BTreeMap<String, Player> = init_account
+    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
+        let player_map: BTreeMap<String, Player> = init_account
             .players
             .iter()
             .map(|p| {
@@ -1155,15 +1155,9 @@ impl GameHandler for Holdem {
                 (addr, player)
             })
             .collect();
-        // Kick out any players who've gotten stuck in on-chain game account
-        if !player_map.is_empty() {
-            for addr in player_map.keys() {
-                effect.settle(Settle::eject(addr));
-            }
-        }
-        player_map.clear();
 
         let HoldemAccount { sb, bb, rake } = init_account.data()?;
+
         Ok(Self {
             deck_random_id: 0,
             sb,
