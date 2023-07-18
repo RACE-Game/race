@@ -131,8 +131,8 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         access_version,
                         timestamp,
                     });
-                    // We keep at most 100 backups
-                    if event_backups.len() > 100 {
+                    // We keep at most 1000 backups
+                    if event_backups.len() > 1000 {
                         event_backups.pop_front();
                     }
 
