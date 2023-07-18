@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 
 use crate::essential::{
     ActingPlayer, AwardPot, Display, GameEvent, HoldemAccount, HoldemStage, Player, PlayerResult,
-    PlayerStatus, Pot, Street, ACTION_TIMEOUT, MAX_ACTION_TIMEOUT_COUNT, WAIT_TIMEOUT_DEFAULT,
+    PlayerStatus, Pot, Street, ACTION_TIMEOUT_POSTFLOP, ACTION_TIMEOUT_PREFLOP,
+    ACTION_TIMEOUT_RIVER, ACTION_TIMEOUT_TURN, MAX_ACTION_TIMEOUT_COUNT, WAIT_TIMEOUT_DEFAULT,
     WAIT_TIMEOUT_LAST_PLAYER, WAIT_TIMEOUT_RUNNER, WAIT_TIMEOUT_SHOWDOWN,
 };
 use crate::evaluator::{compare_hands, create_cards, evaluate_cards, PlayerHand};
@@ -161,20 +162,37 @@ impl Holdem {
         }
     }
 
+    fn get_action_time(&self) -> u64 {
+        match self.street {
+            Street::Turn => ACTION_TIMEOUT_TURN,
+            Street::River => ACTION_TIMEOUT_RIVER,
+            Street::Flop => ACTION_TIMEOUT_POSTFLOP,
+            Street::Preflop => {
+                if self.street_bet == self.bb {
+                    ACTION_TIMEOUT_PREFLOP
+                } else {
+                    ACTION_TIMEOUT_POSTFLOP
+                }
+            }
+            _ => 0,
+        }
+    }
+
     pub fn ask_for_action(
         &mut self,
         player_addr: String,
         effect: &mut Effect,
     ) -> Result<(), HandleError> {
+        let timeout = self.get_action_time();
         if let Some(player) = self.player_map.get_mut(&player_addr) {
             println!("== Asking {} to act", player.addr);
             player.status = PlayerStatus::Acting;
             self.acting_player = Some(ActingPlayer {
                 addr: player.addr(),
                 position: player.position,
-                clock: effect.timestamp() + ACTION_TIMEOUT,
+                clock: effect.timestamp() + timeout,
             });
-            effect.action_timeout(player_addr, ACTION_TIMEOUT); // in secs
+            effect.action_timeout(player_addr, timeout); // in secs
             Ok(())
         } else {
             return Err(HandleError::Custom(
