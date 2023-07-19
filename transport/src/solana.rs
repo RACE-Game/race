@@ -1026,6 +1026,7 @@ mod tests {
             "http://localhost:8899".into(),
             keypair,
             read_program_id()?,
+            true
         )?;
         transport.client.request_airdrop(&pubkey, 1_000_000_000)?;
         Ok(transport)
