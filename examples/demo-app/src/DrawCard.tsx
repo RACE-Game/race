@@ -2,7 +2,7 @@ import React from "react";
 import { useContext, useEffect, useRef, useState } from "react";
 import { variant, field, array, struct, option, serialize, deserialize } from '@race-foundation/borsh';
 import { useParams } from 'react-router-dom';
-import { AppClient, GameContextSnapshot, GameEvent, ICustomEvent, SecretsReady } from '@race-foundation/sdk-core';
+import { AppClient, Message, GameContextSnapshot, GameEvent, ICustomEvent, SecretsReady } from '@race-foundation/sdk-core';
 import { CHAIN_TO_RPC } from "./constants";
 import Card from './Card';
 import { PlayerProfile } from '@race-foundation/sdk-core';
@@ -11,6 +11,7 @@ import { LogsContext } from "./logs-context";
 import Header from "./Header";
 import { useWallet, createTransport } from './integration';
 import { useGameContext } from "./App";
+import MessagePanel from "./MessagePanel";
 
 interface FormData {
     bet: bigint
@@ -84,33 +85,41 @@ class State {
     }
 }
 
-function renderWaitingPlayers(state: State, profile: PlayerProfile, client: AppClient) {
+function renderWaitingPlayers(state: State, profile: PlayerProfile, client: AppClient, messages: Message[]) {
     let n = state.players.length;
     let canJoin = state.players.find((p) => p.addr == profile.addr) === undefined;
     let onJoin = async () => {
         client.join({ amount: 1000n });
     };
 
-    return <div className="w-full h-full flex justify-center items-center flex-col">
-        <div>Waiting for <span className="font-bold">{2 - n}</span> players to start</div>
-        {!canJoin ? null :
-            <div className="m-2">
-                <button className="border border-black py-2 px-4"
-                    onClick={onJoin}>
-                    Join
-                </button>
-            </div>}
+    return <div className="w-full h-full flex flex-col">
+        <div className="flex-1 grid place-items-center">
+            <div>Waiting for <span className="font-bold">{2 - n}</span> players to start</div>
+            {!canJoin ? null :
+                <div className="m-2">
+                    <button className="border border-black py-2 px-4"
+                        onClick={onJoin}>
+                        Join
+                    </button>
+                </div>}
+        </div>
+        <MessagePanel messages={messages} client={client} />
     </div>
 }
 
-function renderWaitingConnecting() {
-    return <div className="w-full h-full font-bold grid place-items-center">
-        <div>Connect wallet first!</div>
+function renderWaitingConnecting(client: AppClient | undefined, messages: Message[]) {
+    return <div className="w-full h-full font-bold flex flex-col">
+        <div className="flex-1 grid place-items-center">Connect wallet first!</div>
+        {
+            client == undefined ? null :
+                <MessagePanel messages={messages} client={client} />
+        }
     </div>
 }
 
 function DrawCard() {
     let [state, setState] = useState<State | undefined>(undefined);
+    let [messages, setMessages] = useState<Message[]>([]);
     let [form, setForm] = useState<FormData>({ bet: 100n });
     let [revealedCards, setRevealedCards] = useState<Map<number, string> | undefined>(undefined);
     let client = useRef<AppClient | undefined>(undefined);
@@ -146,6 +155,13 @@ function DrawCard() {
         setForm({ bet: BigInt(value) })
     }
 
+    const onMessage = (message: Message) => {
+        setMessages(msgs => {
+            msgs.push(message);
+            return msgs;
+        });
+    };
+
     const onEvent = async (_context: GameContextSnapshot, stateData: Uint8Array, event: GameEvent | undefined) => {
         console.log(stateData);
         const state = deserialize(State, stateData);
@@ -170,7 +186,7 @@ function DrawCard() {
             if (profile !== undefined && addr !== undefined) {
                 let rpc = CHAIN_TO_RPC[chain];
                 let transport = createTransport(chain, rpc);
-                let c = await AppClient.initialize({ transport, wallet, gameAddr: addr, callback: onEvent });
+                let c = await AppClient.initialize({ transport, wallet, gameAddr: addr, onEvent: onEvent, onMessage: onMessage });
                 client.current = c;
                 await c.attachGame();
                 console.log("Attached to game");
@@ -186,7 +202,7 @@ function DrawCard() {
     }, [profile, addr]);
 
     if (addr === undefined || state === undefined || profile === undefined || client.current === undefined) {
-        return renderWaitingConnecting();
+        return renderWaitingConnecting(client.current, messages);
     }
 
     let playerAddr = profile.addr;
@@ -198,7 +214,7 @@ function DrawCard() {
     let opponent = state.players.find((p: Player) => p.addr !== playerAddr);
 
     if (player === undefined || opponent === undefined) {
-        return renderWaitingPlayers(state, profile, client.current);
+        return renderWaitingPlayers(state, profile, client.current, messages);
     }
 
     let [playerPos, opponentPos] = playerAddr == state.players[0]?.addr ? [0, 1] : [1, 0];
@@ -247,6 +263,7 @@ function DrawCard() {
                     {optionButtons}
                 </div>
             </div>
+            <MessagePanel messages={messages} client={client.current} />
         </div>
     );
 }

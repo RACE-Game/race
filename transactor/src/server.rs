@@ -12,6 +12,8 @@ use jsonrpsee::types::error::CallError;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
+use race_core::event::Message;
+use race_core::types::SubmitMessageParams;
 use race_core::types::{
     AttachGameParams, ExitGameParams, Signature, SubmitEventParams, SubscribeEventParams,
 };
@@ -65,6 +67,21 @@ async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Re
 
     context
         .register_key(signer, key)
+        .await
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
+}
+
+async fn submit_message(
+    params: Params<'_>,
+    context: Arc<ApplicationContext>,
+) -> Result<(), RpcError> {
+    let (game_addr, SubmitMessageParams { content }, sig) = parse_params(params, &context)?;
+
+    let sender = sig.signer;
+    let message = Message { content, sender };
+
+    context
+        .send_message(&game_addr, message)
         .await
         .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
@@ -185,6 +202,7 @@ pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
 
     module.register_async_method("attach_game", attach_game)?;
     module.register_async_method("submit_event", submit_event)?;
+    module.register_async_method("submit_message", submit_message)?;
     module.register_async_method("exit_game", exit_game)?;
     module.register_subscription(
         "subscribe_event",

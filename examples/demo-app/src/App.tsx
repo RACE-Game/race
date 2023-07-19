@@ -3,6 +3,7 @@ import { Outlet, useOutletContext, useNavigate } from 'react-router-dom';
 import Sidemenu from './Sidemenu';
 import Profile from './Profile';
 import TokenList from './TokenList';
+import MessagePanel from './MessagePanel';
 import { AppHelper, GameEvent, PlayerProfile } from '@race-foundation/sdk-core';
 import './App.css'
 import { ProfileContext } from './profile-context';

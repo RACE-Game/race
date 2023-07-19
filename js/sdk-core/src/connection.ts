@@ -3,7 +3,7 @@ import { GameEvent } from './events';
 import { deserialize, enums, field, serialize, struct, variant } from '@race-foundation/borsh';
 import { arrayBufferToBase64, base64ToUint8Array } from './utils';
 
-type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event';
+type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event' | 'submit_message';
 
 interface IAttachGameParams {
   signer: string;
@@ -16,6 +16,10 @@ interface ISubscribeEventParams {
 
 interface ISubmitEventParams {
   event: GameEvent
+}
+
+interface ISubmitMessageParams {
+  content: string
 }
 
 export class AttachGameParams {
@@ -45,6 +49,25 @@ export class SubmitEventParams {
   event: GameEvent;
   constructor(fields: ISubmitEventParams) {
     this.event = fields.event;
+  }
+}
+
+
+export class SubmitMessageParams {
+  @field('string')
+  content: string;
+  constructor(fields: ISubmitMessageParams) {
+    this.content = fields.content;
+  }
+}
+
+export class Message {
+  @field('string')
+  sender!: string;
+  @field('string')
+  content!: string;
+  constructor(fields: any) {
+    Object.assign(this, fields);
   }
 }
 
@@ -78,6 +101,18 @@ export class BroadcastFrameInit extends BroadcastFrame {
   }
 }
 
+@variant(2)
+export class BroadcastFrameMessage extends BroadcastFrame {
+  @field('string')
+  gameAddr!: string;
+  @field(struct(Message))
+  message!: Message;
+  constructor(fields: any) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
 export interface BroadcastFrame {
   gameAddr: string;
   state: any;
@@ -88,6 +123,8 @@ export interface IConnection {
   attachGame(gameAddr: string, params: AttachGameParams): Promise<void>;
 
   submitEvent(gameAddr: string, params: SubmitEventParams): Promise<void>;
+
+  submitMessage(gameAddr: string, params: SubmitMessageParams): Promise<void>;
 
   exitGame(gameAddr: string, params: ExitGameParams): Promise<void>;
 
@@ -117,6 +154,11 @@ export class Connection implements IConnection {
 
   async submitEvent(gameAddr: string, params: SubmitEventParams): Promise<void> {
     const req = await this.makeReq(gameAddr, 'submit_event', params);
+    await this.requestXhr(req);
+  }
+
+  async submitMessage(gameAddr: string, params: SubmitMessageParams): Promise<void> {
+    const req = await this.makeReq(gameAddr, 'submit_message', params);
     await this.requestXhr(req);
   }
 

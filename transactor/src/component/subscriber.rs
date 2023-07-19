@@ -132,6 +132,10 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                         break;
                     }
                 }
+
+                BroadcastFrame::Message { .. } => {
+                    // Dropped
+                }
             }
         }
 

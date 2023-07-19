@@ -3,7 +3,7 @@ use crate::frame::SignalFrame;
 use crate::game_manager::GameManager;
 use race_core::encryptor::{EncryptorT, NodePublicKeyRaw};
 use race_core::error::{Error, Result};
-use race_core::event::Event;
+use race_core::event::{Event, Message};
 use race_core::transport::TransportT;
 use race_core::types::{BroadcastFrame, ServerAccount, Signature};
 use race_encryptor::Encryptor;
@@ -111,6 +111,10 @@ impl ApplicationContext {
 
     pub async fn send_event(&self, game_addr: &str, event: Event) -> Result<()> {
         self.game_manager.send_event(game_addr, event).await
+    }
+
+    pub async fn send_message(&self, game_addr: &str, message: Message) -> Result<()> {
+        self.game_manager.send_message(game_addr, message).await
     }
 
     pub async fn get_broadcast(

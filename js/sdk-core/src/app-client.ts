@@ -1,4 +1,4 @@
-import { BroadcastFrameEvent, BroadcastFrameInit, Connection, IConnection, SubmitEventParams, SubscribeEventParams } from './connection';
+import { BroadcastFrameEvent, BroadcastFrameInit, BroadcastFrameMessage, Connection, IConnection, Message, SubmitEventParams, SubmitMessageParams, SubscribeEventParams } from './connection';
 import { GameContext } from './game-context';
 import { GameContextSnapshot } from './game-context-snapshot';
 import { ITransport } from './transport';
@@ -12,12 +12,14 @@ import { Custom, GameEvent, ICustomEvent } from './events';
 import { ProfileCache } from './profile-cache';
 
 export type EventCallbackFunction = (context: GameContextSnapshot, state: Uint8Array, event: GameEvent | undefined) => void;
+export type MessageCallbackFunction = (message: Message) => void;
 
 export type AppClientInitOpts = {
   transport: ITransport,
   wallet: IWallet,
   gameAddr: string,
-  callback: EventCallbackFunction,
+  onEvent: EventCallbackFunction,
+  onMessage: MessageCallbackFunction,
 };
 
 export type JoinOpts = {
@@ -42,7 +44,8 @@ export class AppClient {
   #connection: IConnection;
   #gameContext: GameContext;
   #initGameAccount: GameAccount;
-  #callback: EventCallbackFunction;
+  #onEvent: EventCallbackFunction;
+  #onMessage: MessageCallbackFunction;
   #encryptor: IEncryptor;
   #profileCaches: ProfileCache;
   #info: GameInfo;
@@ -56,7 +59,8 @@ export class AppClient {
     connection: IConnection,
     gameContext: GameContext,
     initGameAccount: GameAccount,
-    callback: EventCallbackFunction,
+    onEvent: EventCallbackFunction,
+    onMessage: MessageCallbackFunction,
     encryptor: IEncryptor,
     info: GameInfo,
   ) {
@@ -68,7 +72,8 @@ export class AppClient {
     this.#connection = connection;
     this.#gameContext = gameContext;
     this.#initGameAccount = initGameAccount;
-    this.#callback = callback;
+    this.#onEvent = onEvent;
+    this.#onMessage = onMessage;
     this.#encryptor = encryptor;
     this.#profileCaches = new ProfileCache(transport);
     this.#info = info;
@@ -77,7 +82,7 @@ export class AppClient {
   static async initialize(
     opts: AppClientInitOpts
   ): Promise<AppClient> {
-    const { transport, wallet, gameAddr, callback } = opts;
+    const { transport, wallet, gameAddr, onEvent, onMessage } = opts;
     console.group("AppClient initialization");
     try {
       const encryptor = await Encryptor.create();
@@ -116,7 +121,7 @@ export class AppClient {
         maxPlayers: gameAccount.maxPlayers,
         token
       };
-      return new AppClient(gameAddr, handler, wallet, client, transport, connection, gameContext, gameAccount, callback, encryptor, info);
+      return new AppClient(gameAddr, handler, wallet, client, transport, connection, gameContext, gameAccount, onEvent, onMessage, encryptor, info);
     } finally {
       console.groupEnd();
     }
@@ -141,11 +146,11 @@ export class AppClient {
     return await this.#transport.getPlayerProfile(addr);
   }
 
-  async invokeCallback(event: GameEvent | undefined) {
+  async invokeEventCallback(event: GameEvent | undefined) {
     const snapshot = new GameContextSnapshot(this.#gameContext);
     await this.#profileCaches.injectProfiles(snapshot);
     const state = this.#gameContext.handlerState;
-    this.#callback(snapshot, state, event);
+    this.#onEvent(snapshot, state, event);
   }
 
   /**
@@ -167,11 +172,19 @@ export class AppClient {
           console.log('Init account:', initAccount);
           await this.#handler.initState(this.#gameContext, initAccount);
           console.log('Context created:', this.#gameContext);
-          await this.invokeCallback(undefined);
+          await this.invokeEventCallback(undefined);
         } finally {
           console.groupEnd();
         }
-      } else if (frame instanceof BroadcastFrameEvent) {
+      }
+
+      else if (frame instanceof BroadcastFrameMessage) {
+        const { message } = frame;
+        console.log("Message:", message);
+        this.#onMessage(message);
+      }
+
+      else if (frame instanceof BroadcastFrameEvent) {
         const { event, timestamp } = frame;
         console.group('Handle event: ' + event.kind());
         try {
@@ -186,7 +199,7 @@ export class AppClient {
           } catch (err: any) {
             console.error(`Handle error: ${err.message}`);
           }
-          await this.invokeCallback(event);
+          await this.invokeEventCallback(event);
         } finally {
           console.groupEnd();
         }
@@ -242,6 +255,15 @@ export class AppClient {
     const event = new Custom({ sender: this.playerAddr, raw });
     await this.#connection.submitEvent(this.#gameAddr, new SubmitEventParams({
       event
+    }));
+  }
+
+  /**
+   * Submit a message, contains arbitrary content.
+   */
+  async submitMessage(message: string) {
+    await this.#connection.submitMessage(this.#gameAddr, new SubmitMessageParams({
+      content: message
     }));
   }
 

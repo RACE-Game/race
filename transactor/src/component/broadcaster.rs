@@ -1,6 +1,5 @@
 //! The broadcaster will broadcast event to all connected participants
 //! The broadcast should also save
-//
 
 use std::collections::LinkedList;
 use std::sync::Arc;
@@ -117,6 +116,19 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
     async fn run(mut ports: ConsumerPorts, ctx: BroadcasterContext) {
         while let Some(event) = ports.recv().await {
             match event {
+                EventFrame::SendMessage {
+                    message
+                } => {
+                    let r = ctx.broadcast_tx.send(BroadcastFrame::Message {
+                        game_addr: ctx.game_addr.clone(),
+                        message,
+                    });
+
+                    if let Err(e) = r {
+                        // Usually it means no receivers
+                        debug!("Failed to broadcast event: {:?}", e);
+                    }
+                },
                 EventFrame::Broadcast {
                     event,
                     access_version,

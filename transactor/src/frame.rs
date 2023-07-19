@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::{
     context::GameContext,
     engine::InitAccount,
-    event::Event,
+    event::{Event, Message},
     types::{PlayerJoin, ServerJoin, Settle, VoteType},
 };
 
@@ -10,6 +10,7 @@ use race_core::{
 pub enum SignalFrame {
     StartGame { game_addr: String },
 }
+
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub enum EventFrame {
@@ -32,6 +33,9 @@ pub enum EventFrame {
     },
     SendEvent {
         event: Event,
+    },
+    SendMessage {
+        message: Message,
     },
     SendServerEvent {
         event: Event,
@@ -86,6 +90,7 @@ impl std::fmt::Display for EventFrame {
             EventFrame::Broadcast { event, .. } => write!(f, "Broadcast: {}", event),
             EventFrame::Settle { .. } => write!(f, "Settle"),
             EventFrame::SettleFinalized { .. } => write!(f, "SettleFinalized"),
+            EventFrame::SendMessage { message } => write!(f, "SendMessage: {}", message.sender),
             EventFrame::ContextUpdated { context: _ } => write!(f, "ContextUpdated"),
             EventFrame::Shutdown => write!(f, "Shutdown"),
             EventFrame::Vote { votee, vote_type } => {

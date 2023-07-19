@@ -6,6 +6,18 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+/// A message sent by player
+/// Used to express unimportant game events that
+/// can be sent at any time without the server checking
+/// their content.
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct Message {
+    pub sender: String,
+    pub content: String,
+}
+
 /// Game event structure
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

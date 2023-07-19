@@ -1,5 +1,5 @@
 use race_core::error::{Error, Result};
-use race_core::event::Event;
+use race_core::event::{Event, Message};
 use race_core::types::{BroadcastFrame, ServerAccount};
 use race_encryptor::Encryptor;
 use std::collections::hash_map::Entry;
@@ -70,6 +70,18 @@ impl GameManager {
             Ok(())
         } else {
             warn!("Game {} not loaded, discard event: {:?}", game_addr, event);
+            Err(Error::GameNotLoaded)
+        }
+    }
+
+    pub async fn send_message(&self, game_addr: &str, message: Message) -> Result<()> {
+        let games = self.games.lock().await;
+        if let Some(handle) = games.get(game_addr) {
+            let event_frame = EventFrame::SendMessage { message };
+            handle.event_bus().send(event_frame).await;
+            Ok(())
+        } else {
+            warn!("Game {} not loaded, discard message: {:?}", game_addr, message);
             Err(Error::GameNotLoaded)
         }
     }

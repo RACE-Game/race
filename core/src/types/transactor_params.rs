@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 
-use crate::{event::Event, encryptor::NodePublicKeyRaw};
+use crate::{event::{Event, Message}, encryptor::NodePublicKeyRaw};
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -33,6 +33,21 @@ impl Display for SubmitEventParams {
         write!(f, "SubmitEventParams")
     }
 }
+
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct SubmitMessageParams {
+    pub content: String,
+}
+
+impl Display for SubmitMessageParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SubmitMessageParams")
+    }
+}
+
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -71,6 +86,10 @@ pub enum BroadcastFrame {
         access_version: u64,
         settle_version: u64,
     },
+    Message {
+        game_addr: String,
+        message: Message,
+    },
 }
 
 impl Display for BroadcastFrame {
@@ -78,6 +97,9 @@ impl Display for BroadcastFrame {
         match self {
             BroadcastFrame::Event { event, .. } => {
                 write!(f, "BroadcastFrame::Event: {}", event)
+            }
+            BroadcastFrame::Message { message, .. } => {
+                write!(f, "BroadcastFrame::Message: {}", message.sender)
             }
             BroadcastFrame::Init {
                 access_version,
