@@ -134,6 +134,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
             return Err(ProcessError::InvalidDeposit)?;
         }
 
+        msg!("Transfer token to stake account.");
         let transfer_ix = transfer(
             token_program.key,
             temp_account.key,
@@ -153,6 +154,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
             ],
         )?;
 
+        msg!("Close temp account.");
         let close_temp_account_ix = close_account(
             token_program.key,
             temp_account.key,
@@ -200,6 +202,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], params: JoinParams
         )?;
     }
 
+    msg!("Pack game state with {} players", game_state.players.len());
     GameState::pack(game_state, &mut game_account.try_borrow_mut_data()?)?;
 
     msg!(
