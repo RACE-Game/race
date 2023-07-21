@@ -1,9 +1,0 @@
-{
-  "title": "Race Holdem",
-  "bundle": "target/race_example_holdem.wasm",
-  "token": "FACADE_USDC",
-  "max_players": 6,
-  "min_deposit": 1000,
-  "max_deposit": 5000,
-  "data": [10, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 3, 0]
-}

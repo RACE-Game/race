@@ -1601,19 +1601,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "env_logger"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85cdab6a89accf66733ad5a1693a4dcced6aeff64602b634530dd73c1f3ee9f0"
-dependencies = [
- "humantime",
- "is-terminal",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
 name = "errno"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3495,18 +3482,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "race-example-holdem"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "env_logger 0.10.0",
- "log",
- "race-core",
- "race-proc-macro",
- "race-test",
-]
-
-[[package]]
 name = "race-example-minimal"
 version = "0.1.0"
 dependencies = [
@@ -4680,7 +4655,7 @@ version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "170714ca3612e4df75f57c2c14c8ab74654b3b66f668986aeed456cedcf24446"
 dependencies = [
- "env_logger 0.9.3",
+ "env_logger",
  "lazy_static",
  "log",
 ]

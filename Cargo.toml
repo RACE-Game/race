@@ -16,7 +16,6 @@ members = [
   "examples/draw-card",
   "examples/minimal",
   "examples/raffle",
-  "examples/holdem",
   # "examples/blackjack",
   # "examples/roshambo",
   # "examples/chat",
