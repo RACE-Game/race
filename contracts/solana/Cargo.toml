@@ -17,7 +17,6 @@ race-solana-types = { workspace = true, features = ["program"] }
 borsh = { workspace = true }
 arrayref = { workspace = true }
 thiserror = { workspace = true }
-mpl-token-metadata = { workspace = true, features = ["no-entrypoint"] }
 
 [dev-dependencies]
 anyhow = { workspace = true }

@@ -28,8 +28,8 @@ solana-client = { workspace = true }
 solana-sdk = { workspace = true }
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
-mpl-token-metadata = { workspace = true }
 reqwest = { workspace = true, features = [ "json"] }
+mpl-token-metadata = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }

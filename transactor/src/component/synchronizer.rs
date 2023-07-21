@@ -22,6 +22,8 @@ pub struct GameSynchronizerContext {
     game_addr: String,
 }
 
+const MAX_RETRIES: u8 = 10;
+
 /// A component that reads the on-chain states and feed the system.
 /// To construct a synchronizer, a chain adapter is required.
 pub struct GameSynchronizer {}
@@ -50,10 +52,12 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
 
     async fn run(ports: ProducerPorts, ctx: GameSynchronizerContext) {
         let mut access_version = ctx.access_version;
+        let mut num_of_retries = 0;
 
         loop {
             let state = ctx.transport.get_game_account(&ctx.game_addr).await;
             if let Ok(Some(state)) = state {
+                num_of_retries = 0;
                 if access_version < state.access_version {
                     info!(
                         "Synchronizer get new state, access_version = {}",
@@ -94,6 +98,10 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                 } else {
                     sleep(Duration::from_secs(1)).await;
                 }
+
+            } else if num_of_retries < MAX_RETRIES {
+                num_of_retries += 1;
+                sleep(Duration::from_secs(3)).await;
             } else {
                 warn!("Game account not found, shutdown synchronizer");
                 ports.close(CloseReason::Complete);

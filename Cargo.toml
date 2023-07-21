@@ -11,7 +11,7 @@ members = [
   "env",
   "client",
   "test",
-  "contracts/solana",
+  # "contracts/solana",
   "contracts/solana-types",
   "examples/draw-card",
   "examples/minimal",
@@ -68,7 +68,7 @@ solana-client = "1.14.18"
 solana-sdk = "1.14.18"
 spl-token = "3.5.0"
 spl-associated-token-account = "1.1.2"
-mpl-token-metadata = "1.9.1"
+mpl-token-metadata = "1.13.0"
 shellexpand = "3.0.0"
 getrandom = "0.2"
 rand = "0.8.5"

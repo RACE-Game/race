@@ -43,7 +43,7 @@
             binaryen
             nodePackages.typescript-language-server
           ];
-          RUST_LOG = "info,wasmer_compiler_cranelift=error,solana_rpc_client=error";
+          RUST_LOG = "info,wasmer_compiler_cranelift=error,solana_rpc_client=error,solana_client=debug";
           RUST_BACKTRACE = 1;
         };
       }
