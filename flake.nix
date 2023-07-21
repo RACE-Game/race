@@ -33,9 +33,7 @@
               extensions = [ "rust-src" ];
              targets = [ "wasm32-unknown-unknown" ];
             })
-            lld
             cargo
-            mold
             openssl
             pkg-config
             rust-analyzer
