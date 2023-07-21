@@ -3467,14 +3467,11 @@ dependencies = [
  "base64 0.21.0",
  "chacha20",
  "chrono",
- "getrandom 0.2.9",
  "openssl",
  "race-core",
  "rand 0.8.5",
  "sha1",
  "thiserror",
- "wasm-bindgen",
- "wasm-bindgen-futures",
 ]
 
 [[package]]

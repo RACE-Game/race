@@ -73,15 +73,14 @@ shellexpand = "3.0.0"
 getrandom = "0.2"
 rand = "0.8.5"
 toml = "0.5.9"
-web-sys = { version = "0.3.60", features = ["Worker", "MessageEvent"] }
-gloo = "0.8.0"
-wasm-bindgen = "0.2.83"
-wasm-bindgen-futures = "0.4.33"
-wasm-bindgen-test = "0.3.33"
-js-sys = "0.3.60"
+# web-sys = { version = "0.3.60", features = ["Worker", "MessageEvent"] }
+# gloo = "0.8.0"
+# wasm-bindgen = "0.2.83"
+# wasm-bindgen-futures = "0.4.33"
+# wasm-bindgen-test = "0.3.33"
+# js-sys = "0.3.60"
 project-root = "0.2.2"
 reqwest = "0.11.16"
-# openssl = { version = "^0.10", features = ["vendored"]}
 openssl = { version = "^0.10" }
 prettytable-rs = "^0.10"
 sha1 = { version = "0.10.5", default-features = false, features = ["oid"] }
