@@ -55,8 +55,8 @@ pub async fn start_reg_task(context: &ApplicationContext) {
             for addr in reg_addresses.iter() {
                 if let Ok(Some(reg)) = transport.get_registration(addr).await {
                     for game_reg in reg.games.into_iter() {
-                        if let Some(game_account) =
-                            transport.get_game_account(&game_reg.addr).await.unwrap()
+                        if let Ok(Some(game_account)) =
+                            transport.get_game_account(&game_reg.addr).await
                         {
                             // We will keep registering until we become the transactor.
                             if game_account
@@ -96,6 +96,9 @@ pub async fn start_reg_task(context: &ApplicationContext) {
                                     game_account.addr, e
                                 );
                             }
+                        } else {
+                            // Game account not fonud, skip
+                            warn!("Game account not found: {:?}", &game_reg.addr);
                         }
                     }
                 } else {
