@@ -16,8 +16,8 @@ export const CHAIN_TO_RPC: Record<Chain, string> = {
 
 export let CHAIN_ADDR_GAME_MAPPING: Record<Chain, Record<string, string>> = {
   'facade': {
-    'target_race_example_raffle_wasm': 'raffle',
-    'target_race_example_draw_card_wasm': 'draw-card',
+    'targetraceexamplerafflewasm': 'raffle',
+    'targetraceexampledrawcardwasm': 'draw-card',
   },
   'solana-local': {
     '<INVALID>': 'raffle'

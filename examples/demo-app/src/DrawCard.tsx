@@ -186,7 +186,7 @@ function DrawCard() {
             if (profile !== undefined && addr !== undefined) {
                 let rpc = CHAIN_TO_RPC[chain];
                 let transport = createTransport(chain, rpc);
-                let c = await AppClient.initialize({ transport, wallet, gameAddr: addr, onEvent: onEvent, onMessage: onMessage });
+                let c = await AppClient.initialize({ transport, wallet, gameAddr: addr, onEvent: onEvent, onMessage: onMessage, storage: localStorage });
                 client.current = c;
                 await c.attachGame();
                 console.log("Attached to game");

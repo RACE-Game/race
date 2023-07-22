@@ -19,9 +19,9 @@ export type AppClientInitOpts = {
     transport: ITransport,
     wallet: IWallet,
     gameAddr: string,
-    storage: IStorage,
     onEvent: EventCallbackFunction,
     onMessage: MessageCallbackFunction,
+    storage?: IStorage,
 };
 
 export type JoinOpts = {
