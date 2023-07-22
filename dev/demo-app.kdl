@@ -1,0 +1,31 @@
+// The layout to launch facade and transactor and demo-app build in Zellij
+
+layout {
+  pane split_direction="horizontal" {
+    pane split_direction="vertical" {
+      pane {
+        name "Facade"
+        focus true
+        cwd "./"
+        command "just"
+        args "dev-facade" "examples/draw-card/facade.json"
+        start_suspended true
+      }
+      pane {
+        name "Vite"
+        focus true
+        cwd "./"
+        command "just"
+        args "dev-demo-app"
+      }
+    }
+
+    pane {
+        name "Transactor"
+        command "just"
+        cwd "./"
+        args "facade-transactor" "1"
+        start_suspended true
+    }
+  }
+}

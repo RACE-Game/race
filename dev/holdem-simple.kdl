@@ -1,4 +1,4 @@
-// The layout to launch facade and 2 transactors in Zellij
+// The layout to launch facade and one transactors in Zellij
 
 layout {
   pane split_direction="vertical" {
@@ -16,7 +16,6 @@ layout {
         cwd "./"
         args "facade-transactor" "1"
         start_suspended true
-      }
     }
   }
 }
