@@ -359,7 +359,7 @@ export class Encryptor implements IEncryptor {
 
     static async create(playerAddr: string, storage: IStorage | undefined): Promise<Encryptor> {
         if (storage !== undefined) {
-            const imported = Encryptor.importFromStorage(playerAddr, storage);
+            const imported = await Encryptor.importFromStorage(playerAddr, storage);
             if (imported !== undefined) {
                 return imported;
             }
@@ -386,7 +386,7 @@ export class Encryptor implements IEncryptor {
 
     }
 
-    static async importFromStorage(playerAddr: string, storage: IStorage): Encryptor | undefined {
+    static async importFromStorage(playerAddr: string, storage: IStorage): Promise<Encryptor | undefined> {
         const k = Encryptor.makeStorageKey(playerAddr);
         const v = storage.getItem(k);
         if (v === null) {
