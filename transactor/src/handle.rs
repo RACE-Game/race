@@ -80,6 +80,7 @@ impl TransactorHandle {
         event_bus
             .send(EventFrame::InitState {
                 init_account: InitAccount::from_game_account(game_account),
+                state: None
             })
             .await;
 

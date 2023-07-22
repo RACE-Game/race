@@ -166,13 +166,19 @@ export class AppClient {
             if (frame instanceof BroadcastFrameInit) {
                 console.group('Initialize handler state')
                 try {
-                    const { accessVersion, settleVersion } = frame;
+                    const { state, accessVersion, settleVersion } = frame;
                     console.log('Access version:', accessVersion);
                     console.log('Settle version:', settleVersion);
                     this.#gameContext.applyCheckpoint(accessVersion, settleVersion);
                     const initAccount = InitAccount.createFromGameAccount(this.#initGameAccount, accessVersion, settleVersion);
                     console.log('Init account:', initAccount);
                     await this.#handler.initState(this.#gameContext, initAccount);
+                    if (state !== undefined) {
+                        console.log("State:", state);
+                        this.#gameContext.handlerState = state;
+                    } else {
+                        console.log("No state snapshot, start from beginning.")
+                    }
                     console.log('Context created:', this.#gameContext);
                     await this.invokeEventCallback(undefined);
                 } finally {

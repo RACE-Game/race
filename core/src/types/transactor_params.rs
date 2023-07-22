@@ -85,6 +85,7 @@ pub enum BroadcastFrame {
         game_addr: String,
         access_version: u64,
         settle_version: u64,
+        state: Option<Vec<u8>>,
     },
     Message {
         game_addr: String,

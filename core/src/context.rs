@@ -249,6 +249,10 @@ impl GameContext {
         &self.handler_state
     }
 
+    pub fn set_handler_state_raw(&mut self, state: Vec<u8>) {
+        self.handler_state = state;
+    }
+
     pub fn get_handler_state<H>(&self) -> H
     where
         H: GameHandler,

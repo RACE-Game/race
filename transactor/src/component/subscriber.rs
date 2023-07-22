@@ -109,6 +109,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                 BroadcastFrame::Init {
                     access_version,
                     settle_version,
+                    state,
                     ..
                 } => {
                     let r = ports
@@ -118,6 +119,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                                 access_version,
                                 settle_version,
                             ),
+                            state
                         })
                         .await;
                     if let Err(e) = r {

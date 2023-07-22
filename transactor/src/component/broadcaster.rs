@@ -19,6 +19,7 @@ use crate::frame::EventFrame;
 /// Old backups can be forgot once the `settle_version` and `access_version` is updated.
 pub struct EventBackup {
     pub event: Event,
+    pub state: Vec<u8>,
     pub settle_version: u64,
     pub access_version: u64,
     pub timestamp: u64,
@@ -63,44 +64,31 @@ impl Broadcaster {
     /// Retrieve events those is handled with a specified `settle_version`.
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
         let event_backups = self.event_backups.lock().await;
-        let mut versions: Option<(u64, u64)> = None;
+        let checkpoint_added = false;
 
-        let mut histories: Vec<BroadcastFrame> = event_backups
-            .iter()
-            .filter_map(|event_backup| {
-                if event_backup.settle_version >= settle_version {
-                    if versions.is_none() {
-                        versions = Some((event_backup.access_version, event_backup.settle_version));
-                    }
-                    Some(BroadcastFrame::Event {
-                        game_addr: self.game_addr.clone(),
-                        event: event_backup.event.clone(),
-                        timestamp: event_backup.timestamp,
-                    })
-                } else {
-                    None
-                }
+        let mut histories: Vec<BroadcastFrame> = Vec::new();
+        for event_backup in event_backups.iter() {
+            // Expired events
+            if event_backup.settle_version < settle_version {
+                continue;
+            }
+
+            // Add checkpoint, from the first valid event
+            if !checkpoint_added {
+                histories.push(BroadcastFrame::Init {
+                    game_addr: self.game_addr.clone(),
+                    access_version: event_backup.access_version,
+                    settle_version: event_backup.settle_version,
+                    state: Some(event_backup.state.clone()),
+                });
+            }
+
+            // Add event history
+            histories.push(BroadcastFrame::Event {
+                game_addr: self.game_addr.clone(),
+                event: event_backup.event.clone(),
+                timestamp: event_backup.timestamp,
             })
-            .collect();
-
-        if let Some((access_version, settle_version)) = versions {
-            histories.insert(
-                0,
-                BroadcastFrame::Init {
-                    game_addr: self.game_addr.clone(),
-                    access_version,
-                    settle_version,
-                },
-            )
-        } else if let Some(last) = event_backups.back() {
-            histories.insert(
-                0,
-                BroadcastFrame::Init {
-                    game_addr: self.game_addr.clone(),
-                    access_version: last.access_version,
-                    settle_version: last.settle_version + 1
-                }
-            )
         }
 
         histories
@@ -116,9 +104,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
     async fn run(mut ports: ConsumerPorts, ctx: BroadcasterContext) {
         while let Some(event) = ports.recv().await {
             match event {
-                EventFrame::SendMessage {
-                    message
-                } => {
+                EventFrame::SendMessage { message } => {
                     let r = ctx.broadcast_tx.send(BroadcastFrame::Message {
                         game_addr: ctx.game_addr.clone(),
                         message,
@@ -128,9 +114,10 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         // Usually it means no receivers
                         debug!("Failed to broadcast event: {:?}", e);
                     }
-                },
+                }
                 EventFrame::Broadcast {
                     event,
+                    state,
                     access_version,
                     settle_version,
                     timestamp,
@@ -139,6 +126,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
 
                     event_backups.push_back(EventBackup {
                         event: event.clone(),
+                        state,
                         settle_version,
                         access_version,
                         timestamp,

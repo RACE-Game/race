@@ -45,6 +45,7 @@ async fn handle(
             ports
                 .send(EventFrame::Broadcast {
                     event,
+                    state: game_context.get_handler_state_raw().to_owned(),
                     access_version,
                     settle_version,
                     timestamp: game_context.get_timestamp(),
@@ -121,7 +122,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
             game_context.set_timestamp(current_timestamp());
 
             match event_frame {
-                EventFrame::InitState { init_account } => {
+                EventFrame::InitState {
+                    init_account,
+                    state,
+                } => {
                     if let Err(e) = game_context
                         .apply_checkpoint(init_account.access_version, init_account.settle_version)
                     {
@@ -141,8 +145,9 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         init_account.addr, init_account.access_version, init_account.settle_version
                     );
 
-                    if game_context.get_dispatch().is_none() {
-                        game_context.dispatch_safe(Event::Ready, 0);
+                    game_context.dispatch_safe(Event::Ready, 0);
+                    if let Some(state) = state {
+                        game_context.set_handler_state_raw(state);
                     }
                 }
                 EventFrame::Sync {

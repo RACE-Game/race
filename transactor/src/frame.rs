@@ -30,6 +30,7 @@ pub enum EventFrame {
     },
     InitState {
         init_account: InitAccount,
+        state: Option<Vec<u8>>,
     },
     SendEvent {
         event: Event,
@@ -42,6 +43,7 @@ pub enum EventFrame {
     },
     Broadcast {
         event: Event,
+        state: Vec<u8>,
         access_version: u64,
         settle_version: u64,
         timestamp: u64,
@@ -66,7 +68,7 @@ impl std::fmt::Display for EventFrame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EventFrame::Empty => write!(f, "Empty"),
-            EventFrame::InitState { init_account } => write!(
+            EventFrame::InitState { init_account, .. } => write!(
                 f,
                 "InitState, access_version = {}, settle_version = {}",
                 init_account.access_version, init_account.settle_version
