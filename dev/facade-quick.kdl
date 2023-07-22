@@ -1,0 +1,22 @@
+// The layout to launch facade and 2 transactors in Zellij
+
+layout {
+  pane split_direction="vertical" {
+    pane {
+      name "Facade"
+      focus true
+      cwd "./"
+      command "just"
+      args "dev-facade" "../race-holdem/facade.json"
+      start_suspended true
+    }
+    pane {
+        name "Transactor"
+        command "just"
+        cwd "./"
+        args "facade-transactor" "1"
+        start_suspended true
+      }
+    }
+  }
+}
