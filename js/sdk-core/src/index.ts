@@ -6,3 +6,4 @@ export * from './app-client';
 export * from './events';
 export * from './game-context-snapshot';
 export * from './connection';
+export * from './storage';
