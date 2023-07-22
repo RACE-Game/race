@@ -22,6 +22,7 @@ use std::time::UNIX_EPOCH;
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
+use regex::Regex;
 
 type RpcResult<T> = std::result::Result<T, RpcError>;
 
@@ -161,13 +162,14 @@ impl Context {
             data: spec_data,
         } = serde_json::from_reader(f).expect(&format!("Invalid spec file: {}", spec_path));
 
-        let bundle_addr = bundle.clone().replace("/", "_").replace(".", "_");
-        let game_addr = spec_path.to_owned().replace("/", "_").replace(".", "_");
+        let re = Regex::new(r"[^a-zA-Z0-9]").unwrap();
+        let bundle_addr = re.replace_all(&bundle, "").into_owned();
+        let game_addr = re.replace_all(&spec_path, "").into_owned();
         let mut f = File::open(&bundle).expect(&format!("Bundle {} not found", &bundle));
         let mut data = vec![];
         f.read_to_end(&mut data).unwrap();
         let bundle = GameBundle {
-            name: bundle_addr.to_owned(),
+            name: bundle_addr.clone(),
             uri: "".into(),
             data,
         };
@@ -175,7 +177,7 @@ impl Context {
             addr: game_addr.clone(),
             title,
             token_addr: token.to_owned(),
-            bundle_addr: bundle_addr.to_owned(),
+            bundle_addr: bundle_addr.clone(),
             data_len: spec_data.len() as u32,
             data: spec_data,
             max_players,
@@ -183,8 +185,8 @@ impl Context {
             max_deposit,
             ..Default::default()
         };
-        self.bundles.insert(bundle_addr.to_owned(), bundle);
-        self.games.insert(game_addr.to_owned(), game);
+        self.bundles.insert(bundle_addr.clone(), bundle);
+        self.games.insert(game_addr.clone(), game);
         println!("! Load game from `{}`", spec_path);
         println!("+ Game: {}", game_addr);
         println!("+ Bundle: {}", bundle_addr);

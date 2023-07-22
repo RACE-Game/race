@@ -15,19 +15,20 @@ publish = true
 
 [dependencies]
 race-core = { workspace = true, features = ["serde"] }
-async-trait = { workspace = true }
-thiserror = { workspace = true }
-base64 = { workspace = true }
-serde_json = { workspace = true }
-serde = { workspace = true }
-futures = { workspace = true }
-anyhow = { workspace = true }
-hyper = { workspace = true }
-tracing = { workspace = true }
+async-trait.workspace = true
+thiserror.workspace = true
+base64.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+futures.workspace = true
+anyhow.workspace = true
+hyper.workspace = true
+tracing.workspace = true
 jsonrpsee = { workspace = true, features = ["full"] }
 tower-http = { workspace = true, features = ["full"] }
 tower = { workspace = true, features = ["full"] }
 uuid = { workspace = true, features = ["v4", "fast-rng"] }
 tokio = { workspace = true, features = ["full"] }
-getrandom = { workspace = true }
+getrandom.workspace = true
 clap = { workspace = true, features = ["derive"] }
+regex.workspace = true

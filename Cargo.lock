@@ -3514,6 +3514,7 @@ dependencies = [
  "hyper",
  "jsonrpsee",
  "race-core",
+ "regex",
  "serde",
  "serde_json",
  "thiserror",
