@@ -9,9 +9,7 @@ const ENCRYPTOR_VERSION = '1.0';
 
 let subtle: SubtleCrypto = crypto.subtle;
 
-export const aesContentIv = Uint8Array.of(
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0);
+export const aesContentIv = Uint8Array.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
 export const chacha20Nonce = Uint8Array.of(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
@@ -380,10 +378,13 @@ export class Encryptor implements IEncryptor {
     async exportToStorage(playerAddr: string, storage: IStorage) {
         const ec = await this.exportEcKeys();
         const rsa = await this.exportRsaKeys();
-        storage.setItem(Encryptor.makeStorageKey(playerAddr), JSON.stringify({
-            rsa, ec,
-        }));
-
+        storage.setItem(
+            Encryptor.makeStorageKey(playerAddr),
+            JSON.stringify({
+                rsa,
+                ec,
+            })
+        );
     }
 
     static async importFromStorage(playerAddr: string, storage: IStorage): Promise<Encryptor | undefined> {
@@ -392,7 +393,7 @@ export class Encryptor implements IEncryptor {
         if (v === null) {
             return undefined;
         }
-        const { rsa, ec }: { rsa: [string, string], ec: [string, string] } = JSON.parse(v);
+        const { rsa, ec }: { rsa: [string, string]; ec: [string, string] } = JSON.parse(v);
         const ecKeypair = await importEc(ec);
         const rsaKeypair = await importRsa(rsa);
         return new Encryptor(new NodePrivateKey(rsaKeypair, ecKeypair));
@@ -442,7 +443,7 @@ export class Encryptor implements IEncryptor {
                 const decrypted = this.decryptChacha20Multi(secrets, ciphertext);
                 const decryptedValue = textDecoder.decode(decrypted);
                 if (validOptions.find(s => s === decryptedValue) === undefined) {
-                    throw new Error('Invalid result: [' + decryptedValue + "], options:" + validOptions.join(","));
+                    throw new Error('Invalid result: [' + decryptedValue + '], options:' + validOptions.join(','));
                 }
                 res.set(idx, decryptedValue);
             }

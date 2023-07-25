@@ -21,13 +21,6 @@ members = [
   # "examples/chat",
 ]
 
-[profile.release]
-lto = true
-opt-level = 3
-
-# [patch.crates-io]
-# gloo-timers = { git = "https://github.com/rustwasm/gloo" }
-
 [workspace.dependencies]
 race-core = { path = "core", version = ">= 0.0.4" }
 race-proc-macro = { path = "proc-macro", version = ">= 0.0.5" }

@@ -1,5 +1,26 @@
 import { assert } from 'chai';
-import { encryptAes, decryptAes, exportRsa, generateAes, generateRsaKeypair, importRsa, decryptRsa, encryptRsa, generateEcKeypair, exportEc, importEc, signEc, verifyEc, Encryptor, exportAes, aesContentIv, decryptChacha20, encryptChacha20, generateChacha20, chacha20Nonce } from '../src/encryptor';
+import {
+  encryptAes,
+  decryptAes,
+  exportRsa,
+  generateAes,
+  generateRsaKeypair,
+  importRsa,
+  decryptRsa,
+  encryptRsa,
+  generateEcKeypair,
+  exportEc,
+  importEc,
+  signEc,
+  verifyEc,
+  Encryptor,
+  exportAes,
+  aesContentIv,
+  decryptChacha20,
+  encryptChacha20,
+  generateChacha20,
+  chacha20Nonce,
+} from '../src/encryptor';
 
 describe('Test utilities', () => {
   it('RSA key creation', async () => {
@@ -55,7 +76,7 @@ describe('Test utilities', () => {
     const encrypted = await encryptRsa(keypair.publicKey, plain);
     const decrypted = await decryptRsa(keypair.privateKey, encrypted);
     assert.deepEqual(decrypted, plain);
-  })
+  });
 
   it('ECDSA sign/verify', async () => {
     const message = Uint8Array.of(1, 2, 3, 4, 5, 6);
@@ -69,9 +90,7 @@ describe('Test utilities', () => {
   });
 });
 
-
 describe('Test Encryptor', () => {
-
   it('Test sign/verify', async () => {
     const encryptor = await Encryptor.create();
     const pubkeys = await encryptor.exportPublicKey();

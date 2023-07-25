@@ -1,4 +1,14 @@
-import { BroadcastFrameEvent, BroadcastFrameInit, BroadcastFrameMessage, Connection, IConnection, Message, SubmitEventParams, SubmitMessageParams, SubscribeEventParams } from './connection';
+import {
+    BroadcastFrameEvent,
+    BroadcastFrameInit,
+    BroadcastFrameMessage,
+    Connection,
+    IConnection,
+    Message,
+    SubmitEventParams,
+    SubmitMessageParams,
+    SubscribeEventParams,
+} from './connection';
 import { GameContext } from './game-context';
 import { GameContextSnapshot } from './game-context-snapshot';
 import { ITransport } from './transport';
@@ -12,21 +22,25 @@ import { Custom, GameEvent, ICustomEvent } from './events';
 import { ProfileCache } from './profile-cache';
 import { IStorage } from './storage';
 
-export type EventCallbackFunction = (context: GameContextSnapshot, state: Uint8Array, event: GameEvent | undefined) => void;
+export type EventCallbackFunction = (
+    context: GameContextSnapshot,
+    state: Uint8Array,
+    event: GameEvent | undefined
+) => void;
 export type MessageCallbackFunction = (message: Message) => void;
 
 export type AppClientInitOpts = {
-    transport: ITransport,
-    wallet: IWallet,
-    gameAddr: string,
-    onEvent: EventCallbackFunction,
-    onMessage: MessageCallbackFunction,
-    storage?: IStorage,
+    transport: ITransport;
+    wallet: IWallet;
+    gameAddr: string;
+    onEvent: EventCallbackFunction;
+    onMessage: MessageCallbackFunction;
+    storage?: IStorage;
 };
 
 export type JoinOpts = {
-    amount: bigint,
-    position?: number,
+    amount: bigint;
+    position?: number;
 };
 
 export type GameInfo = {
@@ -64,7 +78,7 @@ export class AppClient {
         onEvent: EventCallbackFunction,
         onMessage: MessageCallbackFunction,
         encryptor: IEncryptor,
-        info: GameInfo,
+        info: GameInfo
     ) {
         this.#gameAddr = gameAddr;
         this.#handler = handler;
@@ -81,11 +95,9 @@ export class AppClient {
         this.#info = info;
     }
 
-    static async initialize(
-        opts: AppClientInitOpts
-    ): Promise<AppClient> {
+    static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
         const { transport, wallet, gameAddr, onEvent, onMessage, storage } = opts;
-        console.group("AppClient initialization");
+        console.group('AppClient initialization');
         try {
             const playerAddr = wallet.walletAddr;
             const encryptor = await Encryptor.create(playerAddr, storage);
@@ -93,17 +105,17 @@ export class AppClient {
             if (gameAccount === undefined) {
                 throw SdkError.gameAccountNotFound(gameAddr);
             }
-            console.log("Game account:", gameAccount);
+            console.log('Game account:', gameAccount);
             const gameBundle = await transport.getGameBundle(gameAccount.bundleAddr);
             if (gameBundle === undefined) {
                 throw SdkError.gameBundleNotFound(gameAccount.bundleAddr);
             }
-            console.log("Game bundle:", gameBundle);
+            console.log('Game bundle:', gameBundle);
             const transactorAddr = gameAccount.transactorAddr;
             if (transactorAddr === undefined) {
                 throw SdkError.gameNotServed(gameAddr);
             }
-            console.log("Transactor address:", transactorAddr);
+            console.log('Transactor address:', transactorAddr);
             const transactorAccount = await transport.getServerAccount(transactorAddr);
             if (transactorAccount === undefined) {
                 throw SdkError.transactorAccountNotFound(transactorAddr);
@@ -121,9 +133,22 @@ export class AppClient {
                 minDeposit: gameAccount.minDeposit,
                 maxDeposit: gameAccount.maxDeposit,
                 maxPlayers: gameAccount.maxPlayers,
-                token
+                token,
             };
-            return new AppClient(gameAddr, handler, wallet, client, transport, connection, gameContext, gameAccount, onEvent, onMessage, encryptor, info);
+            return new AppClient(
+                gameAddr,
+                handler,
+                wallet,
+                client,
+                transport,
+                connection,
+                gameContext,
+                gameAccount,
+                onEvent,
+                onMessage,
+                encryptor,
+                info
+            );
         } finally {
             console.groupEnd();
         }
@@ -164,35 +189,35 @@ export class AppClient {
         let sub = this.#connection.subscribeEvents(this.#gameAddr, new SubscribeEventParams({ settleVersion }));
         for await (const frame of sub) {
             if (frame instanceof BroadcastFrameInit) {
-                console.group('Initialize handler state')
+                console.group('Initialize handler state');
                 try {
                     const { state, accessVersion, settleVersion } = frame;
                     console.log('Access version:', accessVersion);
                     console.log('Settle version:', settleVersion);
                     this.#gameContext.applyCheckpoint(accessVersion, settleVersion);
-                    const initAccount = InitAccount.createFromGameAccount(this.#initGameAccount, accessVersion, settleVersion);
+                    const initAccount = InitAccount.createFromGameAccount(
+                        this.#initGameAccount,
+                        accessVersion,
+                        settleVersion
+                    );
                     console.log('Init account:', initAccount);
                     await this.#handler.initState(this.#gameContext, initAccount);
                     if (state !== undefined) {
-                        console.log("State:", state);
+                        console.log('State:', state);
                         this.#gameContext.handlerState = state;
                     } else {
-                        console.log("No state snapshot, start from beginning.")
+                        console.log('No state snapshot, start from beginning.');
                     }
                     console.log('Context created:', this.#gameContext);
                     await this.invokeEventCallback(undefined);
                 } finally {
                     console.groupEnd();
                 }
-            }
-
-            else if (frame instanceof BroadcastFrameMessage) {
+            } else if (frame instanceof BroadcastFrameMessage) {
                 const { message } = frame;
-                console.log("Message:", message);
+                console.log('Message:', message);
                 this.#onMessage(message);
-            }
-
-            else if (frame instanceof BroadcastFrameEvent) {
+            } else if (frame instanceof BroadcastFrameEvent) {
                 const { event, timestamp } = frame;
                 console.group('Handle event: ' + event.kind());
                 try {
@@ -205,7 +230,7 @@ export class AppClient {
                         this.#gameContext = context;
                         console.log('Game context:', this.#gameContext);
                     } catch (err: any) {
-                        console.error(`Handle error: ${err.message}`);
+                        console.error(err);
                     }
                     await this.invokeEventCallback(event);
                 } finally {
@@ -261,18 +286,24 @@ export class AppClient {
     async submitEvent(arg: ICustomEvent | Uint8Array): Promise<void> {
         let raw = arg instanceof Uint8Array ? arg : arg.serialize();
         const event = new Custom({ sender: this.playerAddr, raw });
-        await this.#connection.submitEvent(this.#gameAddr, new SubmitEventParams({
-            event
-        }));
+        await this.#connection.submitEvent(
+            this.#gameAddr,
+            new SubmitEventParams({
+                event,
+            })
+        );
     }
 
     /**
      * Submit a message, contains arbitrary content.
      */
     async submitMessage(message: string) {
-        await this.#connection.submitMessage(this.#gameAddr, new SubmitMessageParams({
-            content: message
-        }));
+        await this.#connection.submitMessage(
+            this.#gameAddr,
+            new SubmitMessageParams({
+                content: message,
+            })
+        );
     }
 
     /**
@@ -288,8 +319,7 @@ export class AppClient {
     /**
      * Close current event subscription.
      */
-    async close() {
-    }
+    async close() {}
 
     /**
      * Exit current game.

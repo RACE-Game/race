@@ -42,6 +42,7 @@ pub struct FacadeTransport {
 impl FacadeTransport {
     pub async fn try_new(addr: String, url: &str) -> TransportResult<Self> {
         let client = ClientBuilder::default()
+            .max_request_body_size(64_000_000)
             .build(url)
             .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
         Ok(Self { addr, client })

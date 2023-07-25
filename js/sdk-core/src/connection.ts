@@ -15,11 +15,11 @@ interface ISubscribeEventParams {
 }
 
 interface ISubmitEventParams {
-    event: GameEvent
+    event: GameEvent;
 }
 
 interface ISubmitMessageParams {
-    content: string
+    content: string;
 }
 
 export class AttachGameParams {
@@ -51,7 +51,6 @@ export class SubmitEventParams {
         this.event = fields.event;
     }
 }
-
 
 export class SubmitMessageParams {
     @field('string')
@@ -238,7 +237,7 @@ export class Connection implements IConnection {
             jsonrpc: '2.0',
             method,
             id: crypto.randomUUID(),
-            params: [gameAddr, arrayBufferToBase64(paramsBytes), arrayBufferToBase64(sigBytes)]
+            params: [gameAddr, arrayBufferToBase64(paramsBytes), arrayBufferToBase64(sigBytes)],
         });
     }
 
@@ -248,7 +247,7 @@ export class Connection implements IConnection {
             jsonrpc: '2.0',
             method,
             id: crypto.randomUUID(),
-            params: [gameAddr, arrayBufferToBase64(paramsBytes)]
+            params: [gameAddr, arrayBufferToBase64(paramsBytes)],
         });
     }
 
@@ -257,28 +256,27 @@ export class Connection implements IConnection {
             await this.waitSocketReady();
             this.#socket.send(req);
         } catch (err) {
-            console.error("Failed to connect to current transactor: " + this.#endpoint);
+            console.error('Failed to connect to current transactor: ' + this.#endpoint);
             throw err;
         }
     }
 
     async requestXhr<P>(req: string): Promise<P> {
         try {
-            const resp = await fetch(this.#endpoint.replace(/^ws/, 'http'),
-                {
-                    method: 'POST',
-                    body: req,
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                });
+            const resp = await fetch(this.#endpoint.replace(/^ws/, 'http'), {
+                method: 'POST',
+                body: req,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
             if (resp.ok) {
                 return resp.json();
             } else {
                 throw Error('Transactor request failed:' + resp.json());
             }
         } catch (err) {
-            console.error("Failed to connect to current transactor: " + this.#endpoint);
+            console.error('Failed to connect to current transactor: ' + this.#endpoint);
             throw err;
         }
     }

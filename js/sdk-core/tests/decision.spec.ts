@@ -27,5 +27,5 @@ describe('Test DecisionState', () => {
     st.release();
     st.addSecret('alice', Uint8Array.of(1));
     assert.equal(st.status, 'released');
-  })
-})
+  });
+});

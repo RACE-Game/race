@@ -11,7 +11,6 @@ describe('Test RandomSpec', () => {
 });
 
 describe('Test RandomState', () => {
-
   it('mask', () => {
     const random = new ShuffledList({ options: ['a', 'b', 'c'] });
     const state = new RandomState(0, random, ['alice', 'bob']);
@@ -41,45 +40,37 @@ describe('Test RandomState', () => {
 
     state.mask('alice', [Uint8Array.of(1), Uint8Array.of(2), Uint8Array.of(3)]);
     state.mask('bob', [Uint8Array.of(1), Uint8Array.of(2), Uint8Array.of(3)]);
-    state.lock('alice',
-      [
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(1), digest: Uint8Array.of(1) }),
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(2), digest: Uint8Array.of(2) }),
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(3), digest: Uint8Array.of(3) })
-      ]
-    );
-    assert.deepEqual(state.status, { kind: 'locking', addr: 'bob'});
+    state.lock('alice', [
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(1), digest: Uint8Array.of(1) }),
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(2), digest: Uint8Array.of(2) }),
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(3), digest: Uint8Array.of(3) }),
+    ]);
+    assert.deepEqual(state.status, { kind: 'locking', addr: 'bob' });
     assert.equal(state.isFullyLocked(), false);
-    state.lock('bob',
-      [
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(1), digest: Uint8Array.of(1) }),
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(2), digest: Uint8Array.of(2) }),
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(3), digest: Uint8Array.of(3) })
-      ]
-    );
-    assert.deepEqual(state.status, { kind: 'ready'});
+    state.lock('bob', [
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(1), digest: Uint8Array.of(1) }),
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(2), digest: Uint8Array.of(2) }),
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(3), digest: Uint8Array.of(3) }),
+    ]);
+    assert.deepEqual(state.status, { kind: 'ready' });
     assert.equal(state.isFullyLocked(), true);
-  })
+  });
 
   it('listRequiredSecrets', () => {
     const random = new ShuffledList({ options: ['a', 'b', 'c'] });
     const state = new RandomState(0, random, ['alice', 'bob']);
     state.mask('alice', [Uint8Array.of(1), Uint8Array.of(2), Uint8Array.of(3)]);
     state.mask('bob', [Uint8Array.of(1), Uint8Array.of(2), Uint8Array.of(3)]);
-    state.lock('alice',
-      [
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(1), digest: Uint8Array.of(1) }),
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(2), digest: Uint8Array.of(2) }),
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(3), digest: Uint8Array.of(3) })
-      ]
-    );
-    state.lock('bob',
-      [
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(1), digest: Uint8Array.of(1) }),
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(2), digest: Uint8Array.of(2) }),
-        new CiphertextAndDigest({ ciphertext: Uint8Array.of(3), digest: Uint8Array.of(3) })
-      ]
-    );
+    state.lock('alice', [
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(1), digest: Uint8Array.of(1) }),
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(2), digest: Uint8Array.of(2) }),
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(3), digest: Uint8Array.of(3) }),
+    ]);
+    state.lock('bob', [
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(1), digest: Uint8Array.of(1) }),
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(2), digest: Uint8Array.of(2) }),
+      new CiphertextAndDigest({ ciphertext: Uint8Array.of(3), digest: Uint8Array.of(3) }),
+    ]);
     state.reveal([0]);
     assert.equal(state.listRequiredSecretsByFromAddr('alice').length, 1);
     assert.equal(state.listRequiredSecretsByFromAddr('bob').length, 1);
@@ -92,5 +83,4 @@ describe('Test RandomState', () => {
     assert.equal(state.listRequiredSecretsByFromAddr('bob').length, 0);
     assert.equal(state.status.kind, 'ready');
   });
-
-})
+});

@@ -21,9 +21,9 @@ const OPERATION_TIMEOUT = 15_000n;
 
 export type NodeStatus =
     | {
-        kind: 'pending';
-        accessVersion: bigint;
-    }
+          kind: 'pending';
+          accessVersion: bigint;
+      }
     | { kind: 'ready' }
     | { kind: 'disconnected' };
 

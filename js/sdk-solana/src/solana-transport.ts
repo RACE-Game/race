@@ -1,10 +1,4 @@
-import {
-    SystemProgram,
-    Connection,
-    PublicKey,
-    Transaction,
-    Keypair,
-} from '@solana/web3.js';
+import { SystemProgram, Connection, PublicKey, Transaction, Keypair } from '@solana/web3.js';
 import {
     AccountLayout,
     NATIVE_MINT,
@@ -51,11 +45,11 @@ function trimString(s: string): string {
 }
 
 type LegacyToken = {
-    name: string,
-    symbol: string,
-    logoURI: string,
-    address: string,
-    decimals: number,
+    name: string;
+    symbol: string;
+    logoURI: string;
+    address: string;
+    decimals: number;
 };
 
 export class SolanaTransport implements ITransport {
@@ -67,7 +61,7 @@ export class SolanaTransport implements ITransport {
     }
 
     async _fetchLegacyTokens() {
-        const resp = await fetch("https://cdn.jsdelivr.net/gh/solflare-wallet/token-list/solana-tokenlist.json");
+        const resp = await fetch('https://cdn.jsdelivr.net/gh/solflare-wallet/token-list/solana-tokenlist.json');
         const m = await resp.json();
         this.#legacyTokens = m['tokens'];
     }
@@ -206,7 +200,7 @@ export class SolanaTransport implements ITransport {
             amount,
             accessVersion,
             position,
-            verifyKey
+            verifyKey,
         });
         tx.add(joinGameIx);
 
@@ -301,7 +295,7 @@ export class SolanaTransport implements ITransport {
         let files: any[] = json['properties']['files'];
         let wasm_file = files.find(f => f['type'] == 'application/wasm');
 
-        return new GameBundle({ uri: wasm_file["uri"], name: trimString(name), data: new Uint8Array(0) });
+        return new GameBundle({ uri: wasm_file['uri'], name: trimString(name), data: new Uint8Array(0) });
     }
 
     async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
@@ -356,7 +350,7 @@ export class SolanaTransport implements ITransport {
         }
         return new RegistrationWithGames({
             ...regAccount,
-            games
+            games,
         });
     }
 
@@ -397,12 +391,16 @@ export class SolanaTransport implements ITransport {
                 const addr = mint.address.toBase58();
                 const decimals = mint.decimals;
                 const image = await this._fetchImageFromDataUri(metadataState.data.uri);
-                const name = metadataState.data.name ? trimString(metadataState.data.name) :
-                    legacyToken ? legacyToken.name :
-                        '';
-                const symbol = metadataState.data.symbol ? trimString(metadataState.data.symbol) :
-                    legacyToken ? legacyToken.symbol :
-                        '';
+                const name = metadataState.data.name
+                    ? trimString(metadataState.data.name)
+                    : legacyToken
+                    ? legacyToken.name
+                    : '';
+                const symbol = metadataState.data.symbol
+                    ? trimString(metadataState.data.symbol)
+                    : legacyToken
+                    ? legacyToken.symbol
+                    : '';
                 const icon = image ? image : legacyToken?.logoURI ? legacyToken.logoURI : '';
                 return { addr, decimals, name, symbol, icon };
             } else {
@@ -420,10 +418,10 @@ export class SolanaTransport implements ITransport {
      */
     async listTokens(): Promise<IToken[]> {
         const popularTokenAddrs = [
-            "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-            "So11111111111111111111111111111111111111112",
-            "RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ"
+            'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+            'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+            'So11111111111111111111111111111111111111112',
+            'RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ',
         ];
 
         let tokens = [];
@@ -486,7 +484,7 @@ export class SolanaTransport implements ITransport {
                     symbol: trimString(metadataState.data.symbol),
                     image,
                     collection: metadataState?.collection?.key.toBase58(),
-                }
+                };
             } else {
                 return undefined;
             }
@@ -499,10 +497,14 @@ export class SolanaTransport implements ITransport {
     async listNfts(walletAddr: string): Promise<INft[]> {
         let nfts = [];
         const ownerKey = new PublicKey(walletAddr);
-        const parsedTokenAccounts = await this.#conn.getParsedTokenAccountsByOwner(ownerKey, { programId: TOKEN_PROGRAM_ID });
+        const parsedTokenAccounts = await this.#conn.getParsedTokenAccountsByOwner(ownerKey, {
+            programId: TOKEN_PROGRAM_ID,
+        });
         for (const a of parsedTokenAccounts.value) {
-            if (a.account.data.parsed.info.tokenAmount.amount !== '1'
-                || a.account.data.parsed.info.tokenAmount.decimals !== 0) {
+            if (
+                a.account.data.parsed.info.tokenAmount.amount !== '1' ||
+                a.account.data.parsed.info.tokenAmount.decimals !== 0
+            ) {
                 continue;
             }
             const nft = await this.getNft(a.account.data.parsed.info.mint);

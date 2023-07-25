@@ -6,5 +6,5 @@ describe('Test FacadeWallet', () => {
     const w = new FacadeWallet();
     assert.equal(w.isConnected, true);
     assert.equal(typeof w.walletAddr, 'string');
-  })
-})
+  });
+});

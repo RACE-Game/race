@@ -354,6 +354,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_deserialization() -> anyhow::Result<()> {
+        let buf = vec![0,0,0,0,0,110,167,204,141,137,1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,2,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0];
+
+        let effect = Effect::try_from_slice(&buf)?;
+
+        println!("Effect: {:?}", effect);
+        Ok(())
+    }
+
+    #[test]
     fn test_serialization() -> anyhow::Result<()> {
         let mut answered = BTreeMap::new();
         answered.insert(33, "A".into());
