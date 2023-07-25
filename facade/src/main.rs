@@ -18,7 +18,7 @@ use std::fs::File;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::UNIX_EPOCH;
+use std::time::{UNIX_EPOCH, Duration};
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -637,6 +637,11 @@ async fn list_tokens(_params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcRe
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
     let SettleParams { addr, settles } = params.one()?;
     println!("! Handle settlements {}, with {:?} ", addr, settles);
+
+    // Simulate the finality time
+    tokio::time::sleep(Duration::from_secs(15)).await;
+    // ---
+
     let mut context = context.lock().await;
     let Context {
         ref mut games,

@@ -28,6 +28,7 @@ pub struct PortsHandle {
     close_rx: Option<oneshot::Receiver<CloseReason>>,
 }
 
+
 impl PortsHandle {
     pub async fn wait(&mut self) {
         if self.close_rx.is_some() {
@@ -88,7 +89,7 @@ pub trait Ports: Send {
     fn close(self, reason: CloseReason);
 }
 
-pub struct ConsumerPorts {
+pub struct ConsumerPorts{
     rx: mpsc::Receiver<EventFrame>,
     close: oneshot::Sender<CloseReason>,
 }
@@ -104,7 +105,7 @@ impl Ports for ConsumerPorts {
     where
         Self: Sized,
     {
-        let (input_tx, input_rx) = mpsc::channel(10);
+        let (input_tx, input_rx) = mpsc::channel(100);
         let (close_tx, close_rx) = oneshot::channel();
         (
             Self {
