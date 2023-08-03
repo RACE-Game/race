@@ -14,16 +14,17 @@ readme.workspace = true
 publish = true
 
 [dependencies]
-race-core = { workspace = true }
-race-client = { workspace = true }
-race-encryptor = { workspace = true }
-borsh = { workspace = true }
-async-trait = { workspace = true }
-rand = { workspace = true }
-serde_json = { workspace = true }
-serde = { workspace = true }
-base64 = { workspace = true }
+race-core.workspace = true
+race-client.workspace = true
+race-encryptor.workspace = true
+borsh.workspace = true
+async-trait.workspace = true
+rand.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+base64.workspace = true
 tokio = { workspace = true, features = ["full"] }
+project-root.workspace = true
 
 [dev-dependencies]
-anyhow = { workspace = true }
+anyhow.workspace = true

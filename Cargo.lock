@@ -3502,6 +3502,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "race-example-simple-settle"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "race-core",
+ "race-test",
+]
+
+[[package]]
 name = "race-facade"
 version = "0.0.5"
 dependencies = [
@@ -3556,6 +3565,7 @@ dependencies = [
  "async-trait",
  "base64 0.21.0",
  "borsh",
+ "project-root",
  "race-client",
  "race-core",
  "race-encryptor",

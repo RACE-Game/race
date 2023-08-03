@@ -183,6 +183,7 @@ mod tests {
                 sender: "Alice".into(),
                 raw: "CUSTOM EVENT".into(),
             },
+            state: vec![],
         };
 
         let broadcast_frame = BroadcastFrame::Event {

@@ -38,6 +38,10 @@ example-minimal:
 example-counter:
     cargo build -r -p race-example-counter --target wasm32-unknown-unknown
 
+example-simple-settle:
+    cargo build -r -p race-example-simple-settle --target wasm32-unknown-unknown
+    wasm-opt -Oz target/wasm32-unknown-unknown/release/race_example_simple_settle.wasm -o target/race_example_simple_settle.wasm
+
 example-chat:
     cargo build -r -p race-example-chat --target wasm32-unknown-unknown
     wasm-opt -Oz target/wasm32-unknown-unknown/release/race_example_chat.wasm -o target/race_example_chat.wasm

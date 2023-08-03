@@ -1,0 +1,14 @@
+[package]
+name = "race-example-simple-settle"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+race-core.workspace = true
+borsh.workspace = true
+
+[dev-dependencies]
+race-test.workspace = true
