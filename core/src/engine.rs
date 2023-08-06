@@ -137,7 +137,7 @@ pub fn general_handle_event(
             context.add_shared_secrets(sender, shares.clone())?;
             let mut random_ids = Vec::<usize>::default();
             for random_state in context.list_random_states() {
-                if random_state.status == RandomStatus::Shared {
+                if random_state.status == RandomStatus::Ready {
                     random_ids.push(random_state.id);
                 }
             }

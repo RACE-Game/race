@@ -300,6 +300,7 @@ impl Client {
         for random_state in game_context.list_random_states().iter() {
             match random_state.status {
                 RandomStatus::Ready => (),
+                RandomStatus::Shared => (),
                 RandomStatus::WaitingSecrets => {
                     if let Some(event) = self.handle_random_waiting(random_state)? {
                         events.push(event);

@@ -197,7 +197,7 @@ fn test() -> Result<()> {
         assert_eq!(1, random_state.list_shared_secrets("Alice").unwrap().len());
         assert_eq!(1, random_state.list_shared_secrets("Bob").unwrap().len());
         assert_eq!(
-            Some(DispatchEvent::new(Event::SecretsReady, 0)),
+            Some(DispatchEvent::new(Event::SecretsReady { random_ids: vec![1] }, 0)),
             *ctx.get_dispatch()
         );
     }
@@ -282,7 +282,7 @@ fn test() -> Result<()> {
                 .len()
         );
         assert_eq!(
-            Some(DispatchEvent::new(Event::SecretsReady, 0)),
+            Some(DispatchEvent::new(Event::SecretsReady { random_ids: vec![1] }, 0)),
             *ctx.get_dispatch()
         );
     }
