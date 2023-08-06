@@ -432,7 +432,7 @@ impl RandomState {
     {
         if !matches!(
             self.status,
-            RandomStatus::Ready | RandomStatus::WaitingSecrets
+            RandomStatus::Shared | RandomStatus::Ready | RandomStatus::WaitingSecrets
         ) {
             return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
@@ -482,7 +482,7 @@ impl RandomState {
     pub fn reveal(&mut self, indexes: Vec<usize>) -> Result<()> {
         if !matches!(
             self.status,
-            RandomStatus::Ready | RandomStatus::WaitingSecrets
+            RandomStatus::Shared | RandomStatus::Ready | RandomStatus::WaitingSecrets
         ) {
             return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
