@@ -321,8 +321,12 @@ export class AnswerDecision extends GameEvent implements IEventKind {
 
 @variant(16)
 export class SecretsReady extends GameEvent implements IEventKind {
-    constructor(_: any = {}) {
+    @field(array('usize'))
+    randomIds!: number[];
+
+    constructor(fields: EventFields<SecretsReady>) {
         super();
+        Object.assign(this, fields);
     }
     kind(): EventKind {
         return 'SecretsReady';
