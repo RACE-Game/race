@@ -19,7 +19,6 @@ thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
 borsh = { workspace = true }
-race-proc-macro = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }

@@ -1,4 +1,6 @@
 use race_core::prelude::*;
+use race_proc_macro::game_handler;
+
 
 #[derive(BorshDeserialize, BorshSerialize)]
 enum MinimalEvent {

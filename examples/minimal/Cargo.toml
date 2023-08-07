@@ -7,8 +7,9 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-race-core = { path = "../../core" }
-race-proc-macro = { path = "../../proc-macro" }
-borsh = "0.9.3"
-serde_json = "1.0.85"
-serde = "1.0.144"
+race-core.workspace = true
+race-proc-macro.workspace = true
+borsh.workspace = true
+
+[dev-dependencies]
+race-test.workspace = true

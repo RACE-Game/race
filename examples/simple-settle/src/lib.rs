@@ -4,6 +4,7 @@
 //! In the settlement, all tokens are moved to the first player.
 
 use race_core::prelude::*;
+use race_proc_macro::game_handler;
 use std::collections::BTreeMap;
 
 #[game_handler]

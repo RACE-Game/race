@@ -1,6 +1,6 @@
 {
     "name": "@race-foundation/borsh",
-    "version": "0.0.23",
+    "version": "0.0.24",
     "description": "A borsh implementation with decorator support",
     "repository": {
         "type": "git",

@@ -8,6 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 race-core.workspace = true
+race-proc-macro.workspace = true
 borsh.workspace = true
 arrayref.workspace = true
 

@@ -5,6 +5,7 @@
 //! the player will be picked as winner, and receive all the tokens.
 
 use race_core::prelude::*;
+use race_proc_macro::game_handler;
 
 const DRAW_TIMEOUT: u64 = 30_000;
 

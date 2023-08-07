@@ -10,6 +10,7 @@
 
 use arrayref::{array_mut_ref, mut_array_refs};
 use race_core::prelude::*;
+use race_proc_macro::game_handler;
 
 const ACTION_TIMEOUT: u64 = 30_000;
 const NEXT_GAME_TIMEOUT: u64 = 15_000;

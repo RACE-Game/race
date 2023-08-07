@@ -9,6 +9,7 @@ use syn::{parse_macro_input, ItemStruct};
 ///
 /// ```
 /// use race_core::prelude::*;
+/// use race_proc_macro::game_handler;
 ///
 /// #[game_handler]
 /// #[derive(BorshDeserialize, BorshSerialize)]

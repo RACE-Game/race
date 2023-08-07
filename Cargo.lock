@@ -3408,7 +3408,7 @@ dependencies = [
 
 [[package]]
 name = "race-cli"
-version = "0.0.5"
+version = "0.0.7"
 dependencies = [
  "anyhow",
  "base64 0.21.0",
@@ -3426,19 +3426,18 @@ dependencies = [
 
 [[package]]
 name = "race-client"
-version = "0.0.5"
+version = "0.0.7"
 dependencies = [
  "race-core",
 ]
 
 [[package]]
 name = "race-core"
-version = "0.0.5"
+version = "0.0.7"
 dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
- "race-proc-macro",
  "serde",
  "serde_json",
  "thiserror",
@@ -3446,7 +3445,7 @@ dependencies = [
 
 [[package]]
 name = "race-encryptor"
-version = "0.0.5"
+version = "0.0.7"
 dependencies = [
  "aes 0.8.2",
  "anyhow",
@@ -3463,7 +3462,7 @@ dependencies = [
 
 [[package]]
 name = "race-env"
-version = "0.0.5"
+version = "0.0.7"
 dependencies = [
  "serde",
  "shellexpand",
@@ -3478,6 +3477,7 @@ dependencies = [
  "arrayref",
  "borsh",
  "race-core",
+ "race-proc-macro",
  "race-test",
 ]
 
@@ -3488,8 +3488,7 @@ dependencies = [
  "borsh",
  "race-core",
  "race-proc-macro",
- "serde",
- "serde_json",
+ "race-test",
 ]
 
 [[package]]
@@ -3498,6 +3497,7 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "race-core",
+ "race-proc-macro",
  "race-test",
 ]
 
@@ -3507,12 +3507,13 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "race-core",
+ "race-proc-macro",
  "race-test",
 ]
 
 [[package]]
 name = "race-facade"
-version = "0.0.5"
+version = "0.0.7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3536,7 +3537,7 @@ dependencies = [
 
 [[package]]
 name = "race-proc-macro"
-version = "0.0.5"
+version = "0.0.7"
 dependencies = [
  "borsh",
  "quote 1.0.26",
@@ -3546,7 +3547,7 @@ dependencies = [
 
 [[package]]
 name = "race-solana-types"
-version = "0.0.5"
+version = "0.0.7"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3559,7 +3560,7 @@ dependencies = [
 
 [[package]]
 name = "race-test"
-version = "0.0.5"
+version = "0.0.7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3577,7 +3578,7 @@ dependencies = [
 
 [[package]]
 name = "race-transactor"
-version = "0.0.5"
+version = "0.0.7"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -3611,7 +3612,7 @@ dependencies = [
 
 [[package]]
 name = "race-transport"
-version = "0.0.5"
+version = "0.0.7"
 dependencies = [
  "anyhow",
  "async-trait",

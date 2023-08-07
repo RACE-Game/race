@@ -123,4 +123,4 @@ publish-crates pkg:
     cargo test -p {{pkg}}
     cargo publish -p {{pkg}}
 
-publish-crates-all: (publish-crates "race-env") (publish-crates "race-encryptor") (publish-crates "race-solana-types") (publish-crates "race-transport") (publish-crates "race-client") (publish-crates "race-test") (publish-crates "race-cli") (publish-crates "race-facade") (publish-crates "race-transactor")
+publish-crates-all: (publish-crates "race-core") (publish-crates "race-proc-macro") (publish-crates "race-env") (publish-crates "race-encryptor") (publish-crates "race-solana-types") (publish-crates "race-transport") (publish-crates "race-client") (publish-crates "race-test")
