@@ -119,8 +119,16 @@ export class Handler implements IHandler {
         if (event instanceof ShareSecrets) {
             const { sender, shares } = event;
             context.addSharedSecrets(sender, shares);
-            if (context.isSecretsReady()) {
-                context.dispatchEventInstantly(new SecretsReady());
+            let randomIds: number[] = [];
+            for (let randomState of context.randomStates) {
+                if (randomState.status.kind === 'shared') {
+                    randomIds.push(randomState.id);
+                    randomState.status = { kind: 'ready' };
+                }
+            }
+
+            if (randomIds.length > 0) {
+                context.dispatchEventInstantly(new SecretsReady({ randomIds }));
             }
         } else if (event instanceof AnswerDecision) {
             const { decisionId, ciphertext, sender, digest } = event;

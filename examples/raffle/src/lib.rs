@@ -92,7 +92,7 @@ impl GameHandler for Raffle {
                 self.cleanup();
             }
 
-            Event::SecretsReady => {
+            Event::SecretsReady { .. } => {
                 let winner = effect
                     .get_revealed(self.random_id)?
                     .get(&0)

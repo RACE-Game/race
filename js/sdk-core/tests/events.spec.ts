@@ -183,7 +183,7 @@ describe('Serialization', () => {
   });
 
   it('SecretsReady', () => {
-    let e = new SecretsReady({});
+    let e = new SecretsReady({ randomIds: [1, 2] });
     let data = serialize(e);
     let e1 = deserialize(GameEvent, data);
     assert.deepStrictEqual(e1, e);

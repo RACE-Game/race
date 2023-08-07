@@ -4,9 +4,10 @@ use crate::{
     context::{GameContext, GameStatus},
     effect::Effect,
     encryptor::EncryptorT,
-    error::{HandleError, Error},
+    error::{Error, HandleError},
     event::Event,
     prelude::ServerJoin,
+    random::RandomStatus,
     types::{GameAccount, PlayerJoin, Settle},
 };
 
@@ -135,8 +136,15 @@ pub fn general_handle_event(
 
         Event::ShareSecrets { sender, shares } => {
             context.add_shared_secrets(sender, shares.clone())?;
-            if context.is_secrets_ready() {
-                context.dispatch_event(Event::SecretsReady, 0);
+            let mut random_ids = Vec::<usize>::default();
+            for random_state in context.list_random_states_mut() {
+                if random_state.status == RandomStatus::Shared {
+                    random_ids.push(random_state.id);
+                    random_state.status = RandomStatus::Ready;
+                }
+            }
+            if !random_ids.is_empty() {
+                context.dispatch_event_instantly(Event::SecretsReady { random_ids });
             }
             Ok(())
         }
@@ -222,20 +230,26 @@ pub fn general_handle_event(
             Ok(())
         }
 
-        Event::SecretsReady => {
+        Event::SecretsReady { random_ids } => {
             let mut res = vec![];
-            for random_state in context.list_random_states() {
-                let options = &random_state.options;
-                let revealed = encryptor.decrypt_with_secrets(
-                    random_state.list_revealed_ciphertexts(),
-                    random_state.list_revealed_secrets()?,
-                    options,
-                ).or(Err(Error::DecryptionFailed))?;
-                res.push((random_state.id, revealed));
+
+            for rid in random_ids {
+                if let Ok(random_state) = context.get_random_state_mut(*rid) {
+                    let options = &random_state.options;
+                    let revealed = encryptor
+                        .decrypt_with_secrets(
+                            random_state.list_revealed_ciphertexts(),
+                            random_state.list_revealed_secrets()?,
+                            options,
+                        )
+                        .or(Err(Error::DecryptionFailed))?;
+                    res.push((random_state.id, revealed));
+                }
             }
             for (random_id, revealed) in res.into_iter() {
                 context.add_revealed_random(random_id, revealed)?;
             }
+
             let mut res = vec![];
             for decision_state in context.list_decision_states() {
                 let secret = decision_state.get_secret()?;

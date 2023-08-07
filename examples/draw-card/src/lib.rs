@@ -254,7 +254,7 @@ impl GameHandler for DrawCard {
                 }
             }
 
-            Event::SecretsReady => {
+            Event::SecretsReady { .. } => {
                 match self.stage {
                     GameStage::Dealing => {
                         // Now it's the first player's turn to act.

@@ -280,6 +280,7 @@ pub enum RandomStatus {
     Locking(String), // The address to mask the ciphertexts
     Masking(String), // The address to lock the ciphertexts
     WaitingSecrets,  // Waiting for the secrets to be shared
+    Shared,          // All secrets are shared, waiting to be notified to the system
 }
 
 /// RandomState represents the public information for a single randomness.
@@ -303,6 +304,14 @@ impl RandomState {
 
     pub fn is_fully_locked(&self) -> bool {
         self.masks.iter().all(|m| m.is_removed())
+    }
+
+    pub fn is_shared(&self) -> bool {
+        self.status == RandomStatus::Shared
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.status == RandomStatus::Ready
     }
 
     pub fn get_ciphertext(&self, index: usize) -> Option<&LockedCiphertext> {
@@ -357,7 +366,7 @@ impl RandomState {
                 if a.ne(addr) {
                     return Err(Error::InvalidOperator);
                 }
-                if let Some(mut mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr)) {
+                if let Some(mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr)) {
                     if !mask.is_required() {
                         return Err(Error::DuplicatedMask);
                     } else {
@@ -394,7 +403,7 @@ impl RandomState {
                 if a.ne(addr) {
                     return Err(Error::InvalidOperator);
                 }
-                if let Some(mut mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr)) {
+                if let Some(mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr)) {
                     if mask.status.eq(&MaskStatus::Removed) {
                         return Err(Error::DuplicatedLock);
                     }
@@ -423,7 +432,7 @@ impl RandomState {
     {
         if !matches!(
             self.status,
-            RandomStatus::Ready | RandomStatus::WaitingSecrets
+            RandomStatus::Shared | RandomStatus::Ready | RandomStatus::WaitingSecrets
         ) {
             return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
@@ -473,7 +482,7 @@ impl RandomState {
     pub fn reveal(&mut self, indexes: Vec<usize>) -> Result<()> {
         if !matches!(
             self.status,
-            RandomStatus::Ready | RandomStatus::WaitingSecrets
+            RandomStatus::Shared | RandomStatus::Ready | RandomStatus::WaitingSecrets
         ) {
             return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
@@ -633,6 +642,7 @@ impl RandomState {
     /// Return addresses those haven't submitted operation
     pub fn list_operating_addrs(&self) -> Vec<String> {
         match &self.status {
+            RandomStatus::Shared => Vec::new(),
             RandomStatus::Ready => Vec::new(),
             RandomStatus::Locking(addr) => vec![addr.clone()],
             RandomStatus::Masking(addr) => vec![addr.clone()],
@@ -647,14 +657,17 @@ impl RandomState {
 
     /// Update randomness status
     pub fn update_status(&mut self) {
-        if let Some(mask) = self.masks.iter().find(|m| m.is_required()) {
+        if matches!(self.status, RandomStatus::Locking(_)) && self.masks.iter().all(|m| m.is_removed()) {
+            // This is for Locking -> Ready
+            self.status = RandomStatus::Ready;
+        } else if let Some(mask) = self.masks.iter().find(|m| m.is_required()) {
             self.status = RandomStatus::Masking(mask.owner.clone());
         } else if let Some(mask) = self.masks.iter().find(|m| m.is_applied()) {
             self.status = RandomStatus::Locking(mask.owner.clone());
         } else if self.secret_shares.iter().any(|s| s.secret.is_none()) {
             self.status = RandomStatus::WaitingSecrets;
         } else {
-            self.status = RandomStatus::Ready;
+            self.status = RandomStatus::Shared;
         }
     }
 }
@@ -689,7 +702,7 @@ mod tests {
         state.add_secret("bob".into(), None, 0, vec![1, 2, 3])?;
         assert_eq!(0, state.list_required_secrets_by_from_addr("alice").len());
         assert_eq!(0, state.list_required_secrets_by_from_addr("bob").len());
-        assert_eq!(RandomStatus::Ready, state.status);
+        assert_eq!(RandomStatus::Shared, state.status);
         Ok(())
     }
 

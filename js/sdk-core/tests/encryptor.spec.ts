@@ -92,7 +92,7 @@ describe('Test utilities', () => {
 
 describe('Test Encryptor', () => {
   it('Test sign/verify', async () => {
-    const encryptor = await Encryptor.create();
+    const encryptor = await Encryptor.create('alice', undefined);
     const pubkeys = await encryptor.exportPublicKey();
     encryptor.addPublicKey('alice', pubkeys);
     const message = Uint8Array.of(1, 2, 3, 4, 5, 6);

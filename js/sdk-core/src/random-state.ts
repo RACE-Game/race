@@ -67,19 +67,19 @@ export class Mask {
 
 export type CipherOwner =
     | {
-          kind: 'unclaimed';
-      }
+        kind: 'unclaimed';
+    }
     | {
-          kind: 'assigned';
-          addr: string;
-      }
+        kind: 'assigned';
+        addr: string;
+    }
     | {
-          kind: 'multiAssigned';
-          addrs: string[];
-      }
+        kind: 'multiAssigned';
+        addrs: string[];
+    }
     | {
-          kind: 'revealed';
-      };
+        kind: 'revealed';
+    };
 
 export class LockedCiphertext {
     locks: Lock[];
@@ -107,19 +107,22 @@ export class Share {
 
 export type RandomStatus =
     | {
-          kind: 'ready';
-      }
+        kind: 'ready';
+    }
     | {
-          kind: 'locking';
-          addr: string;
-      }
+        kind: 'locking';
+        addr: string;
+    }
     | {
-          kind: 'masking';
-          addr: string;
-      }
+        kind: 'masking';
+        addr: string;
+    }
     | {
-          kind: 'waiting-secrets';
-      };
+        kind: 'waiting-secrets';
+    }
+    | {
+        kind: 'shared';
+    };
 
 export class RandomState {
     id: Id;
@@ -209,7 +212,7 @@ export class RandomState {
     }
 
     assign(addr: string, indexes: number[]) {
-        if (this.status.kind === 'ready' || this.status.kind === 'waiting-secrets') {
+        if (this.status.kind === 'ready' || this.status.kind === 'shared' || this.status.kind === 'waiting-secrets') {
             for (const idx of indexes) {
                 let c = this.ciphertexts[idx];
                 if (c.owner.kind === 'assigned' || c.owner.kind === 'revealed') {
@@ -238,7 +241,7 @@ export class RandomState {
     }
 
     reveal(indexes: number[]) {
-        if (this.status.kind === 'ready' || this.status.kind === 'waiting-secrets') {
+        if (this.status.kind === 'ready' || this.status.kind === 'shared' || this.status.kind === 'waiting-secrets') {
             for (const idx of indexes) {
                 let c = this.ciphertexts[idx];
                 if (c.owner.kind !== 'revealed') {
@@ -357,6 +360,8 @@ export class RandomState {
         switch (this.status.kind) {
             case 'ready':
                 return [];
+            case 'shared':
+                return [];
             case 'locking':
                 return [this.status.addr];
             case 'masking':
@@ -367,6 +372,10 @@ export class RandomState {
     }
 
     updateStatus() {
+        if (this.status.kind === 'locking' && this.masks.every(m => m.status === 'removed')) {
+            this.status = { kind: 'ready' };
+            return;
+        }
         let mask = this.masks.find(m => m.status === 'required');
         if (mask !== undefined) {
             this.status = { kind: 'masking', addr: mask.owner };
@@ -381,6 +390,6 @@ export class RandomState {
             this.status = { kind: 'waiting-secrets' };
             return;
         }
-        this.status = { kind: 'ready' };
+        this.status = { kind: 'shared' };
     }
 }

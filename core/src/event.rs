@@ -126,7 +126,9 @@ pub enum Event {
     },
 
     /// All required secrets are shared
-    SecretsReady,
+    SecretsReady {
+        random_ids: Vec<usize>,
+    },
 
     /// Shutdown
     Shutdown,
@@ -193,7 +195,9 @@ impl std::fmt::Display for Event {
             ),
             Event::DrawTimeout => write!(f, "DrawTimeout"),
             Event::ActionTimeout { player_addr } => write!(f, "ActionTimeout for {}", player_addr),
-            Event::SecretsReady => write!(f, "SecretsReady"),
+            Event::SecretsReady { random_ids } => {
+                write!(f, "SecretsReady for {}", format!("{:?}", random_ids))
+            }
             Event::ServerLeave {
                 server_addr,
                 transactor_addr,

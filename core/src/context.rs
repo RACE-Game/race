@@ -377,6 +377,10 @@ impl GameContext {
         &self.random_states
     }
 
+    pub fn list_random_states_mut(&mut self) -> &mut Vec<RandomState> {
+        &mut self.random_states
+    }
+
     pub fn list_decision_states(&self) -> &Vec<DecisionState> {
         &self.decision_states
     }
@@ -642,6 +646,8 @@ impl GameContext {
         let no_dispatch = self.dispatch.is_none();
         let rnd_st = self.get_random_state_mut(random_id)?;
         match &rnd_st.status {
+            RandomStatus::Shared => {
+            }
             RandomStatus::Ready => {
                 self.dispatch_event_instantly(Event::RandomnessReady { random_id });
             }
