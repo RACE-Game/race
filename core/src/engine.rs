@@ -7,7 +7,8 @@ use crate::{
     error::{Error, HandleError},
     event::Event,
     prelude::ServerJoin,
-    types::{GameAccount, PlayerJoin, Settle}, random::RandomStatus,
+    random::RandomStatus,
+    types::{GameAccount, PlayerJoin, Settle},
 };
 
 /// A subset of on-chain account, used for game handler
@@ -136,14 +137,15 @@ pub fn general_handle_event(
         Event::ShareSecrets { sender, shares } => {
             context.add_shared_secrets(sender, shares.clone())?;
             let mut random_ids = Vec::<usize>::default();
-            for random_state in context.list_random_states() {
-                if random_state.status == RandomStatus::Ready {
+            for random_state in context.list_random_states_mut() {
+                if random_state.status == RandomStatus::Shared {
                     random_ids.push(random_state.id);
+                    random_state.status = RandomStatus::Ready;
                 }
             }
-            context.dispatch_event(Event::SecretsReady {
-                random_ids
-            }, 0);
+            if !random_ids.is_empty() {
+                context.dispatch_event_instantly(Event::SecretsReady { random_ids });
+            }
             Ok(())
         }
 
