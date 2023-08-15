@@ -139,6 +139,7 @@ fn subscribe_event(
                 histories.len()
             );
             histories.into_iter().for_each(|x| {
+                info!("Push history event: {}", x);
                 let v = x.try_to_vec().unwrap();
                 let s = utils::base64_encode(&v);
                 // info!("Push event history: {}", s);
@@ -155,7 +156,7 @@ fn subscribe_event(
                 Ok(x) => {
                     let v = x.try_to_vec().unwrap();
                     let s = utils::base64_encode(&v);
-                    // info!("Push new event: {}", s);
+                    info!("Push new event: {}", s);
                     Ok(s)
                 }
                 Err(e) => Err(e),

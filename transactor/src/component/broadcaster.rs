@@ -64,7 +64,7 @@ impl Broadcaster {
     /// Retrieve events those is handled with a specified `settle_version`.
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
         let event_backups = self.event_backups.lock().await;
-        let checkpoint_added = false;
+        let mut checkpoint_added = false;
 
         let mut histories: Vec<BroadcastFrame> = Vec::new();
         for event_backup in event_backups.iter() {
@@ -81,6 +81,7 @@ impl Broadcaster {
                     settle_version: event_backup.settle_version,
                     state: Some(event_backup.state.clone()),
                 });
+                checkpoint_added = true;
             }
 
             // Add event history
@@ -122,6 +123,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     settle_version,
                     timestamp,
                 } => {
+                    debug!("Broadcaster receive event: {}", event);
                     let mut event_backups = ctx.event_backups.lock().await;
 
                     event_backups.push_back(EventBackup {
