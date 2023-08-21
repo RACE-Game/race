@@ -109,7 +109,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                 BroadcastFrame::Init {
                     access_version,
                     settle_version,
-                    state,
+                    checkpoint_state,
                     ..
                 } => {
                     let r = ports
@@ -119,7 +119,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                                 access_version,
                                 settle_version,
                             ),
-                            state
+                            state: Some(checkpoint_state)
                         })
                         .await;
                     if let Err(e) = r {

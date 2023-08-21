@@ -43,7 +43,7 @@ pub enum EventFrame {
     },
     Broadcast {
         event: Event,
-        state: Vec<u8>,
+        checkpoint_state: Option<Vec<u8>>,
         access_version: u64,
         settle_version: u64,
         timestamp: u64,

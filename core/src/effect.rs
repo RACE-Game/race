@@ -7,9 +7,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use crate::{
     context::GameContext,
     engine::GameHandler,
-    error::{Error, HandleError, Result},
+    error::{Error, HandleError, Result, HandleResult},
     random::RandomSpec,
-    types::{DecisionId, RandomId, Settle},
+    types::{DecisionId, RandomId, Settle}
 };
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -153,6 +153,7 @@ pub struct Effect {
     pub handler_state: Option<Vec<u8>>,
     pub error: Option<HandleError>,
     pub allow_exit: bool,
+    pub checkpoint: bool,
 }
 
 impl Effect {
@@ -198,6 +199,7 @@ impl Effect {
             handler_state: Some(context.handler_state.clone()),
             error: None,
             allow_exit: context.allow_exit,
+            checkpoint: false,
         }
     }
 
@@ -297,6 +299,19 @@ impl Effect {
         self.start_game = true;
     }
 
+    pub fn set_checkpoint(&mut self) -> HandleResult<()> {
+        if self.settles.is_empty() {
+            Err(HandleError::CheckpointWithoutSettle)
+        } else {
+            self.checkpoint = true;
+            Ok(())
+        }
+    }
+
+    pub fn is_checkpoint(&self) -> bool {
+        self.checkpoint
+    }
+
     /// Stop the game.
     pub fn stop_game(&mut self) {
         self.stop_game = true;
@@ -354,16 +369,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_deserialization() -> anyhow::Result<()> {
-        let buf = vec![0,0,0,0,0,110,167,204,141,137,1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,2,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0];
-
-        let effect = Effect::try_from_slice(&buf)?;
-
-        println!("Effect: {:?}", effect);
-        Ok(())
-    }
-
-    #[test]
     fn test_serialization() -> anyhow::Result<()> {
         let mut answered = BTreeMap::new();
         answered.insert(33, "A".into());
@@ -409,6 +414,7 @@ mod tests {
             handler_state: Some(vec![1, 2, 3, 4]),
             error: Some(HandleError::NoEnoughPlayers),
             allow_exit: true,
+            checkpoint: false,
         };
         let bs = effect.try_to_vec()?;
 

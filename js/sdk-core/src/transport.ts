@@ -1,119 +1,119 @@
 import { IWallet } from './wallet';
 import {
-    GameAccount,
-    GameBundle,
-    ServerAccount,
-    PlayerProfile,
-    VoteType,
-    RegistrationAccount,
-    INft,
-    IToken,
-    RegistrationWithGames,
-    Token,
+  GameAccount,
+  GameBundle,
+  ServerAccount,
+  PlayerProfile,
+  VoteType,
+  RegistrationAccount,
+  INft,
+  IToken,
+  RegistrationWithGames,
+  Token,
 } from './accounts';
 
 export type CreateGameAccountParams = {
-    title: string;
-    bundleAddr: string;
-    tokenAddr: string;
-    maxPlayers: number;
-    minDeposit: bigint;
-    maxDeposit: bigint;
-    data: Uint8Array;
+  title: string;
+  bundleAddr: string;
+  tokenAddr: string;
+  maxPlayers: number;
+  minDeposit: bigint;
+  maxDeposit: bigint;
+  data: Uint8Array;
 };
 
 export type CloseGameAccountParams = {
-    gameAddr: string;
+  gameAddr: string;
 };
 
 export type JoinParams = {
-    gameAddr: string;
-    amount: bigint;
-    accessVersion: bigint;
-    position: number;
-    verifyKey: string;
+  gameAddr: string;
+  amount: bigint;
+  accessVersion: bigint;
+  position: number;
+  verifyKey: string;
 };
 
 export type DepositParams = {
-    playerAddr: string;
-    gameAddr: string;
-    amount: bigint;
-    settleVersion: bigint;
+  playerAddr: string;
+  gameAddr: string;
+  amount: bigint;
+  settleVersion: bigint;
 };
 
 export type VoteParams = {
-    gameAddr: string;
-    voteType: VoteType;
-    voterAddr: string;
-    voteeAddr: string;
+  gameAddr: string;
+  voteType: VoteType;
+  voterAddr: string;
+  voteeAddr: string;
 };
 
 export type CreatePlayerProfileParams = {
-    nick: string;
-    pfp?: string;
+  nick: string;
+  pfp?: string;
 };
 
 export type PublishGameParams = {
-    uri: string;
-    name: string;
-    symbol: string;
+  uri: string;
+  name: string;
+  symbol: string;
 };
 
 export type CreateRegistrationParams = {
-    isPrivate: boolean;
-    size: number;
+  isPrivate: boolean;
+  size: number;
 };
 
 export type RegisterGameParams = {
-    gameAddr: string;
-    regAddr: string;
+  gameAddr: string;
+  regAddr: string;
 };
 
 export type UnregisterGameParams = {
-    gameAddr: string;
-    regAddr: string;
+  gameAddr: string;
+  regAddr: string;
 };
 
 export interface ITransport {
-    createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string>;
+  createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string>;
 
-    closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void>;
+  closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void>;
 
-    join(wallet: IWallet, params: JoinParams): Promise<void>;
+  join(wallet: IWallet, params: JoinParams): Promise<void>;
 
-    deposit(wallet: IWallet, params: DepositParams): Promise<void>;
+  deposit(wallet: IWallet, params: DepositParams): Promise<void>;
 
-    vote(wallet: IWallet, params: VoteParams): Promise<void>;
+  vote(wallet: IWallet, params: VoteParams): Promise<void>;
 
-    createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void>;
+  createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void>;
 
-    publishGame(wallet: IWallet, params: PublishGameParams): Promise<string>;
+  publishGame(wallet: IWallet, params: PublishGameParams): Promise<string>;
 
-    createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<string>;
+  createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<string>;
 
-    registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void>;
+  registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void>;
 
-    unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void>;
+  unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void>;
 
-    getGameAccount(addr: string): Promise<GameAccount | undefined>;
+  getGameAccount(addr: string): Promise<GameAccount | undefined>;
 
-    getGameBundle(addr: string): Promise<GameBundle | undefined>;
+  getGameBundle(addr: string): Promise<GameBundle | undefined>;
 
-    getPlayerProfile(addr: string): Promise<PlayerProfile | undefined>;
+  getPlayerProfile(addr: string): Promise<PlayerProfile | undefined>;
 
-    getServerAccount(addr: string): Promise<ServerAccount | undefined>;
+  getServerAccount(addr: string): Promise<ServerAccount | undefined>;
 
-    getRegistration(addr: string): Promise<RegistrationAccount | undefined>;
+  getRegistration(addr: string): Promise<RegistrationAccount | undefined>;
 
-    getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined>;
+  getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined>;
 
-    getToken(addr: string): Promise<IToken | undefined>;
+  getToken(addr: string): Promise<IToken | undefined>;
 
-    getNft(addr: string): Promise<INft | undefined>;
+  getNft(addr: string): Promise<INft | undefined>;
 
-    listTokens(): Promise<IToken[]>;
+  listTokens(): Promise<IToken[]>;
 
-    listNfts(walletAddr: string): Promise<INft[]>;
+  listNfts(walletAddr: string): Promise<INft[]>;
 
-    fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>>;
+  fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>>;
 }

@@ -42,10 +42,15 @@ async fn handle(
 
     match handler.handle_event(game_context, &event) {
         Ok(effects) => {
+            let checkpoint_state = if game_context.is_checkpoint() {
+                Some(game_context.get_handler_state_raw().to_owned())
+            } else {
+                None
+            };
             ports
                 .send(EventFrame::Broadcast {
                     event,
-                    state: game_context.get_handler_state_raw().to_owned(),
+                    checkpoint_state,
                     access_version,
                     settle_version,
                     timestamp: game_context.get_timestamp(),
@@ -119,7 +124,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         while let Some(event_frame) = retrieve_event(&mut ports, &mut game_context, ctx.mode).await
         {
             // Set timestamp to current time
-            game_context.set_timestamp(current_timestamp());
+            // Reset some disposable states.
+            game_context.prepare_for_next_event(current_timestamp());
 
             match event_frame {
                 EventFrame::InitState {
@@ -144,6 +150,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         "Initialize game state for {}, access_version = {}, settle_version = {}",
                         init_account.addr, init_account.access_version, init_account.settle_version
                     );
+
+                    info!("Initialize timestamp: {}", current_timestamp());
 
                     game_context.dispatch_safe(Event::Ready, 0);
                     if let Some(state) = state {

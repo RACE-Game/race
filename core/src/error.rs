@@ -297,6 +297,9 @@ pub enum HandleError {
 
     #[error("Internal error: {message:?}")]
     InternalError { message: String },
+
+    #[error("Can't set checkpoint without settle")]
+    CheckpointWithoutSettle,
 }
 
 impl From<crate::error::Error> for HandleError {

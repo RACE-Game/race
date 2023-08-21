@@ -196,6 +196,8 @@ pub struct GameContext {
     pub(crate) decision_states: Vec<DecisionState>,
     /// Settles, if is not None, will be handled by event loop.
     pub(crate) settles: Option<Vec<Settle>>,
+    /// Checkpoint state
+    pub(crate) checkpoint: bool,
 }
 
 impl GameContext {
@@ -234,6 +236,7 @@ impl GameContext {
             decision_states: vec![],
             settles: None,
             handler_state: "".into(),
+            checkpoint: false,
         })
     }
 
@@ -363,6 +366,10 @@ impl GameContext {
 
     pub fn get_timestamp(&self) -> u64 {
         self.timestamp
+    }
+
+    pub fn is_checkpoint(&self) -> bool {
+        self.checkpoint
     }
 
     pub fn get_status(&self) -> GameStatus {
@@ -810,6 +817,7 @@ impl GameContext {
             settles,
             handler_state,
             allow_exit,
+            checkpoint,
             ..
         } = effect;
 
@@ -855,6 +863,7 @@ impl GameContext {
 
         if !settles.is_empty() {
             self.settle(settles);
+            self.checkpoint = checkpoint;
         }
 
         if let Some(state) = handler_state {
@@ -902,6 +911,11 @@ impl GameContext {
 
         Ok(())
     }
+
+    pub fn prepare_for_next_event(&mut self, timestamp: u64) {
+        self.set_timestamp(timestamp);
+        self.checkpoint = false;
+    }
 }
 
 impl Default for GameContext {
@@ -921,6 +935,7 @@ impl Default for GameContext {
             random_states: Vec::new(),
             decision_states: Vec::new(),
             settles: None,
+            checkpoint: false,
         }
     }
 }

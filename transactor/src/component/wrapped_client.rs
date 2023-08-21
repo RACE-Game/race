@@ -14,7 +14,6 @@ use async_trait::async_trait;
 use race_client::Client;
 use race_core::connection::ConnectionT;
 use race_core::encryptor::EncryptorT;
-use race_core::event::Event;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, ServerAccount};
 use tracing::{info, warn};
@@ -92,11 +91,6 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
         'outer: while let Some(event_frame) = ports.recv().await {
             // info!("Client receives event frame: {}", event_frame);
             match event_frame {
-                EventFrame::Broadcast { event, .. } => {
-                    if matches!(event, Event::GameStart { access_version: _ }) {
-                        client.flush_secret_states();
-                    }
-                }
                 EventFrame::ContextUpdated { ref context } => {
                     match client.handle_updated_context(context) {
                         Ok(events) => {
@@ -106,6 +100,9 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                                 if let Err(_e) = client.submit_event(event).await {
                                     break 'outer;
                                 }
+                            }
+                            if context.is_checkpoint() {
+                                client.flush_secret_states();
                             }
                         }
                         Err(e) => {

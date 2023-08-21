@@ -132,7 +132,11 @@ pub fn general_handle_event(
 ) -> Result<(), Error> {
     // General event handling
     match event {
-        Event::Ready => Ok(()),
+        Event::Ready => {
+            // This is the first event, we make it a checkpoint
+            context.checkpoint = true;
+            Ok(())
+        }
 
         Event::ShareSecrets { sender, shares } => {
             context.add_shared_secrets(sender, shares.clone())?;

@@ -8,18 +8,19 @@ use async_trait::async_trait;
 use race_core::event::Event;
 use race_core::types::{BroadcastFrame, GameAccount};
 use tokio::sync::{broadcast, Mutex};
-use tracing::{debug, warn};
+use tracing::{debug, warn, info};
 
 use crate::component::common::{Component, ConsumerPorts, Ports};
 use crate::component::event_bus::CloseReason;
 use crate::frame::EventFrame;
 
-/// Backup events in memeory, for new connected client.
-/// The `settle_version` and `access_version` are the values at the time we handle the events.
-/// Old backups can be forgot once the `settle_version` and `access_version` is updated.
+/// Backup events in memeory, for new connected client.  The
+/// `settle_version` and `access_version` are the values at the time
+/// we handle the events. The backups always start with a checkpoint
+/// event which contains the initial handler state
 pub struct EventBackup {
     pub event: Event,
-    pub state: Vec<u8>,
+    pub checkpoint_state: Option<Vec<u8>>,
     pub settle_version: u64,
     pub access_version: u64,
     pub timestamp: u64,
@@ -61,35 +62,28 @@ impl Broadcaster {
         self.broadcast_tx.subscribe()
     }
 
-    /// Retrieve events those is handled with a specified `settle_version`.
-    pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
+    pub async fn retrieve_histories(&self, _settle_version: u64) -> Vec<BroadcastFrame> {
         let event_backups = self.event_backups.lock().await;
-        let mut checkpoint_added = false;
 
         let mut histories: Vec<BroadcastFrame> = Vec::new();
         for event_backup in event_backups.iter() {
-            // Expired events
-            if event_backup.settle_version < settle_version {
-                continue;
-            }
-
-            // Add checkpoint, from the first valid event
-            if !checkpoint_added {
+            if let Some(ref checkpoint_state) = event_backup.checkpoint_state {
+                info!("checkpoint: {}", event_backup.event);
+                histories.clear();
                 histories.push(BroadcastFrame::Init {
                     game_addr: self.game_addr.clone(),
                     access_version: event_backup.access_version,
                     settle_version: event_backup.settle_version,
-                    state: Some(event_backup.state.clone()),
+                    checkpoint_state: checkpoint_state.to_owned(),
                 });
-                checkpoint_added = true;
+            } else {
+                info!("event: {}", event_backup.event);
+                histories.push(BroadcastFrame::Event {
+                    game_addr: self.game_addr.clone(),
+                    event: event_backup.event.clone(),
+                    timestamp: event_backup.timestamp,
+                })
             }
-
-            // Add event history
-            histories.push(BroadcastFrame::Event {
-                game_addr: self.game_addr.clone(),
-                event: event_backup.event.clone(),
-                timestamp: event_backup.timestamp,
-            })
         }
 
         histories
@@ -118,7 +112,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                 }
                 EventFrame::Broadcast {
                     event,
-                    state,
+                    checkpoint_state,
                     access_version,
                     settle_version,
                     timestamp,
@@ -126,17 +120,31 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     debug!("Broadcaster receive event: {}", event);
                     let mut event_backups = ctx.event_backups.lock().await;
 
+                    // Remove old histories when we have new checkpoint.
+                    // We keep at most two checkpoints at the same time.
+                    if checkpoint_state.is_some()
+                        && event_backups
+                            .iter()
+                            .filter(|e| e.checkpoint_state.is_some())
+                            .count()
+                            > 1
+                    {
+                        event_backups.pop_front();
+                        while event_backups
+                            .front()
+                            .is_some_and(|e| e.checkpoint_state.is_none())
+                        {
+                            event_backups.pop_front();
+                        }
+                    }
+
                     event_backups.push_back(EventBackup {
                         event: event.clone(),
-                        state,
+                        checkpoint_state: checkpoint_state.clone(),
                         settle_version,
                         access_version,
                         timestamp,
                     });
-                    // We keep at most 1000 backups
-                    if event_backups.len() > 1000 {
-                        event_backups.pop_front();
-                    }
 
                     let r = ctx.broadcast_tx.send(BroadcastFrame::Event {
                         game_addr: ctx.game_addr.clone(),
@@ -185,7 +193,7 @@ mod tests {
                 sender: "Alice".into(),
                 raw: "CUSTOM EVENT".into(),
             },
-            state: vec![],
+            checkpoint_state: Some(vec![]),
         };
 
         let broadcast_frame = BroadcastFrame::Event {

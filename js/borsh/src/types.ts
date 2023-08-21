@@ -2,17 +2,17 @@ export type EnumClass<T> = Function & { prototype: T };
 export type Ctor<T> = { new (_: any): T };
 
 export interface IExtendReader<T> {
-    read(buf: Uint8Array, offset: number): T;
+  read(buf: Uint8Array, offset: number): T;
 }
 
 export interface IExtendWriter<T> {
-    write(value: T, buf: Uint8Array, offset: number): void;
+  write(value: T, buf: Uint8Array, offset: number): void;
 }
 
 export type ExtendOptions<T> = {
-    size: number;
-    reader?: IExtendReader<T>;
-    writer?: IExtendWriter<T>;
+  size: number;
+  reader?: IExtendReader<T>;
+  writer?: IExtendWriter<T>;
 };
 
 export type HasExtendedWriter<T> = Required<Pick<ExtendOptions<T>, 'writer' | 'size'>>;
@@ -20,22 +20,22 @@ export type HasExtendedWriter<T> = Required<Pick<ExtendOptions<T>, 'writer' | 's
 export type HasExtendedReader<T> = Required<Pick<ExtendOptions<T>, 'reader' | 'size'>>;
 
 export type PrimitiveFieldType =
-    | 'u8'
-    | 'u16'
-    | 'u32'
-    | 'u64'
-    | 'u128'
-    | 'i8'
-    | 'i16'
-    | 'i32'
-    | 'i64'
-    | 'i128'
-    | 'string'
-    | 'f32'
-    | 'f64'
-    | 'usize'
-    | 'bool'
-    | 'u8-array';
+  | 'u8'
+  | 'u16'
+  | 'u32'
+  | 'u64'
+  | 'u128'
+  | 'i8'
+  | 'i16'
+  | 'i32'
+  | 'i64'
+  | 'i128'
+  | 'string'
+  | 'f32'
+  | 'f64'
+  | 'usize'
+  | 'bool'
+  | 'u8-array';
 
 export type FieldKey = PropertyKey;
 
@@ -54,25 +54,25 @@ export type StructFieldType<T> = { kind: 'struct'; value: Ctor<T> };
 export type ExtendFieldType<T> = { kind: 'extend'; value: ExtendOptions<T> };
 
 export type FieldType =
-    | PrimitiveFieldType
-    | ByteArrayFieldType
-    | ArrayFieldType
-    | MapFieldType
-    | OptionFieldType
-    | EnumFieldType
-    | StructFieldType<any>
-    | ExtendFieldType<any>;
+  | PrimitiveFieldType
+  | ByteArrayFieldType
+  | ArrayFieldType
+  | MapFieldType
+  | OptionFieldType
+  | EnumFieldType
+  | StructFieldType<any>
+  | ExtendFieldType<any>;
 
 export type Field = [FieldKey, FieldType];
 
 export function isPrimitiveType(fieldType: FieldType): fieldType is PrimitiveFieldType {
-    return typeof fieldType === 'string';
+  return typeof fieldType === 'string';
 }
 
 export function hasExtendWriter<T>(options: ExtendOptions<T>): options is HasExtendedWriter<T> {
-    return options.writer !== undefined;
+  return options.writer !== undefined;
 }
 
 export function hasExtendReader<T>(options: ExtendOptions<T>): options is HasExtendedReader<T> {
-    return options.reader !== undefined;
+  return options.reader !== undefined;
 }

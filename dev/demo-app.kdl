@@ -20,12 +20,21 @@ layout {
       }
     }
 
-    pane {
-        name "Transactor"
-        command "just"
-        cwd "./"
-        args "facade-transactor" "1"
-        start_suspended true
+    pane split_direction="vertical" {
+      pane {
+          name "Transactor"
+          command "just"
+          cwd "./"
+          args "facade-transactor" "1"
+          start_suspended true
+      }
+      pane {
+          name "Transactor"
+          command "just"
+          cwd "./"
+          args "facade-transactor" "2"
+          start_suspended true
+      }
     }
   }
 }

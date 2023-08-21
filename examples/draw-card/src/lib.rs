@@ -82,6 +82,7 @@ impl DrawCard {
         }
 
         effect.wait_timeout(NEXT_GAME_TIMEOUT);
+        effect.set_checkpoint()?;
         Ok(())
     }
 
