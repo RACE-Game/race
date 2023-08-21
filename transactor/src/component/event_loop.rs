@@ -42,20 +42,25 @@ async fn handle(
 
     match handler.handle_event(game_context, &event) {
         Ok(effects) => {
-            let checkpoint_state = if game_context.is_checkpoint() {
-                Some(game_context.get_handler_state_raw().to_owned())
-            } else {
-                None
-            };
+
             ports
                 .send(EventFrame::Broadcast {
                     event,
-                    checkpoint_state,
                     access_version,
                     settle_version,
                     timestamp: game_context.get_timestamp(),
                 })
                 .await;
+
+            if game_context.is_checkpoint() {
+                ports
+                    .send(EventFrame::Checkpoint {
+                        state: game_context.get_handler_state_raw().to_owned(),
+                        access_version: game_context.get_access_version(),
+                        settle_version: game_context.get_settle_version(),
+                    })
+                    .await;
+            }
 
             ports
                 .send(EventFrame::ContextUpdated {

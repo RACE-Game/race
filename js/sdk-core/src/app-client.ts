@@ -21,6 +21,7 @@ import { Client } from './client';
 import { Custom, GameEvent, ICustomEvent } from './events';
 import { ProfileCache } from './profile-cache';
 import { IStorage } from './storage';
+import { DecryptionCache } from './decryption-cache';
 
 export type EventCallbackFunction = (
   context: GameContextSnapshot,
@@ -65,6 +66,7 @@ export class AppClient {
   #encryptor: IEncryptor;
   #profileCaches: ProfileCache;
   #info: GameInfo;
+  #decryptionCache: DecryptionCache;
 
   constructor(
     gameAddr: string,
@@ -78,7 +80,8 @@ export class AppClient {
     onEvent: EventCallbackFunction,
     onMessage: MessageCallbackFunction,
     encryptor: IEncryptor,
-    info: GameInfo
+    info: GameInfo,
+    decryptionCache: DecryptionCache
   ) {
     this.#gameAddr = gameAddr;
     this.#handler = handler;
@@ -93,6 +96,7 @@ export class AppClient {
     this.#encryptor = encryptor;
     this.#profileCaches = new ProfileCache(transport);
     this.#info = info;
+    this.#decryptionCache = decryptionCache;
   }
 
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
@@ -120,9 +124,10 @@ export class AppClient {
       if (transactorAccount === undefined) {
         throw SdkError.transactorAccountNotFound(transactorAddr);
       }
-      const handler = await Handler.initialize(gameBundle, encryptor);
+      const decryptionCache = new DecryptionCache();
       const connection = Connection.initialize(playerAddr, transactorAccount.endpoint, encryptor);
       const client = new Client(playerAddr, gameAddr, transport, encryptor, connection);
+      const handler = await Handler.initialize(gameBundle, encryptor, client, decryptionCache);
       const gameContext = new GameContext(gameAccount);
       const token = await transport.getToken(gameAccount.tokenAddr);
       if (token === undefined) {
@@ -147,7 +152,8 @@ export class AppClient {
         onEvent,
         onMessage,
         encryptor,
-        info
+        info,
+        decryptionCache
       );
     } finally {
       console.groupEnd();
@@ -191,19 +197,14 @@ export class AppClient {
       if (frame instanceof BroadcastFrameInit) {
         console.group('Initialize handler state');
         try {
-          const { state, accessVersion, settleVersion } = frame;
+          const { checkpointState, accessVersion, settleVersion } = frame;
           console.log('Access version:', accessVersion);
           console.log('Settle version:', settleVersion);
           this.#gameContext.applyCheckpoint(accessVersion, settleVersion);
           const initAccount = InitAccount.createFromGameAccount(this.#initGameAccount, accessVersion, settleVersion);
           console.log('Init account:', initAccount);
           await this.#handler.initState(this.#gameContext, initAccount);
-          if (state !== undefined) {
-            console.log('State:', state);
-            this.#gameContext.handlerState = state;
-          } else {
-            console.log('No state snapshot, start from beginning.');
-          }
+          this.#gameContext.handlerState = checkpointState;
           console.log('Context created:', this.#gameContext);
           await this.invokeEventCallback(undefined);
         } finally {
@@ -211,24 +212,25 @@ export class AppClient {
         }
       } else if (frame instanceof BroadcastFrameMessage) {
         const { message } = frame;
-        console.log('Message:', message);
         this.#onMessage(message);
       } else if (frame instanceof BroadcastFrameEvent) {
+        const t0 = new Date().getTime();
         const { event, timestamp } = frame;
         console.group('Handle event: ' + event.kind());
         try {
-          console.log('Event:', event);
-          console.log('Timestamp:', new Date(Number(timestamp)).toLocaleTimeString());
           this.#gameContext.timestamp = timestamp;
           try {
             let context = new GameContext(this.#gameContext);
             await this.#handler.handleEvent(context, event);
             this.#gameContext = context;
-            console.log('Game context:', this.#gameContext);
           } catch (err: any) {
             console.error(err);
           }
+          console.log("Cost: ", new Date().getTime() - t0, "ms");
           await this.invokeEventCallback(event);
+        } catch (e: any) {
+          console.log("Game context in error:", this.#gameContext);
+          throw e;
         } finally {
           console.groupEnd();
         }
@@ -309,7 +311,7 @@ export class AppClient {
    * function frequently.
    */
   async getRevealed(randomId: number): Promise<Map<number, string>> {
-    return await this.#client.decrypt(this.#gameContext, randomId);
+    return this.#decryptionCache.get(randomId) || new Map();
   }
 
   /**

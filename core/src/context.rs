@@ -344,7 +344,6 @@ impl GameContext {
 
     pub fn start_game(&mut self) {
         self.random_states.clear();
-        self.decision_states.clear();
         self.dispatch = Some(DispatchEvent::new(self.gen_start_game_event(), 0));
     }
 
@@ -653,8 +652,7 @@ impl GameContext {
         let no_dispatch = self.dispatch.is_none();
         let rnd_st = self.get_random_state_mut(random_id)?;
         match &rnd_st.status {
-            RandomStatus::Shared => {
-            }
+            RandomStatus::Shared => {}
             RandomStatus::Ready => {
                 self.dispatch_event_instantly(Event::RandomnessReady { random_id });
             }
@@ -817,7 +815,6 @@ impl GameContext {
             settles,
             handler_state,
             allow_exit,
-            checkpoint,
             ..
         } = effect;
 
@@ -863,7 +860,7 @@ impl GameContext {
 
         if !settles.is_empty() {
             self.settle(settles);
-            self.checkpoint = checkpoint;
+            self.checkpoint = true;
         }
 
         if let Some(state) = handler_state {

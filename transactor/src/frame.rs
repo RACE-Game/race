@@ -41,9 +41,13 @@ pub enum EventFrame {
     SendServerEvent {
         event: Event,
     },
+    Checkpoint {
+        state: Vec<u8>,
+        access_version: u64,
+        settle_version: u64,
+    },
     Broadcast {
         event: Event,
-        checkpoint_state: Option<Vec<u8>>,
         access_version: u64,
         settle_version: u64,
         timestamp: u64,
@@ -89,6 +93,7 @@ impl std::fmt::Display for EventFrame {
             EventFrame::PlayerLeaving { .. } => write!(f, "PlayerLeaving"),
             EventFrame::SendEvent { event } => write!(f, "SendEvent: {}", event),
             EventFrame::SendServerEvent { event } => write!(f, "SendServerEvent: {}", event),
+            EventFrame::Checkpoint { .. } => write!(f, "Checkpoint"),
             EventFrame::Broadcast { event, .. } => write!(f, "Broadcast: {}", event),
             EventFrame::Settle { .. } => write!(f, "Settle"),
             EventFrame::SettleFinalized { .. } => write!(f, "SettleFinalized"),

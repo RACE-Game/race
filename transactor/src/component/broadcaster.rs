@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use race_core::event::Event;
 use race_core::types::{BroadcastFrame, GameAccount};
 use tokio::sync::{broadcast, Mutex};
-use tracing::{debug, warn, info};
+use tracing::{debug, warn};
 
 use crate::component::common::{Component, ConsumerPorts, Ports};
 use crate::component::event_bus::CloseReason;
@@ -18,41 +18,56 @@ use crate::frame::EventFrame;
 /// `settle_version` and `access_version` are the values at the time
 /// we handle the events. The backups always start with a checkpoint
 /// event which contains the initial handler state
+#[derive(Debug)]
 pub struct EventBackup {
     pub event: Event,
-    pub checkpoint_state: Option<Vec<u8>>,
+    pub timestamp: u64,
+    pub access_version: u64,
+    pub settle_version: u64,
+}
+
+#[derive(Debug)]
+pub struct Checkpoint {
+    pub state: Vec<u8>,
+    pub access_version: u64,
+    pub settle_version: u64,
+}
+
+#[derive(Debug)]
+pub struct EventBackupGroup {
+    pub events: LinkedList<EventBackup>,
+    pub checkpoint: Checkpoint,
     pub settle_version: u64,
     pub access_version: u64,
-    pub timestamp: u64,
 }
 
 pub struct BroadcasterContext {
     game_addr: String,
-    event_backups: Arc<Mutex<LinkedList<EventBackup>>>,
+    event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 /// A component that pushs event to clients.
 pub struct Broadcaster {
     game_addr: String,
-    event_backups: Arc<Mutex<LinkedList<EventBackup>>>,
+    event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 impl Broadcaster {
     pub fn init(game_account: &GameAccount) -> (Self, BroadcasterContext) {
-        let event_backups = Arc::new(Mutex::new(LinkedList::new()));
+        let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);
         (
             Self {
                 game_addr: game_account.addr.clone(),
-                event_backups: event_backups.clone(),
+                event_backup_groups: event_backup_groups.clone(),
                 broadcast_tx: broadcast_tx.clone(),
             },
             BroadcasterContext {
                 game_addr: game_account.addr.clone(),
-                event_backups,
+                event_backup_groups,
                 broadcast_tx,
             },
         )
@@ -62,27 +77,30 @@ impl Broadcaster {
         self.broadcast_tx.subscribe()
     }
 
-    pub async fn retrieve_histories(&self, _settle_version: u64) -> Vec<BroadcastFrame> {
-        let event_backups = self.event_backups.lock().await;
+    pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
+        let event_backup_groups = self.event_backup_groups.lock().await;
 
         let mut histories: Vec<BroadcastFrame> = Vec::new();
-        for event_backup in event_backups.iter() {
-            if let Some(ref checkpoint_state) = event_backup.checkpoint_state {
-                info!("checkpoint: {}", event_backup.event);
-                histories.clear();
-                histories.push(BroadcastFrame::Init {
-                    game_addr: self.game_addr.clone(),
-                    access_version: event_backup.access_version,
-                    settle_version: event_backup.settle_version,
-                    checkpoint_state: checkpoint_state.to_owned(),
-                });
-            } else {
-                info!("event: {}", event_backup.event);
-                histories.push(BroadcastFrame::Event {
-                    game_addr: self.game_addr.clone(),
-                    event: event_backup.event.clone(),
-                    timestamp: event_backup.timestamp,
-                })
+
+        for group in event_backup_groups.iter() {
+            if group.settle_version >= settle_version {
+                // The first frame must be Init
+                if histories.is_empty() {
+                    histories.push(BroadcastFrame::Init {
+                        game_addr: self.game_addr.clone(),
+                        access_version: group.access_version,
+                        settle_version: group.settle_version,
+                        checkpoint_state: group.checkpoint.state.clone(),
+                    });
+                }
+                // The rest frames must be Event
+                for event in group.events.iter() {
+                    histories.push(BroadcastFrame::Event {
+                        game_addr: self.game_addr.clone(),
+                        event: event.event.clone(),
+                        timestamp: event.timestamp,
+                    })
+                }
             }
         }
 
@@ -110,41 +128,47 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         debug!("Failed to broadcast event: {:?}", e);
                     }
                 }
+                EventFrame::Checkpoint {
+                    state,
+                    access_version,
+                    settle_version,
+                } => {
+                    let mut event_backup_groups = ctx.event_backup_groups.lock().await;
+
+                    let checkpoint = Checkpoint {
+                        state,
+                        access_version,
+                        settle_version,
+                    };
+
+                    event_backup_groups.push_back(EventBackupGroup {
+                        events: LinkedList::new(),
+                        checkpoint,
+                        access_version,
+                        settle_version,
+                    });
+                }
                 EventFrame::Broadcast {
                     event,
-                    checkpoint_state,
                     access_version,
                     settle_version,
                     timestamp,
                 } => {
                     debug!("Broadcaster receive event: {}", event);
-                    let mut event_backups = ctx.event_backups.lock().await;
+                    let mut event_backup_groups = ctx.event_backup_groups.lock().await;
 
-                    // Remove old histories when we have new checkpoint.
-                    // We keep at most two checkpoints at the same time.
-                    if checkpoint_state.is_some()
-                        && event_backups
-                            .iter()
-                            .filter(|e| e.checkpoint_state.is_some())
-                            .count()
-                            > 1
-                    {
-                        event_backups.pop_front();
-                        while event_backups
-                            .front()
-                            .is_some_and(|e| e.checkpoint_state.is_none())
-                        {
-                            event_backups.pop_front();
-                        }
+                    if let Some(current) = event_backup_groups.back_mut() {
+                        current.events.push_back(EventBackup {
+                            event: event.clone(),
+                            settle_version,
+                            access_version,
+                            timestamp,
+                        });
                     }
-
-                    event_backups.push_back(EventBackup {
-                        event: event.clone(),
-                        checkpoint_state: checkpoint_state.clone(),
-                        settle_version,
-                        access_version,
-                        timestamp,
-                    });
+                    // Keep 10 groups at most
+                    if event_backup_groups.len() > 10 {
+                        event_backup_groups.pop_front();
+                    }
 
                     let r = ctx.broadcast_tx.send(BroadcastFrame::Event {
                         game_addr: ctx.game_addr.clone(),
@@ -193,7 +217,6 @@ mod tests {
                 sender: "Alice".into(),
                 raw: "CUSTOM EVENT".into(),
             },
-            checkpoint_state: Some(vec![]),
         };
 
         let broadcast_frame = BroadcastFrame::Event {

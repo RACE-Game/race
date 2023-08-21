@@ -7,7 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use crate::{
     context::GameContext,
     engine::GameHandler,
-    error::{Error, HandleError, Result, HandleResult},
+    error::{Error, HandleError, Result},
     random::RandomSpec,
     types::{DecisionId, RandomId, Settle}
 };
@@ -153,7 +153,6 @@ pub struct Effect {
     pub handler_state: Option<Vec<u8>>,
     pub error: Option<HandleError>,
     pub allow_exit: bool,
-    pub checkpoint: bool,
 }
 
 impl Effect {
@@ -199,7 +198,6 @@ impl Effect {
             handler_state: Some(context.handler_state.clone()),
             error: None,
             allow_exit: context.allow_exit,
-            checkpoint: false,
         }
     }
 
@@ -297,19 +295,6 @@ impl Effect {
     /// Start the game.
     pub fn start_game(&mut self) {
         self.start_game = true;
-    }
-
-    pub fn set_checkpoint(&mut self) -> HandleResult<()> {
-        if self.settles.is_empty() {
-            Err(HandleError::CheckpointWithoutSettle)
-        } else {
-            self.checkpoint = true;
-            Ok(())
-        }
-    }
-
-    pub fn is_checkpoint(&self) -> bool {
-        self.checkpoint
     }
 
     /// Stop the game.
@@ -414,7 +399,6 @@ mod tests {
             handler_state: Some(vec![1, 2, 3, 4]),
             error: Some(HandleError::NoEnoughPlayers),
             allow_exit: true,
-            checkpoint: false,
         };
         let bs = effect.try_to_vec()?;
 

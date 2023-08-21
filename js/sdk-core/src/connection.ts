@@ -94,8 +94,8 @@ export class BroadcastFrameInit extends BroadcastFrame {
   accessVersion!: bigint;
   @field('u64')
   settleVersion!: bigint;
-  @field(option('u8-array'))
-  state: Uint8Array | undefined;
+  @field('u8-array')
+  checkpointState!: Uint8Array;
   constructor(fields: any) {
     super();
     Object.assign(this, fields);

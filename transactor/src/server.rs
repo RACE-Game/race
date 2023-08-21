@@ -156,7 +156,7 @@ fn subscribe_event(
                 Ok(x) => {
                     let v = x.try_to_vec().unwrap();
                     let s = utils::base64_encode(&v);
-                    info!("Push new event: {}", s);
+                    info!("Push new event: {}", x);
                     Ok(s)
                 }
                 Err(e) => Err(e),

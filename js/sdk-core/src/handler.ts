@@ -4,6 +4,8 @@ import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, 
 import { GameContext } from './game-context';
 import { IEncryptor } from './encryptor';
 import { Effect } from './effect';
+import { Client } from './client';
+import { DecryptionCache } from './decryption-cache';
 
 /**
  * A subset of GameAccount, used in handler initialization.
@@ -72,13 +74,17 @@ export interface IHandler {
 export class Handler implements IHandler {
   #encryptor: IEncryptor;
   #instance: WebAssembly.Instance;
+  #client: Client;
+  #decryptionCache: DecryptionCache;
 
-  constructor(instance: WebAssembly.Instance, encryptor: IEncryptor) {
+  constructor(instance: WebAssembly.Instance, encryptor: IEncryptor, client: Client, decryptionCache: DecryptionCache) {
     this.#encryptor = encryptor;
     this.#instance = instance;
+    this.#client = client;
+    this.#decryptionCache = decryptionCache;
   }
 
-  static async initialize(gameBundle: GameBundle, encryptor: IEncryptor): Promise<Handler> {
+  static async initialize(gameBundle: GameBundle, encryptor: IEncryptor, client: Client, decryptionCache: DecryptionCache): Promise<Handler> {
     const importObject = {
       imports: {
         memory: new WebAssembly.Memory({
@@ -95,7 +101,7 @@ export class Handler implements IHandler {
     } else {
       initiatedSource = await WebAssembly.instantiate(gameBundle.data, importObject);
     }
-    return new Handler(initiatedSource.instance, encryptor);
+    return new Handler(initiatedSource.instance, encryptor, client, decryptionCache);
   }
 
   async handleEvent(context: GameContext, event: GameEvent) {
@@ -174,7 +180,18 @@ export class Handler implements IHandler {
     }
   }
 
-  async generalPostHandleEvent(_context: GameContext, _event: GameEvent) {}
+  async generalPostHandleEvent(context: GameContext, event: GameEvent) {
+    if (event instanceof SecretsReady) {
+      for (let randomId of event.randomIds) {
+        let decryption = await this.#client.decrypt(context, randomId);
+        this.#decryptionCache.add(randomId, decryption);
+      }
+    }
+    if (context.checkpoint) {
+      context.randomStates = [];
+      context.decisionStates = [];
+    }
+  }
 
   async customInitState(context: GameContext, initAccount: InitAccount) {
     const exports = this.#instance.exports;

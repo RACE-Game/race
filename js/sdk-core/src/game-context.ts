@@ -62,6 +62,7 @@ export class GameContext {
   randomStates: RandomState[];
   decisionStates: DecisionState[];
   settles: Settle[] | undefined;
+  checkpoint: boolean;
 
   constructor(context: GameContext);
   constructor(gameAccount: GameAccount);
@@ -82,6 +83,7 @@ export class GameContext {
       this.randomStates = context.randomStates;
       this.decisionStates = context.decisionStates;
       this.settles = context.settles;
+      this.checkpoint = false;
     } else {
       const gameAccount = gameAccountOrContext;
       const transactorAddr = gameAccount.transactorAddr;
@@ -120,6 +122,7 @@ export class GameContext {
       this.decisionStates = [];
       this.settles = undefined;
       this.handlerState = Uint8Array.of();
+      this.checkpoint = false;
     }
   }
 
@@ -161,8 +164,6 @@ export class GameContext {
   }
 
   startGame() {
-    this.randomStates = [];
-    this.decisionStates = [];
     this.dispatch = {
       event: this.genStartGameEvent(),
       timeout: 0n,
@@ -436,7 +437,7 @@ export class GameContext {
     }
     if (effect.settles.length > 0) {
       this.settle(effect.settles);
-      // Ignore effect's checkpoint
+      this.checkpoint = effect.checkpoint;
     }
     if (effect.handlerState !== undefined) {
       this.handlerState = effect.handlerState;
