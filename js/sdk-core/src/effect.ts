@@ -168,9 +168,6 @@ export class Effect {
   @field('bool')
   allowExit!: boolean;
 
-  @field('bool')
-  checkpoint!: boolean;
-
   constructor(fields: Fields<Effect>) {
     Object.assign(this, fields);
   }
@@ -203,7 +200,6 @@ export class Effect {
     const handlerState = context.handlerState;
     const error = undefined;
     const allowExit = context.allowExit;
-    const checkpoint = false;
     return new Effect({
       actionTimeout,
       waitTimeout,
@@ -226,7 +222,6 @@ export class Effect {
       handlerState,
       error,
       allowExit,
-      checkpoint,
     });
   }
 }

@@ -437,7 +437,7 @@ export class GameContext {
     }
     if (effect.settles.length > 0) {
       this.settle(effect.settles);
-      this.checkpoint = effect.checkpoint;
+      this.checkpoint = true;
     }
     if (effect.handlerState !== undefined) {
       this.handlerState = effect.handlerState;
@@ -480,5 +480,10 @@ export class GameContext {
       }
     });
     this.accessVersion = accessVersion;
+  }
+
+  prepareForNextEvent(timestamp: bigint) {
+    this.timestamp = timestamp;
+    this.checkpoint = false;
   }
 }

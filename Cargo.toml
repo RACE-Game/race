@@ -23,14 +23,14 @@ members = [
 ]
 
 [workspace.dependencies]
-race-core = { path = "core", version = ">=0.0.8" }
-race-proc-macro = { path = "proc-macro", version = ">=0.0.8" }
-race-client = { path = "client", version = ">=0.0.8" }
-race-encryptor = { path = "encryptor", version = ">=0.0.8" }
-race-env = { path = "env", version = ">=0.0.8" }
-race-test = { path = "test", version = ">=0.0.8" }
-race-solana-types = { path = "contracts/solana-types", version = ">=0.0.8", default-features = false }
-race-transport = { path = "transport", version = ">=0.0.8" }
+race-core = { path = "core", version = ">=0.0.9" }
+race-proc-macro = { path = "proc-macro", version = ">=0.0.9" }
+race-client = { path = "client", version = ">=0.0.9" }
+race-encryptor = { path = "encryptor", version = ">=0.0.9" }
+race-env = { path = "env", version = ">=0.0.9" }
+race-test = { path = "test", version = ">=0.0.9" }
+race-solana-types = { path = "contracts/solana-types", version = ">=0.0.9", default-features = false }
+race-transport = { path = "transport", version = ">=0.0.9" }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 syn = "1.0.107"
 quote = "1.0.23"
@@ -79,7 +79,7 @@ regex = "1"
 
 [workspace.package]
 authors = ["RACE Foundation <race.game.team@gmail.com>"]
-version = "0.0.8"
+version = "0.0.9"
 edition = "2021"
 rust-version = "1.65.0"
 license = "MPL-2.0"

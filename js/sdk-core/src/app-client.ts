@@ -218,7 +218,7 @@ export class AppClient {
         const { event, timestamp } = frame;
         console.group('Handle event: ' + event.kind());
         try {
-          this.#gameContext.timestamp = timestamp;
+          this.#gameContext.prepareForNextEvent(timestamp);
           try {
             let context = new GameContext(this.#gameContext);
             await this.#handler.handleEvent(context, event);
