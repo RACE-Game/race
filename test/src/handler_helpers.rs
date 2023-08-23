@@ -66,7 +66,7 @@ impl<H: GameHandler> TestHandler<H> {
         mut clients: Vec<&mut TestClient>,
     ) -> Result<()> {
         // 1. Process the `event'(arg) --> context updated
-        // 2. context may dispatch --> take care those with timeout == 0
+        // 2. context may dispatch --> take care those with timeout == current timestamp
         // 3. iter clients to syn with updated context --> a couple of events
         // 4. handle these client/trans events
         let mut evts: Vec<Event> = vec![event.clone()]; // keep handling events in this vec
@@ -82,7 +82,7 @@ impl<H: GameHandler> TestHandler<H> {
                 evts = evts.iter().skip(1).map(|e| e.clone()).collect();
             }
             if let Some(ctx_evt) = context.get_dispatch() {
-                if ctx_evt.timeout == 0 {
+                if ctx_evt.timeout == context.get_timestamp() {
                     evts.push(ctx_evt.event.clone());
                     context.cancel_dispatch();
                 }
