@@ -81,7 +81,7 @@ impl ApplicationContext {
     }
 
     pub async fn register_key(&self, player_addr: String, key: NodePublicKeyRaw) -> Result<()> {
-        info!("Client {:?} register public key, {:?}", player_addr, key);
+        // info!("Client {:?} register public key, {:?}", player_addr, key);
         self.encryptor.add_public_key(player_addr, &key)?;
         Ok(())
     }

@@ -63,7 +63,7 @@ fn parse_params<T: BorshDeserialize>(
 async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
     let (_game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
 
-    info!("Attach to game, signer: {}, key: {:?}", signer, key);
+    info!("Attach to game, signer: {}", signer);
 
     context
         .register_key(signer, key)
@@ -134,8 +134,9 @@ fn subscribe_event(
             drop(context);
 
             info!(
-                "Subscribe event stream: {:?}, histories: {}",
+                "Subscribe event stream, game: {:?}, settle version: {}, number of histories: {}",
                 game_addr,
+                settle_version,
                 histories.len()
             );
             histories.into_iter().for_each(|x| {
@@ -156,7 +157,7 @@ fn subscribe_event(
                 Ok(x) => {
                     let v = x.try_to_vec().unwrap();
                     let s = utils::base64_encode(&v);
-                    info!("Push new event: {}", x);
+                    // info!("Push new event: {}", x);
                     Ok(s)
                 }
                 Err(e) => Err(e),
