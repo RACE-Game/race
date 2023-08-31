@@ -1,6 +1,6 @@
 {
   "name": "@race-foundation/sdk-solana",
-  "version": "0.0.26",
+  "version": "0.0.27",
   "description": "The Solana support for Race SDK",
   "scripts": {
     "test": "jest",

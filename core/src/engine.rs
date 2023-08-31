@@ -22,6 +22,9 @@ pub struct InitAccount {
     pub data: Vec<u8>,
     pub access_version: u64,
     pub settle_version: u64,
+    pub max_players: u16,
+    pub min_deposit: u64,
+    pub max_deposit: u64,
 }
 
 impl InitAccount {
@@ -38,6 +41,9 @@ impl InitAccount {
             data: game_account.data.clone(),
             access_version,
             settle_version,
+            max_players: game_account.max_players,
+            min_deposit: game_account.min_deposit,
+            max_deposit: game_account.min_deposit,
         }
     }
 
@@ -64,6 +70,9 @@ impl InitAccount {
             data: game_account.data.clone(),
             access_version: transactor_access_version,
             settle_version: transactor_settle_version,
+            max_players: game_account.max_players,
+            min_deposit: game_account.min_deposit,
+            max_deposit: game_account.min_deposit,
         }
     }
 
@@ -105,6 +114,9 @@ impl Default for InitAccount {
             data: Vec::new(),
             access_version: 0,
             settle_version: 0,
+            max_players: 10,
+            min_deposit: 0,
+            max_deposit: 9999,
         }
     }
 }
