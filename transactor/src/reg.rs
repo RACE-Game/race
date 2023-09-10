@@ -55,8 +55,9 @@ pub async fn start_reg_task(context: &ApplicationContext) {
             for addr in reg_addresses.iter() {
                 if let Ok(Some(reg)) = transport.get_registration(addr).await {
                     for game_reg in reg.games.into_iter() {
+                        let mode = race_core::types::QueryMode::Confirming;
                         if let Ok(Some(game_account)) =
-                            transport.get_game_account(&game_reg.addr).await
+                            transport.get_game_account(&game_reg.addr, mode).await
                         {
                             // We will keep registering until we become the transactor.
                             if game_account

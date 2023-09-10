@@ -9,7 +9,7 @@ use race_core::context::GameContext;
 use race_core::error::{Error, Result};
 use race_core::prelude::InitAccount;
 use race_core::transport::TransportT;
-use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount};
+use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount, QueryMode};
 use race_encryptor::Encryptor;
 use tokio::task::JoinHandle;
 use tracing::info;
@@ -201,8 +201,9 @@ impl Handle {
         addr: &str,
     ) -> Result<Self> {
         info!("Try create game handle for {}", addr);
+        let mode = QueryMode::Confirming;
         let game_account = transport
-            .get_game_account(addr)
+            .get_game_account(addr, mode)
             .await?
             .ok_or(Error::GameAccountNotFound)?;
 

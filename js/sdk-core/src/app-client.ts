@@ -2,6 +2,7 @@ import {
   BroadcastFrameEvent,
   BroadcastFrameInit,
   BroadcastFrameMessage,
+  BroadcastFrameTxState,
   Connection,
   IConnection,
   Message,
@@ -16,7 +17,8 @@ import { IWallet } from './wallet';
 import { Handler, InitAccount } from './handler';
 import { Encryptor, IEncryptor } from './encryptor';
 import { SdkError } from './error';
-import { EntryType, EntryTypeCash, GameAccount, IToken, PlayerProfile } from './accounts';
+import { EntryType, EntryTypeCash, IPlayerJoin, GameAccount, IToken, PlayerProfile } from './accounts';
+import { TxState } from './tx-state';
 import { Client } from './client';
 import { Custom, GameEvent, ICustomEvent } from './events';
 import { ProfileCache } from './profile-cache';
@@ -29,13 +31,15 @@ export type EventCallbackFunction = (
   event: GameEvent | undefined
 ) => void;
 export type MessageCallbackFunction = (message: Message) => void;
+export type TxStateCallbackFunction = (txState: TxState) => void;
 
 export type AppClientInitOpts = {
   transport: ITransport;
   wallet: IWallet;
   gameAddr: string;
   onEvent: EventCallbackFunction;
-  onMessage: MessageCallbackFunction;
+  onMessage?: MessageCallbackFunction;
+  onTxState?: TxStateCallbackFunction;
   storage?: IStorage;
 };
 
@@ -63,7 +67,8 @@ export class AppClient {
   #gameContext: GameContext;
   #initGameAccount: GameAccount;
   #onEvent: EventCallbackFunction;
-  #onMessage: MessageCallbackFunction;
+  #onMessage?: MessageCallbackFunction;
+  #onTxState?: TxStateCallbackFunction;
   #encryptor: IEncryptor;
   #profileCaches: ProfileCache;
   #info: GameInfo;
@@ -79,7 +84,8 @@ export class AppClient {
     gameContext: GameContext,
     initGameAccount: GameAccount,
     onEvent: EventCallbackFunction,
-    onMessage: MessageCallbackFunction,
+    onMessage: MessageCallbackFunction | undefined,
+    onTxState: TxStateCallbackFunction | undefined,
     encryptor: IEncryptor,
     info: GameInfo,
     decryptionCache: DecryptionCache
@@ -94,6 +100,7 @@ export class AppClient {
     this.#initGameAccount = initGameAccount;
     this.#onEvent = onEvent;
     this.#onMessage = onMessage;
+    this.#onTxState = onTxState;
     this.#encryptor = encryptor;
     this.#profileCaches = new ProfileCache(transport);
     this.#info = info;
@@ -101,7 +108,7 @@ export class AppClient {
   }
 
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
-    const { transport, wallet, gameAddr, onEvent, onMessage, storage } = opts;
+    const { transport, wallet, gameAddr, onEvent, onMessage, onTxState, storage } = opts;
     console.group('AppClient initialization');
     try {
       const playerAddr = wallet.walletAddr;
@@ -157,6 +164,7 @@ export class AppClient {
         gameAccount,
         onEvent,
         onMessage,
+        onTxState,
         encryptor,
         info,
         decryptionCache
@@ -217,8 +225,15 @@ export class AppClient {
           console.groupEnd();
         }
       } else if (frame instanceof BroadcastFrameMessage) {
-        const { message } = frame;
-        this.#onMessage(message);
+        if (this.#onMessage !== undefined) {
+          const { message } = frame;
+          this.#onMessage(message);
+        }
+      } else if (frame instanceof BroadcastFrameTxState) {
+        if (this.#onTxState !== undefined) {
+          const { txState } = frame;
+          this.#onTxState(txState);
+        }
       } else if (frame instanceof BroadcastFrameEvent) {
         const t0 = new Date().getTime();
         const { event, timestamp } = frame;

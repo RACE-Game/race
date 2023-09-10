@@ -68,7 +68,8 @@ pub enum Event {
         random_id: RandomId,
     },
 
-    /// Sync with on-chain account.
+    /// Sync with on-chain account.  New players/servers will be added frist to
+    /// game context and then to game handler (WASM).
     /// This event is sent by transactor based on the diff of the account states.
     Sync {
         new_players: Vec<PlayerJoin>,

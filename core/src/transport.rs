@@ -5,7 +5,7 @@ use crate::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, PublishGameParams, RegisterGameParams, RegisterServerParams,
+        PlayerProfile, PublishGameParams, QueryMode, RegisterGameParams, RegisterServerParams,
         RegistrationAccount, ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
         VoteParams, CreateRecipientParams, AssignRecipientParams, RecipientAccount,
     },
@@ -142,7 +142,7 @@ pub trait TransportT: Send + Sync {
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()>;
 
     /// Get game account by its address.
-    async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>>;
+    async fn get_game_account(&self, addr: &str, mode: QueryMode) -> Result<Option<GameAccount>>;
 
     /// Get game bundle account by its address.
     async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>>;

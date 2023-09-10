@@ -28,67 +28,6 @@ impl Submitter {
             },
         )
     }
-
-    // /// This fn takes a vector of `Settle' structs to build a settle
-    // /// map which stores the squashed settles and a list contains all
-    // /// eject settles.  These results will later be used to make the
-    // /// real settles to be submitted.
-    // pub fn squash(settles: &Vec<Settle>) -> (BTreeMap<String, SettleOp>, Vec<Settle>) {
-    //     let mut settle_map = BTreeMap::<String, SettleOp>::new();
-    //     let mut settle_ejects = Vec::<Settle>::new();
-    //     for settle in settles.iter() {
-    //         match settle.op {
-    //             SettleOp::Add(amt) => {
-    //                 settle_map
-    //                     .entry(settle.addr.clone())
-    //                     .and_modify(|sop| match sop {
-    //                         SettleOp::Add(old_amt) => {
-    //                             let new_amt = *old_amt + amt;
-    //                             *sop = SettleOp::Add(new_amt);
-    //                         }
-    //                         SettleOp::Sub(old_amt) => {
-    //                             if *old_amt >= amt {
-    //                                 let new_amt = *old_amt - amt;
-    //                                 *sop = SettleOp::Sub(new_amt);
-    //                             } else {
-    //                                 let new_amt = amt - *old_amt;
-    //                                 *sop = SettleOp::Add(new_amt);
-    //                             };
-    //                         }
-    //                         SettleOp::Eject => {}
-    //                     })
-    //                     .or_insert(SettleOp::Add(amt));
-    //             }
-
-    //             SettleOp::Sub(amt) => {
-    //                 settle_map
-    //                     .entry(settle.addr.clone())
-    //                     .and_modify(|sop| match sop {
-    //                         SettleOp::Add(old_amt) => {
-    //                             if *old_amt >= amt {
-    //                                 let new_amt = *old_amt - amt;
-    //                                 *sop = SettleOp::Add(new_amt);
-    //                             } else {
-    //                                 let new_amt = amt - *old_amt;
-    //                                 *sop = SettleOp::Sub(new_amt);
-    //                             };
-    //                         }
-    //                         SettleOp::Sub(old_amt) => {
-    //                             let new_amt = *old_amt + amt;
-    //                             *sop = SettleOp::Sub(new_amt);
-    //                         }
-    //                         SettleOp::Eject => {}
-    //                     })
-    //                     .or_insert(SettleOp::Sub(amt));
-    //             }
-
-    //             SettleOp::Eject => {
-    //                 settle_ejects.push(settle.clone());
-    //             }
-    //         }
-    //     }
-    //     (settle_map, settle_ejects)
-    // }
 }
 
 #[async_trait]
@@ -149,8 +88,15 @@ mod tests {
         let (submitter, ctx) = Submitter::init(&game_account, transport.clone());
 
         let settles = vec![
-            Settle::sub("alice", 100),
+            Settle::sub("alice", 50),
+            Settle::add("alice", 20),
+            Settle::add("alice", 20),
+            Settle::sub("alice", 40),
+            Settle::add("bob", 50),
             Settle::sub("bob", 20),
+            Settle::sub("bob", 20),
+            Settle::sub("bob", 20),
+            Settle::add("bob", 30),
             Settle::eject("charlie"),
         ];
 

@@ -1,4 +1,5 @@
-//! This server is the replacement for blockchains in testing and development
+//! This facade server emulates the behavior of its blockchain counterparts.
+//! It is supposed to be used for testing and developing.
 
 use borsh::BorshSerialize;
 use clap::Parser;
@@ -813,11 +814,11 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     Ok(handle)
 }
 
-// Command-line interface
+/// Command-line interface
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Game specs to load
+    // Game specs to load
     specs: Vec<String>,
 }
 

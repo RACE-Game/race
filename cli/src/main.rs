@@ -5,6 +5,7 @@ use race_core::{
     types::{
         CreateGameAccountParams, CreateRecipientParams, CreateRegistrationParams, EntryType,
         PublishGameParams, RegisterGameParams, ServerAccount, UnregisterGameParams, RecipientSlotInit,
+        QueryMode
     },
 };
 use race_env::{default_keyfile, parse_with_default_rpc};
@@ -128,8 +129,9 @@ async fn bundle_info(addr: &str, transport: Arc<dyn TransportT>) {
 }
 
 async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
+    let mode = QueryMode::default();
     match transport
-        .get_game_account(addr)
+        .get_game_account(addr, mode)
         .await
         .expect("Network error")
     {

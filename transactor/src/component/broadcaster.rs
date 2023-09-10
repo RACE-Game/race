@@ -1,4 +1,4 @@
-//! The broadcaster will broadcast event to all connected participants
+//! The broadcaster will broadcast events to all connected participants
 //! The broadcast should also save
 
 use std::collections::LinkedList;
@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use race_core::event::Event;
-use race_core::types::{BroadcastFrame, GameAccount};
+use race_core::types::{BroadcastFrame, GameAccount, TxState};
 use tokio::sync::{broadcast, Mutex};
 use tracing::{debug, warn};
 
@@ -14,7 +14,7 @@ use crate::component::common::{Component, ConsumerPorts, Ports};
 use crate::component::event_bus::CloseReason;
 use crate::frame::EventFrame;
 
-/// Backup events in memeory, for new connected client.  The
+/// Backup events in memeory, for new connected clients.  The
 /// `settle_version` and `access_version` are the values at the time
 /// we handle the events. The backups always start with a checkpoint
 /// event which contains the initial handler state
@@ -47,7 +47,7 @@ pub struct BroadcasterContext {
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
-/// A component that pushs event to clients.
+/// A component that pushes event to clients.
 pub struct Broadcaster {
     game_addr: String,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
@@ -148,6 +148,33 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         settle_version,
                     });
                 }
+                EventFrame::TxState { tx_state } => match tx_state {
+                    TxState::PlayerConfirming {
+                        confirm_players,
+                        access_version,
+                    } => {
+
+                        let tx_state = TxState::PlayerConfirming {
+                            confirm_players,
+                            access_version,
+                        };
+
+                        let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
+
+                        if let Err(e) = r {
+                            debug!("Failed to broadcast event: {:?}", e);
+                        }
+                    }
+                    TxState::PlayerConfirmingFailed(access_version) => {
+                        let r = ctx.broadcast_tx.send(BroadcastFrame::TxState {
+                            tx_state: TxState::PlayerConfirmingFailed(access_version),
+                        });
+
+                        if let Err(e) = r {
+                            debug!("Failed to broadcast event: {:?}", e);
+                        }
+                    }
+                },
                 EventFrame::Broadcast {
                     event,
                     access_version,
@@ -195,6 +222,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use race_core::types::PlayerJoin;
     use race_test::*;
 
     #[tokio::test]
@@ -209,27 +237,52 @@ mod tests {
         let handle = broadcaster.start(ctx);
         let mut rx = broadcaster.get_broadcast_rx();
 
-        let event_frame = EventFrame::Broadcast {
-            access_version: 10,
-            settle_version: 10,
-            timestamp: 0,
-            event: Event::Custom {
-                sender: "Alice".into(),
-                raw: "CUSTOM EVENT".into(),
-            },
-        };
+        // BroadcastFrame::Event
+        {
+            let event_frame = EventFrame::Broadcast {
+                access_version: 10,
+                settle_version: 10,
+                timestamp: 0,
+                event: Event::Custom {
+                    sender: "Alice".into(),
+                    raw: "CUSTOM EVENT".into(),
+                },
+            };
 
-        let broadcast_frame = BroadcastFrame::Event {
-            game_addr: game_account.addr,
-            timestamp: 0,
-            event: Event::Custom {
-                sender: "Alice".into(),
-                raw: "CUSTOM EVENT".into(),
-            },
-        };
+            let broadcast_frame = BroadcastFrame::Event {
+                game_addr: game_account.addr,
+                timestamp: 0,
+                event: Event::Custom {
+                    sender: "Alice".into(),
+                    raw: "CUSTOM EVENT".into(),
+                },
+            };
 
-        handle.send_unchecked(event_frame).await;
-        let received = rx.recv().await.unwrap();
-        assert_eq!(received, broadcast_frame);
+            handle.send_unchecked(event_frame).await;
+            let received = rx.recv().await.unwrap();
+            assert_eq!(received, broadcast_frame);
+        }
+
+        // BroadcastFrame::Confirming
+        {
+            let tx_state = TxState::PlayerConfirming {
+                confirm_players: vec![PlayerJoin {
+                    addr: "Alice".into(),
+                    position: 0,
+                    balance: 100,
+                    access_version: 10,
+                    verify_key: "alice".into(),
+                }],
+                access_version: 10,
+            };
+            let event_frame = EventFrame::TxState {
+                tx_state: tx_state.clone(),
+            };
+
+            let broadcast_frame = BroadcastFrame::TxState { tx_state };
+            handle.send_unchecked(event_frame).await;
+            let received = rx.recv().await.unwrap();
+            assert_eq!(received, broadcast_frame);
+        }
     }
 }

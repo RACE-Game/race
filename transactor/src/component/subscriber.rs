@@ -138,6 +138,10 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                 BroadcastFrame::Message { .. } => {
                     // Dropped
                 }
+                BroadcastFrame::TxState { tx_state } => {
+                    println!("TxState: {:?}", tx_state);
+                    // Dropped
+                }
             }
         }
 

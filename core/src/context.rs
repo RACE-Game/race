@@ -25,6 +25,7 @@ const OPERATION_TIMEOUT: u64 = 15_000;
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum NodeStatus {
     Pending(u64),
+    Confirming,
     Ready,
     Disconnected,
 }
@@ -33,6 +34,7 @@ impl std::fmt::Display for NodeStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             NodeStatus::Pending(access_version) => write!(f, "pending[{}]", access_version),
+            NodeStatus::Confirming => write!(f, "confirming"),
             NodeStatus::Ready => write!(f, "ready"),
             NodeStatus::Disconnected => write!(f, "disconnected"),
         }
@@ -164,7 +166,7 @@ impl DispatchEvent {
 ///
 /// # Player Exiting
 ///
-/// Players are not always allowed to leave game.  By leaving game,
+/// Players are not always allowed to leave a game.  When leaving,
 /// the player will be ejected from the game account, and assets will
 /// be paid out.  The property `allow_exit` decides whether leaving is
 /// allowed at the moment.  If it's disabled, leaving event will be
@@ -494,7 +496,7 @@ impl GameContext {
     }
 
     /// Set player status by address.
-    /// Using in custom event handler is not allowed.
+    /// Using it in custom event handler is not allowed.
     pub fn set_player_status(&mut self, addr: &str, status: NodeStatus) -> Result<()> {
         if let Some(p) = self.players.iter_mut().find(|p| p.addr.eq(&addr)) {
             p.status = status;
@@ -595,7 +597,7 @@ impl GameContext {
             })
             .collect();
 
-        // The only failure case is no enough owners.
+        // The only failure case is that when there are not enough owners.
         // Here we know the game is served, so the servers must not be empty.
         let random_state = RandomState::try_new(random_id, spec, &owners)?;
 
@@ -922,12 +924,14 @@ impl GameContext {
 
         self.players.retain(|p| match p.status {
             NodeStatus::Pending(v) => v <= access_version,
+            NodeStatus::Confirming => true,
             NodeStatus::Ready => true,
             NodeStatus::Disconnected => true,
         });
 
         self.servers.retain(|s| match s.status {
             NodeStatus::Pending(v) => v <= access_version,
+            NodeStatus::Confirming => true,
             NodeStatus::Ready => true,
             NodeStatus::Disconnected => true,
         });

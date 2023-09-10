@@ -245,6 +245,7 @@ export class Handler implements IHandler {
     let buf = new Uint8Array(mem.buffer);
 
     const effect = Effect.fromContext(context);
+    console.debug("Effect before ser: ", effect);
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
 
@@ -265,6 +266,14 @@ export class Handler implements IHandler {
 
     const handleEvent = exports.handle_event as Function;
     const newEffectSize: number = handleEvent(effectSize, eventSize);
+    switch(newEffectSize) {
+     case 0:
+       throw(new Error("Serializing effect failed"));
+     case 1:
+       throw(new Error("Deserializing effect failed"));
+     case 2:
+       throw(new Error("Deserializing event failed"));
+    }
     const data = new Uint8Array(mem.buffer);
     const newEffectBytes = data.slice(1, newEffectSize + 1);
 

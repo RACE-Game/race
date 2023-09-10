@@ -13,7 +13,7 @@ use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
     PublishGameParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-    ServerAccount, SettleParams, UnregisterGameParams, VoteParams, CreateRecipientParams, AssignRecipientParams, RecipientAccount,
+    ServerAccount, SettleParams, UnregisterGameParams, VoteParams, CreateRecipientParams, AssignRecipientParams, RecipientAccount,QueryMode
 };
 use serde::Serialize;
 
@@ -105,7 +105,8 @@ impl TransportT for FacadeTransport {
     }
 
     async fn vote(&self, params: VoteParams) -> Result<()> {
-        if let Some(game_account) = self.get_game_account(&params.game_addr).await? {
+        let mode = QueryMode::Finalized;
+        if let Some(game_account) = self.get_game_account(&params.game_addr, mode).await? {
             if game_account
                 .votes
                 .iter()
@@ -124,7 +125,11 @@ impl TransportT for FacadeTransport {
         }
     }
 
-    async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
+    async fn get_game_account(&self, addr: &str, mode: QueryMode) -> Result<Option<GameAccount>> {
+        match mode {
+            QueryMode::Confirming => {},
+            QueryMode::Finalized => {},
+        }
         self.fetch("get_account_info", addr).await
     }
 

@@ -105,7 +105,13 @@ impl WrappedHandler {
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
 
         if len == 0 {
-            return Err(Error::WasmExecutionError("Internal error".into()));
+            return Err(Error::WasmExecutionError("Seriliazing effect failed".into()));
+        }
+        else if len == 1 {
+            return Err(Error::WasmExecutionError("Deserializing effect failed".into()));
+        }
+        else if len == 2 {
+            return Err(Error::WasmExecutionError("Deserializing event failed".into()));
         }
 
         let mut buf = vec![0; len as _];
