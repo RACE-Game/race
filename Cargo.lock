@@ -3422,6 +3422,8 @@ dependencies = [
  "serde_json",
  "shellexpand",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -3518,6 +3520,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.21.0",
+ "borsh",
  "clap 4.2.5",
  "futures",
  "getrandom 0.2.9",
@@ -3543,19 +3546,6 @@ dependencies = [
  "quote 1.0.26",
  "race-core",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "race-solana-types"
-version = "0.0.10"
-dependencies = [
- "anyhow",
- "borsh",
- "solana-program",
- "solana-sdk",
- "spl-associated-token-account",
- "spl-token",
- "thiserror",
 ]
 
 [[package]]
@@ -3622,7 +3612,6 @@ dependencies = [
  "project-root",
  "race-core",
  "race-env",
- "race-solana-types",
  "reqwest",
  "serde",
  "serde_json",

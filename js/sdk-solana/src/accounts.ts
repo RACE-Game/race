@@ -1,9 +1,9 @@
 import { PublicKey } from '@solana/web3.js';
-import * as borsh from 'borsh';
+import * as _ from 'borsh';
 import { publicKeyExt } from './utils';
 import * as RaceCore from '@race-foundation/sdk-core';
-import { VoteType } from '@race-foundation/sdk-core';
-import { deserialize, serialize, field, option, array, struct } from '@race-foundation/borsh';
+import { VoteType, EntryType } from '@race-foundation/sdk-core';
+import { deserialize, serialize, field, option, array, struct, enums, variant } from '@race-foundation/borsh';
 
 export interface IPlayerState {
   isInitialized: boolean;
@@ -54,8 +54,6 @@ export interface IGameState {
   stakeKey: PublicKey;
   ownerKey: PublicKey;
   tokenKey: PublicKey;
-  minDeposit: bigint;
-  maxDeposit: bigint;
   transactorKey: PublicKey | undefined;
   accessVersion: bigint;
   settleVersion: bigint;
@@ -66,6 +64,8 @@ export interface IGameState {
   data: Uint8Array;
   votes: IVote[];
   unlockTime: bigint | undefined;
+  entryType: EntryType;
+  recipientAddr: PublicKey
 }
 
 export interface IServerState {
@@ -73,6 +73,34 @@ export interface IServerState {
   key: PublicKey;
   ownerKey: PublicKey;
   endpoint: string;
+}
+
+export interface IRecipientState {
+  readonly addr: PublicKey;
+  readonly capAddr: PublicKey | undefined;
+  readonly slots: IRecipientSlot[];
+}
+
+const RECIPIENT_SLOT_TYPE = {
+  Nft: 0,
+  Token: 1
+} as const;
+
+type RecipientSlotType = (typeof RECIPIENT_SLOT_TYPE)[keyof typeof RECIPIENT_SLOT_TYPE];
+
+export interface IRecipientSlot {
+  readonly id: number;
+  readonly slotType: RecipientSlotType;
+  readonly tokenAddr: PublicKey;
+  readonly stakeAddr: PublicKey;
+  readonly shares: IRecipientSlotShare[];
+}
+
+export interface IRecipientSlotShare {
+  readonly owner: RecipientSlotOwner;
+  readonly weights: number;
+  readonly claimAmount: bigint;
+  readonly claimAmountCap: bigint;
 }
 
 export class PlayerState implements IPlayerState {
@@ -156,6 +184,7 @@ export class PlayerJoin implements IPlayerJoin {
   accessVersion!: bigint;
   @field('string')
   verifyKey!: string;
+
   constructor(fields: IPlayerJoin) {
     Object.assign(this, fields);
   }
@@ -183,10 +212,6 @@ export class GameState implements IGameState {
   ownerKey!: PublicKey;
   @field(publicKeyExt)
   tokenKey!: PublicKey;
-  @field('u64')
-  minDeposit!: bigint;
-  @field('u64')
-  maxDeposit!: bigint;
   @field(option(publicKeyExt))
   transactorKey: PublicKey | undefined;
   @field('u64')
@@ -207,6 +232,10 @@ export class GameState implements IGameState {
   votes!: Vote[];
   @field(option('u64'))
   unlockTime: bigint | undefined;
+  @field(enums(EntryType))
+  entryType!: EntryType;
+  @field(publicKeyExt)
+  recipientAddr!: PublicKey
 
   constructor(fields: IGameState) {
     Object.assign(this, fields);
@@ -228,8 +257,6 @@ export class GameState implements IGameState {
       ownerAddr: this.ownerKey.toBase58(),
       tokenAddr: this.tokenKey.toBase58(),
       deposits: [],
-      minDeposit: this.minDeposit,
-      maxDeposit: this.maxDeposit,
       transactorAddr: this.transactorKey?.toBase58(),
       accessVersion: this.accessVersion,
       settleVersion: this.settleVersion,
@@ -240,6 +267,8 @@ export class GameState implements IGameState {
       data: this.data,
       votes: this.votes.map(v => v.generalize()),
       unlockTime: this.unlockTime,
+      entryType: this.entryType,
+      recipientAddr: this.recipientAddr.toBase58(),
     });
   }
 }
@@ -326,6 +355,110 @@ export class ServerState implements IServerState {
     return new RaceCore.ServerAccount({
       addr: this.ownerKey.toBase58(),
       endpoint: this.endpoint,
+    });
+  }
+}
+
+export abstract class RecipientSlotOwner {}
+
+@variant(0)
+export class RecipientSlotOwnerUnassigned extends RecipientSlotOwner {
+  @field('string')
+  identifier!: string;
+  constructor(fields: any) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(1)
+export class RecipientSlotOwnerAssigned extends RecipientSlotOwner {
+  @field(publicKeyExt)
+  addr!: PublicKey;
+  constructor(fields: any) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+export class RecipientSlotShare implements IRecipientSlotShare {
+  @field(enums(RecipientSlotOwner))
+  owner!: RecipientSlotOwner;
+  @field('u16')
+  weights!: number;
+  @field('u64')
+  claimAmount!: bigint;
+  @field('u64')
+  claimAmountCap!: bigint;
+  constructor(fields: IRecipientSlotShare) {
+    Object.assign(this, fields);
+  }
+
+  generalize(): RaceCore.RecipientSlotShare {
+    let owner: RecipientSlotOwner;
+    if (this.owner instanceof RecipientSlotOwnerAssigned) {
+      owner = new RaceCore.RecipientSlotOwnerAssigned({ addr: this.owner.addr.toBase58() });
+    } else if (this.owner instanceof RecipientSlotOwnerUnassigned) {
+      owner = new RaceCore.RecipientSlotOwnerUnassigned({ identifier: this.owner.identifier });
+    } else {
+      throw new Error('Invalid slot owner');
+    }
+    return new RaceCore.RecipientSlotShare({
+      owner, weights: this.weights, claimAmount: this.claimAmount, claimAmountCap: this.claimAmountCap
+    })
+  }
+}
+
+export class RecipientSlot implements IRecipientSlot {
+  @field('u8')
+  id!: number;
+  @field('u8')
+  slotType!: RecipientSlotType;
+  @field(publicKeyExt)
+  tokenAddr!: PublicKey;
+  @field(publicKeyExt)
+  stakeAddr!: PublicKey;
+  @field(array(struct(RecipientSlotShare)))
+  shares!: RecipientSlotShare[];
+  constructor(fields: IRecipientSlot) {
+    Object.assign(this, fields);
+  }
+
+  generalize(): RaceCore.RecipientSlot {
+    return new RaceCore.RecipientSlot({
+      id: this.id,
+      slotType: this.slotType,
+      tokenAddr: this.tokenAddr.toBase58(),
+      shares: this.shares.map(s => s.generalize()),
+    });
+  }
+}
+
+export class RecipientState implements IRecipientState {
+  @field(publicKeyExt)
+  addr!: PublicKey;
+  @field(option(publicKeyExt))
+  capAddr: PublicKey | undefined;
+  @field(array(struct(RecipientSlot)))
+  slots!: RecipientSlot[];
+
+  constructor(fields: IRecipientState) {
+    Object.assign(this, fields);
+  }
+
+  serialize(): Uint8Array {
+    return serialize(this);
+  }
+
+  static deserialize(data: Uint8Array): RecipientState {
+    return deserialize(this, data);
+  }
+
+  generalize(): RaceCore.RecipientAccount {
+    return new RaceCore.RecipientAccount({
+      addr: this.addr.toBase58(),
+      capAddr: this.capAddr?.toBase58(),
+      slots: this.slots.map(s => s.generalize()),
     });
   }
 }

@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::common::VoteType;
+use super::{common::{EntryType, RecipientSlot, VoteType, RecipientSlotInit}, Transfer};
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -14,9 +14,36 @@ pub struct CreateGameAccountParams {
     pub bundle_addr: String,
     pub token_addr: String,
     pub max_players: u16,
-    pub min_deposit: u64,
-    pub max_deposit: u64,
+    pub entry_type: EntryType,
+    pub recipient_addr: String,
     pub data: Vec<u8>,
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct CreateRecipientParams {
+    pub cap_addr: Option<String>,
+    pub slots: Vec<RecipientSlotInit>,
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct AddRecipientSlotsParams {
+    pub addr: String,
+    pub recipient_addr: String,
+    pub slots: Vec<RecipientSlot>,
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct AssignRecipientParams {
+    pub addr: String,
+    pub recipient_addr: String,
+    pub assign_addr: String,
+    pub identifier: String,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -122,6 +149,7 @@ pub enum SettleOp {
     Add(u64),
     Sub(u64),
     Eject,
+    AssignSlot(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -151,6 +179,12 @@ impl Settle {
             op: SettleOp::Eject,
         }
     }
+    pub fn assign<S: Into<String>>(addr: S, identifier: String) -> Self {
+        Self {
+            addr: addr.into(),
+            op: SettleOp::AssignSlot(identifier),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -159,6 +193,7 @@ impl Settle {
 pub struct SettleParams {
     pub addr: String,
     pub settles: Vec<Settle>,
+    pub transfers: Vec<Transfer>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

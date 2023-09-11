@@ -6,6 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use base64::prelude::Engine;
+use race_core::types::{CreateRecipientParams, AssignRecipientParams, RecipientAccount};
 #[allow(unused_imports)]
 use race_core::{
     error::{Error, Result},
@@ -154,6 +155,18 @@ impl TransportT for DummyTransport {
     async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>> {
         Ok(None)
     }
+
+    async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
+        Ok("".into())
+    }
+
+    async fn assign_recipient(&self, params: AssignRecipientParams) -> Result<()> {
+        Ok(())
+    }
+
+    async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]
@@ -207,6 +220,7 @@ mod tests {
         let params = SettleParams {
             addr: test_game_addr(),
             settles: settles.clone(),
+            transfers: vec![],
         };
         transport.settle_game(params.clone()).await.unwrap();
         transport.settle_game(params.clone()).await.unwrap();

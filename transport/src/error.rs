@@ -129,7 +129,13 @@ pub enum TransportError {
     LoadGameBundleError(String),
 
     #[error("Invalid parameter")]
-    InvalidParameter(String)
+    InvalidParameter(String),
+
+    #[error("Recipient account not found")]
+    RecipientAccountNotFound,
+
+    #[error("Failed to deserialize recipient account data")]
+    RecipientStateDeserializeError,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

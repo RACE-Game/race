@@ -124,6 +124,9 @@ fn ec_verify<T>(key: &EcKey<T>, message: &[u8], signature: &[u8]) -> EncryptorRe
 where
     T: HasPublic,
 {
+    if signature.len() != 64 {
+        return Err(EncryptorError::InvalidSignatureLength(signature.len()));
+    }
     let sig_buf = array_ref![signature, 0, 64];
     let hashed = hash(MessageDigest::sha256(), message)
         .map_err(|e| EncryptorError::SignFailed(e.to_string()))?;

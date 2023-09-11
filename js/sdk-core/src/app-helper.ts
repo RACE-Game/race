@@ -1,4 +1,4 @@
-import { GameAccount, GameRegistration, INft, IToken, PlayerProfile, TokenWithBalance } from './accounts';
+import { EntryTypeCash, GameAccount, GameRegistration, INft, IToken, PlayerProfile, TokenWithBalance } from './accounts';
 import { CreateGameAccountParams, ITransport } from './transport';
 import { IWallet } from './wallet';
 
@@ -36,15 +36,23 @@ export class AppHelper {
     if (params.title.length == 0 || params.title.length > 16) {
       throw new Error('Invalid title');
     }
-    if (params.minDeposit <= 0) {
-      throw new Error('Invalid minDeposit');
+
+    if (params.entryType instanceof EntryTypeCash) {
+      const entryType = params.entryType;
+      if (entryType.minDeposit <= 0) {
+        throw new Error('Invalid minDeposit');
+      }
+      if (entryType.maxDeposit < entryType.minDeposit) {
+        throw new Error('Invalid maxDeposit');
+      }
+    } else {
+      throw new Error('Unsupported entry type');
     }
-    if (params.maxDeposit < params.minDeposit) {
-      throw new Error('Invalid maxDeposit');
-    }
+
     if (params.maxPlayers < 1 || params.maxPlayers > 512) {
       throw new Error('Invalid maxPlayers');
     }
+
     let addr = await this.#transport.createGameAccount(wallet, params);
     console.debug('Game account created at %s', addr);
     return addr;

@@ -16,7 +16,6 @@ publish = true
 [dependencies]
 race-core = { workspace = true, features = ["serde"] }
 race-env = { workspace = true }
-race-solana-types = { workspace = true, features = ["sdk"] }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 serde_json = { workspace = true }

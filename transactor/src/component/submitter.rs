@@ -100,12 +100,13 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
     async fn run(mut ports: ConsumerPorts, ctx: SubmitterContext) {
         while let Some(event) = ports.recv().await {
             match event {
-                EventFrame::Settle { settles } => {
+                EventFrame::Settle { settles, transfers } => {
                     let res = ctx
                         .transport
                         .settle_game(SettleParams {
                             addr: ctx.addr.clone(),
                             settles,
+                            transfers,
                         })
                         .await;
 
@@ -154,7 +155,8 @@ mod tests {
         ];
 
         let event_frame = EventFrame::Settle {
-            settles: settles.clone()
+            settles: settles.clone(),
+            transfers: vec![],
         };
         let mut handle = submitter.start(ctx);
 

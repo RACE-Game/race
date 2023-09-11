@@ -2,8 +2,12 @@
   "title": "Simple Card Game",
   "bundle": "target/race_example_draw_card.wasm",
   "token": "FACADE_USDT",
-  "max_players": 2,
-  "min_deposit": 1000,
-  "max_deposit": 1000,
+  "maxPlayers": 2,
+  "entryType": {
+    "cash": {
+      "minDeposit": 1000,
+      "maxDeposit": 1000
+    }
+  },
   "data": [100, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0]
 }

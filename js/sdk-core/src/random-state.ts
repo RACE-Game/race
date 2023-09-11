@@ -387,7 +387,6 @@ export class RandomState {
       return;
     }
     if (this.secretShares.find(s => s.secret === undefined) !== undefined) {
-      console.log(this.secretShares.map(s => s.secret).toString());
       this.status = { kind: 'waiting-secrets' };
       return;
     }

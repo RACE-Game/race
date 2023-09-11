@@ -64,6 +64,9 @@ pub enum EncryptorError {
 
     #[error("Missing secrets")]
     MissingSecret,
+
+    #[error("Invalid signature length: {0}")]
+    InvalidSignatureLength(usize),
 }
 
 impl From<EncryptorError> for crate::error::Error {

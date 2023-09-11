@@ -161,3 +161,93 @@ pub enum VoteType {
     ServerVoteTransactorDropOff,
     ClientVoteTransactorDropOff,
 }
+
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub enum RecipientSlotType {
+    Nft,
+    Token,
+}
+
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub enum RecipientSlotOwner {
+    Unassigned { identifier: String },
+    Assigned { addr: String },
+}
+
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RecipientSlotShare {
+    pub owner: RecipientSlotOwner,
+    pub weights: u16,
+    pub claim_amount: u64,
+    pub claim_amount_cap: u64,
+}
+
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RecipientSlotShareInit {
+    pub owner: RecipientSlotOwner,
+    pub weights: u16,
+    pub claim_amount_cap: u64,
+}
+
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+// #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RecipientSlot {
+    pub id: u8,
+    pub slot_type: RecipientSlotType,
+    pub token_addr: String,
+    pub shares: Vec<RecipientSlotShare>,
+}
+
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RecipientSlotInit {
+    pub id: u8,
+    pub slot_type: RecipientSlotType,
+    pub token_addr: String,
+    pub init_shares: Vec<RecipientSlotShareInit>,
+}
+
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub enum EntryType {
+    /// A player can join the game by sending assets to game account directly
+    #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+    Cash { min_deposit: u64, max_deposit: u64 },
+    /// A player can join the game by pay a ticket.
+    #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+    Ticket {
+        slot_id: u8,
+        amount: u64,
+    },
+    /// A player can join the game by showing a gate NFT
+    #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+    Gating { collection: String },
+}
+
+impl Default for EntryType {
+    fn default() -> Self {
+        EntryType::Cash {
+            min_deposit: 0,
+            max_deposit: 1000000,
+        }
+    }
+}
+
+#[derive(Clone, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct Transfer {
+    pub slot_id: u8,
+    pub amount: u64,
+}

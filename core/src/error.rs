@@ -248,6 +248,12 @@ pub enum Error {
 
     #[error("Wasm execution error: {0}")]
     HandleError(HandleError),
+
+    #[error("Invalid recipient slot params")]
+    InvalidRecipientSlotParams,
+
+    #[error("Transfer without settle")]
+    TransferWithoutSettle,
 }
 
 #[cfg(feature = "serde")]

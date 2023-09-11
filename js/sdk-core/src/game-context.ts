@@ -13,7 +13,7 @@ import {
   Shutdown,
   WaitingTimeout,
 } from './events';
-import { Effect, Settle, SettleAdd, SettleEject, SettleSub } from './effect';
+import { Effect, Settle, SettleAdd, SettleEject, SettleSub, Transfer } from './effect';
 import { GameAccount, PlayerJoin, ServerJoin } from './accounts';
 import { Ciphertext, Digest, Id } from './types';
 
@@ -62,6 +62,7 @@ export class GameContext {
   randomStates: RandomState[];
   decisionStates: DecisionState[];
   settles: Settle[] | undefined;
+  transfers: Transfer[] | undefined;
   checkpoint: boolean;
 
   constructor(context: GameContext);
@@ -83,6 +84,7 @@ export class GameContext {
       this.randomStates = context.randomStates;
       this.decisionStates = context.decisionStates;
       this.settles = context.settles;
+      this.transfers = context.transfers;
       this.checkpoint = false;
     } else {
       const gameAccount = gameAccountOrContext;
@@ -121,6 +123,7 @@ export class GameContext {
       this.randomStates = [];
       this.decisionStates = [];
       this.settles = undefined;
+      this.transfers = undefined;
       this.handlerState = Uint8Array.of();
       this.checkpoint = false;
     }
@@ -342,10 +345,18 @@ export class GameContext {
     this.settles = settles;
   }
 
+  transfer(transfers: Transfer[]) {
+    this.transfers = transfers;
+  }
+
   bumpSettleVersion() {
     this.settleVersion += 1n;
   }
 
+  /*
+  This function refers to the backend function `take_settles_and_transfers`.
+  Here, we don't have to deal with transfers before we introducing settlement validation.
+   */
   applyAndTakeSettles(): Settle[] | undefined {
     if (this.settles === undefined) {
       return undefined;
@@ -437,6 +448,9 @@ export class GameContext {
     }
     if (effect.settles.length > 0) {
       this.settle(effect.settles);
+      if (effect.transfers.length > 0) {
+        this.transfer(effect.transfers);
+      }
       this.checkpoint = true;
     }
     if (effect.handlerState !== undefined) {
