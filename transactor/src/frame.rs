@@ -3,7 +3,7 @@ use race_core::{
     context::GameContext,
     engine::InitAccount,
     event::{Event, Message},
-    types::{PlayerJoin, ServerJoin, Settle, VoteType},
+    types::{PlayerJoin, ServerJoin, Settle, VoteType, Transfer},
 };
 
 #[derive(Debug, Clone)]
@@ -54,6 +54,7 @@ pub enum EventFrame {
     },
     Settle {
         settles: Vec<Settle>,
+        transfers: Vec<Transfer>,
     },
     SettleFinalized {
         settle_version: u64,

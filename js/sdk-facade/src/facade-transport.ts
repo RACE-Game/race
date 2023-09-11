@@ -14,12 +14,16 @@ import {
   JoinParams,
   PlayerProfile,
   PublishGameParams,
+  RecipientAccount,
+  RecipientClaimParams,
   RegisterGameParams,
   RegistrationAccount,
   RegistrationWithGames,
   ServerAccount,
   UnregisterGameParams,
   VoteParams,
+  EntryType,
+  EntryTypeCash,
 } from '@race-foundation/sdk-core';
 import { deserialize } from '@race-foundation/borsh';
 
@@ -44,8 +48,11 @@ interface CreateGameAccountInstruction {
   bundleAddr: string;
   tokenAddr: string;
   maxPlayers: number;
-  minDeposit: bigint;
-  maxDeposit: bigint;
+  minDeposit?: bigint;
+  maxDeposit?: bigint;
+  soltId?: number,
+  ticketPrice?: bigint,
+  collection?: string,
   data: number[];
 }
 
@@ -60,7 +67,7 @@ export class FacadeTransport implements ITransport {
     const walletAddr = wallet.walletAddr;
     const gameAddr = makeid(16);
     const data = [...params.data];
-    const ix: CreateGameAccountInstruction = { walletAddr, gameAddr, ...params, data };
+    const ix: CreateGameAccountInstruction = { walletAddr, gameAddr, ...params, ...params.entryType, data };
     await this.sendInstruction('create_account', ix);
     return gameAddr;
   }
@@ -83,6 +90,9 @@ export class FacadeTransport implements ITransport {
     throw new Error('Method not implemented.');
   }
   unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> {
+    throw new Error('Method not implemented.');
+  }
+  recipientClaim(wallet: IWallet, params: RecipientClaimParams): Promise<void> {
     throw new Error('Method not implemented.');
   }
 
@@ -155,6 +165,10 @@ export class FacadeTransport implements ITransport {
     return deserialize(RegistrationAccount, data);
   }
 
+  async getRecipient(addr: string): Promise<RecipientAccount | undefined> {
+    return undefined;
+  }
+
   async getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {
     const data: Uint8Array | undefined = await this.fetchState('get_registration_info', [addr]);
     if (data === undefined) return undefined;
@@ -196,7 +210,7 @@ export class FacadeTransport implements ITransport {
     return undefined;
   }
 
-  async listNfts(_: string): Promise<INft[]> {
+  async listNfts(_walletAddr: string): Promise<INft[]> {
     return [];
   }
 

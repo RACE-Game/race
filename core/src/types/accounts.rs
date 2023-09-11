@@ -4,7 +4,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::common::VoteType;
+use super::{
+    common::{EntryType, VoteType},
+    RecipientSlot,
+};
 
 /// Represent a player call the join instruction in contract.
 #[derive(Debug, Default, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
@@ -102,6 +105,27 @@ pub struct ServerAccount {
     pub endpoint: String,
 }
 
+/// The data represents the state of on-chain recipient account.
+///
+/// # Cap Addr
+///
+/// An address which has the capacibility to manipulate the recipient
+/// by adding and assigning slot.  A None value refers to an immutable
+/// structure that no one can change.
+///
+/// # Slots
+///
+/// NFTs and Tokens are grouped by slots.  A slot can only store one
+/// NFT or one kind of token.
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RecipientAccount {
+    pub addr: String,
+    pub cap_addr: Option<String>,
+    pub slots: Vec<RecipientSlot>,
+}
+
 /// The data represents the state of on-chain game account.
 ///
 /// # Access Version and Settle Version
@@ -165,6 +189,10 @@ pub struct ServerAccount {
 /// should be immutable. If a mutable state is required, it must
 /// always have the same length, which is specified by `data_len`.
 ///
+/// # Recipient address
+///
+/// The address to receive payment from the game.  This is used for a
+/// complex payment or commission payment.
 #[derive(Debug, Default, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -183,10 +211,10 @@ pub struct GameAccount {
     pub votes: Vec<Vote>,
     pub unlock_time: Option<u64>,
     pub max_players: u16,
-    pub min_deposit: u64,
-    pub max_deposit: u64,
     pub data_len: u32,
     pub data: Vec<u8>,
+    pub entry_type: EntryType,
+    pub recipient_addr: String,
 }
 
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize)]
@@ -197,7 +225,7 @@ pub struct TokenAccount {
     pub symbol: String,
     pub icon: String,
     pub addr: String,
-    pub decimals: u32
+    pub decimals: u32,
 }
 
 #[derive(Debug, Default, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
@@ -416,8 +444,11 @@ mod tests {
             max_players: 30u16,
             data_len: 10u32,
             data: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-            min_deposit: 100u64,
-            max_deposit: 250u64,
+            recipient_addr: "recipient".to_string(),
+            entry_type: EntryType::Cash {
+                min_deposit: 100,
+                max_deposit: 250,
+            },
         };
         let bytes = [
             9, 0, 0, 0, 103, 97, 109, 101, 32, 97, 100, 100, 114, 18, 0, 0, 0, 97, 119, 101, 115,
@@ -437,8 +468,9 @@ mod tests {
             116, 112, 58, 47, 47, 102, 111, 111, 46, 98, 97, 114, 17, 0, 0, 0, 0, 0, 0, 0, 10, 0,
             0, 0, 86, 69, 82, 73, 70, 89, 32, 75, 69, 89, 1, 8, 0, 0, 0, 115, 101, 114, 118, 101,
             114, 32, 48, 1, 0, 0, 0, 8, 0, 0, 0, 115, 101, 114, 118, 101, 114, 32, 49, 8, 0, 0, 0,
-            115, 101, 114, 118, 101, 114, 32, 48, 0, 0, 30, 0, 100, 0, 0, 0, 0, 0, 0, 0, 250, 0, 0,
-            0, 0, 0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+            115, 101, 114, 118, 101, 114, 32, 48, 0, 0, 30, 0, 10, 0, 0, 0, 10, 0, 0, 0, 0, 1, 2,
+            3, 4, 5, 6, 7, 8, 9, 0, 100, 0, 0, 0, 0, 0, 0, 0, 250, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
+            114, 101, 99, 105, 112, 105, 101, 110, 116,
         ];
         let ser = game_account.try_to_vec().unwrap();
         println!("Serialized game account {:?}", ser);

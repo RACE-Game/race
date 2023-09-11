@@ -1,5 +1,5 @@
 import { assert } from 'chai';
-import { ActionTimeout, Ask, Assign, Effect, Release, Reveal, Settle, SettleAdd, SettleSub } from '../src/effect';
+import { ActionTimeout, Ask, Assign, Effect, Release, Reveal, Settle, SettleAdd, SettleSub, Transfer } from '../src/effect';
 import { serialize } from '@race-foundation/borsh';
 import { ShuffledList } from '../src/random-state';
 import { NoEnoughPlayers } from '../src/error';
@@ -60,6 +60,10 @@ describe('Test effect serialization', () => {
       handlerState: Uint8Array.of(1, 2, 3, 4),
       error: new NoEnoughPlayers({}),
       allowExit: true,
+      transfers: [new Transfer({
+        slotId: 0,
+        amount: 100n
+      })]
     });
     const data = serialize(effect);
     const expected = Uint8Array.from([
@@ -70,7 +74,7 @@ describe('Test effect serialization', () => {
       0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 97, 1,
       0, 0, 0, 98, 1, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 66, 1, 0, 0, 0,
       33, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 65, 2, 0, 0, 0, 5, 0, 0, 0, 97, 108, 105, 99, 101, 0, 200, 0, 0, 0, 0, 0, 0,
-      0, 3, 0, 0, 0, 98, 111, 98, 1, 200, 0, 0, 0, 0, 0, 0, 0, 1, 4, 0, 0, 0, 1, 2, 3, 4, 1, 1, 1,
+      0, 3, 0, 0, 0, 98, 111, 98, 1, 200, 0, 0, 0, 0, 0, 0, 0, 1, 4, 0, 0, 0, 1, 2, 3, 4, 1, 1, 1, 1, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0,
     ]);
     assert.deepEqual(data, expected);
   });

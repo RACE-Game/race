@@ -9,7 +9,7 @@ use crate::{
     engine::GameHandler,
     error::{Error, HandleError, Result},
     random::RandomSpec,
-    types::{DecisionId, RandomId, Settle}
+    types::{DecisionId, RandomId, Settle, Transfer}
 };
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -153,6 +153,7 @@ pub struct Effect {
     pub handler_state: Option<Vec<u8>>,
     pub error: Option<HandleError>,
     pub allow_exit: bool,
+    pub transfers: Vec<Transfer>,
 }
 
 impl Effect {
@@ -198,6 +199,7 @@ impl Effect {
             handler_state: Some(context.handler_state.clone()),
             error: None,
             allow_exit: context.allow_exit,
+            transfers: Vec::new(),
         }
     }
 
@@ -312,6 +314,13 @@ impl Effect {
         self.settles.push(settle);
     }
 
+    /// Transfer the assets to a recipient slot
+    pub fn transfer(&mut self, slot_id: u8, amount: u64) {
+        self.transfers.push(Transfer {
+            slot_id, amount
+        });
+    }
+
     /// Get handler state.
     ///
     /// This is an internal function, DO NOT use in game handler.
@@ -399,6 +408,7 @@ mod tests {
             handler_state: Some(vec![1, 2, 3, 4]),
             error: Some(HandleError::NoEnoughPlayers),
             allow_exit: true,
+            transfers: vec![],
         };
         let bs = effect.try_to_vec()?;
 

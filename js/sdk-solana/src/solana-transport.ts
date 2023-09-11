@@ -29,12 +29,15 @@ import {
   IToken,
   INft,
   RegistrationWithGames,
+  RecipientAccount,
+  RecipientClaimParams,
+  EntryTypeCash,
 } from '@race-foundation/sdk-core';
 import * as instruction from './instruction';
 
 import { GAME_ACCOUNT_LEN, NAME_LEN, PROFILE_ACCOUNT_LEN, PLAYER_PROFILE_SEED, SERVER_PROFILE_SEED } from './constants';
 
-import { GameState, PlayerState, RegistryState, ServerState } from './accounts';
+import { GameState, PlayerState, RecipientState, RegistryState, ServerState } from './accounts';
 
 import { join } from './instruction';
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants';
@@ -121,8 +124,7 @@ export class SolanaTransport implements ITransport {
       gameBundleKey: bundleKey,
       title: title,
       maxPlayers: params.maxPlayers,
-      minDeposit: params.minDeposit,
-      maxDeposit: params.maxDeposit,
+      entryType: params.entryType,
     });
     tx.add(createGame);
     tx.partialSign(gameAccount, stakeAccount);
@@ -142,20 +144,24 @@ export class SolanaTransport implements ITransport {
     const gameAccountKey = new PublicKey(gameAddr);
     const gameState = await this._getGameState(gameAccountKey);
     if (gameState === undefined) {
-      throw new Error('TS: Game account not found');
+      throw new Error('Game account not found');
+    }
+
+    if (!(gameState.entryType instanceof EntryTypeCash)) {
+      throw new Error('Unsupported entry type');
     }
     const mintKey = gameState.tokenKey;
     const isWsol = mintKey.equals(NATIVE_MINT);
     const amount = BigInt(amountRaw);
 
-    if (amount < gameState.minDeposit || amount > gameState.maxDeposit) {
+    if (amount < gameState.entryType.minDeposit || amount > gameState.entryType.maxDeposit) {
       console.log(
         'Max deposit = {}, min deposit = {}, join amount = {}',
-        gameState.maxDeposit,
-        gameState.minDeposit,
+        gameState.entryType.maxDeposit,
+        gameState.entryType.minDeposit,
         amount
       );
-      throw new Error('TS: Join with invalid amount');
+      throw new Error('Join with invalid amount');
     }
 
     const stakeAccountKey = gameState.stakeKey;
@@ -216,6 +222,10 @@ export class SolanaTransport implements ITransport {
   }
 
   async vote(wallet: IWallet, params: VoteParams): Promise<void> {}
+
+  async recipientClaim(wallet: IWallet, params: RecipientClaimParams): Promise<void> {
+
+  }
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void> {
     const { nick, pfp } = params;
@@ -354,6 +364,16 @@ export class SolanaTransport implements ITransport {
     });
   }
 
+  async getRecipient(addr: String): Promise<RecipientAccount | undefined> {
+    const recipientKey = new PublicKey(addr);
+    const recipientState = await this._getRecipientState(recipientKey);
+    if (recipientState !== undefined) {
+      return recipientState.generalize();
+    } else {
+      return undefined;
+    }
+  }
+
   async _fetchImageFromDataUri(dataUri: string): Promise<string | undefined> {
     try {
       const resp = await fetch(dataUri);
@@ -394,13 +414,13 @@ export class SolanaTransport implements ITransport {
         const name = metadataState.data.name
           ? trimString(metadataState.data.name)
           : legacyToken
-          ? legacyToken.name
-          : '';
+            ? legacyToken.name
+            : '';
         const symbol = metadataState.data.symbol
           ? trimString(metadataState.data.symbol)
           : legacyToken
-          ? legacyToken.symbol
-          : '';
+            ? legacyToken.symbol
+            : '';
         const icon = image ? image : legacyToken?.logoURI ? legacyToken.logoURI : '';
         return { addr, decimals, name, symbol, icon };
       } else {
@@ -515,12 +535,23 @@ export class SolanaTransport implements ITransport {
     return nfts;
   }
 
-  async _getGameState(gameAccoutKey: PublicKey): Promise<GameState | undefined> {
+  async _getGameState(gameAccountKey: PublicKey): Promise<GameState | undefined> {
     const conn = this.#conn;
-    const gameAccount = await conn.getAccountInfo(gameAccoutKey);
+    const gameAccount = await conn.getAccountInfo(gameAccountKey);
     if (gameAccount !== null) {
       const data = gameAccount.data;
       return GameState.deserialize(data);
+    } else {
+      return undefined;
+    }
+  }
+
+  async _getRecipientState(recipientAccountKey: PublicKey): Promise<RecipientState | undefined> {
+    const conn = this.#conn;
+    const recipientAccount = await conn.getAccountInfo(recipientAccountKey);
+    if (recipientAccount !== null) {
+      const data = recipientAccount.data;
+      return RecipientState.deserialize(data);
     } else {
       return undefined;
     }
@@ -530,11 +561,21 @@ export class SolanaTransport implements ITransport {
     const conn = this.#conn;
     const accountsInfo = await conn.getMultipleAccountsInfo(gameAccountKeys);
     const ret: Array<GameState | undefined> = [];
-    for (const accountInfo of accountsInfo) {
-      if (accountInfo === null) {
-        ret.push(undefined);
+    console.info("Get %s games from registry", accountsInfo.length)
+    for (let i = 0; i < accountsInfo.length; i++) {
+      const key = gameAccountKeys[i];
+      const accountInfo = accountsInfo[i];
+      if (accountInfo !== null) {
+        try {
+          ret.push(GameState.deserialize(accountInfo.data));
+          console.info("Found game account %s", key);
+        } catch(_: any) {
+          ret.push(undefined);
+          console.warn("Skip invalid game account %s", key);
+        }
       } else {
-        ret.push(GameState.deserialize(accountInfo.data));
+        ret.push(undefined);
+        console.warn("Game account %s not exist", key);
       }
     }
     return ret;

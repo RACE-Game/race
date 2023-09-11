@@ -16,7 +16,7 @@ import { IWallet } from './wallet';
 import { Handler, InitAccount } from './handler';
 import { Encryptor, IEncryptor } from './encryptor';
 import { SdkError } from './error';
-import { GameAccount, IToken, PlayerProfile } from './accounts';
+import { EntryType, EntryTypeCash, GameAccount, IToken, PlayerProfile } from './accounts';
 import { Client } from './client';
 import { Custom, GameEvent, ICustomEvent } from './events';
 import { ProfileCache } from './profile-cache';
@@ -47,8 +47,9 @@ export type JoinOpts = {
 export type GameInfo = {
   title: string;
   maxPlayers: number;
-  minDeposit: bigint;
-  maxDeposit: bigint;
+  minDeposit?: bigint;
+  maxDeposit?: bigint;
+  entryType: EntryType,
   token: IToken;
 };
 
@@ -133,13 +134,18 @@ export class AppClient {
       if (token === undefined) {
         throw SdkError.tokenNotFound(gameAccount.tokenAddr);
       }
-      const info = {
+      const info: GameInfo = {
         title: gameAccount.title,
-        minDeposit: gameAccount.minDeposit,
-        maxDeposit: gameAccount.maxDeposit,
+        entryType: gameAccount.entryType,
         maxPlayers: gameAccount.maxPlayers,
         token,
       };
+
+      if (gameAccount.entryType instanceof EntryTypeCash) {
+        info.minDeposit = gameAccount.entryType.minDeposit;
+        info.maxDeposit = gameAccount.entryType.maxDeposit;
+      }
+
       return new AppClient(
         gameAddr,
         handler,

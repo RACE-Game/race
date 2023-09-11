@@ -85,6 +85,13 @@ export class InternalError extends HandleError {
   }
 }
 
+@variant(10)
+export class CheckpointWithoutSettleError extends HandleError {
+  constructor(_: any) {
+    super();
+  }
+}
+
 export class SdkError extends Error {
   constructor(message: string) {
     super(message);

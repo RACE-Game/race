@@ -56,6 +56,16 @@ export class Settle {
   }
 }
 
+export class Transfer {
+  @field('u8')
+  slotId!: number;
+  @field('u64')
+  amount!: bigint;
+  constructor(fields: Fields<Transfer>) {
+    Object.assign(this, fields);
+  }
+}
+
 export class Ask {
   @field('string')
   playerAddr!: string;
@@ -168,6 +178,9 @@ export class Effect {
   @field('bool')
   allowExit!: boolean;
 
+  @field(array(struct(Transfer)))
+  transfers!: Transfer[];
+
   constructor(fields: Fields<Effect>) {
     Object.assign(this, fields);
   }
@@ -200,6 +213,7 @@ export class Effect {
     const handlerState = context.handlerState;
     const error = undefined;
     const allowExit = context.allowExit;
+    const transfers: Transfer[] = [];
     return new Effect({
       actionTimeout,
       waitTimeout,
@@ -222,6 +236,7 @@ export class Effect {
       handlerState,
       error,
       allowExit,
+      transfers,
     });
   }
 }

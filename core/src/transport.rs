@@ -7,7 +7,7 @@ use crate::{
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
         PlayerProfile, PublishGameParams, RegisterGameParams, RegisterServerParams,
         RegistrationAccount, ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
-        VoteParams,
+        VoteParams, CreateRecipientParams, AssignRecipientParams, RecipientAccount,
     },
 };
 use async_trait::async_trait;
@@ -116,6 +116,21 @@ pub trait TransportT: Send + Sync {
     /// * [`Error::RpcError`] when the RPC invocation failed.
     async fn create_player_profile(&self, params: CreatePlayerProfileParams) -> Result<()>;
 
+    /// Create a recipient account on chain.  A recipient account is a
+    /// intermediate account to handle a multi-destination payment.
+    /// When receiving the payment, the assets are stored in
+    /// different slots respectively.  And later the real recipients can claim
+    /// their assets based on their shares.
+    ///
+    /// # Arguments
+    /// * `addr` - The address of the wallet, should be the same with signer.
+    /// * `slots` - The initial slots for recipient account.
+    /// * `cap_addrs` - The addresses with the capibility to approve others' applications.
+    async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String>;
+
+    /// Grant an address with a share to a recipient slot.
+    async fn assign_recipient(&self, params: AssignRecipientParams) -> Result<()>;
+
     async fn publish_game(&self, params: PublishGameParams) -> Result<String>;
 
     async fn settle_game(&self, params: SettleParams) -> Result<()>;
@@ -140,4 +155,7 @@ pub trait TransportT: Send + Sync {
 
     /// Get registration account by its address.
     async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>>;
+
+    /// Get recipient account by its address.
+    async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>>;
 }

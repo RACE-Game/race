@@ -1,6 +1,6 @@
 use crate::TestClient;
 use borsh::BorshSerialize;
-use race_core::types::{ClientMode, GameAccount, PlayerJoin, ServerJoin, GameBundle};
+use race_core::types::{ClientMode, EntryType, GameAccount, GameBundle, PlayerJoin, ServerJoin};
 
 pub fn test_game_addr() -> String {
     "TEST".into()
@@ -28,8 +28,8 @@ impl Default for TestGameAccountBuilder {
             unlock_time: None,
             max_players: 6,
             deposits: vec![],
-            max_deposit: 2,
-            min_deposit: 1,
+            recipient_addr: "".into(),
+            entry_type: EntryType::default(),
             token_addr: "".into(),
         };
         TestGameAccountBuilder { account }
@@ -63,8 +63,10 @@ impl TestGameAccountBuilder {
         if max < min {
             panic!("Invalid deposit value, the max must be greater than the min");
         }
-        self.account.max_deposit = max;
-        self.account.min_deposit = min;
+        self.account.entry_type = EntryType::Cash {
+            max_deposit: max,
+            min_deposit: min,
+        };
         self
     }
 

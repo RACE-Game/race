@@ -3,8 +3,8 @@ use prettytable::{row, Table};
 use race_core::{
     transport::TransportT,
     types::{
-        CreateGameAccountParams, CreateRegistrationParams, PublishGameParams, RegisterGameParams,
-        ServerAccount, UnregisterGameParams,
+        CreateGameAccountParams, CreateRecipientParams, CreateRegistrationParams, EntryType,
+        PublishGameParams, RegisterGameParams, ServerAccount, UnregisterGameParams, RecipientSlotInit,
     },
 };
 use race_env::{default_keyfile, parse_with_default_rpc};
@@ -12,15 +12,16 @@ use race_transport::TransportBuilder;
 use serde::{Deserialize, Serialize};
 use std::{fs::File, path::PathBuf, sync::Arc};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateGameSpecs {
     title: String,
     reg_addr: String,
     token_addr: String,
     bundle_addr: String,
     max_players: u16,
-    min_deposit: u64,
-    max_deposit: u64,
+    entry_type: EntryType,
+    recipient_slots: Vec<RecipientSlotInit>,
     data: Vec<u8>,
 }
 
@@ -64,10 +65,7 @@ fn cli() -> Command {
                 .arg(arg!(<ADDRESS> "The server account address"))
                 .arg_required_else_help(true),
         )
-        .subcommand(
-            Command::new("create-reg")
-                .about("Create registration center")
-        )
+        .subcommand(Command::new("create-reg").about("Create registration center"))
         .subcommand(
             Command::new("reg-info")
                 .about("Query registration center")
@@ -142,10 +140,8 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             println!("Settle version: {}", game_account.settle_version);
             println!("Data size: {}", game_account.data.len());
             println!("Max players: {}", game_account.max_players);
-            println!(
-                "Deposit range: {} ~ {}",
-                game_account.min_deposit, game_account.max_deposit
-            );
+            println!("Entry type: {:?}", game_account.entry_type);
+            println!("Recipient account: {}", game_account.recipient_addr);
             println!("Players:");
             for p in game_account.players.iter() {
                 println!(
@@ -226,28 +222,59 @@ async fn create_reg(transport: Arc<dyn TransportT>) {
 }
 
 async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
-    let params = CreateGameAccountParams {
-        title: specs.title,
-        bundle_addr: specs.bundle_addr,
-        token_addr: specs.token_addr,
-        max_players: specs.max_players,
-        min_deposit: specs.min_deposit,
-        max_deposit: specs.max_deposit,
-        data: specs.data,
+    println!("Specs: {:?}", specs);
+
+    let CreateGameSpecs {
+        title,
+        reg_addr,
+        token_addr,
+        bundle_addr,
+        max_players,
+        entry_type,
+        recipient_slots,
+        data,
+    } = specs;
+
+    let params = CreateRecipientParams {
+        cap_addr: None,
+        slots: recipient_slots,
     };
+
+    let recipient_addr = transport
+        .create_recipient(params)
+        .await
+        .expect("Create recipient failed");
+
+    println!("Recipient account created: {}", recipient_addr);
+
+    let params = CreateGameAccountParams {
+        title,
+        bundle_addr,
+        token_addr,
+        max_players,
+        entry_type,
+        recipient_addr: recipient_addr.clone(),
+        data,
+    };
+
     let addr = transport
         .create_game_account(params)
         .await
         .expect("Create game account failed");
+
+    println!("Game account created: {}", addr);
+
     transport
         .register_game(RegisterGameParams {
             game_addr: addr.clone(),
-            reg_addr: specs.reg_addr,
+            reg_addr,
         })
         .await
         .expect("Failed to register game");
+
     println!("Game registered");
-    println!("Address: {}", addr);
+    println!("Recipient account: {}", recipient_addr);
+    println!("Game account: {}", addr);
 }
 
 async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) {
@@ -270,6 +297,7 @@ async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn Tran
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
     let matches = cli().get_matches();
 
     let chain = matches.get_one::<String>("chain").expect("required");

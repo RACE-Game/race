@@ -1,62 +1,47 @@
-#![cfg(not(target_arch = "wasm32"))]
-#![allow(unused_variables, unused_imports)]
+mod constants;
+mod types;
+
+use constants::*;
+use tracing::error;
+use types::*;
+
 use crate::error::{TransportError, TransportResult};
 use async_trait::async_trait;
-use borsh::{BorshDeserialize, BorshSerialize};
-use jsonrpsee::core::Error;
-use mpl_token_metadata::{processor::mint_v1, utils::spl_token_mint_to};
+use borsh::BorshDeserialize;
 use race_core::{
-    error::Result,
+    error::{Error, Result},
     transport::TransportT,
     types::{
-        CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
-        CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration,
-        JoinParams, PlayerJoin, PlayerProfile, PublishGameParams, RegisterGameParams,
-        RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount, ServerJoin,
-        SettleOp, SettleParams, UnregisterGameParams, VoteParams,
+        AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams,
+        CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
+        GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams,
+        RecipientAccount, RegisterGameParams, RegisterServerParams, RegistrationAccount,
+        ServeParams, ServerAccount, SettleOp, SettleParams, UnregisterGameParams, VoteParams, Transfer,
     },
 };
-use race_solana_types::constants::{
-    GAME_ACCOUNT_LEN, MAX_SERVER_NUM, NAME_LEN, NATIVE_MINT, PLAYER_PROFILE_SEED,
-    PROFILE_ACCOUNT_LEN, PROGRAM_ID, RACE_ATA, RACE_MINT, REGISTRY_ACCOUNT_LEN, SERVER_ACCOUNT_LEN,
-    SERVER_PROFILE_SEED,
-};
-use race_solana_types::instruction::RaceInstruction;
-use race_solana_types::state::{self, GameReg, GameState, PlayerState, RegistryState, ServerState};
-use race_solana_types::types as solana_types;
 
-use serde_json;
 // use core::slice::SlicePattern;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::{
-    borrow::BorrowMut,
-    fs::{read_to_string, File},
-};
 
 use mpl_token_metadata as metaplex_program;
-use mpl_token_metadata::pda::find_metadata_account;
 use mpl_token_metadata::state::Metadata;
-use solana_client::{
-    rpc_client::{RpcClient, RpcClientConfig},
-    rpc_config::RpcSendTransactionConfig,
-};
-use solana_sdk::system_instruction::{self, create_account, create_account_with_seed, transfer};
+use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
+use solana_sdk::pubkey::Pubkey;
+use solana_sdk::signature::Keypair;
+use solana_sdk::signer::Signer;
+use solana_sdk::system_instruction::{self, create_account_with_seed, transfer};
 use solana_sdk::transaction::Transaction;
 use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack};
-use solana_sdk::{feature_set::separate_nonce_from_blockhash, pubkey::Pubkey};
-use solana_sdk::{feature_set::zk_token_sdk_enabled, signature::Keypair};
 use solana_sdk::{
     hash::Hash,
     instruction::{AccountMeta, Instruction},
     message::Message,
-    program_error::ProgramError,
     pubkey::ParsePubkeyError,
     signature::Signature,
     system_program,
-    sysvar::{self, rent},
+    sysvar::rent,
 };
-use solana_sdk::{signer::Signer, stake::instruction::create_account_and_delegate_stake};
 use spl_associated_token_account::{
     get_associated_token_address, instruction::create_associated_token_account,
 };
@@ -103,6 +88,7 @@ impl TransportT for SolanaTransport {
             &self.program_id,
         );
 
+        let recipient_pubkey = Self::parse_pubkey(&params.recipient_addr)?;
         let token_mint_pubkey = Self::parse_pubkey(&params.token_addr)?;
         let stake_account = Keypair::new();
         let stake_account_pubkey = stake_account.pubkey();
@@ -127,13 +113,7 @@ impl TransportT for SolanaTransport {
         let create_game_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
             &RaceInstruction::CreateGameAccount {
-                params: race_solana_types::types::CreateGameAccountParams {
-                    title: params.title,
-                    max_players: params.max_players,
-                    min_deposit: params.min_deposit,
-                    max_deposit: params.max_deposit,
-                    data: params.data,
-                },
+                params: params.into(),
             },
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
@@ -142,6 +122,7 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new_readonly(token_mint_pubkey, false),
                 AccountMeta::new_readonly(spl_token::id(), false),
                 AccountMeta::new_readonly(bundle_pubkey, false),
+                AccountMeta::new_readonly(recipient_pubkey, false),
             ],
         );
 
@@ -225,9 +206,7 @@ impl TransportT for SolanaTransport {
         let init_or_update_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
             &RaceInstruction::RegisterServer {
-                params: solana_types::RegisterServerParams {
-                    endpoint: params.endpoint,
-                },
+                params: params.into(),
             },
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
@@ -317,12 +296,7 @@ impl TransportT for SolanaTransport {
         let join_game_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
             &RaceInstruction::JoinGame {
-                params: race_solana_types::types::JoinParams {
-                    amount: params.amount,
-                    access_version: params.access_version,
-                    position: params.position,
-                    verify_key: params.verify_key,
-                },
+                params: params.into(),
             },
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
@@ -345,7 +319,7 @@ impl TransportT for SolanaTransport {
         Ok(())
     }
 
-    async fn deposit(&self, params: DepositParams) -> Result<()> {
+    async fn deposit(&self, _params: DepositParams) -> Result<()> {
         todo!()
     }
 
@@ -361,9 +335,7 @@ impl TransportT for SolanaTransport {
         let serve_game_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
             &RaceInstruction::ServeGame {
-                params: solana_types::ServeParams {
-                    verify_key: params.verify_key,
-                },
+                params: params.into(),
             },
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
@@ -381,7 +353,7 @@ impl TransportT for SolanaTransport {
         Ok(())
     }
 
-    async fn vote(&self, params: VoteParams) -> Result<()> {
+    async fn vote(&self, _params: VoteParams) -> Result<()> {
         todo!()
     }
 
@@ -417,9 +389,8 @@ impl TransportT for SolanaTransport {
             ixs.push(create_profile_account_ix);
         }
 
-        let pfp_pubkey = if params.pfp.is_some() {
-            let addr = params.pfp.unwrap();
-            Self::parse_pubkey(&addr)?
+        let pfp_pubkey = if let Some(ref pfp) = &params.pfp {
+            Self::parse_pubkey(&pfp)?
         } else {
             system_program::id()
         };
@@ -427,7 +398,7 @@ impl TransportT for SolanaTransport {
         let init_profile_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
             &RaceInstruction::CreatePlayerProfile {
-                params: solana_types::CreatePlayerProfileParams { nick: params.nick },
+                params: params.into(),
             },
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
@@ -473,7 +444,7 @@ impl TransportT for SolanaTransport {
         )
         .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
 
-        let (metadata_pda, bump_seed) = Pubkey::find_program_address(
+        let (metadata_pda, _bump_seed) = Pubkey::find_program_address(
             &[
                 "metadata".as_bytes(),
                 metaplex_program::id().as_ref(),
@@ -482,7 +453,7 @@ impl TransportT for SolanaTransport {
             &metaplex_program::id(),
         );
 
-        let (edition_pda, bump_seed) = Pubkey::find_program_address(
+        let (edition_pda, _bump_seed) = Pubkey::find_program_address(
             &[
                 "metadata".as_bytes(),
                 metaplex_program::id().as_ref(),
@@ -515,11 +486,7 @@ impl TransportT for SolanaTransport {
         let publish_game_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
             &RaceInstruction::PublishGame {
-                params: race_solana_types::types::PublishParams {
-                    uri: params.uri,
-                    name: params.name,
-                    symbol: params.symbol,
-                },
+                params: params.into(),
             },
             accounts,
         );
@@ -543,7 +510,11 @@ impl TransportT for SolanaTransport {
     }
 
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
-        let SettleParams { addr, mut settles } = params;
+        let SettleParams {
+            addr,
+            mut settles,
+            transfers,
+        } = params;
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
         let game_account_pubkey = Self::parse_pubkey(&addr)?;
@@ -551,55 +522,52 @@ impl TransportT for SolanaTransport {
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
 
+        let recipient_account_pubkey = game_state.recipient_addr;
+        let recipient_state = self
+            .internal_get_recipient_state(&recipient_account_pubkey)
+            .await?;
+
         // The settles are required to be in correct order: add < sub < eject.
         // And the sum of settles must be zero.
         settles.sort_by_key(|s| match s.op {
             SettleOp::Eject => 2,
             SettleOp::Add(_) => 0,
             SettleOp::Sub(_) => 1,
+            SettleOp::AssignSlot(_) => 3,
         });
 
-        let settles: TransportResult<Vec<race_solana_types::types::Settle>> = settles
+        let settles: Vec<IxSettle> = settles
             .into_iter()
-            .map(|s| {
-                Ok(match s.op {
-                    SettleOp::Eject => race_solana_types::types::Settle {
-                        addr: Pubkey::from_str(&s.addr)?,
-                        op: race_solana_types::types::SettleOp::Eject,
-                    },
-                    SettleOp::Add(amt) => race_solana_types::types::Settle {
-                        addr: Pubkey::from_str(&s.addr)?,
-                        op: race_solana_types::types::SettleOp::Add(amt),
-                    },
-                    SettleOp::Sub(amt) => race_solana_types::types::Settle {
-                        addr: Pubkey::from_str(&s.addr)?,
-                        op: race_solana_types::types::SettleOp::Sub(amt),
-                    },
-                })
-            })
-            .collect();
-        let settles = settles?;
+            .map(TryInto::<IxSettle>::try_into)
+            .collect::<Result<Vec<IxSettle>>>()?;
 
         let mut accounts = vec![
             AccountMeta::new_readonly(payer_pubkey, true),
             AccountMeta::new(Pubkey::from_str(&addr).unwrap(), false),
             AccountMeta::new(game_state.stake_account.clone(), false),
             AccountMeta::new_readonly(pda, false),
+            AccountMeta::new_readonly(recipient_account_pubkey, false),
             AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(system_program::id(), false),
         ];
 
         for settle in settles.iter() {
-            if settle.op.eq(&race_solana_types::types::SettleOp::Eject) {
+            if settle.op.eq(&SettleOp::Eject) {
                 let ata = get_associated_token_address(&settle.addr, &game_state.token_mint);
                 accounts.push(AccountMeta::new(ata, false));
+            }
+        }
+
+        for Transfer { slot_id, .. } in transfers.iter() {
+            if let Some(slot) = recipient_state.slots.iter().find(|s| s.id == *slot_id) {
+                accounts.push(AccountMeta::new(slot.stake_addr, false));
             }
         }
 
         let settle_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
             &RaceInstruction::Settle {
-                params: race_solana_types::types::SettleParams { settles },
+                params: IxSettleParams { settles, transfers },
             },
             accounts,
         );
@@ -629,10 +597,7 @@ impl TransportT for SolanaTransport {
         let create_registry_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
             &RaceInstruction::CreateRegistry {
-                params: race_solana_types::types::CreateRegistrationParams {
-                    is_private: params.is_private,
-                    size: params.size,
-                },
+                params: params.into(),
             },
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
@@ -650,6 +615,119 @@ impl TransportT for SolanaTransport {
         self.send_transaction(tx)?;
         let addr = registry_account_pubkey.to_string();
         Ok(addr)
+    }
+
+    async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
+        let payer = &self.keypair;
+        let payer_pubkey = payer.pubkey();
+        let recipient_account = Keypair::new();
+        let recipient_account_pubkey = recipient_account.pubkey();
+        let cap_pubkey = if let Some(addr) = params.cap_addr.as_ref() {
+            Self::parse_pubkey(addr)?
+        } else {
+            payer_pubkey.clone()
+        };
+        let mut used_id = Vec::new();
+        let mut init_token_accounts_ixs = Vec::new();
+        let mut account_metas = vec![
+            AccountMeta::new_readonly(payer_pubkey, true),
+            AccountMeta::new_readonly(cap_pubkey, false),
+            AccountMeta::new(recipient_account_pubkey, false),
+            AccountMeta::new_readonly(spl_token::id(), false),
+        ];
+
+        let lamports = self.get_min_lamports(RECIPIENT_ACCOUNT_LEN)?;
+
+        let create_recipient_account_ix = system_instruction::create_account(
+            &payer_pubkey,
+            &recipient_account_pubkey,
+            lamports,
+            RECIPIENT_ACCOUNT_LEN as u64,
+            &self.program_id,
+        );
+
+        let mut extra_signers = vec![];
+        let mut slots = vec![];
+
+        for slot in params.slots {
+            if used_id.contains(&slot.id) {
+                return Err(Error::InvalidRecipientSlotParams);
+            }
+            used_id.push(slot.id);
+
+            let stake_account = Keypair::new();
+
+            let stake_addr = stake_account.pubkey();
+            account_metas.push(AccountMeta::new_readonly(stake_addr.clone(), false));
+
+            let token_mint_pubkey = Self::parse_pubkey(&slot.token_addr)?;
+
+            let stake_account_pubkey = stake_account.pubkey();
+            let stake_account_len = Account::LEN;
+            let stake_lamports = self.get_min_lamports(stake_account_len)?;
+
+            let create_stake_account_ix = system_instruction::create_account(
+                &payer_pubkey,
+                &stake_account_pubkey,
+                stake_lamports,
+                stake_account_len as u64,
+                &spl_token::id(),
+            );
+
+            let init_stake_account_ix = spl_token_instruction::initialize_account(
+                &spl_token::id(),
+                &stake_account_pubkey,
+                &token_mint_pubkey,
+                &payer_pubkey,
+            )
+            .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+
+            init_token_accounts_ixs.push(create_stake_account_ix);
+            init_token_accounts_ixs.push(init_stake_account_ix);
+
+            let init_shares = slot
+                .init_shares
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<TransportResult<Vec<IxRecipientSlotShareInit>>>()?;
+
+            slots.push(IxRecipientSlotInit {
+                id: slot.id,
+                slot_type: slot.slot_type,
+                token_addr: Self::parse_pubkey(&slot.token_addr)?,
+                stake_addr: stake_account_pubkey,
+                init_shares,
+            });
+
+            extra_signers.push(stake_account);
+        }
+
+        let create_recipient_ix = Instruction::new_with_borsh(
+            self.program_id.clone(),
+            &RaceInstruction::CreateRecipient {
+                params: IxCreateRecipientParams { slots },
+            },
+            account_metas,
+        );
+
+        let mut signers = vec![payer, &recipient_account];
+        let mut extra_signer_refs: Vec<&Keypair> = extra_signers.iter().collect();
+        signers.append(&mut extra_signer_refs);
+
+        let mut ixs = vec![create_recipient_account_ix];
+        ixs.append(&mut init_token_accounts_ixs);
+        ixs.push(create_recipient_ix);
+
+        let message = Message::new(&ixs, Some(&payer.pubkey()));
+        let blockhash = self.get_blockhash()?;
+        let mut tx = Transaction::new_unsigned(message);
+        tx.sign(&signers, blockhash);
+        self.send_transaction(tx)?;
+        Ok(recipient_account_pubkey.to_string())
+    }
+
+    async fn assign_recipient(&self, _params: AssignRecipientParams) -> Result<()> {
+        Ok(())
     }
 
     async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
@@ -726,47 +804,8 @@ impl TransportT for SolanaTransport {
 
     async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
         let game_account_pubkey = Self::parse_pubkey(addr)?;
-        let state: GameState = self.internal_get_game_state(&game_account_pubkey).await?;
-
-        Ok(Some(GameAccount {
-            addr: addr.to_owned(),
-            title: state.title,
-            settle_version: state.settle_version,
-            bundle_addr: state.bundle_addr.to_string(),
-            token_addr: state.token_mint.to_string(),
-            owner_addr: state.owner.to_string(),
-            access_version: state.access_version,
-            min_deposit: state.min_deposit,
-            max_deposit: state.max_deposit,
-            players: state
-                .players
-                .into_iter()
-                .map(|p| PlayerJoin {
-                    addr: p.addr.to_string(),
-                    position: p.position,
-                    balance: p.balance,
-                    access_version: p.access_version,
-                    verify_key: p.verify_key,
-                })
-                .collect(),
-            servers: state
-                .servers
-                .into_iter()
-                .map(|s| ServerJoin {
-                    addr: s.addr.to_string(),
-                    endpoint: s.endpoint,
-                    access_version: s.access_version,
-                    verify_key: s.verify_key,
-                })
-                .collect(),
-            transactor_addr: state.transactor_addr.map(|pk| pk.to_string()),
-            max_players: state.max_players,
-            data_len: state.data_len,
-            data: *state.data,
-            deposits: Vec::new(),
-            votes: Vec::new(),
-            unlock_time: None,
-        }))
+        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
+        Ok(Some(game_state.into_account(addr)))
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
@@ -816,6 +855,12 @@ impl TransportT for SolanaTransport {
         }))
     }
 
+    async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
+        let pubkey = Self::parse_pubkey(addr)?;
+        let recipient_state = self.internal_get_recipient_state(&pubkey).await?;
+        Ok(Some(recipient_state.into_account(addr)))
+    }
+
     async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>> {
         let key = Self::parse_pubkey(addr)?;
         let state = self.internal_get_registry_state(&key).await?;
@@ -855,7 +900,7 @@ impl SolanaTransport {
         rpc: String,
         keypair: Keypair,
         program_id: Pubkey,
-        skip_preflight: bool
+        skip_preflight: bool,
     ) -> TransportResult<Self> {
         println!(
             "Create Solana transport: RPC: {}, program_id: {:?}",
@@ -896,16 +941,23 @@ impl SolanaTransport {
     fn send_transaction(&self, tx: Transaction) -> TransportResult<Signature> {
         let confirm_num = if cfg!(test) { 1 } else { 32 };
 
+        let config = RpcSendTransactionConfig {
+            skip_preflight: self.debug,
+            // skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        };
+
         let sig = self
             .client
-            .send_transaction_with_config(
-                &tx,
-                RpcSendTransactionConfig {
-                    skip_preflight: self.debug,
-                    ..RpcSendTransactionConfig::default()
-                },
-            )
-            .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
+            .send_transaction_with_config(&tx, config)
+            .map_err(|e| {
+                if let Some(e) = e.get_transaction_error() {
+                    error!("Transactior error: {}", e);
+                    TransportError::ClientSendTransactionFailed(e.to_string())
+                } else {
+                    TransportError::ClientSendTransactionFailed(e.to_string())
+                }
+            })?;
 
         self.client
             .poll_for_signature_confirmation(&sig, confirm_num)
@@ -928,6 +980,20 @@ impl SolanaTransport {
             .map_err(|_| TransportError::GameStateDeserializeError)
     }
 
+    /// Get the state of an on-chain recipient account by its public key.
+    /// Not for public API usage
+    async fn internal_get_recipient_state(
+        &self,
+        recipient_account_pubkey: &Pubkey,
+    ) -> TransportResult<RecipientState> {
+        let data = self
+            .client
+            .get_account_data(&recipient_account_pubkey)
+            .or(Err(TransportError::RecipientAccountNotFound))?;
+        RecipientState::deserialize(&mut data.as_slice())
+            .map_err(|_| TransportError::RecipientStateDeserializeError)
+    }
+
     /// Get the state of an on-chain server account
     /// Not for public API usage
     #[allow(dead_code)]
@@ -944,7 +1010,7 @@ impl SolanaTransport {
             .get_account_data(&server_account_pubkey)
             .or(Err(TransportError::ServerAccountDataNotFound))?;
         ServerState::deserialize(&mut data.as_slice())
-            .map_err(|e| TransportError::ServerStateDeserializeError)
+            .map_err(|_| TransportError::ServerStateDeserializeError)
     }
 
     async fn internal_get_player_state(
@@ -976,19 +1042,19 @@ impl SolanaTransport {
             .or(Err(TransportError::RegistryAccountDataNotFound))?;
 
         RegistryState::deserialize(&mut data.as_slice())
-            .map_err(|e| TransportError::RegistryStateDeserializeError)
+            .map_err(|_| TransportError::RegistryStateDeserializeError)
     }
 }
 
 impl From<ParsePubkeyError> for TransportError {
-    fn from(value: ParsePubkeyError) -> Self {
+    fn from(_: ParsePubkeyError) -> Self {
         TransportError::ParseAddressError
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use solana_client::rpc_config::RpcProgramAccountsConfig;
+    use race_core::types::EntryType;
 
     use super::*;
 
@@ -1026,7 +1092,7 @@ mod tests {
             "http://localhost:8899".into(),
             keypair,
             read_program_id()?,
-            true
+            true,
         )?;
         transport.client.request_airdrop(&pubkey, 1_000_000_000)?;
         Ok(transport)
@@ -1055,10 +1121,13 @@ mod tests {
                 title: "16-CHAR_GAME_TIL".to_string(),
                 bundle_addr: "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_owned(),
                 token_addr: NATIVE_MINT.to_string(),
-                min_deposit: 100_000_000u64,
-                max_deposit: 2_000_000_000u64,
                 max_players: 9,
                 data: Vec::<u8>::new(),
+                entry_type: EntryType::Cash {
+                    min_deposit: 10,
+                    max_deposit: 20,
+                },
+                recipient_addr: "1111111111111111111111111111".to_string(),
             })
             .await?;
         println!("Create game at {}", addr);
@@ -1175,7 +1244,7 @@ mod tests {
         let server_addr = transport
             .serve(ServeParams {
                 game_addr: game_addr.clone(),
-                verify_key: "VERIFY KEY".into()
+                verify_key: "VERIFY KEY".into(),
             })
             .await?;
         let game = transport

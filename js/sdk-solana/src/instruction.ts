@@ -2,8 +2,9 @@ import { PublicKey, SYSVAR_RENT_PUBKEY, TransactionInstruction } from '@solana/w
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { publicKeyExt } from './utils';
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID, PLAYER_PROFILE_SEED } from './constants';
-import { field, serialize } from '@race-foundation/borsh';
+import { enums, field, serialize } from '@race-foundation/borsh';
 import { Buffer } from 'buffer';
+import { EntryType } from '@race-foundation/sdk-core';
 
 // Instruction types
 
@@ -58,10 +59,8 @@ export class CreateGameAccountData extends Serialize {
   title: string = '';
   @field('u16')
   maxPlayers: number = 0;
-  @field('u64')
-  minDeposit: bigint = 0n;
-  @field('u64')
-  maxDeposit: bigint = 0n;
+  @field(enums(EntryType))
+  entryType!: EntryType
   @field('u8-array')
   data: Uint8Array = Uint8Array.from([]);
 
@@ -151,8 +150,7 @@ export type CreateGameOptions = {
   gameBundleKey: PublicKey;
   title: string;
   maxPlayers: number;
-  minDeposit: bigint;
-  maxDeposit: bigint;
+  entryType: EntryType;
 };
 
 export function createGameAccount(opts: CreateGameOptions): TransactionInstruction {

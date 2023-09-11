@@ -7,7 +7,7 @@ use crate::error::{Error, Result};
 use crate::event::CustomEvent;
 use crate::random::{RandomSpec, RandomStatus};
 use crate::types::{
-    Addr, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin, Settle, SettleOp,
+    Addr, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin, Settle, SettleOp, Transfer,
 };
 use crate::{
     event::Event,
@@ -196,6 +196,8 @@ pub struct GameContext {
     pub(crate) decision_states: Vec<DecisionState>,
     /// Settles, if is not None, will be handled by event loop.
     pub(crate) settles: Option<Vec<Settle>>,
+    /// Transfers, if is not None, will be handled by event loop.
+    pub(crate) transfers: Option<Vec<Transfer>>,
     /// Checkpoint state
     pub(crate) checkpoint: bool,
 }
@@ -235,6 +237,7 @@ impl GameContext {
             random_states: vec![],
             decision_states: vec![],
             settles: None,
+            transfers: None,
             handler_state: "".into(),
             checkpoint: false,
         })
@@ -688,6 +691,10 @@ impl GameContext {
         self.settles = Some(settles);
     }
 
+    pub fn transfer(&mut self, transfers: Vec<Transfer>) {
+        self.transfers = Some(transfers);
+    }
+
     pub fn get_settles(&self) -> &Option<Vec<Settle>> {
         &self.settles
     }
@@ -696,7 +703,7 @@ impl GameContext {
         self.settle_version += 1;
     }
 
-    pub fn apply_and_take_settles(&mut self) -> Result<Option<Vec<Settle>>> {
+    pub fn take_settles_and_transfers(&mut self) -> Result<Option<(Vec<Settle>, Vec<Transfer>)>> {
         if self.settles.is_some() {
             let mut settles = None;
             std::mem::swap(&mut settles, &mut self.settles);
@@ -706,13 +713,14 @@ impl GameContext {
                     SettleOp::Add(_) => 0,
                     SettleOp::Sub(_) => 1,
                     SettleOp::Eject => 2,
+                    SettleOp::AssignSlot(_) => 3,
                 })
             }
 
             for s in settles.as_ref().unwrap().iter() {
                 match s.op {
                     SettleOp::Eject => {
-                        self.players.retain(|p| p.addr.ne(&s.addr));
+                       self.players.retain(|p| p.addr.ne(&s.addr));
                     }
                     SettleOp::Add(amount) => {
                         let p =
@@ -744,10 +752,22 @@ impl GameContext {
                                     p.balance, amount,
                                 )))?;
                     }
+                    SettleOp::AssignSlot(_) => {
+
+                    }
                 }
             }
+
+            let mut transfers = None;
+            std::mem::swap(&mut transfers, &mut self.transfers);
             self.bump_settle_version();
-            Ok(settles)
+
+            if let Some(settles) = settles {
+                Ok(Some((settles, transfers.unwrap_or(vec![]))))
+            } else {
+                // unreachable
+                Ok(None)
+            }
         } else {
             Ok(None)
         }
@@ -813,6 +833,7 @@ impl GameContext {
             releases,
             init_random_states,
             settles,
+            transfers,
             handler_state,
             allow_exit,
             ..
@@ -860,7 +881,14 @@ impl GameContext {
 
         if !settles.is_empty() {
             self.settle(settles);
+            if !transfers.is_empty() {
+                self.transfer(transfers);
+            }
             self.checkpoint = true;
+        } else {
+            if !transfers.is_empty() {
+                return Err(Error::TransferWithoutSettle);
+            }
         }
 
         if let Some(state) = handler_state {
@@ -932,6 +960,7 @@ impl Default for GameContext {
             random_states: Vec::new(),
             decision_states: Vec::new(),
             settles: None,
+            transfers: None,
             checkpoint: false,
         }
     }

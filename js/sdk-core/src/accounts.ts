@@ -1,4 +1,4 @@
-import { field, array, struct, option } from '@race-foundation/borsh';
+import { field, array, struct, option, enums, variant } from '@race-foundation/borsh';
 
 export interface IPlayerJoin {
   readonly addr: string;
@@ -56,8 +56,8 @@ export interface IGameAccount {
   readonly maxPlayers: number;
   readonly dataLen: number;
   readonly data: Uint8Array;
-  readonly minDeposit: bigint;
-  readonly maxDeposit: bigint;
+  readonly entryType: EntryType;
+  readonly recipientAddr: string;
 }
 
 export interface IServerAccount {
@@ -125,6 +125,126 @@ export interface INft {
   readonly name: string;
   readonly symbol: string;
   readonly collection: string | undefined;
+}
+
+export interface IRecipientAccount {
+  readonly addr: string;
+  readonly capAddr: string | undefined;
+  readonly slots: IRecipientSlot[];
+}
+
+const RECIPIENT_SLOT_TYPE = {
+  Nft: 0,
+  Token: 1
+} as const;
+
+type RecipientSlotType = (typeof RECIPIENT_SLOT_TYPE)[keyof typeof RECIPIENT_SLOT_TYPE];
+
+export interface IRecipientSlot {
+  readonly id: number;
+  readonly slotType: RecipientSlotType;
+  readonly tokenAddr: string;
+  readonly shares: IRecipientSlotShare[];
+}
+
+export interface IRecipientSlotShare {
+  readonly owner: RecipientSlotOwner;
+  readonly weights: number;
+  readonly claimAmount: bigint;
+  readonly claimAmountCap: bigint;
+}
+
+export abstract class RecipientSlotOwner {}
+
+@variant(0)
+export class RecipientSlotOwnerUnassigned extends RecipientSlotOwner {
+  @field('string')
+  identifier!: string;
+  constructor(fields: any) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+@variant(1)
+export class RecipientSlotOwnerAssigned extends RecipientSlotOwner {
+  @field('string')
+  addr!: string;
+  constructor(fields: any) {
+    super();
+    Object.assign(this, fields);
+  }
+}
+
+export type EntryTypeKind =
+  | 'Invalid'
+  | 'Cash'
+  | 'Ticket'
+  | 'Gating';
+
+export interface IEntryTypeKind {
+  kind(): EntryTypeKind;
+}
+
+export abstract class EntryType {}
+
+@variant(0)
+export class EntryTypeCash extends EntryType implements IEntryTypeKind {
+  @field('u64')
+  minDeposit!: bigint;
+  @field('u64')
+  maxDeposit!: bigint;
+  constructor(fields: any) {
+    super();
+    Object.assign(this, fields);
+  }
+  kind(): EntryTypeKind {
+    return 'Cash';
+  }
+}
+
+@variant(1)
+export class EntryTypeTicket extends EntryType implements IEntryTypeKind{
+  @field('u8')
+  slotId!: number;
+  @field('u64')
+  amount!: bigint;
+  constructor(fields: any) {
+    super();
+    Object.assign(this, fields);
+  }
+  kind(): EntryTypeKind {
+    return 'Ticket';
+  }
+}
+
+@variant(2)
+export class EntryTypeGating extends EntryType implements IEntryTypeKind{
+  @field('string')
+  collection!: string;
+  constructor(fields: any) {
+    super();
+    Object.assign(this, fields);
+  }
+  kind(): EntryTypeKind {
+    return 'Gating';
+  }
+}
+
+export class Nft implements INft {
+  @field('string')
+  readonly addr!: string;
+  @field('string')
+  readonly image!: string;
+  @field('string')
+  readonly name!: string;
+  @field('string')
+  readonly symbol!: string;
+  @field(option('string'))
+  readonly collection: string | undefined;
+  constructor(fields: INft) {
+    Object.assign(this, fields);
+  }
 }
 
 export class ServerAccount implements IServerAccount {
@@ -220,14 +340,14 @@ export class GameAccount implements IGameAccount {
   readonly unlockTime: bigint | undefined;
   @field('u16')
   readonly maxPlayers!: number;
-  @field('u64')
-  readonly minDeposit!: bigint;
-  @field('u64')
-  readonly maxDeposit!: bigint;
   @field('u32')
   readonly dataLen!: number;
   @field('u8-array')
   readonly data!: Uint8Array;
+  @field(enums(EntryType))
+  readonly entryType!: EntryType;
+  @field('string')
+  readonly recipientAddr!: string;
   constructor(fields: IGameAccount) {
     Object.assign(this, fields);
   }
@@ -298,6 +418,46 @@ export class PlayerProfile implements IPlayerProfile {
   @field(option('string'))
   readonly pfp: string | undefined;
   constructor(fields: IPlayerProfile) {
+    Object.assign(this, fields);
+  }
+}
+
+export class RecipientSlotShare implements IRecipientSlotShare {
+  @field(enums(RecipientSlotOwner))
+  owner!: RecipientSlotOwner;
+  @field('u16')
+  weights!: number;
+  @field('u64')
+  claimAmount!: bigint;
+  @field('u64')
+  claimAmountCap!: bigint;
+  constructor(fields: IRecipientSlotShare) {
+    Object.assign(this, fields);
+  }
+}
+
+export class RecipientSlot implements IRecipientSlot {
+  @field('u8')
+  id!: number;
+  @field('u8')
+  slotType!: RecipientSlotType;
+  @field('string')
+  tokenAddr!: string;
+  @field(array(struct(RecipientSlotShare)))
+  shares!: IRecipientSlotShare[];
+  constructor(fields: IRecipientSlot) {
+    Object.assign(this, fields);
+  }
+}
+
+export class RecipientAccount implements IRecipientAccount {
+  @field('string')
+  addr!: string;
+  @field(option('string'))
+  capAddr: string | undefined;
+  @field(array(struct(RecipientSlot)))
+  slots!: IRecipientSlot[];
+  constructor(fields: IRecipientAccount) {
     Object.assign(this, fields);
   }
 }

@@ -13,7 +13,7 @@ use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
     PublishGameParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-    ServerAccount, SettleParams, UnregisterGameParams, VoteParams,
+    ServerAccount, SettleParams, UnregisterGameParams, VoteParams, CreateRecipientParams, AssignRecipientParams, RecipientAccount,
 };
 use serde::Serialize;
 
@@ -148,6 +148,10 @@ impl TransportT for FacadeTransport {
         self.fetch("get_registration_info", addr).await
     }
 
+    async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
+        Ok(None)
+    }
+
     async fn publish_game(&self, params: PublishGameParams) -> Result<String> {
         unimplemented!()
     }
@@ -157,6 +161,14 @@ impl TransportT for FacadeTransport {
             .request("settle", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))
+    }
+
+    async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
+        unimplemented!()
+    }
+
+    async fn assign_recipient(&self, params: AssignRecipientParams) -> Result<()> {
+        unimplemented!()
     }
 
     async fn deposit(&self, params: DepositParams) -> Result<()> {

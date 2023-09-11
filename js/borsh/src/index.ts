@@ -189,7 +189,7 @@ function deserializeValue(path: string[], fieldType: FieldType, reader: BinaryRe
       }
     }
   } catch (err: any) {
-    console.error('Borsh serialize failed, path:', path, 'error:', err);
+    console.error('Borsh deserialize failed, path:', path, 'error:', err);
     throw err;
   }
 }
@@ -245,7 +245,7 @@ function deserializeStruct<T>(path: string[], ctor: Ctor<T>, reader: BinaryReade
   const fields = getSchemaFields(prototype);
   let obj = {};
   for (const field of fields) {
-    obj = deserializeField([...path, field[0].toString()], obj, field, reader);
+    obj = deserializeField(path, obj, field, reader);
   }
   return new ctor(obj);
 }

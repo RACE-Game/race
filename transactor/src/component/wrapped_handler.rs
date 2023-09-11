@@ -9,7 +9,7 @@ use race_core::encryptor::EncryptorT;
 use race_core::engine::{general_handle_event, general_init_state, post_handle_event, InitAccount};
 use race_core::error::{Error, Result};
 use race_core::event::Event;
-use race_core::types::{GameBundle, Settle};
+use race_core::types::{GameBundle, Settle, Transfer};
 use race_encryptor::Encryptor;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
 
@@ -19,8 +19,10 @@ pub struct WrappedHandler {
     encryptor: Arc<dyn EncryptorT>,
 }
 
+#[derive(Debug)]
 pub struct Effects {
-    pub settles: Option<Vec<Settle>>,
+    pub settles: Vec<Settle>,
+    pub transfers: Vec<Transfer>,
 }
 
 impl WrappedHandler {
@@ -171,14 +173,22 @@ impl WrappedHandler {
         }
     }
 
-    pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<Effects> {
+    pub fn handle_event(
+        &mut self,
+        context: &mut GameContext,
+        event: &Event,
+    ) -> Result<Option<Effects>> {
         let mut new_context = context.clone();
         general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
         self.custom_handle_event(&mut new_context, event)?;
         post_handle_event(context, &mut new_context)?;
-        let settles = new_context.apply_and_take_settles()?;
+        let settles_and_transfers = new_context.take_settles_and_transfers()?;
         swap(context, &mut new_context);
-        Ok(Effects { settles })
+        if let Some((settles, transfers)) = settles_and_transfers {
+            Ok(Some(Effects { settles, transfers }))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn init_state(
@@ -243,7 +253,10 @@ mod tests {
         let init_account = InitAccount::from_game_account(&game_account);
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
-        assert_eq!(&vec![42u8, 0, 0, 0, 0, 0, 0, 0], ctx.get_handler_state_raw());
+        assert_eq!(
+            &vec![42u8, 0, 0, 0, 0, 0, 0, 0],
+            ctx.get_handler_state_raw()
+        );
     }
 
     #[test]
@@ -258,7 +271,10 @@ mod tests {
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
-        assert_eq!(&vec![42u8, 0, 0, 0, 0, 0, 0, 0], ctx.get_handler_state_raw());
+        assert_eq!(
+            &vec![42u8, 0, 0, 0, 0, 0, 0, 0],
+            ctx.get_handler_state_raw()
+        );
         assert_eq!(ctx.get_status(), GameStatus::Running);
     }
 
@@ -272,6 +288,9 @@ mod tests {
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
-        assert_eq!(&vec![43u8, 0, 0, 0, 0, 0, 0, 0], ctx.get_handler_state_raw());
+        assert_eq!(
+            &vec![43u8, 0, 0, 0, 0, 0, 0, 0],
+            ctx.get_handler_state_raw()
+        );
     }
 }

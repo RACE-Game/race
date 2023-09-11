@@ -18,8 +18,6 @@ export interface IInitAccount {
   accessVersion: bigint;
   settleVersion: bigint;
   maxPlayers: number;
-  minDeposit: bigint;
-  maxDeposit: bigint;
 }
 
 export class InitAccount {
@@ -37,10 +35,6 @@ export class InitAccount {
   readonly settleVersion: bigint;
   @field('u16')
   readonly maxPlayers: number;
-  @field('u64')
-  readonly minDeposit: bigint;
-  @field('u64')
-  readonly maxDeposit: bigint;
 
   constructor(fields: IInitAccount) {
     this.addr = fields.addr;
@@ -50,8 +44,6 @@ export class InitAccount {
     this.players = fields.players;
     this.servers = fields.servers;
     this.maxPlayers = fields.maxPlayers;
-    this.minDeposit = fields.minDeposit;
-    this.maxDeposit = fields.maxDeposit;
   }
   static createFromGameAccount(
     gameAccount: GameAccount,
@@ -69,8 +61,6 @@ export class InitAccount {
       accessVersion: transactorAccessVersion,
       settleVersion: transactorSettleVersion,
       maxPlayers: gameAccount.maxPlayers,
-      minDeposit: gameAccount.minDeposit,
-      maxDeposit: gameAccount.maxDeposit,
     });
   }
   serialize(): Uint8Array {

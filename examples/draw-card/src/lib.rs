@@ -302,6 +302,7 @@ impl GameHandler for DrawCard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_state_deser() {
         let data = vec![

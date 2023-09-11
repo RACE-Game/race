@@ -42,7 +42,6 @@ async fn handle(
 
     match handler.handle_event(game_context, &event) {
         Ok(effects) => {
-
             ports
                 .send(EventFrame::Broadcast {
                     event,
@@ -69,9 +68,14 @@ async fn handle(
                 .await;
 
             // We do optimistic updates here
-            if let Some(settles) = effects.settles {
-                info!("Send settlements: {:?}", settles);
-                ports.send(EventFrame::Settle { settles }).await;
+            if let Some(effects) = effects {
+                info!("Send settlements: {:?}", effects);
+                ports
+                    .send(EventFrame::Settle {
+                        settles: effects.settles,
+                        transfers: effects.transfers,
+                    })
+                    .await;
             }
         }
         Err(e) => {

@@ -1,28 +1,28 @@
 //! This server is the replacement for blockchains in testing and development
 
+use borsh::BorshSerialize;
 use clap::Parser;
 use hyper::Method;
 use jsonrpsee::server::{AllowHosts, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error as RpcError, RpcModule};
 use race_core::error::Error;
-use race_core::prelude::BorshSerialize;
 use race_core::types::{
-    DepositParams, GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin,
+    DepositParams, EntryType, GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin,
     PlayerProfile, RegistrationAccount, ServerAccount, ServerJoin, SettleOp, SettleParams,
-    TokenAccount, Vote, VoteParams, VoteType,
+    TokenAccount, Vote, VoteParams, VoteType, RecipientSlot,
 };
+use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{UNIX_EPOCH, Duration};
+use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
-use regex::Regex;
 
 type RpcResult<T> = std::result::Result<T, RpcError>;
 
@@ -34,13 +34,13 @@ const DEFAULT_BALANCE: u64 = 10000000;
 const HTTP_HOST: &str = "0.0.0.0:12002";
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GameSpec {
     title: String,
     bundle: String,
     token: String,
     max_players: u16,
-    min_deposit: u64,
-    max_deposit: u64,
+    entry_type: EntryType,
     data: Vec<u8>,
 }
 
@@ -61,6 +61,23 @@ pub struct ServeInstruction {
     game_addr: String,
     server_addr: String,
     verify_key: String,
+}
+
+#[allow(unused)]
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateRecipientInstruction {
+    addr: String,
+    creator_addr: String,
+}
+
+#[allow(unused)]
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddRecipientSlots {
+    addr: String,
+    recipient_addr: String,
+    slot: RecipientSlot,
 }
 
 #[derive(Deserialize)]
@@ -87,8 +104,7 @@ pub struct CreateGameAccountInstruction {
     bundle_addr: String,
     token_addr: String,
     max_players: u16,
-    min_deposit: u64,
-    max_deposit: u64,
+    entry_type: EntryType,
     data: Vec<u8>,
 }
 
@@ -101,9 +117,19 @@ pub struct Context {
     bundles: HashMap<String, GameBundle>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, BorshSerialize)]
+pub struct Nft {
+    addr: String,
+    image: String,
+    name: String,
+    symbol: String,
+    collection: Option<String>,
+}
+
+#[derive(Clone, BorshSerialize)]
 pub struct PlayerInfo {
     balances: HashMap<String, u64>, // token address to balance
+    nfts: HashMap<String, Nft>,
     profile: PlayerProfile,
 }
 
@@ -157,8 +183,7 @@ impl Context {
             bundle,
             token,
             max_players,
-            min_deposit,
-            max_deposit,
+            entry_type,
             data: spec_data,
         } = serde_json::from_reader(f).expect(&format!("Invalid spec file: {}", spec_path));
 
@@ -181,8 +206,7 @@ impl Context {
             data_len: spec_data.len() as u32,
             data: spec_data,
             max_players,
-            min_deposit,
-            max_deposit,
+            entry_type,
             ..Default::default()
         };
         self.bundles.insert(bundle_addr.clone(), bundle);
@@ -254,38 +278,52 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         if access_version != game_account.access_version {
             return Err(custom_error(Error::TransactionExpired));
         }
-        if amount < game_account.min_deposit || amount > game_account.max_deposit {
-            return Err(custom_error(Error::InvalidAmount));
-        } else if game_account.players.len() >= game_account.max_players as _ {
-            return Err(custom_error(Error::GameIsFull(
-                game_account.max_players as _,
-            )));
-        } else if game_account
-            .players
-            .iter()
-            .find(|p| p.addr.eq(&player_addr))
-            .is_some()
-        {
-            return Err(custom_error(Error::PlayerAlreadyJoined(player_addr)));
-        } else {
-            game_account.access_version += 1;
-            let player_join = PlayerJoin {
-                addr: player_addr.clone(),
-                position,
-                balance: amount,
-                access_version: game_account.access_version,
-                verify_key,
-            };
-            game_account.players.push(player_join);
-            println!(
-                "! Join game: player: {}, game: {}, amount: {}, access version: {} -> {}",
-                player_addr,
-                game_addr,
+        match &game_account.entry_type {
+            EntryType::Cash {
+                min_deposit,
+                max_deposit,
+            } => {
+                if amount < *min_deposit || amount > *max_deposit {
+                    return Err(custom_error(Error::InvalidAmount));
+                } else if game_account.players.len() >= game_account.max_players as _ {
+                    return Err(custom_error(Error::GameIsFull(
+                        game_account.max_players as _,
+                    )));
+                } else if game_account
+                    .players
+                    .iter()
+                    .find(|p| p.addr.eq(&player_addr))
+                    .is_some()
+                {
+                    return Err(custom_error(Error::PlayerAlreadyJoined(player_addr)));
+                } else {
+                    game_account.access_version += 1;
+                    let player_join = PlayerJoin {
+                        addr: player_addr.clone(),
+                        position,
+                        balance: amount,
+                        access_version: game_account.access_version,
+                        verify_key,
+                    };
+                    game_account.players.push(player_join);
+                    println!(
+                        "! Join game: player: {}, game: {}, amount: {}, access version: {} -> {}",
+                        player_addr,
+                        game_addr,
+                        amount,
+                        game_account.access_version - 1,
+                        game_account.access_version
+                    );
+                    Ok(())
+                }
+            }
+            #[allow(unused)]
+            EntryType::Ticket {
+                slot_id,
                 amount,
-                game_account.access_version - 1,
-                game_account.access_version
-            );
-            Ok(())
+            } => todo!(),
+            #[allow(unused)]
+            EntryType::Gating { collection } => todo!(),
         }
     } else {
         return Err(custom_error(Error::GameAccountNotFound));
@@ -364,8 +402,7 @@ async fn create_account(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
         bundle_addr,
         token_addr,
         max_players,
-        min_deposit,
-        max_deposit,
+        entry_type,
         data,
     } = params.one()?;
     let mut context = context.lock().await;
@@ -377,8 +414,7 @@ async fn create_account(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
             bundle_addr,
             token_addr,
             owner_addr: wallet_addr,
-            min_deposit,
-            max_deposit,
+            entry_type,
             max_players,
             data_len: data.len() as _,
             data,
@@ -409,6 +445,15 @@ async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
                 ("FACADE_USDT".to_string(), DEFAULT_BALANCE),
                 ("FACADE_NATIVE".to_string(), DEFAULT_BALANCE),
                 ("FACADE_RACE".to_string(), DEFAULT_BALANCE),
+            ]),
+            nfts: HashMap::from([
+                ("FACADE_NFT_1".to_string(), Nft {
+                    addr: "FACADE_NFT_1".to_string(),
+                    image: "https://qoyynvvrlnfmvsrie5f7esclpxj7zd2wzwt2neu2gmsdkefq.arweave.net/g7GG1rFbSsrKKCdL8-khLfdP-8j1-bNp6aSmjMkNRCw".to_string(),
+                    name: "FACADE NFT 01".to_string(),
+                    symbol: "FACADE NFT".to_string(),
+                    collection: Some("FACADE COLLECTION".to_string()),
+                })
             ]),
             profile: PlayerProfile {
                 addr: player_addr.clone(),
@@ -634,8 +679,20 @@ async fn list_tokens(_params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcRe
     Ok(bytes)
 }
 
+async fn get_player_info(
+    params: Params<'_>,
+    context: Arc<Mutex<Context>>,
+) -> RpcResult<Option<Vec<u8>>> {
+    let addr: String = params.one()?;
+    let context = context.lock().await;
+    let Some(player) = context.players.get(&addr) else {
+        return Ok(None)
+    };
+    Ok(Some(player.try_to_vec().unwrap()))
+}
+
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
-    let SettleParams { addr, settles } = params.one()?;
+    let SettleParams { addr, settles, .. } = params.one()?;
     println!("! Handle settlements {}, with {:?} ", addr, settles);
 
     // Simulate the finality time
@@ -711,6 +768,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
                     .checked_sub(amount)
                     .ok_or(custom_error(Error::InvalidSettle("Math overflow".into())))?;
             }
+            SettleOp::AssignSlot(_) => {}
         }
     }
 
@@ -749,6 +807,8 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     module.register_async_method("settle", settle)?;
     module.register_async_method("vote", vote)?;
     module.register_async_method("list_tokens", list_tokens)?;
+    module.register_async_method("get_player_info", get_player_info)?;
+
     let handle = http_server.start(module)?;
     Ok(handle)
 }

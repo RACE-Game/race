@@ -11,8 +11,6 @@ members = [
   "env",
   "client",
   "test",
-  # "contracts/solana",
-  "contracts/solana-types",
   "examples/draw-card",
   "examples/simple-settle",
   "examples/minimal",
@@ -29,7 +27,6 @@ race-client = { path = "client", version = ">=0.0.10" }
 race-encryptor = { path = "encryptor", version = ">=0.0.10" }
 race-env = { path = "env", version = ">=0.0.10" }
 race-test = { path = "test", version = ">=0.0.10" }
-race-solana-types = { path = "contracts/solana-types", version = ">=0.0.10", default-features = false }
 race-transport = { path = "transport", version = ">=0.0.10" }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 syn = "1.0.107"

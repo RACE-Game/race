@@ -10,6 +10,8 @@ import {
   IToken,
   RegistrationWithGames,
   Token,
+  RecipientAccount,
+  EntryType,
 } from './accounts';
 
 export type CreateGameAccountParams = {
@@ -17,8 +19,7 @@ export type CreateGameAccountParams = {
   bundleAddr: string;
   tokenAddr: string;
   maxPlayers: number;
-  minDeposit: bigint;
-  maxDeposit: bigint;
+  entryType: EntryType;
   data: Uint8Array;
 };
 
@@ -74,6 +75,10 @@ export type UnregisterGameParams = {
   regAddr: string;
 };
 
+export type RecipientClaimParams = {
+  recipientAddr: string;
+};
+
 export interface ITransport {
   createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string>;
 
@@ -107,6 +112,8 @@ export interface ITransport {
 
   getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined>;
 
+  getRecipient(addr: string): Promise<RecipientAccount | undefined>;
+
   getToken(addr: string): Promise<IToken | undefined>;
 
   getNft(addr: string): Promise<INft | undefined>;
@@ -116,4 +123,6 @@ export interface ITransport {
   listNfts(walletAddr: string): Promise<INft[]>;
 
   fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>>;
+
+  recipientClaim(wallet: IWallet, params: RecipientClaimParams): Promise<void>;
 }

@@ -4,7 +4,7 @@ use jsonrpsee::core::async_trait;
 use race_core::error::Result;
 use race_core::types::{
     CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, PublishGameParams,
-    RegisterGameParams, ServeParams, UnregisterGameParams, VoteParams,
+    RegisterGameParams, ServeParams, UnregisterGameParams, VoteParams, RecipientAccount, CreateRecipientParams, AssignRecipientParams,
 };
 use race_core::{
     transport::TransportT,
@@ -118,5 +118,17 @@ impl TransportT for WrappedTransport {
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
         self.inner.unregister_game(params).await
+    }
+
+    async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
+        self.inner.create_recipient(params).await
+    }
+
+    async fn assign_recipient(&self, params: AssignRecipientParams) -> Result<()> {
+        self.inner.assign_recipient(params).await
+    }
+
+    async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
+        self.inner.get_recipient(addr).await
     }
 }
