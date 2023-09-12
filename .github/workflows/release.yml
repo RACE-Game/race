@@ -22,7 +22,10 @@ jobs:
     - name: Build CLI
       run: cargo build -r -p race-cli
 
+    - name: Build Facade
+      run: cargo build -r -p race-facade
+
     - name: Release
       uses: ncipollo/release-action@v1
       with:
-        artifacts: "target/release/race-transactor,target/release/race-cli"
+        artifacts: "target/release/race-transactor,target/release/race-cli,target/release/race-facade"

@@ -1,6 +1,6 @@
 {
   "name": "@race-foundation/sdk-facade",
-  "version": "0.0.27",
+  "version": "0.1.0",
   "description": "The Facade integration for Race SDK",
   "main": "lib/cjs/index.ts",
   "module": "lib/esm/index.js",
