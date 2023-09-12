@@ -3,7 +3,7 @@ use race_core::{
     context::GameContext,
     engine::InitAccount,
     event::{Event, Message},
-    types::{PlayerJoin, ServerJoin, Settle, VoteType, Transfer},
+    types::{PlayerJoin, ServerJoin, Settle, VoteType, Transfer, TxState},
 };
 
 #[derive(Debug, Clone)]
@@ -20,6 +20,9 @@ pub enum EventFrame {
         new_servers: Vec<ServerJoin>,
         transactor_addr: String,
         access_version: u64,
+    },
+    TxState {
+        tx_state: TxState,
     },
     PlayerDeposited {
         player_addr: String,
@@ -89,6 +92,16 @@ impl std::fmt::Display for EventFrame {
                 new_players.len(),
                 new_servers.len(),
                 access_version
+            ),
+            EventFrame::TxState {
+                tx_state: _,
+            } => write!(
+                f,
+                "TxState",
+
+                // confirm_players.len(),
+                // access_version,
+                // confirm_success,
             ),
             EventFrame::PlayerDeposited { .. } => write!(f, "PlayerDeposited"),
             EventFrame::PlayerLeaving { .. } => write!(f, "PlayerLeaving"),

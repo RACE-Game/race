@@ -251,3 +251,12 @@ pub struct Transfer {
     pub slot_id: u8,
     pub amount: u64,
 }
+
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub enum QueryMode {
+    Confirming,
+    #[default]
+    Finalized,
+}

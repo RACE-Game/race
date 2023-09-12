@@ -14,7 +14,7 @@ use race_core::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, PublishGameParams, RegisterGameParams, RegisterServerParams,
+        PlayerProfile, PublishGameParams, QueryMode, RegisterGameParams, RegisterServerParams,
         RegistrationAccount, ServeParams, ServerAccount, Settle, SettleParams,
         UnregisterGameParams, VoteParams,
     },
@@ -74,7 +74,7 @@ impl TransportT for DummyTransport {
         Ok(())
     }
 
-    async fn get_game_account(&self, _addr: &str) -> Result<Option<GameAccount>> {
+    async fn get_game_account(&self, _addr: &str, mode: QueryMode) -> Result<Option<GameAccount>> {
         let mut states = self.states.lock().unwrap();
         if states.is_empty() {
             Ok(None)
@@ -87,10 +87,7 @@ impl TransportT for DummyTransport {
     async fn get_game_bundle(&self, addr_q: &str) -> Result<Option<GameBundle>> {
         let addr: String = "TEST".into();
         if addr.eq(addr_q) {
-            let mut f = std::fs::File::open(
-                "../examples/minimal/minimal.wasm",
-            )
-            .unwrap();
+            let mut f = std::fs::File::open("../examples/minimal/minimal.wasm").unwrap();
             let mut buf = vec![];
             f.read_to_end(&mut buf).unwrap();
             let base64 = base64::prelude::BASE64_STANDARD;
@@ -174,7 +171,7 @@ mod tests {
 
     use race_core::types::Settle;
 
-    use crate::{TestClient, TestGameAccountBuilder, test_game_addr};
+    use crate::{test_game_addr, TestClient, TestGameAccountBuilder};
 
     use super::*;
 
@@ -206,10 +203,10 @@ mod tests {
         transport.simulate_states(states);
 
         let addr = test_game_addr();
-        assert_eq!(Some(ga_0), transport.get_game_account(&addr).await?);
-        assert_eq!(Some(ga_1), transport.get_game_account(&addr).await?);
-        assert_eq!(Some(ga_2), transport.get_game_account(&addr).await?);
-        assert_eq!(None, transport.get_game_account(&addr).await?);
+        assert_eq!(Some(ga_0), transport.get_game_account(&addr, QueryMode::Finalized).await?);
+        assert_eq!(Some(ga_1), transport.get_game_account(&addr, QueryMode::Finalized).await?);
+        assert_eq!(Some(ga_2), transport.get_game_account(&addr, QueryMode::Finalized).await?);
+        assert_eq!(None, transport.get_game_account(&addr, QueryMode::Finalized).await?);
         Ok(())
     }
 

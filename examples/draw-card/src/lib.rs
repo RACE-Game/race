@@ -143,7 +143,7 @@ impl DrawCard {
                     self.stage = GameStage::Ending;
                     self.set_winner(effect, 0)?;
                 } else {
-                    return Err(HandleError::Custom("Can't fold".into()))
+                    return Err(HandleError::Custom("Can't fold".into()));
                 }
             }
         }
@@ -301,17 +301,8 @@ impl GameHandler for DrawCard {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
-    #[test]
-    fn test_state_deser() {
-        let data = vec![
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 100, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0,
-        ];
-        let state = DrawCard::try_from_slice(&data);
-        println!("state: {:?}", state);
-    }
+    use super::*;
 
     #[test]
     fn test_account_data() {

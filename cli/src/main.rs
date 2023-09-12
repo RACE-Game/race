@@ -4,13 +4,21 @@ use race_core::{
     transport::TransportT,
     types::{
         CreateGameAccountParams, CreateRecipientParams, CreateRegistrationParams, EntryType,
-        PublishGameParams, RegisterGameParams, ServerAccount, UnregisterGameParams, RecipientSlotInit,
+        PublishGameParams, QueryMode, RecipientSlotInit, RegisterGameParams, ServerAccount,
+        UnregisterGameParams,
     },
 };
 use race_env::{default_keyfile, parse_with_default_rpc};
 use race_transport::TransportBuilder;
 use serde::{Deserialize, Serialize};
 use std::{fs::File, path::PathBuf, sync::Arc};
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RecipientSpecs {
+    Slots(Vec<RecipientSlotInit>),
+    Addr(String),
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,7 +29,7 @@ pub struct CreateGameSpecs {
     bundle_addr: String,
     max_players: u16,
     entry_type: EntryType,
-    recipient_slots: Vec<RecipientSlotInit>,
+    recipient: RecipientSpecs,
     data: Vec<u8>,
 }
 
@@ -128,8 +136,9 @@ async fn bundle_info(addr: &str, transport: Arc<dyn TransportT>) {
 }
 
 async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
+    let mode = QueryMode::default();
     match transport
-        .get_game_account(addr)
+        .get_game_account(addr, mode)
         .await
         .expect("Network error")
     {
@@ -222,7 +231,7 @@ async fn create_reg(transport: Arc<dyn TransportT>) {
 }
 
 async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
-    println!("Specs: {:?}", specs);
+    // println!("Specs: {:?}", specs);
 
     let CreateGameSpecs {
         title,
@@ -231,21 +240,25 @@ async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
         bundle_addr,
         max_players,
         entry_type,
-        recipient_slots,
+        recipient,
         data,
     } = specs;
 
-    let params = CreateRecipientParams {
-        cap_addr: None,
-        slots: recipient_slots,
+    let recipient_addr = match recipient {
+        RecipientSpecs::Slots(slots) => {
+            let params = CreateRecipientParams {
+                cap_addr: None,
+                slots,
+            };
+            let addr = transport
+                .create_recipient(params)
+                .await
+                .expect("Create recipient failed");
+            println!("Recipient account created: {}", addr);
+            addr
+        }
+        RecipientSpecs::Addr(addr) => addr,
     };
-
-    let recipient_addr = transport
-        .create_recipient(params)
-        .await
-        .expect("Create recipient failed");
-
-    println!("Recipient account created: {}", recipient_addr);
 
     let params = CreateGameAccountParams {
         title,

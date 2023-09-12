@@ -2,7 +2,11 @@
 
 use std::fmt::Display;
 
-use crate::{event::{Event, Message}, encryptor::NodePublicKeyRaw};
+use crate::{
+    encryptor::NodePublicKeyRaw,
+    event::{Event, Message},
+    types::tx_state::TxState,
+};
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -48,7 +52,6 @@ impl Display for SubmitMessageParams {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -91,6 +94,9 @@ pub enum BroadcastFrame {
         game_addr: String,
         message: Message,
     },
+    TxState {
+        tx_state: TxState,
+    }
 }
 
 impl Display for BroadcastFrame {
@@ -109,10 +115,20 @@ impl Display for BroadcastFrame {
             } => {
                 write!(
                     f,
-                    "BroadcastFrame::Init, access:{}, settle:{}",
+                    "BroadcastFrame::Init, access: {}, settle: {}",
                     access_version, settle_version
                 )
             }
-        }
+            BroadcastFrame::TxState {
+                tx_state,
+            } => {
+
+                write!(
+                    f,
+                    "BroadcastFrame::TxState: {:?}",
+                    tx_state
+                )
+            }
+         }
     }
 }

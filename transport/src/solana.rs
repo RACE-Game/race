@@ -16,7 +16,7 @@ use race_core::{
         CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
         GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams,
         RecipientAccount, RegisterGameParams, RegisterServerParams, RegistrationAccount,
-        ServeParams, ServerAccount, SettleOp, SettleParams, UnregisterGameParams, VoteParams, Transfer,
+        ServeParams, ServerAccount, SettleOp, SettleParams, UnregisterGameParams, VoteParams, Transfer, QueryMode
     },
 };
 
@@ -146,9 +146,11 @@ impl TransportT for SolanaTransport {
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
-
+        let mode = QueryMode::Confirming;
         let game_account_pubkey = Self::parse_pubkey(&params.addr)?;
-        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
+        let game_state = self
+            .internal_get_game_state(&game_account_pubkey, mode)
+            .await?;
         let stake_account_pubkey = game_state.stake_account.clone();
 
         let (pda, _bump_seed) =
@@ -236,7 +238,10 @@ impl TransportT for SolanaTransport {
                 .map_err(|_| TransportError::AddressCreationFailed)?;
 
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
-        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
+        let mode = QueryMode::Confirming;
+        let game_state = self
+            .internal_get_game_state(&game_account_pubkey, mode)
+            .await?;
 
         let mint_pubkey = game_state.token_mint.clone();
         let payer_ata = get_associated_token_address(&payer_pubkey, &mint_pubkey);
@@ -518,7 +523,10 @@ impl TransportT for SolanaTransport {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
         let game_account_pubkey = Self::parse_pubkey(&addr)?;
-        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
+        let mode = QueryMode::Confirming;
+        let game_state = self
+            .internal_get_game_state(&game_account_pubkey, mode)
+            .await?;
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
 
@@ -802,9 +810,9 @@ impl TransportT for SolanaTransport {
         Ok(())
     }
 
-    async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
+    async fn get_game_account(&self, addr: &str, mode: QueryMode) -> Result<Option<GameAccount>> {
         let game_account_pubkey = Self::parse_pubkey(addr)?;
-        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
+        let game_state = self.internal_get_game_state(&game_account_pubkey, mode).await?;
         Ok(Some(game_state.into_account(addr)))
     }
 
@@ -966,17 +974,27 @@ impl SolanaTransport {
         Ok(sig)
     }
 
-    /// Get the state of an on-chain game account by its public key.
+    /// Get the state of an on-chain game account by its public key
+    /// It queries the chain according to different modes
     /// Not for public API usage
     async fn internal_get_game_state(
         &self,
         game_account_pubkey: &Pubkey,
+        mode: QueryMode,
     ) -> TransportResult<GameState> {
-        let data = self
+        let commitment = match mode {
+            QueryMode::Confirming => CommitmentConfig::confirmed(),
+            QueryMode::Finalized => CommitmentConfig::finalized(),
+        };
+        let game_account = self
             .client
-            .get_account_data(&game_account_pubkey)
-            .or(Err(TransportError::GameAccountNotFound))?;
-        GameState::deserialize(&mut data.as_slice())
+            .get_account_with_commitment(&game_account_pubkey, commitment)
+            .map_err(|e| TransportError::AccountNotFound(e.to_string()))?
+            .value
+            .ok_or(TransportError::AccountNotFound("".to_string()))?;
+        // TODO: complete error message
+
+        GameState::deserialize(&mut game_account.data.as_slice())
             .map_err(|_| TransportError::GameStateDeserializeError)
     }
 
@@ -994,7 +1012,7 @@ impl SolanaTransport {
             .map_err(|_| TransportError::RecipientStateDeserializeError)
     }
 
-    /// Get the state of an on-chain server account
+    /// Get the state of an on-chain server account by its public key.
     /// Not for public API usage
     #[allow(dead_code)]
     async fn internal_get_server_state(
@@ -1077,7 +1095,7 @@ mod tests {
     #[test]
     #[ignore]
     fn test_read_keypair() -> anyhow::Result<()> {
-        let keypair = read_keypair(
+        let _keypair = read_keypair(
             shellexpand::tilde("~/.config/solana/id.json")
                 .to_string()
                 .into(),
@@ -1106,7 +1124,7 @@ mod tests {
     }
 
     async fn create_player(transport: &SolanaTransport) -> anyhow::Result<()> {
-        let player = transport
+        let _player = transport
             .create_player_profile(CreatePlayerProfileParams {
                 nick: "Alice".to_string(),
                 pfp: None,
@@ -1134,7 +1152,7 @@ mod tests {
         Ok(addr)
     }
 
-    async fn create_reg(transport: &SolanaTransport) -> anyhow::Result<String> {
+    async fn create_reg(_transport: &SolanaTransport) -> anyhow::Result<String> {
         let transport = get_transport()?;
         let addr = transport
             .create_registration(CreateRegistrationParams {
@@ -1150,8 +1168,9 @@ mod tests {
     async fn test_game_create_get_close() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let addr = create_game(&transport).await?;
+        let mode = QueryMode::Confirming;
         let game_account = transport
-            .get_game_account(&addr)
+            .get_game_account(&addr, mode)
             .await?
             .expect("Failed to query");
         assert_eq!(game_account.access_version, 0);
@@ -1162,7 +1181,7 @@ mod tests {
             .close_game_account(CloseGameAccountParams { addr: addr.clone() })
             .await
             .expect("Failed to close");
-        assert_eq!(None, transport.get_game_account(&addr).await?);
+        assert_eq!(None, transport.get_game_account(&addr, mode).await?);
         Ok(())
     }
 
@@ -1200,7 +1219,7 @@ mod tests {
     async fn test_register_server() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let endpoint = "https://foo.bar".to_string();
-        let addr = transport
+        let _addr = transport
             .register_server(RegisterServerParams {
                 endpoint: endpoint.clone(),
             })
@@ -1241,14 +1260,15 @@ mod tests {
     async fn test_serve_game() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let game_addr = create_game(&transport).await?;
-        let server_addr = transport
+        let mode = QueryMode::Confirming;
+        let _server_addr = transport
             .serve(ServeParams {
                 game_addr: game_addr.clone(),
                 verify_key: "VERIFY KEY".into(),
             })
             .await?;
         let game = transport
-            .get_game_account(&game_addr)
+            .get_game_account(&game_addr, mode)
             .await?
             .expect("Failed to get game");
         assert_eq!(game.servers.len(), 1);
@@ -1276,8 +1296,9 @@ mod tests {
             })
             .await?;
 
+        let mode = QueryMode::Confirming;
         let game = transport
-            .get_game_account(&game_addr)
+            .get_game_account(&game_addr, mode)
             .await?
             .expect("Failed to get game");
         assert_eq!(game.players.len(), 1);
@@ -1295,7 +1316,7 @@ mod tests {
             })
             .await?;
         let game = transport
-            .get_game_account(&game_addr)
+            .get_game_account(&game_addr, mode)
             .await?
             .expect("Failed to get game");
         assert_eq!(game.players.len(), 2);

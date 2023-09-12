@@ -1,6 +1,7 @@
 import { IEncryptor, PublicKeyRaws } from './encryptor';
+import { TxState } from './tx-state';
 import { GameEvent } from './events';
-import { deserialize, enums, field, option, serialize, struct, variant } from '@race-foundation/borsh';
+import { deserialize, array, enums, field, option, serialize, struct, variant } from '@race-foundation/borsh';
 import { arrayBufferToBase64, base64ToUint8Array } from './utils';
 
 type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event' | 'submit_message';
@@ -20,6 +21,11 @@ interface ISubmitEventParams {
 
 interface ISubmitMessageParams {
   content: string;
+}
+
+interface ICheckTxStateParams {
+  newPlayers: string[];
+  accessVersion: bigint;
 }
 
 export class AttachGameParams {
@@ -114,10 +120,14 @@ export class BroadcastFrameMessage extends BroadcastFrame {
   }
 }
 
-export interface BroadcastFrame {
-  gameAddr: string;
-  state: any;
-  event: GameEvent;
+@variant(3)
+export class BroadcastFrameTxState extends BroadcastFrame {
+  @field(enums(TxState))
+  txState!: TxState;
+  constructor(fields: any) {
+    super();
+    Object.assign(this, fields);
+  }
 }
 
 export interface IConnection {

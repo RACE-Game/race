@@ -4,10 +4,9 @@ use async_trait::async_trait;
 use tokio::time::sleep;
 
 use crate::frame::EventFrame;
-use race_core::types::GameAccount;
 use race_core::{
     transport::TransportT,
-    types::{PlayerJoin, ServerJoin},
+    types::{GameAccount, PlayerJoin, QueryMode, ServerJoin, TxState},
 };
 use tracing::{info, warn};
 
@@ -20,11 +19,12 @@ pub struct GameSynchronizerContext {
     transport: Arc<dyn TransportT>,
     access_version: u64,
     game_addr: String,
+    mode: QueryMode,
 }
 
 const MAX_RETRIES: u8 = 10;
 
-/// A component that reads the on-chain states and feed the system.
+/// A component that reads the on-chain states and feeds the system.
 /// To construct a synchronizer, a chain adapter is required.
 pub struct GameSynchronizer {}
 
@@ -39,11 +39,13 @@ impl GameSynchronizer {
                 transport,
                 access_version: game_account.access_version,
                 game_addr: game_account.addr.clone(),
+                mode: QueryMode::Confirming,
             },
         )
     }
 }
 
+#[allow(unused_assignments)]
 #[async_trait]
 impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
     fn name(&self) -> &str {
@@ -51,61 +53,128 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
     }
 
     async fn run(ports: ProducerPorts, ctx: GameSynchronizerContext) {
+        let mut prev_access_version = ctx.access_version;
         let mut access_version = ctx.access_version;
+        let mut mode = ctx.mode;
         let mut num_of_retries = 0;
 
         loop {
-            let state = ctx.transport.get_game_account(&ctx.game_addr).await;
-            if let Ok(Some(state)) = state {
-                num_of_retries = 0;
-                if access_version < state.access_version {
-                    info!(
-                        "Synchronizer get new state, access_version = {}",
-                        state.access_version
-                    );
-                    let GameAccount {
-                        access_version: av,
-                        players,
-                        deposits: _,
-                        servers,
-                        transactor_addr,
-                        ..
-                    } = state;
-                    let new_players: Vec<PlayerJoin> = players
-                        .into_iter()
-                        .filter(|p| p.access_version > access_version)
-                        .collect();
-                    let new_servers: Vec<ServerJoin> = servers
-                        .into_iter()
-                        .filter(|s| s.access_version > access_version)
-                        .collect();
+            let state = ctx
+                .transport
+                .get_game_account(&ctx.game_addr, mode.clone())
+                .await;
 
-                    if !new_players.is_empty() || !new_servers.is_empty() {
-                        let frame = EventFrame::Sync {
-                            new_players,
-                            new_servers,
-                            // TODO: Handle transactor addr change
-                            transactor_addr: transactor_addr.unwrap().clone(),
-                            access_version: state.access_version,
-                        };
-                        // When other channels are closed
-                        if let Err(_) = ports.try_send(frame).await {
-                            ports.close(CloseReason::Complete);
-                            return;
+            match mode {
+                QueryMode::Confirming => {
+                    if let Ok(Some(state)) = state {
+                        if access_version < state.access_version {
+                            info!(
+                                "Synchronizer finds a new access_version = {}",
+                                state.access_version
+                            );
+                            let GameAccount {
+                                access_version: av,
+                                players,
+                                deposits: _,
+                                ..
+                            } = state;
+
+                            let confirm_players: Vec<PlayerJoin> = players
+                                .into_iter()
+                                .filter(|p| p.access_version > access_version)
+                                .collect();
+                            info!("Confirming players number =  {}", confirm_players.len());
+
+                            if !confirm_players.is_empty() {
+                                let tx_state = TxState::PlayerConfirming {
+                                    confirm_players,
+                                    access_version: state.access_version,
+                                };
+                                let frame = EventFrame::TxState { tx_state };
+
+                                // When other channels are closed
+                                if let Err(_) = ports.try_send(frame).await {
+                                    ports.close(CloseReason::Complete);
+                                    return;
+                                }
+                            }
+                            prev_access_version = access_version;
+                            access_version = av;
+                            mode = QueryMode::Finalized;
+                        } else {
+                            sleep(Duration::from_secs(1)).await;
                         }
                     }
-                    access_version = av;
-                } else {
-                    sleep(Duration::from_secs(1)).await;
                 }
 
-            } else if num_of_retries < MAX_RETRIES {
-                num_of_retries += 1;
-                sleep(Duration::from_secs(3)).await;
-            } else {
-                warn!("Game account not found, shutdown synchronizer");
-                ports.close(CloseReason::Complete);
-                break;
+                QueryMode::Finalized => {
+                    if let Ok(Some(state)) = state {
+                        let GameAccount {
+                            access_version: av,
+                            players,
+                            deposits: _,
+                            servers,
+                            transactor_addr,
+                            ..
+                        } = state;
+
+                        if access_version <= state.access_version {
+                            info!(
+                                "Synchronizer gets a new state, access_version = {}",
+                                state.access_version
+                            );
+                            let new_players: Vec<PlayerJoin> = players
+                                .into_iter()
+                                .filter(|p| p.access_version > prev_access_version)
+                                .collect();
+
+                            let new_servers: Vec<ServerJoin> = servers
+                                .into_iter()
+                                .filter(|s| s.access_version > prev_access_version)
+                                .collect();
+
+                            if !new_players.is_empty() || !new_servers.is_empty() {
+                                let frame = EventFrame::Sync {
+                                    new_players,
+                                    new_servers,
+                                    // TODO: Handle transactor addr change
+                                    transactor_addr: transactor_addr.unwrap().clone(),
+                                    access_version: state.access_version,
+                                };
+
+                                // When other channels are closed
+                                if let Err(_) = ports.try_send(frame).await {
+                                    ports.close(CloseReason::Complete);
+                                    return;
+                                }
+                            }
+                            num_of_retries = 0;
+                            access_version = av;
+                            mode = QueryMode::Confirming;
+                        } else if num_of_retries < MAX_RETRIES {
+                            num_of_retries += 1;
+                            sleep(Duration::from_secs(1)).await;
+                        } else {
+                            // Signal absence of a new game state
+                            let tx_state = TxState::PlayerConfirmingFailed(access_version);
+
+                            let frame = EventFrame::TxState { tx_state };
+
+                            // When other channels are closed
+                            if let Err(_) = ports.try_send(frame).await {
+                                ports.close(CloseReason::Complete);
+                                return;
+                            }
+                            mode = QueryMode::Confirming;
+                            num_of_retries = 0 ;
+                            access_version = prev_access_version;
+                        }
+                    } else {
+                        warn!("Game account not found, shutdown synchronizer");
+                        ports.close(CloseReason::Complete);
+                        break;
+                    }
+                }
             }
         }
     }
@@ -137,23 +206,27 @@ mod tests {
         println!("ga_0: {:?}", ga_0);
         println!("ga_1: {:?}", ga_1);
 
-        let av = ga_1.access_version;
-        transport.simulate_states(vec![ga_1]);
+        // Use vec to simulate game accounts
+        transport.simulate_states(vec![ga_1.clone(), ga_0.clone(), ga_1.clone()]);
         let (synchronizer, ctx) = GameSynchronizer::init(transport.clone(), &ga_0);
         let mut handle = synchronizer.start(ctx);
         let frame = handle.recv_unchecked().await.unwrap();
 
-        if let EventFrame::Sync {
-            new_players,
-            new_servers,
-            access_version,
-            transactor_addr,
-        } = frame
-        {
-            assert_eq!(access_version, av);
-            assert_eq!(transactor_addr, foo.get_addr());
-            assert_eq!(new_players.len(), 1);
-            assert_eq!(new_servers.len(), 1);
+        let test_confirm_players = vec![PlayerJoin {
+            addr: "bob".into(),
+            position: 1,
+            balance: 100,
+            access_version: 3,
+            verify_key: "".into(),
+        }];
+
+        let test_tx_state = TxState::PlayerConfirming {
+            confirm_players: test_confirm_players,
+            access_version: 4,
+        };
+
+        if let EventFrame::TxState { tx_state } = frame {
+            assert_eq!(tx_state, test_tx_state);
         } else {
             panic!("Invalid event frame");
         }

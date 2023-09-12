@@ -12,7 +12,7 @@ use super::event_bus::CloseReason;
 /// An interface for a component that can be attached to the event bus.
 pub trait Attachable {
     /// Return the input channel of current component.
-    /// Returning `None` means that the component does not accept input.
+    /// Return `None` when the component does not accept input.
     fn input(&mut self) -> Option<mpsc::Sender<EventFrame>>;
 
     /// Return the output channel of this component.
