@@ -212,7 +212,7 @@ export class Handler implements IHandler {
     const initAccountBytes = serialize(initAccount);
     const initAccountSize = initAccountBytes.length;
 
-    console.debug('Effect Bytes: [%s]', Array.of(effectBytes).toString());
+    // console.debug('Effect Bytes: [%s]', Array.of(effectBytes).toString());
 
     if (buf.length < 1 + initAccountSize + effectSize) {
       throw new Error(
@@ -245,7 +245,7 @@ export class Handler implements IHandler {
     let buf = new Uint8Array(mem.buffer);
 
     const effect = Effect.fromContext(context);
-    console.debug("Effect before ser: ", effect);
+    // console.debug("Effect before ser: ", effect);
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
 
