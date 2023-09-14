@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::component::{
     Broadcaster, Component, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle,
-    RemoteConnection, Submitter, Subscriber, Voter, WrappedClient, WrappedHandler, WrappedTransport,
+    RemoteConnection, Submitter, Subscriber, Voter, WrappedClient, WrappedHandler, WrappedTransport, CloseReason,
 };
 use crate::frame::EventFrame;
 use race_core::context::GameContext;
@@ -258,7 +258,7 @@ impl Handle {
         }
     }
 
-    pub fn wait(&mut self) -> JoinHandle<()> {
+    pub fn wait(&mut self) -> JoinHandle<CloseReason> {
         let handles = match self {
             Handle::Transactor(ref mut x) => &mut x.handles,
             Handle::Validator(ref mut x) => &mut x.handles,
@@ -268,9 +268,17 @@ impl Handle {
         }
         let handles = std::mem::replace(handles, vec![]);
         tokio::spawn(async move {
-            for mut h in handles.into_iter() {
-                h.wait().await;
+            let mut close_reason = CloseReason::Complete;
+            for h in handles.into_iter() {
+                let cr = h.wait().await;
+                match cr {
+                    CloseReason::Fault(_) => {
+                        close_reason = cr
+                    }
+                    _ => ()
+                }
             }
+            close_reason
         })
     }
 }

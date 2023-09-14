@@ -1,3 +1,4 @@
+use crate::blacklist::Blacklist;
 use crate::component::WrappedTransport;
 use crate::frame::SignalFrame;
 use crate::game_manager::GameManager;
@@ -10,7 +11,7 @@ use race_encryptor::Encryptor;
 use race_env::{Config, TransactorConfig};
 use race_transport::ChainType;
 use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tracing::info;
 
 /// Transactor runtime context
@@ -22,6 +23,7 @@ pub struct ApplicationContext {
     pub encryptor: Arc<Encryptor>,
     pub game_manager: Arc<GameManager>,
     pub signal_tx: mpsc::Sender<SignalFrame>,
+    pub blacklist: Arc<Mutex<Blacklist>>,
 }
 
 impl ApplicationContext {
@@ -51,6 +53,8 @@ impl ApplicationContext {
         let transport_1 = transport.clone();
         let encryptor_1 = encryptor.clone();
         let account_1 = account.clone();
+        let blacklist = Arc::new(Mutex::new(Blacklist::new(transactor_config.disable_blacklist.ne(&(Some(true))))));
+        let blacklist_1 = blacklist.clone();
 
         tokio::spawn(async move {
             while let Some(signal) = signal_rx.recv().await {
@@ -62,6 +66,7 @@ impl ApplicationContext {
                                 transport_1.clone(),
                                 encryptor_1.clone(),
                                 &account_1,
+                                blacklist_1.clone(),
                             )
                             .await;
                     }
@@ -77,6 +82,7 @@ impl ApplicationContext {
             encryptor,
             game_manager,
             signal_tx,
+            blacklist,
         })
     }
 
@@ -87,14 +93,13 @@ impl ApplicationContext {
     }
 
     pub fn export_public_key(&self) -> NodePublicKeyRaw {
-        self.encryptor.export_public_key(None).expect("Export public key failed").clone()
+        self.encryptor
+            .export_public_key(None)
+            .expect("Export public key failed")
+            .clone()
     }
 
-    pub fn verify(
-        &self,
-        arg: &[u8],
-        signature: &Signature,
-    ) -> Result<()> {
+    pub fn verify(&self, arg: &[u8], signature: &Signature) -> Result<()> {
         self.encryptor.verify(arg, signature)?;
         Ok(())
     }
@@ -129,5 +134,9 @@ impl ApplicationContext {
 
     pub fn get_signal_sender(&self) -> mpsc::Sender<SignalFrame> {
         self.signal_tx.clone()
+    }
+
+    pub fn blacklist(&self) -> Arc<Mutex<Blacklist>> {
+        self.blacklist.clone()
     }
 }

@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use crate::component::common::{Component, ConsumerPorts, Ports};
+use crate::component::common::{Component, ConsumerPorts};
 use crate::frame::EventFrame;
 use async_trait::async_trait;
 use race_client::Client;
@@ -71,7 +71,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
         "Client"
     }
 
-    async fn run(mut ports: ConsumerPorts, ctx: ClientContext) {
+    async fn run(mut ports: ConsumerPorts, ctx: ClientContext) -> CloseReason{
         let ClientContext {
             addr,
             game_addr,
@@ -116,11 +116,10 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
             }
         }
 
-        warn!("Shutdown client, result: {:?}", res);
-        match res {
-            Ok(()) => ports.close(CloseReason::Complete),
-            Err(e) => ports.close(CloseReason::Fault(e)),
-        };
+        return match res {
+            Ok(()) => CloseReason::Complete,
+            Err(e) => CloseReason::Fault(e),
+        }
     }
 }
 

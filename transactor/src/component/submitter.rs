@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use race_core::types::{GameAccount, SettleParams};
 
-use crate::component::common::{Component, ConsumerPorts, Ports};
+use crate::component::common::{Component, ConsumerPorts};
 use crate::component::event_bus::CloseReason;
 use crate::frame::EventFrame;
 use race_core::transport::TransportT;
@@ -36,7 +36,7 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
         "Submitter"
     }
 
-    async fn run(mut ports: ConsumerPorts, ctx: SubmitterContext) {
+    async fn run(mut ports: ConsumerPorts, ctx: SubmitterContext) -> CloseReason {
         while let Some(event) = ports.recv().await {
             match event {
                 EventFrame::Settle { settles, transfers } => {
@@ -52,8 +52,7 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
                     match res {
                         Ok(_) => {}
                         Err(e) => {
-                            ports.close(CloseReason::Fault(e));
-                            return;
+                            return CloseReason::Fault(e);
                         }
                     }
                 }
@@ -63,7 +62,7 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
                 _ => (),
             }
         }
-        ports.close(CloseReason::Complete);
+        return CloseReason::Complete
     }
 }
 

@@ -11,7 +11,7 @@ use race_core::{
 use tracing::{info, warn};
 
 use crate::component::{
-    common::{Component, Ports, ProducerPorts},
+    common::{Component, ProducerPorts},
     event_bus::CloseReason,
 };
 
@@ -52,7 +52,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
         "Game synchronizer"
     }
 
-    async fn run(ports: ProducerPorts, ctx: GameSynchronizerContext) {
+    async fn run(ports: ProducerPorts, ctx: GameSynchronizerContext) -> CloseReason {
         let mut prev_access_version = ctx.access_version;
         let mut access_version = ctx.access_version;
         let mut mode = ctx.mode;
@@ -63,6 +63,12 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                 .transport
                 .get_game_account(&ctx.game_addr, mode.clone())
                 .await;
+
+            if ports.is_tx_closed() {
+                return CloseReason::Complete;
+            } else {
+                info!("synchronizer loop");
+            }
 
             match mode {
                 QueryMode::Confirming => {
@@ -94,8 +100,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
 
                                 // When other channels are closed
                                 if let Err(_) = ports.try_send(frame).await {
-                                    ports.close(CloseReason::Complete);
-                                    return;
+                                    return CloseReason::Complete;
                                 }
                             }
                             prev_access_version = access_version;
@@ -144,8 +149,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
 
                                 // When other channels are closed
                                 if let Err(_) = ports.try_send(frame).await {
-                                    ports.close(CloseReason::Complete);
-                                    return;
+                                    return CloseReason::Complete;
                                 }
                             }
                             num_of_retries = 0;
@@ -162,17 +166,15 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
 
                             // When other channels are closed
                             if let Err(_) = ports.try_send(frame).await {
-                                ports.close(CloseReason::Complete);
-                                return;
+                                return CloseReason::Complete;
                             }
                             mode = QueryMode::Confirming;
-                            num_of_retries = 0 ;
+                            num_of_retries = 0;
                             access_version = prev_access_version;
                         }
                     } else {
                         warn!("Game account not found, shutdown synchronizer");
-                        ports.close(CloseReason::Complete);
-                        break;
+                        return CloseReason::Complete;
                     }
                 }
             }

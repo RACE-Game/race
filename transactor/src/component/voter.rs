@@ -12,7 +12,7 @@ use race_core::{
 };
 use tracing::{info, warn};
 
-use super::common::{Component, PipelinePorts, Ports};
+use super::common::{Component, PipelinePorts};
 use crate::frame::EventFrame;
 
 use super::event_bus::CloseReason;
@@ -48,7 +48,7 @@ impl Component<PipelinePorts, VoterContext> for Voter {
         "Voter"
     }
 
-    async fn run(mut ports: PipelinePorts, ctx: VoterContext) {
+    async fn run(mut ports: PipelinePorts, ctx: VoterContext) -> CloseReason {
         while let Some(frame) = ports.recv().await {
             match frame {
                 EventFrame::Vote { votee, vote_type } => {
@@ -82,6 +82,6 @@ impl Component<PipelinePorts, VoterContext> for Voter {
                 _ => (),
             }
         }
-        ports.close(CloseReason::Complete);
+        return CloseReason::Complete
     }
 }

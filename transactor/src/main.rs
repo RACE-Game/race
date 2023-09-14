@@ -5,6 +5,7 @@ mod context;
 mod frame;
 mod handle;
 mod reg;
+mod blacklist;
 mod server;
 
 use crate::server::run_server;

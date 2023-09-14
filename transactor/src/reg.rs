@@ -39,6 +39,8 @@ pub async fn register_server(config: &Config) -> Result<()> {
 /// This task will scan the games in registration account, find unserved games and join.
 pub async fn start_reg_task(context: &ApplicationContext) {
     let key = context.export_public_key();
+    let blacklist = context.blacklist();
+
     let (reg_addresses, transport, server_addr, signal_tx) = {
         (
             context.config.reg_addresses.clone(),
@@ -55,8 +57,10 @@ pub async fn start_reg_task(context: &ApplicationContext) {
             for addr in reg_addresses.iter() {
                 if let Ok(Some(reg)) = transport.get_registration(addr).await {
                     for game_reg in reg.games.into_iter() {
-                        let mode = race_core::types::QueryMode::Confirming;
-                        if let Ok(Some(game_account)) =
+                        let mode = race_core::types::QueryMode::Finalized;
+                        if blacklist.lock().await.contains_addr(&game_reg.addr) {
+                            continue;
+                        } else if let Ok(Some(game_account)) =
                             transport.get_game_account(&game_reg.addr, mode).await
                         {
                             // We will keep registering until we become the transactor.

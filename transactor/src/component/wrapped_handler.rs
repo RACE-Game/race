@@ -68,59 +68,59 @@ impl WrappedHandler {
             .instance
             .exports
             .get_memory("memory")
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
 
         memory
             .grow(&mut self.store, 4)
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let init_state: TypedFunction<(u32, u32), u32> = self
             .instance
             .exports
             .get_typed_function(&self.store, "init_state")
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
         let effect = Effect::from_context(context);
         let effect_bs = effect
             .try_to_vec()
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let init_account_bs = init_account
             .try_to_vec()
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let mut offset = 1u32;
         mem_view
             .write(offset as _, &effect_bs)
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         offset = offset
             .checked_add(effect_bs.len() as _)
             .ok_or(Error::WasmMemoryOverflow)?;
         mem_view
             .write(offset as _, &init_account_bs)
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let len = init_state
             .call(
                 &mut self.store,
                 effect_bs.len() as _,
                 init_account_bs.len() as _,
             )
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
 
         if len == 0 {
-            return Err(Error::WasmExecutionError("Seriliazing effect failed".into()));
+            return Err(Error::WasmInitializationError("Seriliazing effect failed".into()));
         }
         else if len == 1 {
-            return Err(Error::WasmExecutionError("Deserializing effect failed".into()));
+            return Err(Error::WasmInitializationError("Deserializing effect failed".into()));
         }
         else if len == 2 {
-            return Err(Error::WasmExecutionError("Deserializing event failed".into()));
+            return Err(Error::WasmInitializationError("Deserializing event failed".into()));
         }
 
         let mut buf = vec![0; len as _];
         let mem_view = memory.view(&self.store);
         mem_view
             .read(1u64, &mut buf)
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let mut effect =
-            Effect::try_from_slice(&buf).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            Effect::try_from_slice(&buf).map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         if let Some(e) = effect.__take_error() {
             Err(e.into())
         } else {

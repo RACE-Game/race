@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-use tokio::sync::{
-    mpsc::{self, error::SendError},
-    oneshot,
+use tokio::{
+    sync::mpsc::{self, error::SendError},
+    task::JoinHandle,
 };
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 use crate::frame::EventFrame;
 
@@ -22,27 +22,30 @@ pub trait Attachable {
 }
 
 /// The group of channels to be attached to an event bus.
+pub struct PortsHandleInner {
+    input_tx: Option<mpsc::Sender<EventFrame>>,
+    output_rx: Option<mpsc::Receiver<EventFrame>>,
+}
+
 pub struct PortsHandle {
     input_tx: Option<mpsc::Sender<EventFrame>>,
     output_rx: Option<mpsc::Receiver<EventFrame>>,
-    close_rx: Option<oneshot::Receiver<CloseReason>>,
+    join_handle: JoinHandle<CloseReason>,
 }
 
+impl PortsHandle {
+    fn from_inner(value: PortsHandleInner, join_handle: JoinHandle<CloseReason>) -> Self {
+        Self {
+            input_tx: value.input_tx,
+            output_rx: value.output_rx,
+            join_handle,
+        }
+    }
+}
 
 impl PortsHandle {
-    pub async fn wait(&mut self) {
-        if self.close_rx.is_some() {
-            let rx = std::mem::replace(&mut self.close_rx, None);
-            let reason = rx.unwrap().await.unwrap();
-            match reason {
-                CloseReason::Complete => (),
-                CloseReason::Fault(e) => {
-                    error!("Recieved an error: {}", e.to_string());
-                }
-            }
-        } else {
-            panic!("Somewhere else is waiting already");
-        }
+    pub async fn wait(self) -> CloseReason {
+        self.join_handle.await.unwrap()
     }
 
     #[allow(dead_code)]
@@ -82,16 +85,13 @@ impl Attachable for PortsHandle {
 }
 
 pub trait Ports: Send {
-    fn create() -> (Self, PortsHandle)
+    fn create() -> (Self, PortsHandleInner)
     where
         Self: Sized;
-
-    fn close(self, reason: CloseReason);
 }
 
-pub struct ConsumerPorts{
+pub struct ConsumerPorts {
     rx: mpsc::Receiver<EventFrame>,
-    close: oneshot::Sender<CloseReason>,
 }
 
 impl ConsumerPorts {
@@ -101,40 +101,32 @@ impl ConsumerPorts {
 }
 
 impl Ports for ConsumerPorts {
-    fn create() -> (Self, PortsHandle)
+    fn create() -> (Self, PortsHandleInner)
     where
         Self: Sized,
     {
         let (input_tx, input_rx) = mpsc::channel(100);
-        let (close_tx, close_rx) = oneshot::channel();
         (
-            Self {
-                rx: input_rx,
-                close: close_tx,
-            },
-            PortsHandle {
+            Self { rx: input_rx },
+            PortsHandleInner {
                 input_tx: Some(input_tx),
                 output_rx: None,
-                close_rx: Some(close_rx),
             },
         )
-    }
-
-    fn close(self, reason: CloseReason) {
-        if let Err(e) = self.close.send(reason) {
-            warn!("Failed to send close reason due to error: {:?}", e);
-        };
     }
 }
 
 pub struct ProducerPorts {
     tx: mpsc::Sender<EventFrame>,
-    close: oneshot::Sender<CloseReason>,
 }
 
 impl ProducerPorts {
     pub async fn try_send(&self, frame: EventFrame) -> Result<(), SendError<EventFrame>> {
         self.tx.send(frame).await
+    }
+
+    pub fn is_tx_closed(&self) -> bool {
+        self.tx.is_closed()
     }
 
     pub async fn send(&self, frame: EventFrame) {
@@ -148,36 +140,24 @@ impl ProducerPorts {
 }
 
 impl Ports for ProducerPorts {
-    fn create() -> (Self, PortsHandle)
+    fn create() -> (Self, PortsHandleInner)
     where
         Self: Sized,
     {
         let (output_tx, output_rx) = mpsc::channel(10);
-        let (close_tx, close_rx) = oneshot::channel();
         (
-            Self {
-                tx: output_tx,
-                close: close_tx,
-            },
-            PortsHandle {
+            Self { tx: output_tx },
+            PortsHandleInner {
                 input_tx: None,
                 output_rx: Some(output_rx),
-                close_rx: Some(close_rx),
             },
         )
-    }
-
-    fn close(self, reason: CloseReason) {
-        if let Err(e) = self.close.send(reason) {
-            warn!("Failed to send close reason due to error: {:?}", e);
-        };
     }
 }
 
 pub struct PipelinePorts {
     rx: mpsc::Receiver<EventFrame>,
     tx: mpsc::Sender<EventFrame>,
-    close: oneshot::Sender<CloseReason>,
 }
 
 impl PipelinePorts {
@@ -201,31 +181,22 @@ impl PipelinePorts {
 }
 
 impl Ports for PipelinePorts {
-    fn create() -> (Self, PortsHandle)
+    fn create() -> (Self, PortsHandleInner)
     where
         Self: Sized,
     {
         let (input_tx, input_rx) = mpsc::channel(10);
         let (output_tx, output_rx) = mpsc::channel(10);
-        let (close_tx, close_rx) = oneshot::channel();
         (
             Self {
                 rx: input_rx,
                 tx: output_tx,
-                close: close_tx,
             },
-            PortsHandle {
+            PortsHandleInner {
                 input_tx: Some(input_tx),
                 output_rx: Some(output_rx),
-                close_rx: Some(close_rx),
             },
         )
-    }
-
-    fn close(self, reason: CloseReason) {
-        if let Err(e) = self.close.send(reason) {
-            warn!("Failed to send close reason due to error: {:?}", e);
-        };
     }
 }
 
@@ -239,11 +210,11 @@ where
 
     fn start(&self, context: C) -> PortsHandle {
         info!("Starting component: {}", self.name());
-        let (ports, attach) = P::create();
-        tokio::spawn(async move {
-            Self::run(ports, context).await;
+        let (ports, ports_handle_inner) = P::create();
+        let join_handle = tokio::spawn(async move {
+            Self::run(ports, context).await
         });
-        attach
+        PortsHandle::from_inner(ports_handle_inner, join_handle)
     }
-    async fn run(ports: P, context: C);
+    async fn run(ports: P, context: C) -> CloseReason;
 }

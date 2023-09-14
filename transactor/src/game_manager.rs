@@ -6,9 +6,10 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
-use crate::component::WrappedTransport;
+use crate::blacklist::Blacklist;
+use crate::component::{CloseReason, WrappedTransport};
 use crate::frame::EventFrame;
 use crate::handle::Handle;
 
@@ -32,6 +33,7 @@ impl GameManager {
         transport: Arc<WrappedTransport>,
         encryptor: Arc<Encryptor>,
         server_account: &ServerAccount,
+        blacklist: Arc<Mutex<Blacklist>>,
     ) {
         let mut games = self.games.lock().await;
         if let Entry::Vacant(e) = games.entry(game_addr.clone()) {
@@ -43,10 +45,22 @@ impl GameManager {
                     let games = self.games.clone();
                     // Wait and unload
                     tokio::spawn(async move {
-                        join_handle.await.unwrap();
-                        let mut games = games.lock().await;
-                        games.remove(&game_addr);
-                        info!("Clean game handle: {}", game_addr);
+                        match join_handle.await {
+                            Ok(CloseReason::Complete) => {
+                                let mut games = games.lock().await;
+                                games.remove(&game_addr);
+                                info!("Clean game handle: {}", game_addr);
+                            }
+                            Ok(CloseReason::Fault(_)) => {
+                                let mut games = games.lock().await;
+                                games.remove(&game_addr);
+                                blacklist.lock().await.add_addr(&game_addr);
+                                info!("Game stopped with error, clean game handle: {}", game_addr);
+                            }
+                            Err(e) => {
+                                error!("Unexpected error when waiting game to stop: {}", e);
+                            }
+                        }
                     });
                 }
                 Err(err) => {
@@ -81,7 +95,10 @@ impl GameManager {
             handle.event_bus().send(event_frame).await;
             Ok(())
         } else {
-            warn!("Game {} not loaded, discard message: {:?}", game_addr, message);
+            warn!(
+                "Game {} not loaded, discard message: {:?}",
+                game_addr, message
+            );
             Err(Error::GameNotLoaded)
         }
     }

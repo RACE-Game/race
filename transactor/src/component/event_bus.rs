@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use race_core::error::Error;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, watch, Mutex};
 use tracing::{error, warn};
 
 use crate::component::common::Attachable;
@@ -11,6 +11,7 @@ use crate::frame::EventFrame;
 pub struct EventBus {
     tx: mpsc::Sender<EventFrame>,
     attached_txs: Arc<Mutex<Vec<mpsc::Sender<EventFrame>>>>,
+    close_rx: watch::Receiver<bool>,
 }
 
 impl EventBus {
@@ -18,17 +19,29 @@ impl EventBus {
     where
         T: Attachable,
     {
+        let mut close_rx = self.close_rx.clone();
         if let Some(mut rx) = attachable.output() {
             let tx = self.tx.clone();
             tokio::spawn(async move {
-                while let Some(msg) = rx.recv().await {
-                    // info!("Event frame: {}", msg);
-                    match tx.send(msg).await {
-                        Ok(_) => (),
-                        Err(e) => {
-                            error!("Failed to send event: {:?}", e);
-                            warn!("Shutdown event bus");
-                            return;
+                loop {
+                    tokio::select! {
+                        _ = close_rx.changed() => {
+                            break;
+                        }
+                        msg = rx.recv() => {
+                            if let Some(msg) = msg {
+                                match tx.send(msg).await {
+                                    Ok(_) => (),
+                                    Err(e) => {
+                                        error!("Failed to send event: {:?}", e);
+                                        warn!("Shutdown event bus");
+                                        return;
+                                    }
+                                }
+
+                            } else {
+                                break;
+                            }
                         }
                     }
                 }
@@ -51,6 +64,7 @@ impl EventBus {
 
 impl Default for EventBus {
     fn default() -> Self {
+        let (close_tx, close_rx) = watch::channel(false);
         let (tx, mut rx) = mpsc::channel::<EventFrame>(32);
         let txs: Arc<Mutex<Vec<mpsc::Sender<EventFrame>>>> = Arc::new(Mutex::new(vec![]));
         let attached_txs = txs.clone();
@@ -59,13 +73,20 @@ impl Default for EventBus {
             while let Some(msg) = rx.recv().await {
                 let txs = attached_txs.lock().await;
                 for t in txs.iter() {
-                    t.send(msg.clone()).await.unwrap();
+                    if let Err(_) = t.send(msg.clone()).await {
+                        warn!("Failed to send message");
+                    }
+                }
+                if matches!(msg, EventFrame::Shutdown) {
+                    close_tx.send(true).unwrap();
+                    break;
                 }
             }
         });
         Self {
             tx,
             attached_txs: txs,
+            close_rx,
         }
     }
 }
@@ -80,7 +101,7 @@ pub enum CloseReason {
 #[cfg(test)]
 mod tests {
 
-    use crate::component::common::{Component, ConsumerPorts, Ports, ProducerPorts};
+    use crate::component::common::{Component, ConsumerPorts, ProducerPorts};
 
     use super::*;
     use async_trait::async_trait;
@@ -98,24 +119,22 @@ mod tests {
             "Test Producer"
         }
 
-        async fn run(ports: ProducerPorts, _ctx: TestProducerCtx) {
-            tokio::spawn(async move {
-                loop {
-                    println!("Producer started");
-                    let event = EventFrame::Sync {
-                        new_players: vec![],
-                        new_servers: vec![],
-                        transactor_addr: "".into(),
-                        access_version: 1,
-                    };
-                    if ports.try_send(event.clone()).await.is_ok() {
-                        sleep(Duration::from_millis(1)).await;
-                    } else {
-                        break;
-                    }
+        async fn run(ports: ProducerPorts, _ctx: TestProducerCtx) -> CloseReason {
+            loop {
+                println!("Producer started");
+                let event = EventFrame::Sync {
+                    new_players: vec![],
+                    new_servers: vec![],
+                    transactor_addr: "".into(),
+                    access_version: 1,
+                };
+                if ports.try_send(event.clone()).await.is_ok() {
+                    sleep(Duration::from_millis(1)).await;
+                } else {
+                    break;
                 }
-                ports.close(CloseReason::Complete);
-            });
+            }
+            CloseReason::Complete
         }
     }
 
@@ -143,28 +162,26 @@ mod tests {
             "Test Consumer"
         }
 
-        async fn run(mut ports: ConsumerPorts, ctx: TestConsumerCtx) {
-            tokio::spawn(async move {
-                println!("Consumer started");
-                loop {
-                    match ports.recv().await {
-                        Some(event) => {
-                            println!("Consumer receive event: {:?}", event);
-                            let mut n = ctx.n.lock().await;
-                            *n += 1;
-                            println!("n = {:?}", n);
-                            if *n == 2 {
-                                break;
-                            }
-                        }
-                        None => {
-                            println!("Consumer input closed!");
+        async fn run(mut ports: ConsumerPorts, ctx: TestConsumerCtx) -> CloseReason {
+            println!("Consumer started");
+            loop {
+                match ports.recv().await {
+                    Some(event) => {
+                        println!("Consumer receive event: {:?}", event);
+                        let mut n = ctx.n.lock().await;
+                        *n += 1;
+                        println!("n = {:?}", n);
+                        if *n == 2 {
+                            break;
                         }
                     }
+                    None => {
+                        println!("Consumer input closed!");
+                    }
                 }
-                println!("Consumer quit");
-                ports.close(CloseReason::Complete);
-            });
+            }
+            println!("Consumer quit");
+            return CloseReason::Complete;
         }
     }
 

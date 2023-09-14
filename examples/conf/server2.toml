@@ -4,6 +4,7 @@ endpoint = "ws://localhost:12004"
 chain = "facade"
 address = "Server 2"
 reg_addresses = ["DEFAULT_REGISTRATION_ADDRESS"]
+disable_blacklist = true
 
 [facade]
 host = "http://localhost:12002"

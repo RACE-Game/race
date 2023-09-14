@@ -15,7 +15,7 @@ use tracing::warn;
 
 use crate::frame::EventFrame;
 
-use super::common::{Component, Ports, ProducerPorts};
+use super::common::{Component, ProducerPorts};
 use super::{event_bus::CloseReason, RemoteConnection};
 
 pub struct SubscriberContext {
@@ -56,7 +56,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
         "Subscriber"
     }
 
-    async fn run(ports: ProducerPorts, ctx: SubscriberContext) {
+    async fn run(ports: ProducerPorts, ctx: SubscriberContext) -> CloseReason {
         let SubscriberContext {
             game_addr,
             server_addr: _,
@@ -87,9 +87,8 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                             })
                             .await;
 
-                        ports.close(CloseReason::Complete);
                         warn!("Shutdown subscriber");
-                        return;
+                        return CloseReason::Complete;
                     } else {
                         error!("Failed to subscribe events: {}, will retry", e);
                         retries += 1;
@@ -153,6 +152,6 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
             })
             .await;
 
-        ports.close(CloseReason::Complete);
+        return CloseReason::Complete
     }
 }

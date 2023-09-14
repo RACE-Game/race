@@ -11,6 +11,7 @@ mod wrapped_client;
 mod wrapped_handler;
 mod wrapped_transport;
 
+pub use event_bus::CloseReason;
 pub use broadcaster::Broadcaster;
 pub use common::Component;
 pub use common::PortsHandle;

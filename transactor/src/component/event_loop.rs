@@ -7,7 +7,7 @@ use race_core::event::Event;
 use tokio::select;
 use tracing::{error, info, warn};
 
-use crate::component::common::{Component, PipelinePorts, Ports};
+use crate::component::common::{Component, PipelinePorts};
 use crate::component::event_bus::CloseReason;
 use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
@@ -34,7 +34,7 @@ async fn handle(
     ports: &PipelinePorts,
 
     #[allow(unused)] mode: ClientMode,
-) {
+) -> Option<CloseReason> {
     info!("Handle event: {}", event);
 
     let access_version = game_context.get_access_version();
@@ -81,8 +81,15 @@ async fn handle(
         Err(e) => {
             warn!("Handle event error: {}", e.to_string());
             // info!("Current context: {:?}", game_context);
+            match e {
+                Error::WasmExecutionError(_) | Error::WasmMemoryOverflow => {
+                    return Some(CloseReason::Fault(e))
+                }
+                _ => (),
+            }
         }
     }
+    return None;
 }
 
 /// Take the event from clients or the pending dispatched event.
@@ -125,7 +132,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         "Event Loop"
     }
 
-    async fn run(mut ports: PipelinePorts, ctx: EventLoopContext) {
+    async fn run(mut ports: PipelinePorts, ctx: EventLoopContext) -> CloseReason {
         let mut handler = ctx.handler;
         let mut game_context = ctx.game_context;
 
@@ -145,14 +152,14 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         .apply_checkpoint(init_account.access_version, init_account.settle_version)
                     {
                         error!("Failed to apply checkpoint: {:?}", e);
-                        ports.close(CloseReason::Fault(e));
-                        return;
+                        ports.send(EventFrame::Shutdown).await;
+                        return CloseReason::Fault(e);
                     }
 
                     if let Err(e) = handler.init_state(&mut game_context, &init_account) {
-                        error!("Failed to initiaze state: {:?}", e);
-                        ports.close(CloseReason::Fault(e));
-                        return;
+                        error!("Failed to initialize state: {:?}", e);
+                        ports.send(EventFrame::Shutdown).await;
+                        return CloseReason::Fault(e);
                     }
 
                     info!(
@@ -179,31 +186,53 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         access_version,
                         transactor_addr,
                     };
-                    handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await;
+                    if let Some(close_reason) =
+                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                    {
+                        ports.send(EventFrame::Shutdown).await;
+                        return close_reason;
+                    }
                 }
                 EventFrame::PlayerLeaving { player_addr } => {
                     let event = Event::Leave { player_addr };
-                    handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await;
+                    if let Some(close_reason) =
+                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                    {
+                        ports.send(EventFrame::Shutdown).await;
+                        return close_reason;
+                    }
                 }
                 EventFrame::SendEvent { event } => {
-                    handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await;
+                    if let Some(close_reason) =
+                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                    {
+                        ports.send(EventFrame::Shutdown).await;
+                        return close_reason;
+                    }
                 }
                 EventFrame::SendServerEvent { event } => {
                     // Handle the shutdown event from game logic
                     if matches!(event, Event::Shutdown) {
                         ports.send(EventFrame::Shutdown).await;
+                        return CloseReason::Complete;
                     } else {
-                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await;
+                        if let Some(close_reason) =
+                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                        {
+                            ports.send(EventFrame::Shutdown).await;
+                            return close_reason;
+                        }
                     }
                 }
                 EventFrame::Shutdown => {
                     warn!("Shutdown event loop");
-                    ports.close(CloseReason::Complete);
-                    break;
+                    return CloseReason::Complete;
                 }
                 _ => (),
             }
         }
+
+        return CloseReason::Complete;
     }
 }
 

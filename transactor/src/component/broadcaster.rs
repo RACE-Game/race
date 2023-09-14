@@ -8,11 +8,12 @@ use async_trait::async_trait;
 use race_core::event::Event;
 use race_core::types::{BroadcastFrame, GameAccount, TxState};
 use tokio::sync::{broadcast, Mutex};
-use tracing::{debug, warn};
+use tracing::debug;
 
-use crate::component::common::{Component, ConsumerPorts, Ports};
-use crate::component::event_bus::CloseReason;
+use crate::component::common::{Component, ConsumerPorts};
 use crate::frame::EventFrame;
+
+use super::CloseReason;
 
 /// Backup events in memeory, for new connected clients.  The
 /// `settle_version` and `access_version` are the values at the time
@@ -114,7 +115,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
         "Broadcaster"
     }
 
-    async fn run(mut ports: ConsumerPorts, ctx: BroadcasterContext) {
+    async fn run(mut ports: ConsumerPorts, ctx: BroadcasterContext) -> CloseReason {
         while let Some(event) = ports.recv().await {
             match event {
                 EventFrame::SendMessage { message } => {
@@ -153,7 +154,6 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         confirm_players,
                         access_version,
                     } => {
-
                         let tx_state = TxState::PlayerConfirming {
                             confirm_players,
                             access_version,
@@ -209,13 +209,13 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     }
                 }
                 EventFrame::Shutdown => {
-                    warn!("Shutdown broadcaster");
                     break;
                 }
                 _ => (),
             }
         }
-        ports.close(CloseReason::Complete);
+
+        CloseReason::Complete
     }
 }
 

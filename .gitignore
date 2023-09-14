@@ -6,3 +6,4 @@ dist
 test-ledger/
 result
 .direnv
+.blacklist
