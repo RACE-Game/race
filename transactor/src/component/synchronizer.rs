@@ -66,8 +66,6 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
 
             if ports.is_tx_closed() {
                 return CloseReason::Complete;
-            } else {
-                info!("synchronizer loop");
             }
 
             match mode {

@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use race_core::error::Error;
 use race_core::types::{GameAccount, SettleParams};
+use tokio::sync::mpsc;
+use tracing::error;
 
 use crate::component::common::{Component, ConsumerPorts};
 use crate::component::event_bus::CloseReason;
@@ -37,32 +40,61 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
     }
 
     async fn run(mut ports: ConsumerPorts, ctx: SubmitterContext) -> CloseReason {
+        let (queue_tx, mut queue_rx) = mpsc::channel::<EventFrame>(10);
+
+        let join_handle = tokio::spawn(async move {
+            while let Some(event) = queue_rx.recv().await {
+                match event {
+                    EventFrame::Settle { settles, transfers } => {
+                        let res = ctx
+                            .transport
+                            .settle_game(SettleParams {
+                                addr: ctx.addr.clone(),
+                                settles,
+                                transfers,
+                            })
+                            .await;
+
+                        match res {
+                            Ok(_) => {}
+                            Err(e) => {
+                                return CloseReason::Fault(e);
+                            }
+                        }
+                    }
+                    EventFrame::Shutdown => {
+                        break;
+                    }
+                    _ => (),
+                }
+            }
+
+            CloseReason::Complete
+        });
+
         while let Some(event) = ports.recv().await {
             match event {
-                EventFrame::Settle { settles, transfers } => {
-                    let res = ctx
-                        .transport
-                        .settle_game(SettleParams {
-                            addr: ctx.addr.clone(),
-                            settles,
-                            transfers,
-                        })
-                        .await;
-
-                    match res {
-                        Ok(_) => {}
-                        Err(e) => {
-                            return CloseReason::Fault(e);
-                        }
+                EventFrame::Settle { .. } => {
+                    if let Err(e) = queue_tx.send(event).await {
+                        error!("Submibtter failed to send settlement to task queue: {}", e.to_string());
                     }
                 }
                 EventFrame::Shutdown => {
+                    if let Err(e) = queue_tx.send(event).await {
+                        error!("Submibtter failed to send shutdown to task queue: {}", e.to_string());
+                    }
                     break;
                 }
                 _ => (),
             }
         }
-        return CloseReason::Complete
+
+        join_handle.await.unwrap_or_else(|e| {
+            CloseReason::Fault(Error::InternalError(format!(
+                "Submitter await join handle error: {}",
+                e.to_string()
+            )))
+        })
     }
 }
 
