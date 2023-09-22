@@ -176,6 +176,7 @@ export class Connection implements IConnection {
   async exitGame(gameAddr: string, params: ExitGameParams): Promise<void> {
     const req = await this.makeReq(gameAddr, 'exit_game', params);
     await this.requestXhr(req);
+    this.#socket.close();
   }
 
   async *subscribeEvents(gameAddr: string, params: SubscribeEventParams): AsyncGenerator<BroadcastFrame | undefined> {
