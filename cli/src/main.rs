@@ -93,6 +93,12 @@ fn cli() -> Command {
                 .arg(arg!(<GAME> "The address of game account"))
                 .arg_required_else_help(true),
         )
+        .subcommand(
+            Command::new("recipient-info")
+                .about("Query recipient account")
+                .arg(arg!(<ADDRESS> "The address of recipient account"))
+                .arg_required_else_help(true)
+        )
 }
 
 async fn create_transport(chain: &str, rpc: &str, keyfile: Option<String>) -> Arc<dyn TransportT> {
@@ -214,6 +220,35 @@ async fn reg_info(addr: &str, transport: Arc<dyn TransportT>) {
         }
         None => {
             println!("Registration not found");
+        }
+    }
+}
+
+async fn recipient_info(addr: &str, transport: Arc<dyn TransportT>) {
+    match transport
+        .get_recipient(addr)
+        .await
+        .expect("Network error")
+    {
+        Some(recipient) => {
+            println!("Recipient account: {}", recipient.addr);
+            println!("Capcity account: {:?}", recipient.cap_addr);
+            println!("Slots");
+            for slot in recipient.slots.iter() {
+                println!("|- id: {}", slot.id);
+                println!("   type: {:?}", slot.slot_type);
+                println!("   token: {}", slot.token_addr);
+                println!("   Shares");
+                for share in slot.shares.iter() {
+                    println!("   |- owner: {:?}" ,share.owner);
+                    println!("      weights: {}" ,share.weights);
+                    println!("      claim amount: {}" ,share.claim_amount);
+                    println!("      claim amount cap: {}" ,share.claim_amount_cap);
+                }
+            }
+        }
+        None => {
+            println!("Recipient not found")
         }
     }
 }
@@ -364,6 +399,11 @@ async fn main() {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
             let transport = create_transport(&chain, &rpc, None).await;
             reg_info(addr, transport).await;
+        }
+        Some(("recipient-info", sub_matches)) => {
+            let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
+            let transport = create_transport(&chain, &rpc, None).await;
+            recipient_info(addr, transport).await;
         }
         _ => unreachable!(),
     }
