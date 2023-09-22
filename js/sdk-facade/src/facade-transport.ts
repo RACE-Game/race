@@ -56,6 +56,38 @@ interface CreateGameAccountInstruction {
   data: number[];
 }
 
+const tokenMap: Record<string, IToken> = {
+  'FACADE_NATIVE': {
+    name: 'Native Token',
+    symbol: 'NATIVE',
+    decimals: 9,
+    icon: 'https://arweave.net/SH106hrChudKjQ_c6e6yd0tsGUbFIScv2LL6Dp-LDiI',
+    addr: 'FACADE_NATIVE',
+  },
+  'FACADE_USDT': {
+    name: 'Tether USD',
+    symbol: 'USDT',
+    decimals: 6,
+    icon: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg',
+    addr: 'FACADE_USDT',
+  },
+  'FACADE_USDC': {
+    name: 'USD Coin',
+    symbol: 'USDC',
+    decimals: 6,
+    icon: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
+    addr: 'FACADE_USDC',
+  },
+  'FACADE_RACE': {
+    name: 'Race Protocol',
+    symbol: 'RACE',
+    decimals: 9,
+    icon: 'https://raw.githubusercontent.com/NutsPokerTeam/token-list/main/assets/mainnet/RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ/logo.svg',
+    addr: 'FACADE_RACE',
+  }
+};
+
+
 export class FacadeTransport implements ITransport {
   #url: string;
 
@@ -97,36 +129,7 @@ export class FacadeTransport implements ITransport {
   }
 
   async listTokens(): Promise<IToken[]> {
-    return [
-      {
-        name: 'USD Coin',
-        symbol: 'USDC',
-        decimals: 6,
-        icon: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
-        addr: 'FACADE_USDC',
-      },
-      {
-        name: 'Tether USD',
-        symbol: 'USDT',
-        decimals: 6,
-        icon: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg',
-        addr: 'FACADE_USDT',
-      },
-      {
-        name: 'Native Token',
-        symbol: 'NATIVE',
-        decimals: 9,
-        icon: 'https://arweave.net/SH106hrChudKjQ_c6e6yd0tsGUbFIScv2LL6Dp-LDiI',
-        addr: 'FACADE_NATIVE',
-      },
-      {
-        name: 'Race Protocol',
-        symbol: 'RACE',
-        decimals: 9,
-        icon: 'https://raw.githubusercontent.com/NutsPokerTeam/token-list/main/assets/mainnet/RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ/logo.svg',
-        addr: 'FACADE_RACE',
-      },
-    ];
+    return Object.values(tokenMap);
   }
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void> {
@@ -184,13 +187,7 @@ export class FacadeTransport implements ITransport {
   }
 
   async getToken(addr: string): Promise<IToken | undefined> {
-    return {
-      addr,
-      icon: '',
-      name: 'Fake Token',
-      symbol: 'FT',
-      decimals: 0,
-    };
+    return tokenMap[addr];
   }
 
   async fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>> {
