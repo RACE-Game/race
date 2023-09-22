@@ -55,6 +55,8 @@ export type GameInfo = {
   maxDeposit?: bigint;
   entryType: EntryType,
   token: IToken;
+  tokenAddr: string;
+  bundleAddr: string;
 };
 
 export class AppClient {
@@ -145,6 +147,8 @@ export class AppClient {
         title: gameAccount.title,
         entryType: gameAccount.entryType,
         maxPlayers: gameAccount.maxPlayers,
+        tokenAddr: gameAccount.tokenAddr,
+        bundleAddr: gameAccount.bundleAddr,
         token,
       };
 
