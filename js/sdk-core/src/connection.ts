@@ -181,9 +181,7 @@ export class Connection implements IConnection {
     this.streamMessagePromise = undefined;
     this.lastPong = new Date().getTime();
     this.isFirstOpen = true;
-    this.pingTimer = setInterval(() => {
-      if (this.socket !== undefined) this.socket.send(this.makeReqNoSig(this.gameAddr, 'ping', {}));
-    }, 2500);
+    this.pingTimer = undefined;
   }
 
   onDisconnected() {
@@ -204,6 +202,11 @@ export class Connection implements IConnection {
     }
     this.socket = undefined;
 
+    if (this.pingTimer !== undefined) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = undefined;
+    }
+
     if (this.checkTimer !== undefined) {
       clearInterval(this.checkTimer);
       this.checkTimer = undefined;
@@ -218,13 +221,6 @@ export class Connection implements IConnection {
       clearInterval(this.checkTimer);
       this.checkTimer = undefined;
     }
-
-    this.lastPong = new Date().getTime();
-    this.checkTimer = setInterval(() => {
-      if (this.lastPong + 5000 < new Date().getTime()) {
-        this.onDisconnected();
-      }
-    }, 500);
 
     this.socket.onmessage = msg => {
       const frame = this.parseEventMessage(msg.data);
@@ -247,6 +243,19 @@ export class Connection implements IConnection {
       } else {
         frame = 'reconnected'
       }
+
+      // Start times for alive checking
+      this.lastPong = new Date().getTime();
+      this.pingTimer = setInterval(() => {
+        if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
+          this.socket.send(this.makeReqNoSig(this.gameAddr, 'ping', {}));
+        }
+      }, 3000);
+      this.checkTimer = setInterval(() => {
+        if (this.lastPong + 6000 < new Date().getTime()) {
+          this.onDisconnected();
+        }
+      }, 500);
 
       if (this.streamResolve !== undefined) {
         let r = this.streamResolve;
