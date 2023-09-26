@@ -39,15 +39,20 @@ Work in progress, not ready to accept contributions yet.
 
 ## Rust
 
-| Package           | Version                                                                                                                 | Description                             |
-|-------------------|-------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|
-| race-core         | [![Crates.io](https://img.shields.io/crates/v/race-core?logo=rust)](https://crates.io/crates/race-core)                 | Core lib                                |
-| race-proc-macro   | [![Crates.io](https://img.shields.io/crates/v/race-proc-macro?logo=rust)](https://crates.io/crates/race-proc-macro)     | SDK proc macros                         |
-| race-env          | [![Crates.io](https://img.shields.io/crates/v/race-env?logo=rust)](https://crates.io/crates/race-env)                   | Environment module                      |
-| race-encryptor    | [![Crates.io](https://img.shields.io/crates/v/race-encryptor?logo=rust)](https://crates.io/crates/race-encryptor)       | Encryptor module                        |
-| race-transport    | [![Crates.io](https://img.shields.io/crates/v/race-transport?logo=rust)](https://crates.io/crates/race-transport)       | Transport module                        |
-| race-client       | [![Crates.io](https://img.shields.io/crates/v/race-client?logo=rust)](https://crates.io/crates/race-client)             | Client module                           |
-| race-test         | [![Crates.io](https://img.shields.io/crates/v/race-test?logo=rust)](https://crates.io/crates/race-test)                 | Testkit                                 |
+| Package         | Version                                                                                                             | Description         |
+|-----------------|---------------------------------------------------------------------------------------------------------------------|---------------------|
+| race-api        | [![Crates.io](https://img.shields.io/crates/v/race-api?logo=rust)](https://crates.io/crates/race-api)               | API for game bundle |
+| race-core       | [![Crates.io](https://img.shields.io/crates/v/race-core?logo=rust)](https://crates.io/crates/race-core)             | Core lib            |
+| race-proc-macro | [![Crates.io](https://img.shields.io/crates/v/race-proc-macro?logo=rust)](https://crates.io/crates/race-proc-macro) | SDK proc macros     |
+| race-encryptor  | [![Crates.io](https://img.shields.io/crates/v/race-encryptor?logo=rust)](https://crates.io/crates/race-encryptor)   | Encryptor module    |
+| race-client     | [![Crates.io](https://img.shields.io/crates/v/race-client?logo=rust)](https://crates.io/crates/race-client)         | Client module       |
+| race-test       | [![Crates.io](https://img.shields.io/crates/v/race-test?logo=rust)](https://crates.io/crates/race-test)             | Testkit             |
+
+### Binary Releases
+
+- `race-facade`: The test server used in development
+- `race-transactor`: The transactor server
+- `race-cli`: The tools to manage on-chain accounts
 
 ## Contracts
 
