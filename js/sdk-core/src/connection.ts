@@ -4,7 +4,9 @@ import { GameEvent } from './events';
 import { deserialize, array, enums, field, option, serialize, struct, variant } from '@race-foundation/borsh';
 import { arrayBufferToBase64, base64ToUint8Array } from './utils';
 
-type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event' | 'submit_message';
+export type ConnectionState = 'disconnected' | 'connected' | 'reconnected' | 'closed';
+
+type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event' | 'submit_message' | 'ping';
 
 interface IAttachGameParams {
   signer: string;
@@ -40,7 +42,9 @@ export class AttachGameParams {
   }
 }
 
-export class ExitGameParams {}
+export class ExitGameParams {
+  keepConnection?: boolean
+}
 
 export class SubscribeEventParams {
   @field('u64')
@@ -131,118 +135,219 @@ export class BroadcastFrameTxState extends BroadcastFrame {
 }
 
 export interface IConnection {
-  attachGame(gameAddr: string, params: AttachGameParams): Promise<void>;
+  attachGame(params: AttachGameParams): Promise<void>;
 
-  submitEvent(gameAddr: string, params: SubmitEventParams): Promise<void>;
+  submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined>;
 
-  submitMessage(gameAddr: string, params: SubmitMessageParams): Promise<void>;
+  submitMessage(params: SubmitMessageParams): Promise<ConnectionState | undefined>;
 
-  exitGame(gameAddr: string, params: ExitGameParams): Promise<void>;
+  exitGame(params: ExitGameParams): Promise<void>;
 
-  subscribeEvents(gameAddr: string, params: SubscribeEventParams): AsyncGenerator<BroadcastFrame | undefined>;
+  connect(params: SubscribeEventParams): Promise<void>;
+
+  subscribeEvents(): AsyncGenerator<BroadcastFrame | ConnectionState | undefined>;
 }
 
-function* EventStream() {}
-
 export class Connection implements IConnection {
-  #playerAddr: string;
-  #endpoint: string;
-  #encryptor: IEncryptor;
-  #socket: WebSocket;
+  gameAddr: string;
+  playerAddr: string;
+  endpoint: string;
+  encryptor: IEncryptor;
+  socket?: WebSocket;
+  // If the connection is closed
+  closed: boolean;
 
-  constructor(playerAddr: string, endpoint: string, encryptor: IEncryptor) {
-    this.#playerAddr = playerAddr;
-    this.#endpoint = endpoint;
-    this.#encryptor = encryptor;
-    const socket = new WebSocket(endpoint);
-    this.#socket = socket;
+  // For async message stream
+  streamResolve?: ((value: BroadcastFrame | ConnectionState | undefined) => void);
+  streamMessageQueue: BroadcastFrame[];
+  streamMessagePromise?: Promise<BroadcastFrame | ConnectionState | undefined>;
+
+  // For keep alive
+  lastPong: number;
+  pingTimer?: any;
+  checkTimer?: any;
+
+  isFirstOpen: boolean;
+
+  constructor(gameAddr: string, playerAddr: string, endpoint: string, encryptor: IEncryptor) {
+    this.gameAddr = gameAddr;
+    this.playerAddr = playerAddr;
+    this.endpoint = endpoint;
+    this.encryptor = encryptor;
+    this.socket = undefined;
+    this.closed = false;
+    this.streamResolve = undefined;
+    this.streamMessageQueue = [];
+    this.streamMessagePromise = undefined;
+    this.lastPong = new Date().getTime();
+    this.isFirstOpen = true;
+    this.pingTimer = setInterval(() => {
+      if (this.socket !== undefined) this.socket.send(this.makeReqNoSig(this.gameAddr, 'ping', {}));
+    }, 2500);
   }
 
-  async attachGame(gameAddr: string, params: AttachGameParams): Promise<void> {
-    const req = this.makeReqNoSig(gameAddr, 'attach_game', params);
-    await this.requestXhr(req);
+  onDisconnected() {
+    console.warn('Connection encountered an error, clean up connection');
+
+    if (this.streamMessageQueue.find(x => x === 'disconnected') === undefined) {
+      if (this.streamResolve !== undefined) {
+        let r = this.streamResolve
+        this.streamResolve = undefined;
+        r('disconnected');
+      } else {
+        this.streamMessageQueue.push('disconnected');
+      }
+    }
+
+    if (this.socket !== undefined) {
+      this.socket.close();
+    }
+    this.socket = undefined;
+
+    if (this.checkTimer !== undefined) {
+      clearInterval(this.checkTimer);
+      this.checkTimer = undefined;
+    }
   }
 
-  async submitEvent(gameAddr: string, params: SubmitEventParams): Promise<void> {
-    const req = await this.makeReq(gameAddr, 'submit_event', params);
-    await this.requestXhr(req);
-  }
+  async connect(params: SubscribeEventParams) {
+    console.log('Establish server connection, settle version:', params.settleVersion);
+    this.socket = new WebSocket(this.endpoint);
 
-  async submitMessage(gameAddr: string, params: SubmitMessageParams): Promise<void> {
-    const req = await this.makeReq(gameAddr, 'submit_message', params);
-    await this.requestXhr(req);
-  }
+    if (this.checkTimer) {
+      clearInterval(this.checkTimer);
+      this.checkTimer = undefined;
+    }
 
-  async exitGame(gameAddr: string, params: ExitGameParams): Promise<void> {
-    const req = await this.makeReq(gameAddr, 'exit_game', params);
-    await this.requestXhr(req);
-    this.#socket.close();
-  }
+    this.lastPong = new Date().getTime();
+    this.checkTimer = setInterval(() => {
+      if (this.lastPong + 5000 < new Date().getTime()) {
+        this.onDisconnected();
+      }
+    }, 500);
 
-  async *subscribeEvents(gameAddr: string, params: SubscribeEventParams): AsyncGenerator<BroadcastFrame | undefined> {
-    const req = this.makeReqNoSig(gameAddr, 'subscribe_event', params);
-    await this.requestWs(req);
-    let messageQueue: BroadcastFrame[] = [];
-    let resolve: undefined | ((value: BroadcastFrame | undefined) => void);
-    let messagePromise = new Promise<BroadcastFrame | undefined>(r => (resolve = r));
-
-    this.#socket.onmessage = msg => {
-      if (resolve !== undefined) {
-        let frame = this.parseEventMessage(msg.data);
-        if (frame !== undefined) {
-          let r = resolve;
-          resolve = undefined;
+    this.socket.onmessage = msg => {
+      const frame = this.parseEventMessage(msg.data);
+      if (frame !== undefined) {
+        if (this.streamResolve !== undefined) {
+          let r = this.streamResolve;
+          this.streamResolve = undefined;
           r(frame);
-        }
-      } else {
-        let frame = this.parseEventMessage(msg.data);
-        if (frame !== undefined) {
-          messageQueue.push(frame);
+        } else {
+          this.streamMessageQueue.push(frame);
         }
       }
     };
 
-    this.#socket.onclose = () => {
-      if (resolve !== undefined) {
-        let r = resolve;
-        resolve = undefined;
-        r(undefined);
+    this.socket.onopen = () => {
+      let frame: ConnectionState;
+      if (this.isFirstOpen) {
+        frame = 'connected'
+        this.isFirstOpen = false;
+      } else {
+        frame = 'reconnected'
       }
+
+      if (this.streamResolve !== undefined) {
+        let r = this.streamResolve;
+        this.streamResolve = undefined;
+        r(frame);
+      } else {
+        this.streamMessageQueue.push(frame);
+      }
+    }
+
+    this.socket.onclose = () => {
+      this.closed = true;
+    }
+
+    this.socket.onerror = (e) => {
+      console.error(e);
+      this.onDisconnected()
     };
 
-    while (true) {
-      if (messageQueue.length > 0) {
-        yield messageQueue.shift()!;
-      } else {
-        // await new Promise(resolve => setTimeout(() => resolve(undefined), 100));
-        // const p = messagePromise;
-        // messagePromise = new Promise<BroadcastFrame | undefined>(r => (resolve = r));
-        // yield p;
-        yield messagePromise;
-        messagePromise = new Promise<BroadcastFrame | undefined>(r => (resolve = r));
+    // Call JSONRPC subscribe_event
+    const req = this.makeReqNoSig(this.gameAddr, 'subscribe_event', params);
+    await this.requestWs(req);
+  }
+
+  async attachGame(params: AttachGameParams): Promise<void> {
+    const req = this.makeReqNoSig(this.gameAddr, 'attach_game', params);
+    await this.requestXhr(req);
+  }
+
+  async submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined> {
+    try {
+      const req = await this.makeReq(this.gameAddr, 'submit_event', params);
+      await this.requestXhr(req);
+      return undefined;
+    } catch (_: any) {
+      return 'disconnected';
+    }
+  }
+
+  async submitMessage(params: SubmitMessageParams): Promise<ConnectionState | undefined> {
+    try {
+      const req = await this.makeReq(this.gameAddr, 'submit_message', params);
+      await this.requestXhr(req);
+      return undefined;
+    } catch (_: any) {
+      return 'disconnected';
+    }
+  }
+
+  async exitGame(params: ExitGameParams): Promise<void> {
+    const req = await this.makeReq(this.gameAddr, 'exit_game', {});
+    await this.requestXhr(req);
+    if (!params.keepConnection) {
+      if (this.socket !== undefined) {
+        this.closed = true;
+        this.socket.close();
+        this.socket = undefined;
       }
     }
   }
 
-  parseEventMessage(raw: string): BroadcastFrame | undefined {
+  async *subscribeEvents(): AsyncGenerator<BroadcastFrame | ConnectionState | undefined> {
+    await this.waitSocketReady();
+    this.streamMessagePromise = new Promise(r => (this.streamResolve = r));
+    console.log(this.streamMessageQueue);
+    while (true) {
+      if (this.streamMessageQueue.length > 0) {
+        yield this.streamMessageQueue.shift()!;
+      } else {
+        yield this.streamMessagePromise;
+        this.streamMessagePromise = new Promise(r => (this.streamResolve = r));
+      }
+    }
+  }
+
+  parseEventMessage(raw: string): BroadcastFrame | ConnectionState | undefined {
     let resp = JSON.parse(raw);
-    if (resp.method === 's_event') {
-      let result: string = resp.params.result;
-      let data = base64ToUint8Array(result);
-      let frame = deserialize(BroadcastFrame, data);
-      return frame;
+    if (resp.result === 'pong') {
+      this.lastPong = new Date().getTime();
+      return undefined;
+    } else if (resp.method === 's_event') {
+      if (resp.params.error === undefined) {
+        let result: string = resp.params.result;
+        let data = base64ToUint8Array(result);
+        let frame = deserialize(BroadcastFrame, data);
+        return frame;
+      } else {
+        return 'disconnected'
+      }
     } else {
       return undefined;
     }
   }
 
-  static initialize(playerAddr: string, endpoint: string, encryptor: IEncryptor): Connection {
-    return new Connection(playerAddr, endpoint, encryptor);
+  static initialize(gameAddr: string, playerAddr: string, endpoint: string, encryptor: IEncryptor): Connection {
+    return new Connection(gameAddr, playerAddr, endpoint, encryptor);
   }
 
   async makeReq<P>(gameAddr: string, method: Method, params: P): Promise<string> {
     const paramsBytes = serialize(params);
-    const sig = await this.#encryptor.sign(paramsBytes, this.#playerAddr);
+    const sig = await this.encryptor.sign(paramsBytes, this.playerAddr);
     const sigBytes = serialize(sig);
     return JSON.stringify({
       jsonrpc: '2.0',
@@ -265,16 +370,18 @@ export class Connection implements IConnection {
   async requestWs(req: string): Promise<void> {
     try {
       await this.waitSocketReady();
-      this.#socket.send(req);
+      if (this.socket !== undefined) {
+        this.socket.send(req);
+      }
     } catch (err) {
-      console.error('Failed to connect to current transactor: ' + this.#endpoint);
+      console.error('Failed to connect to current transactor: ' + this.endpoint);
       throw err;
     }
   }
 
   async requestXhr<P>(req: string): Promise<P> {
     try {
-      const resp = await fetch(this.#endpoint.replace(/^ws/, 'http'), {
+      const resp = await fetch(this.endpoint.replace(/^ws/, 'http'), {
         method: 'POST',
         body: req,
         headers: {
@@ -287,7 +394,7 @@ export class Connection implements IConnection {
         throw Error('Transactor request failed:' + resp.json());
       }
     } catch (err) {
-      console.error('Failed to connect to current transactor: ' + this.#endpoint);
+      console.error('Failed to connect to current transactor: ' + this.endpoint);
       throw err;
     }
   }
@@ -301,7 +408,7 @@ export class Connection implements IConnection {
         if (currAttempt > maxAttempts) {
           clearInterval(interval);
           reject();
-        } else if (this.#socket.readyState === this.#socket.OPEN) {
+        } else if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
           clearInterval(interval);
           resolve(undefined);
         }

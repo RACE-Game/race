@@ -1,6 +1,5 @@
 import { AttachGameParams, IConnection, SubmitEventParams } from './connection';
 import { IEncryptor } from './encryptor';
-import { ITransport } from './transport';
 import { SecretState } from './secret-state';
 import { makeCustomEvent } from './events';
 import { GameContext } from './game-context';
@@ -28,17 +27,15 @@ type OpIdent =
 
 export class Client {
   #encryptor: IEncryptor;
-  #transport: ITransport;
   #connection: IConnection;
   #gameAddr: string;
   #addr: string;
   #opHist: OpIdent[];
   #secretState: SecretState;
 
-  constructor(addr: string, gameAddr: string, transport: ITransport, encryptor: IEncryptor, connection: IConnection) {
+  constructor(addr: string, gameAddr: string, encryptor: IEncryptor, connection: IConnection) {
     this.#addr = addr;
     this.#gameAddr = gameAddr;
-    this.#transport = transport;
     this.#encryptor = encryptor;
     this.#connection = connection;
     this.#opHist = new Array();
@@ -48,7 +45,6 @@ export class Client {
   async attachGame(): Promise<void> {
     const key = await this.#encryptor.exportPublicKey(undefined);
     await this.#connection.attachGame(
-      this.#gameAddr,
       new AttachGameParams({
         signer: this.#addr,
         key,
@@ -58,7 +54,6 @@ export class Client {
 
   async submitEvent(event: any): Promise<void> {
     await this.#connection.submitEvent(
-      this.#gameAddr,
       new SubmitEventParams({
         event,
       })
@@ -68,7 +63,6 @@ export class Client {
   async submitCustomEvent(customEvent: any): Promise<void> {
     const event = makeCustomEvent(this.#gameAddr, customEvent);
     await this.#connection.submitEvent(
-      this.#gameAddr,
       new SubmitEventParams({
         event,
       })

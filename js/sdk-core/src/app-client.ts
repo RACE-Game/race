@@ -4,6 +4,7 @@ import {
   BroadcastFrameMessage,
   BroadcastFrameTxState,
   Connection,
+  ConnectionState,
   IConnection,
   Message,
   SubmitEventParams,
@@ -17,7 +18,7 @@ import { IWallet } from './wallet';
 import { Handler, InitAccount } from './handler';
 import { Encryptor, IEncryptor } from './encryptor';
 import { SdkError } from './error';
-import { EntryType, EntryTypeCash, IPlayerJoin, GameAccount, IToken, PlayerProfile } from './accounts';
+import { EntryType, EntryTypeCash, GameAccount, IToken, PlayerProfile } from './accounts';
 import { TxState } from './tx-state';
 import { Client } from './client';
 import { Custom, GameEvent, ICustomEvent } from './events';
@@ -32,6 +33,7 @@ export type EventCallbackFunction = (
 ) => void;
 export type MessageCallbackFunction = (message: Message) => void;
 export type TxStateCallbackFunction = (txState: TxState) => void;
+export type OnConnectionStateCallbackFunction = (connState: ConnectionState) => void;
 
 export type AppClientInitOpts = {
   transport: ITransport;
@@ -40,6 +42,7 @@ export type AppClientInitOpts = {
   onEvent: EventCallbackFunction;
   onMessage?: MessageCallbackFunction;
   onTxState?: TxStateCallbackFunction;
+  onConnectionState?: OnConnectionStateCallbackFunction;
   storage?: IStorage;
 };
 
@@ -71,6 +74,7 @@ export class AppClient {
   #onEvent: EventCallbackFunction;
   #onMessage?: MessageCallbackFunction;
   #onTxState?: TxStateCallbackFunction;
+  #onConnectionState?: OnConnectionStateCallbackFunction;
   #encryptor: IEncryptor;
   #profileCaches: ProfileCache;
   #info: GameInfo;
@@ -88,6 +92,7 @@ export class AppClient {
     onEvent: EventCallbackFunction,
     onMessage: MessageCallbackFunction | undefined,
     onTxState: TxStateCallbackFunction | undefined,
+    onConnectionState: OnConnectionStateCallbackFunction | undefined,
     encryptor: IEncryptor,
     info: GameInfo,
     decryptionCache: DecryptionCache
@@ -103,6 +108,7 @@ export class AppClient {
     this.#onEvent = onEvent;
     this.#onMessage = onMessage;
     this.#onTxState = onTxState;
+    this.#onConnectionState = onConnectionState;
     this.#encryptor = encryptor;
     this.#profileCaches = new ProfileCache(transport);
     this.#info = info;
@@ -110,7 +116,7 @@ export class AppClient {
   }
 
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
-    const { transport, wallet, gameAddr, onEvent, onMessage, onTxState, storage } = opts;
+    const { transport, wallet, gameAddr, onEvent, onMessage, onTxState, onConnectionState, storage } = opts;
     console.group('AppClient initialization');
     try {
       const playerAddr = wallet.walletAddr;
@@ -135,8 +141,9 @@ export class AppClient {
         throw SdkError.transactorAccountNotFound(transactorAddr);
       }
       const decryptionCache = new DecryptionCache();
-      const connection = Connection.initialize(playerAddr, transactorAccount.endpoint, encryptor);
-      const client = new Client(playerAddr, gameAddr, transport, encryptor, connection);
+      console.log('Transactor endpoint:', transactorAccount.endpoint);
+      const connection = Connection.initialize(gameAddr, playerAddr, transactorAccount.endpoint, encryptor);
+      const client = new Client(playerAddr, gameAddr, encryptor, connection);
       const handler = await Handler.initialize(gameBundle, encryptor, client, decryptionCache);
       const gameContext = new GameContext(gameAccount);
       const token = await transport.getToken(gameAccount.tokenAddr);
@@ -169,6 +176,7 @@ export class AppClient {
         onEvent,
         onMessage,
         onTxState,
+        onConnectionState,
         encryptor,
         info,
         decryptionCache
@@ -209,8 +217,8 @@ export class AppClient {
    */
   async attachGame() {
     await this.#client.attachGame();
-    const settleVersion = this.#gameContext.settleVersion;
-    let sub = this.#connection.subscribeEvents(this.#gameAddr, new SubscribeEventParams({ settleVersion }));
+    const sub = this.#connection.subscribeEvents();
+    await this.#connection.connect(new SubscribeEventParams({ settleVersion: this.#gameContext.settleVersion }));
     for await (const frame of sub) {
       if (frame instanceof BroadcastFrameInit) {
         console.group('Initialize handler state');
@@ -229,19 +237,28 @@ export class AppClient {
           console.groupEnd();
         }
       } else if (frame instanceof BroadcastFrameMessage) {
-        if (this.#onMessage !== undefined) {
-          const { message } = frame;
-          this.#onMessage(message);
+        console.group('Receive message');
+        try {
+          if (this.#onMessage !== undefined) {
+            const { message } = frame;
+            this.#onMessage(message);
+          }
+        } finally {
+          console.groupEnd();
         }
       } else if (frame instanceof BroadcastFrameTxState) {
-        if (this.#onTxState !== undefined) {
-          const { txState } = frame;
-          this.#onTxState(txState);
+        console.group('Receive tx state');
+        try {
+          if (this.#onTxState !== undefined) {
+            const { txState } = frame;
+            this.#onTxState(txState);
+          }
+        } finally {
+          console.groupEnd();
         }
       } else if (frame instanceof BroadcastFrameEvent) {
-        const t0 = new Date().getTime();
         const { event, timestamp } = frame;
-        console.group('Handle event: ' + event.kind());
+        console.group('Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
         try {
           this.#gameContext.prepareForNextEvent(timestamp);
           try {
@@ -251,7 +268,6 @@ export class AppClient {
           } catch (err: any) {
             console.error(err);
           }
-          console.log("Cost: ", new Date().getTime() - t0, "ms");
           await this.invokeEventCallback(event);
         } catch (e: any) {
           console.log("Game context in error:", this.#gameContext);
@@ -259,7 +275,43 @@ export class AppClient {
         } finally {
           console.groupEnd();
         }
+      } else if (frame === 'disconnected') {
+        if (this.#onConnectionState !== undefined) {
+          this.#onConnectionState('disconnected')
+        }
+        console.group('Disconnected, try reset state and context');
+        try {
+          let gameAccount;
+          while (gameAccount === undefined) {
+            try {
+              gameAccount = await this.#transport.getGameAccount(this.gameAddr);
+            } catch (e: any) {
+              console.warn(e, 'Failed to fetch game account, will retry in 1 second');
+              await new Promise(r => setTimeout(() => r(null), 1000));
+            }
+          }
+          const gameContext = new GameContext(gameAccount);
+          console.log('Game Account:', gameAccount);
+          console.log('Game Context:', gameContext);
+          this.#gameContext = gameContext;
+          await this.#connection.connect(new SubscribeEventParams({ settleVersion: this.#gameContext.settleVersion }));
+        } finally {
+          console.groupEnd();
+        }
+      } else if (frame === 'connected') {
+        if (this.#onConnectionState !== undefined) {
+          this.#onConnectionState('connected')
+        }
+      } else if (frame === 'closed') {
+        if (this.#onConnectionState !== undefined) {
+          this.#onConnectionState('closed')
+        }
+      } else if (frame === 'reconnected') {
+        if (this.#onConnectionState !== undefined) {
+          this.#onConnectionState('reconnected')
+        }
       } else {
+        console.log('Subscribe stream ended')
         break;
       }
     }
@@ -309,24 +361,28 @@ export class AppClient {
   async submitEvent(arg: ICustomEvent | Uint8Array): Promise<void> {
     let raw = arg instanceof Uint8Array ? arg : arg.serialize();
     const event = new Custom({ sender: this.playerAddr, raw });
-    await this.#connection.submitEvent(
-      this.#gameAddr,
+    const connState = await this.#connection.submitEvent(
       new SubmitEventParams({
         event,
       })
     );
+    if (connState !== undefined && this.#onConnectionState !== undefined) {
+      this.#onConnectionState(connState);
+    }
   }
 
   /**
    * Submit a message, contains arbitrary content.
    */
   async submitMessage(message: string) {
-    await this.#connection.submitMessage(
-      this.#gameAddr,
+    const connState = await this.#connection.submitMessage(
       new SubmitMessageParams({
         content: message,
       })
     );
+    if (connState !== undefined && this.#onConnectionState !== undefined) {
+      this.#onConnectionState(connState);
+    }
   }
 
   /**
@@ -347,8 +403,10 @@ export class AppClient {
   /**
    * Exit current game.
    */
-  async exit() {
-    await this.#connection.exitGame(this.#gameAddr, {});
+  async exit(): Promise<void>;
+  async exit(keepConnection: boolean): Promise<void>;
+  async exit(keepConnection: boolean = false) {
+    await this.#connection.exitGame({ keepConnection });
   }
 
   get info(): GameInfo {

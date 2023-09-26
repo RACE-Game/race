@@ -697,7 +697,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
     println!("! Handle settlements {}, with {:?} ", addr, settles);
 
     // Simulate the finality time
-    tokio::time::sleep(Duration::from_secs(15)).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
     // ---
 
     let mut context = context.lock().await;

@@ -71,6 +71,10 @@ async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Re
         .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
 
+fn ping(_: Params<'_>, _: &ApplicationContext) -> Result<String, RpcError> {
+   Ok("pong".to_string())
+}
+
 async fn submit_message(
     params: Params<'_>,
     context: Arc<ApplicationContext>,
@@ -202,6 +206,7 @@ pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
         .await?;
     let mut module = RpcModule::new(context);
 
+    module.register_method("ping", ping)?;
     module.register_async_method("attach_game", attach_game)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;
