@@ -2,18 +2,18 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use race_client::Client;
+use race_api::error::Result;
+use race_api::event::{CustomEvent, Event};
 use race_core::{
     connection::ConnectionT,
     context::GameContext,
-    error::Result,
-    event::{CustomEvent, Event},
     secret::SecretState,
     types::{AttachGameParams, ClientMode, DecisionId, ExitGameParams, SubmitEventParams},
 };
 use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, Mutex};
 
-use crate::{transport_helpers::DummyTransport, test_game_addr};
+use crate::{transport_helpers::DummyTransport, account_helpers::test_game_addr};
 
 pub struct TestClient {
     client: Client,

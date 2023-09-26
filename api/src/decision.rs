@@ -7,7 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::{
     error::{Error, Result},
-    types::{Addr, Ciphertext, DecisionId, SecretDigest, SecretKey},
+    types::{Ciphertext, DecisionId, SecretDigest, SecretKey},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
@@ -27,7 +27,7 @@ pub struct Answer {
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 pub struct DecisionState {
     pub id: DecisionId,
-    owner: Addr,
+    owner: String,
     status: DecisionStatus,
     answer: Option<Answer>,
     secret: Option<SecretKey>,

@@ -1,16 +1,17 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::{
-    context::GameContext,
+use race_api::{
     engine::InitAccount,
     event::{Event, Message},
-    types::{PlayerJoin, ServerJoin, Settle, VoteType, Transfer, TxState},
+};
+use race_core::{
+    context::GameContext,
+    types::{PlayerJoin, ServerJoin, Settle, Transfer, TxState, VoteType},
 };
 
 #[derive(Debug, Clone)]
 pub enum SignalFrame {
     StartGame { game_addr: String },
 }
-
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub enum EventFrame {
@@ -93,12 +94,9 @@ impl std::fmt::Display for EventFrame {
                 new_servers.len(),
                 access_version
             ),
-            EventFrame::TxState {
-                tx_state: _,
-            } => write!(
+            EventFrame::TxState { tx_state: _ } => write!(
                 f,
                 "TxState",
-
                 // confirm_players.len(),
                 // access_version,
                 // confirm_success,

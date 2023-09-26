@@ -1,4 +1,5 @@
-use race_core::{prelude::Event, types::PlayerJoin};
+use race_api::event::Event;
+use race_api::types::PlayerJoin;
 
 type NewPlayerSpec<'a> = (&'a str, u16, u64);
 

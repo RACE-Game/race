@@ -2,8 +2,8 @@ use std::time::{Duration, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use race_core::context::GameContext;
-use race_core::error::Error;
-use race_core::event::Event;
+use race_api::error::Error;
+use race_api::event::Event;
 use tokio::select;
 use tracing::{error, info, warn};
 

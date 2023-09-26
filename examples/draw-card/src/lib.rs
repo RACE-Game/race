@@ -9,7 +9,7 @@
 //! Players switch positions in each round.
 
 use arrayref::{array_mut_ref, mut_array_refs};
-use race_core::prelude::*;
+use race_api::prelude::*;
 use race_proc_macro::game_handler;
 
 const ACTION_TIMEOUT: u64 = 30_000;
@@ -267,6 +267,7 @@ impl GameHandler for DrawCard {
                     GameStage::Revealing => {
                         // Reveal and compare the hands to decide who is the winner
                         let revealed = effect.get_revealed(self.random_id)?;
+                        println!("Revealed from wasm: {:?}", effect);
                         let card_0 = revealed
                             .get(&0)
                             .ok_or(HandleError::Custom("Can't get revealed card".into()))?;

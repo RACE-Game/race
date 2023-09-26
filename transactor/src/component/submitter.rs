@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use race_core::error::Error;
+use race_api::error::Error;
 use race_core::types::{GameAccount, SettleParams};
 use tokio::sync::mpsc;
 use tracing::error;
@@ -103,7 +103,7 @@ mod tests {
 
     use super::*;
     use race_core::types::Settle;
-    use race_test::*;
+    use race_test::prelude::*;
 
     #[tokio::test]
     async fn test_submit_settle() {
@@ -135,7 +135,7 @@ mod tests {
             settles: settles.clone(),
             transfers: vec![],
         };
-        let mut handle = submitter.start(ctx);
+        let handle = submitter.start(ctx);
 
         handle.send_unchecked(event_frame).await;
         handle.send_unchecked(EventFrame::Shutdown).await;

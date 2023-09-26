@@ -4,7 +4,7 @@ use thiserror::Error;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{types::DecisionId, prelude::RandomId};
+use crate::types::{DecisionId, RandomId};
 
 #[derive(Error, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

@@ -3,8 +3,8 @@
 
 use std::time::Duration;
 
+use race_api::error::{Error, Result};
 use race_core::{
-    error::{Error, Result},
     transport::TransportT,
     types::{RegisterServerParams, ServeParams},
 };

@@ -3407,6 +3407,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "race-api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "borsh",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "race-cli"
 version = "0.1.0"
 dependencies = [
@@ -3430,6 +3442,7 @@ dependencies = [
 name = "race-client"
 version = "0.1.0"
 dependencies = [
+ "race-api",
  "race-core",
 ]
 
@@ -3440,6 +3453,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "borsh",
+ "race-api",
  "serde",
  "serde_json",
  "thiserror",
@@ -3456,6 +3470,7 @@ dependencies = [
  "chacha20",
  "chrono",
  "openssl",
+ "race-api",
  "race-core",
  "rand 0.8.5",
  "sha1",
@@ -3476,9 +3491,10 @@ dependencies = [
 name = "race-example-draw-card"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arrayref",
  "borsh",
- "race-core",
+ "race-api",
  "race-proc-macro",
  "race-test",
 ]
@@ -3488,7 +3504,7 @@ name = "race-example-minimal"
 version = "0.1.0"
 dependencies = [
  "borsh",
- "race-core",
+ "race-api",
  "race-proc-macro",
  "race-test",
 ]
@@ -3498,7 +3514,7 @@ name = "race-example-raffle"
 version = "0.1.0"
 dependencies = [
  "borsh",
- "race-core",
+ "race-api",
  "race-proc-macro",
  "race-test",
 ]
@@ -3508,7 +3524,7 @@ name = "race-example-simple-settle"
 version = "0.1.0"
 dependencies = [
  "borsh",
- "race-core",
+ "race-api",
  "race-proc-macro",
  "race-test",
 ]
@@ -3526,6 +3542,7 @@ dependencies = [
  "getrandom 0.2.9",
  "hyper",
  "jsonrpsee",
+ "race-api",
  "race-core",
  "regex",
  "serde",
@@ -3544,7 +3561,7 @@ version = "0.1.0"
 dependencies = [
  "borsh",
  "quote 1.0.26",
- "race-core",
+ "race-api",
  "syn 1.0.109",
 ]
 
@@ -3557,6 +3574,7 @@ dependencies = [
  "base64 0.21.0",
  "borsh",
  "project-root",
+ "race-api",
  "race-client",
  "race-core",
  "race-encryptor",
@@ -3581,6 +3599,7 @@ dependencies = [
  "hyper",
  "jsonrpsee",
  "project-root",
+ "race-api",
  "race-client",
  "race-core",
  "race-encryptor",
@@ -3610,6 +3629,7 @@ dependencies = [
  "jsonrpsee",
  "mpl-token-metadata",
  "project-root",
+ "race-api",
  "race-core",
  "race-env",
  "reqwest",

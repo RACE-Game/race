@@ -7,7 +7,7 @@ use hyper::Method;
 use jsonrpsee::server::{AllowHosts, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error as RpcError, RpcModule};
-use race_core::error::Error;
+use race_api::error::Error;
 use race_core::types::{
     DepositParams, EntryType, GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin,
     PlayerProfile, RegistrationAccount, ServerAccount, ServerJoin, SettleOp, SettleParams,

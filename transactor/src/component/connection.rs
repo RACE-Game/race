@@ -25,8 +25,8 @@ use race_core::{
     encryptor::EncryptorT,
     types::{AttachGameParams, ExitGameParams, SubmitEventParams},
 };
+use race_api::error::{Error, Result};
 use race_core::{
-    error::{Error, Result},
     types::{BroadcastFrame, SubscribeEventParams},
 };
 

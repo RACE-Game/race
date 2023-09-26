@@ -1,4 +1,4 @@
-use crate::error::Result;
+use race_api::error::Result;
 use crate::types::{AttachGameParams, ExitGameParams, SubmitEventParams};
 use async_trait::async_trait;
 

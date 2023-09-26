@@ -1,8 +1,9 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
+
+use race_api::error::{Error, Result};
 
 use crate::{
     encryptor::EncryptorT,
-    error::{Error, Result},
     types::{Ciphertext, DecisionId, RandomId, SecretDigest, SecretKey},
 };
 
@@ -36,16 +37,16 @@ pub struct RandomSecretGroup {
 #[derive(Debug)]
 pub struct SecretState {
     encryptor: Arc<dyn EncryptorT>,
-    random_secrets: BTreeMap<RandomId, RandomSecretGroup>,
-    decision_secrets: BTreeMap<DecisionId, SecretKey>,
+    random_secrets: HashMap<RandomId, RandomSecretGroup>,
+    decision_secrets: HashMap<DecisionId, SecretKey>,
 }
 
 impl SecretState {
     pub fn new(encryptor: Arc<dyn EncryptorT>) -> Self {
         Self {
             encryptor,
-            random_secrets: BTreeMap::new(),
-            decision_secrets: BTreeMap::new(),
+            random_secrets: HashMap::new(),
+            decision_secrets: HashMap::new(),
         }
     }
 

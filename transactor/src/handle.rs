@@ -6,8 +6,7 @@ use crate::component::{
 };
 use crate::frame::EventFrame;
 use race_core::context::GameContext;
-use race_core::error::{Error, Result};
-use race_core::prelude::InitAccount;
+use race_api::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount, QueryMode};
 use race_encryptor::Encryptor;
@@ -79,7 +78,7 @@ impl TransactorHandle {
         // Dispatch init state
         event_bus
             .send(EventFrame::InitState {
-                init_account: InitAccount::from_game_account(game_account),
+                init_account: game_account.derive_init_account(),
                 state: None
             })
             .await;

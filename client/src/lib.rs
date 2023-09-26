@@ -3,13 +3,14 @@ use std::{
     sync::Arc,
 };
 
+use race_api::error::{Error, Result};
+use race_api::event::{CustomEvent, Event};
+use race_api::random::{RandomState, RandomStatus};
+
 use race_core::{
     connection::ConnectionT,
     context::GameContext,
     encryptor::EncryptorT,
-    error::{Error, Result},
-    event::{CustomEvent, Event},
-    random::{RandomState, RandomStatus},
     secret::SecretState,
     types::{
         AttachGameParams, Ciphertext, ClientMode, DecisionId, RandomId, SecretIdent, SecretKey,

@@ -1,7 +1,5 @@
-#[allow(unused_imports)]
-use crate::error::Error;
+use race_api::error::Result;
 use crate::{
-    error::Result,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,

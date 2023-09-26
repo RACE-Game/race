@@ -1,6 +1,6 @@
 [package]
-name = "race-core"
-description = "RACE Protocol api types"
+name = "race-api"
+description = "RACE Protocol core lib"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -14,7 +14,6 @@ readme.workspace = true
 publish = true
 
 [dependencies]
-race-api = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
@@ -22,7 +21,7 @@ serde_json = { workspace = true, optional = true }
 borsh = { workspace = true }
 
 [dev-dependencies]
-anyhow.workspace = true
+anyhow = { workspace = true }
 
 [features]
 serde = ["dep:serde", "dep:serde_json"]

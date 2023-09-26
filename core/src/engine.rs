@@ -1,125 +1,12 @@
-use borsh::{BorshDeserialize, BorshSerialize};
-
 use crate::{
-    context::{GameContext, GameStatus},
-    effect::Effect,
+    context::GameContext,
     encryptor::EncryptorT,
-    error::{Error, HandleError},
-    event::Event,
-    prelude::ServerJoin,
-    random::RandomStatus,
-    types::{GameAccount, PlayerJoin, Settle},
+    types::{GameStatus, Settle},
 };
-
-/// A subset of on-chain account, used for game handler
-/// initialization.  The `access_version` may refer to an old state
-/// when the game is started by transactor.
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
-pub struct InitAccount {
-    pub addr: String,
-    pub players: Vec<PlayerJoin>,
-    pub servers: Vec<ServerJoin>,
-    pub data: Vec<u8>,
-    pub access_version: u64,
-    pub settle_version: u64,
-    pub max_players: u16,
-}
-
-impl InitAccount {
-    pub fn from_game_account(game_account: &GameAccount) -> Self {
-        let game_account = game_account.to_owned();
-        let access_version = game_account.access_version;
-        let settle_version = game_account.settle_version;
-        let players = game_account.players.clone();
-        let servers = game_account.servers.clone();
-        Self {
-            addr: game_account.addr,
-            players,
-            servers,
-            data: game_account.data.clone(),
-            access_version,
-            settle_version,
-            max_players: game_account.max_players,
-        }
-    }
-
-    pub fn new(
-        game_account: GameAccount,
-        transactor_access_version: u64,
-        transactor_settle_version: u64,
-    ) -> Self {
-        let players = game_account
-            .players
-            .into_iter()
-            .filter(|p| p.access_version <= transactor_access_version)
-            .collect();
-        let servers = game_account
-            .servers
-            .into_iter()
-            .filter(|s| s.access_version <= transactor_access_version)
-            .collect();
-
-        Self {
-            addr: game_account.addr,
-            players,
-            servers,
-            data: game_account.data.clone(),
-            access_version: transactor_access_version,
-            settle_version: transactor_settle_version,
-            max_players: game_account.max_players,
-        }
-    }
-
-    pub fn data<S: BorshDeserialize>(&self) -> Result<S, HandleError> {
-        S::try_from_slice(&self.data).or(Err(HandleError::MalformedGameAccountData))
-    }
-
-    /// Add a new player.  This function is only available in tests.
-    /// This function will panic when a duplicated position is
-    /// specified.
-    pub fn add_player<S: Into<String>>(
-        &mut self,
-        addr: S,
-        position: usize,
-        balance: u64,
-        verify_key: String,
-    ) {
-        self.access_version += 1;
-        let access_version = self.access_version;
-        if self.players.iter().any(|p| p.position as usize == position) {
-            panic!("Failed to add player, duplicated position");
-        }
-        self.players.push(PlayerJoin {
-            position: position as _,
-            balance,
-            addr: addr.into(),
-            access_version,
-            verify_key,
-        })
-    }
-}
-
-impl Default for InitAccount {
-    fn default() -> Self {
-        Self {
-            addr: "".into(),
-            players: Vec::new(),
-            servers: Vec::new(),
-            data: Vec::new(),
-            access_version: 0,
-            settle_version: 0,
-            max_players: 10,
-        }
-    }
-}
-
-pub trait GameHandler: Sized + BorshSerialize + BorshDeserialize {
-    /// Initialize handler state with on-chain game account data.
-    fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError>;
-
-    /// Handle event.
-    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<(), HandleError>;
-}
+use race_api::engine::InitAccount;
+use race_api::error::{Error, HandleError};
+use race_api::event::Event;
+use race_api::random::RandomStatus;
 
 pub fn general_init_state(
     _context: &mut GameContext,
@@ -306,8 +193,8 @@ pub fn post_handle_event(
 #[cfg(test)]
 mod tests {
 
+    use race_api::types::{ServerJoin, PlayerJoin};
     use crate::encryptor::tests::DummyEncryptor;
-    use crate::types::ServerJoin;
 
     use super::*;
 

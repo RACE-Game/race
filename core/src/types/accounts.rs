@@ -1,89 +1,14 @@
 //! The data structures for on-chain accounts.
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use race_api::prelude::InitAccount;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
+use crate::types::{PlayerJoin, PlayerDeposit, ServerJoin};
 use super::{
     common::{EntryType, VoteType},
     RecipientSlot,
 };
-
-/// Represent a player call the join instruction in contract.
-#[derive(Debug, Default, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct PlayerJoin {
-    pub addr: String,
-    pub position: u16,
-    pub balance: u64,
-    pub access_version: u64,
-    pub verify_key: String,
-}
-
-impl PlayerJoin {
-    pub fn new<S: Into<String>>(
-        addr: S,
-        position: u16,
-        balance: u64,
-        access_version: u64,
-        verify_key: String,
-    ) -> Self {
-        Self {
-            addr: addr.into(),
-            position,
-            balance,
-            access_version,
-            verify_key,
-        }
-    }
-}
-
-/// Represent a player call the deposit instruction in contract.
-#[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct PlayerDeposit {
-    pub addr: String,
-    pub amount: u64,
-    pub settle_version: u64,
-}
-
-impl PlayerDeposit {
-    pub fn new<S: Into<String>>(addr: S, balance: u64, settle_version: u64) -> Self {
-        Self {
-            addr: addr.into(),
-            amount: balance,
-            settle_version,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct ServerJoin {
-    pub addr: String,
-    pub endpoint: String,
-    pub access_version: u64,
-    pub verify_key: String,
-}
-
-impl ServerJoin {
-    pub fn new<S: Into<String>>(
-        addr: S,
-        endpoint: String,
-        access_version: u64,
-        verify_key: String,
-    ) -> Self {
-        Self {
-            addr: addr.into(),
-            endpoint,
-            access_version,
-            verify_key,
-        }
-    }
-}
 
 #[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -217,6 +142,48 @@ pub struct GameAccount {
     pub recipient_addr: String,
 }
 
+impl GameAccount {
+    pub fn derive_init_account(&self) -> InitAccount {
+        let game_account = self.to_owned();
+        InitAccount {
+            addr: game_account.addr,
+            players: game_account.players.clone(),
+            servers:  game_account.servers.clone(),
+            data: game_account.data.clone(),
+            access_version: game_account.access_version,
+            settle_version: game_account.settle_version,
+            max_players: game_account.max_players,
+        }
+    }
+
+    pub fn into_init_account_with_version(
+        self,
+        transactor_access_version: u64,
+        transactor_settle_version: u64,
+    ) -> InitAccount {
+        let Self { players, servers, addr, data, max_players, .. } = self;
+
+        let players = players
+            .into_iter()
+            .filter(|p| p.access_version <= transactor_access_version)
+            .collect();
+        let servers = servers
+            .into_iter()
+            .filter(|s| s.access_version <= transactor_access_version)
+            .collect();
+
+        InitAccount {
+            addr,
+            players,
+            servers,
+            data,
+            access_version: transactor_access_version,
+            settle_version: transactor_settle_version,
+            max_players,
+        }
+    }
+}
+
 #[derive(Debug, Clone, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -321,7 +288,7 @@ mod tests {
             122, 110, 49, 71, 84, 111, 88, 119, 77, 116, 69, 51, 86, 84, 118, 103, 50, 105, 121,
             105, 109, 81, 85, 111, 113, 69, 76, 101, 6, 0, 0, 0, 71, 101, 110, 116, 111, 111, 0,
         ])
-        .unwrap();
+            .unwrap();
         assert_eq!(p.addr, p1.addr);
         assert_eq!(p.nick, p1.nick);
         assert_eq!(p.pfp, p1.pfp);

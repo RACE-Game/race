@@ -183,7 +183,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use race_test::*;
+    use race_test::prelude::*;
 
     #[tokio::test]
     async fn test_sync_state() {

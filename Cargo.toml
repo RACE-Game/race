@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
   "core",
+  "api",
   "proc-macro",
   "transactor",
   "cli",
@@ -22,6 +23,7 @@ members = [
 
 [workspace.dependencies]
 race-core = { path = "core", version = ">=0.1.0" }
+race-api = { path = "api", version = ">=0.1.0" }
 race-proc-macro = { path = "proc-macro", version = ">=0.1.0" }
 race-client = { path = "client", version = ">=0.1.0" }
 race-encryptor = { path = "encryptor", version = ">=0.1.0" }

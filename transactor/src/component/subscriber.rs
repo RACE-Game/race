@@ -5,7 +5,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::pin_mut;
 use futures::StreamExt;
-use race_core::prelude::InitAccount;
 use race_core::types::BroadcastFrame;
 use race_core::types::VoteType;
 use race_core::types::{GameAccount, ServerAccount};
@@ -113,12 +112,10 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                 } => {
                     let r = ports
                         .try_send(EventFrame::InitState {
-                            init_account: InitAccount::new(
-                                init_game_account.clone(),
-                                access_version,
-                                settle_version,
-                            ),
-                            state: Some(checkpoint_state)
+                            init_account: init_game_account
+                                .clone()
+                                .into_init_account_with_version(access_version, settle_version),
+                            state: Some(checkpoint_state),
                         })
                         .await;
                     if let Err(e) = r {
@@ -152,6 +149,6 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
             })
             .await;
 
-        return CloseReason::Complete
+        return CloseReason::Complete;
     }
 }

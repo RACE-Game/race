@@ -4,7 +4,27 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::{common::{EntryType, RecipientSlot, VoteType, RecipientSlotInit}, Transfer};
+use race_api::types::{RecipientSlotOwner, RecipientSlotType, Settle};
+use super::{common::{EntryType, RecipientSlot, VoteType}, Transfer};
+
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RecipientSlotShareInit {
+    pub owner: RecipientSlotOwner,
+    pub weights: u16,
+    pub claim_amount_cap: u64,
+}
+
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RecipientSlotInit {
+    pub id: u8,
+    pub slot_type: RecipientSlotType,
+    pub token_addr: String,
+    pub init_shares: Vec<RecipientSlotShareInit>,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -141,52 +161,6 @@ pub enum AssetChange {
     NoChange,
 }
 
-/// The data represents how a player's asset & status changed.
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub enum SettleOp {
-    Add(u64),
-    Sub(u64),
-    Eject,
-    AssignSlot(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct Settle {
-    pub addr: String,
-    pub op: SettleOp,
-}
-
-impl Settle {
-    pub fn add<S: Into<String>>(addr: S, amount: u64) -> Self {
-        Self {
-            addr: addr.into(),
-            op: SettleOp::Add(amount),
-        }
-    }
-    pub fn sub<S: Into<String>>(addr: S, amount: u64) -> Self {
-        Self {
-            addr: addr.into(),
-            op: SettleOp::Sub(amount),
-        }
-    }
-    pub fn eject<S: Into<String>>(addr: S) -> Self {
-        Self {
-            addr: addr.into(),
-            op: SettleOp::Eject,
-        }
-    }
-    pub fn assign<S: Into<String>>(addr: S, identifier: String) -> Self {
-        Self {
-            addr: addr.into(),
-            op: SettleOp::AssignSlot(identifier),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -234,4 +208,13 @@ pub struct PublishGameParams {
     pub uri: String,
     pub name: String,
     pub symbol: String,
+}
+
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub enum QueryMode {
+    Confirming,
+    #[default]
+    Finalized,
 }

@@ -1,15 +1,27 @@
 //! Parameters for interacting with transactor
 
 use std::fmt::Display;
-
+use race_api::event::{Event, Message};
 use crate::{
     encryptor::NodePublicKeyRaw,
-    event::{Event, Message},
-    types::tx_state::TxState,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use crate::types::PlayerJoin;
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub enum TxState {
+    PlayerConfirming {
+        confirm_players: Vec<PlayerJoin>,
+        access_version: u64,
+    },
+
+    PlayerConfirmingFailed(u64),
+}
+
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

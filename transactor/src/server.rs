@@ -12,7 +12,7 @@ use jsonrpsee::types::error::CallError;
 use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
-use race_core::event::Message;
+use race_api::event::Message;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
     AttachGameParams, ExitGameParams, Signature, SubmitEventParams, SubscribeEventParams,
@@ -72,7 +72,7 @@ async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Re
 }
 
 fn ping(_: Params<'_>, _: &ApplicationContext) -> Result<String, RpcError> {
-   Ok("pong".to_string())
+    Ok("pong".to_string())
 }
 
 async fn submit_message(

@@ -5,7 +5,7 @@ use std::collections::LinkedList;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use race_core::event::Event;
+use race_api::event::Event;
 use race_core::types::{BroadcastFrame, GameAccount, TxState};
 use tokio::sync::{broadcast, Mutex};
 use tracing::debug;
@@ -223,7 +223,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
 mod tests {
     use super::*;
     use race_core::types::PlayerJoin;
-    use race_test::*;
+    use race_test::prelude::*;
 
     #[tokio::test]
     async fn test_broadcast_event() {

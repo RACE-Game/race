@@ -1,4 +1,4 @@
-use crate::TestClient;
+use crate::client_helpers::TestClient;
 use borsh::BorshSerialize;
 use race_core::types::{ClientMode, EntryType, GameAccount, GameBundle, PlayerJoin, ServerJoin};
 

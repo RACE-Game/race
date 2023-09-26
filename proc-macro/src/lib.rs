@@ -8,7 +8,7 @@ use syn::{parse_macro_input, ItemStruct};
 /// A macro to generate boilerplate code for using in wasm.
 ///
 /// ```
-/// use race_core::prelude::*;
+/// use race_api::prelude::*;
 /// use race_proc_macro::game_handler;
 ///
 /// #[game_handler]
@@ -56,12 +56,12 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
         #[no_mangle]
         pub extern "C" fn handle_event(effect_size: u32, event_size: u32) -> u32 {
             let mut ptr = 1 as *mut u8;
-            let mut effect: race_core::effect::Effect = if let Some(effect) =  read_ptr(&mut ptr, effect_size) {
+            let mut effect: race_api::effect::Effect = if let Some(effect) =  read_ptr(&mut ptr, effect_size) {
                 effect
             } else {
                 return 1
             };
-            let event: race_core::event::Event = if let Some(event) = read_ptr(&mut ptr, event_size) {
+            let event: race_api::event::Event = if let Some(event) = read_ptr(&mut ptr, event_size) {
                 event
             } else {
                 return 2
@@ -79,12 +79,12 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
         #[no_mangle]
         pub extern "C" fn init_state(effect_size: u32, init_account_size: u32) -> u32 {
             let mut ptr = 1 as *mut u8;
-            let mut effect: race_core::effect::Effect = if let Some(effect) =  read_ptr(&mut ptr, effect_size) {
+            let mut effect: race_api::effect::Effect = if let Some(effect) =  read_ptr(&mut ptr, effect_size) {
                 effect
             } else {
                 return 1
             };
-            let init_account: race_core::engine::InitAccount = if let Some(init_account) = read_ptr(&mut ptr, init_account_size) {
+            let init_account: race_api::engine::InitAccount = if let Some(init_account) = read_ptr(&mut ptr, init_account_size) {
                 init_account
             } else {
                 return 2

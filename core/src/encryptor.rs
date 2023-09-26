@@ -1,10 +1,19 @@
-use std::collections::HashMap;
-
-use crate::types::{Ciphertext, SecretDigest, SecretKey, Signature};
-use borsh::{BorshSerialize, BorshDeserialize};
 use thiserror::Error;
+use borsh::{BorshSerialize, BorshDeserialize};
+use std::collections::HashMap;
+use crate::types::{SecretKey, SecretDigest, Signature, Ciphertext};
+use race_api;
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct NodePublicKeyRaw {
+    pub rsa: String,
+    pub ec: String,
+}
+
+pub type EncryptorResult<T> = std::result::Result<T, EncryptorError>;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum EncryptorError {
@@ -69,20 +78,11 @@ pub enum EncryptorError {
     InvalidSignatureLength(usize),
 }
 
-impl From<EncryptorError> for crate::error::Error {
+impl From<EncryptorError> for race_api::error::Error {
     fn from(e: EncryptorError) -> Self {
-        crate::error::Error::CryptoError(e.to_string())
+        race_api::error::Error::CryptoError(e.to_string())
     }
 }
-
-#[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct NodePublicKeyRaw {
-    pub rsa: String,
-    pub ec: String,
-}
-
-pub type EncryptorResult<T> = std::result::Result<T, EncryptorError>;
 
 pub trait EncryptorT: std::fmt::Debug + Send + Sync {
     fn add_public_key(&self, addr: String, raw: &NodePublicKeyRaw) -> EncryptorResult<()>;
@@ -137,10 +137,6 @@ pub trait EncryptorT: std::fmt::Debug + Send + Sync {
         }
         Ok(ret)
     }
-}
-
-pub trait Digestable {
-    fn digest(&self) -> String;
 }
 
 #[cfg(test)]

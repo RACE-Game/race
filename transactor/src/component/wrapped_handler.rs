@@ -3,12 +3,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use race_api::effect::Effect;
+use race_api::engine::InitAccount;
+use race_api::error::{Error, Result};
+use race_api::event::Event;
 use race_core::context::GameContext;
-use race_core::effect::Effect;
 use race_core::encryptor::EncryptorT;
-use race_core::engine::{general_handle_event, general_init_state, post_handle_event, InitAccount};
-use race_core::error::{Error, Result};
-use race_core::event::Event;
+use race_core::engine::{general_handle_event, general_init_state, post_handle_event};
 use race_core::types::{GameBundle, Settle, Transfer};
 use race_encryptor::Encryptor;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
@@ -79,7 +80,7 @@ impl WrappedHandler {
             .get_typed_function(&self.store, "init_state")
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
-        let effect = Effect::from_context(context);
+        let effect = context.derive_effect();
         let effect_bs = effect
             .try_to_vec()
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
@@ -105,13 +106,17 @@ impl WrappedHandler {
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
 
         if len == 0 {
-            return Err(Error::WasmInitializationError("Seriliazing effect failed".into()));
-        }
-        else if len == 1 {
-            return Err(Error::WasmInitializationError("Deserializing effect failed".into()));
-        }
-        else if len == 2 {
-            return Err(Error::WasmInitializationError("Deserializing event failed".into()));
+            return Err(Error::WasmInitializationError(
+                "Seriliazing effect failed".into(),
+            ));
+        } else if len == 1 {
+            return Err(Error::WasmInitializationError(
+                "Deserializing effect failed".into(),
+            ));
+        } else if len == 2 {
+            return Err(Error::WasmInitializationError(
+                "Deserializing event failed".into(),
+            ));
         }
 
         let mut buf = vec![0; len as _];
@@ -119,8 +124,8 @@ impl WrappedHandler {
         mem_view
             .read(1u64, &mut buf)
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
-        let mut effect =
-            Effect::try_from_slice(&buf).map_err(|e| Error::WasmInitializationError(e.to_string()))?;
+        let mut effect = Effect::try_from_slice(&buf)
+            .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         if let Some(e) = effect.__take_error() {
             Err(e.into())
         } else {
@@ -140,7 +145,7 @@ impl WrappedHandler {
             .get_typed_function(&self.store, "handle_event")
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
-        let effect = Effect::from_context(context);
+        let effect = context.derive_effect();
         let effect_bs = effect
             .try_to_vec()
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
@@ -212,12 +217,8 @@ impl WrappedHandler {
 
 #[cfg(test)]
 mod tests {
-    use race_core::{
-        context::GameStatus,
-        prelude::{CustomEvent, HandleError},
-        types::GameAccount,
-    };
-    use race_test::*;
+    use race_api::{prelude::{CustomEvent, HandleError}, types::GameStatus};
+    use race_test::prelude::*;
 
     use super::*;
 
@@ -256,7 +257,7 @@ mod tests {
     fn test_init_state() {
         let mut hdlr = make_wrapped_handler();
         let game_account = make_game_account();
-        let init_account = InitAccount::from_game_account(&game_account);
+        let init_account = game_account.derive_init_account();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         assert_eq!(
@@ -273,7 +274,7 @@ mod tests {
         let event = Event::GameStart {
             access_version: game_account.access_version,
         };
-        let init_account = InitAccount::from_game_account(&game_account);
+        let init_account = game_account.derive_init_account();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
@@ -290,7 +291,7 @@ mod tests {
         let game_account = make_game_account();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         let event = Event::custom("Alice", &MinimalEvent::Increment(1));
-        let init_account = InitAccount::from_game_account(&game_account);
+        let init_account = game_account.derive_init_account();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();

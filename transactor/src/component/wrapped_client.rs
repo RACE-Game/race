@@ -126,9 +126,9 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
 #[cfg(test)]
 mod tests {
 
-    use race_core::{context::GameContext, event::Event, random::RandomSpec};
+    use race_test::prelude::*;
+    use race_api::prelude::*;
     use race_encryptor::Encryptor;
-    use race_test::*;
 
     use crate::component::common::PortsHandle;
 

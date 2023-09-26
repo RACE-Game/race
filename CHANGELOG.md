@@ -2,6 +2,11 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 # Master(Unreleased)
 
+# 0.2.0
+
+## Breaking changes
+- A minimal crate `api` is separated from `core`.  This crate will replace the old `core` and be used in game bundle.
+
 ## Features
 
 - SDK: Add new parameter `onConnectionState` to `AppClientInitOpts`.  A function is expeceted to receive one string argument which represents the network status to transactor.

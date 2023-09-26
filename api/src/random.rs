@@ -2,10 +2,7 @@
 //!
 //! We use Mental Poker randomization between transactors.
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    iter::repeat,
-};
+use std::{collections::HashMap, iter::repeat};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;
@@ -86,7 +83,7 @@ pub enum RandomSpec {
         options: Vec<String>,
     },
     Lottery {
-        options_and_weights: BTreeMap<String, u16>,
+        options_and_weights: HashMap<String, u16>,
     },
 }
 
@@ -169,7 +166,7 @@ impl RandomSpec {
         RandomSpec::ShuffledList { options }
     }
 
-    pub fn lottery(options_and_weights: BTreeMap<String, u16>) -> Self {
+    pub fn lottery(options_and_weights: HashMap<String, u16>) -> Self {
         RandomSpec::Lottery {
             options_and_weights,
         }
@@ -657,7 +654,9 @@ impl RandomState {
 
     /// Update randomness status
     pub fn update_status(&mut self) {
-        if matches!(self.status, RandomStatus::Locking(_)) && self.masks.iter().all(|m| m.is_removed()) {
+        if matches!(self.status, RandomStatus::Locking(_))
+            && self.masks.iter().all(|m| m.is_removed())
+        {
             // This is for Locking -> Ready
             self.status = RandomStatus::Ready;
         } else if let Some(mask) = self.masks.iter().find(|m| m.is_required()) {

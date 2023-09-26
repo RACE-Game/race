@@ -14,6 +14,7 @@ readme.workspace = true
 publish = true
 
 [dependencies]
+race-api = { workspace = true, features =["serde"] }
 race-core = { workspace = true, features = ["serde"] }
 borsh.workspace = true
 async-trait.workspace = true

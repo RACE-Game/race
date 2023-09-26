@@ -1,11 +1,10 @@
 //! Effect for game handler
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::{
-    context::GameContext,
     engine::GameHandler,
     error::{Error, HandleError, Result},
     random::RandomSpec,
@@ -57,8 +56,8 @@ pub struct ActionTimeout {
 /// To create a randomness, use [`Effect::init_random_state`] with a [`RandomSpec`].
 ///
 /// ```
-/// # use race_core::effect::Effect;
-/// use race_core::random::RandomSpec;
+/// # use race_api::effect::Effect;
+/// use race_api::random::RandomSpec;
 /// let mut effect = Effect::default();
 /// let random_spec = RandomSpec::deck_of_cards();
 /// let random_id = effect.init_random_state(random_spec);
@@ -68,7 +67,7 @@ pub struct ActionTimeout {
 /// It makes those items visible only to this player.
 ///
 /// ```
-/// # use race_core::effect::Effect;
+/// # use race_api::effect::Effect;
 /// let mut effect = Effect::default();
 /// effect.assign(1 /* random_id */, "Alice", vec![0, 1, 2] /* indexes */);
 /// ```
@@ -76,7 +75,7 @@ pub struct ActionTimeout {
 /// It makes those items visible to everyone, including servers.
 ///
 /// ```
-/// # use race_core::effect::Effect;
+/// # use race_api::effect::Effect;
 /// let mut effect = Effect::default();
 /// effect.reveal(1 /* random_id */, vec![0, 1, 2] /* indexes */);
 /// ```
@@ -86,7 +85,7 @@ pub struct ActionTimeout {
 /// To prompt a player for an hidden, immutable decision, use [`Effect::prompt`].
 ///
 /// ```
-/// # use race_core::effect::Effect;
+/// # use race_api::effect::Effect;
 /// let mut effect = Effect::default();
 /// let decision_id = effect.ask("Alice");
 /// ```
@@ -94,7 +93,7 @@ pub struct ActionTimeout {
 /// To reveal the answer, use [`Effect::reveal_answer`].
 ///
 /// ```
-/// # use race_core::effect::Effect;
+/// # use race_api::effect::Effect;
 /// let mut effect = Effect::default();
 /// effect.release(1 /* decision_id */);
 /// ```
@@ -118,8 +117,8 @@ pub struct ActionTimeout {
 /// Add settlements with [`Effect::settle`].
 ///
 /// ```
-/// # use race_core::effect::Effect;
-/// use race_core::types::Settle;
+/// # use race_api::effect::Effect;
+/// use race_api::types::Settle;
 /// let mut effect = Effect::default();
 /// // Increase assets
 /// effect.settle(Settle::add("Alice", 100));
@@ -147,8 +146,8 @@ pub struct Effect {
     pub reveals: Vec<Reveal>,
     pub releases: Vec<Release>,
     pub init_random_states: Vec<RandomSpec>,
-    pub revealed: BTreeMap<RandomId, BTreeMap<usize, String>>,
-    pub answered: BTreeMap<DecisionId, String>,
+    pub revealed: HashMap<RandomId, HashMap<usize, String>>,
+    pub answered: HashMap<DecisionId, String>,
     pub settles: Vec<Settle>,
     pub handler_state: Option<Vec<u8>>,
     pub error: Option<HandleError>,
@@ -157,52 +156,6 @@ pub struct Effect {
 }
 
 impl Effect {
-    pub fn from_context(context: &GameContext) -> Self {
-        let revealed = context
-            .list_random_states()
-            .iter()
-            // Switch to BTreeMap
-            .map(|st| (st.id, BTreeMap::from_iter(st.revealed.clone().into_iter())))
-            .collect();
-
-        let answered = context
-            .list_decision_states()
-            .iter()
-            .filter_map(|st| {
-                if let Some(a) = st.get_revealed() {
-                    Some((st.id, a.to_owned()))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        Self {
-            start_game: false,
-            stop_game: false,
-            cancel_dispatch: false,
-            action_timeout: None,
-            wait_timeout: None,
-            timestamp: context.timestamp,
-            curr_random_id: context.list_random_states().len() + 1,
-            curr_decision_id: context.list_decision_states().len() + 1,
-            players_count: context.count_players(),
-            servers_count: context.count_servers(),
-            asks: Vec::new(),
-            assigns: Vec::new(),
-            reveals: Vec::new(),
-            releases: Vec::new(),
-            init_random_states: Vec::new(),
-            revealed,
-            answered,
-            settles: Vec::new(),
-            handler_state: Some(context.handler_state.clone()),
-            error: None,
-            allow_exit: context.allow_exit,
-            transfers: Vec::new(),
-        }
-    }
-
     /// Return the number of players, including both the pending and joined.
     pub fn count_players(&self) -> usize {
         self.players_count as usize
@@ -243,7 +196,7 @@ impl Effect {
     /// Return the revealed random items by id.
     ///
     /// Return [`Error::RandomnessNotRevealed`] when invalid random id is given.
-    pub fn get_revealed(&self, random_id: RandomId) -> Result<&BTreeMap<usize, String>> {
+    pub fn get_revealed(&self, random_id: RandomId) -> Result<&HashMap<usize, String>> {
         self.revealed.get(&random_id).ok_or(Error::RandomnessNotRevealed)
     }
 
@@ -364,12 +317,12 @@ mod tests {
 
     #[test]
     fn test_serialization() -> anyhow::Result<()> {
-        let mut answered = BTreeMap::new();
+        let mut answered = HashMap::new();
         answered.insert(33, "A".into());
 
-        let mut revealed = BTreeMap::new();
+        let mut revealed = HashMap::new();
         {
-            let mut m = BTreeMap::new();
+            let mut m = HashMap::new();
             m.insert(11, "B".into());
             revealed.insert(22, m);
         }

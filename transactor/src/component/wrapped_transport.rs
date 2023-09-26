@@ -1,7 +1,7 @@
 //! Wrapped transport, which support retry
 
 use jsonrpsee::core::async_trait;
-use race_core::error::Result;
+use race_api::error::Result;
 use race_core::types::{
     CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, PublishGameParams,
     RegisterGameParams, ServeParams, UnregisterGameParams, VoteParams, RecipientAccount, CreateRecipientParams, AssignRecipientParams, QueryMode

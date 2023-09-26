@@ -3,7 +3,7 @@
 //! and all players will be ejected.
 //! In the settlement, all tokens are moved to the first player.
 
-use race_core::prelude::*;
+use race_api::prelude::*;
 use race_proc_macro::game_handler;
 use std::collections::BTreeMap;
 
@@ -65,7 +65,7 @@ impl GameHandler for SimpleSettle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use race_test::sync_new_players;
+    use race_test::prelude::sync_new_players;
 
     #[test]
     pub fn test_settle() {

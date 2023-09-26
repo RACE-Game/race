@@ -1,48 +1,41 @@
-#![allow(unused)]
 //! We used an enhanced 2-role based mental poker algorithmn among a few nodes.
 //! Each node can either be a player or a transactor.
 //! For each node, there are two modes for randomization:
 //! 1. Shuffler: participate in the shuffling, hold the secrets
 //! 2. Drawer: pick the random item by index
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::Mutex;
 
-use aes::cipher::generic_array::GenericArray;
-use arrayref::{array_ref, array_refs, mut_array_refs};
+use arrayref::array_ref;
 use base64::Engine as _;
-use chacha20::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
+use chacha20::cipher::{KeyIvInit, StreamCipher};
 use chacha20::ChaCha20;
-use openssl::aes::{aes_ige, AesKey};
 use openssl::bn::BigNum;
 use openssl::ec::{EcGroup, EcKey};
 use openssl::ecdsa::EcdsaSig;
 use openssl::hash::{hash, MessageDigest};
 use openssl::nid::Nid;
 use openssl::pkey::{HasPublic, PKey};
-use openssl::sign::{Signer, Verifier};
-use openssl::symm;
 use openssl::{
     pkey::{Private, Public},
     rsa::{Padding, Rsa},
 };
-use race_core::encryptor::{EncryptorT, NodePublicKeyRaw};
+use race_core::types::{Ciphertext, SecretDigest, SecretKey};
+use race_core::encryptor::{EncryptorError, EncryptorResult, EncryptorT, NodePublicKeyRaw};
 use race_core::types::Signature;
 use rand::seq::SliceRandom;
 use sha1::{Digest, Sha1};
 
-use race_core::{
-    encryptor::{EncryptorError, EncryptorResult},
-    types::{Ciphertext, SecretDigest, SecretKey},
-};
-
 // Since we use different secrets for each encryption,
 // we can use a fixed IV.
 
+#[allow(unused)]
 fn aes_content_iv() -> Vec<u8> {
     vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 }
 
+#[allow(unused)]
 fn aes_digest_iv() -> Vec<u8> {
     vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
 }
@@ -153,13 +146,14 @@ where
     Ok(base64_encode(&der))
 }
 
+#[allow(unused)]
 fn import_rsa_private(raw: &str) -> EncryptorResult<Rsa<Private>> {
     let der = base64_decode(raw)?;
     let pkey =
         PKey::private_key_from_pkcs8(&der).map_err(|_| EncryptorError::ImportPrivateKeyError)?;
     let key = pkey
         .rsa()
-        .map_err(|e| EncryptorError::ImportPrivateKeyError)?;
+        .map_err(|_| EncryptorError::ImportPrivateKeyError)?;
     Ok(key)
 }
 
@@ -179,13 +173,14 @@ where
     Ok(base64_encode(&der))
 }
 
+#[allow(unused)]
 fn import_ec_private(raw: &str) -> EncryptorResult<EcKey<Private>> {
     let der = base64_decode(raw)?;
     let pkey =
         PKey::private_key_from_pkcs8(&der).map_err(|_| EncryptorError::ImportPrivateKeyError)?;
     let key = pkey
         .ec_key()
-        .map_err(|e| EncryptorError::ImportPrivateKeyError)?;
+        .map_err(|_| EncryptorError::ImportPrivateKeyError)?;
     Ok(key)
 }
 
@@ -232,22 +227,20 @@ impl TryInto<NodePublicKeyRaw> for &NodePrivateKey {
 #[derive(Debug)]
 pub struct Encryptor {
     private: NodePrivateKey,
-    publics: Mutex<BTreeMap<String, NodePublicKey>>,
+    publics: Mutex<HashMap<String, NodePublicKey>>,
 }
 
 impl Encryptor {
     pub fn try_new(private: NodePrivateKey) -> EncryptorResult<Self> {
         Ok(Self {
             private,
-            publics: Mutex::new(BTreeMap::new()),
+            publics: Mutex::new(HashMap::new()),
         })
     }
 }
 
 impl Default for Encryptor {
     fn default() -> Self {
-        let bits = 1024;
-        let decrypt_key = Rsa::generate(bits);
         let rsa = rsa_generate().expect("Failed to generate RSA keypair");
         let ec = ec_generate().expect("Failed to generate ECDSA keypair");
         Encryptor::try_new(NodePrivateKey { rsa, ec }).expect("Failed to initiate encryptor")
@@ -339,7 +332,7 @@ impl EncryptorT for Encryptor {
     }
 
     fn apply(&self, secret: &SecretKey, buffer: &mut [u8]) {
-        chacha20_encrypt(secret, buffer, &chacha20_iv());
+        chacha20_encrypt(secret, buffer, &chacha20_iv()).unwrap();
     }
 
     fn apply_multi(&self, secrets: Vec<SecretKey>, buffer: &mut [u8]) {
@@ -444,7 +437,7 @@ mod tests {
         ];
         let e = Encryptor::default();
         let encrypted = e.encrypt(None, &secret).expect("Failed to encrypt");
-        let decrypted = e.decrypt(&encrypted[..]).expect("Failed to decrypt");
+        let _decrypted = e.decrypt(&encrypted[..]).expect("Failed to decrypt");
     }
 
     #[test]
@@ -581,7 +574,7 @@ mod tests {
     #[test]
     fn test_ec_sign_2() -> anyhow::Result<()> {
         let ec_pub_raw = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAENM7uif/aovSW0n9+d6WLBZ3ofjyaqRjY7jO2pAbYELHZvtbtprmB2SqVkkiqaFMlm9nC+nOq/nXy2SIvWe02ug==";
-        let ec_priv_raw = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgWXPH+rxLqEJ6do3Pqlqug/maywivQbb57FtQadC/LtKhRANCAAQ0zu6J/9qi9JbSf353pYsFneh+PJqpGNjuM7akBtgQsdm+1u2muYHZKpWSSKpoUyWb2cL6c6r+dfLZIi9Z7Ta6";
+        let _ec_priv_raw = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgWXPH+rxLqEJ6do3Pqlqug/maywivQbb57FtQadC/LtKhRANCAAQ0zu6J/9qi9JbSf353pYsFneh+PJqpGNjuM7akBtgQsdm+1u2muYHZKpWSSKpoUyWb2cL6c6r+dfLZIi9Z7Ta6";
         let sig = vec![
             52, 82, 48, 205, 188, 167, 214, 182, 12, 54, 55, 123, 207, 48, 215, 208, 185, 100, 34,
             120, 11, 185, 124, 101, 6, 24, 72, 251, 16, 237, 247, 97, 240, 29, 149, 67, 66, 171,

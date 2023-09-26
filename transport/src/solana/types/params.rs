@@ -142,7 +142,7 @@ pub struct IxSettle {
 }
 
 impl TryFrom<Settle> for IxSettle {
-    type Error = race_core::error::Error;
+    type Error = race_api::error::Error;
 
     fn try_from(value: Settle) -> Result<Self, Self::Error> {
         let addr = parse_pubkey(&value.addr)?;

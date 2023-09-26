@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-race-core.workspace = true
+race-api.workspace = true
 race-proc-macro.workspace = true
 borsh.workspace = true
 

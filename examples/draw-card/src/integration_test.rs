@@ -1,16 +1,9 @@
 use crate::{AccountData, DrawCard, GameEvent, GameStage, Player};
-use race_core::{
-    context::{DispatchEvent, GameContext, GameStatus},
-    error::{Error, Result},
-    event::Event,
-    prelude::HandleError,
-    random::RandomStatus,
-    types::PlayerJoin,
-};
-use race_test::{TestClient, TestGameAccountBuilder, TestHandler};
+use race_api::prelude::*;
+use race_test::prelude::*;
 
 #[test]
-fn test() -> Result<()> {
+fn test() -> anyhow::Result<()> {
     // Initialize player client, which simulates the behavior of player.
     println!("Create test clients");
     let mut alice = TestClient::player("Alice");
@@ -290,6 +283,7 @@ fn test() -> Result<()> {
     // Now, the transactor should be able to reveal all hole cards.
     let decryption = transactor.decrypt(&ctx, 1)?;
     println!("Decryption: {:?}", decryption);
+    println!("Secrets Ready Event: {:?}", ctx.get_dispatch());
     assert_eq!(2, decryption.len());
 
     // Now send `SecretReady` to handler.

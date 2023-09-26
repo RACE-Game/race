@@ -1,7 +1,7 @@
 //! A minimal rock paper scissors game.  This game is used to
 //! demostrate how the immutable decision works.
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::iter;
 
 use arrayref::{array_ref, array_refs};
@@ -32,7 +32,7 @@ impl Player {
 #[derive(Serialize, Deserialize, Default)]
 #[game_handler]
 struct Roshambo {
-    pub players: BTreeMap<String, Player>,
+    pub players: HashMap<String, Player>,
 }
 
 #[repr(u8)]

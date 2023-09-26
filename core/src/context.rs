@@ -1,20 +1,17 @@
 use std::collections::HashMap;
 
-use crate::decision::DecisionState;
-use crate::effect::{Ask, Assign, Effect, Release, Reveal};
-use crate::engine::GameHandler;
-use crate::error::{Error, Result};
-use crate::event::CustomEvent;
-use crate::random::{RandomSpec, RandomStatus};
-use crate::types::{
-    Addr, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin, Settle, SettleOp, Transfer,
-};
-use crate::{
-    event::Event,
-    random::RandomState,
-    types::{Ciphertext, GameAccount},
-};
+use crate::types::GameAccount;
 use borsh::{BorshDeserialize, BorshSerialize};
+use race_api::decision::DecisionState;
+use race_api::effect::{Ask, Assign, Effect, Release, Reveal};
+use race_api::engine::GameHandler;
+use race_api::error::{Error, Result};
+use race_api::event::{CustomEvent, Event};
+use race_api::random::{RandomSpec, RandomState, RandomStatus};
+use race_api::types::{
+    Addr, Ciphertext, DecisionId, GameStatus, PlayerJoin, RandomId, SecretDigest, SecretShare,
+    ServerJoin, Settle, SettleOp, Transfer,
+};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -37,24 +34,6 @@ impl std::fmt::Display for NodeStatus {
             NodeStatus::Confirming => write!(f, "confirming"),
             NodeStatus::Ready => write!(f, "ready"),
             NodeStatus::Disconnected => write!(f, "disconnected"),
-        }
-    }
-}
-
-#[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone)]
-pub enum GameStatus {
-    #[default]
-    Uninit,
-    Running,
-    Closed,
-}
-
-impl std::fmt::Display for GameStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GameStatus::Uninit => write!(f, "uninit"),
-            GameStatus::Running => write!(f, "running"),
-            GameStatus::Closed => write!(f, "closed"),
         }
     }
 }
@@ -722,7 +701,7 @@ impl GameContext {
             for s in settles.as_ref().unwrap().iter() {
                 match s.op {
                     SettleOp::Eject => {
-                       self.players.retain(|p| p.addr.ne(&s.addr));
+                        self.players.retain(|p| p.addr.ne(&s.addr));
                     }
                     SettleOp::Add(amount) => {
                         let p =
@@ -754,9 +733,7 @@ impl GameContext {
                                     p.balance, amount,
                                 )))?;
                     }
-                    SettleOp::AssignSlot(_) => {
-
-                    }
+                    SettleOp::AssignSlot(_) => {}
                 }
             }
 
@@ -820,6 +797,50 @@ impl GameContext {
     pub fn get_revealed(&self, random_id: RandomId) -> Result<&HashMap<usize, String>> {
         let rnd_st = self.get_random_state(random_id)?;
         Ok(&rnd_st.revealed)
+    }
+
+    pub fn derive_effect(&self) -> Effect {
+        let revealed = self
+            .list_random_states()
+            .iter()
+            .map(|st| (st.id, st.revealed.clone()))
+            .collect();
+        let answered = self
+            .list_decision_states()
+            .iter()
+            .filter_map(|st| {
+                if let Some(a) = st.get_revealed() {
+                    Some((st.id, a.to_owned()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Effect {
+            start_game: false,
+            stop_game: false,
+            cancel_dispatch: false,
+            action_timeout: None,
+            wait_timeout: None,
+            timestamp: self.timestamp,
+            curr_random_id: self.list_random_states().len() + 1,
+            curr_decision_id: self.list_decision_states().len() + 1,
+            players_count: self.count_players(),
+            servers_count: self.count_servers(),
+            asks: Vec::new(),
+            assigns: Vec::new(),
+            reveals: Vec::new(),
+            releases: Vec::new(),
+            init_random_states: Vec::new(),
+            revealed,
+            answered,
+            settles: Vec::new(),
+            handler_state: Some(self.handler_state.clone()),
+            error: None,
+            allow_exit: self.allow_exit,
+            transfers: Vec::new(),
+        }
     }
 
     pub fn apply_effect(&mut self, effect: Effect) -> Result<()> {

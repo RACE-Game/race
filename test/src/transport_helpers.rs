@@ -7,9 +7,9 @@ use std::{
 use async_trait::async_trait;
 use base64::prelude::Engine;
 use race_core::types::{CreateRecipientParams, AssignRecipientParams, RecipientAccount};
+use race_api::error::{Error, Result};
 #[allow(unused_imports)]
 use race_core::{
-    error::{Error, Result},
     transport::TransportT,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
@@ -171,7 +171,7 @@ mod tests {
 
     use race_core::types::Settle;
 
-    use crate::{test_game_addr, TestClient, TestGameAccountBuilder};
+    use crate::prelude::{test_game_addr, TestClient, TestGameAccountBuilder};
 
     use super::*;
 
