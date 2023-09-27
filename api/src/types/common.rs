@@ -220,7 +220,6 @@ pub struct RecipientSlotShare {
     pub owner: RecipientSlotOwner,
     pub weights: u16,
     pub claim_amount: u64,
-    pub claim_amount_cap: u64,
 }
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]

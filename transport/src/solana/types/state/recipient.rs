@@ -9,7 +9,6 @@ pub struct RecipientSlotShare {
     pub owner: RecipientSlotOwner,
     pub weights: u16,
     pub claim_amount: u64,
-    pub claim_amount_cap: u64,
 }
 
 #[cfg_attr(test, derive(PartialEq, Clone))]
@@ -37,7 +36,6 @@ impl From<RecipientSlot> for race_core::types::RecipientSlot {
                 owner: s.owner.into(),
                 weights: s.weights,
                 claim_amount: s.claim_amount,
-                claim_amount_cap: s.claim_amount_cap,
             })
             .collect();
         race_core::types::RecipientSlot {

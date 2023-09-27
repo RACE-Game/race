@@ -22,7 +22,6 @@ pub fn parse_pubkey(addr: &str) -> TransportResult<Pubkey> {
 pub struct IxRecipientSlotShareInit {
     pub owner: RecipientSlotOwner,
     pub weights: u16,
-    pub claim_amount_cap: u64,
 }
 
 impl TryFrom<RecipientSlotShareInit> for IxRecipientSlotShareInit {
@@ -32,12 +31,10 @@ impl TryFrom<RecipientSlotShareInit> for IxRecipientSlotShareInit {
         let RecipientSlotShareInit {
             owner,
             weights,
-            claim_amount_cap,
         } = value;
         Ok(Self {
             owner: owner.try_into()?,
             weights,
-            claim_amount_cap,
         })
     }
 }

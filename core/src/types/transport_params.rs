@@ -13,7 +13,6 @@ use super::{common::{EntryType, RecipientSlot, VoteType}, Transfer};
 pub struct RecipientSlotShareInit {
     pub owner: RecipientSlotOwner,
     pub weights: u16,
-    pub claim_amount_cap: u64,
 }
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]

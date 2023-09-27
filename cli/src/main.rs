@@ -254,7 +254,6 @@ async fn recipient_info(addr: &str, transport: Arc<dyn TransportT>) {
                     println!("   |- owner: {:?}", share.owner);
                     println!("      weights: {}", share.weights);
                     println!("      claim amount: {}", share.claim_amount);
-                    println!("      claim amount cap: {}", share.claim_amount_cap);
                 }
             }
         }
