@@ -4,7 +4,7 @@ use jsonrpsee::core::async_trait;
 use race_api::error::Result;
 use race_core::types::{
     CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, PublishGameParams,
-    RegisterGameParams, ServeParams, UnregisterGameParams, VoteParams, RecipientAccount, CreateRecipientParams, AssignRecipientParams, QueryMode
+    RegisterGameParams, ServeParams, UnregisterGameParams, VoteParams, RecipientAccount, CreateRecipientParams, AssignRecipientParams, QueryMode, RecipientClaimParams
 };
 use race_core::{
     transport::TransportT,
@@ -130,5 +130,9 @@ impl TransportT for WrappedTransport {
 
     async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
         self.inner.get_recipient(addr).await
+    }
+
+    async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
+        self.inner.recipient_claim(params).await
     }
 }

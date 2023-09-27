@@ -13,7 +13,7 @@ use race_core::types::{
     CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
     PublishGameParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-    ServerAccount, SettleParams, UnregisterGameParams, VoteParams, CreateRecipientParams, AssignRecipientParams, RecipientAccount,QueryMode
+    ServerAccount, SettleParams, UnregisterGameParams, VoteParams, CreateRecipientParams, AssignRecipientParams, RecipientAccount,QueryMode, RecipientClaimParams
 };
 use serde::Serialize;
 
@@ -70,6 +70,10 @@ impl TransportT for FacadeTransport {
     }
 
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
+        unimplemented!()
+    }
+
+    async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
         unimplemented!()
     }
 

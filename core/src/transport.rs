@@ -1,14 +1,13 @@
-use race_api::error::Result;
-use crate::{
-    types::{
-        CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
-        CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, PublishGameParams, QueryMode, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
-        VoteParams, CreateRecipientParams, AssignRecipientParams, RecipientAccount,
-    },
+use crate::types::{
+    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams,
+    CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
+    GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, QueryMode,
+    RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
+    RegistrationAccount, ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
+    VoteParams,
 };
 use async_trait::async_trait;
+use race_api::error::Result;
 
 #[async_trait]
 pub trait TransportT: Send + Sync {
@@ -125,6 +124,9 @@ pub trait TransportT: Send + Sync {
     /// * `slots` - The initial slots for recipient account.
     /// * `cap_addrs` - The addresses with the capibility to approve others' applications.
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String>;
+
+    /// Claim tokens from recipient account.
+    async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()>;
 
     /// Grant an address with a share to a recipient slot.
     async fn assign_recipient(&self, params: AssignRecipientParams) -> Result<()>;

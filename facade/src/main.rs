@@ -693,8 +693,8 @@ async fn get_player_info(
 }
 
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
-    let SettleParams { addr, settles, .. } = params.one()?;
-    println!("! Handle settlements {}, with {:?} ", addr, settles);
+    let SettleParams { addr, settles, transfers } = params.one()?;
+    println!("! Handle settlements {}, settles: {:?}, transfers: {:?} ", addr, settles, transfers);
 
     // Simulate the finality time
     tokio::time::sleep(Duration::from_secs(1)).await;

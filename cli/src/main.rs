@@ -4,8 +4,8 @@ use race_core::{
     transport::TransportT,
     types::{
         CreateGameAccountParams, CreateRecipientParams, CreateRegistrationParams, EntryType,
-        PublishGameParams, QueryMode, RecipientSlotInit, RegisterGameParams, ServerAccount,
-        UnregisterGameParams,
+        PublishGameParams, QueryMode, RecipientClaimParams, RecipientSlotInit, RegisterGameParams,
+        ServerAccount, UnregisterGameParams,
     },
 };
 use race_env::{default_keyfile, parse_with_default_rpc};
@@ -97,7 +97,13 @@ fn cli() -> Command {
             Command::new("recipient-info")
                 .about("Query recipient account")
                 .arg(arg!(<ADDRESS> "The address of recipient account"))
-                .arg_required_else_help(true)
+                .arg_required_else_help(true),
+        )
+        .subcommand(
+            Command::new("claim")
+                .about("Claim tokens from a recipient account")
+                .arg(arg!(<ADDRESS> "The address of recipient account"))
+                .arg_required_else_help(true),
         )
 }
 
@@ -124,6 +130,15 @@ async fn publish(name: String, bundle: String, transport: Arc<dyn TransportT>) {
     };
     let resp = transport.publish_game(params).await.expect("RPC error");
     println!("Address: {}", &resp);
+}
+
+async fn claim(addr: &str, transport: Arc<dyn TransportT>) {
+    let params = RecipientClaimParams {
+        recipient_addr: addr.into(),
+    };
+
+    let resp = transport.recipient_claim(params).await.expect("Failed to claim tokens");
+    println!("Done");
 }
 
 async fn bundle_info(addr: &str, transport: Arc<dyn TransportT>) {
@@ -225,11 +240,7 @@ async fn reg_info(addr: &str, transport: Arc<dyn TransportT>) {
 }
 
 async fn recipient_info(addr: &str, transport: Arc<dyn TransportT>) {
-    match transport
-        .get_recipient(addr)
-        .await
-        .expect("Network error")
-    {
+    match transport.get_recipient(addr).await.expect("Network error") {
         Some(recipient) => {
             println!("Recipient account: {}", recipient.addr);
             println!("Capcity account: {:?}", recipient.cap_addr);
@@ -240,10 +251,10 @@ async fn recipient_info(addr: &str, transport: Arc<dyn TransportT>) {
                 println!("   token: {}", slot.token_addr);
                 println!("   Shares");
                 for share in slot.shares.iter() {
-                    println!("   |- owner: {:?}" ,share.owner);
-                    println!("      weights: {}" ,share.weights);
-                    println!("      claim amount: {}" ,share.claim_amount);
-                    println!("      claim amount cap: {}" ,share.claim_amount_cap);
+                    println!("   |- owner: {:?}", share.owner);
+                    println!("      weights: {}", share.weights);
+                    println!("      claim amount: {}", share.claim_amount);
+                    println!("      claim amount cap: {}", share.claim_amount_cap);
                 }
             }
         }
@@ -404,6 +415,11 @@ async fn main() {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
             let transport = create_transport(&chain, &rpc, None).await;
             recipient_info(addr, transport).await;
+        }
+        Some(("claim", sub_matches)) => {
+            let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
+            let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
+            claim(addr, transport).await;
         }
         _ => unreachable!(),
     }

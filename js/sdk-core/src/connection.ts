@@ -252,7 +252,9 @@ export class Connection implements IConnection {
         }
       }, 3000);
       this.checkTimer = setInterval(() => {
-        if (this.lastPong + 6000 < new Date().getTime()) {
+        const t = new Date().getTime();
+        if (this.lastPong + 6000 < t) {
+          console.log("Websocket keep alive check failed, no reply for %s ms", t - this.lastPong);
           this.onDisconnected();
         }
       }, 500);

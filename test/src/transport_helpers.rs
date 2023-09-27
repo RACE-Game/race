@@ -6,7 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use base64::prelude::Engine;
-use race_core::types::{CreateRecipientParams, AssignRecipientParams, RecipientAccount};
+use race_core::types::{CreateRecipientParams, AssignRecipientParams, RecipientAccount, RecipientClaimParams};
 use race_api::error::{Error, Result};
 #[allow(unused_imports)]
 use race_core::{
@@ -163,6 +163,10 @@ impl TransportT for DummyTransport {
 
     async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
         Ok(None)
+    }
+
+    async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
+        Ok(())
     }
 }
 

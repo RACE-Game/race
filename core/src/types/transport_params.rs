@@ -50,6 +50,13 @@ pub struct CreateRecipientParams {
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RecipientClaimParams {
+    pub recipient_addr: String,
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct AddRecipientSlotsParams {
     pub addr: String,
     pub recipient_addr: String,
