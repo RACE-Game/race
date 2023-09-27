@@ -2,6 +2,10 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 # Master(Unreleased)
 
+## Breaking changes
+- CONTRACT: Remove `claim_amount_cap`.
+- CLI: Add `claim` command to claim tokens from a recipient account.
+
 # 0.2.0
 
 ## Breaking changes

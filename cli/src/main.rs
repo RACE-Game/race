@@ -137,7 +137,7 @@ async fn claim(addr: &str, transport: Arc<dyn TransportT>) {
         recipient_addr: addr.into(),
     };
 
-    let resp = transport.recipient_claim(params).await.expect("Failed to claim tokens");
+    transport.recipient_claim(params).await.expect("Failed to claim tokens");
     println!("Done");
 }
 
