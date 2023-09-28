@@ -1,6 +1,13 @@
 import { EntryTypeCash, GameAccount, GameRegistration, INft, IToken, PlayerProfile, TokenWithBalance } from './accounts';
+import { IStorage, getTtlCache, setTtlCache } from './storage';
 import { CreateGameAccountParams, ITransport } from './transport';
 import { IWallet } from './wallet';
+
+
+export type AppHelperInitOpts = {
+  transport: ITransport,
+  storage?: IStorage,
+};
 
 /**
  * The helper for common interaction.
@@ -10,9 +17,18 @@ import { IWallet } from './wallet';
  */
 export class AppHelper {
   #transport: ITransport;
+  #storage?: IStorage;
 
-  constructor(transport: ITransport) {
-    this.#transport = transport;
+  constructor(transport: ITransport)
+  constructor(opts: AppHelperInitOpts)
+  constructor(transportOrOpts: ITransport | AppHelperInitOpts) {
+    if ('transport' in transportOrOpts) {
+      const { transport, storage } = transportOrOpts;
+      this.#transport = transport;
+      this.#storage = storage;
+    } else {
+      this.#transport = transportOrOpts
+    }
   }
 
   /**
@@ -121,7 +137,7 @@ export class AppHelper {
    * @return A list of token info.
    */
   async listTokens(): Promise<IToken[]> {
-    return await this.#transport.listTokens();
+    return await this.#transport.listTokens(this.#storage);
   }
 
   /**
@@ -133,12 +149,21 @@ export class AppHelper {
    * @return A list of nfts.
    */
   async listNfts(walletAddr: string, collection: string | undefined = undefined): Promise<INft[]> {
-    const nfts = await this.#transport.listNfts(walletAddr);
+    const nfts = await this.#transport.listNfts(walletAddr, this.#storage);
     if (collection === undefined) {
       return nfts;
     } else {
       return nfts.filter(nft => nft.collection === collection);
     }
+  }
+
+  /**
+   * Get NFT by address
+   *
+   * @param addr - The address of NFT
+   */
+  async getNft(addr: string): Promise<INft | undefined> {
+    return await this.#transport.getNft(addr, this.#storage)
   }
 
   /**

@@ -24,6 +24,7 @@ import {
   VoteParams,
   EntryType,
   EntryTypeCash,
+  IStorage,
 } from '@race-foundation/sdk-core';
 import { deserialize } from '@race-foundation/borsh';
 
@@ -95,6 +96,10 @@ export class FacadeTransport implements ITransport {
     this.#url = url;
   }
 
+  get chain() {
+    return 'Facade'
+  }
+
   async createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string> {
     const walletAddr = wallet.walletAddr;
     const gameAddr = makeid(16);
@@ -128,7 +133,7 @@ export class FacadeTransport implements ITransport {
     throw new Error('Method not implemented.');
   }
 
-  async listTokens(): Promise<IToken[]> {
+  async listTokens(_storage?: IStorage): Promise<IToken[]> {
     return Object.values(tokenMap);
   }
 
@@ -203,11 +208,11 @@ export class FacadeTransport implements ITransport {
     return ret;
   }
 
-  async getNft(_addr: string): Promise<INft | undefined> {
+  async getNft(_addr: string, _storage?: IStorage): Promise<INft | undefined> {
     return undefined;
   }
 
-  async listNfts(_walletAddr: string): Promise<INft[]> {
+  async listNfts(_walletAddr: string, _storage?: IStorage): Promise<INft[]> {
     return [];
   }
 

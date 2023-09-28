@@ -13,6 +13,7 @@ import {
   RecipientAccount,
   EntryType,
 } from './accounts';
+import { IStorage } from './storage';
 
 export type CreateGameAccountParams = {
   title: string;
@@ -80,6 +81,8 @@ export type RecipientClaimParams = {
 };
 
 export interface ITransport {
+  get chain(): string
+
   createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string>;
 
   closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void>;
@@ -116,11 +119,11 @@ export interface ITransport {
 
   getToken(addr: string): Promise<IToken | undefined>;
 
-  getNft(addr: string): Promise<INft | undefined>;
+  getNft(addr: string, storage?: IStorage): Promise<INft | undefined>;
 
-  listTokens(): Promise<IToken[]>;
+  listTokens(storage?: IStorage): Promise<IToken[]>;
 
-  listNfts(walletAddr: string): Promise<INft[]>;
+  listNfts(walletAddr: string, storage?: IStorage): Promise<INft[]>;
 
   fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>>;
 

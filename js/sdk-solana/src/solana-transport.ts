@@ -33,6 +33,9 @@ import {
   RecipientAccount,
   RecipientClaimParams,
   EntryTypeCash,
+  IStorage,
+  getTtlCache,
+  setTtlCache,
 } from '@race-foundation/sdk-core';
 import * as instruction from './instruction';
 
@@ -43,6 +46,9 @@ import { GameState, PlayerState, RecipientState, RegistryState, ServerState } fr
 import { join } from './instruction';
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants';
 import { Metadata } from './metadata';
+
+const TOKEN_CACHE_TTL = 24 * 3600;
+const NFT_CACHE_TTL = 24 * 30 * 3600;
 
 function trimString(s: string): string {
   return s.replace(/\0/g, '');
@@ -62,6 +68,10 @@ export class SolanaTransport implements ITransport {
 
   constructor(endpoint: string) {
     this.#conn = new Connection(endpoint, 'confirmed');
+  }
+
+  get chain() {
+    return 'Solana';
   }
 
   async _fetchLegacyTokens() {
@@ -437,7 +447,7 @@ export class SolanaTransport implements ITransport {
    *
    * [USDT, USDC, SOL, RACE]
    */
-  async listTokens(): Promise<IToken[]> {
+  async listTokens(storage?: IStorage): Promise<IToken[]> {
     const popularTokenAddrs = [
       'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
       'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
@@ -446,9 +456,26 @@ export class SolanaTransport implements ITransport {
 
     let tokens = [];
     for (const addr of popularTokenAddrs) {
+      const cacheKey = `TOKEN_CACHE__${this.chain}__${addr}`;
+
+      // Read token info from cache
+      if (storage !== undefined) {
+        const tokenInfo: IToken | undefined = getTtlCache(storage, cacheKey)
+        if (tokenInfo !== undefined) {
+          tokens.push(tokenInfo);
+          continue;
+        }
+      }
+
+      // Read on-chain data
       const tokenInfo = await this.getToken(addr);
       if (tokenInfo !== undefined) {
         tokens.push(tokenInfo);
+
+        // Save to cache
+        if (storage !== undefined) {
+          setTtlCache(storage, cacheKey, tokenInfo, TOKEN_CACHE_TTL);
+        }
       }
     }
     return tokens;
@@ -469,13 +496,24 @@ export class SolanaTransport implements ITransport {
     return ret;
   }
 
-  async getNft(addr: string | PublicKey): Promise<INft | undefined> {
+  async getNft(addr: string | PublicKey, storage?: IStorage): Promise<INft | undefined> {
     let mintKey: PublicKey;
+    let cacheKey: string;
 
     if (addr instanceof PublicKey) {
       mintKey = addr;
+      cacheKey = `NFT_CACHE__${this.chain}__${addr.toBase58()}`;
     } else {
       mintKey = new PublicKey(addr);
+      cacheKey = `NFT_CACHE__${this.chain}__${addr}`;
+    }
+
+    // Get nft data from cache
+    if (storage !== undefined) {
+      const nft: INft | undefined = getTtlCache(storage, cacheKey);
+      if (nft !== undefined) {
+        return nft;
+      }
     }
 
     try {
@@ -498,13 +536,19 @@ export class SolanaTransport implements ITransport {
       if (metadataState !== undefined) {
         const image = await this._fetchImageFromDataUri(metadataState.data.uri);
         if (image === undefined) return undefined;
-        return {
+
+        const nft = {
           addr: mint.address.toBase58(),
           name: trimString(metadataState.data.name),
           symbol: trimString(metadataState.data.symbol),
           image,
           collection: metadataState?.collection?.key.toBase58(),
         };
+
+        if (storage !== undefined) {
+          setTtlCache(storage, cacheKey, nft, NFT_CACHE_TTL);
+        }
+        return nft;
       } else {
         return undefined;
       }
@@ -514,7 +558,7 @@ export class SolanaTransport implements ITransport {
     }
   }
 
-  async listNfts(walletAddr: string): Promise<INft[]> {
+  async listNfts(walletAddr: string, storage?: IStorage): Promise<INft[]> {
     let nfts = [];
     const ownerKey = new PublicKey(walletAddr);
     const parsedTokenAccounts = await this.#conn.getParsedTokenAccountsByOwner(ownerKey, {
@@ -523,11 +567,12 @@ export class SolanaTransport implements ITransport {
     for (const a of parsedTokenAccounts.value) {
       if (
         a.account.data.parsed.info.tokenAmount.amount !== '1' ||
-        a.account.data.parsed.info.tokenAmount.decimals !== 0
+          a.account.data.parsed.info.tokenAmount.decimals !== 0
       ) {
         continue;
       }
-      const nft = await this.getNft(a.account.data.parsed.info.mint);
+
+      const nft = await this.getNft(a.account.data.parsed.info.mint, storage);
       if (nft !== undefined) {
         nfts.push(nft);
       }
