@@ -1,4 +1,5 @@
 import { SystemProgram, Connection, PublicKey, Transaction, Keypair } from '@solana/web3.js';
+import { Buffer } from 'buffer';
 import {
   AccountLayout,
   NATIVE_MINT,
@@ -285,7 +286,6 @@ export class SolanaTransport implements ITransport {
 
   async getGameBundle(addr: string): Promise<GameBundle | undefined> {
     const mintKey = new PublicKey(addr);
-    console.log('Game Stake Mint:', mintKey);
     const [metadataKey] = PublicKey.findProgramAddressSync(
       [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
       METAPLEX_PROGRAM_ID
@@ -427,6 +427,7 @@ export class SolanaTransport implements ITransport {
         return undefined;
       }
     } catch (e) {
+      console.warn(e)
       return undefined;
     }
   }
@@ -441,7 +442,6 @@ export class SolanaTransport implements ITransport {
       'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
       'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
       'So11111111111111111111111111111111111111112',
-      'RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ',
     ];
 
     let tokens = [];
