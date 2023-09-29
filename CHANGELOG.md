@@ -2,11 +2,16 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 # Master(Unreleased)
 
+# 0.2.1
+
 ## Features
 - CLI: Add `claim` command to claim tokens from a recipient account.
 
 ## Enhancements
 - SDK: Add caching for token/NFT fetching.
+- SDK: Add caching for game bundle fetching. (Caching for wasm module is TBD)
+- SDK: Add `data` and `dataLen` to `AppHelper.info`.
+- SDK: Add original metadata to NFT structure.
 
 ## Breaking changes
 - CONTRACT: Remove `claim_amount_cap`.

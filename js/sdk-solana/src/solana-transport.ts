@@ -543,6 +543,7 @@ export class SolanaTransport implements ITransport {
           symbol: trimString(metadataState.data.symbol),
           image,
           collection: metadataState?.collection?.key.toBase58(),
+          metadata: metadataState,
         };
 
         if (storage !== undefined) {

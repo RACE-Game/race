@@ -125,6 +125,7 @@ export interface INft {
   readonly name: string;
   readonly symbol: string;
   readonly collection: string | undefined;
+  readonly metadata: any;
 }
 
 export interface IRecipientAccount {
@@ -242,6 +243,7 @@ export class Nft implements INft {
   readonly symbol!: string;
   @field(option('string'))
   readonly collection: string | undefined;
+  readonly metadata: any;
   constructor(fields: INft) {
     Object.assign(this, fields);
   }

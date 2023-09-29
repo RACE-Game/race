@@ -18,13 +18,15 @@ import { IWallet } from './wallet';
 import { Handler, InitAccount } from './handler';
 import { Encryptor, IEncryptor } from './encryptor';
 import { SdkError } from './error';
-import { EntryType, EntryTypeCash, GameAccount, IToken, PlayerProfile } from './accounts';
+import { EntryType, EntryTypeCash, GameAccount, GameBundle, IToken, PlayerProfile } from './accounts';
 import { TxState } from './tx-state';
 import { Client } from './client';
 import { Custom, GameEvent, ICustomEvent } from './events';
 import { ProfileCache } from './profile-cache';
-import { IStorage } from './storage';
+import { IStorage, getTtlCache, setTtlCache } from './storage';
 import { DecryptionCache } from './decryption-cache';
+
+const BUNDLE_CACHE_TTL = 3600 * 365;
 
 export type EventCallbackFunction = (
   context: GameContextSnapshot,
@@ -60,6 +62,8 @@ export type GameInfo = {
   token: IToken;
   tokenAddr: string;
   bundleAddr: string;
+  data: Uint8Array;
+  dataLen: number;
 };
 
 export class AppClient {
@@ -79,6 +83,7 @@ export class AppClient {
   #profileCaches: ProfileCache;
   #info: GameInfo;
   #decryptionCache: DecryptionCache;
+  #storage?: IStorage;
 
   constructor(
     gameAddr: string,
@@ -95,7 +100,8 @@ export class AppClient {
     onConnectionState: OnConnectionStateCallbackFunction | undefined,
     encryptor: IEncryptor,
     info: GameInfo,
-    decryptionCache: DecryptionCache
+    decryptionCache: DecryptionCache,
+    storage?: IStorage,
   ) {
     this.#gameAddr = gameAddr;
     this.#handler = handler;
@@ -113,6 +119,7 @@ export class AppClient {
     this.#profileCaches = new ProfileCache(transport);
     this.#info = info;
     this.#decryptionCache = decryptionCache;
+    this.#storage = storage;
   }
 
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
@@ -126,11 +133,30 @@ export class AppClient {
         throw SdkError.gameAccountNotFound(gameAddr);
       }
       console.log('Game account:', gameAccount);
-      const gameBundle = await transport.getGameBundle(gameAccount.bundleAddr);
+
+      // Fetch game bundle
+      // The bundle can be considered as immutable, so we use cache whenever possible
+      const bundleCacheKey = `BUNDLE__${transport.chain}_${gameAccount.bundleAddr}`;
+
+      let gameBundle: GameBundle | undefined;
+      if (storage !== undefined) {
+        gameBundle = getTtlCache(storage, bundleCacheKey);
+        console.log('Use game bundle from cache:', gameBundle);
+        if (gameBundle !== undefined) {
+          Object.assign(gameBundle, { data: Uint8Array.of() })
+        }
+      }
+      if (gameBundle === undefined) {
+        gameBundle = await transport.getGameBundle(gameAccount.bundleAddr);
+        console.log('Game bundle:', gameBundle);
+        if (gameBundle !== undefined && storage !== undefined && gameBundle.data.length === 0) {
+          setTtlCache(storage, bundleCacheKey, gameBundle, BUNDLE_CACHE_TTL);
+        }
+      }
       if (gameBundle === undefined) {
         throw SdkError.gameBundleNotFound(gameAccount.bundleAddr);
       }
-      console.log('Game bundle:', gameBundle);
+
       const transactorAddr = gameAccount.transactorAddr;
       if (transactorAddr === undefined) {
         throw SdkError.gameNotServed(gameAddr);
@@ -156,6 +182,8 @@ export class AppClient {
         maxPlayers: gameAccount.maxPlayers,
         tokenAddr: gameAccount.tokenAddr,
         bundleAddr: gameAccount.bundleAddr,
+        data: gameAccount.data,
+        dataLen: gameAccount.dataLen,
         token,
       };
 
@@ -179,7 +207,8 @@ export class AppClient {
         onConnectionState,
         encryptor,
         info,
-        decryptionCache
+        decryptionCache,
+        storage,
       );
     } finally {
       console.groupEnd();
