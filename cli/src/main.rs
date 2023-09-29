@@ -175,8 +175,8 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             println!("Players:");
             for p in game_account.players.iter() {
                 println!(
-                    "Player[{}] position: {} @{}",
-                    p.addr, p.position, p.access_version
+                    "Player[{}] position: {}, amount: {}, @{}",
+                    p.addr, p.position, p.balance, p.access_version
                 );
             }
             println!("Deposits:");
