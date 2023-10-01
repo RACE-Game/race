@@ -22,6 +22,7 @@ use tokio_stream::StreamExt;
 use tower::ServiceBuilder;
 use tower_http::cors::Any;
 use tower_http::cors::CorsLayer;
+use tracing::debug;
 use tracing::{error, info, warn};
 
 fn base64_decode(data: &str) -> Result<Vec<u8>, RpcError> {
@@ -144,10 +145,9 @@ fn subscribe_event(
                 histories.len()
             );
             histories.into_iter().for_each(|x| {
-                info!("Push history event: {}", x);
+                debug!("Push history event: {}", x);
                 let v = x.try_to_vec().unwrap();
                 let s = utils::base64_encode(&v);
-                // info!("Push event history: {}", s);
                 sink.send(&s)
                     .map_err(|e| {
                         error!("Error occurred when broadcasting event histories: {:?}", e);
@@ -161,7 +161,7 @@ fn subscribe_event(
                 Ok(x) => {
                     let v = x.try_to_vec().unwrap();
                     let s = utils::base64_encode(&v);
-                    info!("Push new event: {}", x);
+                    debug!("Push new event: {}", x);
                     Ok(s)
                 }
                 Err(e) => Err(e),

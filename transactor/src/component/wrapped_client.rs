@@ -89,12 +89,10 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
 
         let mut res = Ok(());
         'outer: while let Some(event_frame) = ports.recv().await {
-            // info!("Client receives event frame: {}", event_frame);
             match event_frame {
                 EventFrame::ContextUpdated { ref context } => {
                     match client.handle_updated_context(context) {
                         Ok(events) => {
-                            // info!("{} events generated", events.len());
                             for event in events.into_iter() {
                                 info!("Connection send event: {}", event);
                                 if let Err(_e) = client.submit_event(event).await {

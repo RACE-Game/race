@@ -80,7 +80,6 @@ async fn handle(
         }
         Err(e) => {
             warn!("Handle event error: {}", e.to_string());
-            // info!("Current context: {:?}", game_context);
             match e {
                 Error::WasmExecutionError(_) | Error::WasmMemoryOverflow => {
                     return Some(CloseReason::Fault(e))

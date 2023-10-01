@@ -322,7 +322,6 @@ export class Connection implements IConnection {
   async *subscribeEvents(): AsyncGenerator<BroadcastFrame | ConnectionState | undefined> {
     await this.waitSocketReady();
     this.streamMessagePromise = new Promise(r => (this.streamResolve = r));
-    console.log(this.streamMessageQueue);
     while (true) {
       if (this.streamMessageQueue.length > 0) {
         yield this.streamMessageQueue.shift()!;
