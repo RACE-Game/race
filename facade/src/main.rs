@@ -693,7 +693,7 @@ async fn get_player_info(
 }
 
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
-    let SettleParams { addr, settles, transfers } = params.one()?;
+    let SettleParams { addr, settles, transfers, checkpoint } = params.one()?;
     println!("! Handle settlements {}, settles: {:?}, transfers: {:?} ", addr, settles, transfers);
 
     // Simulate the finality time
@@ -721,6 +721,9 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
 
     // Increase the `settle_version`
     game.settle_version += 1;
+    println!("! Bump settle version to {}", game.settle_version);
+    game.checkpoint = checkpoint;
+    game.checkpoint_access_version = game.access_version;
 
     // Handle settles
     for s in settles.into_iter() {

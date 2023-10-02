@@ -45,13 +45,14 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
         let join_handle = tokio::spawn(async move {
             while let Some(event) = queue_rx.recv().await {
                 match event {
-                    EventFrame::Settle { settles, transfers } => {
+                    EventFrame::Settle { settles, transfers, checkpoint } => {
                         let res = ctx
                             .transport
                             .settle_game(SettleParams {
                                 addr: ctx.addr.clone(),
                                 settles,
                                 transfers,
+                                checkpoint,
                             })
                             .await;
 

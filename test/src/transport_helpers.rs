@@ -222,6 +222,7 @@ mod tests {
             addr: test_game_addr(),
             settles: settles.clone(),
             transfers: vec![],
+            checkpoint: vec![],
         };
         transport.settle_game(params.clone()).await.unwrap();
         transport.settle_game(params.clone()).await.unwrap();

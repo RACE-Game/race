@@ -174,6 +174,7 @@ pub struct SettleParams {
     pub addr: String,
     pub settles: Vec<Settle>,
     pub transfers: Vec<Transfer>,
+    pub checkpoint: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

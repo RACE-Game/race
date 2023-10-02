@@ -16,6 +16,9 @@ struct SimpleSettle {
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct AccountData {}
 
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Checkpoint;
+
 impl SimpleSettle {
     fn maybe_settle(&mut self, effect: &mut Effect) -> Result<(), HandleError> {
         if self.players.len() > 1 {
@@ -36,6 +39,8 @@ impl SimpleSettle {
 }
 
 impl GameHandler for SimpleSettle {
+    type Checkpoint = Checkpoint;
+
     fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
         let players = init_account
             .players
@@ -58,6 +63,10 @@ impl GameHandler for SimpleSettle {
             }
             _ => Ok(()),
         }
+    }
+
+    fn into_checkpoint(self) -> Result<Checkpoint, HandleError> {
+        Ok(Checkpoint {})
     }
 }
 

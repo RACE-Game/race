@@ -31,6 +31,8 @@ impl Default for TestGameAccountBuilder {
             recipient_addr: "".into(),
             entry_type: EntryType::default(),
             token_addr: "".into(),
+            checkpoint: vec![],
+            checkpoint_access_version: 0,
         };
         TestGameAccountBuilder { account }
     }

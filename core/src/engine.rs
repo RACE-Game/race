@@ -25,7 +25,7 @@ pub fn general_handle_event(
     match event {
         Event::Ready => {
             // This is the first event, we make it a checkpoint
-            context.checkpoint = true;
+            // context.checkpoint = true;
             Ok(())
         }
 

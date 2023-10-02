@@ -1,11 +1,11 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::{
-    error::HandleError,
     effect::Effect,
+    error::{HandleError, HandleResult},
     event::Event,
     prelude::ServerJoin,
-    types::{PlayerJoin},
+    types::PlayerJoin,
 };
 
 /// A subset of on-chain account, used for game handler
@@ -20,12 +20,20 @@ pub struct InitAccount {
     pub access_version: u64,
     pub settle_version: u64,
     pub max_players: u16,
+    pub checkpoint: Vec<u8>,
 }
 
 impl InitAccount {
-
     pub fn data<S: BorshDeserialize>(&self) -> Result<S, HandleError> {
         S::try_from_slice(&self.data).or(Err(HandleError::MalformedGameAccountData))
+    }
+
+    pub fn checkpoint<S: BorshDeserialize>(&self) -> Result<Option<S>, HandleError> {
+        if self.checkpoint.is_empty() {
+            Ok(None)
+        } else {
+            S::try_from_slice(&self.checkpoint).or(Err(HandleError::MalformedCheckpointData)).map(Some)
+        }
     }
 
     /// Add a new player.  This function is only available in tests.
@@ -63,14 +71,20 @@ impl Default for InitAccount {
             access_version: 0,
             settle_version: 0,
             max_players: 10,
+            checkpoint: Vec::new(),
         }
     }
 }
 
 pub trait GameHandler: Sized + BorshSerialize + BorshDeserialize {
+    type Checkpoint: BorshDeserialize + BorshDeserialize;
+
     /// Initialize handler state with on-chain game account data.
-    fn init_state(effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError>;
+    fn init_state(effect: &mut Effect, init_account: InitAccount) -> HandleResult<Self>;
 
     /// Handle event.
-    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<(), HandleError>;
+    fn handle_event(&mut self, effect: &mut Effect, event: Event) -> HandleResult<()>;
+
+    /// Create checkpoint from current state.
+    fn into_checkpoint(self) -> HandleResult<Self::Checkpoint>;
 }

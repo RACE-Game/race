@@ -1,11 +1,11 @@
-import { AppClient, Message } from '@race-foundation/sdk-core';
+import { AppClient } from '@race-foundation/sdk-core';
 import React, { useState } from 'react';
+import { IMessage } from './types';
 
 interface MessagePanelProps {
-    messages: Message[];
+    messages: IMessage[];
     client: AppClient,
 }
-
 
 function MessagePanel(props: MessagePanelProps) {
     console.log(props);
@@ -25,7 +25,7 @@ function MessagePanel(props: MessagePanelProps) {
             <div className="flex-1 flex flex-col overflow-y-scroll">
                 {
                     props.messages.map(msg =>
-                        <div>
+                      <div key={msg.id}>
                             <span className="text-black font-bold"> {msg.sender} </span>
                             <span className="text-gray-500"> {msg.content} </span>
                         </div>

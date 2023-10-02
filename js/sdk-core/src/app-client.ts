@@ -1,6 +1,5 @@
 import {
   BroadcastFrameEvent,
-  BroadcastFrameInit,
   BroadcastFrameMessage,
   BroadcastFrameTxState,
   Connection,
@@ -74,7 +73,6 @@ export class AppClient {
   #transport: ITransport;
   #connection: IConnection;
   #gameContext: GameContext;
-  #initGameAccount: GameAccount;
   #onEvent: EventCallbackFunction;
   #onMessage?: MessageCallbackFunction;
   #onTxState?: TxStateCallbackFunction;
@@ -93,7 +91,6 @@ export class AppClient {
     transport: ITransport,
     connection: IConnection,
     gameContext: GameContext,
-    initGameAccount: GameAccount,
     onEvent: EventCallbackFunction,
     onMessage: MessageCallbackFunction | undefined,
     onTxState: TxStateCallbackFunction | undefined,
@@ -110,7 +107,6 @@ export class AppClient {
     this.#transport = transport;
     this.#connection = connection;
     this.#gameContext = gameContext;
-    this.#initGameAccount = initGameAccount;
     this.#onEvent = onEvent;
     this.#onMessage = onMessage;
     this.#onTxState = onTxState;
@@ -172,6 +168,7 @@ export class AppClient {
       const client = new Client(playerAddr, gameAddr, encryptor, connection);
       const handler = await Handler.initialize(gameBundle, encryptor, client, decryptionCache);
       const gameContext = new GameContext(gameAccount);
+      gameContext.applyCheckpoint(gameContext.checkpointAccessVersion, gameContext.settleVersion);
       const token = await transport.getToken(gameAccount.tokenAddr);
       if (token === undefined) {
         throw SdkError.tokenNotFound(gameAccount.tokenAddr);
@@ -200,7 +197,6 @@ export class AppClient {
         transport,
         connection,
         gameContext,
-        gameAccount,
         onEvent,
         onMessage,
         onTxState,
@@ -241,31 +237,43 @@ export class AppClient {
     this.#onEvent(snapshot, state, event);
   }
 
+  async __initializeState(gameAccount: GameAccount): Promise<void> {
+    const initAccount = InitAccount.createFromGameAccount(gameAccount, this.gameContext.accessVersion, this.gameContext.settleVersion);
+    console.log('Initialize state with', initAccount);
+    await this.#handler.initState(this.#gameContext, initAccount);
+    await this.invokeEventCallback(undefined);
+  }
+
+  async __getGameAccount(): Promise<GameAccount> {
+    while (true) {
+      try {
+        const gameAccount = await this.#transport.getGameAccount(this.gameAddr);
+        if (gameAccount === undefined) continue;
+        console.log('Game account', gameAccount);
+        return gameAccount;
+      } catch (e: any) {
+        console.warn(e, 'Failed to fetch game account, will retry in 3s');
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+    }
+
+  }
+
   /**
    * Connect to the transactor and retrieve the event stream.
    */
   async attachGame() {
     await this.#client.attachGame();
     const sub = this.#connection.subscribeEvents();
+    const gameAccount = await this.__getGameAccount();
+    const gameContext = new GameContext(gameAccount);
+    gameContext.applyCheckpoint(gameContext.checkpointAccessVersion, gameContext.settleVersion);
     await this.#connection.connect(new SubscribeEventParams({ settleVersion: this.#gameContext.settleVersion }));
+    await this.__initializeState(gameAccount);
+
     for await (const frame of sub) {
-      if (frame instanceof BroadcastFrameInit) {
-        console.group('Initialize handler state');
-        try {
-          const { checkpointState, accessVersion, settleVersion } = frame;
-          console.log('Access version:', accessVersion);
-          console.log('Settle version:', settleVersion);
-          this.#gameContext.applyCheckpoint(accessVersion, settleVersion);
-          const initAccount = InitAccount.createFromGameAccount(this.#initGameAccount, accessVersion, settleVersion);
-          console.log('Init account:', initAccount);
-          await this.#handler.initState(this.#gameContext, initAccount);
-          this.#gameContext.handlerState = checkpointState;
-          console.log('Context created:', this.#gameContext);
-          await this.invokeEventCallback(undefined);
-        } finally {
-          console.groupEnd();
-        }
-      } else if (frame instanceof BroadcastFrameMessage) {
+      if (frame instanceof BroadcastFrameMessage) {
         console.group('Receive message');
         try {
           if (this.#onMessage !== undefined) {
@@ -310,20 +318,11 @@ export class AppClient {
         }
         console.group('Disconnected, try reset state and context');
         try {
-          let gameAccount;
-          while (gameAccount === undefined) {
-            try {
-              gameAccount = await this.#transport.getGameAccount(this.gameAddr);
-            } catch (e: any) {
-              console.warn(e, 'Failed to fetch game account, will retry in 1 second');
-              await new Promise(r => setTimeout(() => r(null), 1000));
-            }
-          }
-          const gameContext = new GameContext(gameAccount);
-          console.log('Game Account:', gameAccount);
-          console.log('Game Context:', gameContext);
-          this.#gameContext = gameContext;
+          const gameAccount = await this.__getGameAccount();
+          this.#gameContext = new GameContext(gameAccount);
+          gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.#gameContext.settleVersion);
           await this.#connection.connect(new SubscribeEventParams({ settleVersion: this.#gameContext.settleVersion }));
+          await this.__initializeState(gameAccount);
         } finally {
           console.groupEnd();
         }

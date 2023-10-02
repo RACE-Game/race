@@ -24,6 +24,7 @@ pub struct WrappedHandler {
 pub struct Effects {
     pub settles: Vec<Settle>,
     pub transfers: Vec<Transfer>,
+    pub checkpoint: Vec<u8>,
 }
 
 impl WrappedHandler {
@@ -195,8 +196,8 @@ impl WrappedHandler {
         post_handle_event(context, &mut new_context)?;
         let settles_and_transfers = new_context.take_settles_and_transfers()?;
         swap(context, &mut new_context);
-        if let Some((settles, transfers)) = settles_and_transfers {
-            Ok(Some(Effects { settles, transfers }))
+        if let Some((settles, transfers, checkpoint)) = settles_and_transfers {
+            Ok(Some(Effects { settles, transfers, checkpoint }))
         } else {
             Ok(None)
         }

@@ -1,14 +1,12 @@
 //! Parameters for interacting with transactor
 
-use std::fmt::Display;
-use race_api::event::{Event, Message};
-use crate::{
-    encryptor::NodePublicKeyRaw,
-};
+use crate::encryptor::NodePublicKeyRaw;
+use crate::types::PlayerJoin;
 use borsh::{BorshDeserialize, BorshSerialize};
+use race_api::event::{Event, Message};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use crate::types::PlayerJoin;
+use std::fmt::Display;
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -21,7 +19,6 @@ pub enum TxState {
 
     PlayerConfirmingFailed(u64),
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -96,19 +93,13 @@ pub enum BroadcastFrame {
         event: Event,
         timestamp: u64,
     },
-    Init {
-        game_addr: String,
-        access_version: u64,
-        settle_version: u64,
-        checkpoint_state: Vec<u8>,
-    },
     Message {
         game_addr: String,
         message: Message,
     },
     TxState {
         tx_state: TxState,
-    }
+    },
 }
 
 impl Display for BroadcastFrame {
@@ -120,27 +111,9 @@ impl Display for BroadcastFrame {
             BroadcastFrame::Message { message, .. } => {
                 write!(f, "BroadcastFrame::Message: {}", message.sender)
             }
-            BroadcastFrame::Init {
-                access_version,
-                settle_version,
-                ..
-            } => {
-                write!(
-                    f,
-                    "BroadcastFrame::Init, access: {}, settle: {}",
-                    access_version, settle_version
-                )
+            BroadcastFrame::TxState { tx_state } => {
+                write!(f, "BroadcastFrame::TxState: {:?}", tx_state)
             }
-            BroadcastFrame::TxState {
-                tx_state,
-            } => {
-
-                write!(
-                    f,
-                    "BroadcastFrame::TxState: {:?}",
-                    tx_state
-                )
-            }
-         }
+        }
     }
 }

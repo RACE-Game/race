@@ -63,7 +63,8 @@ export class GameContext {
   decisionStates: DecisionState[];
   settles: Settle[] | undefined;
   transfers: Transfer[] | undefined;
-  checkpoint: boolean;
+  checkpoint: Uint8Array | undefined;
+  checkpointAccessVersion: bigint;
 
   constructor(context: GameContext);
   constructor(gameAccount: GameAccount);
@@ -85,7 +86,8 @@ export class GameContext {
       this.decisionStates = context.decisionStates;
       this.settles = context.settles;
       this.transfers = context.transfers;
-      this.checkpoint = false;
+      this.checkpoint = undefined;
+      this.checkpointAccessVersion = context.checkpointAccessVersion;
     } else {
       const gameAccount = gameAccountOrContext;
       const transactorAddr = gameAccount.transactorAddr;
@@ -125,7 +127,8 @@ export class GameContext {
       this.settles = undefined;
       this.transfers = undefined;
       this.handlerState = Uint8Array.of();
-      this.checkpoint = false;
+      this.checkpoint = undefined;
+      this.checkpointAccessVersion = gameAccount.checkpointAccessVersion;
     }
   }
 
@@ -446,12 +449,10 @@ export class GameContext {
     for (const spec of effect.initRandomStates) {
       this.initRandomState(spec);
     }
-    if (effect.settles.length > 0) {
+    if (effect.isCheckpoint) {
       this.settle(effect.settles);
-      if (effect.transfers.length > 0) {
-        this.transfer(effect.transfers);
-      }
-      this.checkpoint = true;
+      this.transfer(effect.transfers);
+      this.checkpoint = effect.checkpoint;
     }
     if (effect.handlerState !== undefined) {
       this.handlerState = effect.handlerState;
@@ -488,7 +489,7 @@ export class GameContext {
     });
     this.servers = this.servers.filter(s => {
       if (s.status.kind === 'pending') {
-        return s.status.accessVersion <= accessVersion;
+        return s.status.accessVersion <= accessVersion || s.addr === this.transactorAddr;
       } else {
         return true;
       }
@@ -498,6 +499,6 @@ export class GameContext {
 
   prepareForNextEvent(timestamp: bigint) {
     this.timestamp = timestamp;
-    this.checkpoint = false;
+    this.checkpoint = undefined;
   }
 }

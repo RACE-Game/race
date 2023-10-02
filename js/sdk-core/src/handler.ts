@@ -18,6 +18,7 @@ export interface IInitAccount {
   accessVersion: bigint;
   settleVersion: bigint;
   maxPlayers: number;
+  checkpoint: Uint8Array;
 }
 
 export class InitAccount {
@@ -35,6 +36,8 @@ export class InitAccount {
   readonly settleVersion: bigint;
   @field('u16')
   readonly maxPlayers: number;
+  @field('u8-array')
+  readonly checkpoint: Uint8Array;
 
   constructor(fields: IInitAccount) {
     this.addr = fields.addr;
@@ -44,6 +47,7 @@ export class InitAccount {
     this.players = fields.players;
     this.servers = fields.servers;
     this.maxPlayers = fields.maxPlayers;
+    this.checkpoint = fields.checkpoint;
   }
   static createFromGameAccount(
     gameAccount: GameAccount,
@@ -61,6 +65,7 @@ export class InitAccount {
       accessVersion: transactorAccessVersion,
       settleVersion: transactorSettleVersion,
       maxPlayers: gameAccount.maxPlayers,
+      checkpoint: gameAccount.checkpoint,
     });
   }
   serialize(): Uint8Array {

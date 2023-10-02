@@ -182,7 +182,7 @@ export class RandomState {
       mask.status = 'applied';
       this.updateStatus();
     } else {
-      throw new Error('Invalid status' + this.status);
+      throw new Error('Invalid status:' + this.status.kind);
     }
   }
 
@@ -207,7 +207,7 @@ export class RandomState {
       }
       this.updateStatus();
     } else {
-      throw new Error('Invalid status' + this.status);
+      throw new Error('Invalid status:' + this.status.kind);
     }
   }
 
@@ -227,7 +227,7 @@ export class RandomState {
 
       this.status = { kind: 'waiting-secrets' };
     } else {
-      throw new Error('Invalid status' + this.status);
+      throw new Error('Invalid status:' + this.status.kind);
     }
   }
 
@@ -255,7 +255,7 @@ export class RandomState {
 
       this.status = { kind: 'waiting-secrets' };
     } else {
-      throw new Error('Invalid status' + this.status);
+      throw new Error('Invalid status:' + this.status.kind);
     }
   }
 

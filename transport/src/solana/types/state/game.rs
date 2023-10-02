@@ -91,6 +91,10 @@ pub struct GameState {
     pub entry_type: EntryType,
     // the recipient account
     pub recipient_addr: Pubkey,
+    // the checkpoint state
+    pub checkpoint: Box<Vec<u8>>,
+    // the value of access version when checkpoint is set
+    pub checkpoint_access_version: u64,
 }
 
 impl GameState {
@@ -110,6 +114,8 @@ impl GameState {
             data,
             entry_type,
             recipient_addr,
+            checkpoint,
+            checkpoint_access_version,
             ..
         } = self;
 
@@ -135,6 +141,8 @@ impl GameState {
             unlock_time: None,
             recipient_addr: recipient_addr.to_string(),
             entry_type: entry_type.into(),
+            checkpoint: *checkpoint,
+            checkpoint_access_version,
         }
     }
 }

@@ -34,7 +34,6 @@ pub enum EventFrame {
     },
     InitState {
         init_account: InitAccount,
-        state: Option<Vec<u8>>,
     },
     SendEvent {
         event: Event,
@@ -46,7 +45,6 @@ pub enum EventFrame {
         event: Event,
     },
     Checkpoint {
-        state: Vec<u8>,
         access_version: u64,
         settle_version: u64,
     },
@@ -59,6 +57,7 @@ pub enum EventFrame {
     Settle {
         settles: Vec<Settle>,
         transfers: Vec<Transfer>,
+        checkpoint: Vec<u8>,
     },
     SettleFinalized {
         settle_version: u64,

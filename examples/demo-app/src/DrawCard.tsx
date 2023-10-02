@@ -12,6 +12,7 @@ import Header from "./Header";
 import { useWallet, createTransport } from './integration';
 import { useGameContext } from "./App";
 import MessagePanel from "./MessagePanel";
+import { IMessage } from "./types";
 
 interface FormData {
     bet: bigint
@@ -119,7 +120,7 @@ function renderWaitingConnecting(client: AppClient | undefined, messages: Messag
 
 function DrawCard() {
     let [state, setState] = useState<State | undefined>(undefined);
-    let [messages, setMessages] = useState<Message[]>([]);
+    let [messages, setMessages] = useState<IMessage[]>([]);
     let [form, setForm] = useState<FormData>({ bet: 100n });
     let [revealedCards, setRevealedCards] = useState<Map<number, string> | undefined>(undefined);
     let client = useRef<AppClient | undefined>(undefined);
@@ -157,7 +158,7 @@ function DrawCard() {
 
     const onMessage = (message: Message) => {
         setMessages(msgs => {
-            msgs.push(message);
+          msgs.push(Object.assign(message, {id: new Date().getTime()}));
             return msgs;
         });
     };

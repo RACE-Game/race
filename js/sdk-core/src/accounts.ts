@@ -350,6 +350,10 @@ export class GameAccount implements IGameAccount {
   readonly entryType!: EntryType;
   @field('string')
   readonly recipientAddr!: string;
+  @field('u8-array')
+  readonly checkpoint!: Uint8Array;
+  @field('u64')
+  readonly checkpointAccessVersion!: bigint;
   constructor(fields: IGameAccount) {
     Object.assign(this, fields);
   }

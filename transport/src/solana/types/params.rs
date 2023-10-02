@@ -151,6 +151,7 @@ impl TryFrom<Settle> for IxSettle {
 pub struct IxSettleParams {
     pub settles: Vec<IxSettle>,
     pub transfers: Vec<Transfer>,
+    pub checkpoint: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]

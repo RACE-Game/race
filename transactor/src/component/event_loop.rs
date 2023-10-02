@@ -54,7 +54,6 @@ async fn handle(
             if game_context.is_checkpoint() {
                 ports
                     .send(EventFrame::Checkpoint {
-                        state: game_context.get_handler_state_raw().to_owned(),
                         access_version: game_context.get_access_version(),
                         settle_version: game_context.get_settle_version(),
                     })
@@ -74,6 +73,7 @@ async fn handle(
                     .send(EventFrame::Settle {
                         settles: effects.settles,
                         transfers: effects.transfers,
+                        checkpoint: effects.checkpoint,
                     })
                     .await;
             }
@@ -145,8 +145,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
             match event_frame {
                 EventFrame::InitState {
                     init_account,
-                    state,
                 } => {
+                    info!("Servers: {:?}", game_context.get_servers());
                     if let Err(e) = game_context
                         .apply_checkpoint(init_account.access_version, init_account.settle_version)
                     {
@@ -161,6 +161,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         return CloseReason::Fault(e);
                     }
 
+                    info!("Servers: {:?}", game_context.get_servers());
                     info!(
                         "Initialize game state for {}, access_version = {}, settle_version = {}",
                         init_account.addr, init_account.access_version, init_account.settle_version
@@ -169,9 +170,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     info!("Initialize timestamp: {}", current_timestamp());
 
                     game_context.dispatch_safe(Event::Ready, 0);
-                    if let Some(state) = state {
-                        game_context.set_handler_state_raw(state);
-                    }
+                    ports.send(EventFrame::Checkpoint {
+                        access_version: init_account.access_version,
+                        settle_version: init_account.settle_version,
+                    }).await;
                 }
                 EventFrame::Sync {
                     new_players,

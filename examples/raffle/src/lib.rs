@@ -43,6 +43,9 @@ impl Raffle {
 }
 
 impl GameHandler for Raffle {
+
+    type Checkpoint = ();
+
     /// Initialize handler state with on-chain game account data.
     fn init_state(_effect: &mut Effect, init_account: InitAccount) -> HandleResult<Self> {
         let players = init_account.players.into_iter().map(Into::into).collect();
@@ -112,6 +115,10 @@ impl GameHandler for Raffle {
             }
             _ => (),
         }
+        Ok(())
+    }
+
+    fn into_checkpoint(self) -> HandleResult<()> {
         Ok(())
     }
 }

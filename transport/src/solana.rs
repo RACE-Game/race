@@ -520,6 +520,7 @@ impl TransportT for SolanaTransport {
             addr,
             mut settles,
             transfers,
+            checkpoint,
         } = params;
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
@@ -574,7 +575,7 @@ impl TransportT for SolanaTransport {
         }
 
         let params = RaceInstruction::Settle {
-            params: IxSettleParams { settles, transfers },
+            params: IxSettleParams { settles, transfers, checkpoint },
         };
 
         info!("Solana transport send settlement: {:?}", params);

@@ -76,11 +76,10 @@ impl TransactorHandle {
         event_bus.attach(&mut client_handle).await;
 
         // Dispatch init state
+        let init_account = game_account.derive_init_account();
+        info!("InitAccount: {:?}", init_account);
         event_bus
-            .send(EventFrame::InitState {
-                init_account: game_account.derive_init_account(),
-                state: None
-            })
+            .send(EventFrame::InitState {init_account})
             .await;
 
         let mut synchronizer_handle = synchronizer.start(synchronizer_ctx);
@@ -165,11 +164,19 @@ impl ValidatorHandle {
         let mut voter_handle = voter.start(voter_ctx);
 
         info!("Attaching components");
-        event_bus.attach(&mut subscriber_handle).await;
         event_bus.attach(&mut event_loop_handle).await;
         event_bus.attach(&mut voter_handle).await;
         event_bus.attach(&mut client_handle).await;
 
+        let init_account = game_account.derive_rollbacked_init_account();
+        info!("InitAccount: {:?}", init_account);
+
+        // Dispatch init state
+        event_bus
+            .send(EventFrame::InitState {init_account})
+            .await;
+
+        event_bus.attach(&mut subscriber_handle).await;
         Ok(Self {
             addr: game_account.addr.clone(),
             event_bus,

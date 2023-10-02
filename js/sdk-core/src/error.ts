@@ -4,6 +4,7 @@ export abstract class HandleError extends Error {}
 
 @variant(0)
 export class CustomError extends HandleError {
+  @field('string')
   message: string;
   constructor(fields: { message: string }) {
     super();
@@ -82,13 +83,6 @@ export class InternalError extends HandleError {
   constructor(fields: { message: string }) {
     super();
     this.message = `Internal error: ${fields.message}`;
-  }
-}
-
-@variant(10)
-export class CheckpointWithoutSettleError extends HandleError {
-  constructor(_: any) {
-    super();
   }
 }
 

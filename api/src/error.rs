@@ -252,8 +252,8 @@ pub enum Error {
     #[error("Invalid recipient slot params")]
     InvalidRecipientSlotParams,
 
-    #[error("Transfer without settle")]
-    TransferWithoutSettle,
+    #[error("Cannot settle or transfer without checkpoint")]
+    SettleWithoutCheckpoint,
 }
 
 #[cfg(feature = "serde")]
@@ -292,6 +292,9 @@ pub enum HandleError {
     #[error("Malformed game account data")]
     MalformedGameAccountData,
 
+    #[error("Malformed checkpoint data")]
+    MalformedCheckpointData,
+
     #[error("Malformed custom event")]
     MalformedCustomEvent,
 
@@ -303,9 +306,6 @@ pub enum HandleError {
 
     #[error("Internal error: {message:?}")]
     InternalError { message: String },
-
-    #[error("Can't set checkpoint without settle")]
-    CheckpointWithoutSettle,
 }
 
 impl From<crate::error::Error> for HandleError {

@@ -8,7 +8,7 @@ use crate::{
     engine::GameHandler,
     error::{Error, HandleError, Result},
     random::RandomSpec,
-    types::{DecisionId, RandomId, Settle, Transfer}
+    types::{DecisionId, RandomId, Settle, Transfer},
 };
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -148,6 +148,8 @@ pub struct Effect {
     pub init_random_states: Vec<RandomSpec>,
     pub revealed: HashMap<RandomId, HashMap<usize, String>>,
     pub answered: HashMap<DecisionId, String>,
+    pub is_checkpoint: bool,
+    pub checkpoint: Option<Vec<u8>>,
     pub settles: Vec<Settle>,
     pub handler_state: Option<Vec<u8>>,
     pub error: Option<HandleError>,
@@ -197,7 +199,9 @@ impl Effect {
     ///
     /// Return [`Error::RandomnessNotRevealed`] when invalid random id is given.
     pub fn get_revealed(&self, random_id: RandomId) -> Result<&HashMap<usize, String>> {
-        self.revealed.get(&random_id).ok_or(Error::RandomnessNotRevealed)
+        self.revealed
+            .get(&random_id)
+            .ok_or(Error::RandomnessNotRevealed)
     }
 
     /// Return the answer of a decision by id.
@@ -262,6 +266,11 @@ impl Effect {
         self.allow_exit = allow_exit
     }
 
+
+    pub fn checkpoint(&mut self) {
+        self.is_checkpoint = true;
+    }
+
     /// Submit settlements.
     pub fn settle(&mut self, settle: Settle) {
         self.settles.push(settle);
@@ -269,9 +278,7 @@ impl Effect {
 
     /// Transfer the assets to a recipient slot
     pub fn transfer(&mut self, slot_id: u8, amount: u64) {
-        self.transfers.push(Transfer {
-            slot_id, amount
-        });
+        self.transfers.push(Transfer { slot_id, amount });
     }
 
     /// Get handler state.
@@ -295,6 +302,21 @@ impl Effect {
         }
     }
 
+    /// Set checkpoint.
+    ///
+    /// This is an internal function, DO NOT use in game handler.
+    pub fn __set_checkpoint<S: BorshSerialize>(&mut self, checkpoint_state: S) {
+        if let Ok(state) = checkpoint_state.try_to_vec() {
+            self.checkpoint = Some(state);
+        } else {
+            self.error = Some(HandleError::SerializationError);
+        }
+    }
+
+    pub fn __checkpoint(&mut self) -> Option<Vec<u8>> {
+        std::mem::replace(&mut self.checkpoint, None)
+    }
+
     /// Set error.
     ///
     /// This is an internal function, DO NOT use in game handler.
@@ -314,6 +336,13 @@ impl Effect {
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn abc() {
+        let data = vec![0,0,0,0,0,195,133,107,4,139,1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,2,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,103,0,0,0,0,0,0,0,0,0,0,0,16,39,0,0,0,0,0,0,32,78,0,0,0,0,0,0,32,78,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,1,0,43,0,0,0,70,97,105,108,101,100,32,116,111,32,102,105,110,100,32,97,32,112,108,97,121,101,114,32,102,111,114,32,116,104,101,32,110,101,120,116,32,98,117,116,116,111,110,1,0,0,0,0];
+        let effect = Effect::try_from_slice(&data);
+        println!("{:?}", effect);
+    }
 
     #[test]
     fn test_serialization() -> anyhow::Result<()> {
@@ -362,6 +391,8 @@ mod tests {
             error: Some(HandleError::NoEnoughPlayers),
             allow_exit: true,
             transfers: vec![],
+            is_checkpoint: false,
+            checkpoint: None,
         };
         let bs = effect.try_to_vec()?;
 

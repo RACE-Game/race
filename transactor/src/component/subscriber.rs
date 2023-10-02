@@ -23,6 +23,7 @@ pub struct SubscriberContext {
     server_addr: String,
     transactor_addr: String,
     start_settle_version: u64,
+    #[allow(unused)]
     init_game_account: GameAccount,
     connection: Arc<RemoteConnection>,
 }
@@ -62,7 +63,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
             transactor_addr,
             start_settle_version,
             connection,
-            init_game_account,
+            ..
         } = ctx;
 
         let mut retries = 0;
@@ -101,28 +102,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
         pin_mut!(sub);
 
         while let Some(frame) = sub.next().await {
-            info!("Subscriber received: {}", frame);
-
             match frame {
-                BroadcastFrame::Init {
-                    access_version,
-                    settle_version,
-                    checkpoint_state,
-                    ..
-                } => {
-                    let r = ports
-                        .try_send(EventFrame::InitState {
-                            init_account: init_game_account
-                                .clone()
-                                .into_init_account_with_version(access_version, settle_version),
-                            state: Some(checkpoint_state),
-                        })
-                        .await;
-                    if let Err(e) = r {
-                        error!("Send init state error: {}", e);
-                    }
-                }
-
                 // Forward event to event bus
                 BroadcastFrame::Event { event, .. } => {
                     if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event }).await {
@@ -134,8 +114,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                 BroadcastFrame::Message { .. } => {
                     // Dropped
                 }
-                BroadcastFrame::TxState { tx_state } => {
-                    println!("TxState: {:?}", tx_state);
+                BroadcastFrame::TxState { .. } => {
                     // Dropped
                 }
             }

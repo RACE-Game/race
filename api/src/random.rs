@@ -14,8 +14,8 @@ pub enum Error {
     #[error("invalid random status: {0:?}")]
     InvalidRandomStatus(RandomStatus),
 
-    #[error("invalid operator")]
-    InvalidOperator,
+    #[error("invalid operator, expected: {0}, actual: {1}")]
+    InvalidOperator(String, String),
 
     #[error("duplicated mask")]
     DuplicatedMask,
@@ -61,6 +61,9 @@ pub enum Error {
 
     #[error("Invalid reveal operation")]
     InvalidRevealOperation,
+
+    #[error("Unreachable: {0}")]
+    Unreachable(String),
 }
 
 impl From<Error> for crate::error::Error {
@@ -361,7 +364,7 @@ impl RandomState {
             RandomStatus::Masking(ref a) => {
                 let addr = addr.as_ref();
                 if a.ne(addr) {
-                    return Err(Error::InvalidOperator);
+                    return Err(Error::InvalidOperator(a.into(), addr.into()));
                 }
                 if let Some(mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr)) {
                     if !mask.is_required() {
@@ -378,7 +381,7 @@ impl RandomState {
                     }
                 } else {
                     // unreachable
-                    return Err(Error::InvalidOperator);
+                    return Err(Error::Unreachable("Mask is None, this is an internal error".into()));
                 }
                 Ok(())
             }
@@ -398,7 +401,7 @@ impl RandomState {
             RandomStatus::Locking(ref a) => {
                 let addr = addr.as_ref();
                 if a.ne(addr) {
-                    return Err(Error::InvalidOperator);
+                    return Err(Error::InvalidOperator(a.into(), addr.into()));
                 }
                 if let Some(mask) = self.masks.iter_mut().find(|m| m.owner.eq(addr)) {
                     if mask.status.eq(&MaskStatus::Removed) {
@@ -415,7 +418,7 @@ impl RandomState {
                     }
                     self.update_status();
                 } else {
-                    return Err(Error::InvalidOperator);
+                    return Err(Error::Unreachable("Mask is None, this is an internal error".into()));
                 }
                 Ok(())
             }

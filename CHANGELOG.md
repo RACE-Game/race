@@ -2,6 +2,12 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 # Master(Unreleased)
 
+## Breaking changes
+- Now games must implement `into_checkpoint`.
+
+## Enhancements
+- SDK & Transactor & Contract: Add checkpoint to on-chain game account so that we can reproduce correct game state without querying transactor.
+
 # 0.2.1
 
 ## Features

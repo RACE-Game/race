@@ -140,6 +140,8 @@ pub struct GameAccount {
     pub data: Vec<u8>,
     pub entry_type: EntryType,
     pub recipient_addr: String,
+    pub checkpoint: Vec<u8>,
+    pub checkpoint_access_version: u64,
 }
 
 impl GameAccount {
@@ -153,23 +155,26 @@ impl GameAccount {
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
             max_players: game_account.max_players,
+            checkpoint: game_account.checkpoint.clone(),
         }
     }
 
-    pub fn into_init_account_with_version(
-        self,
-        transactor_access_version: u64,
-        transactor_settle_version: u64,
-    ) -> InitAccount {
-        let Self { players, servers, addr, data, max_players, .. } = self;
+    pub fn derive_rollbacked_init_account(&self) -> InitAccount {
+        let game_account = self.to_owned();
+        let Self { players, servers, addr, data, max_players, checkpoint, checkpoint_access_version, settle_version, transactor_addr, .. } = game_account;
 
+
+        let is_transactor = |addr: &String| {
+            transactor_addr.clone().is_some_and(|a| a.eq(addr))
+        };
         let players = players
             .into_iter()
-            .filter(|p| p.access_version <= transactor_access_version)
+            .filter(|p| p.access_version <= checkpoint_access_version)
             .collect();
         let servers = servers
             .into_iter()
-            .filter(|s| s.access_version <= transactor_access_version)
+            // There's no sync event for transactor, so here we always include transactor address
+            .filter(|s| s.access_version <= checkpoint_access_version || is_transactor(&s.addr))
             .collect();
 
         InitAccount {
@@ -177,9 +182,10 @@ impl GameAccount {
             players,
             servers,
             data,
-            access_version: transactor_access_version,
-            settle_version: transactor_settle_version,
+            access_version: checkpoint_access_version,
+            settle_version,
             max_players,
+            checkpoint
         }
     }
 }
@@ -416,6 +422,8 @@ mod tests {
                 min_deposit: 100,
                 max_deposit: 250,
             },
+            checkpoint: vec![],
+            checkpoint_access_version: 0,
         };
         let bytes = [
             9, 0, 0, 0, 103, 97, 109, 101, 32, 97, 100, 100, 114, 18, 0, 0, 0, 97, 119, 101, 115,
@@ -437,7 +445,7 @@ mod tests {
             114, 32, 48, 1, 0, 0, 0, 8, 0, 0, 0, 115, 101, 114, 118, 101, 114, 32, 49, 8, 0, 0, 0,
             115, 101, 114, 118, 101, 114, 32, 48, 0, 0, 30, 0, 10, 0, 0, 0, 10, 0, 0, 0, 0, 1, 2,
             3, 4, 5, 6, 7, 8, 9, 0, 100, 0, 0, 0, 0, 0, 0, 0, 250, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
-            114, 101, 99, 105, 112, 105, 101, 110, 116,
+            114, 101, 99, 105, 112, 105, 101, 110, 116, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         ];
         let ser = game_account.try_to_vec().unwrap();
         println!("Serialized game account {:?}", ser);

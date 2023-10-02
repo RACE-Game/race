@@ -97,22 +97,6 @@ export class BroadcastFrameEvent extends BroadcastFrame {
 }
 
 @variant(1)
-export class BroadcastFrameInit extends BroadcastFrame {
-  @field('string')
-  gameAddr!: string;
-  @field('u64')
-  accessVersion!: bigint;
-  @field('u64')
-  settleVersion!: bigint;
-  @field('u8-array')
-  checkpointState!: Uint8Array;
-  constructor(fields: any) {
-    super();
-    Object.assign(this, fields);
-  }
-}
-
-@variant(2)
 export class BroadcastFrameMessage extends BroadcastFrame {
   @field('string')
   gameAddr!: string;
@@ -124,7 +108,7 @@ export class BroadcastFrameMessage extends BroadcastFrame {
   }
 }
 
-@variant(3)
+@variant(2)
 export class BroadcastFrameTxState extends BroadcastFrame {
   @field(enums(TxState))
   txState!: TxState;
@@ -214,7 +198,7 @@ export class Connection implements IConnection {
   }
 
   async connect(params: SubscribeEventParams) {
-    console.log('Establish server connection, settle version:', params.settleVersion);
+    console.log('Establishing server connection, settle version:', params.settleVersion);
     this.socket = new WebSocket(this.endpoint);
 
     if (this.checkTimer) {
@@ -236,6 +220,7 @@ export class Connection implements IConnection {
     };
 
     this.socket.onopen = () => {
+      console.log('Websocket connected');
       let frame: ConnectionState;
       if (this.isFirstOpen) {
         frame = 'connected'
@@ -269,6 +254,7 @@ export class Connection implements IConnection {
     }
 
     this.socket.onclose = () => {
+      console.log('Websocket closed');
       this.closed = true;
     }
 

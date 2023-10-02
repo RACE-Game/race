@@ -22,8 +22,6 @@ import {
   ServerAccount,
   UnregisterGameParams,
   VoteParams,
-  EntryType,
-  EntryTypeCash,
   IStorage,
 } from '@race-foundation/sdk-core';
 import { deserialize } from '@race-foundation/borsh';
@@ -129,7 +127,7 @@ export class FacadeTransport implements ITransport {
   unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> {
     throw new Error('Method not implemented.');
   }
-  recipientClaim(wallet: IWallet, params: RecipientClaimParams): Promise<void> {
+  recipientClaim(_wallet: IWallet, _params: RecipientClaimParams): Promise<void> {
     throw new Error('Method not implemented.');
   }
 

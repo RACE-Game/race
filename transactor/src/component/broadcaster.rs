@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use race_api::event::Event;
 use race_core::types::{BroadcastFrame, GameAccount, TxState};
 use tokio::sync::{broadcast, Mutex};
-use tracing::debug;
+use tracing::{debug, error};
 
 use crate::component::common::{Component, ConsumerPorts};
 use crate::frame::EventFrame;
@@ -29,7 +29,6 @@ pub struct EventBackup {
 
 #[derive(Debug)]
 pub struct Checkpoint {
-    pub state: Vec<u8>,
     pub access_version: u64,
     pub settle_version: u64,
 }
@@ -85,16 +84,6 @@ impl Broadcaster {
 
         for group in event_backup_groups.iter() {
             if group.settle_version >= settle_version {
-                // The first frame must be Init
-                if histories.is_empty() {
-                    histories.push(BroadcastFrame::Init {
-                        game_addr: self.game_addr.clone(),
-                        access_version: group.access_version,
-                        settle_version: group.settle_version,
-                        checkpoint_state: group.checkpoint.state.clone(),
-                    });
-                }
-                // The rest frames must be Event
                 for event in group.events.iter() {
                     histories.push(BroadcastFrame::Event {
                         game_addr: self.game_addr.clone(),
@@ -130,14 +119,12 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     }
                 }
                 EventFrame::Checkpoint {
-                    state,
                     access_version,
                     settle_version,
                 } => {
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
 
                     let checkpoint = Checkpoint {
-                        state,
                         access_version,
                         settle_version,
                     };
@@ -191,6 +178,8 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                             access_version,
                             timestamp,
                         });
+                    } else {
+                        error!("Received event without checkpoint");
                     }
                     // Keep 10 groups at most
                     if event_backup_groups.len() > 10 {

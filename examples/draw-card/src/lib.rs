@@ -64,6 +64,9 @@ pub struct DrawCard {
     pub max_bet: u64,
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct DrawCardCheckpoint {}
+
 impl DrawCard {
     fn set_winner(&mut self, effect: &mut Effect, winner_index: usize) -> Result<(), HandleError> {
         let players = array_mut_ref![self.players, 0, 2];
@@ -81,6 +84,7 @@ impl DrawCard {
             player_1.balance += self.pot;
         }
 
+        effect.checkpoint();
         effect.wait_timeout(NEXT_GAME_TIMEOUT);
         Ok(())
     }
@@ -167,6 +171,9 @@ fn is_better_than(card_a: &str, card_b: &str) -> bool {
 }
 
 impl GameHandler for DrawCard {
+
+    type Checkpoint = DrawCardCheckpoint;
+
     fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
         let AccountData {
             blind_bet,
@@ -289,6 +296,7 @@ impl GameHandler for DrawCard {
                 {
                     self.set_winner(effect, if player_idx == 0 { 1 } else { 0 })?;
                     effect.settle(Settle::eject(player_addr));
+                    effect.checkpoint();
                 } else {
                     return Err(HandleError::InvalidPlayer);
                 }
@@ -297,6 +305,10 @@ impl GameHandler for DrawCard {
         }
 
         Ok(())
+    }
+
+    fn into_checkpoint(self) -> HandleResult<DrawCardCheckpoint> {
+        Ok(DrawCardCheckpoint {})
     }
 }
 

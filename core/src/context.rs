@@ -179,8 +179,8 @@ pub struct GameContext {
     pub(crate) settles: Option<Vec<Settle>>,
     /// Transfers, if is not None, will be handled by event loop.
     pub(crate) transfers: Option<Vec<Transfer>>,
-    /// Checkpoint state
-    pub(crate) checkpoint: bool,
+    /// The latest checkpoint state
+    pub(crate) checkpoint: Option<Vec<u8>>,
 }
 
 impl GameContext {
@@ -220,7 +220,7 @@ impl GameContext {
             settles: None,
             transfers: None,
             handler_state: "".into(),
-            checkpoint: false,
+            checkpoint: None,
         })
     }
 
@@ -245,6 +245,10 @@ impl GameContext {
         H: GameHandler,
     {
         H::try_from_slice(&self.handler_state).unwrap()
+    }
+
+    pub fn get_checkpoint(&self) -> Option<Vec<u8>> {
+        self.checkpoint.clone()
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
@@ -352,7 +356,7 @@ impl GameContext {
     }
 
     pub fn is_checkpoint(&self) -> bool {
-        self.checkpoint
+        self.checkpoint.is_some()
     }
 
     pub fn get_status(&self) -> GameStatus {
@@ -684,8 +688,10 @@ impl GameContext {
         self.settle_version += 1;
     }
 
-    pub fn take_settles_and_transfers(&mut self) -> Result<Option<(Vec<Settle>, Vec<Transfer>)>> {
-        if self.settles.is_some() {
+    pub fn take_settles_and_transfers(
+        &mut self,
+    ) -> Result<Option<(Vec<Settle>, Vec<Transfer>, Vec<u8>)>> {
+        if let Some(checkpoint) = self.get_checkpoint() {
             let mut settles = None;
             std::mem::swap(&mut settles, &mut self.settles);
 
@@ -741,12 +747,11 @@ impl GameContext {
             std::mem::swap(&mut transfers, &mut self.transfers);
             self.bump_settle_version();
 
-            if let Some(settles) = settles {
-                Ok(Some((settles, transfers.unwrap_or(vec![]))))
-            } else {
-                // unreachable
-                Ok(None)
-            }
+            Ok(Some((
+                settles.unwrap_or(vec![]),
+                transfers.unwrap_or(vec![]),
+                checkpoint,
+            )))
         } else {
             Ok(None)
         }
@@ -835,6 +840,8 @@ impl GameContext {
             init_random_states: Vec::new(),
             revealed,
             answered,
+            is_checkpoint: false,
+            checkpoint: None,
             settles: Vec::new(),
             handler_state: Some(self.handler_state.clone()),
             error: None,
@@ -859,6 +866,7 @@ impl GameContext {
             transfers,
             handler_state,
             allow_exit,
+            checkpoint,
             ..
         } = effect;
 
@@ -902,15 +910,13 @@ impl GameContext {
             self.init_random_state(spec)?;
         }
 
-        if !settles.is_empty() {
+        if let Some(checkpoint_state) = checkpoint {
+            self.checkpoint = Some(checkpoint_state);
             self.settle(settles);
-            if !transfers.is_empty() {
-                self.transfer(transfers);
-            }
-            self.checkpoint = true;
+            self.transfer(transfers);
         } else {
-            if !transfers.is_empty() {
-                return Err(Error::TransferWithoutSettle);
+            if (!settles.is_empty()) || (!transfers.is_empty()) {
+                return Err(Error::SettleWithoutCheckpoint);
             }
         }
 
@@ -951,7 +957,7 @@ impl GameContext {
         });
 
         self.servers.retain(|s| match s.status {
-            NodeStatus::Pending(v) => v <= access_version,
+            NodeStatus::Pending(v) => v <= access_version || s.addr.eq(&self.transactor_addr),
             NodeStatus::Confirming => true,
             NodeStatus::Ready => true,
             NodeStatus::Disconnected => true,
@@ -964,7 +970,7 @@ impl GameContext {
 
     pub fn prepare_for_next_event(&mut self, timestamp: u64) {
         self.set_timestamp(timestamp);
-        self.checkpoint = false;
+        self.checkpoint = None;
     }
 }
 
@@ -986,7 +992,7 @@ impl Default for GameContext {
             decision_states: Vec::new(),
             settles: None,
             transfers: None,
-            checkpoint: false,
+            checkpoint: None,
         }
     }
 }

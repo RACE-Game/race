@@ -11,9 +11,12 @@ use syn::{parse_macro_input, ItemStruct};
 /// use race_api::prelude::*;
 /// use race_proc_macro::game_handler;
 ///
-/// #[game_handler]
 /// #[derive(BorshDeserialize, BorshSerialize)]
+/// #[game_handler]
 /// struct S {}
+///
+/// #[derive(BorshDeserialize, BorshSerialize)]
+/// Struct Checkpoint {}
 ///
 /// impl GameHandler for S {
 ///     fn init_state(context: &mut Effect, init_account: InitAccount) -> HandleResult<Self> {
@@ -22,6 +25,10 @@ use syn::{parse_macro_input, ItemStruct};
 
 ///     fn handle_event(&mut self, context: &mut Effect, event: Event) -> HandleResult<()> {
 ///         Ok(())
+///     }
+///
+///     fn make_checkpoint(&self) -> HandleResult<Checkpoint> {
+///         Ok(Checkpoint {})
 ///     }
 /// }
 /// ```
@@ -72,6 +79,14 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
                 Ok(_) => effect.__set_handler_state(&handler),
                 Err(e) => effect.__set_error(e),
             }
+
+            if effect.is_checkpoint {
+                match handler.into_checkpoint() {
+                    Ok(checkpoint_state) => effect.__set_checkpoint(checkpoint_state),
+                    Err(e) => effect.__set_error(e),
+                }
+            }
+
             let mut ptr = 1 as *mut u8;
             write_ptr(&mut ptr, effect)
         }
