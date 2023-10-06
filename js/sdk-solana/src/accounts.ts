@@ -49,6 +49,7 @@ export interface IRegistryState {
 
 export interface IGameState {
   isInitialized: boolean;
+  version: string;
   title: string;
   bundleKey: PublicKey;
   stakeKey: PublicKey;
@@ -65,7 +66,9 @@ export interface IGameState {
   votes: IVote[];
   unlockTime: bigint | undefined;
   entryType: EntryType;
-  recipientAddr: PublicKey
+  recipientAddr: PublicKey;
+  checkpoint: Uint8Array;
+  checkpointAccessVersion: bigint;
 }
 
 export interface IServerState {
@@ -203,6 +206,8 @@ export class GameState implements IGameState {
   @field('bool')
   isInitialized!: boolean;
   @field('string')
+  version!: string;
+  @field('string')
   title!: string;
   @field(publicKeyExt)
   bundleKey!: PublicKey;
@@ -235,7 +240,11 @@ export class GameState implements IGameState {
   @field(enums(EntryType))
   entryType!: EntryType;
   @field(publicKeyExt)
-  recipientAddr!: PublicKey
+  recipientAddr!: PublicKey;
+  @field('u8-array')
+  checkpoint!: Uint8Array;
+  @field('u64')
+  checkpointAccessVersion!: bigint;
 
   constructor(fields: IGameState) {
     Object.assign(this, fields);
@@ -269,6 +278,8 @@ export class GameState implements IGameState {
       unlockTime: this.unlockTime,
       entryType: this.entryType,
       recipientAddr: this.recipientAddr.toBase58(),
+      checkpoint: this.checkpoint,
+      checkpointAccessVersion: this.checkpointAccessVersion,
     });
   }
 }

@@ -57,6 +57,8 @@ pub struct Vote {
 #[derive(Default, BorshDeserialize, BorshSerialize, Debug)]
 pub struct GameState {
     pub is_initialized: bool,
+    // the contract version, used for upgrade
+    pub version: String,
     // game name displayed on chain
     pub title: String,
     // addr to the game core logic program on Arweave
