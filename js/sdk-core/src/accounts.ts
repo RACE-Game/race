@@ -58,6 +58,8 @@ export interface IGameAccount {
   readonly data: Uint8Array;
   readonly entryType: EntryType;
   readonly recipientAddr: string;
+  readonly checkpoint: Uint8Array;
+  readonly checkpointAccessVersion: bigint;
 }
 
 export interface IServerAccount {
