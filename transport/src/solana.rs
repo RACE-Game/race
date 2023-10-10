@@ -33,6 +33,7 @@ use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::system_instruction::{self, create_account_with_seed, transfer};
 use solana_sdk::transaction::Transaction;
+use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack};
 use solana_sdk::{
     hash::Hash,
@@ -580,9 +581,11 @@ impl TransportT for SolanaTransport {
 
         info!("Solana transport send settlement: {:?}", params);
 
+        let set_cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(1200000);
+
         let settle_ix = Instruction::new_with_borsh(self.program_id.clone(), &params, accounts);
 
-        let message = Message::new(&[settle_ix], Some(&payer.pubkey()));
+        let message = Message::new(&[set_cu_limit_ix, settle_ix], Some(&payer.pubkey()));
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
         tx.sign(&[payer], blockhash);

@@ -267,8 +267,8 @@ export class AppClient {
     await this.#client.attachGame();
     const sub = this.#connection.subscribeEvents();
     const gameAccount = await this.__getGameAccount();
-    const gameContext = new GameContext(gameAccount);
-    gameContext.applyCheckpoint(gameContext.checkpointAccessVersion, gameContext.settleVersion);
+    this.#gameContext = new GameContext(gameAccount);
+    this.#gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.#gameContext.settleVersion);
     await this.#connection.connect(new SubscribeEventParams({ settleVersion: this.#gameContext.settleVersion }));
     await this.__initializeState(gameAccount);
 
@@ -320,7 +320,7 @@ export class AppClient {
         try {
           const gameAccount = await this.__getGameAccount();
           this.#gameContext = new GameContext(gameAccount);
-          gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.#gameContext.settleVersion);
+          this.#gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.#gameContext.settleVersion);
           await this.#connection.connect(new SubscribeEventParams({ settleVersion: this.#gameContext.settleVersion }));
           await this.__initializeState(gameAccount);
         } finally {
