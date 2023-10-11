@@ -77,7 +77,7 @@ impl Default for InitAccount {
 }
 
 pub trait GameHandler: Sized + BorshSerialize + BorshDeserialize {
-    type Checkpoint: BorshDeserialize + BorshDeserialize;
+    type Checkpoint: BorshSerialize + BorshDeserialize;
 
     /// Initialize handler state with on-chain game account data.
     fn init_state(effect: &mut Effect, init_account: InitAccount) -> HandleResult<Self>;

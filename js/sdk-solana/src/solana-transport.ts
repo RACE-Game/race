@@ -36,6 +36,7 @@ import {
   IStorage,
   getTtlCache,
   setTtlCache,
+  TransactionResult,
 } from '@race-foundation/sdk-core';
 import * as instruction from './instruction';
 
@@ -80,7 +81,7 @@ export class SolanaTransport implements ITransport {
     this.#legacyTokens = m['tokens'];
   }
 
-  async createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string> {
+  async createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<TransactionResult<string>> {
     const { title, bundleAddr, tokenAddr } = params;
     if (title.length > NAME_LEN) {
       // FIXME: better error message?
@@ -139,14 +140,20 @@ export class SolanaTransport implements ITransport {
     });
     tx.add(createGame);
     tx.partialSign(gameAccount, stakeAccount);
-    await wallet.sendTransaction(tx, conn);
 
-    return gameAccountKey.toBase58();
+    const res = await wallet.sendTransaction(tx, conn);
+    if (res.result === 'ok') {
+      return { result: 'ok', value: gameAccountKey.toBase58() };
+    } else {
+      return res;
+    }
   }
 
-  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> {}
+  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<TransactionResult<void>> {
+    throw new Error('unimplemented');
+  }
 
-  async join(wallet: IWallet, params: JoinParams): Promise<void> {
+  async join(wallet: IWallet, params: JoinParams): Promise<TransactionResult<void>> {
     const conn = this.#conn;
     const { gameAddr, amount: amountRaw, accessVersion: accessVersionRaw, position, verifyKey } = params;
 
@@ -223,22 +230,26 @@ export class SolanaTransport implements ITransport {
 
     tx.partialSign(tempAccountKeypair);
 
-    await wallet.sendTransaction(tx, this.#conn);
+    return await wallet.sendTransaction(tx, this.#conn);
   }
 
-  async deposit(wallet: IWallet, params: DepositParams): Promise<void> {}
-
-  async publishGame(wallet: IWallet, params: PublishGameParams): Promise<string> {
-    return '';
+  async deposit(_wallet: IWallet, _params: DepositParams): Promise<TransactionResult<void>> {
+    throw new Error('unimplemented');
   }
 
-  async vote(wallet: IWallet, params: VoteParams): Promise<void> {}
-
-  async recipientClaim(wallet: IWallet, params: RecipientClaimParams): Promise<void> {
-
+  async publishGame(_wallet: IWallet, _params: PublishGameParams): Promise<TransactionResult<string>> {
+    throw new Error('unimplemented');
   }
 
-  async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void> {
+  async vote(_wallet: IWallet, _params: VoteParams): Promise<TransactionResult<void>> {
+    throw new Error('unimplemented');
+  }
+
+  async recipientClaim(_wallet: IWallet, _params: RecipientClaimParams): Promise<TransactionResult<void>> {
+    throw new Error('unimplemented');
+  }
+
+  async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<TransactionResult<void>> {
     const { nick, pfp } = params;
     if (nick.length > 16) {
       // FIXME: better error message?
@@ -273,16 +284,20 @@ export class SolanaTransport implements ITransport {
     const createProfile = instruction.createPlayerProfile(payerKey, profileKey, nick, pfpKey);
 
     tx.add(createProfile);
-    await wallet.sendTransaction(tx, conn);
+    return await wallet.sendTransaction(tx, conn);
   }
 
-  async createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<string> {
-    return '';
+  async createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<TransactionResult<string>> {
+    throw new Error('unimplemented');
   }
 
-  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> {}
+  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<TransactionResult<void>> {
+    throw new Error('unimplemented');
+  }
 
-  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> {}
+  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<TransactionResult<void>> {
+    throw new Error('unimplemented');
+  }
 
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
     const gameAccountKey = new PublicKey(addr);
@@ -568,7 +583,7 @@ export class SolanaTransport implements ITransport {
     for (const a of parsedTokenAccounts.value) {
       if (
         a.account.data.parsed.info.tokenAmount.amount !== '1' ||
-          a.account.data.parsed.info.tokenAmount.decimals !== 0
+        a.account.data.parsed.info.tokenAmount.decimals !== 0
       ) {
         continue;
       }
@@ -615,7 +630,7 @@ export class SolanaTransport implements ITransport {
         try {
           ret.push(GameState.deserialize(accountInfo.data));
           console.info("Found game account %s", key);
-        } catch(_: any) {
+        } catch (_: any) {
           ret.push(undefined);
           console.warn("Skip invalid game account %s", key);
         }

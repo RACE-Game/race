@@ -313,6 +313,10 @@ impl Effect {
         }
     }
 
+    pub fn __set_checkpoint_raw(&mut self, raw: Vec<u8>) {
+        self.checkpoint = Some(raw);
+    }
+
     pub fn __checkpoint(&mut self) -> Option<Vec<u8>> {
         std::mem::replace(&mut self.checkpoint, None)
     }

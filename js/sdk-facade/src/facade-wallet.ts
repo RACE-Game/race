@@ -1,4 +1,4 @@
-import { IWallet } from '@race-foundation/sdk-core';
+import { IWallet, TransactionResult } from '@race-foundation/sdk-core';
 import { makeid } from './utils';
 
 export class FacadeWallet implements IWallet {
@@ -22,7 +22,7 @@ export class FacadeWallet implements IWallet {
     return this.#addr;
   }
 
-  sendTransaction(_tx: any, _conn: any): Promise<void> {
+  sendTransaction(_tx: any, _conn: any): Promise<TransactionResult<void>> {
     throw new Error('Method not implemented.');
   }
 }

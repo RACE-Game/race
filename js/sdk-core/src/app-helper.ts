@@ -1,6 +1,6 @@
-import { EntryTypeCash, GameAccount, GameRegistration, INft, IToken, PlayerProfile, TokenWithBalance } from './accounts';
-import { IStorage, getTtlCache, setTtlCache } from './storage';
-import { CreateGameAccountParams, ITransport } from './transport';
+import { EntryTypeCash, GameAccount, INft, IToken, PlayerProfile, TokenWithBalance } from './accounts';
+import { IStorage } from './storage';
+import { CreateGameAccountParams, ITransport, TransactionResult } from './transport';
 import { IWallet } from './wallet';
 
 
@@ -48,7 +48,7 @@ export class AppHelper {
    * @param params - Parameters for game creation
    * @returns The address of created game
    */
-  async createGame(wallet: IWallet, params: CreateGameAccountParams): Promise<string> {
+  async createGame(wallet: IWallet, params: CreateGameAccountParams): Promise<TransactionResult<string>> {
     if (params.title.length == 0 || params.title.length > 16) {
       throw new Error('Invalid title');
     }
@@ -69,9 +69,13 @@ export class AppHelper {
       throw new Error('Invalid maxPlayers');
     }
 
-    let addr = await this.#transport.createGameAccount(wallet, params);
-    console.debug('Game account created at %s', addr);
-    return addr;
+    let res = await this.#transport.createGameAccount(wallet, params);
+    if (res.result === 'ok') {
+      console.debug('Game account created at %s', res.value);
+    } else {
+      console.error('Failed to create game account');
+    }
+    return res;
   }
 
   /**
@@ -81,8 +85,8 @@ export class AppHelper {
    * @param gameAddr - The address of game account.
    * @param regAddr - The address of registration account.
    */
-  async registerGame(wallet: IWallet, gameAddr: string, regAddr: string) {
-    await this.#transport.registerGame(wallet, {
+  async registerGame(wallet: IWallet, gameAddr: string, regAddr: string): Promise<TransactionResult<void>> {
+    return await this.#transport.registerGame(wallet, {
       gameAddr,
       regAddr,
     });
@@ -95,11 +99,17 @@ export class AppHelper {
    * @param nick - The nick name
    * @param pfp - The address of avatar NFT
    */
-  async createProfile(wallet: IWallet, nick: string, pfp: string | undefined) {
-    await this.#transport.createPlayerProfile(wallet, {
+  async createProfile(wallet: IWallet, nick: string, pfp: string | undefined): Promise<TransactionResult<void>> {
+    const res = await this.#transport.createPlayerProfile(wallet, {
       nick,
       pfp,
     });
+    if (res.result === 'ok') {
+      console.debug('Created player profile');
+    } else {
+      console.error('Failed to create player profile');
+    }
+    return res;
   }
 
   /**

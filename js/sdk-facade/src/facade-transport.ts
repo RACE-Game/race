@@ -23,6 +23,7 @@ import {
   UnregisterGameParams,
   VoteParams,
   IStorage,
+  TransactionResult,
 } from '@race-foundation/sdk-core';
 import { deserialize } from '@race-foundation/borsh';
 
@@ -98,36 +99,36 @@ export class FacadeTransport implements ITransport {
     return 'Facade'
   }
 
-  async createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string> {
+  async createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<TransactionResult<string>> {
     const walletAddr = wallet.walletAddr;
     const gameAddr = makeid(16);
     const data = [...params.data];
     const ix: CreateGameAccountInstruction = { walletAddr, gameAddr, ...params, ...params.entryType, data };
     await this.sendInstruction('create_account', ix);
-    return gameAddr;
+    return { result: 'ok', value: gameAddr };
   }
-  closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void> {
+  closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<TransactionResult<void>> {
     throw new Error('Method not implemented.');
   }
-  deposit(wallet: IWallet, params: DepositParams): Promise<void> {
+  deposit(wallet: IWallet, params: DepositParams): Promise<TransactionResult<void>> {
     throw new Error('Method not implemented.');
   }
-  vote(wallet: IWallet, params: VoteParams): Promise<void> {
+  vote(wallet: IWallet, params: VoteParams): Promise<TransactionResult<void>> {
     throw new Error('Method not implemented.');
   }
-  publishGame(wallet: IWallet, params: PublishGameParams): Promise<string> {
+  publishGame(wallet: IWallet, params: PublishGameParams): Promise<TransactionResult<string>> {
     throw new Error('Method not implemented.');
   }
-  createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<string> {
+  createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<TransactionResult<string>> {
     throw new Error('Method not implemented.');
   }
-  registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void> {
+  registerGame(wallet: IWallet, params: RegisterGameParams): Promise<TransactionResult<void>> {
     throw new Error('Method not implemented.');
   }
-  unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void> {
+  unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<TransactionResult<void>> {
     throw new Error('Method not implemented.');
   }
-  recipientClaim(_wallet: IWallet, _params: RecipientClaimParams): Promise<void> {
+  recipientClaim(_wallet: IWallet, _params: RecipientClaimParams): Promise<TransactionResult<void>> {
     throw new Error('Method not implemented.');
   }
 
@@ -135,15 +136,17 @@ export class FacadeTransport implements ITransport {
     return Object.values(tokenMap);
   }
 
-  async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void> {
+  async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<TransactionResult<void>> {
     const playerAddr = wallet.walletAddr;
     const ix: CreatePlayerProfileInstruction = { playerAddr, ...params };
     await this.sendInstruction('create_profile', ix);
+    return { result: 'ok' };
   }
-  async join(wallet: IWallet, params: JoinParams): Promise<void> {
+  async join(wallet: IWallet, params: JoinParams): Promise<TransactionResult<void>> {
     const playerAddr = wallet.walletAddr;
     const ix: JoinInstruction = { playerAddr, ...params };
     await this.sendInstruction('join', ix);
+    return { result: 'ok' };
   }
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
     const data: Uint8Array | undefined = await this.fetchState('get_account_info', [addr]);

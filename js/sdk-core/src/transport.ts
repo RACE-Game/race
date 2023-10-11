@@ -9,11 +9,25 @@ import {
   INft,
   IToken,
   RegistrationWithGames,
-  Token,
   RecipientAccount,
   EntryType,
 } from './accounts';
 import { IStorage } from './storage';
+
+export type TransactionResultSuccess<T> = T extends void ? { result: 'ok', } : { result: 'ok', value: T };
+
+export type TransactionResult<T> =
+  | TransactionResultSuccess<T>
+  | {
+    result: 'rejected'
+  }
+  | {
+    result: 'insufficient-funds'
+  }
+  | {
+    result: 'err',
+    error: string
+  };
 
 export type CreateGameAccountParams = {
   title: string;
@@ -83,25 +97,25 @@ export type RecipientClaimParams = {
 export interface ITransport {
   get chain(): string
 
-  createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<string>;
+  createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<TransactionResult<string>>;
 
-  closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<void>;
+  closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<TransactionResult<void>>;
 
-  join(wallet: IWallet, params: JoinParams): Promise<void>;
+  join(wallet: IWallet, params: JoinParams): Promise<TransactionResult<void>>;
 
-  deposit(wallet: IWallet, params: DepositParams): Promise<void>;
+  deposit(wallet: IWallet, params: DepositParams): Promise<TransactionResult<void>>;
 
-  vote(wallet: IWallet, params: VoteParams): Promise<void>;
+  vote(wallet: IWallet, params: VoteParams): Promise<TransactionResult<void>>;
 
-  createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<void>;
+  createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<TransactionResult<void>>;
 
-  publishGame(wallet: IWallet, params: PublishGameParams): Promise<string>;
+  publishGame(wallet: IWallet, params: PublishGameParams): Promise<TransactionResult<string>>;
 
-  createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<string>;
+  createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<TransactionResult<string>>;
 
-  registerGame(wallet: IWallet, params: RegisterGameParams): Promise<void>;
+  registerGame(wallet: IWallet, params: RegisterGameParams): Promise<TransactionResult<void>>;
 
-  unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<void>;
+  unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<TransactionResult<void>>;
 
   getGameAccount(addr: string): Promise<GameAccount | undefined>;
 
@@ -127,5 +141,5 @@ export interface ITransport {
 
   fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>>;
 
-  recipientClaim(wallet: IWallet, params: RecipientClaimParams): Promise<void>;
+  recipientClaim(wallet: IWallet, params: RecipientClaimParams): Promise<TransactionResult<void>>;
 }

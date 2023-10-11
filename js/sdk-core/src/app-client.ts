@@ -12,7 +12,7 @@ import {
 } from './connection';
 import { GameContext } from './game-context';
 import { GameContextSnapshot } from './game-context-snapshot';
-import { ITransport } from './transport';
+import { ITransport, TransactionResult } from './transport';
 import { IWallet } from './wallet';
 import { Handler, InitAccount } from './handler';
 import { Encryptor, IEncryptor } from './encryptor';
@@ -81,7 +81,6 @@ export class AppClient {
   #profileCaches: ProfileCache;
   #info: GameInfo;
   #decryptionCache: DecryptionCache;
-  #storage?: IStorage;
 
   constructor(
     gameAddr: string,
@@ -98,7 +97,6 @@ export class AppClient {
     encryptor: IEncryptor,
     info: GameInfo,
     decryptionCache: DecryptionCache,
-    storage?: IStorage,
   ) {
     this.#gameAddr = gameAddr;
     this.#handler = handler;
@@ -115,7 +113,6 @@ export class AppClient {
     this.#profileCaches = new ProfileCache(transport);
     this.#info = info;
     this.#decryptionCache = decryptionCache;
-    this.#storage = storage;
   }
 
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
@@ -204,7 +201,6 @@ export class AppClient {
         encryptor,
         info,
         decryptionCache,
-        storage,
       );
     } finally {
       console.groupEnd();
@@ -348,7 +344,7 @@ export class AppClient {
   /**
    * Join game.
    */
-  async join(params: JoinOpts) {
+  async join(params: JoinOpts): Promise<TransactionResult<void>> {
     const gameAccount = await this.#transport.getGameAccount(this.gameAddr);
     if (gameAccount === undefined) {
       throw new Error('Game account not found');
@@ -372,7 +368,7 @@ export class AppClient {
 
     const publicKey = await this.#encryptor.exportPublicKey();
 
-    this.#transport.join(this.#wallet, {
+    return await this.#transport.join(this.#wallet, {
       gameAddr: this.gameAddr,
       amount: params.amount,
       accessVersion: gameAccount.accessVersion,

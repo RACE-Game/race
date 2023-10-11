@@ -1,5 +1,5 @@
-import { Connection, PublicKey, TransactionInstruction } from '@solana/web3.js';
-import { IWallet } from '@race-foundation/sdk-core';
+import { Connection, TransactionInstruction } from '@solana/web3.js';
+import { IWallet, TransactionResult } from '@race-foundation/sdk-core';
 
 const getProvider = () => {
   if ('phantom' in window) {
@@ -39,16 +39,24 @@ export class PhantomWalletAdapter implements IWallet {
     this.#skipPreflight = opts.skipPreflight;
   }
 
-  async sendTransaction(tx: TransactionInstruction, conn: Connection): Promise<void> {
+  async sendTransaction(tx: TransactionInstruction, conn: Connection): Promise<TransactionResult<void>> {
     const {
-      context: { slot: minContextSlot },
       value: { blockhash, lastValidBlockHeight },
     } = await conn.getLatestBlockhashAndContext();
     const signedTransaction = await this.#provider.signTransaction(tx);
     const signature = await conn.sendRawTransaction(signedTransaction.serialize(), {
       skipPreflight: this.#skipPreflight,
     });
-    await conn.confirmTransaction({ blockhash, lastValidBlockHeight, signature });
+    const resp = await conn.confirmTransaction({ blockhash, lastValidBlockHeight, signature });
+    if (resp.value.err !== null) {
+      return {
+        result: 'err', error: resp.value.err.toString()
+      }
+    } else {
+      return {
+        result: 'ok'
+      }
+    }
   }
 
   async connect(): Promise<void> {
