@@ -135,6 +135,7 @@ mod tests {
         let event_frame = EventFrame::Settle {
             settles: settles.clone(),
             transfers: vec![],
+            checkpoint: vec![],
         };
         let handle = submitter.start(ctx);
 
