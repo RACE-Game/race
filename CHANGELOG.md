@@ -7,9 +7,10 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 ## Enhancements
 - SDK & Transactor & Contract: Add checkpoint to on-chain game account so that we can reproduce correct game state without querying transactor.
+- SDK: Add meaningful return value for transport API.
 
 ## Fixes
-- Solana: Fix compute budget limit
+- Solana: Fix compute budget limit.
 
 # 0.2.1
 
