@@ -2,6 +2,8 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 # Master(Unreleased)
 
+# 0.2.2
+
 ## Breaking changes
 - Now games must implement `into_checkpoint`.
 
