@@ -84,6 +84,7 @@ describe('Test account data serialization', () => {
   it('GameState', () => {
     let state = new GameState({
       isInitialized: true,
+      version: "0.2.2",
       title: 'test game name',
       bundleKey: PublicKey.unique(),
       stakeKey: PublicKey.unique(),
@@ -125,6 +126,8 @@ describe('Test account data serialization', () => {
         maxDeposit: BigInt(100),
       }),
       recipientAddr: PublicKey.unique(),
+      checkpoint: Uint8Array.of(1, 2, 3, 4),
+      checkpointAccessVersion: BigInt(2),
     });
     let buf = state.serialize();
     let deserialized = GameState.deserialize(buf);
