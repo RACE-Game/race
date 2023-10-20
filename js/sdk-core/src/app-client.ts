@@ -292,6 +292,7 @@ export class AppClient {
       } else if (frame instanceof BroadcastFrameEvent) {
         const { event, timestamp } = frame;
         console.group('Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
+        console.log('Event: ', event);
         try {
           this.#gameContext.prepareForNextEvent(timestamp);
           try {

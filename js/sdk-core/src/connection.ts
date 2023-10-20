@@ -256,11 +256,12 @@ export class Connection implements IConnection {
     this.socket.onclose = () => {
       console.log('Websocket closed');
       this.closed = true;
+      this.onDisconnected();
     }
 
     this.socket.onerror = (e) => {
       console.error(e);
-      this.onDisconnected()
+      this.onDisconnected();
     };
 
     // Call JSONRPC subscribe_event

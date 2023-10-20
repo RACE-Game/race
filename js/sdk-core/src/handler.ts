@@ -285,6 +285,7 @@ export class Handler implements IHandler {
     let newEffect: Effect;
     try {
       newEffect = deserialize(Effect, newEffectBytes);
+      console.debug('Return effect: ', newEffect);
     } catch (err: any) {
       console.debug('Failed to deserialize effect, raw: [%s]', Array.from(newEffectBytes).toString());
       throw err;
