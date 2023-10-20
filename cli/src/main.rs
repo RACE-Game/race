@@ -3,9 +3,9 @@ use prettytable::{row, Table};
 use race_core::{
     transport::TransportT,
     types::{
-        CreateGameAccountParams, CreateRecipientParams, CreateRegistrationParams, EntryType,
-        PublishGameParams, QueryMode, RecipientClaimParams, RecipientSlotInit, RegisterGameParams,
-        ServerAccount, UnregisterGameParams,
+        CloseGameAccountParams, CreateGameAccountParams, CreateRecipientParams,
+        CreateRegistrationParams, EntryType, PublishGameParams, QueryMode, RecipientClaimParams,
+        RecipientSlotInit, RegisterGameParams, ServerAccount, UnregisterGameParams,
     },
 };
 use race_env::{default_keyfile, parse_with_default_rpc};
@@ -87,6 +87,12 @@ fn cli() -> Command {
                 .arg_required_else_help(true),
         )
         .subcommand(
+            Command::new("close-game")
+                .about("Close game account")
+                .arg(arg!(<GAME> "The address of game account"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
             Command::new("unreg-game")
                 .about("Unregister game account")
                 .arg(arg!(<REG> "The address of registration account"))
@@ -137,7 +143,10 @@ async fn claim(addr: &str, transport: Arc<dyn TransportT>) {
         recipient_addr: addr.into(),
     };
 
-    transport.recipient_claim(params).await.expect("Failed to claim tokens");
+    transport
+        .recipient_claim(params)
+        .await
+        .expect("Failed to claim tokens");
     println!("Done");
 }
 
@@ -335,6 +344,20 @@ async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
     println!("Game account: {}", addr);
 }
 
+
+async fn close_game(game_addr: String, transport: Arc<dyn TransportT>) {
+    let r = transport
+        .close_game_account(CloseGameAccountParams {
+            addr: game_addr.to_owned()
+        })
+        .await;
+    if let Err(e) = r {
+        println!("Failed to close game due to: {}", e.to_string());
+    } else {
+        println!("Game closed");
+    }
+}
+
 async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) {
     println!(
         "Unregister game {} from registration {}",
@@ -351,6 +374,7 @@ async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn Tran
     } else {
         println!("Game unregistered");
     }
+    close_game(game_addr, transport).await;
 }
 
 #[tokio::main]
@@ -405,6 +429,12 @@ async fn main() {
             let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
             unreg_game(reg_addr.clone(), game_addr.clone(), transport).await;
         }
+        Some(("close-game", sub_matches)) => {
+            let game_addr = sub_matches.get_one::<String>("GAME").expect("required");
+            let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
+            close_game(game_addr.clone(), transport).await;
+        }
+
         Some(("reg-info", sub_matches)) => {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
             let transport = create_transport(&chain, &rpc, None).await;
