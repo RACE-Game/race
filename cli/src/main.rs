@@ -20,6 +20,13 @@ pub enum RecipientSpecs {
     Addr(String),
 }
 
+impl RecipientSpecs {
+    pub fn from_file(path: PathBuf) -> Self {
+        let f = File::open(path).expect("Spec file not found");
+        serde_json::from_reader(f).expect("Invalid spec file")
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateGameSpecs {
@@ -100,6 +107,12 @@ fn cli() -> Command {
                 .arg_required_else_help(true),
         )
         .subcommand(
+            Command::new("create-recipient")
+                .about("Create recipient account")
+                .arg(arg!(<SPEC_FILE> "The path to specification file"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
             Command::new("recipient-info")
                 .about("Query recipient account")
                 .arg(arg!(<ADDRESS> "The address of recipient account"))
@@ -174,6 +187,7 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
     {
         Some(game_account) => {
             println!("Game account: {}", game_account.addr);
+            println!("Title: {}", game_account.title);
             println!("Game bundle: {}", game_account.bundle_addr);
             println!("Access version: {}", game_account.access_version);
             println!("Settle version: {}", game_account.settle_version);
@@ -284,6 +298,25 @@ async fn create_reg(transport: Arc<dyn TransportT>) {
     println!("Address: {}", addr);
 }
 
+async fn create_recipient(specs: RecipientSpecs, transport: Arc<dyn TransportT>) {
+    match specs {
+        RecipientSpecs::Slots(slots) => {
+            let params = CreateRecipientParams {
+                cap_addr: None,
+                slots,
+            };
+            let addr = transport
+                .create_recipient(params)
+                .await
+                .expect("Create recipient failed");
+            println!("Recipient account created: {}", addr);
+        },
+        RecipientSpecs::Addr(_) => {
+            println!("Invalid spec format");
+        }
+    };
+}
+
 async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
     // println!("Specs: {:?}", specs);
 
@@ -344,11 +377,10 @@ async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
     println!("Game account: {}", addr);
 }
 
-
 async fn close_game(game_addr: String, transport: Arc<dyn TransportT>) {
     let r = transport
         .close_game_account(CloseGameAccountParams {
-            addr: game_addr.to_owned()
+            addr: game_addr.to_owned(),
         })
         .await;
     if let Err(e) = r {
@@ -434,11 +466,18 @@ async fn main() {
             let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
             close_game(game_addr.clone(), transport).await;
         }
-
         Some(("reg-info", sub_matches)) => {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
             let transport = create_transport(&chain, &rpc, None).await;
             reg_info(addr, transport).await;
+        }
+        Some(("create-recipient", sub_matches)) => {
+            let spec_file = sub_matches
+                .get_one::<String>("SPEC_FILE")
+                .expect("required");
+            let specs = RecipientSpecs::from_file(spec_file.into());
+            let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
+            create_recipient(specs, transport).await;
         }
         Some(("recipient-info", sub_matches)) => {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
