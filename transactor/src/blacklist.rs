@@ -42,6 +42,7 @@ impl Blacklist {
 
     pub fn add_addr<S: Into<String>>(&mut self, addr: S) {
         let addr = addr.into();
+        tracing::info!("Save {} to blacklist", addr);
 
         if self.persistent {
             match OpenOptions::new()
