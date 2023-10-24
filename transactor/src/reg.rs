@@ -1,7 +1,7 @@
 //! Register current transactor into on-chain transactor list
 //! Find available games and serve them.
 
-use std::time::Duration;
+use std::{time::Duration, collections::HashMap};
 
 use race_api::error::{Error, Result};
 use race_core::{
@@ -51,7 +51,11 @@ pub async fn start_reg_task(context: &ApplicationContext) {
     };
     info!("Server address: {}", server_addr);
     info!("Registraion addresses: {:?}", reg_addresses);
+
+
     tokio::spawn(async move {
+        let mut not_found_counts = HashMap::<String, usize>::new();
+
         loop {
             // We search for accounts every 10 seconds
             for addr in reg_addresses.iter() {
@@ -104,6 +108,17 @@ pub async fn start_reg_task(context: &ApplicationContext) {
                         } else {
                             // Game account not fonud, skip
                             warn!("Game account not found: {:?}", &game_reg.addr);
+                            match not_found_counts.entry(game_reg.addr.to_string()) {
+                                std::collections::hash_map::Entry::Occupied(mut cnt) => {
+                                    *cnt.get_mut() += 1;
+                                    if *cnt.get() == 2 {
+                                        blacklist.lock().await.add_addr(&game_reg.addr);
+                                    }
+                                }
+                                std::collections::hash_map::Entry::Vacant(cnt) => {
+                                    cnt.insert(0);
+                                }
+                            }
                         }
                     }
                 } else {
