@@ -575,11 +575,17 @@ impl TransportT for SolanaTransport {
             }
         }
 
+        info!("Solana transport settle game: {}\n  - Settles: {:?}\n  - Transfers: {:?}\n  - Checkpoint: {:?}",
+            addr,
+            settles,
+            transfers,
+            checkpoint
+        );
+
         let params = RaceInstruction::Settle {
             params: IxSettleParams { settles, transfers, checkpoint },
         };
 
-        info!("Solana transport send settlement: {:?}", params);
 
         let set_cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(1200000);
 
