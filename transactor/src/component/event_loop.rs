@@ -1,9 +1,9 @@
 use std::time::{Duration, UNIX_EPOCH};
 
 use async_trait::async_trait;
-use race_core::context::GameContext;
 use race_api::error::Error;
 use race_api::event::Event;
+use race_core::context::GameContext;
 use tokio::select;
 use tracing::{error, info, warn};
 
@@ -11,6 +11,7 @@ use crate::component::common::{Component, PipelinePorts};
 use crate::component::event_bus::CloseReason;
 use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
+use crate::utils::addr_shorthand;
 use race_core::types::{ClientMode, GameAccount};
 
 pub struct EventLoopContext {
@@ -35,7 +36,11 @@ async fn handle(
 
     #[allow(unused)] mode: ClientMode,
 ) -> Option<CloseReason> {
-    info!("Handle event: {}", event);
+    info!(
+        "{} Handle event: {}",
+        addr_shorthand(&game_context.get_game_addr()),
+        event
+    );
 
     let access_version = game_context.get_access_version();
     let settle_version = game_context.get_settle_version();
@@ -68,7 +73,11 @@ async fn handle(
 
             // We do optimistic updates here
             if let Some(effects) = effects {
-                info!("Send settlements: {:?}", effects);
+                info!(
+                    "{} Send settlements: {:?}",
+                    addr_shorthand(&game_context.get_game_addr()),
+                    effects
+                );
                 ports
                     .send(EventFrame::Settle {
                         settles: effects.settles,
@@ -79,7 +88,11 @@ async fn handle(
             }
         }
         Err(e) => {
-            warn!("Handle event error: {}", e.to_string());
+            warn!(
+                "{} Handle event error: {}",
+                addr_shorthand(&game_context.get_game_addr()),
+                e.to_string()
+            );
             match e {
                 Error::WasmExecutionError(_) | Error::WasmMemoryOverflow => {
                     return Some(CloseReason::Fault(e))
@@ -143,9 +156,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
             game_context.prepare_for_next_event(current_timestamp());
 
             match event_frame {
-                EventFrame::InitState {
-                    init_account,
-                } => {
+                EventFrame::InitState { init_account } => {
                     info!("Servers: {:?}", game_context.get_servers());
                     if let Err(e) = game_context
                         .apply_checkpoint(init_account.access_version, init_account.settle_version)
@@ -163,17 +174,19 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     info!("Servers: {:?}", game_context.get_servers());
                     info!(
-                        "Initialize game state for {}, access_version = {}, settle_version = {}",
-                        init_account.addr, init_account.access_version, init_account.settle_version
+                        "{} Initialize game state, access_version = {}, settle_version = {}",
+                        addr_shorthand(&init_account.addr),
+                        init_account.access_version,
+                        init_account.settle_version
                     );
 
-                    info!("Initialize timestamp: {}", current_timestamp());
-
                     game_context.dispatch_safe(Event::Ready, 0);
-                    ports.send(EventFrame::Checkpoint {
-                        access_version: init_account.access_version,
-                        settle_version: init_account.settle_version,
-                    }).await;
+                    ports
+                        .send(EventFrame::Checkpoint {
+                            access_version: init_account.access_version,
+                            settle_version: init_account.settle_version,
+                        })
+                        .await;
                 }
                 EventFrame::Sync {
                     new_players,

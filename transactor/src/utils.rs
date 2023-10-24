@@ -11,3 +11,7 @@ pub fn base64_decode(data: &str) -> Result<Vec<u8>, race_api::error::Error> {
         .decode(data)
         .map_err(|_| race_api::error::Error::DeserializeError)?)
 }
+
+pub fn addr_shorthand(addr: &str) -> String {
+    format!("[{}]", &addr[0..3])
+}

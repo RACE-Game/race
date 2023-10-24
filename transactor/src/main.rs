@@ -26,7 +26,11 @@ fn cli() -> Command {
 
 #[tokio::main]
 pub async fn main() {
-    tracing_subscriber::fmt::init();
+    let log_format = tracing_subscriber::fmt::format()
+        .with_level(true)
+        .with_target(false)
+        .compact();
+    tracing_subscriber::fmt().event_format(log_format).init();
 
     let matches = cli().get_matches();
     let config = Config::from_path(&matches.get_one::<String>("config").unwrap().into()).await;

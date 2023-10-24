@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use tokio::time::sleep;
 
-use crate::frame::EventFrame;
+use crate::{frame::EventFrame, utils::addr_shorthand};
 use race_core::{
     transport::TransportT,
     types::{GameAccount, PlayerJoin, QueryMode, ServerJoin, TxState},
@@ -73,8 +73,10 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                     if let Ok(Some(state)) = state {
                         if access_version < state.access_version {
                             info!(
-                                "Synchronizer finds a new access_version = {}",
-                                state.access_version
+                                "{} Synchronizer found confirming state, access_version = {}, settle_version = {}",
+                                addr_shorthand(&ctx.game_addr),
+                                state.access_version,
+                                state.settle_version,
                             );
                             let GameAccount {
                                 access_version: av,
@@ -87,7 +89,6 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                                 .into_iter()
                                 .filter(|p| p.access_version > access_version)
                                 .collect();
-                            info!("Confirming players number =  {}", confirm_players.len());
 
                             if !confirm_players.is_empty() {
                                 let tx_state = TxState::PlayerConfirming {
@@ -123,8 +124,10 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
 
                         if access_version <= state.access_version {
                             info!(
-                                "Synchronizer gets a new state, access_version = {}",
-                                state.access_version
+                                "{} Synchronizer found a finalized state, access_version = {}, settle_version = {}",
+                                addr_shorthand(&ctx.game_addr),
+                                state.access_version,
+                                state.settle_version,
                             );
                             let new_players: Vec<PlayerJoin> = players
                                 .into_iter()
