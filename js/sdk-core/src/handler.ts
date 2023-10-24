@@ -54,9 +54,9 @@ export class InitAccount {
     transactorAccessVersion: bigint,
     transactorSettleVersion: bigint
   ): InitAccount {
-    let { addr, players, servers, data } = gameAccount;
-    players = players.filter(p => p.accessVersion <= transactorAccessVersion);
-    servers = servers.filter(s => s.accessVersion <= transactorAccessVersion);
+    let { addr, players, servers, data, checkpointAccessVersion, transactorAddr } = gameAccount;
+    players = players.filter(p => p.accessVersion <= checkpointAccessVersion);
+    servers = servers.filter(s => s.accessVersion <= checkpointAccessVersion || s.addr === transactorAddr);
     return new InitAccount({
       addr,
       data,
