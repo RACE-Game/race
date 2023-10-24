@@ -66,6 +66,7 @@ impl GameManager {
                 Err(err) => {
                     warn!("Error loading game: {}", err.to_string());
                     warn!("Failed to load game: {}", e.key());
+                    blacklist.lock().await.add_addr(&game_addr);
                 }
             }
         }
