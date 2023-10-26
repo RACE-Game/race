@@ -6,6 +6,7 @@ use std::{
 use race_api::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
 use race_api::random::{RandomState, RandomStatus};
+use race_api::types::SecretShare;
 
 use race_core::{
     connection::ConnectionT,
@@ -14,7 +15,7 @@ use race_core::{
     secret::SecretState,
     types::{
         AttachGameParams, Ciphertext, ClientMode, DecisionId, RandomId, SecretIdent, SecretKey,
-        SecretShare, SubmitEventParams,
+        SubmitEventParams,
     },
 };
 
