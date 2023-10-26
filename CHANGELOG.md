@@ -2,6 +2,8 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 # Master(Unreleased)
 
+# 0.2.3
+
 ## Enhancements
 - CLI: Recover fees in `unreg-game`.
 - CLI: Display slot's balance in `recipient-info` command.
