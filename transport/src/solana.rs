@@ -28,12 +28,12 @@ use std::str::FromStr;
 use mpl_token_metadata as metaplex_program;
 use mpl_token_metadata::state::Metadata;
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
+use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::system_instruction::{self, create_account_with_seed, transfer};
 use solana_sdk::transaction::Transaction;
-use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack};
 use solana_sdk::{
     hash::Hash,
@@ -110,7 +110,7 @@ impl TransportT for SolanaTransport {
             &token_mint_pubkey,
             &payer_pubkey,
         )
-            .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+        .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
 
         let create_game_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
@@ -187,7 +187,7 @@ impl TransportT for SolanaTransport {
 
         let server_account_pubkey =
             Pubkey::create_with_seed(&payer_pubkey, SERVER_PROFILE_SEED, &self.program_id)
-            .map_err(|_| TransportError::AddressCreationFailed)?;
+                .map_err(|_| TransportError::AddressCreationFailed)?;
         let lamports = self.get_min_lamports(SERVER_ACCOUNT_LEN)?;
 
         // match self.client.get_account(&server_account_pubkey) {
@@ -237,7 +237,7 @@ impl TransportT for SolanaTransport {
 
         let player_account_pubkey =
             Pubkey::create_with_seed(&payer_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
-            .map_err(|_| TransportError::AddressCreationFailed)?;
+                .map_err(|_| TransportError::AddressCreationFailed)?;
 
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
         let mode = QueryMode::Confirming;
@@ -276,7 +276,7 @@ impl TransportT for SolanaTransport {
             &mint_pubkey,
             &payer_pubkey,
         )
-            .map_err(|_| TransportError::InitInstructionFailed)?;
+        .map_err(|_| TransportError::InitInstructionFailed)?;
         ixs.push(init_temp_account_ix);
 
         if is_wsol {
@@ -296,7 +296,7 @@ impl TransportT for SolanaTransport {
                 &[&payer_pubkey],
                 params.amount,
             )
-                .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+            .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
             ixs.push(spl_transfer_ix);
         }
 
@@ -337,7 +337,7 @@ impl TransportT for SolanaTransport {
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
         let server_account_pubkey =
             Pubkey::create_with_seed(&payer_pubkey, SERVER_PROFILE_SEED, &self.program_id)
-            .map_err(|_| TransportError::AddressCreationFailed)?;
+                .map_err(|_| TransportError::AddressCreationFailed)?;
 
         let serve_game_ix = Instruction::new_with_borsh(
             self.program_id.clone(),
@@ -374,7 +374,7 @@ impl TransportT for SolanaTransport {
 
         let profile_account_pubkey =
             Pubkey::create_with_seed(&payer_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
-            .map_err(|_| TransportError::AddressCreationFailed)?;
+                .map_err(|_| TransportError::AddressCreationFailed)?;
 
         println!(
             "Profile account pubkey: {}",
@@ -449,7 +449,7 @@ impl TransportT for SolanaTransport {
             Some(&payer_pubkey),
             0,
         )
-            .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
+        .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
 
         let (metadata_pda, _bump_seed) = Pubkey::find_program_address(
             &[
@@ -583,9 +583,12 @@ impl TransportT for SolanaTransport {
         );
 
         let params = RaceInstruction::Settle {
-            params: IxSettleParams { settles, transfers, checkpoint },
+            params: IxSettleParams {
+                settles,
+                transfers,
+                checkpoint,
+            },
         };
-
 
         let set_cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(1200000);
 
@@ -699,7 +702,7 @@ impl TransportT for SolanaTransport {
                 &token_mint_pubkey,
                 &payer_pubkey,
             )
-                .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+            .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
 
             init_token_accounts_ixs.push(create_stake_account_ix);
             init_token_accounts_ixs.push(init_stake_account_ix);
@@ -879,7 +882,17 @@ impl TransportT for SolanaTransport {
     async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
         let pubkey = Self::parse_pubkey(addr)?;
         let recipient_state = self.internal_get_recipient_state(&pubkey).await?;
-        Ok(Some(recipient_state.into_account(addr)))
+        let stake_addrs: Vec<Pubkey> = recipient_state.slots.iter().map(|s| s.stake_addr.clone()).collect();
+        let mut recipient_account = recipient_state.into_account(addr);
+        // Add amount information by querying stake accounts
+        for i in 0..(stake_addrs.len()) {
+            tracing::info!("Check stake account: {}", &stake_addrs[i]);
+            let mut slot = recipient_account.slots.get_mut(i).ok_or(Error::TransportError("[Unreachable] Cannot get recipient".into()))?;
+            let token_data = self.client.get_account_data(&stake_addrs[i]).or(Err(Error::TransportError("Cannot get the state of stake account".into())))?;
+            let token_state = Account::unpack(&token_data).or(Err(Error::TransportError("Cannot parse data of stake account".into())))?;
+            slot.balance = token_state.amount;
+        }
+        Ok(Some(recipient_account))
     }
 
     async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>> {
@@ -927,11 +940,13 @@ impl TransportT for SolanaTransport {
                     RecipientSlotOwner::Assigned { ref addr } if addr.eq(&payer_pubkey) => {
                         account_metas.push(AccountMeta::new(slot.stake_addr, false));
                         let ata = get_associated_token_address(addr, &slot.token_addr);
-                        info!("Expect to claim tokens from slot {}, token address: {}",
-                              slot.id, slot.token_addr);
+                        info!(
+                            "Expect to claim tokens from slot {}, token address: {}",
+                            slot.id, slot.token_addr
+                        );
                         account_metas.push(AccountMeta::new(ata, false));
                     }
-                    _ => ()
+                    _ => (),
                 }
             }
         }
@@ -946,10 +961,7 @@ impl TransportT for SolanaTransport {
             account_metas,
         );
 
-        let message = Message::new(
-            &[recipient_claim_ix],
-            Some(&payer.pubkey()),
-        );
+        let message = Message::new(&[recipient_claim_ix], Some(&payer.pubkey()));
 
         let blockhash = self.get_blockhash()?;
         let mut tx = Transaction::new_unsigned(message);
@@ -1089,7 +1101,7 @@ impl SolanaTransport {
     ) -> TransportResult<ServerState> {
         let server_account_pubkey =
             Pubkey::create_with_seed(server_pubkey, SERVER_PROFILE_SEED, &self.program_id)
-            .map_err(|_| TransportError::AddressCreationFailed)?;
+                .map_err(|_| TransportError::AddressCreationFailed)?;
 
         let data = self
             .client
@@ -1105,7 +1117,7 @@ impl SolanaTransport {
     ) -> TransportResult<PlayerState> {
         let profile_pubkey =
             Pubkey::create_with_seed(&player_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
-            .map_err(|_| TransportError::AddressCreationFailed)?;
+                .map_err(|_| TransportError::AddressCreationFailed)?;
 
         let data = self
             .client

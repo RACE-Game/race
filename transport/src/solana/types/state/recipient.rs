@@ -43,6 +43,7 @@ impl From<RecipientSlot> for race_core::types::RecipientSlot {
             slot_type,
             token_addr: token_addr.to_string(),
             shares,
+            balance: 0,                  // Set this value manually
         }
     }
 }

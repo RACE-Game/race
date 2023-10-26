@@ -230,6 +230,7 @@ pub struct RecipientSlot {
     pub slot_type: RecipientSlotType,
     pub token_addr: String,
     pub shares: Vec<RecipientSlotShare>,
+    pub balance: u64,
 }
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]

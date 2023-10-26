@@ -4,6 +4,7 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 ## Enhancements
 - CLI: Recover fees in `unreg-game`.
+- CLI: Display slot's balance in `recipient-info` command.
 
 ## Fixes
 - Solana: Fix NFT caching

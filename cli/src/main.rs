@@ -272,6 +272,7 @@ async fn recipient_info(addr: &str, transport: Arc<dyn TransportT>) {
                 println!("|- id: {}", slot.id);
                 println!("   type: {:?}", slot.slot_type);
                 println!("   token: {}", slot.token_addr);
+                println!("   balance: {}", slot.balance);
                 println!("   Shares");
                 for share in slot.shares.iter() {
                     println!("   |- owner: {:?}", share.owner);
