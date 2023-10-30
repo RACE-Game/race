@@ -23,6 +23,7 @@ use race_core::{
 pub struct DummyTransport {
     settles: Arc<Mutex<Vec<Settle>>>,
     states: Arc<Mutex<Vec<GameAccount>>>,
+    fail_next_settle: Arc<Mutex<bool>>,
 }
 
 impl DummyTransport {
@@ -37,6 +38,12 @@ impl DummyTransport {
     }
 
     #[allow(dead_code)]
+    pub fn fail_next_settle(&mut self) {
+        let mut fail_next_settle = self.fail_next_settle.lock().unwrap();
+        *fail_next_settle = true;
+    }
+
+    #[allow(dead_code)]
     pub fn default_game_addr() -> String {
         "TEST".into()
     }
@@ -47,6 +54,7 @@ impl Default for DummyTransport {
         Self {
             settles: Arc::new(Mutex::new(vec![])),
             states: Arc::new(Mutex::new(vec![])),
+            fail_next_settle: Arc::new(Mutex::new(false)),
         }
     }
 }
@@ -116,7 +124,11 @@ impl TransportT for DummyTransport {
     }
 
     async fn settle_game(&self, mut params: SettleParams) -> Result<()> {
-        if params.addr.eq("TEST") {
+        let mut fail_next_settle = self.fail_next_settle.lock().unwrap();
+        if *fail_next_settle {
+            *fail_next_settle = false;
+            Err(Error::TransportError("Mock failure".into()))
+        } else if params.addr.eq("TEST") {
             let mut settles = self.settles.lock().unwrap();
             settles.append(&mut params.settles);
             Ok(())
@@ -232,5 +244,18 @@ mod tests {
         expected.append(&mut settles.clone());
 
         assert_eq!(*transport.get_settles(), expected);
+    }
+
+    #[tokio::test]
+    async fn test_fail_settle() {
+        let mut transport = DummyTransport::default();
+        transport.fail_next_settle();
+        let params = SettleParams {
+            addr: test_game_addr(),
+            settles: vec![],
+            transfers: vec![],
+            checkpoint: vec![],
+        };
+        assert_eq!(transport.settle_game(params).await.is_err(), true);
     }
 }
