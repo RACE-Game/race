@@ -2,6 +2,9 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 # Master(Unreleased)
 
+## Fixes
+- Transactor: Fix sending duplicated settlements
+
 # 0.2.3
 
 ## Enhancements
