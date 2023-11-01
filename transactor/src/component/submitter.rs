@@ -40,7 +40,7 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
     }
 
     async fn run(mut ports: ConsumerPorts, ctx: SubmitterContext) -> CloseReason {
-        let (queue_tx, mut queue_rx) = mpsc::channel::<EventFrame>(10);
+        let (queue_tx, mut queue_rx) = mpsc::channel::<EventFrame>(32);
 
         let join_handle = tokio::spawn(async move {
             while let Some(event) = queue_rx.recv().await {
