@@ -94,7 +94,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                     match client.handle_updated_context(context) {
                         Ok(events) => {
                             for event in events.into_iter() {
-                                info!("Connection send event: {}", event);
+                                // info!("Connection send event: {}", event);
                                 if let Err(_e) = client.submit_event(event).await {
                                     break 'outer;
                                 }
