@@ -181,6 +181,8 @@ mod tests {
                 settles: vec![],
                 transfers: vec![],
                 checkpoint: vec![],
+                settle_version: 1,
+                next_settle_version: 2,
             })
             .await;
 
@@ -204,6 +206,8 @@ mod tests {
                 settles: vec![],
                 transfers: vec![],
                 checkpoint: vec![],
+                settle_version: 1,
+                next_settle_version: 2,
             })
             .await;
 

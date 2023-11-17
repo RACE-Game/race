@@ -58,6 +58,7 @@ pub enum EventFrame {
         settles: Vec<Settle>,
         transfers: Vec<Transfer>,
         checkpoint: Vec<u8>,
+        settle_version: u64,
     },
     SettleFinalized {
         settle_version: u64,

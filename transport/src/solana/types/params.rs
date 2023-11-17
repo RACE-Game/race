@@ -3,7 +3,7 @@ use race_core::types::{
     AssignRecipientParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, EntryType, JoinParams, PublishGameParams,
     RecipientSlotShareInit, RecipientSlotType,
-    RegisterServerParams, ServeParams, Settle, SettleOp, Transfer, VoteParams,
+    RegisterServerParams, ServeParams, SettleOp, Transfer, VoteParams,
     VoteType,
 };
 use super::common::RecipientSlotOwner;
@@ -134,17 +134,8 @@ pub enum AssetChange {
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct IxSettle {
-    pub addr: Pubkey,
+    pub position: u16,
     pub op: SettleOp,
-}
-
-impl TryFrom<Settle> for IxSettle {
-    type Error = race_api::error::Error;
-
-    fn try_from(value: Settle) -> Result<Self, Self::Error> {
-        let addr = parse_pubkey(&value.addr)?;
-        Ok(Self { addr, op: value.op })
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -152,6 +143,8 @@ pub struct IxSettleParams {
     pub settles: Vec<IxSettle>,
     pub transfers: Vec<Transfer>,
     pub checkpoint: Vec<u8>,
+    pub settle_version: u64,
+    pub next_settle_version: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]

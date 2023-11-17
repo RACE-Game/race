@@ -693,7 +693,7 @@ async fn get_player_info(
 }
 
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
-    let SettleParams { addr, settles, transfers, checkpoint } = params.one()?;
+    let SettleParams { addr, settles, transfers, checkpoint, settle_version, next_settle_version } = params.one()?;
     println!("! Handle settlements {}, settles: {:?}, transfers: {:?} ", addr, settles, transfers);
 
     // Simulate the finality time
@@ -719,8 +719,17 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
     game.deposits
         .retain(|d| d.settle_version < game.settle_version);
 
+    if game.settle_version != settle_version {
+        return Err(custom_error(Error::InvalidSettle(
+            format!("Invalid settle version, current: {}, transaction: {}",
+                game.settle_version,
+                settle_version,
+            )
+        )));
+    }
+
     // Increase the `settle_version`
-    game.settle_version += 1;
+    game.settle_version = next_settle_version;
     println!("! Bump settle version to {}", game.settle_version);
     game.checkpoint = checkpoint;
     game.checkpoint_access_version = game.access_version;

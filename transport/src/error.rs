@@ -136,6 +136,9 @@ pub enum TransportError {
 
     #[error("Failed to deserialize recipient account data")]
     RecipientStateDeserializeError,
+
+    #[error("Invalid settle address")]
+    InvalidSettleAddress,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;
