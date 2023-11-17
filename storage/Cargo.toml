@@ -1,6 +1,6 @@
 [package]
-name = "race-cli"
-description = "Command line tools for RACE Protocol"
+name = "race-storage"
+description = "Module for uploading data to blockchain-based permaweb like Arweave"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -19,13 +19,17 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 race-core = { workspace = true }
 race-transport = { workspace = true }
 race-env = { workspace = true }
-race-storage = { path = "../storage" }
 tokio = { workspace = true, features = ["full"] }
 clap = { workspace = true, features = ["derive"] }
 jsonrpsee = { workspace = true, features = ["http-client"] }
 anyhow = { workspace = true }
+thiserror = { workspace = true }
 base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 shellexpand = { workspace = true }
 prettytable-rs = { workspace = true }
+reqwest = { workspace = true }
+openssl = { workspace = true }
+borsh = { workspace = true }
+infer = { workspace = true }

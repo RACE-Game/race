@@ -9,6 +9,7 @@ use race_core::{
     },
 };
 use race_env::{default_keyfile, parse_with_default_rpc};
+use race_storage::arweave::Arweave;
 use race_transport::TransportBuilder;
 use serde::{Deserialize, Serialize};
 use std::{fs::File, path::PathBuf, sync::Arc};
@@ -59,7 +60,10 @@ fn cli() -> Command {
             Command::new("publish")
                 .about("Publish a game bundle")
                 .arg(arg!(<NAME> "The name of game"))
-                .arg(arg!(<BUNDLE> "The path to the WASM bundle"))
+                .arg(arg!(<SYMB> "The symbol used for game metadata file"))
+                .arg(arg!(<BUNDLE> "The file path to game bundle"))
+                .arg(arg!(<CREATOR> "The creator address"))
+                .arg(arg!(<ARWEAVE_KEYFILE> "The path to Arweave keyfile in JWK format"))
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -141,11 +145,24 @@ async fn create_transport(chain: &str, rpc: &str, keyfile: Option<String>) -> Ar
     Arc::from(transport)
 }
 
-async fn publish(name: String, bundle: String, transport: Arc<dyn TransportT>) {
+async fn publish(
+    name: String,
+    symbol: String,
+    bundle: String,
+    creator_addr: String,
+    arkey_path: String,
+    transport: Arc<dyn TransportT>,
+) {
+    let mut arweave = Arweave::new(Some(&arkey_path)).unwrap();
+    arweave
+        .publish_game(name.clone(), symbol.clone(), bundle.clone(), creator_addr.clone())
+        .await
+        .unwrap();
+
     let params = PublishGameParams {
         uri: bundle,
         name,
-        symbol: "RACEBUNDLE".into(),
+        symbol,
     };
     let resp = transport.publish_game(params).await.expect("RPC error");
     println!("Address: {}", &resp);
@@ -311,7 +328,7 @@ async fn create_recipient(specs: RecipientSpecs, transport: Arc<dyn TransportT>)
                 .await
                 .expect("Create recipient failed");
             println!("Recipient account created: {}", addr);
-        },
+        }
         RecipientSpecs::Addr(_) => {
             println!("Invalid spec format");
         }
@@ -425,9 +442,20 @@ async fn main() {
     match matches.subcommand() {
         Some(("publish", sub_matches)) => {
             let name = sub_matches.get_one::<String>("NAME").expect("required");
+            let symbol = sub_matches.get_one::<String>("SYMBOL").expect("required");
             let bundle = sub_matches.get_one::<String>("BUNDLE").expect("required");
+            let creator = sub_matches.get_one::<String>("CREATOR").expect("required");
+            let arkey_path = sub_matches.get_one::<String>("ARWEAVE_KEYFILE").expect("required");
             let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
-            publish(name.to_owned(), bundle.to_owned(), transport).await;
+            publish(
+                name.to_owned(),
+                symbol.to_owned(),
+                bundle.to_owned(),
+                creator.to_owned(),
+                arkey_path.to_owned(),
+                transport,
+            )
+            .await;
         }
         Some(("bundle-info", sub_matches)) => {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
