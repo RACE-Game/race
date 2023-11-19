@@ -170,6 +170,12 @@ export class Connection implements IConnection {
 
   onDisconnected() {
     console.warn('Connection encountered an error, clean up connection');
+    if (this.socket === undefined) {
+      return;
+    } else {
+      this.socket.close();
+      this.socket = undefined;
+    }
 
     if (this.streamMessageQueue.find(x => x === 'disconnected') === undefined) {
       if (this.streamResolve !== undefined) {
@@ -180,11 +186,6 @@ export class Connection implements IConnection {
         this.streamMessageQueue.push('disconnected');
       }
     }
-
-    if (this.socket !== undefined) {
-      this.socket.close();
-    }
-    this.socket = undefined;
 
     if (this.pingTimer !== undefined) {
       clearInterval(this.pingTimer);

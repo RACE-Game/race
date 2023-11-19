@@ -7,7 +7,8 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 - CLI: Display token address in `game-info`.
 
 ## Fixes
-- Transactor: Fix sending duplicated settlements
+- Transactor: Fix sending duplicated settlements.
+- SDK: Fix double reconnecting.
 
 # 0.2.3
 
