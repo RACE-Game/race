@@ -168,7 +168,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_settle_without_retry() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::init();
         let t = DummyTransport::default();
         let ga0 = TestGameAccountBuilder::new().build();
         let mut ga1 = TestGameAccountBuilder::new().build();
@@ -192,7 +191,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_settle_with_retry() -> anyhow::Result<()> {
-        tracing_subscriber::fmt::init();
         let mut t = DummyTransport::default();
         t.fail_next_settle();
         let ga0 = TestGameAccountBuilder::new().build();

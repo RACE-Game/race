@@ -235,6 +235,8 @@ mod tests {
             settles: settles.clone(),
             transfers: vec![],
             checkpoint: vec![],
+            settle_version: 0,
+            next_settle_version: 1,
         };
         transport.settle_game(params.clone()).await.unwrap();
         transport.settle_game(params.clone()).await.unwrap();
@@ -255,6 +257,8 @@ mod tests {
             settles: vec![],
             transfers: vec![],
             checkpoint: vec![],
+            settle_version: 0,
+            next_settle_version: 1,
         };
         assert_eq!(transport.settle_game(params).await.is_err(), true);
     }

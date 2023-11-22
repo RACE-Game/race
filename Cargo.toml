@@ -22,12 +22,12 @@ members = [
 ]
 
 [workspace.dependencies]
-race-api = { path = "api", version = ">=0.2.3" }
-race-proc-macro = { path = "proc-macro", version = ">=0.2.3" }
-race-core = { path = "core", version = ">=0.2.3" }
-race-client = { path = "client", version = ">=0.2.3" }
-race-encryptor = { path = "encryptor", version = ">=0.2.3" }
-race-test = { path = "test", version = ">=0.2.3" }
+race-api = { path = "api", version = ">=0.2.4" }
+race-proc-macro = { path = "proc-macro", version = ">=0.2.4" }
+race-core = { path = "core", version = ">=0.2.4" }
+race-client = { path = "client", version = ">=0.2.4" }
+race-encryptor = { path = "encryptor", version = ">=0.2.4" }
+race-test = { path = "test", version = ">=0.2.4" }
 race-env = { path = "env", version = "*" }
 race-transport = { path = "transport", version = "*" }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
@@ -78,7 +78,7 @@ regex = "1"
 
 [workspace.package]
 authors = ["RACE Foundation <race.game.team@gmail.com>"]
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 rust-version = "1.65.0"
 license = "MPL-2.0"
