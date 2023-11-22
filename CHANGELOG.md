@@ -2,6 +2,9 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 # Master(Unreleased)
 
+## Features
+- SDK: Add `npx borsh-serialize` to js/borsh.
+
 ## Enhancements
 - Transactor & Contract: Squash transactions for better performance.
 - CLI: Display token address in `game-info`.
