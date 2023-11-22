@@ -6,8 +6,8 @@ layout {
       name "Facade"
       focus true
       cwd "./"
-      command "just"
-      args "dev-facade" "../race-holdem/mtt/facade.json"
+      command "bash"
+      args "dev/create-mtt-game.sh"
       start_suspended true
     }
     pane split_direction="horizontal" {
