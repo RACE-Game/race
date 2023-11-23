@@ -2,6 +2,11 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 # Master(Unreleased)
 
+# 0.2.5
+
+## Fixes
+- Remove duplicated definitions for `SecretIdent` and `SecretShare`, which causes the compliation error.
+
 # 0.2.4
 
 ## Features
