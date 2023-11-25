@@ -12,7 +12,17 @@ use race_core::encryptor::EncryptorT;
 use race_core::engine::{general_handle_event, general_init_state, post_handle_event};
 use race_core::types::{GameBundle, Settle, Transfer};
 use race_encryptor::Encryptor;
+use tracing::info;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
+
+fn log_execution_context(effect_bs: &Vec<u8>, event_bs: &Vec<u8>) {
+    info!("Execution context");
+    info!("===== Effect Bytes =====");
+    info!("{:?}", effect_bs);
+    info!("===== Event Bytes =====");
+    info!("{:?}", event_bs);
+    info!("=================");
+}
 
 pub struct WrappedHandler {
     store: Store,
@@ -165,7 +175,10 @@ impl WrappedHandler {
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let len = handle_event
             .call(&mut self.store, effect_bs.len() as _, event_bs.len() as _)
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            .map_err(|e| {
+                log_execution_context(&effect_bs, &event_bs);
+                Error::WasmExecutionError(e.to_string())
+            })?;
 
         if len == 0 {
             return Err(Error::WasmExecutionError("Internal error".into()));
