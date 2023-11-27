@@ -56,6 +56,25 @@ interface CreateGameAccountInstruction {
   data: number[];
 }
 
+const nftMap: Record<string, INft> = {
+  'nft01': {
+    addr: 'nft01',
+    image: 'https://arweave.net/plLA2nFm_TyHDA76v9GAkaH-nUnymuA4cIvRj64BTLs',
+    name: 'test01',
+    symbol: 'test01',
+    collection: undefined,
+    metadata: {},
+  },
+  'nft02': {
+    addr: 'nft02',
+    image: 'https://arweave.net/-GdwsYztEccy_luXkhZPY95UD48fDCWavgLe_RP_zAk',
+    name: 'test02',
+    symbol: 'test02',
+    collection: undefined,
+    metadata: {},
+  }
+};
+
 const tokenMap: Record<string, IToken> = {
   'FACADE_NATIVE': {
     name: 'Native Token',
@@ -209,12 +228,12 @@ export class FacadeTransport implements ITransport {
     return ret;
   }
 
-  async getNft(_addr: string, _storage?: IStorage): Promise<INft | undefined> {
-    return undefined;
+  async getNft(addr: string, _storage?: IStorage): Promise<INft | undefined> {
+    return nftMap[addr];
   }
 
   async listNfts(_walletAddr: string, _storage?: IStorage): Promise<INft[]> {
-    return [];
+    return Object.values(nftMap);
   }
 
   async sendInstruction(method: string, ix: any) {
