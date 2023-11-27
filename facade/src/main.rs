@@ -10,8 +10,8 @@ use jsonrpsee::{core::Error as RpcError, RpcModule};
 use race_api::error::Error;
 use race_core::types::{
     DepositParams, EntryType, GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin,
-    PlayerProfile, RegistrationAccount, ServerAccount, ServerJoin, SettleOp, SettleParams,
-    TokenAccount, Vote, VoteParams, VoteType, RecipientSlot,
+    PlayerProfile, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin, SettleOp,
+    SettleParams, TokenAccount, Vote, VoteParams, VoteType,
 };
 use regex::Regex;
 use serde::Deserialize;
@@ -319,10 +319,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                 }
             }
             #[allow(unused)]
-            EntryType::Ticket {
-                slot_id,
-                amount,
-            } => todo!(),
+            EntryType::Ticket { slot_id, amount } => todo!(),
             #[allow(unused)]
             EntryType::Gating { collection } => todo!(),
         }
@@ -687,14 +684,24 @@ async fn get_player_info(
     let addr: String = params.one()?;
     let context = context.lock().await;
     let Some(player) = context.players.get(&addr) else {
-        return Ok(None)
+        return Ok(None);
     };
     Ok(Some(player.try_to_vec().unwrap()))
 }
 
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
-    let SettleParams { addr, settles, transfers, checkpoint, settle_version, next_settle_version } = params.one()?;
-    println!("! Handle settlements {}, settles: {:?}, transfers: {:?} ", addr, settles, transfers);
+    let SettleParams {
+        addr,
+        settles,
+        transfers,
+        checkpoint,
+        settle_version,
+        next_settle_version,
+    } = params.one()?;
+    println!(
+        "! Handle settlements {}, settles: {:?}, transfers: {:?} ",
+        addr, settles, transfers
+    );
 
     // Simulate the finality time
     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -720,12 +727,10 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
         .retain(|d| d.settle_version < game.settle_version);
 
     if game.settle_version != settle_version {
-        return Err(custom_error(Error::InvalidSettle(
-            format!("Invalid settle version, current: {}, transaction: {}",
-                game.settle_version,
-                settle_version,
-            )
-        )));
+        return Err(custom_error(Error::InvalidSettle(format!(
+            "Invalid settle version, current: {}, transaction: {}",
+            game.settle_version, settle_version,
+        ))));
     }
 
     // Increase the `settle_version`
@@ -744,9 +749,10 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
                     let player =
                         players
                             .get_mut(&p.addr)
-                            .ok_or(custom_error(Error::InvalidSettle(
-                                "Invalid player address".into(),
-                            )))?;
+                            .ok_or(custom_error(Error::InvalidSettle(format!(
+                                "Invalid player address: {}",
+                                p.addr
+                            ))))?;
                     player
                         .balances
                         .entry(game.token_addr.to_owned())
