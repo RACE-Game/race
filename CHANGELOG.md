@@ -3,8 +3,12 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 # Master(Unreleased)
 
 ## Fixes
-- SDK: clean the timer after exit. Simplify the usage of timer in connection.
+- SDK: Clean the timer after exit. Simplify the usage of timer in connection.
 - Transactor: Log serialized effect and event when a wasm runtime error occurs.
+- SDK: Fix broken on consecutive `SecretsReady` events.
+
+## Enhancements
+- SDK: Add fake NFT data to facade transport.
 
 # 0.2.5
 
