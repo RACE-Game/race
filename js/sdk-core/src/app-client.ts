@@ -50,6 +50,7 @@ export type AppClientInitOpts = {
 export type JoinOpts = {
   amount: bigint;
   position?: number;
+  createProfileIfNeeded?: boolean;
 };
 
 export type GameInfo = {
@@ -223,7 +224,7 @@ export class AppClient {
    * Get player profile by its wallet address.
    */
   async getProfile(addr: string): Promise<PlayerProfile | undefined> {
-    return await this.#transport.getPlayerProfile(addr);
+    return await this.#profileCaches.getProfile(addr);
   }
 
   async invokeEventCallback(event: GameEvent | undefined) {
@@ -369,12 +370,22 @@ export class AppClient {
 
     const publicKey = await this.#encryptor.exportPublicKey();
 
+    let createProfile = false;
+    if (params.createProfileIfNeeded) {
+      const p = await this.getProfile(this.playerAddr);
+      if (p === undefined) {
+        createProfile = true;
+        console.log('No profile account found, will create a new one.')
+      }
+    }
+
     return await this.#transport.join(this.#wallet, {
       gameAddr: this.gameAddr,
       amount: params.amount,
       accessVersion: gameAccount.accessVersion,
       position,
       verifyKey: publicKey.ec,
+      createProfile,
     });
   }
 

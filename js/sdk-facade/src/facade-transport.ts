@@ -164,6 +164,9 @@ export class FacadeTransport implements ITransport {
   async join(wallet: IWallet, params: JoinParams): Promise<TransactionResult<void>> {
     const playerAddr = wallet.walletAddr;
     const ix: JoinInstruction = { playerAddr, ...params };
+    if (params.createProfile) {
+      await this.createPlayerProfile(wallet, { nick: wallet.walletAddr.substring(0, 6) });
+    }
     await this.sendInstruction('join', ix);
     return { result: 'ok' };
   }

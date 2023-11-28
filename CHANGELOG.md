@@ -2,6 +2,9 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 # Master(Unreleased)
 
+## Features
+- Add optional `createProfileIfNeeded` to join options.
+
 # 0.2.6
 
 ## Fixes

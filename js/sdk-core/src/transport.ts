@@ -48,6 +48,7 @@ export type JoinParams = {
   accessVersion: bigint;
   position: number;
   verifyKey: string;
+  createProfile?: boolean;
 };
 
 export type DepositParams = {
