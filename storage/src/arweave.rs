@@ -166,7 +166,7 @@ impl Arweave {
         println!("== Signed the transaction and start uploading ... ");
 
         let (id, reward) = self.post_transaction(&tx).await?;
-        let tx_addr = format!("https://arweave.app/tx/{}", id);
+        let tx_addr = self.make_endpoint(&id);
         println!("== Successfully uploaded game bundle to {}", tx_addr);
         println!("== Paid {} Winstons for the  transaction", reward);
 
@@ -210,9 +210,11 @@ impl Arweave {
         name: String,
         symbol: String,
         creator: String,
-        data_path: String,
-    ) -> Result<()> {
-        let data = fs::read(PathBuf::from(&data_path))?;
+        bundle: String,
+    ) -> Result<String> {
+        println!("== bundle {}", bundle);
+        println!("== creator {}", creator);
+        let data = fs::read(PathBuf::from(&bundle))?;
         let bundle_addr = self.upload_file(data).await?;
 
 
@@ -220,11 +222,11 @@ impl Arweave {
         let json_meta = serde_json::to_vec(&metadata)?;
 
         // Start uploading the metadata.json
-        let _meta_addr = self
+        let meta_addr = self
             .upload_file(json_meta)
             .await?;
 
-        Ok(())
+        Ok(meta_addr)
     }
 }
 

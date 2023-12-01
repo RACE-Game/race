@@ -56,14 +56,14 @@ fn cli() -> Command {
         .arg(arg!(-c <chain> "The chain to interact").required(true))
         .arg(arg!(-r <rpc> "The endpoint of RPC service").required(true))
         .arg(arg!(-k <keyfile> "The path to keyfile"))
+        .arg(arg!(-a <arweave_keyfile> "The path to Arweave JWK keyfile"))
         .subcommand(
             Command::new("publish")
                 .about("Publish a game bundle")
                 .arg(arg!(<NAME> "The name of game"))
-                .arg(arg!(<SYMB> "The symbol used for game metadata file"))
+                .arg(arg!(<SYMBOL> "The symbol used for game metadata file"))
                 .arg(arg!(<BUNDLE> "The file path to game bundle"))
                 .arg(arg!(<CREATOR> "The creator address"))
-                .arg(arg!(<ARWEAVE_KEYFILE> "The path to Arweave keyfile in JWK format"))
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -148,19 +148,24 @@ async fn create_transport(chain: &str, rpc: &str, keyfile: Option<String>) -> Ar
 async fn publish(
     name: String,
     symbol: String,
-    bundle: String,
     creator_addr: String,
+    bundle: String,
     arkey_path: String,
     transport: Arc<dyn TransportT>,
 ) {
     let mut arweave = Arweave::new(Some(&arkey_path)).unwrap();
-    arweave
-        .publish_game(name.clone(), symbol.clone(), bundle.clone(), creator_addr.clone())
+    let uri = arweave
+        .publish_game(
+            name.clone(),
+            symbol.clone(),
+            creator_addr.clone(),
+            bundle.clone(),
+        )
         .await
         .unwrap();
 
     let params = PublishGameParams {
-        uri: bundle,
+        uri,
         name,
         symbol,
     };
@@ -435,6 +440,7 @@ async fn main() {
     let chain = matches.get_one::<String>("chain").expect("required");
     let rpc = parse_with_default_rpc(chain, matches.get_one::<String>("rpc").expect("required"));
     let keyfile = matches.get_one::<String>("keyfile");
+    let arweave_keyfile = matches.get_one::<String>("arweave_keyfile");
 
     println!("Interact with chain: {:?}", chain);
     println!("RPC Endpoint: {:?}", rpc);
@@ -443,16 +449,16 @@ async fn main() {
         Some(("publish", sub_matches)) => {
             let name = sub_matches.get_one::<String>("NAME").expect("required");
             let symbol = sub_matches.get_one::<String>("SYMBOL").expect("required");
-            let bundle = sub_matches.get_one::<String>("BUNDLE").expect("required");
             let creator = sub_matches.get_one::<String>("CREATOR").expect("required");
-            let arkey_path = sub_matches.get_one::<String>("ARWEAVE_KEYFILE").expect("required");
+            let bundle = sub_matches.get_one::<String>("BUNDLE").expect("required");
+
             let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
             publish(
                 name.to_owned(),
                 symbol.to_owned(),
-                bundle.to_owned(),
                 creator.to_owned(),
-                arkey_path.to_owned(),
+                bundle.to_owned(),
+                arweave_keyfile.expect("Arweave keyfile is required").to_owned(),
                 transport,
             )
             .await;
