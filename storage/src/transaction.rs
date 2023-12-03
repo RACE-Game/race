@@ -1,4 +1,5 @@
-//! Functionality for Arweave transactions using its HTTP API
+//! Functionality for Arweave transactions using its HTTP API.
+//! This mod corresponds to the `lib/transaction.ts` module of arweave-js
 use crate::{
     crypto,
     error::Result,
@@ -40,8 +41,9 @@ pub struct Tag {
 }
 
 impl Tag {
+    #[allow(dead_code)]
     fn new(name: Vec<u8>, value: Vec<u8>) -> Result<Tag> {
-        Ok(Tag {name, value})
+        Ok(Tag { name, value })
     }
 
     fn from_utf8_str(utf8_name: &str, utf8_value: &str) -> Result<Tag> {
@@ -60,9 +62,20 @@ impl std::fmt::Display for Tag {
     }
 }
 
-// Reqeuest JSON struct per the Arweave spec.
-// See: docs.arweave.org/developers/arweave-node-server/http-api#transaction-format
-// This transaction currently supports only uploading data to Arweave.
+/// Chunk transaction used in posting data to [`/chunk` endpoint]( https://docs.arweave.org/developers/server/http-api#upload-chunks)
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+pub struct Chunk {
+    #[serde(with = "base64")]
+    pub data_root: Vec<u8>,
+    pub data_size: String,
+    #[serde(with = "base64")]
+    pub data_path: Vec<u8>,
+    pub offset: String,
+    #[serde(with = "base64")]
+    pub chunk: Vec<u8>,
+}
+
+/// Reqeuest JSON struct per [Arweave spec on Chunk](https://docs.arweave.org/developers/arweave-node-server/http-api#transaction-format):
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Transaction {
     // always 2
@@ -73,16 +86,16 @@ pub struct Transaction {
     pub last_tx: Vec<u8>,
     #[serde(with = "base64")]
     pub owner: Vec<u8>,
-    pub tags: Vec<Tag>,         // total size <= 2048 bytes
+    pub tags: Vec<Tag>, // total size <= 2048 bytes
     #[serde(with = "base64")]
-    pub target: Vec<u8>,        // "" for file/data transaction
-    pub quantity: String,       // "0" for file/data transaction
-    #[serde(with = "base64")]
-    pub data_root: Vec<u8>,
-    pub data_size: String,
+    pub target: Vec<u8>, // "" for file/data transaction
+    pub quantity: String, // "0" for file/data transaction
     #[serde(with = "base64")]
     pub data: Vec<u8>,
-    pub reward: String,         // winston amount represented in string
+    pub data_size: String,
+    #[serde(with = "base64")]
+    pub data_root: Vec<u8>,
+    pub reward: String, // winston amount represented in string
     #[serde(with = "base64")]
     pub signature: Vec<u8>,
     #[serde(skip)]
@@ -120,27 +133,30 @@ impl Transaction {
     }
 
     // Set data_root and data fields, also adding tags according to given data
-    pub fn set_data(&mut self, data: Vec<u8>) -> Result<()> {
+    pub fn set_data(&mut self, data: Vec<u8>, json: bool) -> Result<()> {
         self.data_size = data.len().to_string();
         let data_root = self.merklize_data(data.clone())?;
-
         self.data_root = data_root;
 
         let data_hash = crypto::sha256_hash(&data)?;
+        // Hexdecimal hash string treated as utf8 string in
         let file_hash = data_hash
             .iter()
             .map(|byte| format!("{:02x}", byte))
             .collect::<Vec<_>>()
             .concat();
-        self.data = data;
-        let content_type = if let Some(kind) = infer::get(&self.data) {
+        let content_type = if let Some(kind) = infer::get(&data) {
             kind.mime_type()
+        } else if json {
+            "application/json"
         } else {
             "application/octet-stream"
         };
         let content_tag = Tag::from_utf8_str("Content-Type", content_type)?;
-        let hash_tag = Tag::new("File-Hash".as_bytes().to_vec(), crypto::b64_decode(&file_hash)?)?;
+        let hash_tag = Tag::from_utf8_str("File-Hash", &file_hash)?;
         self.tags.append(&mut vec![content_tag, hash_tag]);
+
+        self.data = data;
 
         Ok(())
     }
@@ -204,9 +220,52 @@ impl Transaction {
     /// docs.arweave.org/developers/arweave-node-server/http-api#transaction-signing
     pub fn get_deephash(&mut self) -> Result<[u8; 48]> {
         let deephash_item = self.get_deephash_item()?;
-        // println!("== Deephash items {:?}", deephash_item);
+        println!("== Deephash items {:?}", deephash_item);
         let deephash = crypto::deep_hash(deephash_item)?;
         Ok(deephash)
+    }
+
+    // Get a specific proof or offset at the given index
+    fn get_data_path(&self, idx: usize) -> Vec<u8> {
+        self.proofs
+            .get(idx)
+            .expect("proof should exist at the given index but found none")
+            .proof()
+            .clone()
+    }
+
+    fn get_offset(&self, idx: usize) -> usize {
+        self.proofs
+            .get(idx)
+            .expect("offset should exist at the given index but found none")
+            .offset()
+    }
+
+    // Get a specific slice of bytes form the data (or file to be uploaded)
+    fn get_data_chunk(&self, idx: usize) -> Vec<u8> {
+        let minbyte = self
+            .chunks
+            .get(idx)
+            .expect("chunked data should exist at the given index but found none")
+            .min_byte_range;
+        let maxbyte = self
+            .chunks
+            .get(idx)
+            .expect("chunked data should exist at the given index but found none")
+            .max_byte_range;
+
+        self.data[minbyte..maxbyte].to_vec()
+    }
+
+    /// Return a read-to-uoload [`Chunk`] from transaction for posting to `/chunk`
+    pub fn get_chunk(&self, idx: usize) -> Result<Chunk> {
+        Ok(Chunk {
+            data_root: self.data_root.clone(),
+            data_size: self.data_size.to_string(),
+            data_path: self.get_data_path(idx),
+            offset: self.get_offset(idx).to_string(),
+            chunk: self.get_data_chunk(idx),
+        })
     }
 
     // Get id as base64url encoded string
@@ -257,28 +316,29 @@ impl Transaction {
 /// Serialize Vec<u8> to base64 url format upon sending the transaction.
 /// Deserialize base64 url strings to Vec<u8> for convenience of computing hashes.
 pub mod base64 {
-    use serde::{Deserialize, Serialize};
-    use serde::{Deserializer, Serializer, ser, de};
     use crate::crypto;
+    use serde::{de, ser, Deserializer, Serializer};
+    use serde::{Deserialize, Serialize};
     // #[allow(clippy::ptr_arg)]
     pub fn serialize<S: Serializer>(v: &Vec<u8>, s: S) -> Result<S::Ok, S::Error> {
-        let b64 = crypto::b64_encode(v).map_err(|_| ser::Error::custom("failed to encode raw bytes of base64 url string"))?;
+        let b64 = crypto::b64_encode(v)
+            .map_err(|_| ser::Error::custom("failed to encode raw bytes of base64 url string"))?;
         String::serialize(&b64, s)
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
-            let base64url = String::deserialize(d)?;
-            crypto::b64_decode(&base64url).map_err(de::Error::custom)
+        let base64url = String::deserialize(d)?;
+        crypto::b64_decode(&base64url).map_err(de::Error::custom)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::constants::{WASM1, WASM2};
     use anyhow;
     use std::fs;
     use std::path::PathBuf;
-
 
     #[test]
     fn test_encode_base64() -> anyhow::Result<()> {
@@ -286,7 +346,10 @@ mod tests {
         assert_eq!(crypto::b64_encode(&b64)?, "LCwsLCwsLA");
 
         let raw_bytes = "Arweave".as_bytes();
-        println!("-- Original: {}", String::from_utf8(raw_bytes.to_vec()).unwrap());
+        println!(
+            "-- Original: {}",
+            String::from_utf8(raw_bytes.to_vec()).unwrap()
+        );
         let b64url = crypto::b64_encode(raw_bytes)?;
         assert_eq!(b64url, "QXJ3ZWF2ZQ");
         Ok(())
@@ -315,8 +378,7 @@ mod tests {
 
     #[test]
     fn test_set_data() -> anyhow::Result<()> {
-        let file = "tests/holdem_cash.wasm";
-        let raw = fs::read(PathBuf::from(file))?;
+        let raw = fs::read(PathBuf::from(WASM1))?;
 
         let mut tx = Transaction::new();
         let data_root = tx.merklize_data(raw)?;
@@ -330,14 +392,27 @@ mod tests {
             "3xEC-zrCwQVF88iSvOxbPHIZGIWySGiVKoe7n4rnidQ"
         );
 
+        let raw2 = fs::read(PathBuf::from(WASM2))?;
+
+        let mut tx2 = Transaction::new();
+        let data_root2 = tx2.merklize_data(raw2)?;
+        let b64_data_root = crypto::b64_encode(&data_root2)?;
+
+        assert_eq!(tx2.chunks.len(), 3);
+        assert_eq!(tx2.proofs.len(), 3);
+        assert_eq!(
+            &b64_data_root,
+            "cECmgOI8BpquDp_OjfZtnLOZ1dCC7lqpm4XDK78hMC4"
+        );
+
         Ok(())
     }
 
     #[test]
     fn test_get_deephash() -> anyhow::Result<()> {
         let owner = "g1gL9QEVZ6yIXqom8ZFhkFfszVi2F9rZ1_oUFZQPSTAqu3QjECWxnkQgb9SQM7REFZJGX21LnZenPBaIeFay2S9_WYVvQEqjkxKPMnFE04i-q7qWetDyolzaElRdL8IvN4BG1nVePeWi1Z3-3aVjaat_p65LNdgaZ9heYyMnFq6XLfspLbfaa6_BNyzZjz6F-ME9ro8TDNgd3as-vmdhvTh3QNJqGWg6CGxkyBIPoCRVXw9ADvl-OAhgStpJJPVqo7wvp6teWTYu33JFyFadzkhU1s3oyIp4Np9tBYs6C96VwuT_0clUKSIb6f2CC__eClt3-aejmPrmTRS6Qhbhp3WhU5KRhvF7L-ya1AhgP_jmpnJTovhjjHQL9vY74lQfhN6M_SGvSchAJQd4bTkQf6x9tmEedKkZfK-ntA45uVD1LW3WPHYqIIeo2cBuaEbwK_csYgjVXNKym0guLgGNYVpAjSPLo7Eu1BFDbe0Gc8d0GOR4p7HaZf4X6udIP5ypF1bGlVDgCSSfYiSDAW5xv61_BPoXukVzoC7C6aP4OXz4p_9naUIce77SEbt19GOZg_9KZAUmtgZOxgsRm1nvyXiyBc2h87JF4KnSA1PJq4EMUsD3pt9vE2Uc9IZ9-7fOiycKYLFlXMVyhURjNCAYZA1sVVJXTWDP7mSoyEQAiqE";
-        let last_tx = "KM7hEK5jmduDzSy4BxzbRrVgn2v5FCMAUfWYWF-da53xvgFUgTzzhvSnug9rV3yF";
-        let droot = "3xEC-zrCwQVF88iSvOxbPHIZGIWySGiVKoe7n4rnidQ";
+        let last_tx = "hgMfb3GX6lxL0l93ksUby4vtLLNsFjqz7idNsQgN3GU4rWl49vkckkvpJ7vZOeMw";
+        let droot = "cECmgOI8BpquDp_OjfZtnLOZ1dCC7lqpm4XDK78hMC4";
         let mut tx = Transaction {
             format: 2,
             last_tx: crypto::b64_decode(last_tx)?,
@@ -347,21 +422,27 @@ mod tests {
                 Tag::from_utf8_str(
                     "File-Hash",
                     // sha256 value treated as utf8_str in this case
-                    "8a05c45f2fa6c04db66e8778b3a7e6b59bd94d9d94a1f533b5195225e33611ed"
+                    // "8a05c45f2fa6c04db66e8778b3a7e6b59bd94d9d94a1f533b5195225e33611ed"
+                    "b4f5157ccfc2df815c2466c78e07f844e685178515c6d16e3da10928f0db00f7",
                 )?,
             ],
             quantity: 0.to_string(),
             data_root: crypto::b64_decode(droot)?,
-            data_size: 482675.to_string(),
-            reward: 421470902.to_string(),
+            data_size: 524722.to_string(),
+            reward: 630923958.to_string(),
             ..Transaction::default()
         };
         let deephash = tx.get_deephash()?;
         let arloader_deephash = [
-            35, 162, 211, 83, 27, 221, 251, 145, 74, 158, 192, 17, 97, 97, 91, 173, 210, 111, 36,
-            146, 45, 10, 137, 66, 181, 49, 170, 221, 191, 201, 72, 176, 213, 64, 56, 222, 63, 47,
-            207, 92, 217, 157, 115, 110, 21, 179, 100, 59,
+            196, 255, 184, 14, 91, 250, 219, 59, 4, 61, 65, 206, 117, 114, 239, 203, 116, 70, 159,
+            124, 152, 34, 54, 45, 158, 178, 215, 213, 39, 210, 88, 192, 250, 24, 173, 194, 207, 19,
+            22, 91, 212, 94, 76, 5, 29, 100, 64, 249,
         ];
+        //     [
+        //     35, 162, 211, 83, 27, 221, 251, 145, 74, 158, 192, 17, 97, 97, 91, 173, 210, 111, 36,
+        //     146, 45, 10, 137, 66, 181, 49, 170, 221, 191, 201, 72, 176, 213, 64, 56, 222, 63, 47,
+        //     207, 92, 217, 157, 115, 110, 21, 179, 100, 59,
+        // ];
         assert_eq!(deephash, arloader_deephash);
 
         Ok(())

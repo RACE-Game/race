@@ -1,5 +1,4 @@
 //! A type for storing base64url-encoded strings.  Not currently in use.
-//! Most of the code here is copied from the arloader project.
 use crate::error::Error;
 use base64::{display::Base64Display, engine::general_purpose, Engine as _};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};

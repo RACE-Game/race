@@ -23,3 +23,11 @@ pub const MAX_CREATOR_LIMIT: usize = 5;
 pub const DEFAULT_METADATA_PTAH: &str = "metadata.json";
 /// Block size used for pricing calculations = 256 KB
 pub const BLOCK_SIZE: u64 = 1024 * 256;
+
+// Wasm1 file size: 482675B and will be chunked to
+// [(0B,262143B), (262144B,482675B)]
+pub const WASM1: &str = "tests/race_holdem_cash1.wasm";
+// Wasm2 file size: 524722B and will be chunked to
+// [(0B,262144B), (262144B,393433), (393433,524722B)]
+pub const WASM2: &str = "tests/race_holdem_cash2.wasm";
+pub const WASM3: &str = "/home/noel/projects/racepoker/race-holdem/target/race_holdem_mtt.wasm";

@@ -1,4 +1,5 @@
-//! Functionality for calculating the merkel root of the to-be-uploaded file
+//! Module for calculating the merkel root of the to-be-uploaded file
+//! This mod corresponds to the `lib/merkle.ts` module of arweave-js
 use crate::crypto;
 use crate::error::{Error, Result};
 use borsh::BorshDeserialize;
@@ -21,7 +22,7 @@ impl Helpers<usize> for usize {
     }
 }
 
-/// Leaf node (data chunks) or branch node (hashes of paired child nodes)
+/// Leaf node (data chunk) or branch node (hashes of paired child nodes)
 #[derive(Debug, PartialEq, Clone)]
 pub struct Node {
     pub id: [u8; HASH_SIZE],
@@ -36,8 +37,20 @@ pub struct Node {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Proof {
     pub offset: usize,
-    pub proof: Vec<u8>,
+    proof: Vec<u8>,
 }
+
+impl Proof {
+    pub fn proof(&self) -> Vec<u8> {
+        self.proof.clone()
+    }
+
+    pub fn offset(&self) -> usize {
+        self.offset
+    }
+
+}
+
 
 /// Populated with data from deserialized [`Proof`] for original data chunk (Leaf [`Node`])
 #[repr(C)]
@@ -83,23 +96,58 @@ impl ProofDeserialize<BranchProof> for BranchProof {
     }
 }
 
-/// Generates data chunks as leaves from which the calculation of root id starts
+/// Split data into chunks for generating tree leaves.  This is a literal
+/// translation of arweave-js `chunkData` and not currently in use.
+#[allow(dead_code)]
+fn chunk_data(data: Vec<u8>) -> Result<Vec<Vec<u8>>> {
+    let mut chunks = Vec::<Vec<u8>>::new();
+    let mut cursor = 0usize;
+
+    let mut rest = data.clone();
+    while rest.len() >= MAX_CHUNK_SIZE {
+        #[allow(dead_code)]
+        let mut chunk_size = MAX_CHUNK_SIZE;
+        let next_chunk_size = rest.len() - MAX_CHUNK_SIZE;
+
+        if next_chunk_size > 0 && next_chunk_size < MIN_CHUNK_SIZE {
+            chunk_size = if rest.len() % 2 == 0 {
+                rest.len() / 2
+            } else {
+                rest.len() / 2 + 1
+            }
+        }
+
+        let chunk = rest[0..chunk_size].to_vec();
+        cursor += chunk.len();
+        println!("cursor now at {}", cursor);
+        chunks.push(chunk);
+        rest = rest[chunk_size..].to_vec();
+    }
+
+    chunks.push(rest);
+    Ok(chunks)
+}
+
+/// Generates leaves from which the calculation of root id starts
 pub fn generate_leaves(data: Vec<u8>) -> Result<Vec<Node>> {
+
+
     let mut data_chunks: Vec<&[u8]> = data.chunks(MAX_CHUNK_SIZE).collect();
-    // info!("Data is split into {} chunks", data_chunks.len());
 
     #[allow(unused_assignments)]
     let mut last_two = Vec::new();
 
-    // If last chunk smaller than MIN, cut it into halves as equally as possible
+    // If the total bytes left will produce a chunk < MIN_CHUNK_SIZE,
+    // then adjust the rest amount by cutting it into halves as equally as possible.
     if data_chunks.len() > 1 && data_chunks.last().unwrap().len() < MIN_CHUNK_SIZE {
         last_two = data_chunks.split_off(data_chunks.len() - 2).concat();
+
         let chunk_size = if last_two.len() % 2 != 0 {
-            // Ceiling to the larger chunk size
             last_two.len() / 2 + 1
         } else {
-            last_two.len()
+            last_two.len() / 2
         };
+
         data_chunks.append(&mut last_two.chunks(chunk_size).collect::<Vec<&[u8]>>());
     }
 
@@ -109,13 +157,13 @@ pub fn generate_leaves(data: Vec<u8>) -> Result<Vec<Node>> {
 
     let mut leaves = Vec::<Node>::new();
     let mut min_byte_range = 0;
+
     // Hash each chunk twice according to the arweave spec:
     // first hash the chunck itself and then hash the concat of chunk hash + offset
     for chunk in data_chunks.into_iter() {
-        let data_hash = crypto::sha256_hash(chunk)?;
-        let max_byte_range = min_byte_range + &chunk.len();
+        let data_hash = crypto::sha256_hash(&chunk)?;
+        let max_byte_range = min_byte_range + chunk.len();
         let offset = max_byte_range.to_note_vec();
-
         let concat_hashes = vec![&data_hash, &offset[..]];
         let id = crypto::sha256_hash_all(concat_hashes)?;
 
@@ -127,8 +175,9 @@ pub fn generate_leaves(data: Vec<u8>) -> Result<Vec<Node>> {
             left_child: None,
             right_child: None,
         });
-        min_byte_range = min_byte_range + &chunk.len();
+        min_byte_range = min_byte_range + chunk.len();
     }
+
     Ok(leaves)
 }
 
@@ -162,6 +211,7 @@ pub fn build_layer<'a>(nodes: Vec<Node>) -> Result<Vec<Node>> {
             layer.push(left);
         }
     }
+
     Ok(layer)
 }
 
@@ -171,7 +221,6 @@ pub fn generate_root(mut nodes: Vec<Node>) -> Result<Node> {
         nodes = build_layer(nodes)?;
     }
     nodes.pop().ok_or(Error::NoRootNodeFound)
-
 }
 
 /// Calculates [`Proof`] for each data chunk contained in root [`Node`]
@@ -266,8 +315,6 @@ fn validate_chunk(
 
                 // Ensure calculated id correct
                 if !(id == root_id) {
-                    // warn!("Given parent ID: {:?}", root_id);
-                    // warn!("Caculated parent ID: {:?}", id);
                     return Err(Error::InvalidProof.into());
                 }
 
@@ -283,8 +330,6 @@ fn validate_chunk(
             // Validate leaf: both id and data_hash are correct
             let id = crypto::sha256_hash_all(vec![&data_hash, &max_byte_range.to_note_vec()])?;
             if !(id == root_id) & !(data_hash == leaf_proof.data_hash) {
-                // warn!("Given leaf hash: {:?}", root_id);
-                // warn!("Caculated leaf hash: {:?}", id);
                 return Err(Error::InvalidProof.into());
             }
         }
@@ -298,21 +343,22 @@ fn validate_chunk(
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Wasm1 file size: 482675B and will be chunked to
+    // [(0B,262143B), (262144B,482675B)]
+    // Wasm2 file size: 524722B and will be chunked to
+    // [(0B,262144B), (262144B,524288B), (524288B,524722B)]
+    use crate::constants::{WASM1, WASM2};
     // use crate::transaction::Base64;
-    use std::{
-        path::{Path, PathBuf},
-        str::FromStr,
-    };
+    use std::path::Path;
     use tokio::fs;
 
     #[tokio::test]
     async fn test_generate_leaves() -> Result<()> {
-        // Wasm file size: 482675B -> [(0B,262143B), (262144B,482675B)]
-        let data = fs::read(Path::new("tests/holdem_cash.wasm")).await?;
-        let leaves: Vec<Node> = generate_leaves(data)?;
-        assert_eq!(leaves.len(), 2);
+        let data1 = fs::read(Path::new(WASM1)).await?;
+        let leaves1: Vec<Node> = generate_leaves(data1)?;
+        assert_eq!(leaves1.len(), 2);
         assert_eq!(
-            leaves[1],
+            leaves1[1],
             Node {
                 id: [
                     71, 153, 59, 149, 122, 245, 216, 248, 59, 180, 237, 244, 254, 82, 57, 145, 213,
@@ -329,12 +375,38 @@ mod tests {
             },
         );
 
+        let data2 = fs::read(Path::new(WASM2)).await?;
+        let leaves2: Vec<Node> = generate_leaves(data2)?;
+        assert_eq!(leaves2.len(), 3);
+        assert_eq!(
+            leaves2[0],
+            Node {
+                id: [
+                    17, 87, 24, 159, 75, 121, 31, 67, 175, 53, 48, 175, 179, 15, 73, 31, 81, 116,
+                    237, 144, 236, 244, 113, 98, 241, 165, 230, 55, 232, 32, 156, 216
+                ],
+                data_hash: Some([
+                    6, 145, 152, 177, 137, 119, 182, 37, 65, 182, 91, 77, 102, 33, 120, 91, 14,
+                    199, 164, 77, 57, 89, 192, 221, 97, 153, 42, 65, 18, 41, 209, 44
+                ]),
+                min_byte_range: 0,
+                max_byte_range: 262144,
+                left_child: None,
+                right_child: None
+            }
+        );
+        assert_eq!(leaves2[1].min_byte_range, 262144);
+        assert_eq!(leaves2[1].max_byte_range, 393433);
+
+        assert_eq!(leaves2[2].min_byte_range, 393433);
+        assert_eq!(leaves2[2].max_byte_range, 524722);
+
         Ok(())
     }
 
     #[tokio::test]
     async fn test_hash_branch() -> Result<()> {
-        let data = fs::read("tests/holdem_cash.wasm").await?;
+        let data = fs::read(Path::new(WASM1)).await?;
         let leaves: Vec<Node> = generate_leaves(data)?;
         let mut nodes_iter = leaves.into_iter();
         let left = nodes_iter.next().unwrap();
@@ -362,7 +434,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_build_layer() -> Result<()> {
-        let data = fs::read("tests/holdem_cash.wasm").await?;
+        let data = fs::read(WASM1).await?;
         let leaves: Vec<Node> = generate_leaves(data)?;
         let layer = build_layer(leaves).unwrap();
         assert_eq!(
@@ -379,11 +451,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_root() -> Result<()> {
-        let data = fs::read("tests/holdem_cash.wasm").await?;
-        let leaves: Vec<Node> = generate_leaves(data)?;
-        let root = generate_root(leaves)?;
+        let data1 = fs::read(WASM1).await?;
+        let leaves1: Vec<Node> = generate_leaves(data1)?;
+        let root1 = generate_root(leaves1)?;
         assert_eq!(
-            root.id,
+            root1.id,
             // the id(hash) below is computed by arweave-js
             [
                 223, 17, 2, 251, 58, 194, 193, 5, 69, 243, 200, 146, 188, 236, 91, 60, 114, 25, 24,
@@ -391,6 +463,34 @@ mod tests {
             ]
         );
 
+        let data2 = fs::read(WASM2).await?;
+        let leaves2: Vec<Node> = generate_leaves(data2)?;
+        let root2 = generate_root(leaves2)?;
+        assert_eq!(
+            root2.id,
+            // the id(hash) below is computed by arweave-js
+            [
+                112, 64, 166, 128, 226, 60, 6, 154, 174, 14, 159, 206, 141, 246, 109, 156, 179,
+                153, 213, 208, 130, 238, 90, 169, 155, 133, 195, 43, 191, 33, 48, 46
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_validate_chunks() -> anyhow::Result<()> {
+        let data = fs::read(WASM2).await?;
+        let leaves: Vec<Node> = generate_leaves(data)?;
+        let root = generate_root(leaves.clone())?;
+        let root_id = root.id.clone();
+        let proofs = resolve_proofs(root, None)?;
+        println!("proofs_len: {}", proofs.len());
+        assert_eq!(leaves.len(), proofs.len());
+
+        for (chunk, proof) in leaves.into_iter().zip(proofs.into_iter()) {
+            assert_eq!((), validate_chunk(root_id.clone(), chunk, proof)?);
+        }
         Ok(())
     }
 }
