@@ -1,7 +1,7 @@
 //! Module for calculating the merkel root of the to-be-uploaded file
 //! This mod corresponds to the `lib/merkle.ts` module of arweave-js
-use crate::crypto;
-use crate::error::{Error, Result};
+use crate::arweave::crypto;
+use crate::arweave::error::{Error, Result};
 use borsh::BorshDeserialize;
 
 const MAX_CHUNK_SIZE: usize = 256 * 1024;

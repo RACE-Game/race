@@ -1,5 +1,5 @@
-use crate::error::Result;
-use crate::transaction::DeepHashItem;
+use crate::arweave::error::Result;
+use crate::arweave::transaction::DeepHashItem;
 use base64::{engine::general_purpose, Engine as _};
 use openssl::{
     bn::BigNum,

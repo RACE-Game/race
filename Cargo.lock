@@ -3599,7 +3599,7 @@ dependencies = [
  "jsonrpsee",
  "openssl",
  "prettytable-rs",
- "race-core",
+ "race-api",
  "race-env",
  "race-transport",
  "reqwest",

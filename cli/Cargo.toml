@@ -19,7 +19,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 race-core = { workspace = true }
 race-transport = { workspace = true }
 race-env = { workspace = true }
-race-storage = { path = "../storage" }
+race-storage = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 clap = { workspace = true, features = ["derive"] }
 jsonrpsee = { workspace = true, features = ["http-client"] }

@@ -252,6 +252,9 @@ pub enum Error {
     #[error("Invalid recipient slot params")]
     InvalidRecipientSlotParams,
 
+    #[error("Error in storage interaction: {0}")]
+    StorageError(String),
+
     #[error("Cannot settle or transfer without checkpoint")]
     SettleWithoutCheckpoint,
 }

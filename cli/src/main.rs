@@ -9,10 +9,10 @@ use race_core::{
     },
 };
 use race_env::{default_keyfile, parse_with_default_rpc};
-use race_storage::arweave::Arweave;
+use race_storage::{arweave::Arweave, metadata::{make_metadata, MetadataT}};
 use race_transport::TransportBuilder;
 use serde::{Deserialize, Serialize};
-use std::{fs::File, path::PathBuf, sync::Arc};
+use std::{fs::{File, self}, path::PathBuf, sync::Arc};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,8 +62,8 @@ fn cli() -> Command {
                 .about("Publish a game bundle")
                 .arg(arg!(<NAME> "The name of game"))
                 .arg(arg!(<SYMBOL> "The symbol used for game metadata file"))
-                .arg(arg!(<BUNDLE> "The file path to game bundle"))
                 .arg(arg!(<CREATOR> "The creator address"))
+                .arg(arg!(<BUNDLE> "The file path to game bundle"))
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -146,6 +146,7 @@ async fn create_transport(chain: &str, rpc: &str, keyfile: Option<String>) -> Ar
 }
 
 async fn publish(
+    chain: &str,
     name: String,
     symbol: String,
     creator_addr: String,
@@ -153,23 +154,20 @@ async fn publish(
     arkey_path: String,
     transport: Arc<dyn TransportT>,
 ) {
-    let mut arweave = Arweave::new(Some(&arkey_path)).unwrap();
-    let uri = arweave
-        .publish_game(
-            name.clone(),
-            symbol.clone(),
-            creator_addr.clone(),
-            bundle.clone(),
-        )
-        .await
-        .unwrap();
+    let mut arweave = Arweave::try_new(&arkey_path).expect("Creating arweave failed");
+    let data = fs::read(PathBuf::from(&bundle)).expect("Wasm bundle not found");
+    let bundle_addr = arweave.upload_file(data, None).await.expect("Arweave uploading wasm bundle failed");
+    let metadata = make_metadata(chain, name.clone(), symbol.clone(), creator_addr, bundle_addr.clone()).expect("Creating metadata failed");
+    let json_meta = metadata.json_vec().expect("Jsonify metadata failed");
+    let meta_addr = arweave.upload_file(json_meta, Some("application/json")).await.expect("Arweave uploading metadata failed");
 
     let params = PublishGameParams {
-        uri,
+        uri: meta_addr,
         name,
         symbol,
     };
     let resp = transport.publish_game(params).await.expect("RPC error");
+    println!("Wasm bundle: {}", bundle_addr);
     println!("Address: {}", &resp);
 }
 
@@ -454,6 +452,7 @@ async fn main() {
 
             let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
             publish(
+                &chain,
                 name.to_owned(),
                 symbol.to_owned(),
                 creator.to_owned(),

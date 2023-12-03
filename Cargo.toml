@@ -31,6 +31,7 @@ race-encryptor = { path = "encryptor", version = ">=0.2.3" }
 race-test = { path = "test", version = ">=0.2.3" }
 race-env = { path = "env", version = "*" }
 race-transport = { path = "transport", version = "*" }
+race-storage = { path = "storage", version = "*" }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 syn = "1.0.107"
 quote = "1.0.23"

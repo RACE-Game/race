@@ -1,12 +1,13 @@
 //! Functionality for Arweave transactions using its HTTP API.
 //! This mod corresponds to the `lib/transaction.ts` module of arweave-js
-use crate::{
+use crate::arweave::{
     crypto,
     error::Result,
     merkle::{generate_leaves, generate_root, resolve_proofs, Node, Proof},
 };
 use infer;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 /// Recursive data structure required to calculate the signature field of a
 /// transaction, according to arweave-js.  See:
@@ -133,7 +134,7 @@ impl Transaction {
     }
 
     // Set data_root and data fields, also adding tags according to given data
-    pub fn set_data(&mut self, data: Vec<u8>, json: bool) -> Result<()> {
+    pub fn set_data(&mut self, data: Vec<u8>, content_type: Option<&str>) -> Result<()> {
         self.data_size = data.len().to_string();
         let data_root = self.merklize_data(data.clone())?;
         self.data_root = data_root;
@@ -145,10 +146,10 @@ impl Transaction {
             .map(|byte| format!("{:02x}", byte))
             .collect::<Vec<_>>()
             .concat();
-        let content_type = if let Some(kind) = infer::get(&data) {
+        let content_type = if let Some(content_type) = content_type {
+            content_type
+        } else if let Some(kind) = infer::get(&data) {
             kind.mime_type()
-        } else if json {
-            "application/json"
         } else {
             "application/octet-stream"
         };
@@ -161,6 +162,25 @@ impl Transaction {
         Ok(())
     }
 
+    fn log(&self) -> Result<()> {
+        debug!("== Field `format`: {}", self.format.to_string());
+        debug!("== Field `owner`: {}", crypto::b64_encode(&self.owner)?);
+        debug!("== Field `target`: {}", crypto::b64_encode(&self.target)?);
+        debug!("== Field `quantity`: {}", self.quantity);
+        debug!("== Field `reward`: {}", self.reward);
+        debug!("== Field `last_tx`: {}", crypto::b64_encode(&self.last_tx)?);
+        debug!(
+            "== Field `data_root`: {}",
+            crypto::b64_encode(&self.data_root)?
+        );
+        debug!("== Field `data_size`: {}", self.data_size);
+        debug!("== Field `tags` {:?}", self.tags);
+        for tag in self.tags.iter() {
+            debug!("Tag: {}", tag);
+        }
+        Ok(())
+    }
+
     /// Compute deephash item in preparation for deep hashing.
     /// Supports only v2 format as v1 has been deprecated.  See:
     /// docs.arweave.org/developers/arweave-node-server/http-api#field-definitions
@@ -168,25 +188,7 @@ impl Transaction {
         // This is the byte view of the tags for the data to be uploaded.
         // The iterator constructs [[name_in_bytes], [value_in_bytes]] and
         // the final structure looks like [[[name_in_bytes], [value_in_bytes]], ...]
-        println!("== Going to deep hash the following fields:");
-        println!("===========================================");
-        println!("== Field `format`: {}", self.format.to_string());
-        println!("== Field `owner`: {}", crypto::b64_encode(&self.owner)?);
-        println!("== Field `target`: {}", crypto::b64_encode(&self.target)?);
-        println!("== Field `quantity`: {}", self.quantity);
-        println!("== Field `reward`: {}", self.reward);
-        println!("== Field `last_tx`: {}", crypto::b64_encode(&self.last_tx)?);
-        println!(
-            "== Field `data_root`: {}",
-            crypto::b64_encode(&self.data_root)?
-        );
-        println!("== Field `data_size`: {}", self.data_size);
-        println!("== Field `tags` {:?}", self.tags);
-        for tag in self.tags.iter() {
-            println!("Tag: {}", tag);
-        }
-        println!("===========================================");
-
+        self.log()?;
         let tag_list: Vec<DeepHashItem> = self
             .tags
             .iter()
@@ -220,7 +222,6 @@ impl Transaction {
     /// docs.arweave.org/developers/arweave-node-server/http-api#transaction-signing
     pub fn get_deephash(&mut self) -> Result<[u8; 48]> {
         let deephash_item = self.get_deephash_item()?;
-        println!("== Deephash items {:?}", deephash_item);
         let deephash = crypto::deep_hash(deephash_item)?;
         Ok(deephash)
     }
@@ -316,10 +317,9 @@ impl Transaction {
 /// Serialize Vec<u8> to base64 url format upon sending the transaction.
 /// Deserialize base64 url strings to Vec<u8> for convenience of computing hashes.
 pub mod base64 {
-    use crate::crypto;
+    use crate::arweave::crypto;
     use serde::{de, ser, Deserializer, Serializer};
     use serde::{Deserialize, Serialize};
-    // #[allow(clippy::ptr_arg)]
     pub fn serialize<S: Serializer>(v: &Vec<u8>, s: S) -> Result<S::Ok, S::Error> {
         let b64 = crypto::b64_encode(v)
             .map_err(|_| ser::Error::custom("failed to encode raw bytes of base64 url string"))?;
@@ -438,11 +438,6 @@ mod tests {
             124, 152, 34, 54, 45, 158, 178, 215, 213, 39, 210, 88, 192, 250, 24, 173, 194, 207, 19,
             22, 91, 212, 94, 76, 5, 29, 100, 64, 249,
         ];
-        //     [
-        //     35, 162, 211, 83, 27, 221, 251, 145, 74, 158, 192, 17, 97, 97, 91, 173, 210, 111, 36,
-        //     146, 45, 10, 137, 66, 181, 49, 170, 221, 191, 201, 72, 176, 213, 64, 56, 222, 63, 47,
-        //     207, 92, 217, 157, 115, 110, 21, 179, 100, 59,
-        // ];
         assert_eq!(deephash, arloader_deephash);
 
         Ok(())
