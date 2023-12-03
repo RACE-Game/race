@@ -23,7 +23,7 @@ pub enum TransportError {
     #[error("Invalid chain name: {0}")]
     InvalidChainName(String),
 
-    #[error("Game title or nick name exceeds 16 characters: {0}")]
+    #[error("Game title or nick name exceeds 16 letters: {0}")]
     InvalidNameLength(String),
 
     #[error("Initialization failed: {0}")]
@@ -137,8 +137,15 @@ pub enum TransportError {
     #[error("Failed to deserialize recipient account data")]
     RecipientStateDeserializeError,
 
+    #[error("Metadta name too long (no more than 32 letters)")]
+    InvalidMetadataNameLength,
+
+    #[error("Metadta Symbole too long (no more than 10 letters)")]
+    InvalidMetadataSymbolLength,
+
     #[error("Invalid settle address")]
     InvalidSettleAddress,
+
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

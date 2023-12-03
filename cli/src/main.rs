@@ -9,9 +9,10 @@ use race_core::{
     },
 };
 use race_env::{default_keyfile, parse_with_default_rpc};
+use race_storage::{arweave::Arweave, metadata::{make_metadata, MetadataT}};
 use race_transport::TransportBuilder;
 use serde::{Deserialize, Serialize};
-use std::{fs::File, path::PathBuf, sync::Arc};
+use std::{fs::{File, self}, path::PathBuf, sync::Arc};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -55,11 +56,14 @@ fn cli() -> Command {
         .arg(arg!(-c <chain> "The chain to interact").required(true))
         .arg(arg!(-r <rpc> "The endpoint of RPC service").required(true))
         .arg(arg!(-k <keyfile> "The path to keyfile"))
+        .arg(arg!(-a <arweave_keyfile> "The path to Arweave JWK keyfile"))
         .subcommand(
             Command::new("publish")
                 .about("Publish a game bundle")
                 .arg(arg!(<NAME> "The name of game"))
-                .arg(arg!(<BUNDLE> "The path to the WASM bundle"))
+                .arg(arg!(<SYMBOL> "The symbol used for game metadata file"))
+                .arg(arg!(<CREATOR> "The creator address"))
+                .arg(arg!(<BUNDLE> "The file path to game bundle"))
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -141,13 +145,29 @@ async fn create_transport(chain: &str, rpc: &str, keyfile: Option<String>) -> Ar
     Arc::from(transport)
 }
 
-async fn publish(name: String, bundle: String, transport: Arc<dyn TransportT>) {
+async fn publish(
+    chain: &str,
+    name: String,
+    symbol: String,
+    creator_addr: String,
+    bundle: String,
+    arkey_path: String,
+    transport: Arc<dyn TransportT>,
+) {
+    let mut arweave = Arweave::try_new(&arkey_path).expect("Creating arweave failed");
+    let data = fs::read(PathBuf::from(&bundle)).expect("Wasm bundle not found");
+    let bundle_addr = arweave.upload_file(data, None).await.expect("Arweave uploading wasm bundle failed");
+    let metadata = make_metadata(chain, name.clone(), symbol.clone(), creator_addr, bundle_addr.clone()).expect("Creating metadata failed");
+    let json_meta = metadata.json_vec().expect("Jsonify metadata failed");
+    let meta_addr = arweave.upload_file(json_meta, Some("application/json")).await.expect("Arweave uploading metadata failed");
+
     let params = PublishGameParams {
-        uri: bundle,
+        uri: meta_addr,
         name,
-        symbol: "RACEBUNDLE".into(),
+        symbol,
     };
     let resp = transport.publish_game(params).await.expect("RPC error");
+    println!("Wasm bundle: {}", bundle_addr);
     println!("Address: {}", &resp);
 }
 
@@ -312,7 +332,7 @@ async fn create_recipient(specs: RecipientSpecs, transport: Arc<dyn TransportT>)
                 .await
                 .expect("Create recipient failed");
             println!("Recipient account created: {}", addr);
-        },
+        }
         RecipientSpecs::Addr(_) => {
             println!("Invalid spec format");
         }
@@ -419,6 +439,7 @@ async fn main() {
     let chain = matches.get_one::<String>("chain").expect("required");
     let rpc = parse_with_default_rpc(chain, matches.get_one::<String>("rpc").expect("required"));
     let keyfile = matches.get_one::<String>("keyfile");
+    let arweave_keyfile = matches.get_one::<String>("arweave_keyfile");
 
     println!("Interact with chain: {:?}", chain);
     println!("RPC Endpoint: {:?}", rpc);
@@ -426,9 +447,21 @@ async fn main() {
     match matches.subcommand() {
         Some(("publish", sub_matches)) => {
             let name = sub_matches.get_one::<String>("NAME").expect("required");
+            let symbol = sub_matches.get_one::<String>("SYMBOL").expect("required");
+            let creator = sub_matches.get_one::<String>("CREATOR").expect("required");
             let bundle = sub_matches.get_one::<String>("BUNDLE").expect("required");
+
             let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
-            publish(name.to_owned(), bundle.to_owned(), transport).await;
+            publish(
+                &chain,
+                name.to_owned(),
+                symbol.to_owned(),
+                creator.to_owned(),
+                bundle.to_owned(),
+                arweave_keyfile.expect("Arweave keyfile is required").to_owned(),
+                transport,
+            )
+            .await;
         }
         Some(("bundle-info", sub_matches)) => {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");

@@ -6,6 +6,7 @@ members = [
   "proc-macro",
   "transactor",
   "cli",
+  "storage",
   "encryptor",
   "transport",
   "facade",
@@ -30,6 +31,7 @@ race-encryptor = { path = "encryptor", version = ">=0.2.6" }
 race-test = { path = "test", version = ">=0.2.6" }
 race-env = { path = "env", version = "*" }
 race-transport = { path = "transport", version = "*" }
+race-storage = { path = "storage", version = "*" }
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 syn = "1.0.107"
 quote = "1.0.23"
@@ -75,6 +77,7 @@ ctr = "0.9.2"
 chrono = "0.4.24"
 chacha20 = "0.9.1"
 regex = "1"
+infer = "0.15.0"
 
 [workspace.package]
 authors = ["RACE Foundation <race.game.team@gmail.com>"]

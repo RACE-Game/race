@@ -437,6 +437,14 @@ impl TransportT for SolanaTransport {
     // TODO: add close_player_profile
 
     async fn publish_game(&self, params: PublishGameParams) -> Result<String> {
+        if params.name.len() > MAX_NAME_LENGTH {
+            return Err(TransportError::InvalidMetadataNameLength)?;
+        }
+
+        if params.symbol.len() > MAX_SYMBOL_LENGTH {
+            return Err(TransportError::InvalidMetadataSymbolLength)?;
+        }
+
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
