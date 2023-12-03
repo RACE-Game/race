@@ -61,6 +61,15 @@ fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
     Ok(keypair)
 }
 
+fn player_addr_to_postition(game_state: &GameState, addr: &Pubkey) -> Result<u16> {
+    Ok(game_state
+        .players
+        .iter()
+        .find(|p| p.addr.eq(addr))
+        .ok_or(TransportError::InvalidSettleAddress)?
+        .position)
+}
+
 pub struct SolanaTransport {
     program_id: Pubkey,
     client: RpcClient,
@@ -530,6 +539,8 @@ impl TransportT for SolanaTransport {
             mut settles,
             transfers,
             checkpoint,
+            settle_version,
+            next_settle_version,
         } = params;
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
@@ -555,11 +566,6 @@ impl TransportT for SolanaTransport {
             SettleOp::AssignSlot(_) => 3,
         });
 
-        let settles: Vec<IxSettle> = settles
-            .into_iter()
-            .map(TryInto::<IxSettle>::try_into)
-            .collect::<Result<Vec<IxSettle>>>()?;
-
         let mut accounts = vec![
             AccountMeta::new_readonly(payer_pubkey, true),
             AccountMeta::new(Pubkey::from_str(&addr).unwrap(), false),
@@ -570,10 +576,30 @@ impl TransportT for SolanaTransport {
             AccountMeta::new_readonly(system_program::id(), false),
         ];
 
+        let mut ix_settles: Vec<IxSettle> = Vec::new();
         for settle in settles.iter() {
-            if settle.op.eq(&SettleOp::Eject) {
-                let ata = get_associated_token_address(&settle.addr, &game_state.token_mint);
-                accounts.push(AccountMeta::new(ata, false));
+            match &settle.op {
+                &SettleOp::Eject => {
+                    let addr = parse_pubkey(&settle.addr)?;
+                    let ata = get_associated_token_address(&addr, &game_state.token_mint);
+                    accounts.push(AccountMeta::new(ata, false));
+                    let position = player_addr_to_postition(&game_state, &addr)?;
+                    ix_settles.push(IxSettle {
+                        position,
+                        op: settle.op.clone(),
+                    });
+                }
+                &SettleOp::Add(_) | &SettleOp::Sub(_) => {
+                    let addr = parse_pubkey(&settle.addr)?;
+                    let position = player_addr_to_postition(&game_state, &addr)?;
+                    ix_settles.push(IxSettle {
+                        position,
+                        op: settle.op.clone(),
+                    });
+                }
+                &SettleOp::AssignSlot(_) => {
+                    unimplemented!()
+                }
             }
         }
 
@@ -585,16 +611,18 @@ impl TransportT for SolanaTransport {
 
         info!("Solana transport settle game: {}\n  - Settles: {:?}\n  - Transfers: {:?}\n  - Checkpoint: {:?}",
             addr,
-            settles,
+            ix_settles,
             transfers,
             checkpoint
         );
 
         let params = RaceInstruction::Settle {
             params: IxSettleParams {
-                settles,
+                settles: ix_settles,
                 transfers,
                 checkpoint,
+                settle_version,
+                next_settle_version,
             },
         };
 
@@ -890,14 +918,30 @@ impl TransportT for SolanaTransport {
     async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
         let pubkey = Self::parse_pubkey(addr)?;
         let recipient_state = self.internal_get_recipient_state(&pubkey).await?;
-        let stake_addrs: Vec<Pubkey> = recipient_state.slots.iter().map(|s| s.stake_addr.clone()).collect();
+        let stake_addrs: Vec<Pubkey> = recipient_state
+            .slots
+            .iter()
+            .map(|s| s.stake_addr.clone())
+            .collect();
         let mut recipient_account = recipient_state.into_account(addr);
         // Add amount information by querying stake accounts
         for i in 0..(stake_addrs.len()) {
             tracing::info!("Check stake account: {}", &stake_addrs[i]);
-            let mut slot = recipient_account.slots.get_mut(i).ok_or(Error::TransportError("[Unreachable] Cannot get recipient".into()))?;
-            let token_data = self.client.get_account_data(&stake_addrs[i]).or(Err(Error::TransportError("Cannot get the state of stake account".into())))?;
-            let token_state = Account::unpack(&token_data).or(Err(Error::TransportError("Cannot parse data of stake account".into())))?;
+            let mut slot = recipient_account
+                .slots
+                .get_mut(i)
+                .ok_or(Error::TransportError(
+                    "[Unreachable] Cannot get recipient".into(),
+                ))?;
+            let token_data =
+                self.client
+                    .get_account_data(&stake_addrs[i])
+                    .or(Err(Error::TransportError(
+                        "Cannot get the state of stake account".into(),
+                    )))?;
+            let token_state = Account::unpack(&token_data).or(Err(Error::TransportError(
+                "Cannot parse data of stake account".into(),
+            )))?;
             slot.balance = token_state.amount;
         }
         Ok(Some(recipient_account))

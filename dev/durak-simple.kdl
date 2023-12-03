@@ -6,8 +6,8 @@ layout {
       name "Facade"
       focus true
       cwd "./"
-      command "bash"
-      args "dev/create-mtt-game.sh"
+      command "just"
+      args "dev-facade" "../durak/conf/heads_up.json" "../durak/conf/3players.json"
       start_suspended true
     }
     pane split_direction="horizontal" {

@@ -149,7 +149,7 @@ export class SolanaTransport implements ITransport {
     }
   }
 
-  async closeGameAccount(wallet: IWallet, params: CloseGameAccountParams): Promise<TransactionResult<void>> {
+  async closeGameAccount(_wallet: IWallet, _params: CloseGameAccountParams): Promise<TransactionResult<void>> {
     throw new Error('unimplemented');
   }
 
@@ -189,6 +189,13 @@ export class SolanaTransport implements ITransport {
     const tempAccountLamports = await conn.getMinimumBalanceForRentExemption(tempAccountLen);
 
     const tx = await makeTransaction(conn, playerKey);
+
+    if (params.createProfile) {
+      await this.addCreateProfileIxToTransaction(tx, wallet, {
+        nick: wallet.walletAddr.substring(0, 6),
+      });
+    }
+
     const createTempAccountIx = SystemProgram.createAccount({
       fromPubkey: playerKey,
       newAccountPubkey: tempAccountKey,
@@ -249,24 +256,19 @@ export class SolanaTransport implements ITransport {
     throw new Error('unimplemented');
   }
 
-  async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<TransactionResult<void>> {
+  async addCreateProfileIxToTransaction(tx: Transaction, wallet: IWallet, params: CreatePlayerProfileParams): Promise<void> {
     const { nick, pfp } = params;
     if (nick.length > 16) {
-      // FIXME: better error message?
       throw new Error('Player nick name exceeds 16 chars');
     }
-
-    const conn = this.#conn;
     const payerKey = new PublicKey(wallet.walletAddr);
     console.log('Payer Public Key:', payerKey);
 
     const profileKey = await PublicKey.createWithSeed(payerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
     console.log('Player profile public key: ', profileKey);
 
-    let tx = new Transaction();
-
-    if (!(await conn.getAccountInfo(profileKey))) {
-      let lamports = await conn.getMinimumBalanceForRentExemption(PROFILE_ACCOUNT_LEN);
+    if (!(await this.#conn.getAccountInfo(profileKey))) {
+      let lamports = await this.#conn.getMinimumBalanceForRentExemption(PROFILE_ACCOUNT_LEN);
 
       const createProfileAccount = SystemProgram.createAccountWithSeed({
         fromPubkey: payerKey,
@@ -284,7 +286,13 @@ export class SolanaTransport implements ITransport {
     const createProfile = instruction.createPlayerProfile(payerKey, profileKey, nick, pfpKey);
 
     tx.add(createProfile);
-    return await wallet.sendTransaction(tx, conn);
+  }
+
+  async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<TransactionResult<void>> {
+    const payerKey = new PublicKey(wallet.walletAddr);
+    let tx = await makeTransaction(this.#conn, payerKey);
+    await this.addCreateProfileIxToTransaction(tx, wallet, params);
+    return await wallet.sendTransaction(tx, this.#conn);
   }
 
   async createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<TransactionResult<string>> {

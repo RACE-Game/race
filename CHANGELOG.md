@@ -4,6 +4,35 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 ## Features
 - CLI: Update `publish` command. Now it receives the path to the WASM bundle instead of the Arweave URL to solana metadata.
+- Add optional `createProfileIfNeeded` to join options.
+
+# 0.2.6
+
+## Fixes
+- SDK: Clean the timer after exit. Simplify the usage of timer in connection.
+- Transactor: Log serialized effect and event when a wasm runtime error occurs.
+- SDK: Fix broken on consecutive `SecretsReady` events.
+
+## Enhancements
+- SDK: Add fake NFT data to facade transport.
+
+# 0.2.5
+
+## Fixes
+- Remove duplicated definitions for `SecretIdent` and `SecretShare`, which causes the compliation error.
+
+# 0.2.4
+
+## Features
+- SDK: Add `npx borsh-serialize` to js/borsh.
+
+## Enhancements
+- Transactor & Contract: Squash transactions for better performance.
+- CLI: Display token address in `game-info`.
+
+## Fixes
+- Transactor: Fix sending duplicated settlements.
+- SDK: Fix double reconnecting.
 
 # 0.2.3
 

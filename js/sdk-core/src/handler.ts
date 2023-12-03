@@ -128,9 +128,9 @@ export class Handler implements IHandler {
     await this.generalPostInitState(context, initAccount);
   }
 
-  async generalPreInitState(_context: GameContext, _initAccount: InitAccount) {}
+  async generalPreInitState(_context: GameContext, _initAccount: InitAccount) { }
 
-  async generalPostInitState(_context: GameContext, _initAccount: InitAccount) {}
+  async generalPostInitState(_context: GameContext, _initAccount: InitAccount) { }
 
   async generalPreHandleEvent(context: GameContext, event: GameEvent, encryptor: IEncryptor) {
     if (event instanceof ShareSecrets) {
@@ -179,6 +179,12 @@ export class Handler implements IHandler {
       context.status = 'running';
       context.setNodeReady(accessVersion);
     } else if (event instanceof SecretsReady) {
+
+      for (let randomId of event.randomIds) {
+        let decryption = await this.#client.decrypt(context, randomId);
+        this.#decryptionCache.add(randomId, decryption);
+      }
+
       for (const st of context.randomStates) {
         const options = st.options;
         const revealed = await encryptor.decryptWithSecrets(
@@ -192,12 +198,6 @@ export class Handler implements IHandler {
   }
 
   async generalPostHandleEvent(context: GameContext, event: GameEvent) {
-    if (event instanceof SecretsReady) {
-      for (let randomId of event.randomIds) {
-        let decryption = await this.#client.decrypt(context, randomId);
-        this.#decryptionCache.add(randomId, decryption);
-      }
-    }
     if (context.checkpoint) {
       context.randomStates = [];
       context.decisionStates = [];
@@ -271,13 +271,13 @@ export class Handler implements IHandler {
 
     const handleEvent = exports.handle_event as Function;
     const newEffectSize: number = handleEvent(effectSize, eventSize);
-    switch(newEffectSize) {
-     case 0:
-       throw(new Error("Serializing effect failed"));
-     case 1:
-       throw(new Error("Deserializing effect failed"));
-     case 2:
-       throw(new Error("Deserializing event failed"));
+    switch (newEffectSize) {
+      case 0:
+        throw (new Error("Serializing effect failed"));
+      case 1:
+        throw (new Error("Deserializing effect failed"));
+      case 2:
+        throw (new Error("Deserializing event failed"));
     }
     const data = new Uint8Array(mem.buffer);
     const newEffectBytes = data.slice(1, newEffectSize + 1);

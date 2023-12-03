@@ -3,8 +3,9 @@
 use jsonrpsee::core::async_trait;
 use race_api::error::Result;
 use race_core::types::{
-    CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, PublishGameParams,
-    RegisterGameParams, ServeParams, UnregisterGameParams, VoteParams, RecipientAccount, CreateRecipientParams, AssignRecipientParams, QueryMode, RecipientClaimParams
+    AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams,
+    CreateRegistrationParams, DepositParams, PublishGameParams, QueryMode, RecipientAccount,
+    RecipientClaimParams, RegisterGameParams, ServeParams, UnregisterGameParams, VoteParams,
 };
 use race_core::{
     transport::TransportT,
@@ -19,7 +20,7 @@ use std::time::Duration;
 use tracing::error;
 
 pub struct WrappedTransport {
-    inner: Box<dyn TransportT>,
+    pub(crate) inner: Box<dyn TransportT>,
 }
 
 impl WrappedTransport {
@@ -88,14 +89,36 @@ impl TransportT for WrappedTransport {
         self.inner.publish_game(params).await
     }
 
-    /// We should keep retrying until success
+    /// `settle_version` is used to identify the settle state,
+    /// Until the `settle_version` is bumped, we keep retrying.
     async fn settle_game(&self, params: SettleParams) -> Result<()> {
+        let mut curr_settle_version: Option<u64> = None;
         loop {
-            if let Err(e) = self.inner.settle_game(params.clone()).await {
-                tokio::time::sleep(Duration::from_secs(10)).await;
-                error!("Error in settlement: {:?}", e);
+            let game_account = self
+                .inner
+                .get_game_account(&params.addr, QueryMode::Finalized)
+                .await;
+            if let Ok(Some(game_account)) = game_account {
+                // The `settle_version` had been bumped, indicates the transaction was succeed
+                // NOTE: The transaction can success with error result due to unstable network
+                if curr_settle_version.is_some_and(|v| v < game_account.settle_version) {
+                    return Ok(());
+                }
+                curr_settle_version = Some(game_account.settle_version);
+                if let Err(e) = self.inner.settle_game(params.clone()).await {
+                    error!("Error in settlement: {:?}", e);
+                    tokio::time::sleep(Duration::from_secs(10)).await;
+                    continue;
+                } else {
+                    return Ok(());
+                }
             } else {
-                return Ok(());
+                error!(
+                    "Error in settlement due to unable to get game account: {}",
+                    params.addr
+                );
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                continue;
             }
         }
     }
@@ -134,5 +157,59 @@ impl TransportT for WrappedTransport {
 
     async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
         self.inner.recipient_claim(params).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use race_test::prelude::{test_game_addr, DummyTransport, TestGameAccountBuilder};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_settle_without_retry() -> anyhow::Result<()> {
+        let t = DummyTransport::default();
+        let ga0 = TestGameAccountBuilder::new().build();
+        let mut ga1 = TestGameAccountBuilder::new().build();
+        ga1.settle_version = 1;
+        t.simulate_states(vec![ga0, ga1]);
+        let wt = WrappedTransport { inner: Box::new(t) };
+        let r = wt
+            .settle_game(SettleParams {
+                addr: test_game_addr(),
+                settles: vec![],
+                transfers: vec![],
+                checkpoint: vec![],
+                settle_version: 1,
+                next_settle_version: 2,
+            })
+            .await;
+
+        assert_eq!(r, Ok(()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_settle_with_retry() -> anyhow::Result<()> {
+        let mut t = DummyTransport::default();
+        t.fail_next_settle();
+        let ga0 = TestGameAccountBuilder::new().build();
+        let mut ga1 = TestGameAccountBuilder::new().build();
+        ga1.settle_version = 1;
+        t.simulate_states(vec![ga0, ga1]);
+        let wt = WrappedTransport { inner: Box::new(t) };
+        let r = wt
+            .settle_game(SettleParams {
+                addr: test_game_addr(),
+                settles: vec![],
+                transfers: vec![],
+                checkpoint: vec![],
+                settle_version: 1,
+                next_settle_version: 2,
+            })
+            .await;
+
+        assert_eq!(r, Ok(()));
+        Ok(())
     }
 }

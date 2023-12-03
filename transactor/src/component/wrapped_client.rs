@@ -16,7 +16,7 @@ use race_core::connection::ConnectionT;
 use race_core::encryptor::EncryptorT;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, ServerAccount};
-use tracing::{info, warn};
+use tracing::warn;
 
 use super::event_bus::CloseReason;
 
@@ -71,7 +71,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
         "Client"
     }
 
-    async fn run(mut ports: ConsumerPorts, ctx: ClientContext) -> CloseReason{
+    async fn run(mut ports: ConsumerPorts, ctx: ClientContext) -> CloseReason {
         let ClientContext {
             addr,
             game_addr,
@@ -94,7 +94,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                     match client.handle_updated_context(context) {
                         Ok(events) => {
                             for event in events.into_iter() {
-                                info!("Connection send event: {}", event);
+                                // info!("Connection send event: {}", event);
                                 if let Err(_e) = client.submit_event(event).await {
                                     break 'outer;
                                 }
@@ -117,16 +117,16 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
         return match res {
             Ok(()) => CloseReason::Complete,
             Err(e) => CloseReason::Fault(e),
-        }
+        };
     }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use race_test::prelude::*;
     use race_api::prelude::*;
     use race_encryptor::Encryptor;
+    use race_test::prelude::*;
 
     use crate::component::common::PortsHandle;
 

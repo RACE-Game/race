@@ -82,7 +82,7 @@ impl<H: GameHandler> TestHandler<H> {
 
         while !evts.is_empty() {
             let evt = &evts[0];
-            println!("[HP] Received event: {}", evt);
+            println!("* Received event: {}", evt);
 
             self.handle_event(context, evt)?;
             if evts.len() == 1 {
@@ -104,7 +104,7 @@ impl<H: GameHandler> TestHandler<H> {
             }
 
             if let Some(dispatch) = context.get_dispatch() {
-                println!("[HP] Context dispatch: {:?}", dispatch);
+                println!("* Context dispatch: {:?}", dispatch);
             }
         }
         Ok(())

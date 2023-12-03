@@ -175,6 +175,8 @@ pub struct SettleParams {
     pub settles: Vec<Settle>,
     pub transfers: Vec<Transfer>,
     pub checkpoint: Vec<u8>,
+    pub settle_version: u64,
+    pub next_settle_version: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

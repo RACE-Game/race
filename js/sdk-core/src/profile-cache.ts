@@ -18,6 +18,7 @@ export class ProfileCache {
     } else {
       const p = await this.transport.getPlayerProfile(playerAddr);
       if (p === undefined) {
+        console.warn('Failed to fetch the profile of %s', playerAddr);
         return undefined;
       } else {
         this.caches.set(playerAddr, p);
@@ -28,8 +29,10 @@ export class ProfileCache {
 
   async injectProfiles(context: GameContextSnapshot) {
     for (let player of context.players) {
-      const profile = await this.getProfile(player.addr);
-      player.profile = profile;
+      if (player.profile === undefined) {
+        const profile = await this.getProfile(player.addr);
+        player.profile = profile;
+      }
     }
   }
 }

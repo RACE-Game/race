@@ -142,6 +142,10 @@ pub enum TransportError {
 
     #[error("Metadta Symbole too long (no more than 10 letters)")]
     InvalidMetadataSymbolLength,
+
+    #[error("Invalid settle address")]
+    InvalidSettleAddress,
+
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

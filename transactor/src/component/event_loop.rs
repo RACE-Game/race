@@ -14,6 +14,16 @@ use crate::frame::EventFrame;
 use crate::utils::addr_shorthand;
 use race_core::types::{ClientMode, GameAccount};
 
+
+fn log_execution_context(ctx: &GameContext, evt: &Event) {
+    info!("Execution context");
+    info!("===== State =====");
+    info!("{:?}", ctx.get_handler_state_raw());
+    info!("===== Event =====");
+    info!("{:?}", evt);
+    info!("=================");
+}
+
 pub struct EventLoopContext {
     handler: WrappedHandler,
     game_context: GameContext,
@@ -83,6 +93,7 @@ async fn handle(
                         settles: effects.settles,
                         transfers: effects.transfers,
                         checkpoint: effects.checkpoint,
+                        settle_version,
                     })
                     .await;
             }
@@ -93,6 +104,7 @@ async fn handle(
                 addr_shorthand(&game_context.get_game_addr()),
                 e.to_string()
             );
+            log_execution_context(&game_context, &event);
             match e {
                 Error::WasmExecutionError(_) | Error::WasmMemoryOverflow => {
                     return Some(CloseReason::Fault(e))

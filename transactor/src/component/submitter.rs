@@ -1,8 +1,10 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use race_api::error::Error;
 use race_core::types::{GameAccount, SettleParams};
+use tokio::select;
 use tokio::sync::mpsc;
 use tracing::error;
 
@@ -10,6 +12,61 @@ use crate::component::common::{Component, ConsumerPorts};
 use crate::component::event_bus::CloseReason;
 use crate::frame::EventFrame;
 use race_core::transport::TransportT;
+
+/// Squash two settles into one.
+fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
+    let SettleParams {
+        addr,
+        settles,
+        transfers,
+        checkpoint,
+        ..
+    } = next;
+    prev.settles.extend(settles);
+    prev.transfers.extend(transfers);
+    return SettleParams {
+        addr,
+        settles: prev.settles,
+        transfers: prev.transfers,
+        // Use the latest checkpoint
+        checkpoint,
+        // Use the old settle_version
+        settle_version: prev.settle_version,
+        next_settle_version: prev.next_settle_version + 1,
+    };
+}
+
+/// Read at most 3 settle events from channel.
+async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>) -> Vec<SettleParams> {
+    let mut v = vec![];
+    let mut cnt = 0;
+
+    loop {
+        if cnt == 3 {
+            break;
+        }
+
+        select! {
+            p = rx.recv() => {
+                if let Some(p) = p {
+                    cnt += 1;
+                    v.push(p);
+                } else {
+                    break;
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                if v.is_empty() {
+                    continue;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    return v;
+}
 
 pub struct SubmitterContext {
     addr: String,
@@ -40,50 +97,50 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
     }
 
     async fn run(mut ports: ConsumerPorts, ctx: SubmitterContext) -> CloseReason {
-        let (queue_tx, mut queue_rx) = mpsc::channel::<EventFrame>(10);
+        let (queue_tx, mut queue_rx) = mpsc::channel::<SettleParams>(32);
 
+        // Start a task to handle settlements
+        // Prevent the blocking from pending transactions
         let join_handle = tokio::spawn(async move {
-            while let Some(event) = queue_rx.recv().await {
-                match event {
-                    EventFrame::Settle { settles, transfers, checkpoint } => {
-                        let res = ctx
-                            .transport
-                            .settle_game(SettleParams {
-                                addr: ctx.addr.clone(),
-                                settles,
-                                transfers,
-                                checkpoint,
-                            })
-                            .await;
-
-                        match res {
-                            Ok(_) => {}
-                            Err(e) => {
-                                return CloseReason::Fault(e);
-                            }
+            loop {
+                let ps = read_settle_params(&mut queue_rx).await;
+                if let Some(params) = ps.into_iter().reduce(squash_settles) {
+                    let res = ctx.transport.settle_game(params).await;
+                    match res {
+                        Ok(_) => (),
+                        Err(e) => {
+                            return CloseReason::Fault(e);
                         }
                     }
-                    EventFrame::Shutdown => {
-                        break;
-                    }
-                    _ => (),
+                } else {
+                    break;
                 }
             }
-
             CloseReason::Complete
         });
 
         while let Some(event) = ports.recv().await {
             match event {
-                EventFrame::Settle { .. } => {
-                    if let Err(e) = queue_tx.send(event).await {
-                        error!("Submibtter failed to send settlement to task queue: {}", e.to_string());
+                EventFrame::Settle {
+                    settles,
+                    transfers,
+                    checkpoint,
+                    settle_version,
+                } => {
+                    let res = queue_tx.send(SettleParams {
+                        addr: ctx.addr.clone(),
+                        settles,
+                        transfers,
+                        checkpoint,
+                        settle_version,
+                        next_settle_version: settle_version + 1,
+                    }).await;
+                    if let Err(e) = res {
+                        error!("Submitter failed to send settle to task queue: {}", e.to_string());
                     }
                 }
                 EventFrame::Shutdown => {
-                    if let Err(e) = queue_tx.send(event).await {
-                        error!("Submibtter failed to send shutdown to task queue: {}", e.to_string());
-                    }
+                    drop(queue_tx);
                     break;
                 }
                 _ => (),
@@ -136,6 +193,7 @@ mod tests {
             settles: settles.clone(),
             transfers: vec![],
             checkpoint: vec![],
+            settle_version: 0,
         };
         let handle = submitter.start(ctx);
 

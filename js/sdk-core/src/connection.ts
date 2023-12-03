@@ -80,7 +80,7 @@ export class Message {
   }
 }
 
-export abstract class BroadcastFrame {}
+export abstract class BroadcastFrame { }
 
 @variant(0)
 export class BroadcastFrameEvent extends BroadcastFrame {
@@ -148,7 +148,6 @@ export class Connection implements IConnection {
 
   // For keep alive
   lastPong: number;
-  pingTimer?: any;
   checkTimer?: any;
 
   isFirstOpen: boolean;
@@ -165,11 +164,19 @@ export class Connection implements IConnection {
     this.streamMessagePromise = undefined;
     this.lastPong = new Date().getTime();
     this.isFirstOpen = true;
-    this.pingTimer = undefined;
   }
 
   onDisconnected() {
-    console.warn('Connection encountered an error, clean up connection');
+    console.warn('Clean up the connection with transactor');
+
+    this.clearCheckTimer();
+
+    if (this.socket === undefined) {
+      return;
+    } else {
+      this.socket.close();
+      this.socket = undefined;
+    }
 
     if (this.streamMessageQueue.find(x => x === 'disconnected') === undefined) {
       if (this.streamResolve !== undefined) {
@@ -180,17 +187,9 @@ export class Connection implements IConnection {
         this.streamMessageQueue.push('disconnected');
       }
     }
+  }
 
-    if (this.socket !== undefined) {
-      this.socket.close();
-    }
-    this.socket = undefined;
-
-    if (this.pingTimer !== undefined) {
-      clearInterval(this.pingTimer);
-      this.pingTimer = undefined;
-    }
-
+  clearCheckTimer() {
     if (this.checkTimer !== undefined) {
       clearInterval(this.checkTimer);
       this.checkTimer = undefined;
@@ -201,10 +200,7 @@ export class Connection implements IConnection {
     console.log('Establishing server connection, settle version:', params.settleVersion);
     this.socket = new WebSocket(this.endpoint);
 
-    if (this.checkTimer) {
-      clearInterval(this.checkTimer);
-      this.checkTimer = undefined;
-    }
+    this.clearCheckTimer();
 
     this.socket.onmessage = msg => {
       const frame = this.parseEventMessage(msg.data);
@@ -231,18 +227,17 @@ export class Connection implements IConnection {
 
       // Start times for alive checking
       this.lastPong = new Date().getTime();
-      this.pingTimer = setInterval(() => {
-        if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
-          this.socket.send(this.makeReqNoSig(this.gameAddr, 'ping', {}));
-        }
-      }, 3000);
       this.checkTimer = setInterval(() => {
         const t = new Date().getTime();
         if (this.lastPong + 6000 < t) {
           console.log("Websocket keep alive check failed, no reply for %s ms", t - this.lastPong);
           this.onDisconnected();
+          return;
         }
-      }, 500);
+        if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
+          this.socket.send(this.makeReqNoSig(this.gameAddr, 'ping', {}));
+        }
+      }, 3000);
 
       if (this.streamResolve !== undefined) {
         let r = this.streamResolve;
