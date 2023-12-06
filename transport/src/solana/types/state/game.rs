@@ -78,15 +78,15 @@ pub struct GameState {
     // game size
     pub max_players: u16,
     // game players
-    pub players: Box<Vec<PlayerJoin>>,
+    pub players: Vec<PlayerJoin>,
     // game servers (max: 10)
-    pub servers: Box<Vec<ServerJoin>>,
+    pub servers: Vec<ServerJoin>,
     // length of game-specific data
     pub data_len: u32,
     // serialized data of game-specific data such as sb/bb in Texas Holdem
-    pub data: Box<Vec<u8>>,
+    pub data: Vec<u8>,
     // game votes
-    pub votes: Box<Vec<Vote>>,
+    pub votes: Vec<Vote>,
     // unlock time
     pub unlock_time: Option<u64>,
     // the entry type
@@ -94,7 +94,7 @@ pub struct GameState {
     // the recipient account
     pub recipient_addr: Pubkey,
     // the checkpoint state
-    pub checkpoint: Box<Vec<u8>>,
+    pub checkpoint: Vec<u8>,
     // the value of access version when checkpoint is set
     pub checkpoint_access_version: u64,
 }
@@ -137,13 +137,13 @@ impl GameState {
             transactor_addr: transactor_addr.map(|pk| pk.to_string()),
             max_players,
             data_len,
-            data: *data,
+            data,
             deposits: Vec::new(),
             votes: Vec::new(),
             unlock_time: None,
             recipient_addr: recipient_addr.to_string(),
-            entry_type: entry_type.into(),
-            checkpoint: *checkpoint,
+            entry_type,
+            checkpoint,
             checkpoint_access_version,
         }
     }

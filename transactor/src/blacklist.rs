@@ -19,7 +19,6 @@ impl Blacklist {
                 let lines = std::io::BufReader::new(file).lines();
                 if let Ok(addrs) = lines
                     .into_iter()
-                    .map(|l| l)
                     .collect::<Result<Vec<String>, _>>()
                 {
                     return Blacklist {
@@ -63,6 +62,6 @@ impl Blacklist {
     }
 
     pub fn contains_addr(&self, addr: &str) -> bool {
-        self.addrs.iter().find(|a| *a == addr).is_some()
+        self.addrs.iter().any(|a| *a == addr)
     }
 }

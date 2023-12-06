@@ -96,7 +96,6 @@ impl ApplicationContext {
         self.encryptor
             .export_public_key(None)
             .expect("Export public key failed")
-            .clone()
     }
 
     pub fn verify(&self, arg: &[u8], signature: &Signature) -> Result<()> {

@@ -328,7 +328,7 @@ impl EncryptorT for Encryptor {
         } = signature;
         // TODO: We should check timestamp here.
         let message = [message, &u64::to_le_bytes(*timestamp)].concat();
-        self.verify_raw(Some(&signer), &message, &signature)
+        self.verify_raw(Some(signer), &message, signature)
     }
 
     fn apply(&self, secret: &SecretKey, buffer: &mut [u8]) {

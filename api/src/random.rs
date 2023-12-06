@@ -351,7 +351,7 @@ impl RandomState {
             size,
             masks,
             owners: owners.to_owned(),
-            options: options.clone(),
+            options,
             status,
             ciphertexts,
             revealed: HashMap::new(),
@@ -466,15 +466,14 @@ impl RandomState {
     }
 
     fn add_secret_share(&mut self, share: Share) {
-        if self
+        if !self
             .secret_shares
             .iter()
-            .find(|ss| {
+            .any(|ss| {
                 ss.from_addr.eq(&share.from_addr)
                     && ss.to_addr.eq(&share.to_addr)
                     && ss.index == share.index
             })
-            .is_none()
         {
             self.secret_shares.push(share);
         }
@@ -516,7 +515,7 @@ impl RandomState {
                 from_addr: ss.from_addr.clone(),
                 to_addr: ss.to_addr.clone(),
                 random_id: self.id,
-                index: ss.index as usize,
+                index: ss.index,
             })
             .collect()
     }
@@ -530,7 +529,7 @@ impl RandomState {
             .iter()
             .filter(|ss| ss.to_addr.is_none())
             .fold(HashMap::new(), |mut acc, ss| {
-                acc.entry(ss.index as usize)
+                acc.entry(ss.index)
                     .and_modify(|v: &mut Vec<SecretKey>| {
                         v.push(ss.secret.as_ref().unwrap().clone())
                     })
@@ -548,7 +547,7 @@ impl RandomState {
             .enumerate()
             .filter_map(|(i, c)| {
                 if matches!(&c.owner, CipherOwner::Assigned(a) if a.eq(addr)) {
-                    Some((i as usize, c.ciphertext.clone()))
+                    Some((i, c.ciphertext.clone()))
                 } else {
                     None
                 }
@@ -562,7 +561,7 @@ impl RandomState {
             .enumerate()
             .filter_map(|(i, c)| {
                 if c.owner == CipherOwner::Revealed {
-                    Some((i as usize, c.ciphertext.clone()))
+                    Some((i, c.ciphertext.clone()))
                 } else {
                     None
                 }

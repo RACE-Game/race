@@ -3,6 +3,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 pub use race_api::types::*;
 
+pub type SettleTransferCheckpoint = (Vec<Settle>, Vec<Transfer>, Vec<u8>);
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ClientMode {
     Player,

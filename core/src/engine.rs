@@ -97,11 +97,10 @@ pub fn general_handle_event(
         Event::Leave { player_addr } => {
             if !context.allow_exit {
                 Err(Error::CantLeave)
-            } else if context
+            } else if !context
                 .players
                 .iter()
-                .find(|p| p.addr.eq(player_addr))
-                .is_none()
+                .any(|p| p.addr.eq(player_addr))
             {
                 Err(Error::InvalidPlayerAddress)
             } else {

@@ -73,7 +73,7 @@ impl Default for EventBus {
             while let Some(msg) = rx.recv().await {
                 let txs = attached_txs.lock().await;
                 for t in txs.iter() {
-                    if let Err(_) = t.send(msg.clone()).await {
+                    if t.send(msg.clone()).await.is_err() {
                         warn!("Failed to send message");
                     }
                 }

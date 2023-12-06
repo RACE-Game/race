@@ -39,30 +39,30 @@ impl TransactorHandle {
             game_account.addr
         );
 
-        let game_context = GameContext::try_new(&game_account)?;
-        let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
+        let game_context = GameContext::try_new(game_account)?;
+        let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
 
         let event_bus = EventBus::default();
 
-        let (broadcaster, broadcaster_ctx) = Broadcaster::init(&game_account);
+        let (broadcaster, broadcaster_ctx) = Broadcaster::init(game_account);
         let mut broadcaster_handle = broadcaster.start(broadcaster_ctx);
 
         let (event_loop, event_loop_ctx) =
             EventLoop::init(handler, game_context, ClientMode::Transactor);
         let mut event_loop_handle = event_loop.start(event_loop_ctx);
 
-        let (submitter, submitter_ctx) = Submitter::init(&game_account, transport.clone());
+        let (submitter, submitter_ctx) = Submitter::init(game_account, transport.clone());
         let mut submitter_handle = submitter.start(submitter_ctx);
 
         let (synchronizer, synchronizer_ctx) =
-            GameSynchronizer::init(transport.clone(), &game_account);
+            GameSynchronizer::init(transport.clone(), game_account);
 
         let mut connection = LocalConnection::new(encryptor.clone());
 
         event_bus.attach(&mut connection).await;
         let (client, client_ctx) = WrappedClient::init(
-            &server_account,
-            &game_account,
+            server_account,
+            game_account,
             transport.clone(),
             encryptor,
             Arc::new(connection),
@@ -119,15 +119,15 @@ impl ValidatorHandle {
             "Start game handle for {} with Validator mode",
             game_account.addr
         );
-        let game_context = GameContext::try_new(&game_account)?;
-        let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
+        let game_context = GameContext::try_new(game_account)?;
+        let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
 
         let transactor_addr = game_account
             .transactor_addr
             .as_ref()
             .ok_or(Error::GameNotServed)?;
         let transactor_account = transport
-            .get_server_account(&transactor_addr)
+            .get_server_account(transactor_addr)
             .await?
             .ok_or(Error::CantFindTransactor)?;
 
@@ -152,8 +152,8 @@ impl ValidatorHandle {
         let mut subscriber_handle = subscriber.start(subscriber_context);
 
         let (client, client_ctx) = WrappedClient::init(
-            &server_account,
-            &game_account,
+            server_account,
+            game_account,
             transport.clone(),
             encryptor,
             connection,
@@ -246,7 +246,7 @@ impl Handle {
                 ))
             }
         } else {
-            return Err(Error::GameNotServed);
+            Err(Error::GameNotServed)
         }
     }
 
@@ -272,16 +272,13 @@ impl Handle {
         if handles.is_empty() {
             panic!("Some where else is waiting");
         }
-        let handles = std::mem::replace(handles, vec![]);
+        let handles = std::mem::take(handles);
         tokio::spawn(async move {
             let mut close_reason = CloseReason::Complete;
             for h in handles.into_iter() {
                 let cr = h.wait().await;
-                match cr {
-                    CloseReason::Fault(_) => {
-                        close_reason = cr
-                    }
-                    _ => ()
+                if let CloseReason::Fault(_) = cr {
+                    close_reason = cr
                 }
             }
             close_reason

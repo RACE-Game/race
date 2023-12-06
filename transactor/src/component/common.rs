@@ -77,7 +77,7 @@ impl Attachable for PortsHandle {
     }
     fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>> {
         if self.output_rx.is_some() {
-            std::mem::replace(&mut self.output_rx, None)
+            self.output_rx.take()
         } else {
             None
         }
@@ -211,9 +211,7 @@ where
     fn start(&self, context: C) -> PortsHandle {
         info!("Starting component: {}", self.name());
         let (ports, ports_handle_inner) = P::create();
-        let join_handle = tokio::spawn(async move {
-            Self::run(ports, context).await
-        });
+        let join_handle = tokio::spawn(async move { Self::run(ports, context).await });
         PortsHandle::from_inner(ports_handle_inner, join_handle)
     }
     async fn run(ports: P, context: C) -> CloseReason;

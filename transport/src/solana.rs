@@ -122,7 +122,7 @@ impl TransportT for SolanaTransport {
         .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
 
         let create_game_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             &RaceInstruction::CreateGameAccount {
                 params: params.into(),
             },
@@ -162,13 +162,13 @@ impl TransportT for SolanaTransport {
         let game_state = self
             .internal_get_game_state(&game_account_pubkey, mode)
             .await?;
-        let stake_account_pubkey = game_state.stake_account.clone();
+        let stake_account_pubkey = game_state.stake_account;
 
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
 
         let close_game_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             &RaceInstruction::CloseGameAccount,
             vec![
                 AccountMeta::new(payer_pubkey, true),
@@ -217,7 +217,7 @@ impl TransportT for SolanaTransport {
         );
 
         let init_or_update_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             &RaceInstruction::RegisterServer {
                 params: params.into(),
             },
@@ -254,12 +254,12 @@ impl TransportT for SolanaTransport {
             .internal_get_game_state(&game_account_pubkey, mode)
             .await?;
 
-        let mint_pubkey = game_state.token_mint.clone();
+        let mint_pubkey = game_state.token_mint;
         let payer_ata = get_associated_token_address(&payer_pubkey, &mint_pubkey);
 
         let is_wsol = mint_pubkey == spl_token::native_mint::id();
 
-        let stake_account_pubkey = game_state.stake_account.clone();
+        let stake_account_pubkey = game_state.stake_account;
 
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[game_account_pubkey.as_ref()], &self.program_id);
@@ -310,7 +310,7 @@ impl TransportT for SolanaTransport {
         }
 
         let join_game_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             &RaceInstruction::JoinGame {
                 params: params.into(),
             },
@@ -349,7 +349,7 @@ impl TransportT for SolanaTransport {
                 .map_err(|_| TransportError::AddressCreationFailed)?;
 
         let serve_game_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             &RaceInstruction::ServeGame {
                 params: params.into(),
             },
@@ -387,7 +387,7 @@ impl TransportT for SolanaTransport {
 
         println!(
             "Profile account pubkey: {}",
-            profile_account_pubkey.to_string()
+            profile_account_pubkey
         );
         let mut ixs = Vec::new();
 
@@ -406,13 +406,13 @@ impl TransportT for SolanaTransport {
         }
 
         let pfp_pubkey = if let Some(ref pfp) = &params.pfp {
-            Self::parse_pubkey(&pfp)?
+            Self::parse_pubkey(pfp)?
         } else {
             system_program::id()
         };
 
         let init_profile_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             &RaceInstruction::CreatePlayerProfile {
                 params: params.into(),
             },
@@ -508,7 +508,7 @@ impl TransportT for SolanaTransport {
         ];
 
         let publish_game_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             &RaceInstruction::PublishGame {
                 params: params.into(),
             },
@@ -569,7 +569,7 @@ impl TransportT for SolanaTransport {
         let mut accounts = vec![
             AccountMeta::new_readonly(payer_pubkey, true),
             AccountMeta::new(Pubkey::from_str(&addr).unwrap(), false),
-            AccountMeta::new(game_state.stake_account.clone(), false),
+            AccountMeta::new(game_state.stake_account, false),
             AccountMeta::new_readonly(pda, false),
             AccountMeta::new_readonly(recipient_account_pubkey, false),
             AccountMeta::new_readonly(spl_token::id(), false),
@@ -628,7 +628,7 @@ impl TransportT for SolanaTransport {
 
         let set_cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(1200000);
 
-        let settle_ix = Instruction::new_with_borsh(self.program_id.clone(), &params, accounts);
+        let settle_ix = Instruction::new_with_borsh(self.program_id, &params, accounts);
 
         let message = Message::new(&[set_cu_limit_ix, settle_ix], Some(&payer.pubkey()));
         let mut tx = Transaction::new_unsigned(message);
@@ -653,7 +653,7 @@ impl TransportT for SolanaTransport {
             &self.program_id,
         );
         let create_registry_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             &RaceInstruction::CreateRegistry {
                 params: params.into(),
             },
@@ -669,7 +669,7 @@ impl TransportT for SolanaTransport {
         );
         let blockhash = self.get_blockhash()?;
         let mut tx = Transaction::new_unsigned(message);
-        tx.sign(&[&payer, &registry_account], blockhash);
+        tx.sign(&[payer, &registry_account], blockhash);
         self.send_transaction(tx)?;
         let addr = registry_account_pubkey.to_string();
         Ok(addr)
@@ -683,7 +683,7 @@ impl TransportT for SolanaTransport {
         let cap_pubkey = if let Some(addr) = params.cap_addr.as_ref() {
             Self::parse_pubkey(addr)?
         } else {
-            payer_pubkey.clone()
+            payer_pubkey
         };
         let mut used_id = Vec::new();
         let mut init_token_accounts_ixs = Vec::new();
@@ -716,7 +716,7 @@ impl TransportT for SolanaTransport {
             let stake_account = Keypair::new();
 
             let stake_addr = stake_account.pubkey();
-            account_metas.push(AccountMeta::new_readonly(stake_addr.clone(), false));
+            account_metas.push(AccountMeta::new_readonly(stake_addr, false));
 
             let token_mint_pubkey = Self::parse_pubkey(&slot.token_addr)?;
 
@@ -761,7 +761,7 @@ impl TransportT for SolanaTransport {
         }
 
         let create_recipient_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             &RaceInstruction::CreateRecipient {
                 params: IxCreateRecipientParams { slots },
             },
@@ -815,7 +815,7 @@ impl TransportT for SolanaTransport {
         ];
 
         let register_game_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             &RaceInstruction::RegisterGame, // TODO: add is_hidden
             accounts,
         );
@@ -842,7 +842,7 @@ impl TransportT for SolanaTransport {
         ];
 
         let unregister_game_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             // TODO: add is_hidden param?
             &RaceInstruction::UnregisterGame,
             accounts,
@@ -921,12 +921,12 @@ impl TransportT for SolanaTransport {
         let stake_addrs: Vec<Pubkey> = recipient_state
             .slots
             .iter()
-            .map(|s| s.stake_addr.clone())
+            .map(|s| s.stake_addr)
             .collect();
         let mut recipient_account = recipient_state.into_account(addr);
         // Add amount information by querying stake accounts
-        for i in 0..(stake_addrs.len()) {
-            tracing::info!("Check stake account: {}", &stake_addrs[i]);
+        for (i, stake_addr) in stake_addrs.iter().enumerate() {
+            tracing::info!("Check stake account: {}", stake_addr);
             let mut slot = recipient_account
                 .slots
                 .get_mut(i)
@@ -935,7 +935,7 @@ impl TransportT for SolanaTransport {
                 ))?;
             let token_data =
                 self.client
-                    .get_account_data(&stake_addrs[i])
+                    .get_account_data(stake_addr)
                     .or(Err(Error::TransportError(
                         "Cannot get the state of stake account".into(),
                     )))?;
@@ -1008,7 +1008,7 @@ impl TransportT for SolanaTransport {
         }
 
         let recipient_claim_ix = Instruction::new_with_borsh(
-            self.program_id.clone(),
+            self.program_id,
             &RaceInstruction::RecipientClaim,
             account_metas,
         );
@@ -1120,7 +1120,7 @@ impl SolanaTransport {
         };
         let game_account = self
             .client
-            .get_account_with_commitment(&game_account_pubkey, commitment)
+            .get_account_with_commitment(game_account_pubkey, commitment)
             .map_err(|e| TransportError::AccountNotFound(e.to_string()))?
             .value
             .ok_or(TransportError::AccountNotFound("".to_string()))?;
@@ -1138,7 +1138,7 @@ impl SolanaTransport {
     ) -> TransportResult<RecipientState> {
         let data = self
             .client
-            .get_account_data(&recipient_account_pubkey)
+            .get_account_data(recipient_account_pubkey)
             .or(Err(TransportError::RecipientAccountNotFound))?;
         RecipientState::deserialize(&mut data.as_slice())
             .map_err(|_| TransportError::RecipientStateDeserializeError)
@@ -1168,7 +1168,7 @@ impl SolanaTransport {
         player_pubkey: &Pubkey,
     ) -> TransportResult<PlayerState> {
         let profile_pubkey =
-            Pubkey::create_with_seed(&player_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
+            Pubkey::create_with_seed(player_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::AddressCreationFailed)?;
 
         let data = self
@@ -1188,7 +1188,7 @@ impl SolanaTransport {
     ) -> TransportResult<RegistryState> {
         let data = self
             .client
-            .get_account_data(&registry_account_pubkey)
+            .get_account_data(registry_account_pubkey)
             .or(Err(TransportError::RegistryAccountDataNotFound))?;
 
         RegistryState::deserialize(&mut data.as_slice())

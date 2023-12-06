@@ -114,8 +114,7 @@ impl TransportT for FacadeTransport {
             if game_account
                 .votes
                 .iter()
-                .find(|v| v.voter.eq(&params.voter_addr))
-                .is_some()
+                .any(|v| v.voter.eq(&params.voter_addr))
             {
                 Err(Error::DuplicatedVote)
             } else {

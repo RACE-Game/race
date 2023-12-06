@@ -14,7 +14,6 @@ use crate::frame::EventFrame;
 use crate::utils::addr_shorthand;
 use race_core::types::{ClientMode, GameAccount};
 
-
 fn log_execution_context(ctx: &GameContext, evt: &Event) {
     info!("Execution context");
     info!("===== State =====");
@@ -48,7 +47,7 @@ async fn handle(
 ) -> Option<CloseReason> {
     info!(
         "{} Handle event: {}",
-        addr_shorthand(&game_context.get_game_addr()),
+        addr_shorthand(game_context.get_game_addr()),
         event
     );
 
@@ -77,7 +76,7 @@ async fn handle(
 
             ports
                 .send(EventFrame::ContextUpdated {
-                    context: game_context.clone(),
+                    context: Box::new(game_context.clone()),
                 })
                 .await;
 
@@ -85,7 +84,7 @@ async fn handle(
             if let Some(effects) = effects {
                 info!(
                     "{} Send settlements: {:?}",
-                    addr_shorthand(&game_context.get_game_addr()),
+                    addr_shorthand(game_context.get_game_addr()),
                     effects
                 );
                 ports
@@ -101,10 +100,10 @@ async fn handle(
         Err(e) => {
             warn!(
                 "{} Handle event error: {}",
-                addr_shorthand(&game_context.get_game_addr()),
+                addr_shorthand(game_context.get_game_addr()),
                 e.to_string()
             );
-            log_execution_context(&game_context, &event);
+            log_execution_context(game_context, &event);
             match e {
                 Error::WasmExecutionError(_) | Error::WasmMemoryOverflow => {
                     return Some(CloseReason::Fault(e))
@@ -113,7 +112,7 @@ async fn handle(
             }
         }
     }
-    return None;
+    None
 }
 
 /// Take the event from clients or the pending dispatched event.
@@ -241,13 +240,11 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if matches!(event, Event::Shutdown) {
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Complete;
-                    } else {
-                        if let Some(close_reason) =
-                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
-                        {
-                            ports.send(EventFrame::Shutdown).await;
-                            return close_reason;
-                        }
+                    } else if let Some(close_reason) =
+                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                    {
+                        ports.send(EventFrame::Shutdown).await;
+                        return close_reason;
                     }
                 }
                 EventFrame::Shutdown => {

@@ -178,7 +178,7 @@ mod tests {
             .mask("transactor".to_string(), vec![vec![0], vec![0], vec![0]])
             .unwrap();
 
-        let event_frame = EventFrame::ContextUpdated { context: ctx };
+        let event_frame = EventFrame::ContextUpdated { context: Box::new(ctx) };
         handle.send_unchecked(event_frame).await;
 
         println!("before read event");
@@ -206,7 +206,7 @@ mod tests {
         let rid = ctx.init_random_state(random).unwrap();
         println!("random inited");
 
-        let event_frame = EventFrame::ContextUpdated { context: ctx };
+        let event_frame = EventFrame::ContextUpdated { context: Box::new(ctx) };
         handle.send_unchecked(event_frame).await;
 
         println!("before read event");

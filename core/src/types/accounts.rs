@@ -155,7 +155,7 @@ impl GameAccount {
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
             max_players: game_account.max_players,
-            checkpoint: game_account.checkpoint.clone(),
+            checkpoint: game_account.checkpoint,
         }
     }
 

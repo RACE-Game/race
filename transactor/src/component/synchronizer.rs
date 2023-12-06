@@ -61,7 +61,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
         loop {
             let state = ctx
                 .transport
-                .get_game_account(&ctx.game_addr, mode.clone())
+                .get_game_account(&ctx.game_addr, mode)
                 .await;
 
             if ports.is_tx_closed() {
@@ -98,7 +98,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                                 let frame = EventFrame::TxState { tx_state };
 
                                 // When other channels are closed
-                                if let Err(_) = ports.try_send(frame).await {
+                                if ports.try_send(frame).await.is_err() {
                                     return CloseReason::Complete;
                                 }
                             }
@@ -149,7 +149,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                                 };
 
                                 // When other channels are closed
-                                if let Err(_) = ports.try_send(frame).await {
+                                if ports.try_send(frame).await.is_err() {
                                     return CloseReason::Complete;
                                 }
                             }
@@ -166,7 +166,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                             let frame = EventFrame::TxState { tx_state };
 
                             // When other channels are closed
-                            if let Err(_) = ports.try_send(frame).await {
+                            if ports.try_send(frame).await.is_err() {
                                 return CloseReason::Complete;
                             }
                             mode = QueryMode::Confirming;

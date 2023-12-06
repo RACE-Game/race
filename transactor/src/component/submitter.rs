@@ -24,7 +24,7 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
     } = next;
     prev.settles.extend(settles);
     prev.transfers.extend(transfers);
-    return SettleParams {
+    SettleParams {
         addr,
         settles: prev.settles,
         transfers: prev.transfers,
@@ -33,7 +33,7 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         // Use the old settle_version
         settle_version: prev.settle_version,
         next_settle_version: prev.next_settle_version + 1,
-    };
+    }
 }
 
 /// Read at most 3 settle events from channel.
@@ -65,7 +65,7 @@ async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>) -> Vec<Settle
         }
     }
 
-    return v;
+    v
 }
 
 pub struct SubmitterContext {
@@ -150,7 +150,7 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
         join_handle.await.unwrap_or_else(|e| {
             CloseReason::Fault(Error::InternalError(format!(
                 "Submitter await join handle error: {}",
-                e.to_string()
+                e
             )))
         })
     }

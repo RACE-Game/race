@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::types::GameAccount;
+use crate::types::{GameAccount, SettleTransferCheckpoint};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::decision::DecisionState;
 use race_api::effect::{Ask, Assign, Effect, Release, Reveal};
@@ -400,7 +400,7 @@ impl GameContext {
         if id == 0 {
             return Err(Error::RandomStateNotFound(id));
         }
-        if let Some(rnd_st) = self.random_states.get(id as usize - 1) {
+        if let Some(rnd_st) = self.random_states.get(id - 1) {
             Ok(rnd_st)
         } else {
             Err(Error::RandomStateNotFound(id))
@@ -408,14 +408,14 @@ impl GameContext {
     }
 
     pub fn get_random_state_unchecked(&self, id: RandomId) -> &RandomState {
-        &self.random_states[id as usize - 1]
+        &self.random_states[id - 1]
     }
 
     pub fn get_decision_state_mut(&mut self, id: DecisionId) -> Result<&mut DecisionState> {
         if id == 0 {
             return Err(Error::InvalidDecisionId);
         }
-        if let Some(st) = self.decision_states.get_mut(id as usize - 1) {
+        if let Some(st) = self.decision_states.get_mut(id - 1) {
             Ok(st)
         } else {
             Err(Error::InvalidDecisionId)
@@ -426,7 +426,7 @@ impl GameContext {
         if id == 0 {
             return Err(Error::RandomStateNotFound(id));
         }
-        if let Some(rnd_st) = self.random_states.get_mut(id as usize - 1) {
+        if let Some(rnd_st) = self.random_states.get_mut(id - 1) {
             Ok(rnd_st)
         } else {
             Err(Error::RandomStateNotFound(id))
@@ -516,8 +516,7 @@ impl GameContext {
         if self
             .servers
             .iter()
-            .find(|s| s.addr.eq(&server.addr))
-            .is_some()
+            .any(|s| s.addr.eq(&server.addr))
         {
             Err(Error::ServerAlreadyJoined(server.addr.clone()))
         } else {
@@ -690,7 +689,7 @@ impl GameContext {
 
     pub fn take_settles_and_transfers(
         &mut self,
-    ) -> Result<Option<(Vec<Settle>, Vec<Transfer>, Vec<u8>)>> {
+    ) -> Result<Option<SettleTransferCheckpoint>> {
         if let Some(checkpoint) = self.get_checkpoint() {
             let mut settles = None;
             std::mem::swap(&mut settles, &mut self.settles);
@@ -814,11 +813,7 @@ impl GameContext {
             .list_decision_states()
             .iter()
             .filter_map(|st| {
-                if let Some(a) = st.get_revealed() {
-                    Some((st.id, a.to_owned()))
-                } else {
-                    None
-                }
+                st.get_revealed().map(|a| (st.id, a.to_owned()))
             })
             .collect();
 
@@ -914,10 +909,8 @@ impl GameContext {
             self.checkpoint = Some(checkpoint_state);
             self.settle(settles);
             self.transfer(transfers);
-        } else {
-            if (!settles.is_empty()) || (!transfers.is_empty()) {
-                return Err(Error::SettleWithoutCheckpoint);
-            }
+        } else if (!settles.is_empty()) || (!transfers.is_empty()) {
+            return Err(Error::SettleWithoutCheckpoint);
         }
 
         if let Some(state) = handler_state {

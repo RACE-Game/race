@@ -318,7 +318,7 @@ impl Effect {
     }
 
     pub fn __checkpoint(&mut self) -> Option<Vec<u8>> {
-        std::mem::replace(&mut self.checkpoint, None)
+        self.checkpoint.take()
     }
 
     /// Set error.
@@ -332,7 +332,7 @@ impl Effect {
     ///
     /// This is an internal function, DO NOT use in game handler.
     pub fn __take_error(&mut self) -> Option<HandleError> {
-        std::mem::replace(&mut self.error, None)
+        self.error.take()
     }
 }
 

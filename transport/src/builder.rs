@@ -62,7 +62,7 @@ impl TransportBuilder {
                             .keyfile
                             .clone(),
                     );
-                    self.skip_preflight = config.solana.as_ref().and_then(|c| c.skip_preflight.clone());
+                    self.skip_preflight = config.solana.as_ref().and_then(|c| c.skip_preflight);
                 }
                 ChainType::Bnb => {
                     self.rpc = Some(

@@ -68,11 +68,10 @@ pub async fn start_reg_task(context: &ApplicationContext) {
                             transport.get_game_account(&game_reg.addr, mode).await
                         {
                             // We will keep registering until we become the transactor.
-                            if game_account
+                            if !game_account
                                 .servers
                                 .iter()
-                                .find(|s| s.addr.eq(&server_addr))
-                                .is_none()
+                                .any(|s| s.addr.eq(&server_addr))
                             {
                                 let server_account =
                                     transport.get_server_account(&server_addr).await.unwrap();

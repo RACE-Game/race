@@ -41,7 +41,7 @@ pub async fn fetch_wasm_from_game_bundle(uri: &str) -> TransportResult<Vec<u8>> 
             .to_vec();
         Ok(wasm_bytes)
     } else {
-        return Err(TransportError::MetadataDeserializeError);
+        Err(TransportError::MetadataDeserializeError)
     }
 }
 

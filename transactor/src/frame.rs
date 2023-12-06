@@ -64,7 +64,7 @@ pub enum EventFrame {
         settle_version: u64,
     },
     ContextUpdated {
-        context: GameContext,
+        context: Box<GameContext>,
     },
     Vote {
         votee: String,

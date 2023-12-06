@@ -197,7 +197,7 @@ impl std::fmt::Display for Event {
             Event::DrawTimeout => write!(f, "DrawTimeout"),
             Event::ActionTimeout { player_addr } => write!(f, "ActionTimeout for {}", player_addr),
             Event::SecretsReady { random_ids } => {
-                write!(f, "SecretsReady for {}", format!("{:?}", random_ids))
+                write!(f, "SecretsReady for {:?}", random_ids)
             }
             Event::ServerLeave {
                 server_addr,
