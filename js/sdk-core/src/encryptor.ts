@@ -7,7 +7,13 @@ import { IStorage } from './storage';
 
 const ENCRYPTOR_VERSION = '1.0';
 
-let subtle: SubtleCrypto = crypto.subtle;
+let subtle: SubtleCrypto;
+if (typeof window === 'undefined') {
+  const crypto = require('node:crypto')
+  subtle = crypto.subtle
+} else {
+  subtle = window.crypto.subtle
+}
 
 export const aesContentIv = Uint8Array.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
