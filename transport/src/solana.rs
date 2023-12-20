@@ -385,10 +385,7 @@ impl TransportT for SolanaTransport {
             Pubkey::create_with_seed(&payer_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::AddressCreationFailed)?;
 
-        println!(
-            "Profile account pubkey: {}",
-            profile_account_pubkey
-        );
+        println!("Profile account pubkey: {}", profile_account_pubkey);
         let mut ixs = Vec::new();
 
         if self.client.get_account(&profile_account_pubkey).is_err() {
@@ -609,11 +606,13 @@ impl TransportT for SolanaTransport {
             }
         }
 
-        info!("Solana transport settle game: {}\n  - Settles: {:?}\n  - Transfers: {:?}\n  - Checkpoint: {:?}",
-            addr,
-            ix_settles,
-            transfers,
-            checkpoint
+        info!("Solana transport settle game: {}\n  - Settle Version: {} -> {}\n - Settles: {:?}\n  - Transfers: {:?}\n  - Checkpoint: {:?}",
+              addr,
+              settle_version,
+              next_settle_version,
+              ix_settles,
+              transfers,
+              checkpoint
         );
 
         let params = RaceInstruction::Settle {
@@ -918,11 +917,7 @@ impl TransportT for SolanaTransport {
     async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
         let pubkey = Self::parse_pubkey(addr)?;
         let recipient_state = self.internal_get_recipient_state(&pubkey).await?;
-        let stake_addrs: Vec<Pubkey> = recipient_state
-            .slots
-            .iter()
-            .map(|s| s.stake_addr)
-            .collect();
+        let stake_addrs: Vec<Pubkey> = recipient_state.slots.iter().map(|s| s.stake_addr).collect();
         let mut recipient_account = recipient_state.into_account(addr);
         // Add amount information by querying stake accounts
         for (i, stake_addr) in stake_addrs.iter().enumerate() {
