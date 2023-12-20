@@ -257,6 +257,9 @@ pub enum Error {
 
     #[error("Cannot settle or transfer without checkpoint")]
     SettleWithoutCheckpoint,
+
+    #[error("Settle version mismatch, given: {0}, expected: {1}")]
+    SettleVersionMismatch(u64, u64),
 }
 
 #[cfg(feature = "serde")]

@@ -542,10 +542,18 @@ impl TransportT for SolanaTransport {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
         let game_account_pubkey = Self::parse_pubkey(&addr)?;
-        let mode = QueryMode::Confirming;
+        let mode = QueryMode::Finalized;
         let game_state = self
             .internal_get_game_state(&game_account_pubkey, mode)
             .await?;
+
+        if game_state.settle_version != params.settle_version {
+            return Err(Error::SettleVersionMismatch(
+                params.settle_version,
+                game_state.settle_version,
+            ));
+        }
+
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
 
@@ -606,7 +614,7 @@ impl TransportT for SolanaTransport {
             }
         }
 
-        info!("Solana transport settle game: {}\n  - Settle Version: {} -> {}\n - Settles: {:?}\n  - Transfers: {:?}\n  - Checkpoint: {:?}",
+        info!("Solana transport settle game: {}\n  - Settle Version: {} -> {}\n  - Settles: {:?}\n  - Transfers: {:?}\n  - Checkpoint: {:?}",
               addr,
               settle_version,
               next_settle_version,

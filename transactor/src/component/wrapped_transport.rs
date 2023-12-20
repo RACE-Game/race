@@ -19,6 +19,8 @@ use race_transport::TransportBuilder;
 use std::time::Duration;
 use tracing::error;
 
+const RETRY_INTERVAL: u64 = 10;
+
 pub struct WrappedTransport {
     pub(crate) inner: Box<dyn TransportT>,
 }
@@ -99,6 +101,15 @@ impl TransportT for WrappedTransport {
                 .get_game_account(&params.addr, QueryMode::Finalized)
                 .await;
             if let Ok(Some(game_account)) = game_account {
+                // We got an old state, which has a smaller `settle_version`
+                if game_account.settle_version != params.settle_version {
+                    error!(
+                        "Got invalid settle_version: {} != {}, will retry in {} secs",
+                        game_account.settle_version, params.settle_version, RETRY_INTERVAL
+                    );
+                    tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
+                    continue;
+                }
                 // The `settle_version` had been bumped, indicates the transaction was succeed
                 // NOTE: The transaction can success with error result due to unstable network
                 if curr_settle_version.is_some_and(|v| v < game_account.settle_version) {
@@ -106,18 +117,22 @@ impl TransportT for WrappedTransport {
                 }
                 curr_settle_version = Some(game_account.settle_version);
                 if let Err(e) = self.inner.settle_game(params.clone()).await {
-                    error!("Error in settlement: {:?}", e);
-                    tokio::time::sleep(Duration::from_secs(10)).await;
+                    error!(
+                        "Error in settlement: {:?}, will retry in {} secs",
+                        e, RETRY_INTERVAL
+                    );
+                    tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
                     continue;
                 } else {
                     return Ok(());
                 }
             } else {
                 error!(
-                    "Error in settlement due to unable to get game account: {}",
-                    params.addr
+                    "Error in settlement due to unable to get game account {}, will retry in {} secs",
+                    params.addr,
+                    RETRY_INTERVAL
                 );
-                tokio::time::sleep(Duration::from_secs(10)).await;
+                tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
                 continue;
             }
         }

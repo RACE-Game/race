@@ -9,6 +9,9 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 - CLI: Update `publish` command. Now it receives the path to the WASM bundle instead of the Arweave URL to solana metadata.
 - Add optional `createProfileIfNeeded` to join options.
 
+## Fixes
+- Transactor: Improve the retry mechanism for settle.
+
 # 0.2.6
 
 ## Fixes
