@@ -133,12 +133,20 @@ pub enum Event {
 
     /// Shutdown
     Shutdown,
+
+    /// The custom event from bridge
+    Bridge {
+        from: usize,
+        to: usize,
+        raw: Vec<u8>,
+    }
 }
 
 impl std::fmt::Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {:?}", sender, raw),
+            Event::Bridge { from, to, raw } => write!(f, "Bridge from {} to {}, inner: {:?}", from, to, raw),
             Event::Ready => write!(f, "Ready"),
             Event::ShareSecrets { sender, shares } => {
                 let repr = shares
@@ -232,5 +240,11 @@ impl Event {
 pub trait CustomEvent: Sized + BorshSerialize + BorshDeserialize {
     fn try_parse(slice: &[u8]) -> Result<Self, HandleError> {
         Self::try_from_slice(slice).or(Err(HandleError::MalformedCustomEvent))
+    }
+}
+
+pub trait BridgeEvent: Sized + BorshSerialize + BorshDeserialize {
+    fn try_parse(slice: &[u8]) -> Result<Self, HandleError> {
+        Self::try_from_slice(slice).or(Err(HandleError::MalformedBridgeEvent))
     }
 }
