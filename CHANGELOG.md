@@ -3,7 +3,8 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 # Master(Unreleased)
 
 ## Enhancements
-- SDK: Remove dependency `crypto` to support NodeJS runtime
+- SDK: Remove dependency `crypto` to support NodeJS runtime.
+- CLI: Print `checkpoint` in hex format in command `game-info`.
 
 ## Features
 - CLI: Update `publish` command. Now it receives the path to the WASM bundle instead of the Arweave URL to solana metadata.

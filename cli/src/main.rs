@@ -198,6 +198,17 @@ async fn bundle_info(addr: &str, transport: Arc<dyn TransportT>) {
     }
 }
 
+fn print_hex(data: Vec<u8>) {
+    let mut row = vec![];
+    for i in data {
+        row.push(format!("{:02x}", i));
+    }
+    let rows = row.chunks(8).map(|rows| rows.join(" ")).collect::<Vec<String>>();
+    for row in rows {
+        println!("{}", row)
+    }
+}
+
 async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
     let mode = QueryMode::default();
     match transport
@@ -236,6 +247,8 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
                 println!("Vote from {} to {} for {:?}", v.voter, v.votee, v.vote_type);
             }
             println!("Current transactor: {:?}", game_account.transactor_addr);
+            println!("Checkpoint:");
+            print_hex(game_account.checkpoint);
         }
         None => {
             println!("Game account not found");
