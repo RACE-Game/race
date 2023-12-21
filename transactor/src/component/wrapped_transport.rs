@@ -102,7 +102,7 @@ impl TransportT for WrappedTransport {
                 .await;
             if let Ok(Some(game_account)) = game_account {
                 // We got an old state, which has a smaller `settle_version`
-                if game_account.settle_version != params.settle_version {
+                if game_account.settle_version < params.settle_version {
                     error!(
                         "Got invalid settle_version: {} != {}, will retry in {} secs",
                         game_account.settle_version, params.settle_version, RETRY_INTERVAL
