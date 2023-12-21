@@ -40,6 +40,21 @@ pub struct ActionTimeout {
     pub timeout: u64,
 }
 
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+pub struct SubGamePlayer {
+    pub addr: String,
+    pub position: u16,
+    pub balance: u64,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+pub struct LaunchSubGame {
+    pub id: usize,
+    pub bundle_addr: String,
+    pub players: Vec<SubGamePlayer>,
+    pub init_data: Vec<u8>,
+}
+
 /// An effect used in game handler provides reading and mutating to
 /// the game context.  An effect can be created from game context,
 /// manipulated by game handler and applied after event processing.
@@ -126,6 +141,8 @@ pub struct ActionTimeout {
 /// effect.settle(Settle::sub("Bob", 200));
 /// // Remove player from this game, its assets will be paid out
 /// effect.settle(Settle::eject("Charlie"));
+/// // Make the checkpoint
+/// effect.checkpoint();
 /// ```
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -155,6 +172,7 @@ pub struct Effect {
     pub error: Option<HandleError>,
     pub allow_exit: bool,
     pub transfers: Vec<Transfer>,
+    pub launch_sub_games: Vec<LaunchSubGame>,
 }
 
 impl Effect {
@@ -266,7 +284,6 @@ impl Effect {
         self.allow_exit = allow_exit
     }
 
-
     pub fn checkpoint(&mut self) {
         self.is_checkpoint = true;
     }
@@ -279,6 +296,23 @@ impl Effect {
     /// Transfer the assets to a recipient slot
     pub fn transfer(&mut self, slot_id: u8, amount: u64) {
         self.transfers.push(Transfer { slot_id, amount });
+    }
+
+    /// Launch sub game
+    pub fn launch_sub_game(
+        &mut self,
+        id: usize,
+        bundle_addr: String,
+        players: Vec<SubGamePlayer>,
+        init_data: Vec<u8>,
+    ) -> Result<()> {
+        self.launch_sub_games.push(LaunchSubGame {
+            id,
+            bundle_addr,
+            players,
+            init_data,
+        });
+        Ok(())
     }
 
     /// Get handler state.
@@ -343,7 +377,18 @@ mod tests {
 
     #[test]
     fn abc() {
-        let data = vec![0,0,0,0,0,195,133,107,4,139,1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,2,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,103,0,0,0,0,0,0,0,0,0,0,0,16,39,0,0,0,0,0,0,32,78,0,0,0,0,0,0,32,78,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,1,0,43,0,0,0,70,97,105,108,101,100,32,116,111,32,102,105,110,100,32,97,32,112,108,97,121,101,114,32,102,111,114,32,116,104,101,32,110,101,120,116,32,98,117,116,116,111,110,1,0,0,0,0];
+        let data = vec![
+            0, 0, 0, 0, 0, 195, 133, 107, 4, 139, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 103, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 39, 0,
+            0, 0, 0, 0, 0, 32, 78, 0, 0, 0, 0, 0, 0, 32, 78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 6, 1, 0, 43, 0, 0, 0, 70, 97, 105, 108, 101, 100, 32, 116, 111, 32, 102,
+            105, 110, 100, 32, 97, 32, 112, 108, 97, 121, 101, 114, 32, 102, 111, 114, 32, 116,
+            104, 101, 32, 110, 101, 120, 116, 32, 98, 117, 116, 116, 111, 110, 1, 0, 0, 0, 0, 0, 0,
+            0, 0,
+        ];
         let effect = Effect::try_from_slice(&data);
         println!("{:?}", effect);
     }
@@ -397,6 +442,7 @@ mod tests {
             transfers: vec![],
             is_checkpoint: false,
             checkpoint: None,
+            launch_sub_games: vec![],
         };
         let bs = effect.try_to_vec()?;
 
