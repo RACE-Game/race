@@ -136,8 +136,7 @@ pub enum Event {
 
     /// The custom event from bridge
     Bridge {
-        from: usize,
-        to: usize,
+        dest: usize,
         raw: Vec<u8>,
     }
 }
@@ -146,7 +145,7 @@ impl std::fmt::Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {:?}", sender, raw),
-            Event::Bridge { from, to, raw } => write!(f, "Bridge from {} to {}, inner: {:?}", from, to, raw),
+            Event::Bridge { dest, raw } => write!(f, "Bridge to {}, inner: {:?}", dest, raw),
             Event::Ready => write!(f, "Ready"),
             Event::ShareSecrets { sender, shares } => {
                 let repr = shares
@@ -233,6 +232,12 @@ impl Event {
         Self::Custom {
             sender: sender.into(),
             raw: e.try_to_vec().unwrap(),
+        }
+    }
+
+    pub fn bridge<E: BridgeEvent>(dest: usize, e: &E) -> Self {
+        Self::Bridge {
+            dest, raw: e.try_to_vec().unwrap()
         }
     }
 }
