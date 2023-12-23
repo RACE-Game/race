@@ -29,10 +29,9 @@ describe('Test effect serialization 2', () => {
     handlerState: Uint8Array.from([0, 0, 0, 0, 0, 0, 0, 0, 16, 39, 0, 0, 0, 0, 0, 0, 32, 78, 0, 0, 0, 0, 0, 0, 32, 78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6]),
     error: new CustomError({ message: "Failed to find a player for the next button" }),
     allowExit: true,
-    transfers: []
+    transfers: [],
+    launchSubGames: [],
   });
-
-  console.log(Array.from(serialize(effect)).toString())
 })
 
 describe('Test effect serialization', () => {
@@ -96,7 +95,8 @@ describe('Test effect serialization', () => {
       transfers: [new Transfer({
         slotId: 0,
         amount: 100n
-      })]
+      })],
+      launchSubGames: [],
     });
     const data = serialize(effect);
     const expected = Uint8Array.from([
@@ -107,7 +107,7 @@ describe('Test effect serialization', () => {
       0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 97, 1,
       0, 0, 0, 98, 1, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 66, 1, 0, 0, 0,
       33, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 65, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 97, 108, 105, 99, 101, 0, 200, 0, 0, 0, 0, 0, 0,
-      0, 3, 0, 0, 0, 98, 111, 98, 1, 200, 0, 0, 0, 0, 0, 0, 0, 1, 4, 0, 0, 0, 1, 2, 3, 4, 1, 1, 1, 1, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0,
+      0, 3, 0, 0, 0, 98, 111, 98, 1, 200, 0, 0, 0, 0, 0, 0, 0, 1, 4, 0, 0, 0, 1, 2, 3, 4, 1, 1, 1, 1, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     ]);
     assert.deepEqual(data, expected);
   });

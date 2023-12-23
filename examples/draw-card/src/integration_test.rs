@@ -33,7 +33,6 @@ fn test() -> anyhow::Result<()> {
     println!("Initialize handler state");
     let mut ctx = GameContext::try_new(&game_account)?;
     let mut handler = TestHandler::init_state(&mut ctx, &game_account)?;
-    assert_eq!(1, ctx.count_players());
 
     // Start game
     println!("Start game, without players");
@@ -66,7 +65,6 @@ fn test() -> anyhow::Result<()> {
     handler.handle_event(&mut ctx, &sync_event)?;
 
     {
-        assert_eq!(2, ctx.count_players());
         assert_eq!(GameStatus::Uninit, ctx.get_status());
         assert_eq!(
             Some(DispatchEvent::new(

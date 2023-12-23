@@ -1,6 +1,6 @@
 use crate::{
     error::HandleError,
-    types::{Ciphertext, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin},
+    types::{Ciphertext, DecisionId, GamePlayer, RandomId, SecretDigest, SecretShare},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
@@ -68,14 +68,11 @@ pub enum Event {
         random_id: RandomId,
     },
 
-    /// Sync with on-chain account.  New players/servers will be added frist to
+    /// Sync with on-chain account.  New players will be added frist to
     /// game context and then to game handler (WASM).
     /// This event is sent by transactor based on the diff of the account states.
     Sync {
-        new_players: Vec<PlayerJoin>,
-        new_servers: Vec<ServerJoin>,
-        transactor_addr: String,
-        access_version: u64,
+        new_players: Vec<GamePlayer>,
     },
 
     /// A server left the game.
@@ -138,7 +135,7 @@ pub enum Event {
     Bridge {
         dest: usize,
         raw: Vec<u8>,
-    }
+    },
 }
 
 impl std::fmt::Display for Event {
@@ -164,28 +161,14 @@ impl std::fmt::Display for Event {
             Event::RandomnessReady { random_id } => {
                 write!(f, "RandomnessReady, random_id: {}", random_id)
             }
-            Event::Sync {
-                new_players,
-                new_servers,
-                access_version,
-                ..
-            } => {
+            Event::Sync { new_players } => {
                 let players = new_players
                     .iter()
                     .map(|p| p.addr.as_str())
                     .collect::<Vec<&str>>()
                     .join(",");
-                let servers = new_servers
-                    .iter()
-                    .map(|s| s.addr.as_str())
-                    .collect::<Vec<&str>>()
-                    .join(", ");
 
-                write!(
-                    f,
-                    "Sync, new_players: [{}], new_servers: [{}], access_version = {}",
-                    players, servers, access_version
-                )
+                write!(f, "Sync, new_players: [{}]", players)
             }
             Event::Leave { player_addr } => write!(f, "Leave from {}", player_addr),
             Event::GameStart { access_version } => {
@@ -237,7 +220,8 @@ impl Event {
 
     pub fn bridge<E: BridgeEvent>(dest: usize, e: &E) -> Self {
         Self::Bridge {
-            dest, raw: e.try_to_vec().unwrap()
+            dest,
+            raw: e.try_to_vec().unwrap(),
         }
     }
 }

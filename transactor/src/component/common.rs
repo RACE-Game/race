@@ -11,6 +11,8 @@ use super::event_bus::CloseReason;
 
 /// An interface for a component that can be attached to the event bus.
 pub trait Attachable {
+    fn id(&self) -> &str;
+
     /// Return the input channel of current component.
     /// Return `None` when the component does not accept input.
     fn input(&mut self) -> Option<mpsc::Sender<EventFrame>>;
@@ -28,14 +30,16 @@ pub struct PortsHandleInner {
 }
 
 pub struct PortsHandle {
+    pub name: String,
     input_tx: Option<mpsc::Sender<EventFrame>>,
     output_rx: Option<mpsc::Receiver<EventFrame>>,
     join_handle: JoinHandle<CloseReason>,
 }
 
 impl PortsHandle {
-    fn from_inner(value: PortsHandleInner, join_handle: JoinHandle<CloseReason>) -> Self {
+    fn from_inner<S: Into<String>>(name: S, value: PortsHandleInner, join_handle: JoinHandle<CloseReason>) -> Self {
         Self {
+            name: name.into(),
             input_tx: value.input_tx,
             output_rx: value.output_rx,
             join_handle,
@@ -68,6 +72,10 @@ impl PortsHandle {
 }
 
 impl Attachable for PortsHandle {
+    fn id(&self) -> &str {
+        self.name.as_str()
+    }
+
     fn input(&mut self) -> Option<mpsc::Sender<EventFrame>> {
         if self.input_tx.is_some() {
             self.input_tx.clone()
@@ -212,7 +220,7 @@ where
         info!("Starting component: {}", self.name());
         let (ports, ports_handle_inner) = P::create();
         let join_handle = tokio::spawn(async move { Self::run(ports, context).await });
-        PortsHandle::from_inner(ports_handle_inner, join_handle)
+        PortsHandle::from_inner(self.name(), ports_handle_inner, join_handle)
     }
     async fn run(ports: P, context: C) -> CloseReason;
 }

@@ -5,12 +5,17 @@ use race_api::{
 };
 use race_core::{
     context::GameContext,
-    types::{PlayerJoin, ServerJoin, Settle, Transfer, TxState, VoteType},
+    types::{PlayerJoin, ServerJoin, Settle, SubGameSpec, Transfer, TxState, VoteType, NodeJoin},
 };
 
 #[derive(Debug, Clone)]
 pub enum SignalFrame {
-    StartGame { game_addr: String },
+    StartGame {
+        game_addr: String,
+    },
+    LaunchSubGame {
+        spec: SubGameSpec,
+    },
 }
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
@@ -71,6 +76,19 @@ pub enum EventFrame {
         vote_type: VoteType,
     },
     Shutdown,
+    BridgeEvent {
+        from: Option<String>,
+        to: Option<String>,
+        event: Event,
+    },
+    LaunchSubGame {
+        spec: SubGameSpec,
+    },
+    // Validator-only event
+    UpdateNodes {
+        nodes: Vec<NodeJoin>,
+        transactor_addr: Option<String>,
+    },
 }
 
 impl std::fmt::Display for EventFrame {
@@ -114,6 +132,26 @@ impl std::fmt::Display for EventFrame {
             EventFrame::Shutdown => write!(f, "Shutdown"),
             EventFrame::Vote { votee, vote_type } => {
                 write!(f, "Vote: to {} for {:?}", votee, vote_type)
+            }
+            EventFrame::BridgeEvent { from, to, event } => {
+                write!(
+                    f,
+                    "BridgeEvent: from {:?} to {:?}, event: {}",
+                    from, to, event
+                )
+            }
+            EventFrame::LaunchSubGame { spec } => {
+                write!(f, "LaunchSubGame: {:?}", spec)
+            }
+            EventFrame::UpdateNodes {
+                nodes,
+                transactor_addr,
+            } => {
+                write!(
+                    f,
+                    "UpdateNodes, nodes: {:?}, transactor: {:?}",
+                    nodes, transactor_addr
+                )
             }
         }
     }

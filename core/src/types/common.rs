@@ -3,6 +3,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 pub use race_api::types::*;
 
+use crate::context::Node;
+
 pub type SettleTransferCheckpoint = (Vec<Settle>, Vec<Transfer>, Vec<u8>);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -28,4 +30,15 @@ impl std::fmt::Display for Signature {
             self.signature, self.signer, self.timestamp
         )
     }
+}
+
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct SubGameSpec {
+    pub game_addr: String,
+    pub sub_id: usize,
+    pub bundle_addr: String,
+    pub init_data: Vec<u8>,
+    pub nodes: Vec<Node>,
+    pub transactor_addr: String,
 }

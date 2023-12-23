@@ -12,7 +12,7 @@ use crate::component::event_bus::CloseReason;
 use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
 use crate::utils::addr_shorthand;
-use race_core::types::{ClientMode, GameAccount};
+use race_core::types::{ClientMode, GameAccount, GamePlayer, SubGameSpec};
 
 fn log_execution_context(ctx: &GameContext, evt: &Event) {
     info!("Execution context");
@@ -56,6 +56,7 @@ async fn handle(
 
     match handler.handle_event(game_context, &event) {
         Ok(effects) => {
+            // Broacast the event to clients
             ports
                 .send(EventFrame::Broadcast {
                     event,
@@ -65,36 +66,51 @@ async fn handle(
                 })
                 .await;
 
-            if game_context.is_checkpoint() {
-                ports
-                    .send(EventFrame::Checkpoint {
-                        access_version: game_context.get_access_version(),
-                        settle_version: game_context.get_settle_version(),
-                    })
-                    .await;
-            }
-
+            // Update the local client
             ports
                 .send(EventFrame::ContextUpdated {
                     context: Box::new(game_context.clone()),
                 })
                 .await;
 
-            // We do optimistic updates here
-            if let Some(effects) = effects {
+            // Send the settlement when there's one
+            if let Some(checkpoint) = effects.checkpoint {
+                ports
+                    .send(EventFrame::Checkpoint {
+                        access_version: game_context.get_access_version(),
+                        settle_version: game_context.get_settle_version(),
+                    })
+                    .await;
+
                 info!(
-                    "{} Send settlements: {:?}",
+                    "{} Send settlements, settle_version: {}",
                     addr_shorthand(game_context.get_game_addr()),
-                    effects
+                    settle_version
                 );
+
                 ports
                     .send(EventFrame::Settle {
                         settles: effects.settles,
                         transfers: effects.transfers,
-                        checkpoint: effects.checkpoint,
+                        checkpoint,
                         settle_version,
                     })
                     .await;
+            }
+
+            // Launch sub games
+            for launch_sub_game in effects.launch_sub_games {
+                let ef = EventFrame::LaunchSubGame {
+                    spec: SubGameSpec {
+                        game_addr: game_context.get_game_addr().to_owned(),
+                        sub_id: launch_sub_game.id,
+                        bundle_addr: launch_sub_game.bundle_addr,
+                        init_data: launch_sub_game.init_data,
+                        nodes: game_context.get_nodes().into(),
+                        transactor_addr: game_context.get_transactor_addr().to_owned(),
+                    },
+                };
+                ports.send(ef).await;
             }
         }
         Err(e) => {
@@ -118,7 +134,7 @@ async fn handle(
 /// Take the event from clients or the pending dispatched event.
 /// Transactor will retrieve events from both dispatching event and
 /// ports, while Validator will retrieve events from only ports.
-async fn retrieve_event(
+async fn read_event(
     ports: &mut PipelinePorts,
     game_context: &mut GameContext,
     mode: ClientMode,
@@ -160,15 +176,13 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         let mut game_context = ctx.game_context;
 
         // Read games from event bus
-        while let Some(event_frame) = retrieve_event(&mut ports, &mut game_context, ctx.mode).await
-        {
+        while let Some(event_frame) = read_event(&mut ports, &mut game_context, ctx.mode).await {
             // Set timestamp to current time
             // Reset some disposable states.
             game_context.prepare_for_next_event(current_timestamp());
 
             match event_frame {
                 EventFrame::InitState { init_account } => {
-                    info!("Servers: {:?}", game_context.get_servers());
                     if let Err(e) = game_context
                         .apply_checkpoint(init_account.access_version, init_account.settle_version)
                     {
@@ -183,7 +197,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         return CloseReason::Fault(e);
                     }
 
-                    info!("Servers: {:?}", game_context.get_servers());
                     info!(
                         "{} Initialize game state, access_version = {}, settle_version = {}",
                         addr_shorthand(&init_account.addr),
@@ -199,23 +212,32 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         })
                         .await;
                 }
+
                 EventFrame::Sync {
                     new_players,
                     new_servers,
                     access_version,
-                    transactor_addr,
+                    ..
                 } => {
-                    let event = Event::Sync {
-                        new_players,
-                        new_servers,
-                        access_version,
-                        transactor_addr,
-                    };
-                    if let Some(close_reason) =
-                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
-                    {
-                        ports.send(EventFrame::Shutdown).await;
-                        return close_reason;
+                    game_context.set_access_version(access_version);
+
+                    // Add servers to context
+                    for server in new_servers.iter() {
+                        game_context.add_node(server.addr.clone(), access_version);
+                    }
+
+                    // Create an event for new players
+                    let new_players: Vec<GamePlayer> =
+                        new_players.iter().cloned().map(Into::into).collect();
+
+                    if !new_players.is_empty() {
+                        let event = Event::Sync { new_players };
+                        if let Some(close_reason) =
+                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                        {
+                            ports.send(EventFrame::Shutdown).await;
+                            return close_reason;
+                        }
                     }
                 }
                 EventFrame::PlayerLeaving { player_addr } => {
@@ -233,6 +255,22 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
+                    }
+                }
+                EventFrame::UpdateNodes { nodes, .. } => {
+                    // This is a validator-only event, indicates there's a new server joined
+                    // In the Transactor mode, the new servers are handled by Sync
+
+                    info!(
+                        "{} Update nodes: {:?}",
+                        addr_shorthand(&game_context.get_game_addr()),
+                        nodes,
+                    );
+
+                    if ctx.mode == ClientMode::Validator {
+                        for node in nodes {
+                            game_context.add_node(node.addr, node.access_version);
+                        }
                     }
                 }
                 EventFrame::SendServerEvent { event } => {

@@ -74,6 +74,10 @@ impl LocalConnection {
 }
 
 impl Attachable for LocalConnection {
+    fn id(&self) -> &str {
+        "LocalConnection"
+    }
+
     fn input(&mut self) -> Option<mpsc::Sender<EventFrame>> {
         None
     }

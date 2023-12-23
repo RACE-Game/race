@@ -118,6 +118,28 @@ export class BroadcastFrameTxState extends BroadcastFrame {
   }
 }
 
+export class NodeJoin {
+  @field('string')
+  addr!: string;
+  @field('u64')
+  accessVersion!: bigint;
+  constructor(fields: any) {
+    Object.assign(this, fields)
+  }
+}
+
+@variant(3)
+export class BroadcastFrameUpdateNodes extends BroadcastFrame {
+  @field(array(struct(NodeJoin)))
+  nodes!: NodeJoin[];
+  @field(option('string'))
+  transactor_addr!: string | undefined;
+  constructor(fields: any) {
+    super();
+    Object.assign(this, fields)
+  }
+}
+
 export interface IConnection {
   attachGame(params: AttachGameParams): Promise<void>;
 

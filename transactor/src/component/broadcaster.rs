@@ -6,9 +6,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use race_api::event::Event;
-use race_core::types::{BroadcastFrame, GameAccount, TxState};
+use race_core::types::{BroadcastFrame, TxState};
 use tokio::sync::{broadcast, Mutex};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use crate::component::common::{Component, ConsumerPorts};
 use crate::frame::EventFrame;
@@ -42,31 +42,31 @@ pub struct EventBackupGroup {
 }
 
 pub struct BroadcasterContext {
-    game_addr: String,
+    id: String,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 /// A component that pushes event to clients.
 pub struct Broadcaster {
-    game_addr: String,
+    id: String,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 impl Broadcaster {
-    pub fn init(game_account: &GameAccount) -> (Self, BroadcasterContext) {
+    pub fn init(id: String) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);
         (
             Self {
-                game_addr: game_account.addr.clone(),
+                id: id.clone(),
                 event_backup_groups: event_backup_groups.clone(),
                 broadcast_tx: broadcast_tx.clone(),
             },
             BroadcasterContext {
-                game_addr: game_account.addr.clone(),
+                id,
                 event_backup_groups,
                 broadcast_tx,
             },
@@ -86,7 +86,7 @@ impl Broadcaster {
             if group.settle_version >= settle_version {
                 for event in group.events.iter() {
                     histories.push(BroadcastFrame::Event {
-                        game_addr: self.game_addr.clone(),
+                        game_addr: self.id.clone(),
                         event: event.event.clone(),
                         timestamp: event.timestamp,
                     })
@@ -109,7 +109,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
             match event {
                 EventFrame::SendMessage { message } => {
                     let r = ctx.broadcast_tx.send(BroadcastFrame::Message {
-                        game_addr: ctx.game_addr.clone(),
+                        game_addr: ctx.id.clone(),
                         message,
                     });
 
@@ -187,7 +187,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     }
 
                     let r = ctx.broadcast_tx.send(BroadcastFrame::Event {
-                        game_addr: ctx.game_addr.clone(),
+                        game_addr: ctx.id.clone(),
                         event,
                         timestamp,
                     });
@@ -195,6 +195,26 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     if let Err(e) = r {
                         // Usually it means no receivers
                         debug!("Failed to broadcast event: {:?}", e);
+                    }
+                }
+                EventFrame::Sync {
+                    new_servers,
+                    transactor_addr,
+                    ..
+                } => {
+                    let nodes = new_servers.iter().cloned().map(Into::into).collect();
+                    info!("Broadcast new nodes: {:?}", nodes);
+
+                    let broadcast_frame = BroadcastFrame::UpdateNodes {
+                        nodes,
+                        transactor_addr: Some(transactor_addr),
+                    };
+
+
+                    let r = ctx.broadcast_tx.send(broadcast_frame);
+
+                    if let Err(e) = r {
+                        debug!("Failed to broadcast node updates: {:?}", e);
                     }
                 }
                 EventFrame::Shutdown => {
@@ -222,7 +242,7 @@ mod tests {
             .add_player(&alice, 100)
             .add_player(&bob, 100)
             .build();
-        let (broadcaster, ctx) = Broadcaster::init(&game_account);
+        let (broadcaster, ctx) = Broadcaster::init(game_account.addr.clone());
         let handle = broadcaster.start(ctx);
         let mut rx = broadcaster.get_broadcast_rx();
 

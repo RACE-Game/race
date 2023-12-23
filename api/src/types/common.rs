@@ -361,3 +361,22 @@ impl std::fmt::Display for GameStatus {
         }
     }
 }
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct GamePlayer {
+    pub addr: String,
+    pub position: u16,
+    pub balance: u64,
+}
+
+impl From<PlayerJoin> for GamePlayer {
+    fn from(value: PlayerJoin) -> Self {
+        Self {
+            addr: value.addr,
+            position: value.position,
+            balance: value.balance,
+        }
+    }
+}

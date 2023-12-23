@@ -9,7 +9,7 @@ const ENCRYPTOR_VERSION = '1.0';
 
 let subtle: SubtleCrypto;
 if (typeof window === 'undefined') {
-  const crypto = require('node:crypto')
+  const crypto = require('crypto')
   subtle = crypto.subtle
 } else {
   subtle = window.crypto.subtle

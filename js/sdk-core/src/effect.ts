@@ -114,6 +114,30 @@ export class ActionTimeout {
   }
 }
 
+export class GamePlayer {
+  @field('string')
+  addr!: string;
+  @field('u16')
+  position!: number;
+  @field('u64')
+  balance!: bigint;
+  constructor(fields: Fields<GamePlayer>) {
+    Object.assign(this, fields)
+  }
+}
+
+export class LaunchSubGame {
+  @field('string')
+  subId!: string;
+  @field('string')
+  bundleAddr!: string;
+  @field('u8-array')
+  initData!: Uint8Array;
+  constructor(fields: Fields<LaunchSubGame>) {
+    Object.assign(this, fields)
+  }
+}
+
 export class Effect {
   @field(option(struct(ActionTimeout)))
   actionTimeout: ActionTimeout | undefined;
@@ -140,10 +164,7 @@ export class Effect {
   currDecisionId!: number;
 
   @field('u16')
-  playersCount!: number;
-
-  @field('u16')
-  serversCount!: number;
+  nodesCount!: number;
 
   @field(array(struct(Ask)))
   asks!: Ask[];
@@ -187,6 +208,9 @@ export class Effect {
   @field(array(struct(Transfer)))
   transfers!: Transfer[];
 
+  @field(array(struct(LaunchSubGame)))
+  launchSubGames!: LaunchSubGame[];
+
   constructor(fields: Fields<Effect>) {
     Object.assign(this, fields);
   }
@@ -208,8 +232,7 @@ export class Effect {
     const timestamp = context.timestamp;
     const currRandomId = context.randomStates.length + 1;
     const currDecisionId = context.decisionStates.length + 1;
-    const playersCount = context.players.length;
-    const serversCount = context.servers.length;
+    const nodesCount = context.nodes.length;
     const asks: Ask[] = [];
     const assigns: Assign[] = [];
     const releases: Release[] = [];
@@ -222,6 +245,7 @@ export class Effect {
     const error = undefined;
     const allowExit = context.allowExit;
     const transfers: Transfer[] = [];
+    const launchSubGames: LaunchSubGame[] = [];
     return new Effect({
       actionTimeout,
       waitTimeout,
@@ -231,8 +255,7 @@ export class Effect {
       timestamp,
       currRandomId,
       currDecisionId,
-      playersCount,
-      serversCount,
+      nodesCount,
       asks,
       assigns,
       releases,
@@ -247,6 +270,7 @@ export class Effect {
       error,
       allowExit,
       transfers,
+      launchSubGames,
     });
   }
 }

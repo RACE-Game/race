@@ -149,8 +149,7 @@ impl GameAccount {
         let game_account = self.to_owned();
         InitAccount {
             addr: game_account.addr,
-            players: game_account.players.clone(),
-            servers:  game_account.servers.clone(),
+            players: game_account.players.iter().cloned().map(Into::into).collect(),
             data: game_account.data.clone(),
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
@@ -161,26 +160,17 @@ impl GameAccount {
 
     pub fn derive_rollbacked_init_account(&self) -> InitAccount {
         let game_account = self.to_owned();
-        let Self { players, servers, addr, data, max_players, checkpoint, checkpoint_access_version, settle_version, transactor_addr, .. } = game_account;
+        let Self { players, addr, data, max_players, checkpoint, checkpoint_access_version, settle_version, .. } = game_account;
 
-
-        let is_transactor = |addr: &String| {
-            transactor_addr.clone().is_some_and(|a| a.eq(addr))
-        };
         let players = players
             .into_iter()
             .filter(|p| p.access_version <= checkpoint_access_version)
-            .collect();
-        let servers = servers
-            .into_iter()
-            // There's no sync event for transactor, so here we always include transactor address
-            .filter(|s| s.access_version <= checkpoint_access_version || is_transactor(&s.addr))
+            .map(|p| p.into())
             .collect();
 
         InitAccount {
             addr,
             players,
-            servers,
             data,
             access_version: checkpoint_access_version,
             settle_version,

@@ -7,10 +7,10 @@ use race_api::effect::Effect;
 use race_api::engine::InitAccount;
 use race_api::error::{Error, Result};
 use race_api::event::Event;
-use race_core::context::GameContext;
+use race_core::context::{EventEffects, GameContext};
 use race_core::encryptor::EncryptorT;
 use race_core::engine::{general_handle_event, general_init_state, post_handle_event};
-use race_core::types::{GameBundle, Settle, Transfer};
+use race_core::types::GameBundle;
 use race_encryptor::Encryptor;
 use tracing::info;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
@@ -28,13 +28,6 @@ pub struct WrappedHandler {
     store: Store,
     instance: Instance,
     encryptor: Arc<dyn EncryptorT>,
-}
-
-#[derive(Debug)]
-pub struct Effects {
-    pub settles: Vec<Settle>,
-    pub transfers: Vec<Transfer>,
-    pub checkpoint: Vec<u8>,
 }
 
 impl WrappedHandler {
@@ -202,18 +195,14 @@ impl WrappedHandler {
         &mut self,
         context: &mut GameContext,
         event: &Event,
-    ) -> Result<Option<Effects>> {
+    ) -> Result<EventEffects> {
         let mut new_context = context.clone();
         general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
         self.custom_handle_event(&mut new_context, event)?;
         post_handle_event(context, &mut new_context)?;
-        let settles_and_transfers = new_context.take_settles_and_transfers()?;
+        let event_effects = new_context.take_event_effects()?;
         swap(context, &mut new_context);
-        if let Some((settles, transfers, checkpoint)) = settles_and_transfers {
-            Ok(Some(Effects { settles, transfers, checkpoint }))
-        } else {
-            Ok(None)
-        }
+        Ok(event_effects)
     }
 
     pub fn init_state(
@@ -231,7 +220,10 @@ impl WrappedHandler {
 
 #[cfg(test)]
 mod tests {
-    use race_api::{prelude::{CustomEvent, HandleError}, types::GameStatus};
+    use race_api::{
+        prelude::{CustomEvent, HandleError},
+        types::GameStatus,
+    };
     use race_test::prelude::*;
 
     use super::*;

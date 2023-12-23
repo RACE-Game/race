@@ -13,7 +13,7 @@ use race_api::prelude::*;
 use race_proc_macro::game_handler;
 
 const ACTION_TIMEOUT: u64 = 30_000;
-const NEXT_GAME_TIMEOUT: u64 = 15_000;
+const NEXT_GAME_TIMEOUT: u64 = 3000;
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub enum GameEvent {
@@ -214,18 +214,18 @@ impl GameHandler for DrawCard {
             // Waiting timeout usually sent after each game.  Here we
             // can trigger the next game.
             Event::WaitingTimeout => {
-                if effect.count_players() == 2 {
+                if self.players.len() == 2 {
                     effect.start_game();
                 }
             }
 
             // Reset current game state.  Set up randomness
             Event::GameStart { .. } => {
-                if effect.count_players() < 2 {
+                if self.players.len() < 2 {
                     return Err(HandleError::NoEnoughPlayers);
                 }
 
-                if effect.servers_count == 0 {
+                if effect.count_nodes() == 0 {
                     return Err(HandleError::NoEnoughServers);
                 }
 

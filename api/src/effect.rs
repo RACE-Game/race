@@ -40,18 +40,10 @@ pub struct ActionTimeout {
     pub timeout: u64,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
-pub struct SubGamePlayer {
-    pub addr: String,
-    pub position: u16,
-    pub balance: u64,
-}
-
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
 pub struct LaunchSubGame {
     pub id: usize,
     pub bundle_addr: String,
-    pub players: Vec<SubGamePlayer>,
     pub init_data: Vec<u8>,
 }
 
@@ -156,8 +148,7 @@ pub struct Effect {
     pub timestamp: u64,
     pub curr_random_id: RandomId,
     pub curr_decision_id: DecisionId,
-    pub players_count: u16,
-    pub servers_count: u16,
+    pub nodes_count: u16,
     pub asks: Vec<Ask>,
     pub assigns: Vec<Assign>,
     pub reveals: Vec<Reveal>,
@@ -176,14 +167,9 @@ pub struct Effect {
 }
 
 impl Effect {
-    /// Return the number of players, including both the pending and joined.
-    pub fn count_players(&self) -> usize {
-        self.players_count as usize
-    }
-
-    /// Return the number of servers, including both the pending and joined.
-    pub fn count_servers(&self) -> usize {
-        self.servers_count as usize
+    /// Return the number of nodes, including both the pending and joined.
+    pub fn count_nodes(&self) -> usize {
+        self.nodes_count as usize
     }
 
     /// Initialize a random state with random spec, return random id.
@@ -303,13 +289,11 @@ impl Effect {
         &mut self,
         id: usize,
         bundle_addr: String,
-        players: Vec<SubGamePlayer>,
         init_data: Vec<u8>,
     ) -> Result<()> {
         self.launch_sub_games.push(LaunchSubGame {
             id,
             bundle_addr,
-            players,
             init_data,
         });
         Ok(())
@@ -417,8 +401,7 @@ mod tests {
             timestamp: 300_000,
             curr_random_id: 1,
             curr_decision_id: 1,
-            players_count: 4,
-            servers_count: 4,
+            nodes_count: 4,
             asks: vec![Ask {
                 player_addr: "bob".into(),
             }],

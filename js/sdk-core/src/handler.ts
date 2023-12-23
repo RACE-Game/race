@@ -3,7 +3,7 @@ import { GameAccount, GameBundle, PlayerJoin, ServerJoin } from './accounts';
 import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Sync } from './events';
 import { GameContext } from './game-context';
 import { IEncryptor } from './encryptor';
-import { Effect } from './effect';
+import { Effect, GamePlayer } from './effect';
 import { Client } from './client';
 import { DecryptionCache } from './decryption-cache';
 
@@ -12,8 +12,7 @@ import { DecryptionCache } from './decryption-cache';
  */
 export interface IInitAccount {
   addr: string;
-  players: PlayerJoin[];
-  servers: ServerJoin[];
+  players: GamePlayer[];
   data: Uint8Array;
   accessVersion: bigint;
   settleVersion: bigint;
@@ -24,10 +23,8 @@ export interface IInitAccount {
 export class InitAccount {
   @field('string')
   readonly addr: string;
-  @field(array(struct(PlayerJoin)))
-  readonly players: PlayerJoin[];
-  @field(array(struct(ServerJoin)))
-  readonly servers: ServerJoin[];
+  @field(array(struct(GamePlayer)))
+  readonly players: GamePlayer[];
   @field('u8-array')
   readonly data: Uint8Array;
   @field('u64')
@@ -45,7 +42,6 @@ export class InitAccount {
     this.settleVersion = fields.settleVersion;
     this.data = fields.data;
     this.players = fields.players;
-    this.servers = fields.servers;
     this.maxPlayers = fields.maxPlayers;
     this.checkpoint = fields.checkpoint;
   }
@@ -54,14 +50,13 @@ export class InitAccount {
     transactorAccessVersion: bigint,
     transactorSettleVersion: bigint
   ): InitAccount {
-    let { addr, players, servers, data, checkpointAccessVersion, transactorAddr } = gameAccount;
-    players = players.filter(p => p.accessVersion <= checkpointAccessVersion);
-    servers = servers.filter(s => s.accessVersion <= checkpointAccessVersion || s.addr === transactorAddr);
+    let { addr, players, data, checkpointAccessVersion } = gameAccount;
+    const game_players = players.filter(p => p.accessVersion <= checkpointAccessVersion)
+      .map(p => new GamePlayer({ addr: p.addr, balance: p.balance, position: p.position }));
     return new InitAccount({
       addr,
       data,
-      players,
-      servers,
+      players: game_players,
       accessVersion: transactorAccessVersion,
       settleVersion: transactorSettleVersion,
       maxPlayers: gameAccount.maxPlayers,
@@ -128,9 +123,9 @@ export class Handler implements IHandler {
     await this.generalPostInitState(context, initAccount);
   }
 
-  async generalPreInitState(_context: GameContext, _initAccount: InitAccount) { }
+  async generalPreInitState(_context: GameContext, _initAccount: InitAccount) {}
 
-  async generalPostInitState(_context: GameContext, _initAccount: InitAccount) { }
+  async generalPostInitState(_context: GameContext, _initAccount: InitAccount) {}
 
   async generalPreHandleEvent(context: GameContext, event: GameEvent, encryptor: IEncryptor) {
     if (event instanceof ShareSecrets) {
@@ -143,7 +138,6 @@ export class Handler implements IHandler {
           randomState.status = { kind: 'ready' };
         }
       }
-
       if (randomIds.length > 0) {
         context.dispatchEventInstantly(new SecretsReady({ randomIds }));
       }
@@ -157,29 +151,16 @@ export class Handler implements IHandler {
       const { sender, randomId, ciphertextsAndDigests } = event;
       context.lock(sender, randomId, ciphertextsAndDigests);
     } else if (event instanceof Sync) {
-      const { accessVersion, newPlayers, newServers } = event;
-      if (accessVersion < context.accessVersion) {
-        throw new Error('Event ignored');
-      }
-      for (const p of newPlayers) {
-        context.addPlayer(p);
-      }
-      for (const s of newServers) {
-        context.addServer(s);
-      }
-      context.accessVersion = accessVersion;
+      // No op here
     } else if (event instanceof Leave) {
-      const { playerAddr } = event;
-      const exist = context.players.find(p => p.addr === playerAddr);
-      if (exist === undefined) {
-        throw new Error('Invalid player address');
+      if (!context.allowExit) {
+        throw new Error('Leave is not allowed')
       }
     } else if (event instanceof GameStart) {
       const { accessVersion } = event;
       context.status = 'running';
       context.setNodeReady(accessVersion);
     } else if (event instanceof SecretsReady) {
-
       for (let randomId of event.randomIds) {
         let decryption = await this.#client.decrypt(context, randomId);
         this.#decryptionCache.add(randomId, decryption);
@@ -250,15 +231,13 @@ export class Handler implements IHandler {
     let buf = new Uint8Array(mem.buffer);
 
     const effect = Effect.fromContext(context);
-    // console.debug("Effect before ser: ", effect);
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
 
     const eventBytes = serialize(event);
     const eventSize = eventBytes.length;
 
-    // console.debug("Event Bytes: [%s]", Array.of(eventBytes).toString());
-    // console.debug("Effect Bytes: [%s]", Array.of(effectBytes).toString());
+    console.log("Effect:", effect);
 
     if (buf.length < 1 + eventSize + effectSize) {
       throw new Error(`WASM memory overflow, buffer length: ${buf.length}, required: ${1 + eventSize + effectSize}`);

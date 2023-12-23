@@ -13,7 +13,7 @@ import {
   Shutdown,
   WaitingTimeout,
 } from './events';
-import { Effect, Settle, SettleAdd, SettleEject, SettleSub, Transfer } from './effect';
+import { Effect, LaunchSubGame, Settle, SettleAdd, SettleEject, SettleSub, Transfer } from './effect';
 import { GameAccount, PlayerJoin, ServerJoin } from './accounts';
 import { Ciphertext, Digest, Id } from './types';
 
@@ -29,17 +29,9 @@ export type NodeStatus =
 
 export type GameStatus = 'uninit' | 'running' | 'closed';
 
-export interface IPlayer {
-  addr: string;
-  position: number;
-  balance: bigint;
-  status: NodeStatus;
-}
-
-export interface IServer {
+export interface INode {
   addr: string;
   status: NodeStatus;
-  endpoint: string;
 }
 
 export interface DispatchEvent {
@@ -53,8 +45,7 @@ export class GameContext {
   settleVersion: bigint;
   transactorAddr: string;
   status: GameStatus;
-  players: IPlayer[];
-  servers: IServer[];
+  nodes: INode[];
   dispatch: DispatchEvent | undefined;
   handlerState: Uint8Array;
   timestamp: bigint;
@@ -65,6 +56,7 @@ export class GameContext {
   transfers: Transfer[] | undefined;
   checkpoint: Uint8Array | undefined;
   checkpointAccessVersion: bigint;
+  launchSubGames: LaunchSubGame[];
 
   constructor(context: GameContext);
   constructor(gameAccount: GameAccount);
@@ -76,8 +68,7 @@ export class GameContext {
       this.settleVersion = context.settleVersion;
       this.transactorAddr = context.transactorAddr;
       this.status = context.status;
-      this.players = context.players.map(p => Object.assign({}, p));
-      this.servers = context.servers.map(s => Object.assign({}, s));
+      this.nodes = context.nodes.map(n => Object.assign({}, n));
       this.dispatch = context.dispatch;
       this.handlerState = new Uint8Array(context.handlerState);
       this.timestamp = context.timestamp;
@@ -88,28 +79,21 @@ export class GameContext {
       this.transfers = context.transfers;
       this.checkpoint = undefined;
       this.checkpointAccessVersion = context.checkpointAccessVersion;
+      this.launchSubGames = context.launchSubGames;
     } else {
       const gameAccount = gameAccountOrContext;
       const transactorAddr = gameAccount.transactorAddr;
       if (transactorAddr === undefined) {
         throw new Error('Game not served');
       }
-      const players: IPlayer[] = gameAccount.players.map(p => ({
-        addr: p.addr,
-        balance: p.balance,
-        position: p.position,
-        status: {
-          kind: 'pending',
-          accessVersion: p.accessVersion,
-        },
-      }));
-      const servers: IServer[] = gameAccount.servers.map(s => ({
+      const nodes: INode[] = gameAccount.servers.map(s => ({
         addr: s.addr,
-        endpoint: s.endpoint,
-        status: {
-          kind: 'pending',
-          accessVersion: s.accessVersion,
-        },
+        status: s.addr === gameAccount.transactorAddr
+          ? { kind: 'ready' }
+          : {
+            kind: 'pending',
+            accessVersion: s.accessVersion,
+          },
       }));
 
       this.gameAddr = gameAccount.addr;
@@ -118,8 +102,7 @@ export class GameContext {
       this.settleVersion = gameAccount.settleVersion;
       this.status = 'uninit';
       this.dispatch = undefined;
-      this.players = players;
-      this.servers = servers;
+      this.nodes = nodes;
       this.timestamp = 0n;
       this.allowExit = false;
       this.randomStates = [];
@@ -129,15 +112,12 @@ export class GameContext {
       this.handlerState = Uint8Array.of();
       this.checkpoint = undefined;
       this.checkpointAccessVersion = gameAccount.checkpointAccessVersion;
+      this.launchSubGames = [];
     }
   }
 
-  getServerByAddress(addr: string): IServer | undefined {
-    return this.servers.find(s => s.addr === addr);
-  }
-
-  getPlayerByAddress(addr: string): IPlayer | undefined {
-    return this.players.find(p => p.addr === addr);
+  getNodeByAddress(addr: string): INode | undefined {
+    return this.nodes.find(n => n.addr === addr);
   }
 
   dispatchEvent(event: GameEvent, timeout: bigint) {
@@ -234,42 +214,21 @@ export class GameContext {
     return this.randomStates.every(st => st.status.kind === 'ready');
   }
 
-  setPlayerStatus(addr: string, status: NodeStatus) {
-    let p = this.players.find(p => p.addr === addr);
-    if (p === undefined) {
-      throw new Error('Invalid player address');
+  setNodeStatus(addr: string, status: NodeStatus) {
+    let n = this.nodes.find(n => n.addr === addr);
+    if (n === undefined) {
+      throw new Error('Invalid node address');
     }
-    p.status = status;
+    n.status = status;
   }
 
-  addPlayer(player: PlayerJoin) {
-    const exist = this.players.find(p => p.addr === player.addr || p.position === player.position);
+  addNode(nodeAddr: string, accessVersion: bigint) {
+    const exist = this.nodes.find(n => n.addr === nodeAddr);
     if (exist === undefined) {
-      this.players.push({
-        addr: player.addr,
-        balance: player.balance,
-        status: { kind: 'ready' },
-        position: player.position,
-      });
-    } else {
-      if (exist.position === player.position) {
-        throw new Error('Position occupied');
-      } else {
-        throw new Error('Player already joined');
-      }
-    }
-  }
-
-  addServer(server: ServerJoin) {
-    const exist = this.players.find(s => s.addr === server.addr);
-    if (exist === undefined) {
-      this.servers.push({
-        addr: server.addr,
-        status: { kind: 'ready' },
-        endpoint: server.endpoint,
-      });
-    } else {
-      throw new Error('Server already joined');
+      this.nodes.push({
+        addr: nodeAddr,
+        status: { kind: 'pending', accessVersion }
+      })
     }
   }
 
@@ -281,21 +240,9 @@ export class GameContext {
     this.allowExit = allowExit;
   }
 
-  removePlayer(addr: string) {
-    if (this.allowExit) {
-      const origLen = this.players.length;
-      this.players = this.players.filter(p => p.addr !== addr);
-      if (this.players.length === origLen) {
-        throw new Error('Player not in game');
-      }
-    } else {
-      throw new Error("Can't leave");
-    }
-  }
-
   initRandomState(spec: RandomSpec): Id {
     const randomId = this.randomStates.length + 1;
-    const owners = this.servers.filter(s => s.status.kind === 'ready').map(s => s.addr);
+    const owners = this.nodes.filter(n => n.status.kind === 'ready').map(n => n.addr);
     const randomState = new RandomState(randomId, spec, owners);
     this.randomStates.push(randomState);
     return randomId;
@@ -367,24 +314,6 @@ export class GameContext {
     let settles = this.settles;
     this.settles = undefined;
     settles = settles.sort((s1, s2) => s1.compare(s2));
-    for (const s of settles) {
-      if (s.op instanceof SettleAdd) {
-        let p = this.getPlayerByAddress(s.addr);
-        if (p === undefined) {
-          throw new Error('Invalid settle player address');
-        }
-        p.balance += s.op.amount;
-      } else if (s.op instanceof SettleSub) {
-        let p = this.getPlayerByAddress(s.addr);
-        if (p === undefined) {
-          throw new Error('Invalid settle player address');
-        }
-        p.balance -= s.op.amount;
-      } else if (s.op instanceof SettleEject) {
-        this.players = this.players.filter(p => p.addr !== s.addr);
-      }
-    }
-
     this.bumpSettleVersion();
     return settles;
   }
@@ -460,40 +389,21 @@ export class GameContext {
   }
 
   setNodeReady(accessVersion: bigint) {
-    for (const s of this.servers) {
-      if (s.status.kind === 'pending') {
-        if (s.status.accessVersion < accessVersion) {
-          s.status = { kind: 'ready' };
-        }
-      }
-    }
-    for (const p of this.players) {
-      if (p.status.kind === 'pending') {
-        if (p.status.accessVersion < accessVersion) {
-          p.status = { kind: 'ready' };
+    for (const n of this.nodes) {
+      if (n.status.kind === 'pending') {
+        if (n.status.accessVersion <= accessVersion) {
+          console.debug(`Set node ${n.addr} status to ready`);
+          n.status = { kind: 'ready' };
         }
       }
     }
   }
 
   applyCheckpoint(accessVersion: bigint, settleVersion: bigint) {
+    console.log(`Apply checkpoint, accessVersion: ${accessVersion}`)
     if (this.settleVersion !== settleVersion) {
       throw new Error(`Invalid checkpoint, local settle version: ${this.settleVersion}, remote settle version: ${settleVersion}`);
     }
-    this.players = this.players.filter(p => {
-      if (p.status.kind === 'pending') {
-        return p.status.accessVersion <= accessVersion;
-      } else {
-        return true;
-      }
-    });
-    this.servers = this.servers.filter(s => {
-      if (s.status.kind === 'pending') {
-        return s.status.accessVersion <= accessVersion || s.addr === this.transactorAddr;
-      } else {
-        return true;
-      }
-    });
     this.accessVersion = accessVersion;
   }
 

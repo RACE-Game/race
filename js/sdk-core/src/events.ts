@@ -1,6 +1,7 @@
 import { field, array, enums, option, variant, struct } from '@race-foundation/borsh';
 import { PlayerJoin, ServerJoin } from './accounts';
 import { Fields, Id } from './types';
+import { GamePlayer } from './effect';
 
 type EventFields<T> = Omit<Fields<T>, 'kind'>;
 
@@ -23,9 +24,14 @@ export type EventKind =
   | 'ActionTimeout'
   | 'AnswerDecision'
   | 'SecretsReady'
-  | 'Shutdown';
+  | 'Shutdown'
+  | 'Bridge';
 
 export interface ICustomEvent {
+  serialize(): Uint8Array;
+}
+
+export interface IBridgeEvent {
   serialize(): Uint8Array;
 }
 
@@ -192,14 +198,8 @@ export class RandomnessReady extends GameEvent implements IEventKind {
 
 @variant(7)
 export class Sync extends GameEvent implements IEventKind {
-  @field(array(struct(PlayerJoin)))
-  newPlayers!: PlayerJoin[];
-  @field(array(struct(ServerJoin)))
-  newServers!: ServerJoin[];
-  @field('string')
-  transactorAddr!: string;
-  @field('u64')
-  accessVersion!: bigint;
+  @field(array(struct(GamePlayer)))
+  newPlayers!: GamePlayer[];
   constructor(fields: EventFields<Sync>) {
     super();
     Object.assign(this, fields);
@@ -341,4 +341,27 @@ export class Shutdown extends GameEvent implements IEventKind {
   kind(): EventKind {
     return 'Shutdown';
   }
+}
+
+@variant(18)
+export class Bridge extends GameEvent implements IEventKind {
+  @field('usize')
+  dest!: number;
+  @field('u8-array')
+  raw!: Uint8Array;
+
+  constructor(fields: EventFields<Bridge>) {
+    super();
+    Object.assign(this, fields);
+  }
+  kind(): EventKind {
+    return 'Bridge';
+  }
+}
+
+export function makeBridgeEvent(dest: number, bridgeEvent: IBridgeEvent): Bridge {
+  return new Bridge({
+    dest,
+    raw: bridgeEvent.serialize(),
+  });
 }

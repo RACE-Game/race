@@ -2,9 +2,9 @@ use crate::blacklist::Blacklist;
 use crate::component::WrappedTransport;
 use crate::frame::SignalFrame;
 use crate::game_manager::GameManager;
-use race_core::encryptor::{EncryptorT, NodePublicKeyRaw};
 use race_api::error::{Error, Result};
 use race_api::event::{Event, Message};
+use race_core::encryptor::{EncryptorT, NodePublicKeyRaw};
 use race_core::transport::TransportT;
 use race_core::types::{BroadcastFrame, ServerAccount, Signature};
 use race_encryptor::Encryptor;
@@ -53,8 +53,11 @@ impl ApplicationContext {
         let transport_1 = transport.clone();
         let encryptor_1 = encryptor.clone();
         let account_1 = account.clone();
-        let blacklist = Arc::new(Mutex::new(Blacklist::new(transactor_config.disable_blacklist.ne(&(Some(true))))));
+        let blacklist = Arc::new(Mutex::new(Blacklist::new(
+            transactor_config.disable_blacklist.ne(&(Some(true))),
+        )));
         let blacklist_1 = blacklist.clone();
+        let signal_tx_1 = signal_tx.clone();
 
         tokio::spawn(async move {
             while let Some(signal) = signal_rx.recv().await {
@@ -67,6 +70,24 @@ impl ApplicationContext {
                                 encryptor_1.clone(),
                                 &account_1,
                                 blacklist_1.clone(),
+                                signal_tx_1.clone(),
+                            )
+                            .await;
+                    }
+                    SignalFrame::LaunchSubGame { spec } => {
+                        let bridge_parent = game_manager_1
+                            .get_event_parent(&spec.game_addr)
+                            .await
+                            .expect(
+                                format!("Bridge parent not found: {}", spec.game_addr).as_str(),
+                            );
+
+                        game_manager_1
+                            .launch_sub_game(
+                                spec,
+                                bridge_parent,
+                                transport_1.clone(),
+                                encryptor_1.clone(),
                             )
                             .await;
                     }
@@ -87,7 +108,6 @@ impl ApplicationContext {
     }
 
     pub async fn register_key(&self, player_addr: String, key: NodePublicKeyRaw) -> Result<()> {
-        // info!("Client {:?} register public key, {:?}", player_addr, key);
         self.encryptor.add_public_key(player_addr, &key)?;
         Ok(())
     }

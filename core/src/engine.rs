@@ -1,8 +1,4 @@
-use crate::{
-    context::GameContext,
-    encryptor::EncryptorT,
-    types::{GameStatus, Settle},
-};
+use crate::{context::GameContext, encryptor::EncryptorT, types::GameStatus};
 use race_api::engine::InitAccount;
 use race_api::error::{Error, HandleError};
 use race_api::event::Event;
@@ -74,35 +70,11 @@ pub fn general_handle_event(
 
         Event::RandomnessReady { .. } => Ok(()),
 
-        Event::Sync {
-            new_players,
-            new_servers,
-            transactor_addr: _,
-            access_version,
-        } => {
-            if *access_version <= context.access_version {
-                return Err(Error::EventIgnored);
-            }
-            for p in new_players.iter() {
-                context.add_player(p)?;
-            }
-            for s in new_servers.iter() {
-                context.add_server(s)?;
-            }
-            context.access_version = *access_version;
+        Event::Sync { .. } => Ok(()),
 
-            Ok(())
-        }
-
-        Event::Leave { player_addr } => {
+        Event::Leave { .. } => {
             if !context.allow_exit {
                 Err(Error::CantLeave)
-            } else if !context
-                .players
-                .iter()
-                .any(|p| p.addr.eq(player_addr))
-            {
-                Err(Error::InvalidPlayerAddress)
             } else {
                 Ok(())
             }
@@ -172,30 +144,17 @@ pub fn general_handle_event(
 
 /// Context maintaining after event handling.
 pub fn post_handle_event(
-    old_context: &GameContext,
-    new_context: &mut GameContext,
+    _old_context: &GameContext,
+    _new_context: &mut GameContext,
 ) -> Result<(), Error> {
-    // Find all leaving player, submit during the settlement.
-    // Or create a settlement for just player leaving.
-    let mut left_players = vec![];
-    for p in old_context.players.iter() {
-        if new_context.get_player_by_address(&p.addr).is_none() {
-            left_players.push(p.addr.to_owned());
-        }
-    }
-
-    for p in left_players.into_iter() {
-        new_context.add_settle(Settle::eject(p));
-    }
-
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
 
-    use race_api::types::{ServerJoin, PlayerJoin};
     use crate::encryptor::tests::DummyEncryptor;
+    use race_api::types::{PlayerJoin, ServerJoin};
 
     use super::*;
 

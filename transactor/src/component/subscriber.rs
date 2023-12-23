@@ -110,7 +110,21 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                         break;
                     }
                 }
-
+                BroadcastFrame::UpdateNodes {
+                    nodes,
+                    transactor_addr,
+                } => {
+                    if let Err(e) = ports
+                        .try_send(EventFrame::UpdateNodes {
+                            nodes,
+                            transactor_addr,
+                        })
+                        .await
+                    {
+                        error!("Send update node error: {}", e);
+                        break;
+                    }
+                }
                 BroadcastFrame::Message { .. } => {
                     // Dropped
                 }

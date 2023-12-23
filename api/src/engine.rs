@@ -4,8 +4,7 @@ use crate::{
     effect::Effect,
     error::{HandleError, HandleResult},
     event::Event,
-    prelude::ServerJoin,
-    types::PlayerJoin,
+    prelude::GamePlayer,
 };
 
 /// A subset of on-chain account, used for game handler
@@ -14,8 +13,7 @@ use crate::{
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub struct InitAccount {
     pub addr: String,
-    pub players: Vec<PlayerJoin>,
-    pub servers: Vec<ServerJoin>,
+    pub players: Vec<GamePlayer>,
     pub data: Vec<u8>,
     pub access_version: u64,
     pub settle_version: u64,
@@ -32,31 +30,24 @@ impl InitAccount {
         if self.checkpoint.is_empty() {
             Ok(None)
         } else {
-            S::try_from_slice(&self.checkpoint).or(Err(HandleError::MalformedCheckpointData)).map(Some)
+            S::try_from_slice(&self.checkpoint)
+                .or(Err(HandleError::MalformedCheckpointData))
+                .map(Some)
         }
     }
 
     /// Add a new player.  This function is only available in tests.
     /// This function will panic when a duplicated position is
     /// specified.
-    pub fn add_player<S: Into<String>>(
-        &mut self,
-        addr: S,
-        position: usize,
-        balance: u64,
-        verify_key: String,
-    ) {
+    pub fn add_player<S: Into<String>>(&mut self, addr: S, position: usize, balance: u64) {
         self.access_version += 1;
-        let access_version = self.access_version;
         if self.players.iter().any(|p| p.position as usize == position) {
             panic!("Failed to add player, duplicated position");
         }
-        self.players.push(PlayerJoin {
+        self.players.push(GamePlayer {
             position: position as _,
             balance,
             addr: addr.into(),
-            access_version,
-            verify_key,
         })
     }
 }
@@ -66,7 +57,6 @@ impl Default for InitAccount {
         Self {
             addr: "".into(),
             players: Vec::new(),
-            servers: Vec::new(),
             data: Vec::new(),
             access_version: 0,
             settle_version: 0,

@@ -1,5 +1,4 @@
 import { PlayerProfile } from './accounts';
-import { GameContextSnapshot } from './game-context-snapshot';
 import { ITransport } from './transport';
 
 export class ProfileCache {
@@ -23,15 +22,6 @@ export class ProfileCache {
       } else {
         this.caches.set(playerAddr, p);
         return p;
-      }
-    }
-  }
-
-  async injectProfiles(context: GameContextSnapshot) {
-    for (let player of context.players) {
-      if (player.profile === undefined) {
-        const profile = await this.getProfile(player.addr);
-        player.profile = profile;
       }
     }
   }

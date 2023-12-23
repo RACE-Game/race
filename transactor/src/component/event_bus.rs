@@ -10,7 +10,7 @@ use crate::frame::EventFrame;
 /// An event bus that passes the events between different components.
 pub struct EventBus {
     tx: mpsc::Sender<EventFrame>,
-    attached_txs: Arc<Mutex<Vec<mpsc::Sender<EventFrame>>>>,
+    attached_txs: Arc<Mutex<Vec<(String, mpsc::Sender<EventFrame>)>>>,
     close_rx: watch::Receiver<bool>,
 }
 
@@ -50,7 +50,7 @@ impl EventBus {
 
         if let Some(tx) = attachable.input() {
             let mut txs = self.attached_txs.lock().await;
-            txs.push(tx.clone());
+            txs.push((attachable.id().to_string(), tx.clone()));
         }
     }
 
@@ -66,15 +66,15 @@ impl Default for EventBus {
     fn default() -> Self {
         let (close_tx, close_rx) = watch::channel(false);
         let (tx, mut rx) = mpsc::channel::<EventFrame>(32);
-        let txs: Arc<Mutex<Vec<mpsc::Sender<EventFrame>>>> = Arc::new(Mutex::new(vec![]));
+        let txs: Arc<Mutex<Vec<(String, mpsc::Sender<EventFrame>)>>> = Arc::new(Mutex::new(vec![]));
         let attached_txs = txs.clone();
 
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
                 let txs = attached_txs.lock().await;
-                for t in txs.iter() {
+                for (id, t) in txs.iter() {
                     if t.send(msg.clone()).await.is_err() {
-                        warn!("Failed to send message");
+                        warn!("Failed to send message: {} to component: {}", msg, id);
                     }
                 }
                 if matches!(msg, EventFrame::Shutdown) {

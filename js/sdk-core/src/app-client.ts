@@ -2,6 +2,7 @@ import {
   BroadcastFrameEvent,
   BroadcastFrameMessage,
   BroadcastFrameTxState,
+  BroadcastFrameUpdateNodes,
   Connection,
   ConnectionState,
   IConnection,
@@ -229,7 +230,6 @@ export class AppClient {
 
   async invokeEventCallback(event: GameEvent | undefined) {
     const snapshot = new GameContextSnapshot(this.#gameContext);
-    await this.#profileCaches.injectProfiles(snapshot);
     const state = this.#gameContext.handlerState;
     this.#onEvent(snapshot, state, event);
   }
@@ -265,6 +265,7 @@ export class AppClient {
     const sub = this.#connection.subscribeEvents();
     const gameAccount = await this.__getGameAccount();
     this.#gameContext = new GameContext(gameAccount);
+    console.log('Initialize game context:', this.#gameContext);
     this.#gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.#gameContext.settleVersion);
     await this.#connection.connect(new SubscribeEventParams({ settleVersion: this.#gameContext.settleVersion }));
     await this.__initializeState(gameAccount);
@@ -286,6 +287,15 @@ export class AppClient {
           if (this.#onTxState !== undefined) {
             const { txState } = frame;
             this.#onTxState(txState);
+          }
+        } finally {
+          console.groupEnd();
+        }
+      } else if (frame instanceof BroadcastFrameUpdateNodes) {
+        console.group('Update nodes');
+        try {
+          for (const node of frame.nodes) {
+            this.#gameContext.addNode(node.addr, node.accessVersion);
           }
         } finally {
           console.groupEnd();
@@ -353,7 +363,7 @@ export class AppClient {
     }
     const playersCount = gameAccount.players.length;
     if (gameAccount.maxPlayers <= playersCount) {
-      throw new Error('Game is full');
+      throw new Error(`Game is full, current number of players: ${playersCount}`);
     }
     let position: number | undefined = params.position;
     if (position === undefined) {
@@ -365,7 +375,7 @@ export class AppClient {
       }
     }
     if (position === undefined) {
-      throw new Error('Game is full');
+      throw new Error(`The position has been taken: ${params.position}`);
     }
 
     const publicKey = await this.#encryptor.exportPublicKey();
