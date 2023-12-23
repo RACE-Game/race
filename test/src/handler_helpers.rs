@@ -62,10 +62,11 @@ impl<H: GameHandler> TestHandler<H> {
             .event
             .clone();
         self.handle_event(context, &event)?;
+        context.cancel_dispatch();
         Ok(())
     }
 
-    pub fn handle_dispatch_event_until_no_events(
+    pub fn handle_dispatch_until_no_events(
         &mut self,
         context: &mut GameContext,
         clients: Vec<&mut TestClient>,
@@ -76,6 +77,7 @@ impl<H: GameHandler> TestHandler<H> {
             .expect("No dispatch event")
             .event
             .clone();
+        context.cancel_dispatch();
         self.handle_until_no_events(context, &event, clients)
     }
 
