@@ -7,6 +7,7 @@ use race_api::effect::{Ask, Assign, Effect, LaunchSubGame, Release, Reveal};
 use race_api::engine::GameHandler;
 use race_api::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
+use race_api::prelude::BridgeEvent;
 use race_api::random::{RandomSpec, RandomState, RandomStatus};
 use race_api::types::{
     Addr, Ciphertext, DecisionId, GameStatus, PlayerJoin, RandomId, SecretDigest, SecretShare,
@@ -159,6 +160,8 @@ pub struct GameContext {
     pub(crate) checkpoint: Option<Vec<u8>>,
     /// The sub games to launch
     pub(crate) launch_sub_games: Vec<LaunchSubGame>,
+    /// The bridge events to emit
+    pub(crate) bridge_events: Vec<Vec<u8>>,
 }
 
 impl GameContext {
@@ -206,6 +209,7 @@ impl GameContext {
             handler_state: "".into(),
             checkpoint: None,
             launch_sub_games: vec![],
+            bridge_events: vec![],
         })
     }
 
@@ -606,6 +610,14 @@ impl GameContext {
         &self.settles
     }
 
+    pub fn get_bridge_events<E: BridgeEvent>(&self) -> Result<Vec<E>> {
+        self.bridge_events
+            .iter()
+            .cloned()
+            .map(|v| E::try_from_slice(&v).map_err(|_e| Error::DeserializeError))
+            .collect()
+    }
+
     pub fn bump_settle_version(&mut self) {
         self.settle_version += 1;
     }
@@ -747,6 +759,7 @@ impl GameContext {
             handler_state,
             allow_exit,
             checkpoint,
+            bridge_events,
             ..
         } = effect;
 
@@ -802,6 +815,8 @@ impl GameContext {
             self.handler_state = state;
         }
 
+        self.bridge_events = bridge_events;
+
         Ok(())
     }
 
@@ -850,6 +865,7 @@ impl Default for GameContext {
             transfers: None,
             checkpoint: None,
             launch_sub_games: Vec::new(),
+            bridge_events: Vec::new(),
         }
     }
 }

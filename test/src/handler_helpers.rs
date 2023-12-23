@@ -61,8 +61,8 @@ impl<H: GameHandler> TestHandler<H> {
             .expect("No dispatch event")
             .event
             .clone();
-        self.handle_event(context, &event)?;
         context.cancel_dispatch();
+        self.handle_event(context, &event)?;
         Ok(())
     }
 
