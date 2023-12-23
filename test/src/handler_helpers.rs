@@ -1,9 +1,9 @@
 use std::mem::swap;
 
+use race_api::effect::Effect;
 use race_api::engine::GameHandler;
 use race_api::error::Result;
 use race_api::event::Event;
-use race_api::effect::Effect;
 use race_core::context::GameContext;
 use race_core::engine::{general_handle_event, general_init_state};
 use race_core::types::GameAccount;
@@ -63,6 +63,20 @@ impl<H: GameHandler> TestHandler<H> {
             .clone();
         self.handle_event(context, &event)?;
         Ok(())
+    }
+
+    pub fn handle_dispatch_event_until_no_events(
+        &mut self,
+        context: &mut GameContext,
+        clients: Vec<&mut TestClient>,
+    ) -> Result<()> {
+        let event = context
+            .get_dispatch()
+            .as_ref()
+            .expect("No dispatch event")
+            .event
+            .clone();
+        self.handle_until_no_events(context, &event, clients)
     }
 
     /// This fn keeps handling events of the following two types, until there is none:

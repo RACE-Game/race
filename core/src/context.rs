@@ -726,6 +726,7 @@ impl GameContext {
             allow_exit: self.allow_exit,
             transfers: Vec::new(),
             launch_sub_games: Vec::new(),
+            bridge_events: Vec::new(),
         }
     }
 

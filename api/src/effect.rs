@@ -7,6 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use crate::{
     engine::GameHandler,
     error::{Error, HandleError, Result},
+    event::BridgeEvent,
     random::RandomSpec,
     types::{DecisionId, RandomId, Settle, Transfer},
 };
@@ -164,6 +165,7 @@ pub struct Effect {
     pub allow_exit: bool,
     pub transfers: Vec<Transfer>,
     pub launch_sub_games: Vec<LaunchSubGame>,
+    pub bridge_events: Vec<Vec<u8>>,
 }
 
 impl Effect {
@@ -351,6 +353,12 @@ impl Effect {
     /// This is an internal function, DO NOT use in game handler.
     pub fn __take_error(&mut self) -> Option<HandleError> {
         self.error.take()
+    }
+
+    /// Emit a bridge event.
+    pub fn bridge_event<E: BridgeEvent>(&mut self, evt: E) -> Result<()> {
+        self.bridge_events.push(evt.try_to_vec()?);
+        Ok(())
     }
 }
 
