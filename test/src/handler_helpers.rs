@@ -34,7 +34,7 @@ impl<H: GameHandler> TestHandler<H> {
         general_init_state(&mut new_context, &init_account)?;
         let mut effect = new_context.derive_effect();
         let handler = H::init_state(&mut effect, init_account)?;
-        context.apply_effect(effect)?;
+        new_context.apply_effect(effect)?;
         swap(context, &mut new_context);
         Ok(Self { handler })
     }
