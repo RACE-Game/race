@@ -12,6 +12,7 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 ## Fixes
 - Transactor: Improve the retry mechanism for settle.
+- SDK: Load the legacy solana token list from arweave.
 
 # 0.2.6
 

@@ -76,7 +76,7 @@ export class SolanaTransport implements ITransport {
   }
 
   async _fetchLegacyTokens() {
-    const resp = await fetch('https://cdn.jsdelivr.net/gh/solflare-wallet/token-list/solana-tokenlist.json');
+    const resp = await fetch('https://arweave.net/60i6lMrqKZU8MtGM27WNrqr3s52ry2munrwMOK4jaO8');
     const m = await resp.json();
     this.#legacyTokens = m['tokens'];
   }
