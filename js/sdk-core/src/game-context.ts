@@ -13,7 +13,7 @@ import {
   Shutdown,
   WaitingTimeout,
 } from './events';
-import { Effect, LaunchSubGame, Settle, SettleAdd, SettleEject, SettleSub, Transfer } from './effect';
+import { Effect, EmitBridgeEvent, LaunchSubGame, Settle, SettleAdd, SettleEject, SettleSub, Transfer } from './effect';
 import { GameAccount, PlayerJoin, ServerJoin } from './accounts';
 import { Ciphertext, Digest, Id } from './types';
 
@@ -57,6 +57,7 @@ export class GameContext {
   checkpoint: Uint8Array | undefined;
   checkpointAccessVersion: bigint;
   launchSubGames: LaunchSubGame[];
+  bridgeEvents: EmitBridgeEvent[];
 
   constructor(context: GameContext);
   constructor(gameAccount: GameAccount);
@@ -80,6 +81,7 @@ export class GameContext {
       this.checkpoint = undefined;
       this.checkpointAccessVersion = context.checkpointAccessVersion;
       this.launchSubGames = context.launchSubGames;
+      this.bridgeEvents = context.bridgeEvents;
     } else {
       const gameAccount = gameAccountOrContext;
       const transactorAddr = gameAccount.transactorAddr;
@@ -113,6 +115,7 @@ export class GameContext {
       this.checkpoint = undefined;
       this.checkpointAccessVersion = gameAccount.checkpointAccessVersion;
       this.launchSubGames = [];
+      this.bridgeEvents = [];
     }
   }
 
@@ -386,6 +389,8 @@ export class GameContext {
     if (effect.handlerState !== undefined) {
       this.handlerState = effect.handlerState;
     }
+    this.launchSubGames = effect.launchSubGames;
+    this.bridgeEvents = effect.bridgeEvents;
   }
 
   setNodeReady(accessVersion: bigint) {

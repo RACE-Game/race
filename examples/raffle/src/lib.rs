@@ -16,8 +16,8 @@ struct Player {
     pub balance: u64,
 }
 
-impl From<PlayerJoin> for Player {
-    fn from(value: PlayerJoin) -> Self {
+impl From<GamePlayer> for Player {
+    fn from(value: GamePlayer) -> Self {
         Self {
             addr: value.addr,
             balance: value.balance,
@@ -63,7 +63,7 @@ impl GameHandler for Raffle {
         match event {
             Event::GameStart { .. } => {
                 // We need at least one player to start, otherwise we will skip this draw.
-                if effect.count_players() >= 1 {
+                if self.players.len() >= 1 {
                     let options = self.players.iter().map(|p| p.addr.to_owned()).collect();
                     let rnd_spec = RandomSpec::shuffled_list(options);
                     self.random_id = effect.init_random_state(rnd_spec);

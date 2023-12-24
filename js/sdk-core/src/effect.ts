@@ -138,6 +138,16 @@ export class LaunchSubGame {
   }
 }
 
+export class EmitBridgeEvent {
+  @field('usize')
+  dest!: number;
+  @field('u8-array')
+  raw!: Uint8Array;
+  constructor(fields: Fields<EmitBridgeEvent>) {
+    Object.assign(this, fields)
+  }
+}
+
 export class Effect {
   @field(option(struct(ActionTimeout)))
   actionTimeout: ActionTimeout | undefined;
@@ -210,6 +220,9 @@ export class Effect {
 
   @field(array(struct(LaunchSubGame)))
   launchSubGames!: LaunchSubGame[];
+
+  @field(array(struct(EmitBridgeEvent)))
+  bridgeEvents!: EmitBridgeEvent[];
 
   constructor(fields: Fields<Effect>) {
     Object.assign(this, fields);

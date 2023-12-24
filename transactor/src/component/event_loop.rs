@@ -112,6 +112,18 @@ async fn handle(
                 };
                 ports.send(ef).await;
             }
+
+            // Emit bridge events
+            for be in effects.bridge_events {
+                let ef = EventFrame::BridgeEvent {
+                    dest: be.dest,
+                    event: Event::Bridge {
+                        dest: be.dest,
+                        raw: be.raw,
+                    }
+                };
+                ports.send(ef).await;
+            }
         }
         Err(e) => {
             warn!(

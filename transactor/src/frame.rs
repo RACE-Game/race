@@ -77,14 +77,13 @@ pub enum EventFrame {
     },
     Shutdown,
     BridgeEvent {
-        from: Option<String>,
-        to: Option<String>,
+        dest: usize,
         event: Event,
     },
     LaunchSubGame {
         spec: SubGameSpec,
     },
-    // Validator-only event
+    // SubGame & Validator event
     UpdateNodes {
         nodes: Vec<NodeJoin>,
         transactor_addr: Option<String>,
@@ -133,11 +132,11 @@ impl std::fmt::Display for EventFrame {
             EventFrame::Vote { votee, vote_type } => {
                 write!(f, "Vote: to {} for {:?}", votee, vote_type)
             }
-            EventFrame::BridgeEvent { from, to, event } => {
+            EventFrame::BridgeEvent { dest, event } => {
                 write!(
                     f,
-                    "BridgeEvent: from {:?} to {:?}, event: {}",
-                    from, to, event
+                    "BridgeEvent: dest {}, event: {}",
+                    dest, event
                 )
             }
             EventFrame::LaunchSubGame { spec } => {

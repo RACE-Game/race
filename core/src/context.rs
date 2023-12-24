@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::types::{GameAccount, SubGameSpec};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::decision::DecisionState;
-use race_api::effect::{Ask, Assign, Effect, LaunchSubGame, Release, Reveal};
+use race_api::effect::{Ask, Assign, Effect, LaunchSubGame, Release, Reveal, EmitBridgeEvent};
 use race_api::engine::GameHandler;
 use race_api::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
@@ -103,6 +103,7 @@ pub struct EventEffects {
     pub transfers: Vec<Transfer>,
     pub checkpoint: Option<Vec<u8>>,
     pub launch_sub_games: Vec<LaunchSubGame>,
+    pub bridge_events: Vec<EmitBridgeEvent>,
 }
 
 /// The context for public data.
@@ -161,7 +162,7 @@ pub struct GameContext {
     /// The sub games to launch
     pub(crate) launch_sub_games: Vec<LaunchSubGame>,
     /// The bridge events to emit
-    pub(crate) bridge_events: Vec<Vec<u8>>,
+    pub(crate) bridge_events: Vec<EmitBridgeEvent>,
 }
 
 impl GameContext {
@@ -614,7 +615,7 @@ impl GameContext {
         self.bridge_events
             .iter()
             .cloned()
-            .map(|v| E::try_from_slice(&v).map_err(|_e| Error::DeserializeError))
+            .map(|e| E::try_from_slice(&e.raw).map_err(|_e| Error::DeserializeError))
             .collect()
     }
 
@@ -646,11 +647,14 @@ impl GameContext {
 
         let launch_sub_games = self.launch_sub_games.drain(..).collect();
 
+        let bridge_events = self.bridge_events.drain(..).collect();
+
         Ok(EventEffects {
             settles,
             transfers,
             checkpoint: self.get_checkpoint(),
             launch_sub_games,
+            bridge_events,
         })
     }
 
@@ -759,6 +763,7 @@ impl GameContext {
             handler_state,
             allow_exit,
             checkpoint,
+            launch_sub_games,
             bridge_events,
             ..
         } = effect;
@@ -814,6 +819,8 @@ impl GameContext {
         if let Some(state) = handler_state {
             self.handler_state = state;
         }
+
+        self.launch_sub_games = launch_sub_games;
 
         self.bridge_events = bridge_events;
 
