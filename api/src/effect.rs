@@ -48,11 +48,28 @@ pub struct LaunchSubGame {
     pub init_data: Vec<u8>,
 }
 
+impl LaunchSubGame {
+    pub fn try_new<S: BorshSerialize>(id: usize, bundle_addr: String, init_data: S) -> Result<Self> {
+        Ok(Self {
+            id, bundle_addr, init_data: init_data.try_to_vec()?
+        })
+    }
+}
+
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
 pub struct EmitBridgeEvent {
     pub dest: usize,
     pub raw: Vec<u8>,
 }
+
+impl EmitBridgeEvent {
+    pub fn try_new<E: BridgeEvent>(dest: usize, bridge_event: E) -> Result<Self> {
+        Ok(Self {
+            dest, raw: bridge_event.try_to_vec()?
+        })
+    }
+}
+
 
 /// An effect used in game handler provides reading and mutating to
 /// the game context.  An effect can be created from game context,
