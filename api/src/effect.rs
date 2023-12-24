@@ -293,16 +293,16 @@ impl Effect {
     }
 
     /// Launch sub game
-    pub fn launch_sub_game(
+    pub fn launch_sub_game<S: BorshSerialize>(
         &mut self,
         id: usize,
         bundle_addr: String,
-        init_data: Vec<u8>,
+        init_data: S,
     ) -> Result<()> {
         self.launch_sub_games.push(LaunchSubGame {
             id,
             bundle_addr,
-            init_data,
+            init_data: init_data.try_to_vec()?,
         });
         Ok(())
     }
