@@ -29,4 +29,4 @@ EOF
 
 echo "$JSON"
 echo "$JSON" > /tmp/race-mtt-facade.json
-just dev-facade /tmp/race-mtt-facade.json
+just dev-facade -g /tmp/race-mtt-facade.json -b ../race-holdem/target/race_holdem_mtt_table.wasm

@@ -5,17 +5,17 @@ layout {
     pane {
       name "Facade"
       focus true
-      cwd "./"
+      cwd "../"
       command "just"
-      args "dev-facade" "../durak/conf/heads_up.json" "../durak/conf/3players.json"
+      args "dev-facade" "-g" "../durak/conf/heads_up.json" "-g" "../durak/conf/3players.json"
       start_suspended true
     }
     pane split_direction="horizontal" {
         pane {
             name "Transactor"
             command "just"
-            cwd "./"
-            args "facade-transactor" "1"
+            cwd "../"
+            args "dev-transactor" "dev/server-confs/server1.toml"
             start_suspended true
         }
         pane

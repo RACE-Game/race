@@ -1,0 +1,14 @@
+holdem-simple:
+    zellij --layout layouts/holdem-simple.kdl
+
+holdem-multi:
+    zellij --layout layouts/holdem-multi.kdl
+
+durak-simple:
+    zellij --layout layouts/durak-simple.kdl
+
+demo-app:
+    zellij --layout layouts/demo-app.kdl
+
+mtt-simple:
+    zellij --layout layouts/mtt-simple.kdl

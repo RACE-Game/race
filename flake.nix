@@ -36,12 +36,13 @@
             cargo
             openssl
             pkg-config
-            rust-analyzer
-            simple-http-server
             nodejs_18
             just
             binaryen
+            # For development
+            rust-analyzer
             nodePackages.typescript-language-server
+            zellij
           ];
           RUST_LOG = "info,wasmer_compiler_cranelift=info,solana_rpc_client=debug,solana_client=debug,jsonrpsee_server=info";
           RUST_BACKTRACE = 1;

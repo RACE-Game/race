@@ -1,0 +1,13 @@
+{
+  "title": "Cash Table",
+  "bundle": "../race-holdem/target/race_holdem_cash.wasm",
+  "token": "FACADE_USDC",
+  "maxPlayers": 6,
+  "entryType": {
+    "cash": {
+      "minDeposit": 1000000,
+      "maxDeposit": 3000000
+    }
+  },
+  "data": [16,39,0,0,0,0,0,0,32,78,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0]
+}
