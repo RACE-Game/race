@@ -20,9 +20,9 @@ fn test() -> anyhow::Result<()> {
         max_bet: 1000,
     };
     println!("Create game account");
-    let game_account = TestGameAccountBuilder::default()
-        .set_transactor(&transactor)
-        .add_player(&alice, 10000)
+    let mut game_account = TestGameAccountBuilder::default()
+        .set_transactor(&mut transactor)
+        .add_player(&mut alice, 10000)
         .with_data(account_data)
         .build();
     let transactor_addr = game_account.transactor_addr.as_ref().unwrap().clone();
@@ -48,18 +48,8 @@ fn test() -> anyhow::Result<()> {
     // Another player joined the game.
     // Now we have enough players, an event of `GameStart` should be dispatched.
     println!("Player Bob join the game");
-    let av = ctx.get_access_version() + 1;
     let sync_event = Event::Sync {
-        new_players: vec![PlayerJoin {
-            addr: "Bob".into(),
-            balance: 10000,
-            position: 1,
-            access_version: av,
-            verify_key: "".into(),
-        }],
-        new_servers: vec![],
-        transactor_addr: transactor.get_addr(),
-        access_version: av,
+        new_players: vec![bob.join(&mut ctx, &mut game_account, 10000)?]
     };
 
     handler.handle_event(&mut ctx, &sync_event)?;
@@ -88,12 +78,12 @@ fn test() -> anyhow::Result<()> {
         assert_eq!(
             vec![
                 Player {
-                    addr: "Bob".into(),
+                    id: bob.id(),
                     balance: 10000,
                     bet: 0
                 },
                 Player {
-                    addr: "Alice".into(),
+                    id: alice.id(),
                     balance: 10000,
                     bet: 0
                 },
@@ -172,7 +162,7 @@ fn test() -> anyhow::Result<()> {
     {
         let event = &events[0];
         assert!(
-            matches!(event, Event::ShareSecrets { sender, shares } if sender.eq(&transactor_addr) && shares.len() == 2)
+            matches!(event, Event::ShareSecrets { sender, shares } if *sender == transactor.id() && shares.len() == 2)
         );
     }
 
@@ -253,7 +243,7 @@ fn test() -> anyhow::Result<()> {
                 .len()
         );
         assert!(
-            matches!(event, Event::ShareSecrets { sender, shares } if sender.eq(&transactor_addr) && shares.len() == 2)
+            matches!(event, Event::ShareSecrets { sender, shares } if *sender == transactor.id() && shares.len() == 2)
         );
     }
 

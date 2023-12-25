@@ -27,7 +27,7 @@ pub enum Event {
     /// parts is the serialized data from a custom game event which
     /// satisfies [`CustomEvent`].
     Custom {
-        sender: String,
+        sender: u64,
         raw: Vec<u8>,
     },
 
@@ -38,18 +38,18 @@ pub enum Event {
     /// Transactor shares its secert to specific player.
     /// The `secret_data` is encrypted with the receiver's public key.
     ShareSecrets {
-        sender: String,
+        sender: u64,
         shares: Vec<SecretShare>,
     },
 
     OperationTimeout {
-        addrs: Vec<String>,
+        ids: Vec<u64>,
     },
 
     /// Randomize items.
     /// This event is sent by transactors.
     Mask {
-        sender: String,
+        sender: u64,
         random_id: RandomId,
         ciphertexts: Vec<Ciphertext>,
     },
@@ -57,7 +57,7 @@ pub enum Event {
     /// Lock items.
     /// This event is sent by transactors.
     Lock {
-        sender: String,
+        sender: u64,
         random_id: RandomId,
         ciphertexts_and_digests: Vec<(Ciphertext, SecretDigest)>,
     },
@@ -80,14 +80,13 @@ pub enum Event {
     ///
     /// NOTE: This event must be handled idempotently.
     ServerLeave {
-        server_addr: String,
-        transactor_addr: String,
+        server_id: u64,
     },
 
     /// Client left game
     /// This event is sent by transactor based on client's connection status.
     Leave {
-        player_addr: String,
+        player_id: u64,
     },
 
     /// Transactor uses this event as the start for each game.
@@ -101,7 +100,7 @@ pub enum Event {
 
     /// Random drawer takes random items by indexes.
     DrawRandomItems {
-        sender: String,
+        sender: u64,
         random_id: usize,
         indexes: Vec<usize>,
     },
@@ -112,12 +111,12 @@ pub enum Event {
     /// Timeout when waiting for player's action
     /// Sent by transactor.
     ActionTimeout {
-        player_addr: String,
+        player_id: u64,
     },
 
     /// Answer the decision question with encrypted ciphertext
     AnswerDecision {
-        sender: String,
+        sender: u64,
         decision_id: DecisionId,
         ciphertext: Ciphertext,
         digest: SecretDigest,
@@ -164,13 +163,13 @@ impl std::fmt::Display for Event {
             Event::Sync { new_players } => {
                 let players = new_players
                     .iter()
-                    .map(|p| p.addr.as_str())
-                    .collect::<Vec<&str>>()
+                    .map(|p| p.id.to_string())
+                    .collect::<Vec<String>>()
                     .join(",");
 
                 write!(f, "Sync, new_players: [{}]", players)
             }
-            Event::Leave { player_addr } => write!(f, "Leave from {}", player_addr),
+            Event::Leave { player_id } => write!(f, "Leave from {}", player_id),
             Event::GameStart { access_version } => {
                 write!(f, "GameStart, access_version = {}", access_version)
             }
@@ -185,23 +184,22 @@ impl std::fmt::Display for Event {
                 sender, random_id, indexes
             ),
             Event::DrawTimeout => write!(f, "DrawTimeout"),
-            Event::ActionTimeout { player_addr } => write!(f, "ActionTimeout for {}", player_addr),
+            Event::ActionTimeout { player_id } => write!(f, "ActionTimeout for {}", player_id),
             Event::SecretsReady { random_ids } => {
                 write!(f, "SecretsReady for {:?}", random_ids)
             }
             Event::ServerLeave {
-                server_addr,
-                transactor_addr,
+                server_id,
             } => write!(
                 f,
-                "ServerLeave {}, current transactor: {}",
-                server_addr, transactor_addr
+                "ServerLeave {}",
+                server_id
             ),
             Event::AnswerDecision { decision_id, .. } => {
                 write!(f, "AnswerDecision for {}", decision_id)
             }
-            Event::OperationTimeout { addrs } => {
-                write!(f, "OperationTimeout for {:?}", addrs)
+            Event::OperationTimeout { ids } => {
+                write!(f, "OperationTimeout for {:?}", ids)
             }
             Event::Shutdown => {
                 write!(f, "Shutdown")
@@ -211,9 +209,9 @@ impl std::fmt::Display for Event {
 }
 
 impl Event {
-    pub fn custom<S: Into<String>, E: CustomEvent>(sender: S, e: &E) -> Self {
+    pub fn custom<E: CustomEvent>(sender: u64, e: &E) -> Self {
         Self::Custom {
-            sender: sender.into(),
+            sender,
             raw: e.try_to_vec().unwrap(),
         }
     }

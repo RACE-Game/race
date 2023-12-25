@@ -14,13 +14,13 @@ use crate::{
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Ask {
-    pub player_addr: String,
+    pub player_id: u64,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Assign {
     pub random_id: RandomId,
-    pub player_addr: String,
+    pub player_id: u64,
     pub indexes: Vec<usize>,
 }
 
@@ -37,7 +37,7 @@ pub struct Release {
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct ActionTimeout {
-    pub player_addr: String,
+    pub player_id: u64,
     pub timeout: u64,
 }
 
@@ -49,9 +49,15 @@ pub struct LaunchSubGame {
 }
 
 impl LaunchSubGame {
-    pub fn try_new<S: BorshSerialize>(id: usize, bundle_addr: String, init_data: S) -> Result<Self> {
+    pub fn try_new<S: BorshSerialize>(
+        id: usize,
+        bundle_addr: String,
+        init_data: S,
+    ) -> Result<Self> {
         Ok(Self {
-            id, bundle_addr, init_data: init_data.try_to_vec()?
+            id,
+            bundle_addr,
+            init_data: init_data.try_to_vec()?,
         })
     }
 }
@@ -65,11 +71,11 @@ pub struct EmitBridgeEvent {
 impl EmitBridgeEvent {
     pub fn try_new<E: BridgeEvent>(dest: usize, bridge_event: E) -> Result<Self> {
         Ok(Self {
-            dest, raw: bridge_event.try_to_vec()?
+            dest,
+            raw: bridge_event.try_to_vec()?,
         })
     }
 }
-
 
 /// An effect used in game handler provides reading and mutating to
 /// the game context.  An effect can be created from game context,
@@ -206,15 +212,10 @@ impl Effect {
     }
 
     /// Assign some random items to a specific player.
-    pub fn assign<S: Into<String>>(
-        &mut self,
-        random_id: RandomId,
-        player_addr: S,
-        indexes: Vec<usize>,
-    ) {
+    pub fn assign(&mut self, random_id: RandomId, player_id: u64, indexes: Vec<usize>) {
         self.assigns.push(Assign {
             random_id,
-            player_addr: player_addr.into(),
+            player_id,
             indexes,
         })
     }
@@ -246,10 +247,8 @@ impl Effect {
     }
 
     /// Ask a player for a decision, return the new decision id.
-    pub fn ask<S: Into<String>>(&mut self, player_addr: S) -> DecisionId {
-        self.asks.push(Ask {
-            player_addr: player_addr.into(),
-        });
+    pub fn ask(&mut self, player_id: u64) -> DecisionId {
+        self.asks.push(Ask { player_id });
         let decision_id = self.curr_decision_id;
         self.curr_decision_id += 1;
         decision_id
@@ -260,11 +259,8 @@ impl Effect {
     }
 
     /// Dispatch action timeout event for a player after certain milliseconds.
-    pub fn action_timeout<S: Into<String>>(&mut self, player_addr: S, timeout: u64) {
-        self.action_timeout = Some(ActionTimeout {
-            player_addr: player_addr.into(),
-            timeout,
-        });
+    pub fn action_timeout(&mut self, player_id: u64, timeout: u64) {
+        self.action_timeout = Some(ActionTimeout { player_id, timeout });
     }
 
     /// Return current timestamp.
@@ -379,9 +375,10 @@ impl Effect {
     }
 
     /// Emit a bridge event.
-    pub fn bridge_event<E: BridgeEvent>(&mut self, dest: usize ,evt: E) -> Result<()> {
+    pub fn bridge_event<E: BridgeEvent>(&mut self, dest: usize, evt: E) -> Result<()> {
         self.bridge_events.push(EmitBridgeEvent {
-            dest, raw: evt.try_to_vec()?
+            dest,
+            raw: evt.try_to_vec()?,
         });
         Ok(())
     }
@@ -391,24 +388,6 @@ impl Effect {
 mod tests {
 
     use super::*;
-
-    #[test]
-    fn abc() {
-        let data = vec![
-            0, 0, 0, 0, 0, 195, 133, 107, 4, 139, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
-            0, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 103, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 39, 0,
-            0, 0, 0, 0, 0, 32, 78, 0, 0, 0, 0, 0, 0, 32, 78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 6, 1, 0, 43, 0, 0, 0, 70, 97, 105, 108, 101, 100, 32, 116, 111, 32, 102,
-            105, 110, 100, 32, 97, 32, 112, 108, 97, 121, 101, 114, 32, 102, 111, 114, 32, 116,
-            104, 101, 32, 110, 101, 120, 116, 32, 98, 117, 116, 116, 111, 110, 1, 0, 0, 0, 0, 0, 0,
-            0, 0,
-        ];
-        let effect = Effect::try_from_slice(&data);
-        println!("{:?}", effect);
-    }
 
     #[test]
     fn test_serialization() -> anyhow::Result<()> {
@@ -424,7 +403,7 @@ mod tests {
 
         let effect = Effect {
             action_timeout: Some(ActionTimeout {
-                player_addr: "alice".into(),
+                player_id: 0,
                 timeout: 100,
             }),
             wait_timeout: Some(200),
@@ -436,10 +415,10 @@ mod tests {
             curr_decision_id: 1,
             nodes_count: 4,
             asks: vec![Ask {
-                player_addr: "bob".into(),
+                player_id: 1,
             }],
             assigns: vec![Assign {
-                player_addr: "bob".into(),
+                player_id: 1,
                 random_id: 5,
                 indexes: vec![0, 1, 2],
             }],
@@ -451,7 +430,7 @@ mod tests {
             init_random_states: vec![RandomSpec::shuffled_list(vec!["a".into(), "b".into()])],
             revealed,
             answered,
-            settles: vec![Settle::add("alice", 200), Settle::sub("bob", 200)],
+            settles: vec![Settle::add(0, 200), Settle::sub(1, 200)],
             handler_state: Some(vec![1, 2, 3, 4]),
             error: Some(HandleError::NoEnoughPlayers),
             allow_exit: true,
@@ -459,6 +438,7 @@ mod tests {
             is_checkpoint: false,
             checkpoint: None,
             launch_sub_games: vec![],
+            bridge_events: vec![],
         };
         let bs = effect.try_to_vec()?;
 

@@ -1,9 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use race_api::types::{GamePlayer, PlayerJoin};
 use race_client::Client;
-use race_api::error::Result;
+use race_api::error::{Result, Error};
 use race_api::event::{CustomEvent, Event};
+use race_core::types::GameAccount;
 use race_core::{
     connection::ConnectionT,
     context::GameContext,
@@ -16,6 +18,7 @@ use tokio::sync::{mpsc, Mutex};
 use crate::{transport_helpers::DummyTransport, account_helpers::test_game_addr};
 
 pub struct TestClient {
+    id: Option<u64>,
     client: Client,
 }
 
@@ -69,6 +72,7 @@ impl TestClient {
         let encryptor = Arc::new(Encryptor::default());
         let connection = Arc::new(DummyConnection::default());
         Self {
+            id: None,
             client: Client::new(
                 addr,
                 test_game_addr(),
@@ -84,6 +88,45 @@ impl TestClient {
         Self::new(addr, ClientMode::Player)
     }
 
+    pub fn set_id(&mut self, id: u64) {
+        self.id = Some(id)
+    }
+
+    pub fn join(&mut self, game_context: &mut GameContext, game_account: &mut GameAccount, balance: u64) -> Result<GamePlayer> {
+        if self.client.mode != ClientMode::Player {
+            panic!("TestClient can only join with Player mode");
+        }
+
+        if game_account.players.len() >= game_account.max_players as _ {
+            return Err(Error::GameIsFull(game_account.max_players as _))
+        }
+
+        game_account.access_version += 1;
+        let id = game_account.access_version;
+
+        let mut position = 0;
+        for i in 0..game_account.max_players {
+            if game_account.players.iter().find(|p| p.position == i).is_none() {
+                position = i;
+                break;
+            }
+        }
+
+        game_account.players.push(PlayerJoin {
+            addr: self.client.addr.clone(),
+            position,
+            balance,
+            access_version: id,
+            verify_key: "".into(),
+        });
+        self.set_id(id);
+        game_context.push_id_addr_pair(id, self.client.addr.clone());
+
+        Ok(GamePlayer {
+            id, position, balance
+        })
+    }
+
     pub fn transactor<S: Into<String>>(addr: S) -> Self {
         Self::new(addr, ClientMode::Transactor)
     }
@@ -96,11 +139,11 @@ impl TestClient {
         self.client.handle_updated_context(ctx)
     }
 
-    pub fn get_mode(&self) -> ClientMode {
+    pub fn mode(&self) -> ClientMode {
         self.client.mode.clone()
     }
 
-    pub fn get_addr(&self) -> String {
+    pub fn addr(&self) -> String {
         self.client.addr.clone()
     }
 
@@ -116,9 +159,13 @@ impl TestClient {
         &self.client.secret_state
     }
 
+    pub fn id(&self) -> u64 {
+        self.id.expect(&format!("Client {} is not in game", self.client.addr))
+    }
+
     pub fn custom_event<E: CustomEvent>(&self, custom_event: E) -> Event {
         Event::Custom {
-            sender: self.client.addr.to_owned(),
+            sender: self.id(),
             raw: custom_event.try_to_vec().unwrap(),
         }
     }

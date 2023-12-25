@@ -39,7 +39,7 @@ impl InitAccount {
     /// Add a new player.  This function is only available in tests.
     /// This function will panic when a duplicated position is
     /// specified.
-    pub fn add_player<S: Into<String>>(&mut self, addr: S, position: usize, balance: u64) {
+    pub fn add_player(&mut self, id: u64, position: usize, balance: u64) {
         self.access_version += 1;
         if self.players.iter().any(|p| p.position as usize == position) {
             panic!("Failed to add player, duplicated position");
@@ -47,7 +47,7 @@ impl InitAccount {
         self.players.push(GamePlayer {
             position: position as _,
             balance,
-            addr: addr.into(),
+            id,
         })
     }
 }

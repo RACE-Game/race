@@ -191,19 +191,19 @@ mod tests {
     #[tokio::test]
     async fn test_sync_state() {
         let transport = Arc::new(DummyTransport::default());
-        let alice = TestClient::player("alice");
-        let bob = TestClient::player("bob");
-        let foo = TestClient::transactor("foo");
-        let bar = TestClient::validator("bar");
+        let mut alice = TestClient::player("alice");
+        let mut bob = TestClient::player("bob");
+        let mut foo = TestClient::transactor("foo");
+        let mut bar = TestClient::validator("bar");
         let ga_0 = TestGameAccountBuilder::default()
-            .add_player(&alice, 100)
-            .set_transactor(&foo)
+            .add_player(&mut alice, 100)
+            .set_transactor(&mut foo)
             .build();
         let ga_1 = TestGameAccountBuilder::default()
-            .add_player(&alice, 100)
-            .set_transactor(&foo)
-            .add_player(&bob, 100)
-            .add_validator(&bar)
+            .add_player(&mut alice, 100)
+            .set_transactor(&mut foo)
+            .add_player(&mut bob, 100)
+            .add_validator(&mut bar)
             .build();
 
         println!("ga_0: {:?}", ga_0);

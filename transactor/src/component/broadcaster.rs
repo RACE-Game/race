@@ -236,12 +236,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_broadcast_event() {
-        let alice = TestClient::player("alice");
-        let bob = TestClient::player("bob");
+        let mut alice = TestClient::player("alice");
+        let mut bob = TestClient::player("bob");
         let game_account = TestGameAccountBuilder::default()
-            .add_player(&alice, 100)
-            .add_player(&bob, 100)
+            .add_player(&mut alice, 100)
+            .add_player(&mut bob, 100)
             .build();
+
+
         let (broadcaster, ctx) = Broadcaster::init(game_account.addr.clone());
         let handle = broadcaster.start(ctx);
         let mut rx = broadcaster.get_broadcast_rx();
@@ -253,7 +255,7 @@ mod tests {
                 settle_version: 10,
                 timestamp: 0,
                 event: Event::Custom {
-                    sender: "Alice".into(),
+                    sender: alice.id(),
                     raw: "CUSTOM EVENT".into(),
                 },
             };
@@ -262,7 +264,7 @@ mod tests {
                 game_addr: game_account.addr,
                 timestamp: 0,
                 event: Event::Custom {
-                    sender: "Alice".into(),
+                    sender: alice.id(),
                     raw: "CUSTOM EVENT".into(),
                 },
             };

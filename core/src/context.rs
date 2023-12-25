@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::types::{GameAccount, SubGameSpec};
+use crate::types::{GameAccount, IdAddrPair, SubGameSpec, SettleWithAddr};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::decision::DecisionState;
-use race_api::effect::{Ask, Assign, Effect, LaunchSubGame, Release, Reveal, EmitBridgeEvent};
+use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, LaunchSubGame, Release, Reveal};
 use race_api::engine::GameHandler;
 use race_api::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
@@ -99,7 +99,7 @@ impl DispatchEvent {
 /// `launch_sub_games` is not empty, sub games should be launched.
 #[derive(Debug)]
 pub struct EventEffects {
-    pub settles: Vec<Settle>,
+    pub settles: Vec<SettleWithAddr>,
     pub transfers: Vec<Transfer>,
     pub checkpoint: Option<Vec<u8>>,
     pub launch_sub_games: Vec<LaunchSubGame>,
@@ -163,6 +163,8 @@ pub struct GameContext {
     pub(crate) launch_sub_games: Vec<LaunchSubGame>,
     /// The bridge events to emit
     pub(crate) bridge_events: Vec<EmitBridgeEvent>,
+    /// The mapping from addr to id
+    pub(crate) id_addr_pairs: Vec<IdAddrPair>,
 }
 
 impl GameContext {
@@ -182,6 +184,8 @@ impl GameContext {
     }
 
     pub fn try_new(game_account: &GameAccount) -> Result<Self> {
+        let mut id_addr_pairs = Vec::with_capacity(30);
+
         let transactor_addr = game_account
             .transactor_addr
             .as_ref()
@@ -192,6 +196,17 @@ impl GameContext {
             .iter()
             .map(|s| Node::new_pending(s.addr.clone(), s.access_version))
             .collect();
+
+        for p in game_account.players.iter() {
+            id_addr_pairs.push(IdAddrPair {
+                id: p.access_version, addr: p.addr.clone()
+            });
+        }
+        for s in game_account.servers.iter() {
+            id_addr_pairs.push(IdAddrPair {
+                id: s.access_version, addr: s.addr.clone()
+            });
+        }
 
         Ok(Self {
             game_addr: game_account.addr.clone(),
@@ -211,7 +226,33 @@ impl GameContext {
             checkpoint: None,
             launch_sub_games: vec![],
             bridge_events: vec![],
+            id_addr_pairs,
         })
+    }
+
+    pub fn id_to_addr(&self, id: u64) -> Result<String> {
+        self.id_addr_pairs
+            .iter()
+            .find(|x| x.id == id)
+            .ok_or(Error::CantMapIdToAddr)
+            .map(|x| x.addr.clone())
+    }
+
+    pub fn addr_to_id(&self, addr: &str) -> Result<u64> {
+        self.id_addr_pairs
+            .iter()
+            .find(|x| x.addr.eq(addr))
+            .ok_or(Error::CantMapAddrToId)
+            .map(|x| x.id)
+    }
+
+    pub fn push_id_addr_pair(&mut self, id: u64, addr: String) {
+        self.id_addr_pairs.push(IdAddrPair {
+            id, addr
+        });
+        if self.id_addr_pairs.len() > 1000 {
+            self.id_addr_pairs.remove(0);
+        }
     }
 
     pub fn set_timestamp(&mut self, timestamp: u64) {
@@ -293,9 +334,9 @@ impl GameContext {
         ));
     }
 
-    pub fn action_timeout(&mut self, player_addr: String, timeout: u64) {
+    pub fn action_timeout(&mut self, player_id: u64, timeout: u64) {
         self.dispatch = Some(DispatchEvent::new(
-            Event::ActionTimeout { player_addr },
+            Event::ActionTimeout { player_id },
             self.timestamp + timeout,
         ));
     }
@@ -313,8 +354,10 @@ impl GameContext {
     where
         E: CustomEvent,
     {
-        let event = Event::custom(self.transactor_addr.to_owned(), e);
-        self.dispatch_event(event, timeout);
+        if let Ok(addr) = self.addr_to_id(&self.transactor_addr) {
+            let event = Event::custom(addr, e);
+            self.dispatch_event(event, timeout);
+        }
     }
 
     pub fn get_timestamp(&self) -> u64 {
@@ -400,14 +443,14 @@ impl GameContext {
     }
 
     /// Assign random item to a player
-    pub fn assign<S: Into<String>>(
+    pub fn assign(
         &mut self,
         random_id: RandomId,
-        player_addr: S,
+        player_addr: String,
         indexes: Vec<usize>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
-        rnd_st.assign(player_addr.into(), indexes)?;
+        rnd_st.assign(player_addr, indexes)?;
         Ok(())
     }
 
@@ -515,7 +558,7 @@ impl GameContext {
         Ok(random_id)
     }
 
-    pub fn add_shared_secrets(&mut self, _addr: &str, shares: Vec<SecretShare>) -> Result<()> {
+    pub fn add_shared_secrets(&mut self, _addr: String, shares: Vec<SecretShare>) -> Result<()> {
         for share in shares.into_iter() {
             match share {
                 SecretShare::Random {
@@ -566,33 +609,37 @@ impl GameContext {
     pub fn dispatch_randomization_timeout(&mut self, random_id: RandomId) -> Result<()> {
         let no_dispatch = self.dispatch.is_none();
         let rnd_st = self.get_random_state_mut(random_id)?;
-        match &rnd_st.status {
+        match rnd_st.status.clone() {
             RandomStatus::Shared => {}
             RandomStatus::Ready => {
                 self.dispatch_event_instantly(Event::RandomnessReady { random_id });
             }
             RandomStatus::Locking(ref addr) => {
-                let addr = addr.to_owned();
+                let id = self.addr_to_id(addr)?;
                 if no_dispatch {
                     self.dispatch_event(
-                        Event::OperationTimeout { addrs: vec![addr] },
+                        Event::OperationTimeout { ids: vec![id] },
                         OPERATION_TIMEOUT,
                     );
                 }
             }
             RandomStatus::Masking(ref addr) => {
-                let addr = addr.to_owned();
+                let id = self.addr_to_id(addr)?;
                 if no_dispatch {
                     self.dispatch_event(
-                        Event::OperationTimeout { addrs: vec![addr] },
+                        Event::OperationTimeout { ids: vec![id] },
                         OPERATION_TIMEOUT,
                     );
                 }
             }
             RandomStatus::WaitingSecrets => {
                 if no_dispatch {
-                    let addrs = rnd_st.list_operating_addrs();
-                    self.dispatch_event(Event::OperationTimeout { addrs }, OPERATION_TIMEOUT);
+                    let ids = rnd_st
+                        .list_operating_addrs()
+                        .into_iter()
+                        .map(|addr| self.addr_to_id(&addr))
+                        .collect::<Result<Vec<u64>>>()?;
+                    self.dispatch_event(Event::OperationTimeout { ids }, OPERATION_TIMEOUT);
                 }
             }
         }
@@ -628,8 +675,13 @@ impl GameContext {
         let mut transfers = vec![];
 
         if self.checkpoint.is_some() {
-            if let Some(mut s) = self.settles.take() {
-                settles.append(&mut s);
+            if let Some(ss) = self.settles.take() {
+                for s in ss {
+                    let addr = self.id_to_addr(s.id)?;
+                    settles.push(SettleWithAddr {
+                        addr, op: s.op
+                    });
+                }
             }
 
             settles.sort_by_key(|s| match s.op {
@@ -774,7 +826,7 @@ impl GameContext {
         } else if stop_game {
             self.shutdown_game();
         } else if let Some(t) = action_timeout {
-            self.action_timeout(t.player_addr, t.timeout);
+            self.action_timeout(t.player_id, t.timeout);
         } else if let Some(t) = wait_timeout {
             self.wait_timeout(t);
         } else if cancel_dispatch {
@@ -786,10 +838,11 @@ impl GameContext {
         for Assign {
             random_id,
             indexes,
-            player_addr,
+            player_id,
         } in assigns.into_iter()
         {
-            self.assign(random_id, player_addr, indexes)?;
+            let addr = self.id_to_addr(player_id)?;
+            self.assign(random_id, addr, indexes)?;
         }
 
         for Reveal { random_id, indexes } in reveals.into_iter() {
@@ -800,8 +853,9 @@ impl GameContext {
             self.release(decision_id)?;
         }
 
-        for Ask { player_addr } in asks.into_iter() {
-            self.ask(player_addr);
+        for Ask { player_id } in asks.into_iter() {
+            let addr = self.id_to_addr(player_id)?;
+            self.ask(addr);
         }
 
         for spec in init_random_states.into_iter() {
@@ -873,6 +927,7 @@ impl Default for GameContext {
             checkpoint: None,
             launch_sub_games: Vec::new(),
             bridge_events: Vec::new(),
+            id_addr_pairs: Vec::new(),
         }
     }
 }

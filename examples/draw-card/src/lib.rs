@@ -44,7 +44,7 @@ pub enum GameStage {
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Player {
-    pub addr: String,
+    pub id: u64,
     pub balance: u64,
     pub bet: u64,
 }
@@ -75,12 +75,12 @@ impl DrawCard {
         let player_1 = &mut player_1[0];
 
         if winner_index == 0 {
-            effect.settle(Settle::add(&player_0.addr, self.pot - player_0.bet));
-            effect.settle(Settle::sub(&player_1.addr, player_1.bet));
+            effect.settle(Settle::add(player_0.id, self.pot - player_0.bet));
+            effect.settle(Settle::sub(player_1.id, player_1.bet));
             player_0.balance += self.pot;
         } else {
-            effect.settle(Settle::add(&player_1.addr, self.pot - player_1.bet));
-            effect.settle(Settle::sub(&player_0.addr, player_0.bet));
+            effect.settle(Settle::add(player_1.id, self.pot - player_1.bet));
+            effect.settle(Settle::sub(player_0.id, player_0.bet));
             player_1.balance += self.pot;
         }
 
@@ -92,7 +92,7 @@ impl DrawCard {
     fn custom_handle_event(
         &mut self,
         effect: &mut Effect,
-        sender: String,
+        sender: u64,
         event: GameEvent,
     ) -> Result<(), HandleError> {
         match event {
@@ -102,7 +102,7 @@ impl DrawCard {
                         .players
                         .get_mut(0)
                         .ok_or(HandleError::Custom("Player not found".into()))?;
-                    if sender.ne(&player.addr) {
+                    if sender != player.id {
                         return Err(HandleError::InvalidPlayer);
                     }
                     if amount < self.min_bet || amount > self.max_bet || amount > player.balance {
@@ -113,7 +113,7 @@ impl DrawCard {
                     self.bet = amount;
                     self.pot += amount;
                     self.stage = GameStage::Reacting;
-                    effect.action_timeout(player.addr.clone(), ACTION_TIMEOUT);
+                    effect.action_timeout(player.id.clone(), ACTION_TIMEOUT);
                 } else {
                     return Err(HandleError::Custom("Can't bet".into()));
                 }
@@ -124,7 +124,7 @@ impl DrawCard {
                         .players
                         .get_mut(1)
                         .ok_or(HandleError::Custom("Player not found".into()))?;
-                    if sender.ne(&player.addr) {
+                    if sender.ne(&player.id) {
                         return Err(HandleError::InvalidPlayer);
                     }
                     if self.bet > player.balance {
@@ -184,7 +184,7 @@ impl GameHandler for DrawCard {
             .players
             .into_iter()
             .map(|p| Player {
-                addr: p.addr,
+                id: p.id,
                 balance: p.balance,
                 bet: 0,
             })
@@ -243,15 +243,15 @@ impl GameHandler for DrawCard {
             }
 
             Event::RandomnessReady { .. } => {
-                effect.assign(self.random_id, &self.players[0].addr, vec![0]);
-                effect.assign(self.random_id, &self.players[1].addr, vec![1]);
+                effect.assign(self.random_id, self.players[0].id, vec![0]);
+                effect.assign(self.random_id, self.players[1].id, vec![1]);
             }
 
             // Start game when there are two players.
             Event::Sync { new_players, .. } => {
                 for p in new_players.into_iter() {
                     self.players.push(Player {
-                        addr: p.addr,
+                        id: p.id,
                         balance: p.balance,
                         bet: 0,
                     });
@@ -268,7 +268,7 @@ impl GameHandler for DrawCard {
                         // Now it's the first player's turn to act.
                         // So we dispatch an action timeout event.
                         self.stage = GameStage::Betting;
-                        effect.action_timeout(self.players[0].addr.clone(), ACTION_TIMEOUT);
+                        effect.action_timeout(self.players[0].id.clone(), ACTION_TIMEOUT);
                         effect.allow_exit(true);
                     }
                     GameStage::Revealing => {
@@ -291,11 +291,11 @@ impl GameHandler for DrawCard {
                 }
             }
 
-            Event::Leave { player_addr } => {
-                if let Some(player_idx) = self.players.iter().position(|p| p.addr.eq(&player_addr))
+            Event::Leave { player_id } => {
+                if let Some(player_idx) = self.players.iter().position(|p| p.id.eq(&player_id))
                 {
                     self.set_winner(effect, if player_idx == 0 { 1 } else { 0 })?;
-                    effect.settle(Settle::eject(player_addr));
+                    effect.settle(Settle::eject(player_id));
                     effect.checkpoint();
                 } else {
                     return Err(HandleError::InvalidPlayer);

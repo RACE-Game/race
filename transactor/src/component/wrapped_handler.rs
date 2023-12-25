@@ -244,13 +244,14 @@ mod tests {
         }
     }
 
-    fn make_game_account() -> GameAccount {
+    fn setup_game() -> (GameAccount, TestClient) {
         let data = MinimalAccountData { init_n: 42 };
-        let transactor = TestClient::transactor("transactor");
-        TestGameAccountBuilder::default()
-            .set_transactor(&transactor)
+        let mut transactor = TestClient::transactor("transactor");
+        let acc = TestGameAccountBuilder::default()
+            .set_transactor(&mut transactor)
             .with_data(data)
-            .build()
+            .build();
+        (acc, transactor)
     }
 
     fn make_wrapped_handler() -> WrappedHandler {
@@ -262,7 +263,7 @@ mod tests {
     #[test]
     fn test_init_state() {
         let mut hdlr = make_wrapped_handler();
-        let game_account = make_game_account();
+        let (game_account, _tx) = setup_game();
         let init_account = game_account.derive_init_account();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
@@ -275,7 +276,7 @@ mod tests {
     #[test]
     fn test_handle_event() {
         let mut hdlr = make_wrapped_handler();
-        let game_account = make_game_account();
+        let (game_account, _tx) = setup_game();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         let event = Event::GameStart {
             access_version: game_account.access_version,
@@ -294,9 +295,9 @@ mod tests {
     #[test]
     fn test_handle_custom_event() {
         let mut hdlr = make_wrapped_handler();
-        let game_account = make_game_account();
+        let (game_account, _tx) = setup_game();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
-        let event = Event::custom("Alice", &MinimalEvent::Increment(1));
+        let event = Event::custom(0, &MinimalEvent::Increment(1));
         let init_account = game_account.derive_init_account();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);

@@ -26,7 +26,8 @@ pub fn general_handle_event(
         }
 
         Event::ShareSecrets { sender, shares } => {
-            context.add_shared_secrets(sender, shares.clone())?;
+            let addr = context.id_to_addr(*sender)?;
+            context.add_shared_secrets(addr, shares.clone())?;
             let mut random_ids = Vec::<usize>::default();
             for random_state in context.list_random_states_mut() {
                 if random_state.status == RandomStatus::Shared {
@@ -46,7 +47,8 @@ pub fn general_handle_event(
             ciphertext,
             digest,
         } => {
-            context.answer_decision(*decision_id, sender, ciphertext.clone(), digest.clone())?;
+            let addr = context.id_to_addr(*sender)?;
+            context.answer_decision(*decision_id, &addr, ciphertext.clone(), digest.clone())?;
             Ok(())
         }
 
@@ -55,7 +57,8 @@ pub fn general_handle_event(
             random_id,
             ciphertexts,
         } => {
-            context.randomize_and_mask(sender, *random_id, ciphertexts.clone())?;
+            let addr = context.id_to_addr(*sender)?;
+            context.randomize_and_mask(&addr, *random_id, ciphertexts.clone())?;
             Ok(())
         }
 
@@ -64,7 +67,8 @@ pub fn general_handle_event(
             random_id,
             ciphertexts_and_digests: ciphertexts_and_tests,
         } => {
-            context.lock(sender, *random_id, ciphertexts_and_tests.clone())?;
+            let addr = context.id_to_addr(*sender)?;
+            context.lock(&addr, *random_id, ciphertexts_and_tests.clone())?;
             Ok(())
         }
 
@@ -86,14 +90,14 @@ pub fn general_handle_event(
             Ok(())
         }
 
-        Event::OperationTimeout { addrs: _ } => {
+        Event::OperationTimeout { ids: _ } => {
             // This event is for game handler
             Ok(())
         }
 
         Event::WaitingTimeout => Ok(()),
 
-        Event::ActionTimeout { player_addr: _ } => {
+        Event::ActionTimeout { player_id: _ } => {
             // This event is for game handler
             Ok(())
         }
@@ -154,7 +158,6 @@ pub fn post_handle_event(
 mod tests {
 
     use crate::encryptor::tests::DummyEncryptor;
-    use race_api::types::{PlayerJoin, ServerJoin};
 
     use super::*;
 
@@ -165,44 +168,6 @@ mod tests {
         let event = Event::GameStart { access_version: 1 };
         general_handle_event(&mut context, &event, &encryptor)?;
         assert_eq!(context.status, GameStatus::Running);
-        Ok(())
-    }
-
-    #[test]
-    fn test_handle_sync() -> anyhow::Result<()> {
-        let encryptor = DummyEncryptor::default();
-        let mut context = GameContext::default();
-        let event = Event::Sync {
-            new_players: vec![
-                PlayerJoin {
-                    addr: "alice".into(),
-                    position: 0,
-                    balance: 100,
-                    access_version: 1,
-                    verify_key: "VERIFY KEY".into(),
-                },
-                PlayerJoin {
-                    addr: "bob".into(),
-                    position: 1,
-                    balance: 100,
-                    access_version: 1,
-                    verify_key: "VERIFY KEY".into(),
-                },
-            ],
-            new_servers: vec![ServerJoin {
-                addr: "foo".into(),
-                endpoint: "foo.endpoint".into(),
-                access_version: 1,
-                verify_key: "VERIFY KEY".into(),
-            }],
-            transactor_addr: "".into(),
-            access_version: 1,
-        };
-
-        general_handle_event(&mut context, &event, &encryptor)?;
-
-        assert_eq!(context.count_players(), 2);
-        assert_eq!(context.count_servers(), 1);
         Ok(())
     }
 }

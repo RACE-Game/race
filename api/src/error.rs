@@ -266,6 +266,12 @@ pub enum Error {
 
     #[error("Duplicated sub game id")]
     DuplicatedSubGameId,
+
+    #[error("Cannot map id to address")]
+    CantMapIdToAddr,
+
+    #[error("Cannot map address to id")]
+    CantMapAddrToId,
 }
 
 #[cfg(feature = "serde")]

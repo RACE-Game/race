@@ -160,33 +160,33 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
 mod tests {
 
     use super::*;
-    use race_core::types::Settle;
+    use race_core::types::SettleWithAddr;
     use race_test::prelude::*;
 
     #[tokio::test]
     async fn test_submit_settle() {
-        let alice = TestClient::player("alice");
-        let bob = TestClient::player("bob");
-        let charlie = TestClient::player("charlie");
+        let mut alice = TestClient::player("alice");
+        let mut bob = TestClient::player("bob");
+        let mut charlie = TestClient::player("charlie");
         let game_account = TestGameAccountBuilder::default()
-            .add_player(&alice, 100)
-            .add_player(&bob, 100)
-            .add_player(&charlie, 100)
+            .add_player(&mut alice, 100)
+            .add_player(&mut bob, 100)
+            .add_player(&mut charlie, 100)
             .build();
         let transport = Arc::new(DummyTransport::default());
         let (submitter, ctx) = Submitter::init(&game_account, transport.clone());
 
         let settles = vec![
-            Settle::sub("alice", 50),
-            Settle::add("alice", 20),
-            Settle::add("alice", 20),
-            Settle::sub("alice", 40),
-            Settle::add("bob", 50),
-            Settle::sub("bob", 20),
-            Settle::sub("bob", 20),
-            Settle::sub("bob", 20),
-            Settle::add("bob", 30),
-            Settle::eject("charlie"),
+            SettleWithAddr::sub("alice", 50),
+            SettleWithAddr::add("alice", 20),
+            SettleWithAddr::add("alice", 20),
+            SettleWithAddr::sub("alice", 40),
+            SettleWithAddr::add("bob", 50),
+            SettleWithAddr::sub("bob", 20),
+            SettleWithAddr::sub("bob", 20),
+            SettleWithAddr::sub("bob", 20),
+            SettleWithAddr::add("bob", 30),
+            SettleWithAddr::eject("charlie"),
         ];
 
         let event_frame = EventFrame::Settle {

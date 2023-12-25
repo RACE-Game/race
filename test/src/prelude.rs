@@ -1,6 +1,5 @@
 pub use crate::account_helpers::*;
 pub use crate::client_helpers::*;
-pub use crate::event_helpers::*;
 pub use crate::handler_helpers::*;
 pub use crate::transport_helpers::*;
 

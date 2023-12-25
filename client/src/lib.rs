@@ -4,7 +4,7 @@ use std::{
 };
 
 use race_api::error::{Error, Result};
-use race_api::event::{CustomEvent, Event};
+use race_api::event::Event;
 use race_api::random::{RandomState, RandomStatus};
 use race_api::types::SecretShare;
 
@@ -71,6 +71,7 @@ pub struct Client {
     pub mode: ClientMode,
     pub op_hist: BTreeSet<OpIdent>,
     pub secret_state: SecretState,
+    pub id: u64,
 }
 
 impl Client {
@@ -91,6 +92,7 @@ impl Client {
             transport,
             encryptor,
             connection,
+            id: 0,
         }
     }
 
@@ -113,12 +115,12 @@ impl Client {
             .await
     }
 
-    pub async fn submit_custom_event<S: CustomEvent>(&self, custom_event: S) -> Result<()> {
-        let event = Event::custom(&self.game_addr, &custom_event);
-        self.connection
-            .submit_event(&self.addr, SubmitEventParams { event })
-            .await
-    }
+    // pub async fn submit_custom_event<S: CustomEvent>(&self, custom_event: S) -> Result<()> {
+    //     let event = Event::custom(&self.game_addr, &custom_event);
+    //     self.connection
+    //         .submit_event(&self.addr, SubmitEventParams { event })
+    //         .await
+    // }
 
     pub fn load_random_states(&mut self, game_context: &GameContext) -> Result<()> {
         for random_state in game_context.list_random_states().iter() {
@@ -133,7 +135,7 @@ impl Client {
     pub fn answer_event(&mut self, decision_id: DecisionId, value: String) -> Result<Event> {
         let (ciphertext, digest) = self.secret_state.encrypt_answer(decision_id, value)?;
         Ok(Event::AnswerDecision {
-            sender: self.addr.clone(),
+            sender: self.id,
             decision_id,
             ciphertext,
             digest,
@@ -169,7 +171,7 @@ impl Client {
             Ok(vec![])
         } else {
             Ok(vec![Event::ShareSecrets {
-                sender: self.addr.clone(),
+                sender: self.id,
                 shares,
             }])
         }
@@ -220,7 +222,7 @@ impl Client {
             Ok(None)
         } else {
             let event = Event::ShareSecrets {
-                sender: self.addr.clone(),
+                sender: self.id,
                 shares,
             };
             self.op_hist.extend(op_hist);
@@ -251,7 +253,7 @@ impl Client {
         self.encryptor.shuffle(&mut masked);
 
         let event = Event::Mask {
-            sender: self.addr.clone(),
+            sender: self.id,
             random_id: random_state.id,
             ciphertexts: masked,
         };
@@ -287,7 +289,7 @@ impl Client {
             .map_err(|e| Error::RandomizationError(e.to_string()))?;
 
         let event = Event::Lock {
-            sender: self.addr.clone(),
+            sender: self.id,
             random_id: random_state.id,
             ciphertexts_and_digests: locked,
         };
@@ -329,6 +331,7 @@ impl Client {
     }
 
     pub fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<Vec<Event>> {
+        self.id = ctx.addr_to_id(&self.addr)?;
         let events = match self.mode {
             ClientMode::Player => {
                 self.load_random_states(ctx)?;

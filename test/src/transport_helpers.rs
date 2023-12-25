@@ -6,7 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use base64::prelude::Engine;
-use race_core::types::{CreateRecipientParams, AssignRecipientParams, RecipientAccount, RecipientClaimParams};
+use race_core::types::{CreateRecipientParams, AssignRecipientParams, RecipientAccount, RecipientClaimParams, SettleWithAddr};
 use race_api::error::{Error, Result};
 #[allow(unused_imports)]
 use race_core::{
@@ -21,14 +21,14 @@ use race_core::{
 };
 
 pub struct DummyTransport {
-    settles: Arc<Mutex<Vec<Settle>>>,
+    settles: Arc<Mutex<Vec<SettleWithAddr>>>,
     states: Arc<Mutex<Vec<GameAccount>>>,
     fail_next_settle: Arc<Mutex<bool>>,
 }
 
 impl DummyTransport {
     #[allow(dead_code)]
-    pub fn get_settles(&self) -> impl Deref<Target = Vec<Settle>> + '_ {
+    pub fn get_settles(&self) -> impl Deref<Target = Vec<SettleWithAddr>> + '_ {
         self.settles.lock().unwrap()
     }
 
@@ -185,8 +185,6 @@ impl TransportT for DummyTransport {
 #[cfg(test)]
 mod tests {
 
-    use race_core::types::Settle;
-
     use crate::prelude::{test_game_addr, TestClient, TestGameAccountBuilder};
 
     use super::*;
@@ -203,16 +201,16 @@ mod tests {
     #[tokio::test]
     async fn test_get_state() -> anyhow::Result<()> {
         let transport = DummyTransport::default();
-        let alice = TestClient::player("alice");
-        let bob = TestClient::player("bob");
+        let mut alice = TestClient::player("alice");
+        let mut bob = TestClient::player("bob");
 
         let ga_0 = TestGameAccountBuilder::default().build();
         let ga_1 = TestGameAccountBuilder::default()
-            .add_player(&alice, 100)
+            .add_player(&mut alice, 100)
             .build();
         let ga_2 = TestGameAccountBuilder::default()
-            .add_player(&alice, 100)
-            .add_player(&bob, 100)
+            .add_player(&mut alice, 100)
+            .add_player(&mut bob, 100)
             .build();
 
         let states = vec![ga_0.clone(), ga_1.clone(), ga_2.clone()];
@@ -229,7 +227,7 @@ mod tests {
     #[tokio::test]
     async fn test_settle() {
         let transport = DummyTransport::default();
-        let settles = vec![Settle::add("Alice", 100), Settle::add("Bob", 100)];
+        let settles = vec![SettleWithAddr::add("Alice", 100), SettleWithAddr::add("Bob", 100)];
         let params = SettleParams {
             addr: test_game_addr(),
             settles: settles.clone(),

@@ -5,7 +5,7 @@ use race_api::{
 };
 use race_core::{
     context::GameContext,
-    types::{PlayerJoin, ServerJoin, Settle, SubGameSpec, Transfer, TxState, VoteType, NodeJoin},
+    types::{PlayerJoin, ServerJoin, SubGameSpec, Transfer, TxState, VoteType, NodeJoin, SettleWithAddr},
 };
 
 #[derive(Debug, Clone)]
@@ -60,7 +60,7 @@ pub enum EventFrame {
         timestamp: u64,
     },
     Settle {
-        settles: Vec<Settle>,
+        settles: Vec<SettleWithAddr>,
         transfers: Vec<Transfer>,
         checkpoint: Vec<u8>,
         settle_version: u64,

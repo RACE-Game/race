@@ -120,7 +120,7 @@ async fn handle(
                     event: Event::Bridge {
                         dest: be.dest,
                         raw: be.raw,
-                    }
+                    },
                 };
                 ports.send(ef).await;
             }
@@ -236,14 +236,17 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     // Add servers to context
                     for server in new_servers.iter() {
                         game_context.add_node(server.addr.clone(), access_version);
+                        game_context.push_id_addr_pair(server.access_version, server.addr.clone());
                     }
 
-                    // Create an event for new players
-                    let new_players: Vec<GamePlayer> =
-                        new_players.iter().cloned().map(Into::into).collect();
+                    let mut new_players_1: Vec<GamePlayer> = Vec::with_capacity(new_players.len());
+                    for p in new_players.iter(){
+                        new_players_1.push(p.clone().into());
+                        game_context.push_id_addr_pair(p.access_version, p.addr.clone());
+                    }
 
                     if !new_players.is_empty() {
-                        let event = Event::Sync { new_players };
+                        let event = Event::Sync { new_players: new_players_1 };
                         if let Some(close_reason) =
                             handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
                         {
@@ -253,12 +256,16 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
                 EventFrame::PlayerLeaving { player_addr } => {
-                    let event = Event::Leave { player_addr };
-                    if let Some(close_reason) =
-                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
-                    {
-                        ports.send(EventFrame::Shutdown).await;
-                        return close_reason;
+                    if let Ok(player_id) = game_context.addr_to_id(&player_addr) {
+                        let event = Event::Leave { player_id };
+                        if let Some(close_reason) =
+                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                        {
+                            ports.send(EventFrame::Shutdown).await;
+                            return close_reason;
+                        }
+                    } else {
+                        error!("Ignore PlayerLeaving, due to can not map the address to id");
                     }
                 }
                 EventFrame::SendEvent { event } => {

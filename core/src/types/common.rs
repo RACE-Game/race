@@ -42,3 +42,45 @@ pub struct SubGameSpec {
     pub nodes: Vec<Node>,
     pub transactor_addr: String,
 }
+
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct IdAddrPair {
+    pub id: u64,
+    pub addr: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct SettleWithAddr {
+    pub addr: String,
+    pub op: SettleOp,
+}
+
+impl SettleWithAddr {
+    pub fn add<S: Into<String>>(addr: S, amount: u64) -> Self {
+        Self {
+            addr: addr.into(),
+            op: SettleOp::Add(amount),
+        }
+    }
+    pub fn sub<S: Into<String>>(addr: S, amount: u64) -> Self {
+        Self {
+            addr: addr.into(),
+            op: SettleOp::Sub(amount),
+        }
+    }
+    pub fn eject<S: Into<String>>(addr: S) -> Self {
+        Self {
+            addr: addr.into(),
+            op: SettleOp::Eject,
+        }
+    }
+    pub fn assign<S: Into<String>>(addr: S, identifier: String) -> Self {
+        Self {
+            addr: addr.into(),
+            op: SettleOp::AssignSlot(identifier),
+        }
+    }
+}

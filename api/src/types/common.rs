@@ -16,32 +16,32 @@ pub enum SettleOp {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Settle {
-    pub addr: String,
+    pub id: u64,
     pub op: SettleOp,
 }
 
 impl Settle {
-    pub fn add<S: Into<String>>(addr: S, amount: u64) -> Self {
+    pub fn add(id: u64, amount: u64) -> Self {
         Self {
-            addr: addr.into(),
+            id,
             op: SettleOp::Add(amount),
         }
     }
-    pub fn sub<S: Into<String>>(addr: S, amount: u64) -> Self {
+    pub fn sub(id: u64, amount: u64) -> Self {
         Self {
-            addr: addr.into(),
+            id,
             op: SettleOp::Sub(amount),
         }
     }
-    pub fn eject<S: Into<String>>(addr: S) -> Self {
+    pub fn eject(id: u64) -> Self {
         Self {
-            addr: addr.into(),
+            id,
             op: SettleOp::Eject,
         }
     }
-    pub fn assign<S: Into<String>>(addr: S, identifier: String) -> Self {
+    pub fn assign(id: u64, identifier: String) -> Self {
         Self {
-            addr: addr.into(),
+            id,
             op: SettleOp::AssignSlot(identifier),
         }
     }
@@ -242,10 +242,7 @@ pub enum EntryType {
     Cash { min_deposit: u64, max_deposit: u64 },
     /// A player can join the game by pay a ticket.
     #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-    Ticket {
-        slot_id: u8,
-        amount: u64,
-    },
+    Ticket { slot_id: u8, amount: u64 },
     /// A player can join the game by showing a gate NFT
     #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
     Gating { collection: String },
@@ -366,15 +363,25 @@ impl std::fmt::Display for GameStatus {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GamePlayer {
-    pub addr: String,
+    pub id: u64,
     pub position: u16,
     pub balance: u64,
+}
+
+impl GamePlayer {
+    pub fn new(id: u64, balance: u64, position: u16) -> Self {
+        Self {
+            id,
+            position,
+            balance,
+        }
+    }
 }
 
 impl From<PlayerJoin> for GamePlayer {
     fn from(value: PlayerJoin) -> Self {
         Self {
-            addr: value.addr,
+            id: value.access_version,
             position: value.position,
             balance: value.balance,
         }

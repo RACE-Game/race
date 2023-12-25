@@ -12,14 +12,14 @@ const DRAW_TIMEOUT: u64 = 30_000;
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(BorshSerialize, BorshDeserialize)]
 struct Player {
-    pub addr: String,
+    pub id: u64,
     pub balance: u64,
 }
 
 impl From<GamePlayer> for Player {
     fn from(value: GamePlayer) -> Self {
         Self {
-            addr: value.addr,
+            id: value.id,
             balance: value.balance,
         }
     }
@@ -28,7 +28,7 @@ impl From<GamePlayer> for Player {
 #[derive(BorshSerialize, BorshDeserialize)]
 #[game_handler]
 struct Raffle {
-    last_winner: Option<String>,
+    last_winner: Option<u64>,
     players: Vec<Player>,
     random_id: RandomId,
     draw_time: u64,
@@ -64,7 +64,7 @@ impl GameHandler for Raffle {
             Event::GameStart { .. } => {
                 // We need at least one player to start, otherwise we will skip this draw.
                 if self.players.len() >= 1 {
-                    let options = self.players.iter().map(|p| p.addr.to_owned()).collect();
+                    let options = self.players.iter().map(|p| p.id.to_string()).collect();
                     let rnd_spec = RandomSpec::shuffled_list(options);
                     self.random_id = effect.init_random_state(rnd_spec);
                 }
@@ -79,7 +79,7 @@ impl GameHandler for Raffle {
                 }
             }
 
-            // Reveal the first address when randomness is ready.
+            // Reveal the first idess when randomness is ready.
             Event::RandomnessReady { .. } => {
                 effect.reveal(self.random_id, vec![0]);
             }
@@ -101,14 +101,15 @@ impl GameHandler for Raffle {
                     .get_revealed(self.random_id)?
                     .get(&0)
                     .unwrap()
-                    .to_owned();
+                    .parse::<u64>()
+                    .unwrap();
 
                 for p in self.players.iter() {
-                    if p.addr.ne(&winner) {
-                        effect.settle(Settle::add(&winner, p.balance));
-                        effect.settle(Settle::sub(&p.addr, p.balance));
+                    if p.id != winner {
+                        effect.settle(Settle::add(winner, p.balance));
+                        effect.settle(Settle::sub(p.id, p.balance));
                     }
-                    effect.settle(Settle::eject(&p.addr));
+                    effect.settle(Settle::eject(p.id));
                 }
                 self.last_winner = Some(winner);
                 self.cleanup();
@@ -147,25 +148,11 @@ mod tests {
             random_id: 0,
         };
         let event = Event::Sync {
-            new_players: vec![PlayerJoin {
-                addr: "alice".into(),
-                position: 0,
-                balance: 100,
-                access_version: 0,
-                verify_key: "".into(),
-            }],
-            new_servers: vec![ServerJoin {
-                addr: "foo".into(),
-                endpoint: "foo.endpoint".into(),
-                access_version: 0,
-                verify_key: "".into(),
-            }],
-            transactor_addr: "".into(),
-            access_version: 0,
+            new_players: vec![GamePlayer::new(0, 100, 0), GamePlayer::new(1, 100, 1)],
         };
 
         state.handle_event(&mut effect, event).unwrap();
-        assert_eq!(state.players.len(), 1);
+        assert_eq!(state.players.len(), 2);
         assert_eq!(effect.wait_timeout, Some(DRAW_TIMEOUT));
     }
 }
