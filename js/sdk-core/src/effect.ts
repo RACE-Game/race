@@ -259,6 +259,7 @@ export class Effect {
     const allowExit = context.allowExit;
     const transfers: Transfer[] = [];
     const launchSubGames: LaunchSubGame[] = [];
+    const bridgeEvents: EmitBridgeEvent[] = [];
     return new Effect({
       actionTimeout,
       waitTimeout,
@@ -284,6 +285,7 @@ export class Effect {
       allowExit,
       transfers,
       launchSubGames,
+      bridgeEvents,
     });
   }
 }
