@@ -114,6 +114,7 @@ pub enum BroadcastFrame {
         game_addr: String,
         event: Event,
         timestamp: u64,
+        is_history: bool,
     },
     // Arbitrary message
     Message {

@@ -81,8 +81,8 @@ export abstract class GameEvent implements IEventKind {
 
 @variant(0)
 export class Custom extends GameEvent implements IEventKind {
-  @field('string')
-  sender!: string;
+  @field('u64')
+  sender!: bigint;
   @field('u8-array')
   raw!: Uint8Array;
   constructor(fields: EventFields<Custom>) {
@@ -94,7 +94,7 @@ export class Custom extends GameEvent implements IEventKind {
   }
 }
 
-export function makeCustomEvent(sender: string, customEvent: ICustomEvent): Custom {
+export function makeCustomEvent(sender: bigint, customEvent: ICustomEvent): Custom {
   return new Custom({
     sender,
     raw: customEvent.serialize(),
@@ -113,8 +113,8 @@ export class Ready extends GameEvent implements IEventKind {
 
 @variant(2)
 export class ShareSecrets extends GameEvent implements IEventKind {
-  @field('string')
-  sender!: string;
+  @field('u64')
+  sender!: bigint;
   @field(array(enums(SecretShare)))
   shares!: SecretShare[];
   constructor(fields: EventFields<ShareSecrets>) {
@@ -128,8 +128,8 @@ export class ShareSecrets extends GameEvent implements IEventKind {
 
 @variant(3)
 export class OperationTimeout extends GameEvent implements IEventKind {
-  @field(array('string'))
-  addrs!: string[];
+  @field(array('u64'))
+  ids!: bigint[];
   constructor(fields: EventFields<OperationTimeout>) {
     super();
     Object.assign(this, fields);
@@ -141,8 +141,8 @@ export class OperationTimeout extends GameEvent implements IEventKind {
 
 @variant(4)
 export class Mask extends GameEvent implements IEventKind {
-  @field('string')
-  sender!: string;
+  @field('u64')
+  sender!: bigint;
   @field('usize')
   randomId!: Id;
   @field(array('u8-array'))
@@ -168,8 +168,8 @@ export class CiphertextAndDigest {
 
 @variant(5)
 export class Lock extends GameEvent implements IEventKind {
-  @field('string')
-  sender!: string;
+  @field('u64')
+  sender!: bigint;
   @field('usize')
   randomId!: Id;
   @field(array(struct(CiphertextAndDigest)))
@@ -211,10 +211,8 @@ export class Sync extends GameEvent implements IEventKind {
 
 @variant(8)
 export class ServerLeave extends GameEvent implements IEventKind {
-  @field('string')
-  serverAddr!: string;
-  @field('string')
-  transactorAddr!: string;
+  @field('u64')
+  serverId!: bigint;
   constructor(fields: EventFields<ServerLeave>) {
     super();
     Object.assign(this, fields);
@@ -226,8 +224,8 @@ export class ServerLeave extends GameEvent implements IEventKind {
 
 @variant(9)
 export class Leave extends GameEvent implements IEventKind {
-  @field('string')
-  playerAddr!: string;
+  @field('u64')
+  playerId!: bigint;
   constructor(fields: EventFields<Leave>) {
     super();
     Object.assign(this, fields);
@@ -262,8 +260,8 @@ export class WaitingTimeout extends GameEvent implements IEventKind {
 
 @variant(12)
 export class DrawRandomItems extends GameEvent implements IEventKind {
-  @field('string')
-  sender!: string;
+  @field('u64')
+  sender!: bigint;
   @field('usize')
   randomId!: Id;
   @field(array('usize'))
@@ -289,8 +287,8 @@ export class DrawTimeout extends GameEvent implements IEventKind {
 
 @variant(14)
 export class ActionTimeout extends GameEvent implements IEventKind {
-  @field('string')
-  playerAddr!: string;
+  @field('u64')
+  playerId!: bigint;
   constructor(fields: EventFields<ActionTimeout>) {
     super();
     Object.assign(this, fields);
@@ -302,8 +300,8 @@ export class ActionTimeout extends GameEvent implements IEventKind {
 
 @variant(15)
 export class AnswerDecision extends GameEvent implements IEventKind {
-  @field('string')
-  sender!: string;
+  @field('u64')
+  sender!: bigint;
   @field('usize')
   decisionId!: Id;
   @field('u8-array')

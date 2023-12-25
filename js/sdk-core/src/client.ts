@@ -2,7 +2,7 @@ import { AttachGameParams, IConnection, SubmitEventParams } from './connection';
 import { IEncryptor } from './encryptor';
 import { SecretState } from './secret-state';
 import { makeCustomEvent } from './events';
-import { GameContext } from './game-context';
+import { GameContext, IdAddrPair } from './game-context';
 import { Id } from './types';
 
 type OpIdent =
@@ -32,6 +32,7 @@ export class Client {
   #addr: string;
   #opHist: OpIdent[];
   #secretState: SecretState;
+  #id: bigint;
 
   constructor(addr: string, gameAddr: string, encryptor: IEncryptor, connection: IConnection) {
     this.#addr = addr;
@@ -40,6 +41,7 @@ export class Client {
     this.#connection = connection;
     this.#opHist = new Array();
     this.#secretState = new SecretState(encryptor);
+    this.#id = 0n;
   }
 
   async attachGame(): Promise<void> {
@@ -53,15 +55,6 @@ export class Client {
   }
 
   async submitEvent(event: any): Promise<void> {
-    await this.#connection.submitEvent(
-      new SubmitEventParams({
-        event,
-      })
-    );
-  }
-
-  async submitCustomEvent(customEvent: any): Promise<void> {
-    const event = makeCustomEvent(this.#gameAddr, customEvent);
     await this.#connection.submitEvent(
       new SubmitEventParams({
         event,

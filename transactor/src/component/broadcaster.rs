@@ -89,6 +89,7 @@ impl Broadcaster {
                         game_addr: self.id.clone(),
                         event: event.event.clone(),
                         timestamp: event.timestamp,
+                        is_history: true,
                     })
                 }
             }
@@ -190,6 +191,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         game_addr: ctx.id.clone(),
                         event,
                         timestamp,
+                        is_history: false,
                     });
 
                     if let Err(e) = r {

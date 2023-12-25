@@ -21,7 +21,7 @@ import { SdkError } from './error';
 import { EntryType, EntryTypeCash, GameAccount, GameBundle, IToken, PlayerProfile } from './accounts';
 import { TxState } from './tx-state';
 import { Client } from './client';
-import { Custom, GameEvent, ICustomEvent } from './events';
+import { Custom, GameEvent, ICustomEvent, Sync } from './events';
 import { ProfileCache } from './profile-cache';
 import { IStorage, getTtlCache, setTtlCache } from './storage';
 import { DecryptionCache } from './decryption-cache';
@@ -31,7 +31,8 @@ const BUNDLE_CACHE_TTL = 3600 * 365;
 export type EventCallbackFunction = (
   context: GameContextSnapshot,
   state: Uint8Array,
-  event: GameEvent | undefined
+  event: GameEvent | undefined,
+  isHistory: boolean,
 ) => void;
 export type MessageCallbackFunction = (message: Message) => void;
 export type TxStateCallbackFunction = (txState: TxState) => void;
@@ -228,17 +229,17 @@ export class AppClient {
     return await this.#profileCaches.getProfile(addr);
   }
 
-  async invokeEventCallback(event: GameEvent | undefined) {
+  async invokeEventCallback(event: GameEvent | undefined, isHistory: boolean) {
     const snapshot = new GameContextSnapshot(this.#gameContext);
     const state = this.#gameContext.handlerState;
-    this.#onEvent(snapshot, state, event);
+    this.#onEvent(snapshot, state, event, isHistory);
   }
 
   async __initializeState(gameAccount: GameAccount): Promise<void> {
     const initAccount = InitAccount.createFromGameAccount(gameAccount, this.gameContext.accessVersion, this.gameContext.settleVersion);
     console.log('Initialize state with', initAccount);
     await this.#handler.initState(this.#gameContext, initAccount);
-    await this.invokeEventCallback(undefined);
+    await this.invokeEventCallback(undefined, true);
   }
 
   async __getGameAccount(): Promise<GameAccount> {
@@ -308,12 +309,27 @@ export class AppClient {
           this.#gameContext.prepareForNextEvent(timestamp);
           try {
             let context = new GameContext(this.#gameContext);
+            if (event instanceof Sync) {
+
+              while (true) {
+                let gameAccount = await this.#transport.getGameAccount(this.#gameAddr);
+                if (gameAccount === undefined) {
+                  console.warn('Failed to get game account, will retry');
+                  await new Promise(r => setTimeout(r, 3000));
+                  continue;
+                }
+                for (const p of gameAccount.players) {
+                  context.pushIdAddrPair(p.accessVersion, p.addr);
+                }
+                break;
+              }
+            }
             await this.#handler.handleEvent(context, event);
             this.#gameContext = context;
           } catch (err: any) {
             console.error(err);
           }
-          await this.invokeEventCallback(event);
+          await this.invokeEventCallback(event, frame.isHistory);
         } catch (e: any) {
           console.log("Game context in error:", this.#gameContext);
           throw e;
@@ -406,7 +422,8 @@ export class AppClient {
   submitEvent(customEvent: ICustomEvent): Promise<void>;
   async submitEvent(arg: ICustomEvent | Uint8Array): Promise<void> {
     let raw = arg instanceof Uint8Array ? arg : arg.serialize();
-    const event = new Custom({ sender: this.playerAddr, raw });
+    const id = this.#gameContext.addrToId(this.playerAddr);
+    const event = new Custom({ sender: id, raw });
     const connState = await this.#connection.submitEvent(
       new SubmitEventParams({
         event,
@@ -432,6 +449,15 @@ export class AppClient {
   }
 
   /**
+   * Parse the id to player's address.
+   *
+   * Throw an error when it fails.
+   */
+  idToAddr(id: bigint): string {
+    return this.#gameContext.idToAddr(id)
+  }
+
+  /**
    * Get hidden knowledge by random id. The result contains both
    * public and private information.  For performance reason, it's
    * better to cache the result somewhere instead of calling this
@@ -440,11 +466,6 @@ export class AppClient {
   async getRevealed(randomId: number): Promise<Map<number, string>> {
     return this.#decryptionCache.get(randomId) || new Map();
   }
-
-  /**
-   * Close current event subscription.
-   */
-  async close() {}
 
   /**
    * Exit current game.

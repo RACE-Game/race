@@ -105,8 +105,8 @@ export class Release {
 }
 
 export class ActionTimeout {
-  @field('string')
-  playerAddr!: string;
+  @field('u64')
+  playerId!: bigint;
   @field('u64')
   timeout!: bigint;
   constructor(fields: Fields<ActionTimeout>) {
@@ -115,8 +115,8 @@ export class ActionTimeout {
 }
 
 export class GamePlayer {
-  @field('string')
-  addr!: string;
+  @field('u64')
+  id!: bigint;
   @field('u16')
   position!: number;
   @field('u64')

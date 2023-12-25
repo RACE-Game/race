@@ -90,6 +90,8 @@ export class BroadcastFrameEvent extends BroadcastFrame {
   event!: GameEvent;
   @field('u64')
   timestamp!: bigint;
+  @field('bool')
+  isHistory!: boolean;
   constructor(fields: any) {
     super();
     Object.assign(this, fields);

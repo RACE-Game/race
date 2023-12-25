@@ -52,7 +52,7 @@ export class InitAccount {
   ): InitAccount {
     let { addr, players, data, checkpointAccessVersion } = gameAccount;
     const game_players = players.filter(p => p.accessVersion <= checkpointAccessVersion)
-      .map(p => new GamePlayer({ addr: p.addr, balance: p.balance, position: p.position }));
+      .map(p => new GamePlayer({ id: p.accessVersion, balance: p.balance, position: p.position }));
     return new InitAccount({
       addr,
       data,
@@ -130,7 +130,8 @@ export class Handler implements IHandler {
   async generalPreHandleEvent(context: GameContext, event: GameEvent, encryptor: IEncryptor) {
     if (event instanceof ShareSecrets) {
       const { sender, shares } = event;
-      context.addSharedSecrets(sender, shares);
+      const addr = context.idToAddr(sender);
+      context.addSharedSecrets(addr, shares);
       let randomIds: number[] = [];
       for (let randomState of context.randomStates) {
         if (randomState.status.kind === 'shared') {
@@ -143,13 +144,16 @@ export class Handler implements IHandler {
       }
     } else if (event instanceof AnswerDecision) {
       const { decisionId, ciphertext, sender, digest } = event;
-      context.answerDecision(decisionId, sender, ciphertext, digest);
+      const addr = context.idToAddr(sender);
+      context.answerDecision(decisionId, addr, ciphertext, digest);
     } else if (event instanceof Mask) {
       const { sender, randomId, ciphertexts } = event;
-      context.randomizeAndMask(sender, randomId, ciphertexts);
+      const addr = context.idToAddr(sender);
+      context.randomizeAndMask(addr, randomId, ciphertexts);
     } else if (event instanceof Lock) {
       const { sender, randomId, ciphertextsAndDigests } = event;
-      context.lock(sender, randomId, ciphertextsAndDigests);
+      const addr = context.idToAddr(sender);
+      context.lock(addr, randomId, ciphertextsAndDigests);
     } else if (event instanceof Sync) {
       // No op here
     } else if (event instanceof Leave) {

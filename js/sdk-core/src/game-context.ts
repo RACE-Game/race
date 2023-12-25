@@ -39,6 +39,11 @@ export interface DispatchEvent {
   event: GameEvent;
 }
 
+export interface IdAddrPair {
+  id: bigint;
+  addr: string;
+}
+
 export class GameContext {
   gameAddr: string;
   accessVersion: bigint;
@@ -58,6 +63,7 @@ export class GameContext {
   checkpointAccessVersion: bigint;
   launchSubGames: LaunchSubGame[];
   bridgeEvents: EmitBridgeEvent[];
+  idAddrPairs: IdAddrPair[];
 
   constructor(context: GameContext);
   constructor(gameAccount: GameAccount);
@@ -82,6 +88,7 @@ export class GameContext {
       this.checkpointAccessVersion = context.checkpointAccessVersion;
       this.launchSubGames = context.launchSubGames;
       this.bridgeEvents = context.bridgeEvents;
+      this.idAddrPairs = context.idAddrPairs;
     } else {
       const gameAccount = gameAccountOrContext;
       const transactorAddr = gameAccount.transactorAddr;
@@ -97,6 +104,14 @@ export class GameContext {
             accessVersion: s.accessVersion,
           },
       }));
+
+      let idAddrPairs = [];
+      for (let x of gameAccount.players) {
+        idAddrPairs.push({ id: x.accessVersion, addr: x.addr });
+      }
+      for (let x of gameAccount.servers) {
+        idAddrPairs.push({ id: x.accessVersion, addr: x.addr });
+      }
 
       this.gameAddr = gameAccount.addr;
       this.transactorAddr = transactorAddr;
@@ -116,7 +131,28 @@ export class GameContext {
       this.checkpointAccessVersion = gameAccount.checkpointAccessVersion;
       this.launchSubGames = [];
       this.bridgeEvents = [];
+      this.idAddrPairs = idAddrPairs;
     }
+  }
+
+  idToAddr(id: bigint): string {
+    let found = this.idAddrPairs.find(x => x.id === id)
+    if (found === undefined) {
+      throw new Error('Cannot map id to address');
+    }
+    return found.addr
+  }
+
+  addrToId(addr: string): bigint {
+    let found = this.idAddrPairs.find(x => x.addr === addr)
+    if (found === undefined) {
+      throw new Error('Cannot map address to id');
+    }
+    return found.id
+  }
+
+  pushIdAddrPair(id: bigint, addr: string) {
+    this.idAddrPairs.push({ id, addr })
   }
 
   getNodeByAddress(addr: string): INode | undefined {
@@ -141,9 +177,9 @@ export class GameContext {
     };
   }
 
-  actionTimeout(playerAddr: string, timeout: bigint) {
+  actionTimeout(playerId: bigint, timeout: bigint) {
     this.dispatch = {
-      event: new ActionTimeout({ playerAddr }),
+      event: new ActionTimeout({ playerId }),
       timeout: this.timestamp + timeout,
     };
   }
@@ -283,13 +319,14 @@ export class GameContext {
       this.dispatchEventInstantly(new RandomnessReady({ randomId }));
     } else if (statusKind === 'locking' || statusKind === 'masking') {
       const addr = st.status.addr;
+      const id = this.addrToId(addr);
       if (noDispatch) {
-        this.dispatchEvent(new OperationTimeout({ addrs: [addr] }), OPERATION_TIMEOUT);
+        this.dispatchEvent(new OperationTimeout({ ids: [id] }), OPERATION_TIMEOUT);
       }
     } else if (statusKind === 'waiting-secrets') {
       if (noDispatch) {
-        const addrs = st.listOperatingAddrs();
-        this.dispatchEvent(new OperationTimeout({ addrs }), OPERATION_TIMEOUT);
+        const ids = st.listOperatingAddrs().map(x => this.addrToId(x));
+        this.dispatchEvent(new OperationTimeout({ ids }), OPERATION_TIMEOUT);
       }
     }
   }
@@ -362,7 +399,7 @@ export class GameContext {
     } else if (effect.stopGame) {
       this.shutdownGame();
     } else if (effect.actionTimeout !== undefined) {
-      this.actionTimeout(effect.actionTimeout.playerAddr, effect.actionTimeout.timeout);
+      this.actionTimeout(effect.actionTimeout.playerId, effect.actionTimeout.timeout);
     } else if (effect.waitTimeout !== undefined) {
       this.waitTimeout(effect.waitTimeout);
     } else if (effect.cancelDispatch) {
