@@ -2,6 +2,9 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 
 # Master(Unreleased)
 
+## Breaking Changes
+- Facade: Argument format updated. Now it receives `-g` for game, and `-b` for bundle.
+
 ## Enhancements
 - SDK: Remove dependency `crypto` to support NodeJS runtime.
 - CLI: Print `checkpoint` in hex format in command `game-info`.

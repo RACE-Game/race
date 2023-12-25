@@ -2,7 +2,7 @@
 //! It is supposed to be used for testing and developing.
 
 use borsh::BorshSerialize;
-use clap::Parser;
+use clap::{Command, arg};
 use hyper::Method;
 use jsonrpsee::server::{AllowHosts, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
@@ -135,9 +135,15 @@ pub struct PlayerInfo {
 }
 
 impl Context {
-    pub fn load_games(&mut self, spec_paths: Vec<String>) {
+    pub fn load_games(&mut self, spec_paths: &[&str]) {
         for spec_path in spec_paths.into_iter() {
-            self.add_game(&spec_path);
+            self.add_game(spec_path);
+        }
+    }
+
+    pub fn load_bundles(&mut self, bundle_paths: &[&str]) {
+        for bundle_path in bundle_paths.into_iter() {
+            self.add_bundle(bundle_path)
         }
     }
 
@@ -175,6 +181,21 @@ impl Context {
             icon: "https://raw.githubusercontent.com/NutsPokerTeam/token-list/main/assets/mainnet/RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ/logo.svg".into(),
             addr: "FACADE_RACE".into(),
         });
+    }
+
+    fn add_bundle(&mut self, bundle_path: &str) {
+        let re = Regex::new(r"[^a-zA-Z0-9]").unwrap();
+        let bundle_addr = re.replace_all(&bundle_path, "").into_owned();
+        let mut f = File::open(bundle_path).expect(&format!("Bundle {} not found", &bundle_path));
+        let mut data = vec![];
+        f.read_to_end(&mut data).unwrap();
+        let bundle = GameBundle {
+            name: bundle_addr.clone(),
+            uri: "".into(),
+            data,
+        };
+        self.bundles.insert(bundle_addr.clone(), bundle);
+        println!("+ Bundle: {}", bundle_addr);
     }
 
     fn add_game(&mut self, spec_path: &str) {
@@ -832,20 +853,24 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     Ok(handle)
 }
 
-/// Command-line interface
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    // Game specs to load
-    specs: Vec<String>,
+fn cli() -> Command {
+    Command::new("facade")
+        .about("A mock server for local development with Race")
+        .arg(arg!(-g <game> ... "The path to a game spec json file"))
+        .arg(arg!(-b <bundle> ... "The path to a wasm bundle"))
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
+    let matches = cli().get_matches();
     let mut context = Context::default();
-    context.load_games(args.specs);
     context.load_default_tokens();
+    if let Some(game_spec_paths) = matches.get_many::<String>("game") {
+        context.load_games(&game_spec_paths.map(String::as_str).collect::<Vec<&str>>());
+    }
+    if let Some(bundle_paths) = matches.get_many::<String>("bundle") {
+        context.load_bundles(&bundle_paths.map(String::as_str).collect::<Vec<&str>>());
+    }
     let server_handle = run_server(context).await?;
     server_handle.stopped().await;
     Ok(())

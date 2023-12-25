@@ -628,9 +628,9 @@ impl GameContext {
         let mut transfers = vec![];
 
         if self.checkpoint.is_some() {
-            self.settles
-                .take()
-                .map(|mut s| settles = s.drain(..).collect());
+            if let Some(mut s) = self.settles.take() {
+                settles.append(&mut s);
+            }
 
             settles.sort_by_key(|s| match s.op {
                 SettleOp::Add(_) => 0,
@@ -639,9 +639,9 @@ impl GameContext {
                 SettleOp::AssignSlot(_) => 3,
             });
 
-            self.transfers
-                .take()
-                .map(|mut t| transfers = t.drain(..).collect());
+            if let Some(mut t) = self.transfers.take() {
+                transfers.append(&mut t);
+            }
             self.bump_settle_version();
         }
 
