@@ -109,18 +109,11 @@ impl WrappedHandler {
             )
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
 
-        if len == 0 {
-            return Err(Error::WasmInitializationError(
-                "Seriliazing effect failed".into(),
-            ));
-        } else if len == 1 {
-            return Err(Error::WasmInitializationError(
-                "Deserializing effect failed".into(),
-            ));
-        } else if len == 2 {
-            return Err(Error::WasmInitializationError(
-                "Deserializing event failed".into(),
-            ));
+        match len {
+            0 => return Err(Error::WasmInitializationError("Serializing effect failed".into())),
+            1 => return Err(Error::WasmInitializationError("Deserializing effect failed".into())),
+            2 => return Err(Error::WasmInitializationError("Deserializing event failed".into())),
+            _ => (),
         }
 
         let mut buf = vec![0; len as _];
@@ -173,8 +166,11 @@ impl WrappedHandler {
                 Error::WasmExecutionError(e.to_string())
             })?;
 
-        if len == 0 {
-            return Err(Error::WasmExecutionError("Internal error".into()));
+        match len {
+            0 => return Err(Error::WasmExecutionError("Serializing effect failed".into())),
+            1 => return Err(Error::WasmExecutionError("Deserializing effect failed".into())),
+            2 => return Err(Error::WasmExecutionError("Deserializing event failed".into())),
+            _ => (),
         }
 
         let mut buf = vec![0; len as _];

@@ -269,6 +269,7 @@ mod tests {
                     sender: alice.id(),
                     raw: "CUSTOM EVENT".into(),
                 },
+                is_history: false,
             };
 
             handle.send_unchecked(event_frame).await;

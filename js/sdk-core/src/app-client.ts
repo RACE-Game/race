@@ -210,11 +210,15 @@ export class AppClient {
     }
   }
 
-  get playerAddr() {
+  get playerAddr(): string {
     return this.#wallet.walletAddr;
   }
 
-  get gameAddr() {
+  get playerId(): bigint | undefined {
+    return this.#gameContext.addrToId(this.#wallet.walletAddr);
+  }
+
+  get gameAddr(): string {
     return this.#gameAddr;
   }
 
@@ -225,7 +229,13 @@ export class AppClient {
   /**
    * Get player profile by its wallet address.
    */
-  async getProfile(addr: string): Promise<PlayerProfile | undefined> {
+  async getProfile(idOrAddr: string | bigint): Promise<PlayerProfile | undefined> {
+    let addr: string = ''
+    if (typeof idOrAddr === 'bigint') {
+      addr = this.#gameContext.idToAddr(idOrAddr);
+    } else {
+      addr = idOrAddr
+    }
     return await this.#profileCaches.getProfile(addr);
   }
 
