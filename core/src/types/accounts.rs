@@ -1,14 +1,14 @@
 //! The data structures for on-chain accounts.
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::prelude::InitAccount;
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-use crate::types::{PlayerJoin, PlayerDeposit, ServerJoin};
 use super::{
     common::{EntryType, VoteType},
     RecipientSlot,
 };
+use crate::types::{PlayerDeposit, PlayerJoin, ServerJoin};
+use borsh::{BorshDeserialize, BorshSerialize};
+use race_api::prelude::InitAccount;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -149,18 +149,34 @@ impl GameAccount {
         let game_account = self.to_owned();
         InitAccount {
             addr: game_account.addr,
-            players: game_account.players.iter().cloned().map(Into::into).collect(),
+            players: game_account
+                .players
+                .iter()
+                .cloned()
+                .map(Into::into)
+                .collect(),
             data: game_account.data.clone(),
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
             max_players: game_account.max_players,
             checkpoint: game_account.checkpoint,
+            entry_type: game_account.entry_type,
         }
     }
 
     pub fn derive_rollbacked_init_account(&self) -> InitAccount {
         let game_account = self.to_owned();
-        let Self { players, addr, data, max_players, checkpoint, checkpoint_access_version, settle_version, .. } = game_account;
+        let Self {
+            players,
+            addr,
+            data,
+            max_players,
+            checkpoint,
+            checkpoint_access_version,
+            settle_version,
+            entry_type,
+            ..
+        } = game_account;
 
         let players = players
             .into_iter()
@@ -175,7 +191,8 @@ impl GameAccount {
             access_version: checkpoint_access_version,
             settle_version,
             max_players,
-            checkpoint
+            checkpoint,
+            entry_type,
         }
     }
 }
@@ -284,7 +301,7 @@ mod tests {
             122, 110, 49, 71, 84, 111, 88, 119, 77, 116, 69, 51, 86, 84, 118, 103, 50, 105, 121,
             105, 109, 81, 85, 111, 113, 69, 76, 101, 6, 0, 0, 0, 71, 101, 110, 116, 111, 111, 0,
         ])
-            .unwrap();
+        .unwrap();
         assert_eq!(p.addr, p1.addr);
         assert_eq!(p.nick, p1.nick);
         assert_eq!(p.pfp, p1.pfp);
@@ -435,7 +452,7 @@ mod tests {
             114, 32, 48, 1, 0, 0, 0, 8, 0, 0, 0, 115, 101, 114, 118, 101, 114, 32, 49, 8, 0, 0, 0,
             115, 101, 114, 118, 101, 114, 32, 48, 0, 0, 30, 0, 10, 0, 0, 0, 10, 0, 0, 0, 0, 1, 2,
             3, 4, 5, 6, 7, 8, 9, 0, 100, 0, 0, 0, 0, 0, 0, 0, 250, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
-            114, 101, 99, 105, 112, 105, 101, 110, 116, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            114, 101, 99, 105, 112, 105, 101, 110, 116, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
         let ser = game_account.try_to_vec().unwrap();
         println!("Serialized game account {:?}", ser);

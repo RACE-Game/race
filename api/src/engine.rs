@@ -4,7 +4,7 @@ use crate::{
     effect::Effect,
     error::{HandleError, HandleResult},
     event::Event,
-    prelude::GamePlayer,
+    prelude::GamePlayer, types::EntryType,
 };
 
 /// A subset of on-chain account, used for game handler
@@ -19,6 +19,7 @@ pub struct InitAccount {
     pub settle_version: u64,
     pub max_players: u16,
     pub checkpoint: Vec<u8>,
+    pub entry_type: EntryType,
 }
 
 impl InitAccount {
@@ -62,6 +63,10 @@ impl Default for InitAccount {
             settle_version: 0,
             max_players: 10,
             checkpoint: Vec::new(),
+            entry_type: EntryType::Cash {
+                min_deposit: 100,
+                max_deposit: 200,
+            }
         }
     }
 }
