@@ -15,7 +15,7 @@ layout {
             name "Transactor"
             command "just"
             cwd "../"
-            args "facade-transactor" "dev/server-confs/server1.toml"
+            args "dev-transactor" "dev/server-confs/server1.toml"
             start_suspended true
         }
         pane

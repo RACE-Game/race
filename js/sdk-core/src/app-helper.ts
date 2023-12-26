@@ -1,4 +1,5 @@
 import { EntryTypeCash, GameAccount, INft, IToken, PlayerProfile, TokenWithBalance } from './accounts';
+import { PlayerProfileWithPfp } from './app-client';
 import { IStorage } from './storage';
 import { CreateGameAccountParams, ITransport, TransactionResult } from './transport';
 import { IWallet } from './wallet';
@@ -118,8 +119,15 @@ export class AppHelper {
    * @param addr - The address of player profile account
    * @returns The player profile account or undefined when not found
    */
-  async getProfile(addr: string): Promise<PlayerProfile | undefined> {
-    return await this.#transport.getPlayerProfile(addr);
+  async getProfile(addr: string): Promise<PlayerProfileWithPfp | undefined> {
+    const profile = await this.#transport.getPlayerProfile(addr);
+    if (profile === undefined) return undefined;
+    if (profile.pfp !== undefined) {
+      const pfp = await this.#transport.getNft(profile.pfp, this.#storage);
+      return { nick: profile.nick, addr: profile.addr, pfp };
+    } else {
+      return { nick: profile.nick, addr: profile.addr, pfp: undefined };
+    }
   }
 
   /**

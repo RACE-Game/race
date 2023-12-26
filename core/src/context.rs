@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::types::{GameAccount, IdAddrPair, SubGameSpec, SettleWithAddr};
+use crate::types::{GameAccount, IdAddrPair, SettleWithAddr, SubGameSpec};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::decision::DecisionState;
 use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, LaunchSubGame, Release, Reveal};
@@ -163,7 +163,7 @@ pub struct GameContext {
     pub(crate) launch_sub_games: Vec<LaunchSubGame>,
     /// The bridge events to emit
     pub(crate) bridge_events: Vec<EmitBridgeEvent>,
-    /// The mapping from addr to id
+    /// The pairs of id and address
     pub(crate) id_addr_pairs: Vec<IdAddrPair>,
 }
 
@@ -199,12 +199,14 @@ impl GameContext {
 
         for p in game_account.players.iter() {
             id_addr_pairs.push(IdAddrPair {
-                id: p.access_version, addr: p.addr.clone()
+                id: p.access_version,
+                addr: p.addr.clone(),
             });
         }
         for s in game_account.servers.iter() {
             id_addr_pairs.push(IdAddrPair {
-                id: s.access_version, addr: s.addr.clone()
+                id: s.access_version,
+                addr: s.addr.clone(),
             });
         }
 
@@ -247,11 +249,15 @@ impl GameContext {
     }
 
     pub fn push_id_addr_pair(&mut self, id: u64, addr: String) {
-        self.id_addr_pairs.push(IdAddrPair {
-            id, addr
-        });
-        if self.id_addr_pairs.len() > 1000 {
-            self.id_addr_pairs.remove(0);
+        if !self
+            .id_addr_pairs
+            .iter()
+            .any(|p| p.id == id || p.addr == addr)
+        {
+            self.id_addr_pairs.push(IdAddrPair { id, addr });
+            if self.id_addr_pairs.len() > 1000 {
+                self.id_addr_pairs.remove(0);
+            }
         }
     }
 
@@ -678,9 +684,7 @@ impl GameContext {
             if let Some(ss) = self.settles.take() {
                 for s in ss {
                     let addr = self.id_to_addr(s.id)?;
-                    settles.push(SettleWithAddr {
-                        addr, op: s.op
-                    });
+                    settles.push(SettleWithAddr { addr, op: s.op });
                 }
             }
 

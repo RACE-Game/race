@@ -18,15 +18,21 @@ import { IWallet } from './wallet';
 import { Handler, InitAccount } from './handler';
 import { Encryptor, IEncryptor } from './encryptor';
 import { SdkError } from './error';
-import { EntryType, EntryTypeCash, GameAccount, GameBundle, IToken, PlayerProfile } from './accounts';
-import { TxState } from './tx-state';
+import { EntryType, EntryTypeCash, GameAccount, GameBundle, INft, IToken } from './accounts';
+import { PlayerConfirming, TxState } from './tx-state';
 import { Client } from './client';
 import { Custom, GameEvent, ICustomEvent, Sync } from './events';
-import { ProfileCache } from './profile-cache';
 import { IStorage, getTtlCache, setTtlCache } from './storage';
 import { DecryptionCache } from './decryption-cache';
+import { ProfileLoader } from './profile-loader';
 
 const BUNDLE_CACHE_TTL = 3600 * 365;
+
+export type PlayerProfileWithPfp = {
+  pfp: INft | undefined,
+  addr: string,
+  nick: string,
+};
 
 export type EventCallbackFunction = (
   context: GameContextSnapshot,
@@ -36,7 +42,8 @@ export type EventCallbackFunction = (
 ) => void;
 export type MessageCallbackFunction = (message: Message) => void;
 export type TxStateCallbackFunction = (txState: TxState) => void;
-export type OnConnectionStateCallbackFunction = (connState: ConnectionState) => void;
+export type ConnectionStateCallbackFunction = (connState: ConnectionState) => void;
+export type ProfileCallbackFunction = (profile: PlayerProfileWithPfp) => void;
 
 export type AppClientInitOpts = {
   transport: ITransport;
@@ -45,7 +52,8 @@ export type AppClientInitOpts = {
   onEvent: EventCallbackFunction;
   onMessage?: MessageCallbackFunction;
   onTxState?: TxStateCallbackFunction;
-  onConnectionState?: OnConnectionStateCallbackFunction;
+  onConnectionState?: ConnectionStateCallbackFunction;
+  onProfile?: ProfileCallbackFunction;
   storage?: IStorage;
 };
 
@@ -79,9 +87,9 @@ export class AppClient {
   #onEvent: EventCallbackFunction;
   #onMessage?: MessageCallbackFunction;
   #onTxState?: TxStateCallbackFunction;
-  #onConnectionState?: OnConnectionStateCallbackFunction;
+  #onConnectionState?: ConnectionStateCallbackFunction;
   #encryptor: IEncryptor;
-  #profileCaches: ProfileCache;
+  #profileLoader: ProfileLoader;
   #info: GameInfo;
   #decryptionCache: DecryptionCache;
 
@@ -96,10 +104,11 @@ export class AppClient {
     onEvent: EventCallbackFunction,
     onMessage: MessageCallbackFunction | undefined,
     onTxState: TxStateCallbackFunction | undefined,
-    onConnectionState: OnConnectionStateCallbackFunction | undefined,
+    onConnectionState: ConnectionStateCallbackFunction | undefined,
     encryptor: IEncryptor,
     info: GameInfo,
     decryptionCache: DecryptionCache,
+    profileLoader: ProfileLoader,
   ) {
     this.#gameAddr = gameAddr;
     this.#handler = handler;
@@ -113,13 +122,14 @@ export class AppClient {
     this.#onTxState = onTxState;
     this.#onConnectionState = onConnectionState;
     this.#encryptor = encryptor;
-    this.#profileCaches = new ProfileCache(transport);
+    this.#profileLoader = profileLoader;
     this.#info = info;
     this.#decryptionCache = decryptionCache;
   }
 
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
-    const { transport, wallet, gameAddr, onEvent, onMessage, onTxState, onConnectionState, storage } = opts;
+    const { transport, wallet, gameAddr, onEvent, onMessage, onTxState, onConnectionState, onProfile, storage } = opts;
+
     console.group('AppClient initialization');
     try {
       const playerAddr = wallet.walletAddr;
@@ -189,6 +199,9 @@ export class AppClient {
         info.maxDeposit = gameAccount.entryType.maxDeposit;
       }
 
+      const profileLoader = new ProfileLoader(transport, storage, onProfile);
+      profileLoader.start();
+
       return new AppClient(
         gameAddr,
         handler,
@@ -204,6 +217,7 @@ export class AppClient {
         encryptor,
         info,
         decryptionCache,
+        profileLoader,
       );
     } finally {
       console.groupEnd();
@@ -229,16 +243,16 @@ export class AppClient {
   /**
    * Get player profile by its wallet address.
    */
-  getProfile(id: bigint): Promise<PlayerProfile | undefined>
-  getProfile(addr: string): Promise<PlayerProfile | undefined>
-  async getProfile(idOrAddr: string | bigint): Promise<PlayerProfile | undefined> {
+  getProfile(id: bigint): Promise<PlayerProfileWithPfp | undefined>
+  getProfile(addr: string): Promise<PlayerProfileWithPfp | undefined>
+  async getProfile(idOrAddr: string | bigint): Promise<PlayerProfileWithPfp | undefined> {
     let addr: string = ''
     if (typeof idOrAddr === 'bigint') {
       addr = this.#gameContext.idToAddr(idOrAddr);
     } else {
       addr = idOrAddr
     }
-    return await this.#profileCaches.getProfile(addr);
+    return this.#profileLoader.getProfile(addr);
   }
 
   async invokeEventCallback(event: GameEvent | undefined, isHistory: boolean) {
@@ -267,6 +281,12 @@ export class AppClient {
         continue;
       }
     }
+  }
+
+  /**
+   * Similar to attachGame, but connect to a subgame.
+   */
+  async attachSubGame(subgameId: number) {
 
   }
 
@@ -279,6 +299,9 @@ export class AppClient {
     const gameAccount = await this.__getGameAccount();
     this.#gameContext = new GameContext(gameAccount);
     console.log('Initialize game context:', this.#gameContext);
+    for (const p of gameAccount.players) {
+      this.#profileLoader.load(p.addr);
+    }
     this.#gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.#gameContext.settleVersion);
     await this.#connection.connect(new SubscribeEventParams({ settleVersion: this.#gameContext.settleVersion }));
     await this.__initializeState(gameAccount);
@@ -299,6 +322,9 @@ export class AppClient {
         try {
           if (this.#onTxState !== undefined) {
             const { txState } = frame;
+            if (txState instanceof PlayerConfirming) {
+              txState.confirmPlayers.forEach(p => this.#profileLoader.load(p.addr));
+            }
             this.#onTxState(txState);
           }
         } finally {
@@ -322,7 +348,6 @@ export class AppClient {
           try {
             let context = new GameContext(this.#gameContext);
             if (event instanceof Sync) {
-
               while (true) {
                 let gameAccount = await this.#transport.getGameAccount(this.#gameAddr);
                 if (gameAccount === undefined) {
@@ -332,6 +357,9 @@ export class AppClient {
                 }
                 for (const p of gameAccount.players) {
                   context.pushIdAddrPair(p.accessVersion, p.addr);
+                }
+                for (const p of event.newPlayers) {
+                  this.#profileLoader.load(this.#gameContext.idToAddr(p.id));
                 }
                 break;
               }
