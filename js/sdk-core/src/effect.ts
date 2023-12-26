@@ -34,12 +34,12 @@ export class SettleEject extends SettleOp {
 }
 
 export class Settle {
-  @field('string')
-  addr: string;
+  @field('u64')
+  id: bigint;
   @field(enums(SettleOp))
   op: SettleOp;
-  constructor(fields: { addr: string; op: SettleOp }) {
-    this.addr = fields.addr;
+  constructor(fields: { id: bigint; op: SettleOp }) {
+    this.id = fields.id;
     this.op = fields.op;
   }
   sortKey(): number {
@@ -77,8 +77,8 @@ export class Ask {
 export class Assign {
   @field('usize')
   randomId!: number;
-  @field('string')
-  playerAddr!: string;
+  @field('u64')
+  playerId!: bigint;
   @field(array('usize'))
   indexes!: number[];
   constructor(fields: Fields<Assign>) {

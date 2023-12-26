@@ -407,7 +407,8 @@ export class GameContext {
     }
     this.setAllowExit(effect.allowExit);
     for (const assign of effect.assigns) {
-      this.assign(assign.randomId, assign.playerAddr, assign.indexes);
+      const addr = this.idToAddr(assign.playerId);
+      this.assign(assign.randomId, addr, assign.indexes);
     }
     for (const reveal of effect.reveals) {
       this.reveal(reveal.randomId, reveal.indexes);

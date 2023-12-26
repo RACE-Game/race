@@ -5,6 +5,12 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 ## Breaking Changes
 - Facade: Argument format updated. Now it receives `-g` for game, and `-b` for bundle.
 
+### Replace addr with id in games
+- Now we use `id: u64` instead of `addr: string` in games. The value of `id` is taken from the `access_version` which is incremental and unique in game. This update helps us to improve the performance and reduce the sizes of checkpoints and states.
+- API: `Effect::count_players` and `Effect::count_servers` has been removed, use `Effect::count_nodes` to count how many nodes are involved in the randomization.
+- SDK: `AppClient.getProfiles` now receives both `addr: string` and `id: bigint`.
+- TestKit: Add `TestClient::join`.
+
 ## Enhancements
 - SDK: Remove dependency `crypto` to support NodeJS runtime.
 - CLI: Print `checkpoint` in hex format in command `game-info`.

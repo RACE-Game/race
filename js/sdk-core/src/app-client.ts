@@ -229,6 +229,8 @@ export class AppClient {
   /**
    * Get player profile by its wallet address.
    */
+  getProfile(id: bigint): Promise<PlayerProfile | undefined>
+  getProfile(addr: string): Promise<PlayerProfile | undefined>
   async getProfile(idOrAddr: string | bigint): Promise<PlayerProfile | undefined> {
     let addr: string = ''
     if (typeof idOrAddr === 'bigint') {
@@ -464,7 +466,16 @@ export class AppClient {
    * Throw an error when it fails.
    */
   idToAddr(id: bigint): string {
-    return this.#gameContext.idToAddr(id)
+    return this.#gameContext.idToAddr(id);
+  }
+
+  /**
+   * Parse the player's address to its id.
+   *
+   * Throw an error when it fails.
+   */
+  addrToId(addr: string): bigint {
+    return this.#gameContext.addrToId(addr);
   }
 
   /**
