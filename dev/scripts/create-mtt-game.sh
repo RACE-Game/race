@@ -7,7 +7,13 @@ DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
                   -u8 2 \
                   -u64 10 \
                   -u64 60000 \
-                  -u32 0)
+                  -u32 0 \
+                  -u32 3 \
+                  -u8 50 \
+                  -u8 30 \
+                  -u8 20 \
+                  -u8 1 \
+                  -s GvMiN5CouVeELHbvyzZXfAqa21TU2rMSRTdiHwCHUTz5)
 echo "DATA is $DATA"
 
 JSON=$(cat <<EOF

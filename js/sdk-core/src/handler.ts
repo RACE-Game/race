@@ -1,5 +1,5 @@
-import { array, deserialize, field, serialize, struct } from '@race-foundation/borsh';
-import { GameAccount, GameBundle, PlayerJoin, ServerJoin } from './accounts';
+import { array, deserialize, enums, field, serialize, struct } from '@race-foundation/borsh';
+import { EntryType, GameAccount, GameBundle } from './accounts';
 import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Sync } from './events';
 import { GameContext } from './game-context';
 import { IEncryptor } from './encryptor';
@@ -18,6 +18,7 @@ export interface IInitAccount {
   settleVersion: bigint;
   maxPlayers: number;
   checkpoint: Uint8Array;
+  entryType: EntryType;
 }
 
 export class InitAccount {
@@ -35,6 +36,8 @@ export class InitAccount {
   readonly maxPlayers: number;
   @field('u8-array')
   readonly checkpoint: Uint8Array;
+  @field(enums(EntryType))
+  readonly entryType: EntryType;
 
   constructor(fields: IInitAccount) {
     this.addr = fields.addr;
@@ -44,6 +47,7 @@ export class InitAccount {
     this.players = fields.players;
     this.maxPlayers = fields.maxPlayers;
     this.checkpoint = fields.checkpoint;
+    this.entryType = fields.entryType;
   }
   static createFromGameAccount(
     gameAccount: GameAccount,
@@ -61,6 +65,7 @@ export class InitAccount {
       settleVersion: transactorSettleVersion,
       maxPlayers: gameAccount.maxPlayers,
       checkpoint: gameAccount.checkpoint,
+      entryType: gameAccount.entryType,
     });
   }
   serialize(): Uint8Array {
@@ -182,7 +187,7 @@ export class Handler implements IHandler {
     }
   }
 
-  async generalPostHandleEvent(context: GameContext, event: GameEvent) {
+  async generalPostHandleEvent(context: GameContext, _event: GameEvent) {
     if (context.checkpoint) {
       context.randomStates = [];
       context.decisionStates = [];
