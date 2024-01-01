@@ -26,6 +26,7 @@ import { IStorage, getTtlCache, setTtlCache } from './storage';
 import { DecryptionCache } from './decryption-cache';
 import { ProfileLoader } from './profile-loader';
 
+const MAX_RETRIES = 3;
 const BUNDLE_CACHE_TTL = 3600 * 365;
 
 export type PlayerProfileWithPfp = {
@@ -269,6 +270,7 @@ export class AppClient {
   }
 
   async __getGameAccount(): Promise<GameAccount> {
+    let retries = 0;
     while (true) {
       try {
         const gameAccount = await this.#transport.getGameAccount(this.gameAddr);
@@ -278,7 +280,12 @@ export class AppClient {
       } catch (e: any) {
         console.warn(e, 'Failed to fetch game account, will retry in 3s');
         await new Promise(r => setTimeout(r, 3000));
-        continue;
+        if (retries === MAX_RETRIES) {
+          throw new Error(`Game account not found, after ${retries} retries`);
+        } else {
+          retries += 1;
+          continue;
+        }
       }
     }
   }
