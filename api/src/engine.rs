@@ -4,7 +4,8 @@ use crate::{
     effect::Effect,
     error::{HandleError, HandleResult},
     event::Event,
-    prelude::GamePlayer, types::EntryType,
+    prelude::GamePlayer,
+    types::EntryType,
 };
 
 /// A subset of on-chain account, used for game handler
@@ -66,7 +67,7 @@ impl Default for InitAccount {
             entry_type: EntryType::Cash {
                 min_deposit: 100,
                 max_deposit: 200,
-            }
+            },
         }
     }
 }

@@ -13,5 +13,6 @@ pub fn base64_decode(data: &str) -> Result<Vec<u8>, race_api::error::Error> {
 }
 
 pub fn addr_shorthand(addr: &str) -> String {
-    format!("[{}]", &addr[0..3])
+    let l = addr.len();
+    format!("[{}]", &addr[(l - 6)..l])
 }

@@ -7,6 +7,7 @@ use crate::component::{
 };
 use crate::frame::{EventFrame, SignalFrame};
 use race_api::error::{Error, Result};
+use race_api::prelude::InitAccount;
 use race_core::context::GameContext;
 use race_core::transport::TransportT;
 use race_core::types::{
@@ -228,6 +229,11 @@ impl SubGameHandle {
             .await?
             .ok_or(Error::GameBundleNotFound)?;
 
+        // Build an InitAccount
+        let mut init_account = InitAccount::default();
+        init_account.addr = addr.clone();
+        init_account.data = spec.init_data.clone();
+
         let game_context = GameContext::try_new_with_sub_game_spec(spec)?;
         let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 
@@ -244,6 +250,7 @@ impl SubGameHandle {
         event_bus.attach(&mut bridge_handle).await;
         event_bus.attach(&mut broadcaster_handle).await;
         event_bus.attach(&mut event_loop_handle).await;
+        event_bus.send(EventFrame::InitState { init_account }).await;
 
         Ok(Self {
             addr: format!("{}:{}", game_addr, sub_id),
