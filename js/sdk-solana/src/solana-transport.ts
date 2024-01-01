@@ -252,8 +252,25 @@ export class SolanaTransport implements ITransport {
     throw new Error('unimplemented');
   }
 
-  async recipientClaim(_wallet: IWallet, _params: RecipientClaimParams): Promise<TransactionResult<void>> {
-    throw new Error('unimplemented');
+  async recipientClaim(wallet: IWallet, params: RecipientClaimParams): Promise<TransactionResult<void>> {
+    const payerKey = new PublicKey(wallet.recipientAddr);
+    const recipientKey = new PublicKey(params.recipientAddr);
+    const recipientState = await this._getRecipientState(recipientKey);
+
+    if (recipientState === undefined) {
+      throw new Error('Recipient account not found');
+    }
+
+    const recipientClaimIx = instruction.claim({
+      recipientKey, payerKey
+    });
+    const tx = await makeTransaction(conn, playerKey);
+
+    tx.add(recipientClaimIx);
+
+    tx.partialSign(tempAccountKeypair);
+
+    return await wallet.sendTransaction(tx, this.#conn);
   }
 
   async addCreateProfileIxToTransaction(tx: Transaction, wallet: IWallet, params: CreatePlayerProfileParams): Promise<void> {
@@ -648,6 +665,17 @@ export class SolanaTransport implements ITransport {
       }
     }
     return ret;
+  }
+
+  async _getRecipientState(recipientKey: PublicKey): Promise<RecipientState | undefined> {
+    const conn = this.#conn;
+    const recipientAccount = await conn.getAccountInfo(recipientKey);
+    if (recipientAccount !== null) {
+      const data = recipientAccount.data;
+      return RecipientState.deserialize(data);
+    } else {
+      return undefined;
+    }
   }
 
   async _getRegState(regKey: PublicKey): Promise<RegistryState | undefined> {

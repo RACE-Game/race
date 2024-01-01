@@ -1,10 +1,11 @@
-import { PublicKey, SYSVAR_RENT_PUBKEY, TransactionInstruction } from '@solana/web3.js';
+import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { publicKeyExt } from './utils';
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID, PLAYER_PROFILE_SEED } from './constants';
 import { enums, field, serialize } from '@race-foundation/borsh';
 import { Buffer } from 'buffer';
 import { EntryType } from '@race-foundation/sdk-core';
+import { RecipientSlotOwnerAssigned, RecipientState } from './accounts';
 
 // Instruction types
 
@@ -21,6 +22,9 @@ export enum Instruction {
   UnregisterGame = 9,
   JoinGame = 10,
   PublishGame = 11,
+  CreateRecipient = 12,
+  AssignRecipient = 13,
+  RecipientClaim = 14,
 }
 
 // Instruction data definitations
@@ -386,5 +390,72 @@ export function publishGame(opts: PublishGameOptions): TransactionInstruction {
     ],
     programId: PROGRAM_ID,
     data,
+  });
+}
+
+
+export type ClaimOpts = {
+  payerKey: PublicKey,
+  recipientKey: PublicKey,
+  recipientState: RecipientState,
+};
+
+export function claim(opts: ClaimOpts): TransactionInstruction {
+  const [pda, _] = PublicKey.findProgramAddressSync([opts.recipientKey.toBuffer()], PROGRAM_ID);
+
+  let keys = [
+    {
+      pubkey: opts.payerKey,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: opts.recipientKey,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: pda,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: TOKEN_PROGRAM_ID,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    },
+  ];
+
+  for (const slot of opts.recipientState.slots) {
+    for (const slotShare of slot.shares) {
+      if (slotShare.owner instanceof RecipientSlotOwnerAssigned && slotShare.owner.addr === opts.payerKey) {
+        keys.push({
+          pubkey: slot.stakeAddr,
+          isSigner: false,
+          isWritable: false,
+        });
+        const ata = getAssociatedTokenAddressSync(slotShare.owner.addr, slot.tokenAddr);
+        keys.push({
+          pubkey: ata,
+          isSigner: false,
+          isWritable: false,
+        })
+      }
+    }
+  }
+
+  if (keys.length === 5) {
+    return new Error('No slot to claim');
+  }
+
+  return new TransactionInstruction({
+    keys,
+    programId: PROGRAM_ID,
+    data: Uint8Array.of(Instruction.RecipientClaim),
   });
 }

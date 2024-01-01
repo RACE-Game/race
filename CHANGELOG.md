@@ -19,6 +19,7 @@ Race Protocol: A multi-chain infrastructure for asymmetric competitive games
 ## Features
 - CLI: Update `publish` command. Now it receives the path to the WASM bundle instead of the Arweave URL to solana metadata.
 - Add optional `createProfileIfNeeded` to join options.
+- SDK: Add `recipientClaim` and its solana implementation.
 
 ## Fixes
 - Transactor: Improve the retry mechanism for settle.

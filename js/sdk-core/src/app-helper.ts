@@ -203,4 +203,16 @@ export class AppHelper {
       return new TokenWithBalance(t, balance);
     });
   }
+
+  /**
+   * Claim the fees collected by game.
+   *
+   * @param wallet - The wallet adapter to sign the transaction
+   * @param gameAddr - The address of game account.
+   */
+  async claim(wallet: IWallet, gameAddr: string): Promise<TransactionResult<void>> {
+    const gameAccount = await this.#transport.getGameAccount(gameAddr);
+    if (gameAccount === undefined) throw new Error('Game account not found');
+    return await this.#transport.recipientClaim(wallet, { recipientAddr: gameAccount?.recipientAddr });
+  }
 }
