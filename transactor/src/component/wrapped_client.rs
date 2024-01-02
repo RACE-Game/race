@@ -15,7 +15,7 @@ use race_client::Client;
 use race_core::connection::ConnectionT;
 use race_core::encryptor::EncryptorT;
 use race_core::transport::TransportT;
-use race_core::types::{ClientMode, GameAccount, ServerAccount};
+use race_core::types::ClientMode;
 use tracing::warn;
 
 use super::event_bus::CloseReason;
@@ -33,24 +33,13 @@ pub struct ClientContext {
 
 impl WrappedClient {
     pub fn init(
-        server_account: &ServerAccount,
-        init_account: &GameAccount,
+        addr: String,
+        game_addr: String,
+        mode: ClientMode,
         transport: Arc<dyn TransportT>,
         encryptor: Arc<dyn EncryptorT>,
         connection: Arc<dyn ConnectionT>,
     ) -> (Self, ClientContext) {
-        // Detect our client mode by check if our address is the transactor address
-        let server_addr = server_account.addr.clone();
-        let mode = if server_addr.eq(init_account
-            .transactor_addr
-            .as_ref()
-            .expect("Game is not served"))
-        {
-            ClientMode::Transactor
-        } else {
-            ClientMode::Validator
-        };
-
         (
             Self {},
             ClientContext {
@@ -58,8 +47,8 @@ impl WrappedClient {
                 encryptor,
                 connection,
                 mode,
-                addr: server_addr,
-                game_addr: init_account.addr.to_owned(),
+                addr,
+                game_addr,
             },
         )
     }

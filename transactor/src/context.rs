@@ -86,6 +86,7 @@ impl ApplicationContext {
                             .launch_sub_game(
                                 spec,
                                 bridge_parent,
+                                &account_1,
                                 transport_1.clone(),
                                 encryptor_1.clone(),
                             )

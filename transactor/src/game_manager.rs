@@ -61,12 +61,13 @@ impl GameManager {
         &self,
         spec: SubGameSpec,
         bridge_parent: EventBridgeParent,
+        server_account: &ServerAccount,
         transport: Arc<WrappedTransport>,
         encryptor: Arc<Encryptor>,
     ) {
         let game_addr = spec.game_addr.clone();
         let sub_id = spec.sub_id;
-        match Handle::try_new_sub_game_handle(spec, bridge_parent, encryptor, transport).await {
+        match Handle::try_new_sub_game_handle(spec, bridge_parent, server_account, encryptor, transport).await {
             Ok(mut handle) => {
                 let mut games = self.games.lock().await;
                 let addr = format!("{}:{}", game_addr, sub_id);
