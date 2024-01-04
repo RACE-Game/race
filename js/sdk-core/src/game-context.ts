@@ -286,7 +286,7 @@ export class GameContext {
 
   initRandomState(spec: RandomSpec): Id {
     const randomId = this.randomStates.length + 1;
-    const owners = this.nodes.filter(n => n.status.kind === 'ready').map(n => n.addr);
+    const owners = this.nodes.filter(n => n.status.kind === 'ready' && n.mode !== 'player').map(n => n.addr);
     const randomState = new RandomState(randomId, spec, owners);
     this.randomStates.push(randomState);
     return randomId;
