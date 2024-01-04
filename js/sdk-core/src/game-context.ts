@@ -428,6 +428,7 @@ export class GameContext {
       this.settle(effect.settles);
       this.transfer(effect.transfers);
       this.checkpoint = effect.checkpoint;
+      this.status = 'idle';
     }
     if (effect.handlerState !== undefined) {
       this.handlerState = effect.handlerState;

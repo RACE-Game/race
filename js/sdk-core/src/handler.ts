@@ -166,9 +166,8 @@ export class Handler implements IHandler {
         throw new Error('Leave is not allowed')
       }
     } else if (event instanceof GameStart) {
-      const { accessVersion } = event;
       context.status = 'running';
-      context.setNodeReady(accessVersion);
+      context.setNodeReady(context.accessVersion);
     } else if (event instanceof SecretsReady) {
       for (let randomId of event.randomIds) {
         let decryption = await this.#client.decrypt(context, randomId);

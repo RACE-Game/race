@@ -237,11 +237,8 @@ export class Leave extends GameEvent implements IEventKind {
 
 @variant(10)
 export class GameStart extends GameEvent implements IEventKind {
-  @field('u64')
-  accessVersion!: bigint;
-  constructor(fields: EventFields<GameStart>) {
+  constructor(_: any = {}) {
     super();
-    Object.assign(this, fields);
   }
   kind(): EventKind {
     return 'GameStart';

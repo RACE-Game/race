@@ -346,6 +346,7 @@ export class AppClient {
           for (const node of frame.newPlayers) {
             this.#gameContext.addNode(node.addr, node.accessVersion, 'player');
           }
+          this.#gameContext.setAccessVersion(frame.accessVersion);
         } finally {
           console.groupEnd();
         }
