@@ -3,10 +3,8 @@
 use crate::encryptor::NodePublicKeyRaw;
 use crate::types::PlayerJoin;
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::{
-    event::{Event, Message},
-    types::ServerJoin,
-};
+use race_api::event::{Event, Message};
+use race_api::types::ServerJoin;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -91,23 +89,6 @@ impl Display for SubscribeEventParams {
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct NodeJoin {
-    pub addr: String,
-    pub access_version: u64,
-}
-
-impl From<ServerJoin> for NodeJoin {
-    fn from(value: ServerJoin) -> Self {
-        Self {
-            addr: value.addr,
-            access_version: value.access_version,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum BroadcastFrame {
     // Game event
     Event {
@@ -126,9 +107,11 @@ pub enum BroadcastFrame {
         tx_state: TxState,
     },
     // Node state updates
-    UpdateNodes {
-        nodes: Vec<NodeJoin>,
-        transactor_addr: Option<String>,
+    Sync {
+        new_players: Vec<PlayerJoin>,
+        new_servers: Vec<ServerJoin>,
+        transactor_addr: String,
+        access_version: u64,
     },
 }
 
@@ -144,15 +127,8 @@ impl Display for BroadcastFrame {
             BroadcastFrame::TxState { tx_state } => {
                 write!(f, "BroadcastFrame::TxState: {:?}", tx_state)
             }
-            BroadcastFrame::UpdateNodes {
-                nodes,
-                transactor_addr,
-            } => {
-                write!(
-                    f,
-                    "BroadcastFrame::UpdateNodes: {:?}, current transactor: {:?}",
-                    nodes, transactor_addr
-                )
+            BroadcastFrame::Sync { access_version, .. } => {
+                write!(f, "BroadcastFrame::UpdateNodes: access_version {}", access_version)
             }
         }
     }

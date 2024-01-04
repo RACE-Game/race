@@ -110,14 +110,19 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                         break;
                     }
                 }
-                BroadcastFrame::UpdateNodes {
-                    nodes,
+
+                BroadcastFrame::Sync {
+                    new_players,
+                    new_servers,
                     transactor_addr,
+                    access_version,
                 } => {
                     if let Err(e) = ports
-                        .try_send(EventFrame::UpdateNodes {
-                            nodes,
+                        .try_send(EventFrame::Sync {
+                            new_players,
+                            new_servers,
                             transactor_addr,
+                            access_version,
                         })
                         .await
                     {

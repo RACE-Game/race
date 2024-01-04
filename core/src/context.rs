@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::types::{GameAccount, IdAddrPair, SettleWithAddr, SubGameSpec};
+use crate::types::{ClientMode, GameAccount, SettleWithAddr, SubGameSpec};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::decision::DecisionState;
 use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, LaunchSubGame, Release, Reveal};
@@ -10,8 +10,8 @@ use race_api::event::{CustomEvent, Event};
 use race_api::prelude::BridgeEvent;
 use race_api::random::{RandomSpec, RandomState, RandomStatus};
 use race_api::types::{
-    Addr, Ciphertext, DecisionId, GameStatus, PlayerJoin, RandomId, SecretDigest, SecretShare,
-    ServerJoin, Settle, SettleOp, Transfer,
+    Addr, Ciphertext, DecisionId, GameStatus, RandomId, SecretDigest, SecretShare,
+    Settle, SettleOp, Transfer,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -44,38 +44,26 @@ impl std::fmt::Display for NodeStatus {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Node {
     pub addr: String,
+    pub id: u64,
+    pub mode: ClientMode,
     pub status: NodeStatus,
 }
 
-impl From<PlayerJoin> for Node {
-    fn from(player: PlayerJoin) -> Self {
-        Self {
-            addr: player.addr,
-            status: NodeStatus::Ready,
-        }
-    }
-}
-
-impl From<ServerJoin> for Node {
-    fn from(server: ServerJoin) -> Self {
-        Self {
-            addr: server.addr,
-            status: NodeStatus::Ready,
-        }
-    }
-}
-
 impl Node {
-    pub fn new_pending<S: Into<String>>(addr: S, access_version: u64) -> Self {
+    pub fn new_pending<S: Into<String>>(addr: S, access_version: u64, mode: ClientMode) -> Self {
         Self {
             addr: addr.into(),
+            id: access_version,
+            mode,
             status: NodeStatus::Pending(access_version),
         }
     }
 
-    pub fn new<S: Into<String>>(addr: S) -> Self {
+    pub fn new<S: Into<String>>(addr: S, access_version: u64, mode: ClientMode) -> Self {
         Self {
             addr: addr.into(),
+            id: access_version,
+            mode,
             status: NodeStatus::Ready,
         }
     }
@@ -93,10 +81,13 @@ impl DispatchEvent {
     }
 }
 
-/// The effects of an event.
+/// The effects of an event, indicates what actions should be taken
+/// after the event handling.
 ///
-/// If the `checkpoint` is Some, a settlement should be sent.  If the
-/// `launch_sub_games` is not empty, sub games should be launched.
+/// - checkpoint: to send a settlement.
+/// - launch_sub_games: to launch a list of sub games.
+/// - bridge_events: to send events to sub games.
+/// - start_game: to start game.
 #[derive(Debug)]
 pub struct EventEffects {
     pub settles: Vec<SettleWithAddr>,
@@ -104,6 +95,7 @@ pub struct EventEffects {
     pub checkpoint: Option<Vec<u8>>,
     pub launch_sub_games: Vec<LaunchSubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
+    pub start_game: bool,
 }
 
 /// The context for public data.
@@ -139,8 +131,6 @@ pub struct GameContext {
     /// Version number for transactor settlement.  This number will be
     /// increased whenever a transaction is sent.
     pub(crate) settle_version: u64,
-    /// Current transactor's address
-    pub(crate) transactor_addr: Addr,
     pub(crate) status: GameStatus,
     /// List of nodes serving this game
     pub(crate) nodes: Vec<Node>,
@@ -163,8 +153,8 @@ pub struct GameContext {
     pub(crate) launch_sub_games: Vec<LaunchSubGame>,
     /// The bridge events to emit
     pub(crate) bridge_events: Vec<EmitBridgeEvent>,
-    /// The pairs of id and address
-    pub(crate) id_addr_pairs: Vec<IdAddrPair>,
+    /// Start a new game
+    pub(crate) start_game: bool,
 }
 
 impl GameContext {
@@ -172,20 +162,18 @@ impl GameContext {
         let SubGameSpec {
             game_addr,
             nodes,
-            transactor_addr,
+            sub_id,
             ..
         } = spec;
+
         Ok(Self {
-            game_addr,
+            game_addr: format!("{}:{}", game_addr, sub_id),
             nodes,
-            transactor_addr,
             ..Default::default()
         })
     }
 
     pub fn try_new(game_account: &GameAccount) -> Result<Self> {
-        let mut id_addr_pairs = Vec::with_capacity(30);
-
         let transactor_addr = game_account
             .transactor_addr
             .as_ref()
@@ -194,28 +182,24 @@ impl GameContext {
         let nodes = game_account
             .servers
             .iter()
-            .map(|s| Node::new_pending(s.addr.clone(), s.access_version))
+            .map(|s| {
+                Node::new_pending(
+                    s.addr.clone(),
+                    s.access_version,
+                    if s.addr.eq(transactor_addr) {
+                        ClientMode::Transactor
+                    } else {
+                        ClientMode::Validator
+                    },
+                )
+            })
             .collect();
-
-        for p in game_account.players.iter() {
-            id_addr_pairs.push(IdAddrPair {
-                id: p.access_version,
-                addr: p.addr.clone(),
-            });
-        }
-        for s in game_account.servers.iter() {
-            id_addr_pairs.push(IdAddrPair {
-                id: s.access_version,
-                addr: s.addr.clone(),
-            });
-        }
 
         Ok(Self {
             game_addr: game_account.addr.clone(),
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
-            transactor_addr: transactor_addr.to_owned(),
-            status: GameStatus::Uninit,
+            status: GameStatus::Idle,
             nodes,
             dispatch: None,
             timestamp: 0,
@@ -228,37 +212,24 @@ impl GameContext {
             checkpoint: None,
             launch_sub_games: vec![],
             bridge_events: vec![],
-            id_addr_pairs,
+            start_game: false,
         })
     }
 
     pub fn id_to_addr(&self, id: u64) -> Result<String> {
-        self.id_addr_pairs
+        self.nodes
             .iter()
-            .find(|x| x.id == id)
-            .ok_or(Error::CantMapIdToAddr)
-            .map(|x| x.addr.clone())
+            .find(|n| n.id == id)
+            .ok_or(Error::CantMapAddrToId)
+            .map(|n| n.addr.clone())
     }
 
     pub fn addr_to_id(&self, addr: &str) -> Result<u64> {
-        self.id_addr_pairs
+        self.nodes
             .iter()
-            .find(|x| x.addr.eq(addr))
+            .find(|n| n.addr.eq(addr))
             .ok_or(Error::CantMapAddrToId)
-            .map(|x| x.id)
-    }
-
-    pub fn push_id_addr_pair(&mut self, id: u64, addr: String) {
-        if !self
-            .id_addr_pairs
-            .iter()
-            .any(|p| p.id == id || p.addr == addr)
-        {
-            self.id_addr_pairs.push(IdAddrPair { id, addr });
-            if self.id_addr_pairs.len() > 1000 {
-                self.id_addr_pairs.remove(0);
-            }
-        }
+            .map(|n| n.id)
     }
 
     pub fn set_timestamp(&mut self, timestamp: u64) {
@@ -303,26 +274,28 @@ impl GameContext {
         &self.game_addr
     }
 
-    pub fn get_transactor_addr(&self) -> &str {
-        &self.transactor_addr
+    pub fn get_transactor_addr(&self) -> Result<&str> {
+        self.nodes
+            .iter()
+            .find(|n| n.mode == ClientMode::Transactor)
+            .as_ref()
+            .map(|n| n.addr.as_str())
+            .ok_or(Error::InvalidTransactorAddress)
     }
 
     pub fn count_nodes(&self) -> u16 {
         self.nodes.len() as u16
     }
 
-    pub fn gen_start_game_event(&self) -> Event {
-        Event::GameStart {
-            access_version: self.access_version,
-        }
-    }
-
     pub fn get_node_by_address(&self, addr: &str) -> Option<&Node> {
         self.nodes.iter().find(|n| n.addr.eq(addr))
     }
 
-    pub fn get_transactor_node(&self) -> &Node {
-        self.get_node_by_address(&self.transactor_addr).unwrap()
+    pub fn get_transactor_node(&self) -> Result<&Node> {
+        self.nodes
+            .iter()
+            .find(|n| n.mode == ClientMode::Transactor)
+            .ok_or(Error::CantFindTransactor)
     }
 
     pub fn dispatch_event(&mut self, event: Event, timeout: u64) {
@@ -349,7 +322,7 @@ impl GameContext {
 
     pub fn start_game(&mut self) {
         self.random_states.clear();
-        self.dispatch = Some(DispatchEvent::new(self.gen_start_game_event(), 0));
+        self.start_game = true;
     }
 
     pub fn shutdown_game(&mut self) {
@@ -360,8 +333,8 @@ impl GameContext {
     where
         E: CustomEvent,
     {
-        if let Ok(addr) = self.addr_to_id(&self.transactor_addr) {
-            let event = Event::custom(addr, e);
+        if let Ok(node) = self.get_transactor_node() {
+            let event = Event::custom(node.id, e);
             self.dispatch_event(event, timeout);
         }
     }
@@ -504,17 +477,10 @@ impl GameContext {
         Ok(())
     }
 
-    /// Add server to the game.
-    pub fn add_server_node(&mut self, server: &ServerJoin) {
-        if !self.nodes.iter().any(|n| n.addr.eq(&server.addr)) {
-            self.nodes.push(Node::new(server.addr.clone()));
-        }
-    }
-
-    pub fn add_node(&mut self, node_addr: String, access_version: u64) {
+    pub fn add_node(&mut self, node_addr: String, access_version: u64, mode: ClientMode) {
         if !self.nodes.iter().any(|n| n.addr.eq(&node_addr)) {
             self.nodes
-                .push(Node::new_pending(node_addr, access_version))
+                .push(Node::new_pending(node_addr, access_version, mode))
         }
     }
 
@@ -548,7 +514,9 @@ impl GameContext {
             .nodes
             .iter()
             .filter_map(|n| {
-                if n.status == NodeStatus::Ready {
+                if n.status == NodeStatus::Ready
+                    && matches!(n.mode, ClientMode::Transactor | ClientMode::Validator)
+                {
                     Some(n.addr.clone())
                 } else {
                     None
@@ -711,6 +679,7 @@ impl GameContext {
             checkpoint: self.get_checkpoint(),
             launch_sub_games,
             bridge_events,
+            start_game: self.start_game,
         })
     }
 
@@ -870,6 +839,7 @@ impl GameContext {
             self.checkpoint = Some(checkpoint_state);
             self.settle(settles);
             self.transfer(transfers);
+            self.set_game_status(GameStatus::Idle);
         } else if (!settles.is_empty()) || (!transfers.is_empty()) {
             return Err(Error::SettleWithoutCheckpoint);
         }
@@ -908,6 +878,7 @@ impl GameContext {
     pub fn prepare_for_next_event(&mut self, timestamp: u64) {
         self.set_timestamp(timestamp);
         self.checkpoint = None;
+        self.start_game = false;
     }
 }
 
@@ -917,8 +888,7 @@ impl Default for GameContext {
             game_addr: "".into(),
             access_version: 0,
             settle_version: 0,
-            transactor_addr: "".into(),
-            status: GameStatus::Uninit,
+            status: GameStatus::Idle,
             nodes: Vec::new(),
             dispatch: None,
             handler_state: "".into(),
@@ -931,7 +901,7 @@ impl Default for GameContext {
             checkpoint: None,
             launch_sub_games: Vec::new(),
             bridge_events: Vec::new(),
-            id_addr_pairs: Vec::new(),
+            start_game: false,
         }
     }
 }

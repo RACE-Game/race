@@ -344,7 +344,7 @@ impl ServerJoin {
 #[derive(Debug, Default, BorshSerialize, BorshDeserialize, PartialEq, Eq, Copy, Clone)]
 pub enum GameStatus {
     #[default]
-    Uninit,
+    Idle,
     Running,
     Closed,
 }
@@ -352,7 +352,7 @@ pub enum GameStatus {
 impl std::fmt::Display for GameStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GameStatus::Uninit => write!(f, "uninit"),
+            GameStatus::Idle => write!(f, "idle"),
             GameStatus::Running => write!(f, "running"),
             GameStatus::Closed => write!(f, "closed"),
         }

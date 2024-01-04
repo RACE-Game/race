@@ -68,11 +68,9 @@ pub enum Event {
         random_id: RandomId,
     },
 
-    /// Sync with on-chain account.  New players will be added frist to
-    /// game context and then to game handler (WASM).
-    /// This event is sent by transactor based on the diff of the account states.
-    Sync {
-        new_players: Vec<GamePlayer>,
+    /// This event is sent when new players joined game.
+    Join {
+        players: Vec<GamePlayer>,
     },
 
     /// A server left the game.
@@ -90,10 +88,7 @@ pub enum Event {
     },
 
     /// Transactor uses this event as the start for each game.
-    /// The `access_version` can be used to filter out which players are included.
-    GameStart {
-        access_version: u64,
-    },
+    GameStart,
 
     /// Timeout when waiting for start
     WaitingTimeout,
@@ -160,18 +155,18 @@ impl std::fmt::Display for Event {
             Event::RandomnessReady { random_id } => {
                 write!(f, "RandomnessReady, random_id: {}", random_id)
             }
-            Event::Sync { new_players } => {
-                let players = new_players
+            Event::Join { players } => {
+                let players = players
                     .iter()
                     .map(|p| p.id.to_string())
                     .collect::<Vec<String>>()
                     .join(",");
 
-                write!(f, "Sync, new_players: [{}]", players)
+                write!(f, "Join, players: [{}]", players)
             }
             Event::Leave { player_id } => write!(f, "Leave from {}", player_id),
-            Event::GameStart { access_version } => {
-                write!(f, "GameStart, access_version = {}", access_version)
+            Event::GameStart { } => {
+                write!(f, "GameStart")
             }
             Event::WaitingTimeout => write!(f, "WaitTimeout"),
             Event::DrawRandomItems {

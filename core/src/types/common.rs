@@ -7,7 +7,9 @@ use crate::context::Node;
 
 pub type SettleTransferCheckpoint = (Vec<Settle>, Vec<Transfer>, Vec<u8>);
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum ClientMode {
     Player,
     Transactor,
@@ -37,17 +39,11 @@ impl std::fmt::Display for Signature {
 pub struct SubGameSpec {
     pub game_addr: String,
     pub sub_id: usize,
+    pub players: Vec<GamePlayer>,
     pub bundle_addr: String,
     pub init_data: Vec<u8>,
     pub nodes: Vec<Node>,
-    pub transactor_addr: String,
-}
-
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct IdAddrPair {
-    pub id: u64,
-    pub addr: String,
+    pub checkpoint: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]

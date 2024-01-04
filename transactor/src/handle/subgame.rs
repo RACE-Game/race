@@ -31,6 +31,9 @@ impl SubGameHandle {
         encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
     ) -> Result<Self> {
+
+        println!("Launch sub game, nodes: {:?}", spec.nodes);
+
         let game_addr = spec.game_addr.clone();
         let sub_id = spec.sub_id.clone();
         let addr = format!("{}:{}", game_addr, sub_id);

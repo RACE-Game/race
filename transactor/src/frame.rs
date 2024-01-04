@@ -5,22 +5,21 @@ use race_api::{
 };
 use race_core::{
     context::GameContext,
-    types::{PlayerJoin, ServerJoin, SubGameSpec, Transfer, TxState, VoteType, NodeJoin, SettleWithAddr},
+    types::{PlayerJoin, ServerJoin, SettleWithAddr, SubGameSpec, Transfer, TxState, VoteType},
 };
 
 #[derive(Debug, Clone)]
 pub enum SignalFrame {
-    StartGame {
-        game_addr: String,
-    },
-    LaunchSubGame {
-        spec: SubGameSpec,
-    },
+    StartGame { game_addr: String },
+    LaunchSubGame { spec: SubGameSpec },
 }
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub enum EventFrame {
     Empty,
+    GameStart {
+        access_version: u64,
+    },
     Sync {
         new_players: Vec<PlayerJoin>,
         new_servers: Vec<ServerJoin>,
@@ -81,12 +80,7 @@ pub enum EventFrame {
         event: Event,
     },
     LaunchSubGame {
-        spec: SubGameSpec,
-    },
-    // SubGame & Validator event
-    UpdateNodes {
-        nodes: Vec<NodeJoin>,
-        transactor_addr: Option<String>,
+        spec: Box<SubGameSpec>,
     },
 }
 
@@ -94,6 +88,9 @@ impl std::fmt::Display for EventFrame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EventFrame::Empty => write!(f, "Empty"),
+            EventFrame::GameStart { access_version } => {
+                write!(f, "GameStart, access_version = {}", access_version)
+            }
             EventFrame::InitState { init_account, .. } => write!(
                 f,
                 "InitState, access_version = {}, settle_version = {}",
@@ -133,24 +130,10 @@ impl std::fmt::Display for EventFrame {
                 write!(f, "Vote: to {} for {:?}", votee, vote_type)
             }
             EventFrame::BridgeEvent { dest, event } => {
-                write!(
-                    f,
-                    "BridgeEvent: dest {}, event: {}",
-                    dest, event
-                )
+                write!(f, "BridgeEvent: dest {}, event: {}", dest, event)
             }
             EventFrame::LaunchSubGame { spec } => {
                 write!(f, "LaunchSubGame: {:?}", spec)
-            }
-            EventFrame::UpdateNodes {
-                nodes,
-                transactor_addr,
-            } => {
-                write!(
-                    f,
-                    "UpdateNodes, nodes: {:?}, transactor: {:?}",
-                    nodes, transactor_addr
-                )
             }
         }
     }

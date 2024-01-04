@@ -102,7 +102,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
             } else {
                 match event_frame {
                     EventFrame::LaunchSubGame { spec } => {
-                        let f = SignalFrame::LaunchSubGame { spec };
+                        let f = SignalFrame::LaunchSubGame { spec: *spec };
                         if let Err(e) = ctx.signal_tx.send(f).await {
                             println!("Failed to send: {}", e);
                         }
@@ -113,7 +113,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         }
                         break;
                     }
-                    EventFrame::BridgeEvent { .. } | EventFrame::UpdateNodes { .. } => {
+                    EventFrame::BridgeEvent { .. } | EventFrame::Sync { .. } => {
                         if let Err(e) = ctx.tx.send(event_frame) {
                             println!("Failed to send: {}", e);
                         }

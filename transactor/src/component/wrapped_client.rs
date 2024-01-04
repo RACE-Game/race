@@ -16,7 +16,7 @@ use race_core::connection::ConnectionT;
 use race_core::encryptor::EncryptorT;
 use race_core::transport::TransportT;
 use race_core::types::ClientMode;
-use tracing::warn;
+use tracing::{error, warn};
 
 use super::event_bus::CloseReason;
 
@@ -93,6 +93,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                             }
                         }
                         Err(e) => {
+                            error!("Client error: {:?}", e);
                             res = Err(e);
                             break 'outer;
                         }
@@ -114,6 +115,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
 mod tests {
 
     use race_api::prelude::*;
+    use race_core::types::ServerAccount;
     use race_encryptor::Encryptor;
     use race_test::prelude::*;
 
@@ -144,8 +146,9 @@ mod tests {
         let connection = Arc::new(DummyConnection::default());
         let transport = Arc::new(DummyTransport::default());
         let (client, client_ctx) = WrappedClient::init(
-            &transactor_account,
-            &game_account,
+            transactor_account.addr.clone(),
+            game_account.addr.clone(),
+            ClientMode::Transactor,
             transport,
             encryptor,
             connection.clone(),

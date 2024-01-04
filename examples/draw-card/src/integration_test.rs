@@ -55,7 +55,7 @@ fn test() -> anyhow::Result<()> {
     handler.handle_event(&mut ctx, &sync_event)?;
 
     {
-        assert_eq!(GameStatus::Uninit, ctx.get_status());
+        assert_eq!(GameStatus::Idle, ctx.get_status());
         assert_eq!(
             Some(DispatchEvent::new(
                 Event::GameStart {

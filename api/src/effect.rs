@@ -9,7 +9,7 @@ use crate::{
     error::{Error, HandleError, Result},
     event::BridgeEvent,
     random::RandomSpec,
-    types::{DecisionId, RandomId, Settle, Transfer},
+    types::{DecisionId, GamePlayer, RandomId, Settle, Transfer},
 };
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -45,19 +45,37 @@ pub struct ActionTimeout {
 pub struct LaunchSubGame {
     pub id: usize,
     pub bundle_addr: String,
+    pub players: Vec<GamePlayer>,
     pub init_data: Vec<u8>,
+    pub checkpoint: Vec<u8>,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+pub struct SubGameJoin {
+    pub id: usize,
+    pub players: Vec<GamePlayer>,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+pub struct SubGameLeave {
+    pub id: usize,
+    pub player_ids: Vec<u64>,
 }
 
 impl LaunchSubGame {
     pub fn try_new<S: BorshSerialize>(
         id: usize,
         bundle_addr: String,
+        players: Vec<GamePlayer>,
         init_data: S,
+        checkpoint: S,
     ) -> Result<Self> {
         Ok(Self {
             id,
             bundle_addr,
+            players,
             init_data: init_data.try_to_vec()?,
+            checkpoint: checkpoint.try_to_vec()?,
         })
     }
 }
@@ -306,16 +324,20 @@ impl Effect {
     }
 
     /// Launch sub game
-    pub fn launch_sub_game<S: BorshSerialize>(
+    pub fn launch_sub_game<D: BorshSerialize, C: BorshSerialize>(
         &mut self,
         id: usize,
         bundle_addr: String,
-        init_data: S,
+        players: Vec<GamePlayer>,
+        init_data: D,
+        checkpoint: C,
     ) -> Result<()> {
         self.launch_sub_games.push(LaunchSubGame {
             id,
             bundle_addr,
+            players,
             init_data: init_data.try_to_vec()?,
+            checkpoint: checkpoint.try_to_vec()?,
         });
         Ok(())
     }
@@ -414,9 +436,7 @@ mod tests {
             curr_random_id: 1,
             curr_decision_id: 1,
             nodes_count: 4,
-            asks: vec![Ask {
-                player_id: 1,
-            }],
+            asks: vec![Ask { player_id: 1 }],
             assigns: vec![Assign {
                 player_id: 1,
                 random_id: 5,

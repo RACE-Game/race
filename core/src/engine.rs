@@ -74,7 +74,7 @@ pub fn general_handle_event(
 
         Event::RandomnessReady { .. } => Ok(()),
 
-        Event::Sync { .. } => Ok(()),
+        Event::Join { .. } => Ok(()),
 
         Event::Leave { .. } => {
             if !context.allow_exit {
@@ -84,9 +84,8 @@ pub fn general_handle_event(
             }
         }
 
-        Event::GameStart { access_version } => {
+        Event::GameStart => {
             context.set_game_status(GameStatus::Running);
-            context.set_node_ready(*access_version);
             Ok(())
         }
 

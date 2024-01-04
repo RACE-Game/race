@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use race_api::event::Event;
 use race_core::types::{BroadcastFrame, TxState};
 use tokio::sync::{broadcast, Mutex};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use crate::component::common::{Component, ConsumerPorts};
 use crate::frame::EventFrame;
@@ -201,17 +201,16 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                 }
                 EventFrame::Sync {
                     new_servers,
+                    new_players,
                     transactor_addr,
-                    ..
+                    access_version,
                 } => {
-                    let nodes = new_servers.iter().cloned().map(Into::into).collect();
-                    info!("Broadcast new nodes: {:?}", nodes);
-
-                    let broadcast_frame = BroadcastFrame::UpdateNodes {
-                        nodes,
-                        transactor_addr: Some(transactor_addr),
+                    let broadcast_frame = BroadcastFrame::Sync {
+                        new_players,
+                        new_servers,
+                        transactor_addr,
+                        access_version,
                     };
-
 
                     let r = ctx.broadcast_tx.send(broadcast_frame);
 
@@ -244,7 +243,6 @@ mod tests {
             .add_player(&mut alice, 100)
             .add_player(&mut bob, 100)
             .build();
-
 
         let (broadcaster, ctx) = Broadcaster::init(game_account.addr.clone());
         let handle = broadcaster.start(ctx);
