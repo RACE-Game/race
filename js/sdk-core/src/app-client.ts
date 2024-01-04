@@ -2,7 +2,7 @@ import {
   BroadcastFrameEvent,
   BroadcastFrameMessage,
   BroadcastFrameTxState,
-  BroadcastFrameUpdateNodes,
+  BroadcastFrameSync,
   Connection,
   ConnectionState,
   IConnection,
@@ -21,7 +21,7 @@ import { SdkError } from './error';
 import { EntryType, EntryTypeCash, GameAccount, GameBundle, INft, IToken } from './accounts';
 import { PlayerConfirming, TxState } from './tx-state';
 import { Client } from './client';
-import { Custom, GameEvent, ICustomEvent, Sync } from './events';
+import { Custom, GameEvent, ICustomEvent, Join } from './events';
 import { IStorage, getTtlCache, setTtlCache } from './storage';
 import { DecryptionCache } from './decryption-cache';
 import { ProfileLoader } from './profile-loader';
@@ -337,11 +337,14 @@ export class AppClient {
         } finally {
           console.groupEnd();
         }
-      } else if (frame instanceof BroadcastFrameUpdateNodes) {
+      } else if (frame instanceof BroadcastFrameSync) {
         console.group('Update nodes');
         try {
-          for (const node of frame.nodes) {
-            this.#gameContext.addNode(node.addr, node.accessVersion);
+          for (const node of frame.newServers) {
+            this.#gameContext.addNode(node.addr, node.accessVersion, node.addr === frame.transactor_addr ? 'transactor' : 'validator');
+          }
+          for (const node of frame.newPlayers) {
+            this.#gameContext.addNode(node.addr, node.accessVersion, 'player');
           }
         } finally {
           console.groupEnd();
@@ -354,7 +357,7 @@ export class AppClient {
           this.#gameContext.prepareForNextEvent(timestamp);
           try {
             let context = new GameContext(this.#gameContext);
-            if (event instanceof Sync) {
+            if (event instanceof Join) {
               while (true) {
                 let gameAccount = await this.#transport.getGameAccount(this.#gameAddr);
                 if (gameAccount === undefined) {
@@ -362,10 +365,7 @@ export class AppClient {
                   await new Promise(r => setTimeout(r, 3000));
                   continue;
                 }
-                for (const p of gameAccount.players) {
-                  context.pushIdAddrPair(p.accessVersion, p.addr);
-                }
-                for (const p of event.newPlayers) {
+                for (const p of event.players) {
                   this.#profileLoader.load(this.#gameContext.idToAddr(p.id));
                 }
                 break;

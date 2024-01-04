@@ -253,7 +253,7 @@ export class SolanaTransport implements ITransport {
   }
 
   async recipientClaim(wallet: IWallet, params: RecipientClaimParams): Promise<TransactionResult<void>> {
-    const payerKey = new PublicKey(wallet.recipientAddr);
+    const payerKey = new PublicKey(wallet.walletAddr);
     const recipientKey = new PublicKey(params.recipientAddr);
     const recipientState = await this._getRecipientState(recipientKey);
 
@@ -262,13 +262,11 @@ export class SolanaTransport implements ITransport {
     }
 
     const recipientClaimIx = instruction.claim({
-      recipientKey, payerKey
+      recipientKey, payerKey, recipientState
     });
-    const tx = await makeTransaction(conn, playerKey);
+    const tx = await makeTransaction(this.#conn, payerKey);
 
     tx.add(recipientClaimIx);
-
-    tx.partialSign(tempAccountKeypair);
 
     return await wallet.sendTransaction(tx, this.#conn);
   }
@@ -312,15 +310,15 @@ export class SolanaTransport implements ITransport {
     return await wallet.sendTransaction(tx, this.#conn);
   }
 
-  async createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<TransactionResult<string>> {
+  async createRegistration(_wallet: IWallet, _params: CreateRegistrationParams): Promise<TransactionResult<string>> {
     throw new Error('unimplemented');
   }
 
-  async registerGame(wallet: IWallet, params: RegisterGameParams): Promise<TransactionResult<void>> {
+  async registerGame(_wallet: IWallet, _params: RegisterGameParams): Promise<TransactionResult<void>> {
     throw new Error('unimplemented');
   }
 
-  async unregisterGame(wallet: IWallet, params: UnregisterGameParams): Promise<TransactionResult<void>> {
+  async unregisterGame(_wallet: IWallet, _params: UnregisterGameParams): Promise<TransactionResult<void>> {
     throw new Error('unimplemented');
   }
 
@@ -627,17 +625,6 @@ export class SolanaTransport implements ITransport {
     if (gameAccount !== null) {
       const data = gameAccount.data;
       return GameState.deserialize(data);
-    } else {
-      return undefined;
-    }
-  }
-
-  async _getRecipientState(recipientAccountKey: PublicKey): Promise<RecipientState | undefined> {
-    const conn = this.#conn;
-    const recipientAccount = await conn.getAccountInfo(recipientAccountKey);
-    if (recipientAccount !== null) {
-      const data = recipientAccount.data;
-      return RecipientState.deserialize(data);
     } else {
       return undefined;
     }

@@ -1,6 +1,6 @@
 import { array, deserialize, enums, field, serialize, struct } from '@race-foundation/borsh';
 import { EntryType, GameAccount, GameBundle } from './accounts';
-import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Sync } from './events';
+import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Join } from './events';
 import { GameContext } from './game-context';
 import { IEncryptor } from './encryptor';
 import { Effect, GamePlayer } from './effect';
@@ -159,7 +159,7 @@ export class Handler implements IHandler {
       const { sender, randomId, ciphertextsAndDigests } = event;
       const addr = context.idToAddr(sender);
       context.lock(addr, randomId, ciphertextsAndDigests);
-    } else if (event instanceof Sync) {
+    } else if (event instanceof Join) {
       // No op here
     } else if (event instanceof Leave) {
       if (!context.allowExit) {

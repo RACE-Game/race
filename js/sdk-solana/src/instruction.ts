@@ -450,12 +450,12 @@ export function claim(opts: ClaimOpts): TransactionInstruction {
   }
 
   if (keys.length === 5) {
-    return new Error('No slot to claim');
+    throw new Error('No slot to claim');
   }
 
   return new TransactionInstruction({
     keys,
     programId: PROGRAM_ID,
-    data: Uint8Array.of(Instruction.RecipientClaim),
+    data: Buffer.from(Uint8Array.of(Instruction.RecipientClaim)),
   });
 }

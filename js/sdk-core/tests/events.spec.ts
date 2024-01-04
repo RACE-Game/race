@@ -14,7 +14,7 @@ import {
   Lock,
   CiphertextAndDigest,
   RandomnessReady,
-  Sync,
+  Join,
   ServerLeave,
   Leave,
   WaitingTimeout,
@@ -117,9 +117,9 @@ describe('Serialization', () => {
     assert.deepStrictEqual(e1, e);
   });
 
-  it('Sync', () => {
-    let e = new Sync({
-      newPlayers: [
+  it('Join', () => {
+    let e = new Join({
+      players: [
         new GamePlayer({
           id: 1n,
           position: 1,

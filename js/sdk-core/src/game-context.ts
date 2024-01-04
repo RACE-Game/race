@@ -13,8 +13,8 @@ import {
   Shutdown,
   WaitingTimeout,
 } from './events';
-import { Effect, EmitBridgeEvent, LaunchSubGame, Settle, SettleAdd, SettleEject, SettleSub, Transfer } from './effect';
-import { GameAccount, PlayerJoin, ServerJoin } from './accounts';
+import { Effect, EmitBridgeEvent, LaunchSubGame, Settle, Transfer } from './effect';
+import { GameAccount } from './accounts';
 import { Ciphertext, Digest, Id } from './types';
 
 const OPERATION_TIMEOUT = 15_000n;
@@ -27,10 +27,14 @@ export type NodeStatus =
   | { kind: 'ready' }
   | { kind: 'disconnected' };
 
-export type GameStatus = 'uninit' | 'running' | 'closed';
+export type ClientMode = 'player' | 'transactor' | 'validator';
+
+export type GameStatus = 'idle' | 'running' | 'closed';
 
 export interface INode {
   addr: string;
+  id: bigint;
+  mode: ClientMode;
   status: NodeStatus;
 }
 
@@ -63,7 +67,6 @@ export class GameContext {
   checkpointAccessVersion: bigint;
   launchSubGames: LaunchSubGame[];
   bridgeEvents: EmitBridgeEvent[];
-  idAddrPairs: IdAddrPair[];
 
   constructor(context: GameContext);
   constructor(gameAccount: GameAccount);
@@ -88,15 +91,17 @@ export class GameContext {
       this.checkpointAccessVersion = context.checkpointAccessVersion;
       this.launchSubGames = context.launchSubGames;
       this.bridgeEvents = context.bridgeEvents;
-      this.idAddrPairs = context.idAddrPairs;
     } else {
       const gameAccount = gameAccountOrContext;
       const transactorAddr = gameAccount.transactorAddr;
       if (transactorAddr === undefined) {
         throw new Error('Game not served');
       }
-      const nodes: INode[] = gameAccount.servers.map(s => ({
+      let nodes: INode[] = [];
+      gameAccount.servers.forEach(s => nodes.push({
         addr: s.addr,
+        id: s.accessVersion,
+        mode: s.addr === transactorAddr ? 'transactor' : 'validator',
         status: s.addr === gameAccount.transactorAddr
           ? { kind: 'ready' }
           : {
@@ -104,20 +109,23 @@ export class GameContext {
             accessVersion: s.accessVersion,
           },
       }));
-
-      let idAddrPairs = [];
-      for (let x of gameAccount.players) {
-        idAddrPairs.push({ id: x.accessVersion, addr: x.addr });
-      }
-      for (let x of gameAccount.servers) {
-        idAddrPairs.push({ id: x.accessVersion, addr: x.addr });
-      }
+      gameAccount.players.forEach(p => nodes.push({
+        addr: p.addr,
+        id: p.accessVersion,
+        mode: 'player',
+        status: p.addr === gameAccount.transactorAddr
+          ? { kind: 'ready' }
+          : {
+            kind: 'pending',
+            accessVersion: p.accessVersion,
+          },
+      }))
 
       this.gameAddr = gameAccount.addr;
       this.transactorAddr = transactorAddr;
       this.accessVersion = gameAccount.accessVersion;
       this.settleVersion = gameAccount.settleVersion;
-      this.status = 'uninit';
+      this.status = 'idle';
       this.dispatch = undefined;
       this.nodes = nodes;
       this.timestamp = 0n;
@@ -131,12 +139,11 @@ export class GameContext {
       this.checkpointAccessVersion = gameAccount.checkpointAccessVersion;
       this.launchSubGames = [];
       this.bridgeEvents = [];
-      this.idAddrPairs = idAddrPairs;
     }
   }
 
   idToAddr(id: bigint): string {
-    let found = this.idAddrPairs.find(x => x.id === id)
+    let found = this.nodes.find(x => x.id === id)
     if (found === undefined) {
       throw new Error(`Cannot map id to address: ${id.toString()}`);
     }
@@ -144,17 +151,11 @@ export class GameContext {
   }
 
   addrToId(addr: string): bigint {
-    let found = this.idAddrPairs.find(x => x.addr === addr)
+    let found = this.nodes.find(x => x.addr === addr)
     if (found === undefined) {
       throw new Error(`Cannot map address to id: ${addr}`);
     }
     return found.id
-  }
-
-  pushIdAddrPair(id: bigint, addr: string) {
-    if (this.idAddrPairs.find(x => x.id === id || x.addr === addr) === undefined) {
-      this.idAddrPairs.push({ id, addr })
-    }
   }
 
   getNodeByAddress(addr: string): INode | undefined {
@@ -263,11 +264,13 @@ export class GameContext {
     n.status = status;
   }
 
-  addNode(nodeAddr: string, accessVersion: bigint) {
+  addNode(nodeAddr: string, accessVersion: bigint, mode: ClientMode) {
     const exist = this.nodes.find(n => n.addr === nodeAddr);
     if (exist === undefined) {
       this.nodes.push({
         addr: nodeAddr,
+        id: accessVersion,
+        mode,
         status: { kind: 'pending', accessVersion }
       })
     }

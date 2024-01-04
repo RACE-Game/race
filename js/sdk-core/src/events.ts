@@ -14,7 +14,7 @@ export type EventKind =
   | 'Mask'
   | 'Lock'
   | 'RandomnessReady'
-  | 'Sync'
+  | 'Join'
   | 'ServerLeave'
   | 'Leave'
   | 'GameStart'
@@ -197,15 +197,15 @@ export class RandomnessReady extends GameEvent implements IEventKind {
 }
 
 @variant(7)
-export class Sync extends GameEvent implements IEventKind {
+export class Join extends GameEvent implements IEventKind {
   @field(array(struct(GamePlayer)))
-  newPlayers!: GamePlayer[];
-  constructor(fields: EventFields<Sync>) {
+  players!: GamePlayer[];
+  constructor(fields: EventFields<Join>) {
     super();
     Object.assign(this, fields);
   }
   kind(): EventKind {
-    return 'Sync';
+    return 'Join';
   }
 }
 

@@ -3,6 +3,7 @@ import { TxState } from './tx-state';
 import { GameEvent } from './events';
 import { deserialize, array, enums, field, option, serialize, struct, variant } from '@race-foundation/borsh';
 import { arrayBufferToBase64, base64ToUint8Array } from './utils';
+import { PlayerJoin, ServerJoin } from './accounts';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'reconnected' | 'closed';
 
@@ -131,11 +132,15 @@ export class NodeJoin {
 }
 
 @variant(3)
-export class BroadcastFrameUpdateNodes extends BroadcastFrame {
-  @field(array(struct(NodeJoin)))
-  nodes!: NodeJoin[];
-  @field(option('string'))
-  transactor_addr!: string | undefined;
+export class BroadcastFrameSync extends BroadcastFrame {
+  @field(array(struct(PlayerJoin)))
+  newPlayers!: PlayerJoin[];
+  @field(array(struct(ServerJoin)))
+  newServers!: ServerJoin[];
+  @field('string')
+  transactor_addr!: string;
+  @field('u64')
+  accessVersion!: bigint;
   constructor(fields: any) {
     super();
     Object.assign(this, fields)
