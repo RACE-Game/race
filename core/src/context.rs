@@ -220,7 +220,7 @@ impl GameContext {
         self.nodes
             .iter()
             .find(|n| n.id == id)
-            .ok_or(Error::CantMapAddrToId)
+            .ok_or(Error::CantMapIdToAddr(id))
             .map(|n| n.addr.clone())
     }
 
@@ -228,7 +228,7 @@ impl GameContext {
         self.nodes
             .iter()
             .find(|n| n.addr.eq(addr))
-            .ok_or(Error::CantMapAddrToId)
+            .ok_or(Error::CantMapAddrToId(addr.to_string()))
             .map(|n| n.id)
     }
 
