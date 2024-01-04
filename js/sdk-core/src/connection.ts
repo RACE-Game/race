@@ -31,6 +31,8 @@ interface ICheckTxStateParams {
   accessVersion: bigint;
 }
 
+export type ConnectionSubscription = AsyncGenerator<BroadcastFrame | ConnectionState | undefined>;
+
 export class AttachGameParams {
   @field('string')
   signer: string;
@@ -158,7 +160,7 @@ export interface IConnection {
 
   connect(params: SubscribeEventParams): Promise<void>;
 
-  subscribeEvents(): AsyncGenerator<BroadcastFrame | ConnectionState | undefined>;
+  subscribeEvents(): ConnectionSubscription;
 }
 
 export class Connection implements IConnection {

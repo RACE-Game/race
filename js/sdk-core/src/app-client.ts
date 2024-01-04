@@ -10,6 +10,7 @@ import {
   SubmitEventParams,
   SubmitMessageParams,
   SubscribeEventParams,
+  ConnectionSubscription,
 } from './connection';
 import { GameContext } from './game-context';
 import { GameContextSnapshot } from './game-context-snapshot';
@@ -57,6 +58,8 @@ export type AppClientInitOpts = {
   onProfile?: ProfileCallbackFunction;
   storage?: IStorage;
 };
+
+export type AppClientInitSubOpts = AppClientInitOpts & { subId: number }
 
 export type JoinOpts = {
   amount: bigint;
@@ -126,6 +129,11 @@ export class AppClient {
     this.#profileLoader = profileLoader;
     this.#info = info;
     this.#decryptionCache = decryptionCache;
+  }
+
+  static async initializeSub(opts: AppClientInitSubOpts): Promise<AppClient> {
+    const gameAddr = `${opts.gameAddr}:${opts.subId.toString()}`;
+    return await AppClient.initialize({ ...opts, gameAddr });
   }
 
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
@@ -290,29 +298,7 @@ export class AppClient {
     }
   }
 
-  /**
-   * Similar to attachGame, but connect to a subgame.
-   */
-  async attachSubGame(subgameId: number) {
-
-  }
-
-  /**
-   * Connect to the transactor and retrieve the event stream.
-   */
-  async attachGame() {
-    await this.#client.attachGame();
-    const sub = this.#connection.subscribeEvents();
-    const gameAccount = await this.__getGameAccount();
-    this.#gameContext = new GameContext(gameAccount);
-    console.log('Initialize game context:', this.#gameContext);
-    for (const p of gameAccount.players) {
-      this.#profileLoader.load(p.addr);
-    }
-    this.#gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.#gameContext.settleVersion);
-    await this.#connection.connect(new SubscribeEventParams({ settleVersion: this.#gameContext.settleVersion }));
-    await this.__initializeState(gameAccount);
-
+  async processSubscription(sub: ConnectionSubscription) {
     for await (const frame of sub) {
       if (frame instanceof BroadcastFrameMessage) {
         console.group('Receive message');
@@ -415,6 +401,28 @@ export class AppClient {
         break;
       }
     }
+  }
+
+  makeSubGameAddr(subId: number): string {
+    return `${this.#gameAddr}:${subId}`;
+  }
+
+  /**
+   * Connect to the transactor and retrieve the event stream.
+   */
+  async attachGame() {
+    await this.#client.attachGame();
+    const sub = this.#connection.subscribeEvents();
+    const gameAccount = await this.__getGameAccount();
+    this.#gameContext = new GameContext(gameAccount);
+    console.log('Initialize game context:', this.#gameContext);
+    for (const p of gameAccount.players) {
+      this.#profileLoader.load(p.addr);
+    }
+    this.#gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.#gameContext.settleVersion);
+    await this.#connection.connect(new SubscribeEventParams({ settleVersion: this.#gameContext.settleVersion }));
+    await this.__initializeState(gameAccount);
+    await this.processSubscription(sub);
   }
 
   /**
