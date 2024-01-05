@@ -248,8 +248,8 @@ impl GameHandler for DrawCard {
             }
 
             // Start game when there are two players.
-            Event::Sync { new_players, .. } => {
-                for p in new_players.into_iter() {
+            Event::Join { players } => {
+                for p in players.into_iter() {
                     self.players.push(Player {
                         id: p.id,
                         balance: p.balance,

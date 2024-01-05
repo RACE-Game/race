@@ -54,8 +54,8 @@ impl GameHandler for SimpleSettle {
 
     fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<(), HandleError> {
         match event {
-            Event::Sync { new_players, .. } => {
-                for p in new_players {
+            Event::Join { players, .. } => {
+                for p in players {
                     self.players.insert(p.id, p.balance);
                 }
                 self.maybe_settle(effect)?;
@@ -78,8 +78,8 @@ mod tests {
     #[test]
     pub fn test_settle() {
         let mut effect = Effect::default();
-        let event = Event::Sync {
-            new_players: vec![
+        let event = Event::Join {
+            players: vec![
                 GamePlayer::new(0, 100, 0),
                 GamePlayer::new(1, 100, 1),
             ]

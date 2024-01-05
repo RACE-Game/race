@@ -70,8 +70,8 @@ impl GameHandler for Raffle {
                 }
             }
 
-            Event::Sync { new_players, .. } => {
-                let players = new_players.into_iter().map(Into::into);
+            Event::Join { players } => {
+                let players = players.into_iter().map(Into::into);
                 self.players.extend(players);
                 if self.players.len() >= 1 && self.draw_time == 0 {
                     self.draw_time = effect.timestamp() + DRAW_TIMEOUT;
@@ -147,8 +147,8 @@ mod tests {
             players: vec![],
             random_id: 0,
         };
-        let event = Event::Sync {
-            new_players: vec![GamePlayer::new(0, 100, 0), GamePlayer::new(1, 100, 1)],
+        let event = Event::Join {
+            players: vec![GamePlayer::new(0, 100, 0), GamePlayer::new(1, 100, 1)],
         };
 
         state.handle_event(&mut effect, event).unwrap();

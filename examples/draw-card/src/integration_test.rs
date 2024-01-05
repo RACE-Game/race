@@ -48,8 +48,8 @@ fn test() -> anyhow::Result<()> {
     // Another player joined the game.
     // Now we have enough players, an event of `GameStart` should be dispatched.
     println!("Player Bob join the game");
-    let sync_event = Event::Sync {
-        new_players: vec![bob.join(&mut ctx, &mut game_account, 10000)?]
+    let sync_event = Event::Join {
+        players: vec![bob.join(&mut ctx, &mut game_account, 10000)?]
     };
 
     handler.handle_event(&mut ctx, &sync_event)?;
