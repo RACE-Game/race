@@ -120,7 +120,7 @@ impl TestClient {
             verify_key: "".into(),
         });
         self.set_id(id);
-        game_context.push_id_addr_pair(id, self.client.addr.clone());
+        game_context.add_node(self.client.addr.clone(), id, ClientMode::Player);
 
         Ok(GamePlayer {
             id, position, balance
