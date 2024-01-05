@@ -128,7 +128,7 @@ impl Display for BroadcastFrame {
                 write!(f, "BroadcastFrame::TxState: {:?}", tx_state)
             }
             BroadcastFrame::Sync { access_version, .. } => {
-                write!(f, "BroadcastFrame::UpdateNodes: access_version {}", access_version)
+                write!(f, "BroadcastFrame::Sync: access_version {}", access_version)
             }
         }
     }

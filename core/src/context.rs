@@ -10,8 +10,8 @@ use race_api::event::{CustomEvent, Event};
 use race_api::prelude::BridgeEvent;
 use race_api::random::{RandomSpec, RandomState, RandomStatus};
 use race_api::types::{
-    Addr, Ciphertext, DecisionId, GameStatus, RandomId, SecretDigest, SecretShare,
-    Settle, SettleOp, Transfer,
+    Addr, Ciphertext, DecisionId, GameStatus, RandomId, SecretDigest, SecretShare, Settle,
+    SettleOp, Transfer,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -478,10 +478,9 @@ impl GameContext {
     }
 
     pub fn add_node(&mut self, node_addr: String, access_version: u64, mode: ClientMode) {
-        if !self.nodes.iter().any(|n| n.addr.eq(&node_addr)) {
-            self.nodes
-                .push(Node::new_pending(node_addr, access_version, mode))
-        }
+        self.nodes.retain(|n| n.addr.ne(&node_addr));
+        self.nodes
+            .push(Node::new_pending(node_addr, access_version, mode))
     }
 
     pub fn set_access_version(&mut self, access_version: u64) {

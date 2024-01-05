@@ -123,16 +123,6 @@ export class BroadcastFrameTxState extends BroadcastFrame {
   }
 }
 
-export class NodeJoin {
-  @field('string')
-  addr!: string;
-  @field('u64')
-  accessVersion!: bigint;
-  constructor(fields: any) {
-    Object.assign(this, fields)
-  }
-}
-
 @variant(3)
 export class BroadcastFrameSync extends BroadcastFrame {
   @field(array(struct(PlayerJoin)))

@@ -265,15 +265,13 @@ export class GameContext {
   }
 
   addNode(nodeAddr: string, accessVersion: bigint, mode: ClientMode) {
-    const exist = this.nodes.find(n => n.addr === nodeAddr);
-    if (exist === undefined) {
-      this.nodes.push({
-        addr: nodeAddr,
-        id: accessVersion,
-        mode,
-        status: { kind: 'pending', accessVersion }
-      })
-    }
+    this.nodes = this.nodes.filter(n => n.addr !== nodeAddr);
+    this.nodes.push({
+      addr: nodeAddr,
+      id: accessVersion,
+      mode,
+      status: { kind: 'pending', accessVersion }
+    });
   }
 
   setAccessVersion(accessVersion: bigint) {

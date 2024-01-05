@@ -301,7 +301,7 @@ export class AppClient {
   async processSubscription(sub: ConnectionSubscription) {
     for await (const frame of sub) {
       if (frame instanceof BroadcastFrameMessage) {
-        console.group('Receive message');
+        console.group('Receive message broadcast');
         try {
           if (this.#onMessage !== undefined) {
             const { message } = frame;
@@ -311,7 +311,7 @@ export class AppClient {
           console.groupEnd();
         }
       } else if (frame instanceof BroadcastFrameTxState) {
-        console.group('Receive tx state');
+        console.group('Receive transaction state broadcast');
         try {
           if (this.#onTxState !== undefined) {
             const { txState } = frame;
@@ -324,10 +324,11 @@ export class AppClient {
           console.groupEnd();
         }
       } else if (frame instanceof BroadcastFrameSync) {
-        console.group('Update nodes');
+        console.group('Receive sync broadcast');
         try {
           for (const node of frame.newServers) {
-            this.#gameContext.addNode(node.addr, node.accessVersion, node.addr === frame.transactor_addr ? 'transactor' : 'validator');
+            this.#gameContext.addNode(node.addr, node.accessVersion,
+              node.addr === frame.transactor_addr ? 'transactor' : 'validator');
           }
           for (const node of frame.newPlayers) {
             this.#gameContext.addNode(node.addr, node.accessVersion, 'player');
