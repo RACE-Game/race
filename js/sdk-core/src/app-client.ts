@@ -68,6 +68,7 @@ export type JoinOpts = {
 };
 
 export type GameInfo = {
+  gameAddr: string;
   title: string;
   maxPlayers: number;
   minDeposit?: bigint;
@@ -193,6 +194,7 @@ export class AppClient {
         throw SdkError.tokenNotFound(gameAccount.tokenAddr);
       }
       const info: GameInfo = {
+        gameAddr: gameAccount.addr,
         title: gameAccount.title,
         entryType: gameAccount.entryType,
         maxPlayers: gameAccount.maxPlayers,
