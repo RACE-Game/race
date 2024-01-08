@@ -1,7 +1,7 @@
 import { EntryTypeCash, GameAccount, INft, IToken, PlayerProfile, TokenWithBalance } from './accounts';
-import { PlayerProfileWithPfp } from './app-client';
 import { IStorage } from './storage';
 import { CreateGameAccountParams, ITransport, TransactionResult } from './transport';
+import { PlayerProfileWithPfp } from './types';
 import { IWallet } from './wallet';
 
 

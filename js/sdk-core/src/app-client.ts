@@ -1,7 +1,6 @@
 import {
   Connection,
   IConnection,
-  SubscribeEventParams,
 } from './connection';
 import { GameContext } from './game-context';
 import { ITransport, TransactionResult } from './transport';
@@ -13,8 +12,9 @@ import { Client } from './client';
 import { IStorage, getTtlCache, setTtlCache } from './storage';
 import { DecryptionCache } from './decryption-cache';
 import { ProfileLoader } from './profile-loader';
-import { BaseClient, ConnectionStateCallbackFunction, EventCallbackFunction, GameInfo, MessageCallbackFunction, PlayerProfileWithPfp, ProfileCallbackFunction, TxStateCallbackFunction } from './base-client';
+import { BaseClient } from './base-client';
 import { EntryTypeCash, GameAccount, GameBundle, IToken } from './accounts';
+import { ConnectionStateCallbackFunction, EventCallbackFunction, GameInfo, MessageCallbackFunction, TxStateCallbackFunction, PlayerProfileWithPfp, ProfileCallbackFunction } from './types';
 
 const BUNDLE_CACHE_TTL = 3600 * 365;
 

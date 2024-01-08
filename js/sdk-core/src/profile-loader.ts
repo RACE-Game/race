@@ -1,7 +1,6 @@
-import { PlayerProfile } from './accounts';
-import { PlayerProfileWithPfp, ProfileCallbackFunction } from './app-client';
 import { IStorage } from './storage';
 import { ITransport } from './transport';
+import { PlayerProfileWithPfp, ProfileCallbackFunction } from './types';
 
 type LoadingStatus = 'loading' | 'loaded' | 'failed';
 

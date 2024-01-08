@@ -17,50 +17,14 @@ import { ITransport } from './transport';
 import { IWallet } from './wallet';
 import { Handler, InitAccount } from './handler';
 import { IEncryptor } from './encryptor';
-import { EntryType, GameAccount, INft, IToken } from './accounts';
+import { GameAccount } from './accounts';
 import { PlayerConfirming, TxState } from './tx-state';
 import { Client } from './client';
 import { Custom, GameEvent, ICustomEvent, Join } from './events';
 import { DecryptionCache } from './decryption-cache';
+import { ConnectionStateCallbackFunction, EventCallbackFunction, GameInfo, LoadProfileCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
 
 const MAX_RETRIES = 3;
-
-export type GameInfo = {
-  gameAddr: string;
-  title: string;
-  maxPlayers: number;
-  minDeposit?: bigint;
-  maxDeposit?: bigint;
-  entryType: EntryType,
-  token: IToken;
-  tokenAddr: string;
-  bundleAddr: string;
-  data: Uint8Array;
-  dataLen: number;
-};
-
-export type PlayerProfileWithPfp = {
-  pfp: INft | undefined,
-  addr: string,
-  nick: string,
-};
-
-export type EventCallbackFunction = (
-  context: GameContextSnapshot,
-  state: Uint8Array,
-  event: GameEvent | undefined,
-  isHistory: boolean,
-) => void;
-
-export type MessageCallbackFunction = (message: Message) => void;
-
-export type TxStateCallbackFunction = (txState: TxState) => void;
-
-export type ConnectionStateCallbackFunction = (connState: ConnectionState) => void;
-
-export type ProfileCallbackFunction = (profile: PlayerProfileWithPfp) => void;
-
-export type LoadProfileCallbackFunction = (addr: string) => void;
 
 export type BaseClientCtorOpts = {
   gameAddr: string;
@@ -202,7 +166,7 @@ export class BaseClient {
     this.__gameContext = new GameContext(gameAccount);
     console.log('Initialize game context:', this.__gameContext);
     for (const p of gameAccount.players) {
-      if (this.__profileLoader !== undefined) this.__profileLoader.load(p.addr);
+      this.__onLoadProfile(p.addr);
     }
     this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
     await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
@@ -343,9 +307,10 @@ export class BaseClient {
       try {
         const gameAccount = await this.__getGameAccount();
         this.__gameContext = new GameContext(gameAccount);
+        const initAccount = InitAccount.createFromGameAccount(gameAccount, this.__gameContext.accessVersion, this.__gameContext.settleVersion);
         this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
         await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
-        await this.__initializeState(gameAccount);
+        await this.__initializeState(initAccount);
       } finally {
         console.groupEnd();
       }

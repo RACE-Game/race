@@ -1,4 +1,4 @@
-import { BaseClient, ConnectionStateCallbackFunction, EventCallbackFunction, GameInfo, MessageCallbackFunction, TxStateCallbackFunction } from './base-client';
+import { BaseClient } from './base-client';
 import { Client } from './client';
 import { IConnection } from './connection';
 import { DecryptionCache } from './decryption-cache';
@@ -6,6 +6,7 @@ import { IEncryptor } from './encryptor';
 import { GameContext } from './game-context';
 import { Handler } from './handler';
 import { ITransport } from './transport';
+import { GameInfo, ConnectionStateCallbackFunction, EventCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
 import { IWallet } from './wallet';
 
 export type SubClientCtorOpts = {
