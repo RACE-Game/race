@@ -5,8 +5,8 @@
   "maxPlayers": 6,
   "entryType": {
     "cash": {
-      "minDeposit": 1000000,
-      "maxDeposit": 3000000
+      "minDeposit": 100000000,
+      "maxDeposit": 300000000
     }
   },
   "data": [64,66,15,0,0,0,0,0,192,198,45,0,0,0,0,0,0,0,0,0,0,0,0,0,30,0,10,0]

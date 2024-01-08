@@ -31,7 +31,9 @@ interface ICheckTxStateParams {
   accessVersion: bigint;
 }
 
-export type ConnectionSubscription = AsyncGenerator<BroadcastFrame | ConnectionState | undefined>;
+export type ConnectionSubscriptionItem = BroadcastFrame | ConnectionState | undefined;
+
+export type ConnectionSubscription = AsyncGenerator<ConnectionSubscriptionItem>;
 
 export class AttachGameParams {
   @field('string')
@@ -88,7 +90,7 @@ export abstract class BroadcastFrame { }
 @variant(0)
 export class BroadcastFrameEvent extends BroadcastFrame {
   @field('string')
-  gameAddr!: string;
+  target!: string;
   @field(enums(GameEvent))
   event!: GameEvent;
   @field('u64')
@@ -104,7 +106,7 @@ export class BroadcastFrameEvent extends BroadcastFrame {
 @variant(1)
 export class BroadcastFrameMessage extends BroadcastFrame {
   @field('string')
-  gameAddr!: string;
+  target!: string;
   @field(struct(Message))
   message!: Message;
   constructor(fields: any) {
@@ -154,7 +156,9 @@ export interface IConnection {
 }
 
 export class Connection implements IConnection {
-  gameAddr: string;
+  // The target to connect, in normal game the target is the address
+  // of game.  In a sub game, the target is constructed as ADDR:ID.
+  target: string;
   playerAddr: string;
   endpoint: string;
   encryptor: IEncryptor;
@@ -173,8 +177,8 @@ export class Connection implements IConnection {
 
   isFirstOpen: boolean;
 
-  constructor(gameAddr: string, playerAddr: string, endpoint: string, encryptor: IEncryptor) {
-    this.gameAddr = gameAddr;
+  constructor(target: string, playerAddr: string, endpoint: string, encryptor: IEncryptor) {
+    this.target = target;
     this.playerAddr = playerAddr;
     this.endpoint = endpoint;
     this.encryptor = encryptor;
@@ -256,7 +260,7 @@ export class Connection implements IConnection {
           return;
         }
         if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
-          this.socket.send(this.makeReqNoSig(this.gameAddr, 'ping', {}));
+          this.socket.send(this.makeReqNoSig(this.target, 'ping', {}));
         }
       }, 3000);
 
@@ -281,18 +285,18 @@ export class Connection implements IConnection {
     };
 
     // Call JSONRPC subscribe_event
-    const req = this.makeReqNoSig(this.gameAddr, 'subscribe_event', params);
+    const req = this.makeReqNoSig(this.target, 'subscribe_event', params);
     await this.requestWs(req);
   }
 
   async attachGame(params: AttachGameParams): Promise<void> {
-    const req = this.makeReqNoSig(this.gameAddr, 'attach_game', params);
+    const req = this.makeReqNoSig(this.target, 'attach_game', params);
     await this.requestXhr(req);
   }
 
   async submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined> {
     try {
-      const req = await this.makeReq(this.gameAddr, 'submit_event', params);
+      const req = await this.makeReq(this.target, 'submit_event', params);
       await this.requestXhr(req);
       return undefined;
     } catch (_: any) {
@@ -302,7 +306,7 @@ export class Connection implements IConnection {
 
   async submitMessage(params: SubmitMessageParams): Promise<ConnectionState | undefined> {
     try {
-      const req = await this.makeReq(this.gameAddr, 'submit_message', params);
+      const req = await this.makeReq(this.target, 'submit_message', params);
       await this.requestXhr(req);
       return undefined;
     } catch (_: any) {
@@ -311,7 +315,7 @@ export class Connection implements IConnection {
   }
 
   async exitGame(params: ExitGameParams): Promise<void> {
-    const req = await this.makeReq(this.gameAddr, 'exit_game', {});
+    const req = await this.makeReq(this.target, 'exit_game', {});
     await this.requestXhr(req);
     if (!params.keepConnection) {
       if (this.socket !== undefined) {
@@ -354,11 +358,11 @@ export class Connection implements IConnection {
     }
   }
 
-  static initialize(gameAddr: string, playerAddr: string, endpoint: string, encryptor: IEncryptor): Connection {
-    return new Connection(gameAddr, playerAddr, endpoint, encryptor);
+  static initialize(target: string, playerAddr: string, endpoint: string, encryptor: IEncryptor): Connection {
+    return new Connection(target, playerAddr, endpoint, encryptor);
   }
 
-  async makeReq<P>(gameAddr: string, method: Method, params: P): Promise<string> {
+  async makeReq<P>(target: string, method: Method, params: P): Promise<string> {
     const paramsBytes = serialize(params);
     const sig = await this.encryptor.sign(paramsBytes, this.playerAddr);
     const sigBytes = serialize(sig);
@@ -366,17 +370,17 @@ export class Connection implements IConnection {
       jsonrpc: '2.0',
       method,
       id: crypto.randomUUID(),
-      params: [gameAddr, arrayBufferToBase64(paramsBytes), arrayBufferToBase64(sigBytes)],
+      params: [target, arrayBufferToBase64(paramsBytes), arrayBufferToBase64(sigBytes)],
     });
   }
 
-  makeReqNoSig<P>(gameAddr: string, method: Method, params: P): string {
+  makeReqNoSig<P>(target: string, method: Method, params: P): string {
     const paramsBytes = serialize(params);
     return JSON.stringify({
       jsonrpc: '2.0',
       method,
       id: crypto.randomUUID(),
-      params: [gameAddr, arrayBufferToBase64(paramsBytes)],
+      params: [target, arrayBufferToBase64(paramsBytes)],
     });
   }
 

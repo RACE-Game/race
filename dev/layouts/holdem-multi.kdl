@@ -6,7 +6,7 @@ layout {
     focus true
     cwd "../"
     command "just"
-    args "dev-facade" "-g" "../race-holdem/cash/facade.json"
+    args "dev-facade" "-g" "dev/game-specs/holdem-cash.json"
     start_suspended true
   }
   pane split_direction="vertical" {
