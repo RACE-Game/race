@@ -48,6 +48,11 @@ export interface IdAddrPair {
   addr: string;
 }
 
+export type SubGame = {
+  subId: number;
+  bundleAddr: string;
+}
+
 export class GameContext {
   gameAddr: string;
   accessVersion: bigint;
@@ -436,6 +441,7 @@ export class GameContext {
       this.handlerState = effect.handlerState;
     }
     this.launchSubGames = effect.launchSubGames;
+    this.launchSubGames.concat(effect.launchSubGames);
     this.bridgeEvents = effect.bridgeEvents;
   }
 
@@ -461,5 +467,10 @@ export class GameContext {
   prepareForNextEvent(timestamp: bigint) {
     this.timestamp = timestamp;
     this.checkpoint = undefined;
+    this.launchSubGames = [];
+  }
+
+  findSubGame(subId: number): LaunchSubGame | undefined {
+    return this.launchSubGames.find(g => g.subId === subId);
   }
 }

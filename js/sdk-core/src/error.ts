@@ -114,4 +114,8 @@ export class SdkError extends Error {
   static tokenNotFound(addr: string) {
     return new SdkError(`Token ${addr} not found`);
   }
+
+  static invalidSubId(subId: number) {
+    return new SdkError(`Invalid subId: ${subId}`);
+  }
 }

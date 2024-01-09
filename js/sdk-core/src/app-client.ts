@@ -15,6 +15,7 @@ import { ProfileLoader } from './profile-loader';
 import { BaseClient } from './base-client';
 import { EntryTypeCash, GameAccount, GameBundle, IToken } from './accounts';
 import { ConnectionStateCallbackFunction, EventCallbackFunction, GameInfo, MessageCallbackFunction, TxStateCallbackFunction, PlayerProfileWithPfp, ProfileCallbackFunction } from './types';
+import { SubClient } from './sub-client';
 
 const BUNDLE_CACHE_TTL = 3600 * 365;
 
@@ -37,7 +38,6 @@ export type SubClientInitOpts = {
   onMessage?: MessageCallbackFunction;
   onTxState?: TxStateCallbackFunction;
   onConnectionState?: ConnectionStateCallbackFunction;
-  storage?: IStorage;
 };
 
 export type JoinOpts = {
@@ -62,10 +62,14 @@ export type AppClientCtorOpts = {
   info: GameInfo;
   decryptionCache: DecryptionCache;
   profileLoader: ProfileLoader;
+  storage: IStorage | undefined;
+  endpoint: string;
 };
 
 export class AppClient extends BaseClient {
   __profileLoader: ProfileLoader;
+  __storage?: IStorage;
+  __endpoint: string;
 
   constructor(opts: AppClientCtorOpts) {
     super({
@@ -73,6 +77,8 @@ export class AppClient extends BaseClient {
       ...opts
     });
     this.__profileLoader = opts.profileLoader;
+    this.__storage = opts.storage;
+    this.__endpoint = opts.endpoint;
   }
 
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
@@ -102,8 +108,9 @@ export class AppClient extends BaseClient {
         throw SdkError.transactorAccountNotFound(transactorAddr);
       }
       const decryptionCache = new DecryptionCache();
-      console.log('Transactor endpoint:', transactorAccount.endpoint);
-      const connection = Connection.initialize(gameAddr, playerAddr, transactorAccount.endpoint, encryptor);
+      const endpoint = transactorAccount.endpoint;
+      console.log('Transactor endpoint:', endpoint);
+      const connection = Connection.initialize(gameAddr, playerAddr, endpoint, encryptor);
       const client = new Client(playerAddr, encryptor, connection);
       const handler = await Handler.initialize(gameBundle, encryptor, client, decryptionCache);
       const gameContext = new GameContext(gameAccount);
@@ -132,12 +139,63 @@ export class AppClient extends BaseClient {
         encryptor,
         info,
         decryptionCache,
-        profileLoader
+        profileLoader,
+        storage,
+        endpoint,
       });
     } finally {
       console.groupEnd();
     }
   }
+
+  async subClient(opts: SubClientInitOpts): Promise<SubClient> {
+    try {
+      const { subId, onEvent, onMessage, onTxState, onConnectionState } = opts;
+
+      const addr = `${this.__gameAddr}:${subId.toString()}`;
+
+      console.group(`SubClient initialization, id: ${subId}`);
+
+      const subGame = this.__gameContext.findSubGame(subId);
+
+      if (subGame === undefined) {
+        throw SdkError.invalidSubId(subId);
+      }
+
+      const bundleAddr = subGame.bundleAddr;
+
+      const bundleCacheKey = `BUNDLE__${this.__transport.chain}_${bundleAddr}`;
+
+      const decryptionCache = new DecryptionCache();
+      const playerAddr = this.__wallet.walletAddr;
+      const connection = Connection.initialize(addr, playerAddr, this.__endpoint, this.__encryptor);
+      const client = new Client(playerAddr, this.__encryptor, connection);
+      const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr);
+      const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache);
+      const gameContext = new GameContext({} as GameAccount);
+
+      return new SubClient({
+        gameAddr: addr,
+        wallet: this.__wallet,
+        transport: this.__transport,
+        encryptor: this.__encryptor,
+        onEvent,
+        onMessage,
+        onTxState,
+        onConnectionState,
+        handler,
+        connection,
+        client,
+        info: this.__info,
+        decryptionCache,
+        gameContext,
+        subId,
+      });
+    } finally {
+      console.groupEnd();
+    }
+  }
+
 
   /**
    * Get player profile by its wallet address.

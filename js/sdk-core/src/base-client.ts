@@ -164,10 +164,7 @@ export class BaseClient {
     const gameAccount = await this.__getGameAccount();
     const initAccount = InitAccount.createFromGameAccount(gameAccount, this.gameContext.accessVersion, this.gameContext.settleVersion);
     this.__gameContext = new GameContext(gameAccount);
-    console.log('Initialize game context:', this.__gameContext);
-    for (const p of gameAccount.players) {
-      this.__onLoadProfile(p.addr);
-    }
+    for (const p of gameAccount.players) this.__onLoadProfile(p.addr);
     this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
     await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
     await this.__initializeState(initAccount);

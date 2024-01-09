@@ -127,12 +127,16 @@ export class GamePlayer {
 }
 
 export class LaunchSubGame {
-  @field('string')
-  subId!: string;
+  @field('usize')
+  subId!: number;
   @field('string')
   bundleAddr!: string;
+  @field(array(struct(GamePlayer)))
+  players!: GamePlayer[];
   @field('u8-array')
   initData!: Uint8Array;
+  @field('u8-array')
+  checkpoint!: Uint8Array;
   constructor(fields: Fields<LaunchSubGame>) {
     Object.assign(this, fields)
   }
