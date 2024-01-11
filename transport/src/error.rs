@@ -143,8 +143,8 @@ pub enum TransportError {
     #[error("Metadta Symbole too long (no more than 10 letters)")]
     InvalidMetadataSymbolLength,
 
-    #[error("Invalid settle address")]
-    InvalidSettleAddress,
+    #[error("Invalid settle address: {0}")]
+    InvalidSettleAddress(String),
 
 }
 

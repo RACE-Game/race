@@ -66,7 +66,7 @@ fn player_addr_to_postition(game_state: &GameState, addr: &Pubkey) -> Result<u16
         .players
         .iter()
         .find(|p| p.addr.eq(addr))
-        .ok_or(TransportError::InvalidSettleAddress)?
+        .ok_or(TransportError::InvalidSettleAddress(addr.to_string()))?
         .position)
 }
 
@@ -539,6 +539,7 @@ impl TransportT for SolanaTransport {
             settle_version,
             next_settle_version,
         } = params;
+
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
         let game_account_pubkey = Self::parse_pubkey(&addr)?;

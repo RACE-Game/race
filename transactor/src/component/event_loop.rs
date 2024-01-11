@@ -268,7 +268,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         } else {
                             ClientMode::Validator
                         };
-                        game_context.add_node(server.addr.clone(), access_version, mode);
+                        game_context.add_node(server.addr.clone(), server.access_version, mode);
                     }
 
                     let mut new_players_1: Vec<GamePlayer> = Vec::with_capacity(new_players.len());
