@@ -123,7 +123,7 @@ impl TransportT for DummyTransport {
         Ok("".into())
     }
 
-    async fn settle_game(&self, mut params: SettleParams) -> Result<()> {
+    async fn settle_game(&self, mut params: SettleParams) -> Result<String> {
         let mut fail_next_settle = self.fail_next_settle.lock().unwrap();
         if *fail_next_settle {
             *fail_next_settle = false;
@@ -131,7 +131,7 @@ impl TransportT for DummyTransport {
         } else if params.addr.eq("TEST") {
             let mut settles = self.settles.lock().unwrap();
             settles.append(&mut params.settles);
-            Ok(())
+            Ok("".into())
         } else {
             Err(Error::GameAccountNotFound)
         }
