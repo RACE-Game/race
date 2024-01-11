@@ -5,7 +5,6 @@ import {
   BroadcastFrameSync,
   ConnectionState,
   IConnection,
-  Message,
   SubmitEventParams,
   SubscribeEventParams,
   ConnectionSubscription,
@@ -18,7 +17,7 @@ import { IWallet } from './wallet';
 import { Handler, InitAccount } from './handler';
 import { IEncryptor } from './encryptor';
 import { GameAccount } from './accounts';
-import { PlayerConfirming, TxState } from './tx-state';
+import { PlayerConfirming } from './tx-state';
 import { Client } from './client';
 import { Custom, GameEvent, ICustomEvent, Join } from './events';
 import { DecryptionCache } from './decryption-cache';
@@ -159,15 +158,24 @@ export class BaseClient {
    * Connect to the transactor and retrieve the event stream.
    */
   async attachGame() {
-    await this.__client.attachGame();
-    const sub = this.__connection.subscribeEvents();
-    const gameAccount = await this.__getGameAccount();
-    const initAccount = InitAccount.createFromGameAccount(gameAccount, this.gameContext.accessVersion, this.gameContext.settleVersion);
-    this.__gameContext = new GameContext(gameAccount);
-    for (const p of gameAccount.players) this.__onLoadProfile(p.addr);
-    this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
-    await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
-    await this.__initializeState(initAccount);
+    console.groupCollapsed('Attach to game');
+    let sub;
+    try {
+      await this.__client.attachGame();
+      sub = this.__connection.subscribeEvents();
+      const gameAccount = await this.__getGameAccount();
+      const initAccount = InitAccount.createFromGameAccount(gameAccount, this.gameContext.accessVersion, this.gameContext.settleVersion);
+      this.__gameContext = new GameContext(gameAccount);
+      this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
+      for (const p of gameAccount.players) this.__onLoadProfile(p.accessVersion, p.addr);
+      await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
+      await this.__initializeState(initAccount);
+    } catch (e) {
+      console.error('Attaching game failed', e);
+      throw e;
+    } finally {
+      console.groupEnd();
+    }
     await this.__processSubscription(sub);
   }
 
@@ -189,7 +197,6 @@ export class BaseClient {
       try {
         const gameAccount = await this.__transport.getGameAccount(this.gameAddr);
         if (gameAccount === undefined) continue;
-        console.log('Game account', gameAccount);
         return gameAccount;
       } catch (e: any) {
         console.warn(e, 'Failed to fetch game account, will retry in 3s');
@@ -219,7 +226,7 @@ export class BaseClient {
 
   async __handleBroadcastFrame(frame: BroadcastFrame) {
     if (frame instanceof BroadcastFrameMessage) {
-      console.group('Receive message broadcast');
+      console.groupCollapsed('Receive message broadcast');
       try {
         if (this.__onMessage !== undefined) {
           const { message } = frame;
@@ -229,13 +236,13 @@ export class BaseClient {
         console.groupEnd();
       }
     } else if (frame instanceof BroadcastFrameTxState) {
-      console.group('Receive transaction state broadcast');
+      console.groupCollapsed('Receive transaction state broadcast');
       try {
         if (this.__onTxState !== undefined) {
           const { txState } = frame;
           if (txState instanceof PlayerConfirming) {
             txState.confirmPlayers.forEach(p => {
-              this.__onLoadProfile(p.addr);
+              this.__onLoadProfile(p.id, p.addr);
             });
           }
           this.__onTxState(txState);
@@ -244,7 +251,7 @@ export class BaseClient {
         console.groupEnd();
       }
     } else if (frame instanceof BroadcastFrameSync) {
-      console.group('Receive sync broadcast');
+      console.groupCollapsed('Receive sync broadcast');
       try {
         for (const node of frame.newServers) {
           this.__gameContext.addNode(node.addr, node.accessVersion,
@@ -252,6 +259,7 @@ export class BaseClient {
         }
         for (const node of frame.newPlayers) {
           this.__gameContext.addNode(node.addr, node.accessVersion, 'player');
+          this.__onLoadProfile(node.accessVersion, node.addr);
         }
         this.__gameContext.setAccessVersion(frame.accessVersion);
       } finally {
@@ -259,7 +267,7 @@ export class BaseClient {
       }
     } else if (frame instanceof BroadcastFrameEvent) {
       const { event, timestamp } = frame;
-      console.group('Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
+      console.groupCollapsed('Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
       console.log('Event: ', event);
       try {
         this.__gameContext.prepareForNextEvent(timestamp);
@@ -272,10 +280,6 @@ export class BaseClient {
                 console.warn('Failed to get game account, will retry');
                 await new Promise(r => setTimeout(r, 3000));
                 continue;
-              }
-              for (const p of event.players) {
-                let addr = this.__gameContext.idToAddrUnchecked(p.id);
-                if (addr !== undefined) this.__onLoadProfile(addr);
               }
               break;
             }
@@ -300,7 +304,7 @@ export class BaseClient {
       if (this.__onConnectionState !== undefined) {
         this.__onConnectionState('disconnected')
       }
-      console.group('Disconnected, try reset state and context');
+      console.groupCollapsed('Disconnected, try reset state and context');
       try {
         const gameAccount = await this.__getGameAccount();
         this.__gameContext = new GameContext(gameAccount);

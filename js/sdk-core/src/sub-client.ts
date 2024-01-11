@@ -33,7 +33,7 @@ export class SubClient extends BaseClient {
 
   constructor(opts: SubClientCtorOpts) {
     super({
-      onLoadProfile: (_: string) => {},
+      onLoadProfile: (_id: bigint, _addr: string) => {},
       ...opts
     })
     this.#subId = opts.subId;

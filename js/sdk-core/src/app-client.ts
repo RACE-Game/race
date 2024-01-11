@@ -23,11 +23,11 @@ export type AppClientInitOpts = {
   transport: ITransport;
   wallet: IWallet;
   gameAddr: string;
+  onProfile: ProfileCallbackFunction;
   onEvent: EventCallbackFunction;
   onMessage?: MessageCallbackFunction;
   onTxState?: TxStateCallbackFunction;
   onConnectionState?: ConnectionStateCallbackFunction;
-  onProfile?: ProfileCallbackFunction;
   storage?: IStorage;
 };
 
@@ -73,7 +73,7 @@ export class AppClient extends BaseClient {
 
   constructor(opts: AppClientCtorOpts) {
     super({
-      onLoadProfile: (addr) => opts.profileLoader.load(addr),
+      onLoadProfile: (id, addr) => opts.profileLoader.load(id, addr),
       ...opts
     });
     this.__profileLoader = opts.profileLoader;
@@ -84,7 +84,7 @@ export class AppClient extends BaseClient {
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
     const { transport, wallet, gameAddr, onEvent, onMessage, onTxState, onConnectionState, onProfile, storage } = opts;
 
-    console.group('AppClient initialization');
+    console.groupCollapsed('AppClient initialization');
     try {
       const playerAddr = wallet.walletAddr;
       const encryptor = await Encryptor.create(playerAddr, storage);
@@ -120,7 +120,6 @@ export class AppClient extends BaseClient {
         throw SdkError.tokenNotFound(gameAccount.tokenAddr);
       }
       const info = makeGameInfo(gameAccount, token);
-
       const profileLoader = new ProfileLoader(transport, storage, onProfile);
       profileLoader.start();
 
@@ -154,7 +153,7 @@ export class AppClient extends BaseClient {
 
       const addr = `${this.__gameAddr}:${subId.toString()}`;
 
-      console.group(`SubClient initialization, id: ${subId}`);
+      console.groupCollapsed(`SubClient initialization, id: ${subId}`);
 
       const subGame = this.__gameContext.findSubGame(subId);
 
@@ -203,9 +202,6 @@ export class AppClient extends BaseClient {
   getProfile(id: bigint): Promise<PlayerProfileWithPfp | undefined>
   getProfile(addr: string): Promise<PlayerProfileWithPfp | undefined>
   async getProfile(idOrAddr: string | bigint): Promise<PlayerProfileWithPfp | undefined> {
-    if (this.__profileLoader === undefined) {
-      throw new Error('`getProfile` is not supported by this client, use `getProfile` with master game\'s client.')
-    }
     let addr: string = ''
     if (typeof idOrAddr === 'bigint') {
       addr = this.__gameContext.idToAddr(idOrAddr);
@@ -248,7 +244,7 @@ export class AppClient extends BaseClient {
 
     let createProfile = false;
     if (params.createProfileIfNeeded) {
-      const p = await this.getProfile(this.playerAddr);
+      const p = await this.__transport.getPlayerProfile(this.playerAddr);
       if (p === undefined) {
         createProfile = true;
         console.log('No profile account found, will create a new one.')

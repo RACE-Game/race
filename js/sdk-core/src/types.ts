@@ -44,6 +44,6 @@ export type TxStateCallbackFunction = (txState: TxState) => void;
 
 export type ConnectionStateCallbackFunction = (connState: ConnectionState) => void;
 
-export type ProfileCallbackFunction = (profile: PlayerProfileWithPfp) => void;
+export type ProfileCallbackFunction = (id: bigint | undefined, profile: PlayerProfileWithPfp) => void;
 
-export type LoadProfileCallbackFunction = (addr: string) => void;
+export type LoadProfileCallbackFunction = (id: bigint, addr: string) => void;

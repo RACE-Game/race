@@ -6,7 +6,7 @@ use tokio::time::sleep;
 use crate::{frame::EventFrame, utils::addr_shorthand};
 use race_core::{
     transport::TransportT,
-    types::{GameAccount, PlayerJoin, QueryMode, ServerJoin, TxState},
+    types::{GameAccount, PlayerJoin, QueryMode, ServerJoin, TxState, ConfirmingPlayer},
 };
 use tracing::{info, warn};
 
@@ -85,9 +85,10 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                                 ..
                             } = state;
 
-                            let confirm_players: Vec<PlayerJoin> = players
+                            let confirm_players: Vec<ConfirmingPlayer> = players
                                 .into_iter()
                                 .filter(|p| p.access_version > access_version)
+                                .map(Into::into)
                                 .collect();
 
                             if !confirm_players.is_empty() {

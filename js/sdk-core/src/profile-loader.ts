@@ -10,15 +10,17 @@ export class ProfileLoader {
   loadingStatus: Map<string, LoadingStatus>;
   storage?: IStorage;
   shutdown: boolean;
-  onProfile?: ProfileCallbackFunction;
+  onProfile: ProfileCallbackFunction;
+  addrToId: Map<string, bigint>;
 
-  constructor(transport: ITransport, storage: IStorage | undefined, onProfile: ProfileCallbackFunction | undefined) {
+  constructor(transport: ITransport, storage: IStorage | undefined, onProfile: ProfileCallbackFunction) {
     this.transport = transport;
     this.storage = storage;
     this.caches = new Map();
     this.loadingStatus = new Map();
     this.shutdown = false;
     this.onProfile = onProfile;
+    this.addrToId = new Map();
   }
 
   async __loadProfile(playerAddr: string): Promise<PlayerProfileWithPfp | undefined> {
@@ -53,7 +55,9 @@ export class ProfileLoader {
             this.loadingStatus.set(addr, 'failed');
           } else {
             if (this.onProfile !== undefined) {
-              this.onProfile(p);
+              const id = this.addrToId.get(p.addr);
+              if (id === undefined) throw new Error('Cannot find the mapping from address to id');
+              this.onProfile(id, p);
             }
             this.caches.set(addr, p);
             this.loadingStatus.set(addr, 'loaded');
@@ -64,9 +68,23 @@ export class ProfileLoader {
     }
   }
 
-  load(playerAddr: string) {
-    if (!this.loadingStatus.has(playerAddr)) {
-      this.loadingStatus.set(playerAddr, 'loading');
+  load(id: bigint, addr: string) {
+    const status = this.loadingStatus.get(addr);
+    this.addrToId.set(addr, id);
+    if (status === undefined) {
+      console.debug(`Load profile: ${addr}, this is the first loading for this address`);
+      this.loadingStatus.set(addr, 'loading');
+    } else if (status === 'failed') {
+      console.debug(`Load profile: ${addr}, this is a reloading after a failure`);
+      this.loadingStatus.set(addr, 'loading');
+    } else if (status === 'loaded') {
+      console.debug(`Load profile: ${addr}, get the result from cache`);
+      const p = this.caches.get(addr);
+      if (p !== undefined) {
+        this.onProfile(id, p);
+      } else {
+        console.error(`Unexpected profile cache not found, address: ${addr}`);
+      }
     }
   }
 

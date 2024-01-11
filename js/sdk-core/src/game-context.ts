@@ -152,19 +152,23 @@ export class GameContext {
   }
 
   idToAddr(id: bigint): string {
-    let found = this.nodes.find(x => x.id === id)
+    let found = this.idToAddrUnchecked(id);
     if (found === undefined) {
       throw new Error(`Cannot map id to address: ${id.toString()}`);
     }
-    return found.addr;
+    return found;
+  }
+
+  addrToIdUnchecked(addr: string): bigint | undefined {
+    return this.nodes.find(x => x.addr === addr)?.id;
   }
 
   addrToId(addr: string): bigint {
-    let found = this.nodes.find(x => x.addr === addr);
+    let found = this.addrToIdUnchecked(addr);
     if (found === undefined) {
       throw new Error(`Cannot map address to id: ${addr}`);
     }
-    return found.id;
+    return found;
   }
 
   getNodeByAddress(addr: string): INode | undefined {
