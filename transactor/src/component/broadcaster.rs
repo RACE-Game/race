@@ -138,24 +138,25 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     });
                 }
                 EventFrame::TxState { tx_state } => match tx_state {
-                    TxState::PlayerConfirming {
-                        confirm_players,
-                        access_version,
-                    } => {
-                        let tx_state = TxState::PlayerConfirming {
-                            confirm_players,
-                            access_version,
-                        };
-
+                    TxState::SettleSucceed { .. } => {
                         let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
 
                         if let Err(e) = r {
                             debug!("Failed to broadcast event: {:?}", e);
                         }
                     }
-                    TxState::PlayerConfirmingFailed(access_version) => {
+                    TxState::PlayerConfirming {
+                        ..
+                    } => {
+                        let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
+
+                        if let Err(e) = r {
+                            debug!("Failed to broadcast event: {:?}", e);
+                        }
+                    }
+                    TxState::PlayerConfirmingFailed(_) => {
                         let r = ctx.broadcast_tx.send(BroadcastFrame::TxState {
-                            tx_state: TxState::PlayerConfirmingFailed(access_version),
+                            tx_state,
                         });
 
                         if let Err(e) = r {

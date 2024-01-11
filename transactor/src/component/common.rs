@@ -178,6 +178,12 @@ impl PipelinePorts {
         self.tx.send(frame).await
     }
 
+    pub fn clone_as_producer(&self) -> ProducerPorts {
+        ProducerPorts {
+            tx: self.tx.clone()
+        }
+    }
+
     pub async fn send(&self, frame: EventFrame) {
         match self.tx.send(frame).await {
             Ok(_) => (),

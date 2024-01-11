@@ -710,7 +710,7 @@ async fn get_player_info(
     Ok(Some(player.try_to_vec().unwrap()))
 }
 
-async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
+async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {
     let SettleParams {
         addr,
         settles,
@@ -814,7 +814,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
 
     context.players = players;
     context.games = games;
-    Ok(())
+    Ok(format!("facade_settle_{}", settle_version))
 }
 
 async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {

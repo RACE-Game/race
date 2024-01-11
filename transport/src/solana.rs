@@ -530,7 +530,7 @@ impl TransportT for SolanaTransport {
         Ok(mint_pubkey.to_string())
     }
 
-    async fn settle_game(&self, params: SettleParams) -> Result<()> {
+    async fn settle_game(&self, params: SettleParams) -> Result<String> {
         let SettleParams {
             addr,
             mut settles,
@@ -641,9 +641,8 @@ impl TransportT for SolanaTransport {
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
         tx.sign(&[payer], blockhash);
-        self.send_transaction(tx)?;
-
-        Ok(())
+        let sig = self.send_transaction(tx)?;
+        Ok(sig.to_string())
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {

@@ -3,15 +3,17 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use race_api::error::Error;
-use race_core::types::{GameAccount, SettleParams};
+use race_core::types::{GameAccount, SettleParams, TxState};
 use tokio::select;
 use tokio::sync::mpsc;
 use tracing::error;
 
-use crate::component::common::{Component, ConsumerPorts};
+use crate::component::common::Component;
 use crate::component::event_bus::CloseReason;
 use crate::frame::EventFrame;
 use race_core::transport::TransportT;
+
+use super::common::PipelinePorts;
 
 /// Squash two settles into one.
 fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
@@ -91,23 +93,34 @@ impl Submitter {
 }
 
 #[async_trait]
-impl Component<ConsumerPorts, SubmitterContext> for Submitter {
+impl Component<PipelinePorts, SubmitterContext> for Submitter {
     fn name(&self) -> &str {
         "Submitter"
     }
 
-    async fn run(mut ports: ConsumerPorts, ctx: SubmitterContext) -> CloseReason {
+    async fn run(mut ports: PipelinePorts, ctx: SubmitterContext) -> CloseReason {
         let (queue_tx, mut queue_rx) = mpsc::channel::<SettleParams>(32);
-
+        let p = ports.clone_as_producer();
         // Start a task to handle settlements
         // Prevent the blocking from pending transactions
         let join_handle = tokio::spawn(async move {
             loop {
                 let ps = read_settle_params(&mut queue_rx).await;
                 if let Some(params) = ps.into_iter().reduce(squash_settles) {
+                    let settle_version = params.settle_version;
                     let res = ctx.transport.settle_game(params).await;
                     match res {
-                        Ok(_) => (),
+                        Ok(signature) => {
+                            let tx_state = TxState::SettleSucceed {
+                                signature: if signature.is_empty() {
+                                    None
+                                } else {
+                                    Some(signature)
+                                },
+                                settle_version,
+                            };
+                            p.send(EventFrame::TxState { tx_state }).await;
+                        }
                         Err(e) => {
                             return CloseReason::Fault(e);
                         }
@@ -127,16 +140,21 @@ impl Component<ConsumerPorts, SubmitterContext> for Submitter {
                     checkpoint,
                     settle_version,
                 } => {
-                    let res = queue_tx.send(SettleParams {
-                        addr: ctx.addr.clone(),
-                        settles,
-                        transfers,
-                        checkpoint,
-                        settle_version,
-                        next_settle_version: settle_version + 1,
-                    }).await;
+                    let res = queue_tx
+                        .send(SettleParams {
+                            addr: ctx.addr.clone(),
+                            settles,
+                            transfers,
+                            checkpoint,
+                            settle_version,
+                            next_settle_version: settle_version + 1,
+                        })
+                        .await;
                     if let Err(e) = res {
-                        error!("Submitter failed to send settle to task queue: {}", e.to_string());
+                        error!(
+                            "Submitter failed to send settle to task queue: {}",
+                            e.to_string()
+                        );
                     }
                 }
                 EventFrame::Shutdown => {

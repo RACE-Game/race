@@ -164,7 +164,7 @@ impl TransportT for FacadeTransport {
         unimplemented!()
     }
 
-    async fn settle_game(&self, params: SettleParams) -> Result<()> {
+    async fn settle_game(&self, params: SettleParams) -> Result<String> {
         self.client
             .request("settle", rpc_params![params])
             .await

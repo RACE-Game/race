@@ -64,9 +64,6 @@ pub enum EventFrame {
         checkpoint: Vec<u8>,
         settle_version: u64,
     },
-    SettleFinalized {
-        settle_version: u64,
-    },
     ContextUpdated {
         context: Box<GameContext>,
     },
@@ -122,7 +119,6 @@ impl std::fmt::Display for EventFrame {
             EventFrame::Checkpoint { .. } => write!(f, "Checkpoint"),
             EventFrame::Broadcast { event, .. } => write!(f, "Broadcast: {}", event),
             EventFrame::Settle { .. } => write!(f, "Settle"),
-            EventFrame::SettleFinalized { .. } => write!(f, "SettleFinalized"),
             EventFrame::SendMessage { message } => write!(f, "SendMessage: {}", message.sender),
             EventFrame::ContextUpdated { context: _ } => write!(f, "ContextUpdated"),
             EventFrame::Shutdown => write!(f, "Shutdown"),

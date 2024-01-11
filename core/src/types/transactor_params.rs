@@ -40,6 +40,11 @@ pub enum TxState {
     },
 
     PlayerConfirmingFailed(u64),
+
+    SettleSucceed {
+        settle_version: u64,
+        signature: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]

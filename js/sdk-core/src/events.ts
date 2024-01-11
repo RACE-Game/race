@@ -1,5 +1,4 @@
 import { field, array, enums, option, variant, struct } from '@race-foundation/borsh';
-import { PlayerJoin, ServerJoin } from './accounts';
 import { Fields, Id } from './types';
 import { GamePlayer } from './effect';
 
