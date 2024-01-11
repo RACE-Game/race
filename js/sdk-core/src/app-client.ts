@@ -114,7 +114,6 @@ export class AppClient extends BaseClient {
       const client = new Client(playerAddr, encryptor, connection);
       const handler = await Handler.initialize(gameBundle, encryptor, client, decryptionCache);
       const gameContext = new GameContext(gameAccount);
-      gameContext.applyCheckpoint(gameContext.checkpointAccessVersion, gameContext.settleVersion);
       const token = await transport.getToken(gameAccount.tokenAddr);
       if (token === undefined) {
         throw SdkError.tokenNotFound(gameAccount.tokenAddr);

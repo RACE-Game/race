@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use race_api::event::Event;
-use race_core::types::{BroadcastFrame, TxState};
+use race_core::types::{BroadcastFrame, BroadcastSync, TxState};
 use tokio::sync::{broadcast, Mutex};
 use tracing::{debug, error};
 
@@ -35,6 +35,7 @@ pub struct Checkpoint {
 
 #[derive(Debug)]
 pub struct EventBackupGroup {
+    pub sync: BroadcastSync,
     pub events: LinkedList<EventBackup>,
     pub checkpoint: Checkpoint,
     pub settle_version: u64,
@@ -84,6 +85,9 @@ impl Broadcaster {
 
         for group in event_backup_groups.iter() {
             if group.settle_version >= settle_version {
+                histories.push(BroadcastFrame::Sync {
+                    sync: group.sync.clone()
+                });
                 for event in group.events.iter() {
                     histories.push(BroadcastFrame::Event {
                         game_addr: self.id.clone(),
@@ -131,6 +135,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     };
 
                     event_backup_groups.push_back(EventBackupGroup {
+                        sync: Default::default(),
                         events: LinkedList::new(),
                         checkpoint,
                         access_version,
@@ -145,9 +150,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                             debug!("Failed to broadcast event: {:?}", e);
                         }
                     }
-                    TxState::PlayerConfirming {
-                        ..
-                    } => {
+                    TxState::PlayerConfirming { .. } => {
                         let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
 
                         if let Err(e) = r {
@@ -155,9 +158,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         }
                     }
                     TxState::PlayerConfirmingFailed(_) => {
-                        let r = ctx.broadcast_tx.send(BroadcastFrame::TxState {
-                            tx_state,
-                        });
+                        let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
 
                         if let Err(e) = r {
                             debug!("Failed to broadcast event: {:?}", e);
@@ -187,6 +188,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     if event_backup_groups.len() > 10 {
                         event_backup_groups.pop_front();
                     }
+                    drop(event_backup_groups);
 
                     let r = ctx.broadcast_tx.send(BroadcastFrame::Event {
                         game_addr: ctx.id.clone(),
@@ -203,16 +205,23 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                 EventFrame::Sync {
                     new_servers,
                     new_players,
-                    transactor_addr,
                     access_version,
+                    transactor_addr,
                 } => {
-                    let broadcast_frame = BroadcastFrame::Sync {
+                    let sync = BroadcastSync {
                         new_players,
                         new_servers,
-                        transactor_addr,
                         access_version,
+                        transactor_addr,
                     };
 
+                    let mut event_backup_groups = ctx.event_backup_groups.lock().await;
+                    if let Some(current) = event_backup_groups.back_mut() {
+                        current.sync.merge(&sync);
+                    }
+                    drop(event_backup_groups);
+
+                    let broadcast_frame = BroadcastFrame::Sync { sync };
                     let r = ctx.broadcast_tx.send(broadcast_frame);
 
                     if let Err(e) = r {

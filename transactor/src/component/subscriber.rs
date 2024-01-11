@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use futures::pin_mut;
 use futures::StreamExt;
 use race_core::types::BroadcastFrame;
+use race_core::types::BroadcastSync;
 use race_core::types::VoteType;
 use race_core::types::{GameAccount, ServerAccount};
 use tracing::error;
@@ -105,18 +106,16 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
             match frame {
                 // Forward event to event bus
                 BroadcastFrame::Event { event, .. } => {
+                    info!("Receive event: {}", event);
                     if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event }).await {
                         error!("Send server event error: {}", e);
                         break;
                     }
                 }
 
-                BroadcastFrame::Sync {
-                    new_players,
-                    new_servers,
-                    transactor_addr,
-                    access_version,
-                } => {
+                BroadcastFrame::Sync { sync} => {
+                    let BroadcastSync { new_players, new_servers, access_version, transactor_addr } = sync;
+                    info!("Receive Sync broadcast, new_players: {:?}, new_servers: {:?}", new_players, new_servers);
                     if let Err(e) = ports
                         .try_send(EventFrame::Sync {
                             new_players,

@@ -2,7 +2,7 @@
 //! It is supposed to be used for testing and developing.
 
 use borsh::BorshSerialize;
-use clap::{Command, arg};
+use clap::{arg, Command};
 use hyper::Method;
 use jsonrpsee::server::{AllowHosts, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
@@ -617,9 +617,12 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
         .get_mut(&game_addr)
         .ok_or(custom_error(Error::GameAccountNotFound))?;
 
+    let new_access_version = account.access_version + 1;
+
     if account.transactor_addr.is_none() {
         is_transactor = true;
         account.transactor_addr = Some(server_addr.clone());
+        account.checkpoint_access_version = new_access_version;
     }
 
     let server_account = servers
@@ -642,11 +645,11 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
                 DEFAULT_MAX_SERVERS as _,
             )));
         } else {
-            account.access_version += 1;
+            account.access_version = new_access_version;
             account.servers.push(ServerJoin::new(
                 server_addr.clone(),
                 server_account.endpoint.clone(),
-                account.access_version,
+                new_access_version,
                 verify_key,
             ));
         }

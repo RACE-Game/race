@@ -164,7 +164,7 @@ impl GameAccount {
         }
     }
 
-    pub fn derive_rollbacked_init_account(&self) -> InitAccount {
+    pub fn derive_checkpoint_init_account(&self) -> InitAccount {
         let game_account = self.to_owned();
         let Self {
             players,

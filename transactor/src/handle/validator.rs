@@ -86,7 +86,7 @@ impl ValidatorHandle {
         event_bus.attach(&mut voter_handle).await;
         event_bus.attach(&mut client_handle).await;
 
-        let init_account = game_account.derive_rollbacked_init_account();
+        let init_account = game_account.derive_checkpoint_init_account();
         info!("InitAccount: {:?}", init_account);
 
         // Dispatch init state

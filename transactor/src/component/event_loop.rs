@@ -42,8 +42,7 @@ async fn handle(
     game_context: &mut GameContext,
     event: Event,
     ports: &PipelinePorts,
-
-    #[allow(unused)] mode: ClientMode,
+    mode: ClientMode,
 ) -> Option<CloseReason> {
     info!(
         "{} Handle event: {}",
@@ -75,9 +74,11 @@ async fn handle(
 
             // Start game
             if effects.start_game {
-                ports.send(EventFrame::GameStart {
-                    access_version: game_context.get_access_version(),
-                }).await;
+                ports
+                    .send(EventFrame::GameStart {
+                        access_version: game_context.get_access_version(),
+                    })
+                    .await;
             }
 
             // Send the settlement when there's one
@@ -122,15 +123,17 @@ async fn handle(
             }
 
             // Emit bridge events
-            for be in effects.bridge_events {
-                let ef = EventFrame::BridgeEvent {
-                    dest: be.dest,
-                    event: Event::Bridge {
+            if mode == ClientMode::Transactor {
+                for be in effects.bridge_events {
+                    let ef = EventFrame::BridgeEvent {
                         dest: be.dest,
-                        raw: be.raw,
-                    },
-                };
-                ports.send(ef).await;
+                        event: Event::Bridge {
+                            dest: be.dest,
+                            raw: be.raw,
+                        },
+                    };
+                    ports.send(ef).await;
+                }
             }
         }
         Err(e) => {
@@ -235,12 +238,14 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                 EventFrame::GameStart { access_version } => {
                     game_context.set_node_ready(access_version);
-                    let event = Event::GameStart;
-                    if let Some(close_reason) =
-                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
-                    {
-                        ports.send(EventFrame::Shutdown).await;
-                        return close_reason;
+                    if ctx.mode == ClientMode::Transactor {
+                        let event = Event::GameStart;
+                        if let Some(close_reason) =
+                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                        {
+                            ports.send(EventFrame::Shutdown).await;
+                            return close_reason;
+                        }
                     }
                 }
 
@@ -250,6 +255,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     access_version,
                     transactor_addr,
                 } => {
+                    info!(
+                        "Event loop handle Sync, access_version: {:?}",
+                        access_version
+                    );
                     game_context.set_access_version(access_version);
 
                     // Add servers to context

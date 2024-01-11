@@ -1,51 +1,11 @@
 //! Parameters for interacting with transactor
 
 use crate::encryptor::NodePublicKeyRaw;
-use crate::types::PlayerJoin;
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::event::{Event, Message};
-use race_api::types::ServerJoin;
+use race_api::event::Event;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct ConfirmingPlayer {
-    id: u64,
-    addr: String,
-    position: u16,
-    balance: u64,
-}
-
-impl From<PlayerJoin> for ConfirmingPlayer {
-    fn from(value: PlayerJoin) -> Self {
-        Self {
-            id: value.access_version,
-            addr: value.addr,
-            position: value.position,
-            balance: value.balance,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub enum TxState {
-    PlayerConfirming {
-        confirm_players: Vec<ConfirmingPlayer>,
-        access_version: u64,
-    },
-
-    PlayerConfirmingFailed(u64),
-
-    SettleSucceed {
-        settle_version: u64,
-        signature: Option<String>,
-    },
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -109,53 +69,5 @@ pub struct SubscribeEventParams {
 impl Display for SubscribeEventParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "SubscribeEventParams")
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub enum BroadcastFrame {
-    // Game event
-    Event {
-        game_addr: String,
-        event: Event,
-        timestamp: u64,
-        is_history: bool,
-    },
-    // Arbitrary message
-    Message {
-        game_addr: String,
-        message: Message,
-    },
-    // Transaction state updates
-    TxState {
-        tx_state: TxState,
-    },
-    // Node state updates
-    Sync {
-        new_players: Vec<PlayerJoin>,
-        new_servers: Vec<ServerJoin>,
-        transactor_addr: String,
-        access_version: u64,
-    },
-}
-
-impl Display for BroadcastFrame {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BroadcastFrame::Event { event, .. } => {
-                write!(f, "BroadcastFrame::Event: {}", event)
-            }
-            BroadcastFrame::Message { message, .. } => {
-                write!(f, "BroadcastFrame::Message: {}", message.sender)
-            }
-            BroadcastFrame::TxState { tx_state } => {
-                write!(f, "BroadcastFrame::TxState: {:?}", tx_state)
-            }
-            BroadcastFrame::Sync { access_version, .. } => {
-                write!(f, "BroadcastFrame::Sync: access_version {}", access_version)
-            }
-        }
     }
 }
