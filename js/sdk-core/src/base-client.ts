@@ -9,6 +9,7 @@ import {
   SubscribeEventParams,
   ConnectionSubscription,
   BroadcastFrame,
+  SubmitMessageParams,
 } from './connection';
 import { GameContext } from './game-context';
 import { GameContextSnapshot } from './game-context-snapshot';
@@ -154,6 +155,17 @@ export class BaseClient {
     }
   }
 
+  /**
+   * Submit a message.
+   */
+  async submitMessage(content: string): Promise<void> {
+    const connState = await this.__connection.submitMessage(new SubmitMessageParams({
+      content
+    }));
+    if (connState !== undefined && this.__onConnectionState !== undefined) {
+      this.__onConnectionState(connState);
+    }
+  }
   /**
    * Connect to the transactor and retrieve the event stream.
    */
@@ -304,17 +316,13 @@ export class BaseClient {
       if (this.__onConnectionState !== undefined) {
         this.__onConnectionState('disconnected')
       }
-      console.groupCollapsed('Disconnected, try reset state and context');
-      try {
-        const gameAccount = await this.__getGameAccount();
-        this.__gameContext = new GameContext(gameAccount);
-        const initAccount = InitAccount.createFromGameAccount(gameAccount, this.__gameContext.accessVersion, this.__gameContext.settleVersion);
-        this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
-        await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
-        await this.__initializeState(initAccount);
-      } finally {
-        console.groupEnd();
-      }
+      console.log('Disconnected, try reset state and context');
+      const gameAccount = await this.__getGameAccount();
+      this.__gameContext = new GameContext(gameAccount);
+      const initAccount = InitAccount.createFromGameAccount(gameAccount, this.__gameContext.accessVersion, this.__gameContext.settleVersion);
+      this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
+      await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
+      await this.__initializeState(initAccount);
     } else if (state === 'connected') {
       if (this.__onConnectionState !== undefined) {
         this.__onConnectionState('connected')

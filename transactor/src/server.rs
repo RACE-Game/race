@@ -82,6 +82,7 @@ async fn submit_message(
     let (game_addr, SubmitMessageParams { content }, sig) = parse_params(params, &context)?;
 
     let sender = sig.signer;
+    info!("Player message, {}: {}", sender, content);
     let message = Message { content, sender };
 
     context
