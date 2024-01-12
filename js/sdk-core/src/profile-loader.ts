@@ -30,7 +30,7 @@ export class ProfileLoader {
     } else {
       let p;
       if (profile.pfp !== undefined) {
-        let pfp = await this.transport.getNft(profile.addr, this.storage);
+        let pfp = await this.transport.getNft(profile.pfp, this.storage);
         p = { pfp, addr: profile.addr, nick: profile.nick };
       } else {
         p = { pfp: undefined, addr: profile.addr, nick: profile.nick };
