@@ -75,9 +75,9 @@ export class GameContext {
 
   constructor(context: GameContext);
   constructor(gameAccount: GameAccount);
-  constructor(gameAccountOrContext: GameAccount | GameContext) {
-    if (gameAccountOrContext instanceof GameContext) {
-      const context = gameAccountOrContext;
+  constructor(init: GameAccount | GameContext) {
+    if (init instanceof GameContext) {
+      const context = init;
       this.gameAddr = context.gameAddr;
       this.accessVersion = context.accessVersion;
       this.settleVersion = context.settleVersion;
@@ -97,7 +97,7 @@ export class GameContext {
       this.launchSubGames = context.launchSubGames;
       this.bridgeEvents = context.bridgeEvents;
     } else {
-      const gameAccount = gameAccountOrContext;
+      const gameAccount = init;
       const transactorAddr = gameAccount.transactorAddr;
       if (transactorAddr === undefined) {
         throw new Error('Game not served');
@@ -145,6 +145,23 @@ export class GameContext {
       this.launchSubGames = [];
       this.bridgeEvents = [];
     }
+  }
+
+  subContext(launchSubGame: LaunchSubGame): GameContext {
+    const c = new GameContext(this);
+    c.gameAddr = c.gameAddr + launchSubGame.subId;
+    c.dispatch = undefined;
+    c.timestamp = 0n;
+    c.allowExit = false;
+    c.randomStates = [];
+    c.decisionStates = [];
+    c.settles = undefined;
+    c.transfers = undefined;
+    c.handlerState = Uint8Array.of();
+    c.checkpoint = launchSubGame.checkpoint;
+    c.launchSubGames = [];
+    c.bridgeEvents = [];
+    return c;
   }
 
   idToAddrUnchecked(id: bigint): string | undefined {

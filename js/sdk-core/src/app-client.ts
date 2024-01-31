@@ -157,6 +157,7 @@ export class AppClient extends BaseClient {
       const subGame = this.__gameContext.findSubGame(subId);
 
       if (subGame === undefined) {
+        console.warn('Game context:', this.__gameContext);
         throw SdkError.invalidSubId(subId);
       }
 
@@ -170,7 +171,7 @@ export class AppClient extends BaseClient {
       const client = new Client(playerAddr, this.__encryptor, connection);
       const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr);
       const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache);
-      const gameContext = new GameContext({} as GameAccount);
+      const gameContext = this.__gameContext.subContext(subGame);
 
       return new SubClient({
         gameAddr: addr,
