@@ -41,6 +41,7 @@
             binaryen
             # For development
             rust-analyzer
+            nodePackages.typescript
             nodePackages.typescript-language-server
             zellij
           ];
