@@ -27,6 +27,7 @@ fn cli() -> Command {
 #[tokio::main]
 pub async fn main() {
     let log_format = tracing_subscriber::fmt::format()
+        .without_time()
         .with_level(true)
         .with_target(false)
         .compact();

@@ -71,6 +71,7 @@ impl GameManager {
             Ok(mut handle) => {
                 let mut games = self.games.lock().await;
                 let addr = format!("{}:{}", game_addr, sub_id);
+                info!("Launch sub game {}", addr);
                 let join_handle = handle.wait();
                 games.insert(addr.clone(), handle);
                 wait_and_unload(addr, join_handle, self.games.clone(), None);

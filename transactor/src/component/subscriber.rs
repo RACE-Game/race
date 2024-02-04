@@ -15,6 +15,7 @@ use tracing::warn;
 
 use crate::frame::EventFrame;
 
+use super::ComponentEnv;
 use super::common::{Component, ProducerPorts};
 use super::{event_bus::CloseReason, RemoteConnection};
 
@@ -53,11 +54,11 @@ impl Subscriber {
 
 #[async_trait]
 impl Component<ProducerPorts, SubscriberContext> for Subscriber {
-    fn name(&self) -> &str {
+    fn name() -> &'static str {
         "Subscriber"
     }
 
-    async fn run(ports: ProducerPorts, ctx: SubscriberContext) -> CloseReason {
+    async fn run(ports: ProducerPorts, ctx: SubscriberContext, env: ComponentEnv) -> CloseReason {
         let SubscriberContext {
             game_addr,
             server_addr: _,
@@ -77,8 +78,8 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                 Err(e) => {
                     if retries == 3 {
                         error!(
-                            "Failed to subscribe events: {}. Vote on the transactor {} has dropped",
-                            e, transactor_addr
+                            "{} Failed to subscribe events: {}. Vote on the transactor {} has dropped",
+                            env.log_prefix, e, transactor_addr
                         );
 
                         ports
@@ -88,10 +89,10 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                             })
                             .await;
 
-                        warn!("Shutdown subscriber");
+                        warn!("{} Shutdown subscriber", env.log_prefix);
                         return CloseReason::Complete;
                     } else {
-                        error!("Failed to subscribe events: {}, will retry", e);
+                        error!("{} Failed to subscribe events: {}, will retry", env.log_prefix, e);
                         retries += 1;
                         continue;
                     }
@@ -99,14 +100,14 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
             }
         };
 
-        info!("Subscription established");
+        info!("{} Subscription established", env.log_prefix);
         pin_mut!(sub);
 
         while let Some(frame) = sub.next().await {
             match frame {
                 // Forward event to event bus
                 BroadcastFrame::Event { event, .. } => {
-                    info!("Receive event: {}", event);
+                    info!("{} Receive event: {}", env.log_prefix, event);
                     if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event }).await {
                         error!("Send server event error: {}", e);
                         break;
@@ -115,7 +116,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
 
                 BroadcastFrame::Sync { sync} => {
                     let BroadcastSync { new_players, new_servers, access_version, transactor_addr } = sync;
-                    info!("Receive Sync broadcast, new_players: {:?}, new_servers: {:?}", new_players, new_servers);
+                    info!("{} Receive Sync broadcast, new_players: {:?}, new_servers: {:?}", env.log_prefix, new_players, new_servers);
                     if let Err(e) = ports
                         .try_send(EventFrame::Sync {
                             new_players,
@@ -125,7 +126,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                         })
                         .await
                     {
-                        error!("Send update node error: {}", e);
+                        error!("{} Send update node error: {}", env.log_prefix, e);
                         break;
                     }
                 }
@@ -138,7 +139,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
             }
         }
 
-        warn!("Vote for disconnecting");
+        warn!("{} Vote for disconnecting", env.log_prefix);
         ports
             .send(EventFrame::Vote {
                 votee: transactor_addr,

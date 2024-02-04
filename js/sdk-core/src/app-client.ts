@@ -5,7 +5,7 @@ import {
 import { GameContext } from './game-context';
 import { ITransport, TransactionResult } from './transport';
 import { IWallet } from './wallet';
-import { Handler } from './handler';
+import { Handler, InitAccount } from './handler';
 import { Encryptor, IEncryptor } from './encryptor';
 import { SdkError } from './error';
 import { Client } from './client';
@@ -172,6 +172,16 @@ export class AppClient extends BaseClient {
       const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr);
       const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache);
       const gameContext = this.__gameContext.subContext(subGame);
+      const initAccount = new InitAccount({
+        addr,
+        accessVersion: this.__gameContext.accessVersion,
+        settleVersion: this.__gameContext.settleVersion,
+        data: subGame.initData,
+        players: subGame.players,
+        maxPlayers: 0,
+        checkpoint: subGame.checkpoint,
+        entryType: new EntryTypeCash({ minDeposit: 0n, maxDeposit: 0n }),
+      });
 
       return new SubClient({
         gameAddr: addr,
@@ -189,6 +199,7 @@ export class AppClient extends BaseClient {
         decryptionCache,
         gameContext,
         subId,
+        initAccount,
       });
     } finally {
       console.groupEnd();

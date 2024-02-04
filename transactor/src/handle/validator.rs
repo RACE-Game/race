@@ -47,14 +47,14 @@ impl ValidatorHandle {
             .ok_or(Error::CantFindTransactor)?;
 
         info!("Creating components");
-        let event_bus = EventBus::default();
+        let event_bus = EventBus::new(game_account.addr.clone());
 
         let (bridge, bridge_ctx) = EventBridgeParent::init(signal_tx);
-        let mut bridge_handle = bridge.start(bridge_ctx);
+        let mut bridge_handle = bridge.start(&game_account.addr, bridge_ctx);
 
         let (event_loop, event_loop_ctx) =
             EventLoop::init(handler, game_context, ClientMode::Validator);
-        let mut event_loop_handle = event_loop.start(event_loop_ctx);
+        let mut event_loop_handle = event_loop.start(&game_account.addr, event_loop_ctx);
 
         let connection = Arc::new(
             RemoteConnection::try_new(
@@ -66,7 +66,7 @@ impl ValidatorHandle {
         );
         let (subscriber, subscriber_context) =
             Subscriber::init(game_account, server_account, connection.clone());
-        let mut subscriber_handle = subscriber.start(subscriber_context);
+        let mut subscriber_handle = subscriber.start(&game_account.addr, subscriber_context);
 
         let (client, client_ctx) = WrappedClient::init(
             server_account.addr.clone(),
@@ -76,10 +76,10 @@ impl ValidatorHandle {
             encryptor,
             connection,
         );
-        let mut client_handle = client.start(client_ctx);
+        let mut client_handle = client.start(&game_account.addr, client_ctx);
 
         let (voter, voter_ctx) = Voter::init(game_account, server_account, transport.clone());
-        let mut voter_handle = voter.start(voter_ctx);
+        let mut voter_handle = voter.start(&game_account.addr, voter_ctx);
 
         event_bus.attach(&mut bridge_handle).await;
         event_bus.attach(&mut event_loop_handle).await;

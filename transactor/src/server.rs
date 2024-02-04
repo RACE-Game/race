@@ -129,6 +129,7 @@ fn subscribe_event(
                 match context.get_broadcast(&game_addr, settle_version).await {
                     Ok(x) => x,
                     Err(e) => {
+                        warn!("Game not found: {:?}", game_addr);
                         sink.close(SubscriptionClosed::Failed(
                             CallError::Failed(e.into()).into(),
                         ));

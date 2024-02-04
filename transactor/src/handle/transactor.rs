@@ -67,20 +67,20 @@ impl TransactorHandle {
         let game_context = GameContext::try_new(game_account)?;
         let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
 
-        let event_bus = EventBus::default();
+        let event_bus = EventBus::new(game_account.addr.clone());
 
         let (broadcaster, broadcaster_ctx) = Broadcaster::init(game_account.addr.clone());
-        let mut broadcaster_handle = broadcaster.start(broadcaster_ctx);
+        let mut broadcaster_handle = broadcaster.start(&game_account.addr, broadcaster_ctx);
 
         let (bridge, bridge_ctx) = EventBridgeParent::init(signal_tx);
-        let mut bridge_handle = bridge.start(bridge_ctx);
+        let mut bridge_handle = bridge.start(&game_account.addr, bridge_ctx);
 
         let (event_loop, event_loop_ctx) =
             EventLoop::init(handler, game_context, ClientMode::Transactor);
-        let mut event_loop_handle = event_loop.start(event_loop_ctx);
+        let mut event_loop_handle = event_loop.start(&game_account.addr, event_loop_ctx);
 
         let (submitter, submitter_ctx) = Submitter::init(game_account, transport.clone());
-        let mut submitter_handle = submitter.start(submitter_ctx);
+        let mut submitter_handle = submitter.start(&game_account.addr, submitter_ctx);
 
         let (synchronizer, synchronizer_ctx) =
             GameSynchronizer::init(transport.clone(), game_account);
@@ -96,7 +96,7 @@ impl TransactorHandle {
             encryptor,
             Arc::new(connection),
         );
-        let mut client_handle = client.start(client_ctx);
+        let mut client_handle = client.start(&game_account.addr, client_ctx);
 
         event_bus.attach(&mut broadcaster_handle).await;
         event_bus.attach(&mut bridge_handle).await;
@@ -110,7 +110,7 @@ impl TransactorHandle {
         event_bus.send(EventFrame::InitState { init_account }).await;
         event_bus.send(create_init_sync(game_account)?).await;
 
-        let mut synchronizer_handle = synchronizer.start(synchronizer_ctx);
+        let mut synchronizer_handle = synchronizer.start(&game_account.addr, synchronizer_ctx);
         event_bus.attach(&mut synchronizer_handle).await;
 
         Ok(Self {

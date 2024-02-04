@@ -289,6 +289,11 @@ impl Effect {
         self.timestamp
     }
 
+    /// Cancel current dispatched event.
+    pub fn cancel_dispatch(&mut self) {
+        self.cancel_dispatch = true;
+    }
+
     /// Dispatch waiting timeout event after certain milliseconds.
     pub fn wait_timeout(&mut self, timeout: u64) {
         self.wait_timeout = Some(timeout);

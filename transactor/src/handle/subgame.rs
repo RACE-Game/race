@@ -37,7 +37,7 @@ impl SubGameHandle {
         let game_addr = spec.game_addr.clone();
         let sub_id = spec.sub_id.clone();
         let addr = format!("{}:{}", game_addr, sub_id);
-        let event_bus = EventBus::default();
+        let event_bus = EventBus::new(addr.to_string());
 
         let bundle_account = transport
             .get_game_bundle(&spec.bundle_addr)
@@ -53,14 +53,14 @@ impl SubGameHandle {
         let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 
         let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone());
-        let mut broadcaster_handle = broadcaster.start(broadcaster_ctx);
+        let mut broadcaster_handle = broadcaster.start(&addr, broadcaster_ctx);
 
         let (bridge, bridge_ctx) = bridge_parent.derive_child(sub_id.clone());
-        let mut bridge_handle = bridge.start(bridge_ctx);
+        let mut bridge_handle = bridge.start(&addr, bridge_ctx);
 
         let (event_loop, event_loop_ctx) =
             EventLoop::init(handler, game_context, ClientMode::Transactor);
-        let mut event_loop_handle = event_loop.start(event_loop_ctx);
+        let mut event_loop_handle = event_loop.start(&addr, event_loop_ctx);
 
         let mut connection = LocalConnection::new(encryptor.clone());
 
@@ -74,7 +74,7 @@ impl SubGameHandle {
             encryptor,
             Arc::new(connection),
         );
-        let mut client_handle = client.start(client_ctx);
+        let mut client_handle = client.start(&addr, client_ctx);
 
         event_bus.attach(&mut client_handle).await;
         event_bus.attach(&mut bridge_handle).await;

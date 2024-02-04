@@ -16,6 +16,7 @@ pub use event_bus::CloseReason;
 pub use broadcaster::Broadcaster;
 pub use common::Component;
 pub use common::PortsHandle;
+pub use common::ComponentEnv;
 pub use connection::{LocalConnection, RemoteConnection};
 pub use event_bus::EventBus;
 pub use event_loop::EventLoop;

@@ -1,7 +1,7 @@
 import { IEncryptor, PublicKeyRaws } from './encryptor';
 import { TxState } from './tx-state';
 import { GameEvent } from './events';
-import { deserialize, array, enums, field, option, serialize, struct, variant } from '@race-foundation/borsh';
+import { deserialize, array, enums, field, serialize, struct, variant } from '@race-foundation/borsh';
 import { arrayBufferToBase64, base64ToUint8Array } from './utils';
 import { PlayerJoin, ServerJoin } from './accounts';
 
@@ -24,11 +24,6 @@ interface ISubmitEventParams {
 
 interface ISubmitMessageParams {
   content: string;
-}
-
-interface ICheckTxStateParams {
-  newPlayers: string[];
-  accessVersion: bigint;
 }
 
 export type ConnectionSubscriptionItem = BroadcastFrame | ConnectionState | undefined;
@@ -95,8 +90,8 @@ export class BroadcastFrameEvent extends BroadcastFrame {
   event!: GameEvent;
   @field('u64')
   timestamp!: bigint;
-  @field('bool')
-  isHistory!: boolean;
+  @field('u16')
+  remain!: number;
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
@@ -222,7 +217,7 @@ export class Connection implements IConnection {
   }
 
   async connect(params: SubscribeEventParams) {
-    console.log('Establishing server connection, settle version:', params.settleVersion);
+    console.log(`Establishing server connection, target: ${this.target}, settle version: ${params.settleVersion}`)
     this.socket = new WebSocket(this.endpoint);
 
     this.clearCheckTimer();

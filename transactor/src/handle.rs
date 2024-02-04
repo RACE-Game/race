@@ -103,7 +103,7 @@ impl Handle {
         match self {
             Handle::Transactor(h) => Ok(&h.broadcaster),
             Handle::Validator(_) => Err(Error::NotSupportedInValidatorMode),
-            Handle::SubGame(_) => Err(Error::NotSupportedInSubGameMode),
+            Handle::SubGame(h) => Ok(&h.broadcaster),
         }
     }
 

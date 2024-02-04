@@ -166,6 +166,7 @@ export class BaseClient {
       this.__onConnectionState(connState);
     }
   }
+
   /**
    * Connect to the transactor and retrieve the event stream.
    */
@@ -179,6 +180,7 @@ export class BaseClient {
       const initAccount = InitAccount.createFromGameAccount(gameAccount, this.gameContext.accessVersion, this.gameContext.settleVersion);
       this.__gameContext = new GameContext(gameAccount);
       this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
+
       for (const p of gameAccount.players) this.__onLoadProfile(p.accessVersion, p.addr);
       await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
       await this.__initializeState(initAccount);
@@ -200,25 +202,28 @@ export class BaseClient {
   async __initializeState(initAccount: InitAccount): Promise<void> {
     console.log('Initialize state with', initAccount);
     await this.__handler.initState(this.__gameContext, initAccount);
+    console.log('State initialized');
     await this.__invokeEventCallback(undefined, true);
   }
 
   async __getGameAccount(): Promise<GameAccount> {
     let retries = 0;
     while (true) {
+      if (retries === MAX_RETRIES) {
+          throw new Error(`Game account not found, after ${retries} retries`);
+      }
       try {
         const gameAccount = await this.__transport.getGameAccount(this.gameAddr);
-        if (gameAccount === undefined) continue;
+        if (gameAccount === undefined) {
+          retries += 1;
+          continue;
+        }
         return gameAccount;
       } catch (e: any) {
         console.warn(e, 'Failed to fetch game account, will retry in 3s');
         await new Promise(r => setTimeout(r, 3000));
-        if (retries === MAX_RETRIES) {
-          throw new Error(`Game account not found, after ${retries} retries`);
-        } else {
-          retries += 1;
-          continue;
-        }
+        retries += 1;
+        continue;
       }
     }
   }
@@ -285,23 +290,12 @@ export class BaseClient {
         this.__gameContext.prepareForNextEvent(timestamp);
         try {
           let context = new GameContext(this.__gameContext);
-          if (event instanceof Join) {
-            while (true) {
-              let gameAccount = await this.__transport.getGameAccount(this.__gameAddr);
-              if (gameAccount === undefined) {
-                console.warn('Failed to get game account, will retry');
-                await new Promise(r => setTimeout(r, 3000));
-                continue;
-              }
-              break;
-            }
-          }
           await this.__handler.handleEvent(context, event);
           this.__gameContext = context;
         } catch (err: any) {
           console.error(err);
         }
-        await this.__invokeEventCallback(event, frame.isHistory);
+        await this.__invokeEventCallback(event, frame.remain !== 0);
       } catch (e: any) {
         console.log("Game context in error:", this.__gameContext);
         throw e;

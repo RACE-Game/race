@@ -13,6 +13,7 @@ use crate::component::event_bus::CloseReason;
 use crate::frame::EventFrame;
 use race_core::transport::TransportT;
 
+use super::ComponentEnv;
 use super::common::PipelinePorts;
 
 /// Squash two settles into one.
@@ -94,11 +95,11 @@ impl Submitter {
 
 #[async_trait]
 impl Component<PipelinePorts, SubmitterContext> for Submitter {
-    fn name(&self) -> &str {
+    fn name() -> &'static str {
         "Submitter"
     }
 
-    async fn run(mut ports: PipelinePorts, ctx: SubmitterContext) -> CloseReason {
+    async fn run(mut ports: PipelinePorts, ctx: SubmitterContext, env: ComponentEnv) -> CloseReason {
         let (queue_tx, mut queue_rx) = mpsc::channel::<SettleParams>(32);
         let p = ports.clone_as_producer();
         // Start a task to handle settlements
@@ -152,7 +153,8 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                         .await;
                     if let Err(e) = res {
                         error!(
-                            "Submitter failed to send settle to task queue: {}",
+                            "{} Submitter failed to send settle to task queue: {}",
+                            env.log_prefix,
                             e.to_string()
                         );
                     }

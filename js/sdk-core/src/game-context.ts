@@ -492,6 +492,6 @@ export class GameContext {
   }
 
   findSubGame(subId: number): LaunchSubGame | undefined {
-    return this.launchSubGames.find(g => g.subId === subId);
+    return this.launchSubGames.find(g => g.subId === Number(subId));
   }
 }

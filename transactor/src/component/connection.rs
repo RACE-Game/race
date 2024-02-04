@@ -20,14 +20,12 @@ use jsonrpsee::{
     rpc_params,
     ws_client::{WsClient, WsClientBuilder},
 };
+use race_api::error::{Error, Result};
+use race_core::types::{BroadcastFrame, SubscribeEventParams};
 use race_core::{
     connection::ConnectionT,
     encryptor::EncryptorT,
     types::{AttachGameParams, ExitGameParams, SubmitEventParams},
-};
-use race_api::error::{Error, Result};
-use race_core::{
-    types::{BroadcastFrame, SubscribeEventParams},
 };
 
 use crate::frame::EventFrame;

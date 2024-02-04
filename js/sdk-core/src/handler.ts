@@ -49,6 +49,7 @@ export class InitAccount {
     this.checkpoint = fields.checkpoint;
     this.entryType = fields.entryType;
   }
+
   static createFromGameAccount(
     gameAccount: GameAccount,
     transactorAccessVersion: bigint,

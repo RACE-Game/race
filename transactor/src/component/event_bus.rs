@@ -6,15 +6,52 @@ use tracing::{error, warn};
 
 use crate::component::common::Attachable;
 use crate::frame::EventFrame;
+use crate::utils::addr_shorthand;
 
 /// An event bus that passes the events between different components.
 pub struct EventBus {
+    #[allow(unused)]
+    addr: String,
     tx: mpsc::Sender<EventFrame>,
     attached_txs: Arc<Mutex<Vec<(String, mpsc::Sender<EventFrame>)>>>,
     close_rx: watch::Receiver<bool>,
 }
 
 impl EventBus {
+    pub fn new(addr: String) -> Self {
+        let (close_tx, close_rx) = watch::channel(false);
+        let (tx, mut rx) = mpsc::channel::<EventFrame>(32);
+        let txs: Arc<Mutex<Vec<(String, mpsc::Sender<EventFrame>)>>> = Arc::new(Mutex::new(vec![]));
+        let attached_txs = txs.clone();
+        let addr_1 = addr_shorthand(&addr);
+
+        tokio::spawn(async move {
+            while let Some(msg) = rx.recv().await {
+                let txs = attached_txs.lock().await;
+                for (id, t) in txs.iter() {
+                    if t.send(msg.clone()).await.is_err() {
+                        warn!(
+                            "[{}] Failed to send message: {} to component: {}",
+                            addr_1,
+                            msg,
+                            id
+                        );
+                    }
+                }
+                if matches!(msg, EventFrame::Shutdown) {
+                    close_tx.send(true).unwrap();
+                    break;
+                }
+            }
+        });
+        Self {
+            addr,
+            tx,
+            attached_txs: txs,
+            close_rx,
+        }
+    }
+
     pub async fn attach<T>(&self, attachable: &mut T)
     where
         T: Attachable,
@@ -64,30 +101,7 @@ impl EventBus {
 
 impl Default for EventBus {
     fn default() -> Self {
-        let (close_tx, close_rx) = watch::channel(false);
-        let (tx, mut rx) = mpsc::channel::<EventFrame>(32);
-        let txs: Arc<Mutex<Vec<(String, mpsc::Sender<EventFrame>)>>> = Arc::new(Mutex::new(vec![]));
-        let attached_txs = txs.clone();
-
-        tokio::spawn(async move {
-            while let Some(msg) = rx.recv().await {
-                let txs = attached_txs.lock().await;
-                for (id, t) in txs.iter() {
-                    if t.send(msg.clone()).await.is_err() {
-                        warn!("Failed to send message: {} to component: {}", msg, id);
-                    }
-                }
-                if matches!(msg, EventFrame::Shutdown) {
-                    close_tx.send(true).unwrap();
-                    break;
-                }
-            }
-        });
-        Self {
-            tx,
-            attached_txs: txs,
-            close_rx,
-        }
+        Self::new("".to_string())
     }
 }
 

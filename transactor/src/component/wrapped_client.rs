@@ -18,6 +18,7 @@ use race_core::transport::TransportT;
 use race_core::types::ClientMode;
 use tracing::{error, warn};
 
+use super::ComponentEnv;
 use super::event_bus::CloseReason;
 
 pub struct WrappedClient {}
@@ -56,11 +57,11 @@ impl WrappedClient {
 
 #[async_trait]
 impl Component<ConsumerPorts, ClientContext> for WrappedClient {
-    fn name(&self) -> &str {
+    fn name() -> &'static str {
         "Client"
     }
 
-    async fn run(mut ports: ConsumerPorts, ctx: ClientContext) -> CloseReason {
+    async fn run(mut ports: ConsumerPorts, ctx: ClientContext, env: ComponentEnv) -> CloseReason {
         let ClientContext {
             addr,
             game_addr,
@@ -73,7 +74,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
         let mut client = Client::new(addr, game_addr, mode, transport, encryptor, connection);
 
         if let Err(e) = client.attach_game().await {
-            warn!("Failed to attach to game due to error: {:?}", e);
+            warn!("{} Failed to attach to game due to error: {:?}", env.log_prefix, e);
         }
 
         let mut res = Ok(());
@@ -93,7 +94,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                             }
                         }
                         Err(e) => {
-                            error!("Client error: {:?}", e);
+                            error!("{} Client error: {:?}", env.log_prefix, e);
                             res = Err(e);
                             break 'outer;
                         }

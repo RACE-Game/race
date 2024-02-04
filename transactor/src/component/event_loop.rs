@@ -11,8 +11,9 @@ use crate::component::common::{Component, PipelinePorts};
 use crate::component::event_bus::CloseReason;
 use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
-use crate::utils::addr_shorthand;
 use race_core::types::{ClientMode, GameAccount, GamePlayer, SubGameSpec};
+
+use super::ComponentEnv;
 
 fn log_execution_context(ctx: &GameContext, evt: &Event) {
     info!("Execution context");
@@ -43,12 +44,9 @@ async fn handle(
     event: Event,
     ports: &PipelinePorts,
     mode: ClientMode,
+    env: &ComponentEnv,
 ) -> Option<CloseReason> {
-    info!(
-        "{} Handle event: {}",
-        addr_shorthand(game_context.get_game_addr()),
-        event
-    );
+    info!("{} Handle event: {}", env.log_prefix, event);
 
     let access_version = game_context.get_access_version();
     let settle_version = game_context.get_settle_version();
@@ -92,8 +90,7 @@ async fn handle(
 
                 info!(
                     "{} Send settlements, settle_version: {}",
-                    addr_shorthand(game_context.get_game_addr()),
-                    settle_version
+                    env.log_prefix, settle_version
                 );
 
                 ports
@@ -125,7 +122,7 @@ async fn handle(
             // Emit bridge events
             if mode == ClientMode::Transactor {
                 for be in effects.bridge_events {
-                    let ef = EventFrame::BridgeEvent {
+                    let ef = EventFrame::SendBridgeEvent {
                         dest: be.dest,
                         event: Event::Bridge {
                             dest: be.dest,
@@ -137,11 +134,7 @@ async fn handle(
             }
         }
         Err(e) => {
-            warn!(
-                "{} Handle event error: {}",
-                addr_shorthand(game_context.get_game_addr()),
-                e.to_string()
-            );
+            warn!("{} Handle event error: {}", env.log_prefix, e.to_string());
             log_execution_context(game_context, &event);
             match e {
                 Error::WasmExecutionError(_) | Error::WasmMemoryOverflow => {
@@ -190,11 +183,15 @@ async fn read_event(
 
 #[async_trait]
 impl Component<PipelinePorts, EventLoopContext> for EventLoop {
-    fn name(&self) -> &str {
+    fn name() -> &'static str {
         "Event Loop"
     }
 
-    async fn run(mut ports: PipelinePorts, ctx: EventLoopContext) -> CloseReason {
+    async fn run(
+        mut ports: PipelinePorts,
+        ctx: EventLoopContext,
+        env: ComponentEnv,
+    ) -> CloseReason {
         let mut handler = ctx.handler;
         let mut game_context = ctx.game_context;
 
@@ -209,22 +206,20 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if let Err(e) = game_context
                         .apply_checkpoint(init_account.access_version, init_account.settle_version)
                     {
-                        error!("Failed to apply checkpoint: {:?}", e);
+                        error!("{} Failed to apply checkpoint: {:?}", env.log_prefix, e);
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Fault(e);
                     }
 
                     if let Err(e) = handler.init_state(&mut game_context, &init_account) {
-                        error!("Failed to initialize state: {:?}", e);
+                        error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Fault(e);
                     }
 
                     info!(
                         "{} Initialize game state, access_version = {}, settle_version = {}",
-                        addr_shorthand(&init_account.addr),
-                        init_account.access_version,
-                        init_account.settle_version
+                        env.log_prefix, init_account.access_version, init_account.settle_version
                     );
 
                     game_context.dispatch_safe(Event::Ready, 0);
@@ -241,7 +236,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if ctx.mode == ClientMode::Transactor {
                         let event = Event::GameStart;
                         if let Some(close_reason) =
-                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode, &env).await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -256,7 +251,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     transactor_addr,
                 } => {
                     info!(
-                        "Event loop handle Sync, access_version: {:?}",
+                        "{} handle Sync, access_version: {:?}",
+                        env.log_prefix,
                         access_version
                     );
                     game_context.set_access_version(access_version);
@@ -283,7 +279,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             players: new_players_1,
                         };
                         if let Some(close_reason) =
-                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode, &env).await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -294,18 +290,21 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if let Ok(player_id) = game_context.addr_to_id(&player_addr) {
                         let event = Event::Leave { player_id };
                         if let Some(close_reason) =
-                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode, &env).await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
                         }
                     } else {
-                        error!("Ignore PlayerLeaving, due to can not map the address to id");
+                        error!(
+                            "{} Ignore PlayerLeaving, due to can not map the address to id",
+                            env.log_prefix
+                        );
                     }
                 }
-                EventFrame::SendEvent { event } => {
+                EventFrame::SendEvent { event } | EventFrame::RecvBridgeEvent { event, .. } => {
                     if let Some(close_reason) =
-                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode, &env).await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
@@ -317,14 +316,14 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Complete;
                     } else if let Some(close_reason) =
-                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode).await
+                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode, &env).await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
                     }
                 }
                 EventFrame::Shutdown => {
-                    warn!("Shutdown event loop");
+                    warn!("{} Shutdown event loop", env.log_prefix);
                     return CloseReason::Complete;
                 }
                 _ => (),

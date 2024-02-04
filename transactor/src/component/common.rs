@@ -5,9 +5,9 @@ use tokio::{
 };
 use tracing::{info, warn};
 
-use crate::frame::EventFrame;
+use crate::{frame::EventFrame, utils::addr_shorthand};
 
-use super::event_bus::CloseReason;
+use super::{event_bus::CloseReason};
 
 /// An interface for a component that can be attached to the event bus.
 pub trait Attachable {
@@ -30,16 +30,16 @@ pub struct PortsHandleInner {
 }
 
 pub struct PortsHandle {
-    pub name: String,
+    pub id: String,
     input_tx: Option<mpsc::Sender<EventFrame>>,
     output_rx: Option<mpsc::Receiver<EventFrame>>,
     join_handle: JoinHandle<CloseReason>,
 }
 
 impl PortsHandle {
-    fn from_inner<S: Into<String>>(name: S, value: PortsHandleInner, join_handle: JoinHandle<CloseReason>) -> Self {
+    fn from_inner<S: Into<String>>(id: S, value: PortsHandleInner, join_handle: JoinHandle<CloseReason>) -> Self {
         Self {
-            name: name.into(),
+            id: id.into(),
             input_tx: value.input_tx,
             output_rx: value.output_rx,
             join_handle,
@@ -73,7 +73,7 @@ impl PortsHandle {
 
 impl Attachable for PortsHandle {
     fn id(&self) -> &str {
-        self.name.as_str()
+        self.id.as_str()
     }
 
     fn input(&mut self) -> Option<mpsc::Sender<EventFrame>> {
@@ -214,19 +214,31 @@ impl Ports for PipelinePorts {
     }
 }
 
+pub struct ComponentEnv {
+    pub log_prefix: String,
+}
+
+impl ComponentEnv {
+    pub fn new(addr: &str, component_name: &str) -> Self {
+        let addr_short = addr_shorthand(addr);
+        Self { log_prefix: format!("[{}|{}]", addr_short, component_name)}
+    }
+}
+
 #[async_trait]
 pub trait Component<P, C>
 where
     P: Ports + 'static,
     C: Send + 'static,
 {
-    fn name(&self) -> &str;
+    fn name() -> &'static str;
 
-    fn start(&self, context: C) -> PortsHandle {
-        info!("Starting component: {}", self.name());
+    fn start(&self, addr: &str, context: C) -> PortsHandle {
+        info!("Starting component: {}", Self::name());
         let (ports, ports_handle_inner) = P::create();
-        let join_handle = tokio::spawn(async move { Self::run(ports, context).await });
-        PortsHandle::from_inner(self.name(), ports_handle_inner, join_handle)
+        let env = ComponentEnv::new(addr, Self::name());
+        let join_handle = tokio::spawn(async move { Self::run(ports, context, env).await });
+        PortsHandle::from_inner(Self::name(), ports_handle_inner, join_handle)
     }
-    async fn run(ports: P, context: C) -> CloseReason;
+    async fn run(ports: P, context: C, env: ComponentEnv) -> CloseReason;
 }

@@ -136,7 +136,7 @@ impl std::fmt::Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {:?}", sender, raw),
-            Event::Bridge { dest, raw } => write!(f, "Bridge to {}, inner: {:?}", dest, raw),
+            Event::Bridge { dest, raw } => write!(f, "Bridge to {}, inner: [{}...]", dest, raw[0]),
             Event::Ready => write!(f, "Ready"),
             Event::ShareSecrets { sender, shares } => {
                 let repr = shares

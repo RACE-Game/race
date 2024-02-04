@@ -72,7 +72,11 @@ pub enum EventFrame {
         vote_type: VoteType,
     },
     Shutdown,
-    BridgeEvent {
+    SendBridgeEvent {
+        dest: usize,
+        event: Event,
+    },
+    RecvBridgeEvent {
         dest: usize,
         event: Event,
     },
@@ -125,8 +129,11 @@ impl std::fmt::Display for EventFrame {
             EventFrame::Vote { votee, vote_type } => {
                 write!(f, "Vote: to {} for {:?}", votee, vote_type)
             }
-            EventFrame::BridgeEvent { dest, event } => {
-                write!(f, "BridgeEvent: dest {}, event: {}", dest, event)
+            EventFrame::SendBridgeEvent { dest, event } => {
+                write!(f, "SendBridgeEvent: dest {}, event: {}", dest, event)
+            }
+            EventFrame::RecvBridgeEvent { dest, event } => {
+                write!(f, "RecvBridgeEvent: dest {}, event: {}", dest, event)
             }
             EventFrame::LaunchSubGame { spec } => {
                 write!(f, "LaunchSubGame: {:?}", spec)

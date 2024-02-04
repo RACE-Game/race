@@ -1,11 +1,11 @@
+use crate::frame::{EventFrame, SignalFrame};
 ///! The component to bridge two event buses, typically to be used
 ///! between the parent game and the sub games.
 use async_trait::async_trait;
 use tokio::sync::{broadcast, mpsc};
+use tracing::{info, log::error};
 
-use crate::frame::{EventFrame, SignalFrame};
-
-use super::{common::PipelinePorts, CloseReason, Component};
+use super::{common::PipelinePorts, CloseReason, Component, ComponentEnv};
 
 #[allow(dead_code)]
 pub struct EventBridgeParentContext {
@@ -90,32 +90,56 @@ impl EventBridgeParent {
 
 #[async_trait]
 impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
-    fn name(&self) -> &str {
+    fn name() -> &'static str {
         "Event Bridge (Parent)"
     }
 
-    async fn run(mut ports: PipelinePorts, mut ctx: EventBridgeParentContext) -> CloseReason {
+    async fn run(
+        mut ports: PipelinePorts,
+        mut ctx: EventBridgeParentContext,
+        env: ComponentEnv,
+    ) -> CloseReason {
         while let Some((from_bridge, event_frame)) = Self::read_event(&mut ports, &mut ctx.rx).await
         {
             if from_bridge {
-                ports.send(event_frame).await;
+                match event_frame {
+                    EventFrame::SendBridgeEvent { dest, event } => {
+                        info!("{} Receives event: {}", env.log_prefix, event);
+                        ports
+                            .send(EventFrame::RecvBridgeEvent { dest, event })
+                            .await;
+                    }
+                    _ => (),
+                }
             } else {
                 match event_frame {
                     EventFrame::LaunchSubGame { spec } => {
                         let f = SignalFrame::LaunchSubGame { spec: *spec };
                         if let Err(e) = ctx.signal_tx.send(f).await {
-                            println!("Failed to send: {}", e);
+                            error!("{} Failed to send: {}", env.log_prefix, e);
                         }
                     }
                     EventFrame::Shutdown => {
-                        if let Err(e) = ctx.tx.send(event_frame) {
-                            println!("Failed to send: {}", e);
+                        if !ctx.tx.is_empty() {
+                            info!("{} Sends Shutdown", env.log_prefix);
+                            if let Err(e) = ctx.tx.send(event_frame) {
+                                error!("{} Failed to send: {}", env.log_prefix, e);
+                            }
                         }
                         break;
                     }
-                    EventFrame::BridgeEvent { .. } | EventFrame::Sync { .. } => {
+                    EventFrame::SendBridgeEvent { dest, .. } if dest != 0 => {
+                        info!("{} Sends event: {}", env.log_prefix, event_frame);
                         if let Err(e) = ctx.tx.send(event_frame) {
-                            println!("Failed to send: {}", e);
+                            error!("{} Failed to send: {}", env.log_prefix, e);
+                        }
+                    }
+                    EventFrame::Sync { .. } => {
+                        if !ctx.tx.is_empty() {
+                            info!("{} Sends event: {}", env.log_prefix, event_frame);
+                            if let Err(e) = ctx.tx.send(event_frame) {
+                                error!("{} Failed to send: {}", env.log_prefix, e);
+                            }
                         }
                     }
                     _ => continue,
@@ -156,21 +180,41 @@ impl EventBridgeChild {
 
 #[async_trait]
 impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
-    fn name(&self) -> &str {
+    fn name() -> &'static str {
         "Event Bridge (Child)"
     }
 
-    async fn run(mut ports: PipelinePorts, mut ctx: EventBridgeChildContext) -> CloseReason {
+    async fn run(
+        mut ports: PipelinePorts,
+        mut ctx: EventBridgeChildContext,
+        env: ComponentEnv,
+    ) -> CloseReason {
         while let Some((from_bridge, event_frame)) = Self::read_event(&mut ports, &mut ctx.rx).await
         {
             if from_bridge {
-                ports.send(event_frame).await;
+                match event_frame {
+                    EventFrame::Shutdown => {
+                        info!("{} Receives Shutdown, quit", env.log_prefix);
+                        ports.send(event_frame).await;
+                        break;
+                    }
+                    EventFrame::Sync { .. } => {
+                        info!("{} Receives event: {}", env.log_prefix, event_frame);
+                        ports.send(event_frame).await;
+                    }
+                    EventFrame::SendBridgeEvent { dest, event } if dest == ctx.sub_id => {
+                        info!("{} Receives event: {}", env.log_prefix, event);
+                        ports.send(EventFrame::RecvBridgeEvent { dest, event }).await;
+                    }
+                    _ => {}
+                }
             } else {
                 match event_frame {
                     EventFrame::Shutdown => break,
-                    EventFrame::BridgeEvent { .. } => {
+                    EventFrame::SendBridgeEvent { dest, .. } if dest != ctx.sub_id => {
+                        info!("{} Sends event: {}", env.log_prefix, event_frame);
                         if let Err(e) = ctx.tx.send(event_frame).await {
-                            println!("Failed to send: {:?}", e);
+                            error!("{} Failed to send: {}", env.log_prefix, e);
                         }
                     }
                     _ => continue,

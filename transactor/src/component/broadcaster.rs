@@ -13,7 +13,7 @@ use tracing::{debug, error};
 use crate::component::common::{Component, ConsumerPorts};
 use crate::frame::EventFrame;
 
-use super::CloseReason;
+use super::{CloseReason, ComponentEnv};
 
 /// Backup events in memeory, for new connected clients.  The
 /// `settle_version` and `access_version` are the values at the time
@@ -88,12 +88,15 @@ impl Broadcaster {
                 histories.push(BroadcastFrame::Sync {
                     sync: group.sync.clone()
                 });
+                let cnt = group.events.len();
+                let mut i = cnt as _;
                 for event in group.events.iter() {
+                    i -= 1;
                     histories.push(BroadcastFrame::Event {
                         game_addr: self.id.clone(),
                         event: event.event.clone(),
                         timestamp: event.timestamp,
-                        is_history: true,
+                        remain: i,
                     })
                 }
             }
@@ -105,11 +108,11 @@ impl Broadcaster {
 
 #[async_trait]
 impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
-    fn name(&self) -> &str {
+    fn name() -> &'static str {
         "Broadcaster"
     }
 
-    async fn run(mut ports: ConsumerPorts, ctx: BroadcasterContext) -> CloseReason {
+    async fn run(mut ports: ConsumerPorts, ctx: BroadcasterContext, env: ComponentEnv) -> CloseReason {
         while let Some(event) = ports.recv().await {
             match event {
                 EventFrame::SendMessage { message } => {
@@ -120,7 +123,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
 
                     if let Err(e) = r {
                         // Usually it means no receivers
-                        debug!("Failed to broadcast event: {:?}", e);
+                        debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
                     }
                 }
                 EventFrame::Checkpoint {
@@ -147,21 +150,21 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
 
                         if let Err(e) = r {
-                            debug!("Failed to broadcast event: {:?}", e);
+                            debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
                         }
                     }
                     TxState::PlayerConfirming { .. } => {
                         let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
 
                         if let Err(e) = r {
-                            debug!("Failed to broadcast event: {:?}", e);
+                            debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
                         }
                     }
                     TxState::PlayerConfirmingFailed(_) => {
                         let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
 
                         if let Err(e) = r {
-                            debug!("Failed to broadcast event: {:?}", e);
+                            debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
                         }
                     }
                 },
@@ -171,7 +174,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     settle_version,
                     timestamp,
                 } => {
-                    debug!("Broadcaster receive event: {}", event);
+                    debug!("{} Broadcaster receive event: {}", env.log_prefix, event);
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
 
                     if let Some(current) = event_backup_groups.back_mut() {
@@ -182,7 +185,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                             timestamp,
                         });
                     } else {
-                        error!("Received event without checkpoint");
+                        error!("{} Received event without checkpoint", env.log_prefix);
                     }
                     // Keep 10 groups at most
                     if event_backup_groups.len() > 10 {
@@ -194,12 +197,12 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         game_addr: ctx.id.clone(),
                         event,
                         timestamp,
-                        is_history: false,
+                        remain: 0,
                     });
 
                     if let Err(e) = r {
                         // Usually it means no receivers
-                        debug!("Failed to broadcast event: {:?}", e);
+                        debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
                     }
                 }
                 EventFrame::Sync {
@@ -225,7 +228,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     let r = ctx.broadcast_tx.send(broadcast_frame);
 
                     if let Err(e) = r {
-                        debug!("Failed to broadcast node updates: {:?}", e);
+                        debug!("{} Failed to broadcast node updates: {:?}", env.log_prefix, e);
                     }
                 }
                 EventFrame::Shutdown => {
@@ -255,7 +258,7 @@ mod tests {
             .build();
 
         let (broadcaster, ctx) = Broadcaster::init(game_account.addr.clone());
-        let handle = broadcaster.start(ctx);
+        let handle = broadcaster.start("", ctx);
         let mut rx = broadcaster.get_broadcast_rx();
 
         // BroadcastFrame::Event
@@ -277,7 +280,7 @@ mod tests {
                     sender: alice.id(),
                     raw: "CUSTOM EVENT".into(),
                 },
-                is_history: false,
+                remain: 0,
             };
 
             handle.send_unchecked(event_frame).await;
@@ -294,7 +297,7 @@ mod tests {
                     balance: 100,
                     access_version: 10,
                     verify_key: "alice".into(),
-                }],
+                }.into()],
                 access_version: 10,
             };
             let event_frame = EventFrame::TxState {
