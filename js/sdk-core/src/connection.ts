@@ -147,6 +147,8 @@ export interface IConnection {
 
   connect(params: SubscribeEventParams): Promise<void>;
 
+  disconnect();
+
   subscribeEvents(): ConnectionSubscription;
 }
 
@@ -309,16 +311,18 @@ export class Connection implements IConnection {
     }
   }
 
+  disconnect() {
+    if (this.socket !== undefined) {
+      this.closed = true;
+      this.socket.close();
+      this.socket = undefined;
+    }
+  }
+
   async exitGame(params: ExitGameParams): Promise<void> {
     const req = await this.makeReq(this.target, 'exit_game', {});
     await this.requestXhr(req);
-    if (!params.keepConnection) {
-      if (this.socket !== undefined) {
-        this.closed = true;
-        this.socket.close();
-        this.socket = undefined;
-      }
-    }
+    if (!params.keepConnection) this.disconnect();
   }
 
   async *subscribeEvents(): AsyncGenerator<BroadcastFrame | ConnectionState | undefined> {

@@ -25,32 +25,32 @@ type OpIdent =
     };
 
 export class Client {
-  #encryptor: IEncryptor;
-  #connection: IConnection;
-  #addr: string;
-  #opHist: OpIdent[];
-  #secretState: SecretState;
+  __encryptor: IEncryptor;
+  __connection: IConnection;
+  __addr: string;
+  __opHist: OpIdent[];
+  __secretState: SecretState;
 
   constructor(addr: string, encryptor: IEncryptor, connection: IConnection) {
-    this.#addr = addr;
-    this.#encryptor = encryptor;
-    this.#connection = connection;
-    this.#opHist = new Array();
-    this.#secretState = new SecretState(encryptor);
+    this.__addr = addr;
+    this.__encryptor = encryptor;
+    this.__connection = connection;
+    this.__opHist = new Array();
+    this.__secretState = new SecretState(encryptor);
   }
 
   async attachGame(): Promise<void> {
-    const key = await this.#encryptor.exportPublicKey(undefined);
-    await this.#connection.attachGame(
+    const key = await this.__encryptor.exportPublicKey(undefined);
+    await this.__connection.attachGame(
       new AttachGameParams({
-        signer: this.#addr,
+        signer: this.__addr,
         key,
       })
     );
   }
 
   async submitEvent(event: any): Promise<void> {
-    await this.#connection.submitEvent(
+    await this.__connection.submitEvent(
       new SubmitEventParams({
         event,
       })
@@ -63,8 +63,8 @@ export class Client {
 
   loadRandomStates(ctx: GameContext) {
     for (let randomState of ctx.randomStates) {
-      if (!this.#secretState.isRandomLoaded(randomState.id)) {
-        this.#secretState.genRandomStates(randomState.id, randomState.size);
+      if (!this.__secretState.isRandomLoaded(randomState.id)) {
+        this.__secretState.genRandomStates(randomState.id, randomState.size);
       }
     }
   }
@@ -76,21 +76,21 @@ export class Client {
   }
 
   flushSecretStates() {
-    this.#secretState.clear();
-    this.#opHist.splice(0);
+    this.__secretState.clear();
+    this.__opHist.splice(0);
   }
 
   async decrypt(ctx: GameContext, randomId: Id): Promise<Map<number, string>> {
     let randomState = ctx.getRandomState(randomId);
     let options = randomState.options;
-    let revealed = await this.#encryptor.decryptWithSecrets(
+    let revealed = await this.__encryptor.decryptWithSecrets(
       randomState.listRevealedCiphertexts(),
       randomState.listRevealedSecrets(),
       options
     );
-    let assigned = await this.#encryptor.decryptWithSecrets(
-      randomState.listAssignedCiphertexts(this.#addr),
-      randomState.listSharedSecrets(this.#addr),
+    let assigned = await this.__encryptor.decryptWithSecrets(
+      randomState.listAssignedCiphertexts(this.__addr),
+      randomState.listSharedSecrets(this.__addr),
       options
     );
 

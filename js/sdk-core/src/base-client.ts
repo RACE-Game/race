@@ -119,6 +119,13 @@ export class BaseClient {
   }
 
   /**
+   * Detach the game connection.
+   */
+  detach() {
+    this.__connection.disconnect();
+  }
+
+  /**
    * Parse the id to player's address.
    *
    * Throw an error when it fails.
@@ -292,6 +299,7 @@ export class BaseClient {
           let context = new GameContext(this.__gameContext);
           await this.__handler.handleEvent(context, event);
           this.__gameContext = context;
+          console.log("Game Context:", this.__gameContext);
         } catch (err: any) {
           console.error(err);
         }

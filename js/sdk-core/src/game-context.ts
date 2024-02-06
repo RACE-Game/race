@@ -94,7 +94,7 @@ export class GameContext {
       this.transfers = context.transfers;
       this.checkpoint = undefined;
       this.checkpointAccessVersion = context.checkpointAccessVersion;
-      this.launchSubGames = context.launchSubGames;
+      this.launchSubGames = context.launchSubGames.map(sg => Object.assign({}, sg));
       this.bridgeEvents = context.bridgeEvents;
     } else {
       const gameAccount = init;
@@ -222,6 +222,7 @@ export class GameContext {
   }
 
   startGame() {
+    this.randomStates = [];
     this.dispatch = {
       event: this.genStartGameEvent(),
       timeout: 0n,
@@ -461,8 +462,7 @@ export class GameContext {
     if (effect.handlerState !== undefined) {
       this.handlerState = effect.handlerState;
     }
-    this.launchSubGames = effect.launchSubGames;
-    this.launchSubGames.concat(effect.launchSubGames);
+    this.launchSubGames.push(...effect.launchSubGames);
     this.bridgeEvents = effect.bridgeEvents;
   }
 
@@ -488,7 +488,6 @@ export class GameContext {
   prepareForNextEvent(timestamp: bigint) {
     this.timestamp = timestamp;
     this.checkpoint = undefined;
-    this.launchSubGames = [];
   }
 
   findSubGame(subId: number): LaunchSubGame | undefined {
