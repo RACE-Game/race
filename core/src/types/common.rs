@@ -44,6 +44,8 @@ pub struct SubGameSpec {
     pub init_data: Vec<u8>,
     pub nodes: Vec<Node>,
     pub checkpoint: Vec<u8>,
+    pub access_version: u64,
+    pub settle_version: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]

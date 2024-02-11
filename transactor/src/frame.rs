@@ -75,10 +75,14 @@ pub enum EventFrame {
     SendBridgeEvent {
         dest: usize,
         event: Event,
+        access_version: u64,
+        settle_version: u64,
     },
     RecvBridgeEvent {
         dest: usize,
         event: Event,
+        access_version: u64,
+        settle_version: u64,
     },
     LaunchSubGame {
         spec: Box<SubGameSpec>,
@@ -129,11 +133,11 @@ impl std::fmt::Display for EventFrame {
             EventFrame::Vote { votee, vote_type } => {
                 write!(f, "Vote: to {} for {:?}", votee, vote_type)
             }
-            EventFrame::SendBridgeEvent { dest, event } => {
-                write!(f, "SendBridgeEvent: dest {}, event: {}", dest, event)
+            EventFrame::SendBridgeEvent { dest, event, settle_version, .. } => {
+                write!(f, "SendBridgeEvent: dest {}, settle_version: {}, event: {}", dest, settle_version, event)
             }
-            EventFrame::RecvBridgeEvent { dest, event } => {
-                write!(f, "RecvBridgeEvent: dest {}, event: {}", dest, event)
+            EventFrame::RecvBridgeEvent { dest, event, settle_version, .. } => {
+                write!(f, "RecvBridgeEvent: dest {}, settle_version: {}, event: {}", dest, settle_version, event)
             }
             EventFrame::LaunchSubGame { spec } => {
                 write!(f, "LaunchSubGame: {:?}", spec)

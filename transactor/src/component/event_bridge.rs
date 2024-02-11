@@ -103,10 +103,20 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
         {
             if from_bridge {
                 match event_frame {
-                    EventFrame::SendBridgeEvent { dest, event } => {
+                    EventFrame::SendBridgeEvent {
+                        dest,
+                        event,
+                        access_version,
+                        settle_version,
+                    } => {
                         info!("{} Receives event: {}", env.log_prefix, event);
                         ports
-                            .send(EventFrame::RecvBridgeEvent { dest, event })
+                            .send(EventFrame::RecvBridgeEvent {
+                                dest,
+                                event,
+                                access_version,
+                                settle_version,
+                            })
                             .await;
                     }
                     _ => (),
@@ -202,9 +212,21 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         info!("{} Receives event: {}", env.log_prefix, event_frame);
                         ports.send(event_frame).await;
                     }
-                    EventFrame::SendBridgeEvent { dest, event } if dest == ctx.sub_id => {
+                    EventFrame::SendBridgeEvent {
+                        dest,
+                        event,
+                        access_version,
+                        settle_version,
+                    } if dest == ctx.sub_id => {
                         info!("{} Receives event: {}", env.log_prefix, event);
-                        ports.send(EventFrame::RecvBridgeEvent { dest, event }).await;
+                        ports
+                            .send(EventFrame::RecvBridgeEvent {
+                                dest,
+                                event,
+                                access_version,
+                                settle_version,
+                            })
+                            .await;
                     }
                     _ => {}
                 }

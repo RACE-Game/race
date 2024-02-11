@@ -155,6 +155,10 @@ pub struct GameContext {
     pub(crate) bridge_events: Vec<EmitBridgeEvent>,
     /// Start a new game
     pub(crate) start_game: bool,
+    /// Next settle version to use when we bump. It defaults to
+    /// current + 1 for a normal game, and is decided by the parent game
+    /// for a sub game.
+    pub(crate) next_settle_version: u64,
 }
 
 impl GameContext {
@@ -169,6 +173,9 @@ impl GameContext {
         Ok(Self {
             game_addr: format!("{}:{}", game_addr, sub_id),
             nodes,
+            settle_version: spec.settle_version,
+            access_version: spec.access_version,
+            next_settle_version: spec.settle_version + 1,
             ..Default::default()
         })
     }
@@ -213,6 +220,7 @@ impl GameContext {
             launch_sub_games: vec![],
             bridge_events: vec![],
             start_game: false,
+            next_settle_version: game_account.settle_version + 1,
         })
     }
 
@@ -381,6 +389,10 @@ impl GameContext {
 
     pub fn get_settle_version(&self) -> u64 {
         self.settle_version
+    }
+
+    pub fn get_next_settle_version(&self) -> u64 {
+        self.next_settle_version
     }
 
     /// Get the random state by its id.
@@ -639,8 +651,17 @@ impl GameContext {
             .collect()
     }
 
-    pub fn bump_settle_version(&mut self) {
-        self.settle_version += 1;
+    pub fn bump_settle_version(&mut self) -> Result<()> {
+        if self.next_settle_version <= self.settle_version {
+            return Err(Error::CantBumpSettleVersion);
+        }
+        self.settle_version = self.next_settle_version;
+        self.next_settle_version += 1;
+        Ok(())
+    }
+
+    pub fn update_next_settle_version(&mut self, next_settle_version: u64) {
+        self.next_settle_version = u64::max(next_settle_version, self.settle_version + 1);
     }
 
     pub fn take_event_effects(&mut self) -> Result<EventEffects> {
@@ -665,7 +686,7 @@ impl GameContext {
             if let Some(mut t) = self.transfers.take() {
                 transfers.append(&mut t);
             }
-            self.bump_settle_version();
+            self.bump_settle_version()?;
         }
 
         let launch_sub_games = self.launch_sub_games.drain(..).collect();
@@ -878,6 +899,7 @@ impl GameContext {
         self.set_timestamp(timestamp);
         self.checkpoint = None;
         self.start_game = false;
+        self.bridge_events.clear();
     }
 }
 
@@ -901,6 +923,7 @@ impl Default for GameContext {
             launch_sub_games: Vec::new(),
             bridge_events: Vec::new(),
             start_game: false,
+            next_settle_version: 0,
         }
     }
 }

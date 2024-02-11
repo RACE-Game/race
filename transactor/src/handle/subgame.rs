@@ -48,6 +48,8 @@ impl SubGameHandle {
         let mut init_account = InitAccount::default();
         init_account.addr = addr.clone();
         init_account.data = spec.init_data.clone();
+        init_account.access_version = spec.access_version;
+        init_account.settle_version = spec.settle_version;
 
         let game_context = GameContext::try_new_with_sub_game_spec(spec)?;
         let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;

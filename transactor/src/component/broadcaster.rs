@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use race_api::event::Event;
 use race_core::types::{BroadcastFrame, BroadcastSync, TxState};
 use tokio::sync::{broadcast, Mutex};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use crate::component::common::{Component, ConsumerPorts};
 use crate::frame::EventFrame;
@@ -79,14 +79,24 @@ impl Broadcaster {
     }
 
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
+        info!(
+            "{} Retrieve the histories, settle_version: {}",
+            Self::name(),
+            settle_version
+        );
         let event_backup_groups = self.event_backup_groups.lock().await;
 
         let mut histories: Vec<BroadcastFrame> = Vec::new();
 
         for group in event_backup_groups.iter() {
             if group.settle_version >= settle_version {
+                info!(
+                    "{} Found histories with settle_version = {}",
+                    Self::name(),
+                    group.settle_version
+                );
                 histories.push(BroadcastFrame::Sync {
-                    sync: group.sync.clone()
+                    sync: group.sync.clone(),
                 });
                 let cnt = group.events.len();
                 let mut i = cnt as _;
@@ -112,7 +122,11 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
         "Broadcaster"
     }
 
-    async fn run(mut ports: ConsumerPorts, ctx: BroadcasterContext, env: ComponentEnv) -> CloseReason {
+    async fn run(
+        mut ports: ConsumerPorts,
+        ctx: BroadcasterContext,
+        env: ComponentEnv,
+    ) -> CloseReason {
         while let Some(event) = ports.recv().await {
             match event {
                 EventFrame::SendMessage { message } => {
@@ -130,6 +144,10 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     access_version,
                     settle_version,
                 } => {
+                    info!(
+                        "{} Create new history group with access_version = {}, settle_version = {}",
+                        env.log_prefix, access_version, settle_version
+                    );
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
 
                     let checkpoint = Checkpoint {
@@ -228,7 +246,10 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     let r = ctx.broadcast_tx.send(broadcast_frame);
 
                     if let Err(e) = r {
-                        debug!("{} Failed to broadcast node updates: {:?}", env.log_prefix, e);
+                        debug!(
+                            "{} Failed to broadcast node updates: {:?}",
+                            env.log_prefix, e
+                        );
                     }
                 }
                 EventFrame::Shutdown => {
@@ -297,7 +318,8 @@ mod tests {
                     balance: 100,
                     access_version: 10,
                     verify_key: "alice".into(),
-                }.into()],
+                }
+                .into()],
                 access_version: 10,
             };
             let event_frame = EventFrame::TxState {

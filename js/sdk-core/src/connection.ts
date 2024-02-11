@@ -147,7 +147,7 @@ export interface IConnection {
 
   connect(params: SubscribeEventParams): Promise<void>;
 
-  disconnect();
+  disconnect(): void;
 
   subscribeEvents(): ConnectionSubscription;
 }

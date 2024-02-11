@@ -272,6 +272,9 @@ pub enum Error {
 
     #[error("Cannot map address to id: {0}")]
     CantMapAddrToId(String),
+
+    #[error("Cannot bump settle version")]
+    CantBumpSettleVersion,
 }
 
 #[cfg(feature = "serde")]

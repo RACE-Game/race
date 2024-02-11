@@ -89,7 +89,7 @@ async fn handle(
                     .await;
 
                 info!(
-                    "{} Send settlements, settle_version: {}",
+                    "{} Create checkpoint, settle_version: {}",
                     env.log_prefix, settle_version
                 );
 
@@ -114,6 +114,8 @@ async fn handle(
                         init_data: launch_sub_game.init_data,
                         nodes: game_context.get_nodes().into(),
                         checkpoint: launch_sub_game.checkpoint,
+                        access_version: game_context.get_access_version(),
+                        settle_version: game_context.get_settle_version(),
                     }),
                 };
                 ports.send(ef).await;
@@ -122,12 +124,15 @@ async fn handle(
             // Emit bridge events
             if mode == ClientMode::Transactor {
                 for be in effects.bridge_events {
+                    info!("Emit bridge event: {:?}", be);
                     let ef = EventFrame::SendBridgeEvent {
                         dest: be.dest,
                         event: Event::Bridge {
                             dest: be.dest,
                             raw: be.raw,
                         },
+                        access_version: game_context.get_access_version(),
+                        settle_version: game_context.get_settle_version(),
                     };
                     ports.send(ef).await;
                 }
@@ -206,7 +211,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if let Err(e) = game_context
                         .apply_checkpoint(init_account.access_version, init_account.settle_version)
                     {
-                        error!("{} Failed to apply checkpoint: {:?}", env.log_prefix, e);
+                        error!("{} Failed to apply checkpoint: {:?}, context settle version: {}, init account settle version: {}", env.log_prefix, e,
+                            game_context.get_settle_version(), init_account.settle_version);
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Fault(e);
                     }
@@ -235,8 +241,15 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     game_context.set_node_ready(access_version);
                     if ctx.mode == ClientMode::Transactor {
                         let event = Event::GameStart;
-                        if let Some(close_reason) =
-                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode, &env).await
+                        if let Some(close_reason) = handle(
+                            &mut handler,
+                            &mut game_context,
+                            event,
+                            &ports,
+                            ctx.mode,
+                            &env,
+                        )
+                        .await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -252,8 +265,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 } => {
                     info!(
                         "{} handle Sync, access_version: {:?}",
-                        env.log_prefix,
-                        access_version
+                        env.log_prefix, access_version
                     );
                     game_context.set_access_version(access_version);
 
@@ -278,8 +290,15 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         let event = Event::Join {
                             players: new_players_1,
                         };
-                        if let Some(close_reason) =
-                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode, &env).await
+                        if let Some(close_reason) = handle(
+                            &mut handler,
+                            &mut game_context,
+                            event,
+                            &ports,
+                            ctx.mode,
+                            &env,
+                        )
+                        .await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -289,8 +308,15 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 EventFrame::PlayerLeaving { player_addr } => {
                     if let Ok(player_id) = game_context.addr_to_id(&player_addr) {
                         let event = Event::Leave { player_id };
-                        if let Some(close_reason) =
-                            handle(&mut handler, &mut game_context, event, &ports, ctx.mode, &env).await
+                        if let Some(close_reason) = handle(
+                            &mut handler,
+                            &mut game_context,
+                            event,
+                            &ports,
+                            ctx.mode,
+                            &env,
+                        )
+                        .await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -302,9 +328,44 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         );
                     }
                 }
-                EventFrame::SendEvent { event } | EventFrame::RecvBridgeEvent { event, .. } => {
-                    if let Some(close_reason) =
-                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode, &env).await
+                EventFrame::RecvBridgeEvent {
+                    event,
+                    settle_version,
+                    ..
+                } => {
+                    game_context.update_next_settle_version(settle_version);
+
+                    info!(
+                        "{} Set next settle version to {}, current: {}",
+                        env.log_prefix,
+                        game_context.get_next_settle_version(),
+                        game_context.get_settle_version()
+                    );
+
+                    if let Some(close_reason) = handle(
+                        &mut handler,
+                        &mut game_context,
+                        event,
+                        &ports,
+                        ctx.mode,
+                        &env,
+                    )
+                    .await
+                    {
+                        ports.send(EventFrame::Shutdown).await;
+                        return close_reason;
+                    }
+                }
+                EventFrame::SendEvent { event } => {
+                    if let Some(close_reason) = handle(
+                        &mut handler,
+                        &mut game_context,
+                        event,
+                        &ports,
+                        ctx.mode,
+                        &env,
+                    )
+                    .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
@@ -315,8 +376,15 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if matches!(event, Event::Shutdown) {
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Complete;
-                    } else if let Some(close_reason) =
-                        handle(&mut handler, &mut game_context, event, &ports, ctx.mode, &env).await
+                    } else if let Some(close_reason) = handle(
+                        &mut handler,
+                        &mut game_context,
+                        event,
+                        &ports,
+                        ctx.mode,
+                        &env,
+                    )
+                    .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
