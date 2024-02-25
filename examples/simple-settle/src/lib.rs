@@ -65,7 +65,7 @@ impl GameHandler for SimpleSettle {
         }
     }
 
-    fn into_checkpoint(self) -> Result<Checkpoint, HandleError> {
+    fn checkpoint(self) -> Result<Checkpoint, HandleError> {
         Ok(Checkpoint {})
     }
 }

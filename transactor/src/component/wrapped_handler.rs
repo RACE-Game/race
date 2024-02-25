@@ -9,7 +9,7 @@ use race_api::error::{Error, Result};
 use race_api::event::Event;
 use race_core::context::{EventEffects, GameContext};
 use race_core::encryptor::EncryptorT;
-use race_core::engine::{general_handle_event, general_init_state, post_handle_event};
+use race_core::engine::{general_handle_event, general_init_state};
 use race_core::types::GameBundle;
 use race_encryptor::Encryptor;
 use tracing::info;
@@ -68,7 +68,7 @@ impl WrappedHandler {
         &mut self,
         context: &mut GameContext,
         init_account: &InitAccount,
-    ) -> Result<()> {
+    ) -> Result<EventEffects> {
         let memory = self
             .instance
             .exports
@@ -110,9 +110,21 @@ impl WrappedHandler {
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
 
         match len {
-            0 => return Err(Error::WasmInitializationError("Serializing effect failed".into())),
-            1 => return Err(Error::WasmInitializationError("Deserializing effect failed".into())),
-            2 => return Err(Error::WasmInitializationError("Deserializing event failed".into())),
+            0 => {
+                return Err(Error::WasmInitializationError(
+                    "Serializing effect failed".into(),
+                ))
+            }
+            1 => {
+                return Err(Error::WasmInitializationError(
+                    "Deserializing effect failed".into(),
+                ))
+            }
+            2 => {
+                return Err(Error::WasmInitializationError(
+                    "Deserializing event failed".into(),
+                ))
+            }
             _ => (),
         }
 
@@ -130,7 +142,7 @@ impl WrappedHandler {
         }
     }
 
-    fn custom_handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
+    fn custom_handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<EventEffects> {
         let memory = self
             .instance
             .exports
@@ -167,9 +179,21 @@ impl WrappedHandler {
             })?;
 
         match len {
-            0 => return Err(Error::WasmExecutionError("Serializing effect failed".into())),
-            1 => return Err(Error::WasmExecutionError("Deserializing effect failed".into())),
-            2 => return Err(Error::WasmExecutionError("Deserializing event failed".into())),
+            0 => {
+                return Err(Error::WasmExecutionError(
+                    "Serializing effect failed".into(),
+                ))
+            }
+            1 => {
+                return Err(Error::WasmExecutionError(
+                    "Deserializing effect failed".into(),
+                ))
+            }
+            2 => {
+                return Err(Error::WasmExecutionError(
+                    "Deserializing event failed".into(),
+                ))
+            }
             _ => (),
         }
 
@@ -194,9 +218,7 @@ impl WrappedHandler {
     ) -> Result<EventEffects> {
         let mut new_context = context.clone();
         general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
-        self.custom_handle_event(&mut new_context, event)?;
-        post_handle_event(context, &mut new_context)?;
-        let event_effects = new_context.take_event_effects()?;
+        let event_effects = self.custom_handle_event(&mut new_context, event)?;
         swap(context, &mut new_context);
         Ok(event_effects)
     }
@@ -205,12 +227,12 @@ impl WrappedHandler {
         &mut self,
         context: &mut GameContext,
         init_account: &InitAccount,
-    ) -> Result<()> {
+    ) -> Result<EventEffects> {
         let mut new_context = context.clone();
         general_init_state(&mut new_context, init_account)?;
-        self.custom_init_state(&mut new_context, init_account)?;
+        let event_effects = self.custom_init_state(&mut new_context, init_account)?;
         swap(context, &mut new_context);
-        Ok(())
+        Ok(event_effects)
     }
 }
 

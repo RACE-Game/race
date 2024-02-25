@@ -183,13 +183,18 @@ export type EntryTypeKind =
   | 'Invalid'
   | 'Cash'
   | 'Ticket'
-  | 'Gating';
+  | 'Gating'
+  | 'Disabled';
 
 export interface IEntryTypeKind {
   kind(): EntryTypeKind;
 }
 
-export abstract class EntryType {}
+export abstract class EntryType implements IEntryTypeKind {
+  kind(): EntryTypeKind {
+    return 'Invalid';
+  }
+}
 
 @variant(0)
 export class EntryTypeCash extends EntryType implements IEntryTypeKind {
@@ -207,7 +212,7 @@ export class EntryTypeCash extends EntryType implements IEntryTypeKind {
 }
 
 @variant(1)
-export class EntryTypeTicket extends EntryType implements IEntryTypeKind{
+export class EntryTypeTicket extends EntryType implements IEntryTypeKind {
   @field('u8')
   slotId!: number;
   @field('u64')
@@ -222,7 +227,7 @@ export class EntryTypeTicket extends EntryType implements IEntryTypeKind{
 }
 
 @variant(2)
-export class EntryTypeGating extends EntryType implements IEntryTypeKind{
+export class EntryTypeGating extends EntryType implements IEntryTypeKind {
   @field('string')
   collection!: string;
   constructor(fields: any) {
@@ -231,6 +236,16 @@ export class EntryTypeGating extends EntryType implements IEntryTypeKind{
   }
   kind(): EntryTypeKind {
     return 'Gating';
+  }
+}
+
+@variant(3)
+export class EntryTypeDisabled extends EntryType implements IEntryTypeKind {
+  constructor(_: any) {
+    super();
+  }
+  kind(): EntryTypeKind {
+    return 'Disabled'
   }
 }
 

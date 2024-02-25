@@ -1,86 +1,17 @@
-import { array, deserialize, enums, field, serialize, struct } from '@race-foundation/borsh';
-import { EntryType, GameAccount, GameBundle } from './accounts';
+import { deserialize, serialize } from '@race-foundation/borsh';
+import { GameBundle } from './accounts';
 import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Join } from './events';
-import { GameContext } from './game-context';
+import { EventEffects, GameContext } from './game-context';
 import { IEncryptor } from './encryptor';
-import { Effect, GamePlayer } from './effect';
+import { Effect } from './effect';
 import { Client } from './client';
 import { DecryptionCache } from './decryption-cache';
-
-/**
- * A subset of GameAccount, used in handler initialization.
- */
-export interface IInitAccount {
-  addr: string;
-  players: GamePlayer[];
-  data: Uint8Array;
-  accessVersion: bigint;
-  settleVersion: bigint;
-  maxPlayers: number;
-  checkpoint: Uint8Array;
-  entryType: EntryType;
-}
-
-export class InitAccount {
-  @field('string')
-  readonly addr: string;
-  @field(array(struct(GamePlayer)))
-  readonly players: GamePlayer[];
-  @field('u8-array')
-  readonly data: Uint8Array;
-  @field('u64')
-  readonly accessVersion: bigint;
-  @field('u64')
-  readonly settleVersion: bigint;
-  @field('u16')
-  readonly maxPlayers: number;
-  @field('u8-array')
-  readonly checkpoint: Uint8Array;
-  @field(enums(EntryType))
-  readonly entryType: EntryType;
-
-  constructor(fields: IInitAccount) {
-    this.addr = fields.addr;
-    this.accessVersion = fields.accessVersion;
-    this.settleVersion = fields.settleVersion;
-    this.data = fields.data;
-    this.players = fields.players;
-    this.maxPlayers = fields.maxPlayers;
-    this.checkpoint = fields.checkpoint;
-    this.entryType = fields.entryType;
-  }
-
-  static createFromGameAccount(
-    gameAccount: GameAccount,
-    transactorAccessVersion: bigint,
-    transactorSettleVersion: bigint
-  ): InitAccount {
-    let { addr, players, data, checkpointAccessVersion } = gameAccount;
-    const game_players = players.filter(p => p.accessVersion <= checkpointAccessVersion)
-      .map(p => new GamePlayer({ id: p.accessVersion, balance: p.balance, position: p.position }));
-    return new InitAccount({
-      addr,
-      data,
-      players: game_players,
-      accessVersion: transactorAccessVersion,
-      settleVersion: transactorSettleVersion,
-      maxPlayers: gameAccount.maxPlayers,
-      checkpoint: gameAccount.checkpoint,
-      entryType: gameAccount.entryType,
-    });
-  }
-  serialize(): Uint8Array {
-    return serialize(InitAccount);
-  }
-  static deserialize(data: Uint8Array) {
-    return deserialize(InitAccount, data);
-  }
-}
+import { InitAccount } from './init-account';
 
 export interface IHandler {
-  handleEvent(context: GameContext, event: GameEvent): Promise<void>;
+  handleEvent(context: GameContext, event: GameEvent): Promise<EventEffects>;
 
-  initState(context: GameContext, initAccount: InitAccount): Promise<void>;
+  initState(context: GameContext, initAccount: InitAccount): Promise<EventEffects>;
 }
 
 export class Handler implements IHandler {
@@ -116,22 +47,17 @@ export class Handler implements IHandler {
     return new Handler(initiatedSource.instance, encryptor, client, decryptionCache);
   }
 
-  async handleEvent(context: GameContext, event: GameEvent) {
+  async handleEvent(context: GameContext, event: GameEvent): Promise<EventEffects> {
     await this.generalPreHandleEvent(context, event, this.#encryptor);
-    await this.customHandleEvent(context, event);
-    await this.generalPostHandleEvent(context, event);
-    context.applyAndTakeSettles();
+    return await this.customHandleEvent(context, event);
   }
 
-  async initState(context: GameContext, initAccount: InitAccount) {
+  async initState(context: GameContext, initAccount: InitAccount): Promise<EventEffects> {
     await this.generalPreInitState(context, initAccount);
-    await this.customInitState(context, initAccount);
-    await this.generalPostInitState(context, initAccount);
+    return await this.customInitState(context, initAccount);
   }
 
   async generalPreInitState(_context: GameContext, _initAccount: InitAccount) {}
-
-  async generalPostInitState(_context: GameContext, _initAccount: InitAccount) {}
 
   async generalPreHandleEvent(context: GameContext, event: GameEvent, encryptor: IEncryptor) {
     if (event instanceof ShareSecrets) {
@@ -187,14 +113,7 @@ export class Handler implements IHandler {
     }
   }
 
-  async generalPostHandleEvent(context: GameContext, _event: GameEvent) {
-    if (context.checkpoint) {
-      context.randomStates = [];
-      context.decisionStates = [];
-    }
-  }
-
-  async customInitState(context: GameContext, initAccount: InitAccount) {
+  async customInitState(context: GameContext, initAccount: InitAccount): Promise<EventEffects> {
     const exports = this.#instance.exports;
     const mem = exports.memory as WebAssembly.Memory;
     mem.grow(4);
@@ -230,11 +149,11 @@ export class Handler implements IHandler {
       console.error(newEffect.error);
       throw newEffect.error;
     } else {
-      context.applyEffect(newEffect);
+      return context.applyEffect(newEffect);
     }
   }
 
-  async customHandleEvent(context: GameContext, event: GameEvent) {
+  async customHandleEvent(context: GameContext, event: GameEvent): Promise<EventEffects> {
     const exports = this.#instance.exports;
     const mem = exports.memory as WebAssembly.Memory;
     let buf = new Uint8Array(mem.buffer);
@@ -282,7 +201,7 @@ export class Handler implements IHandler {
     if (newEffect.error !== undefined) {
       throw newEffect.error;
     } else {
-      context.applyEffect(newEffect);
+      return context.applyEffect(newEffect);
     }
   }
 }

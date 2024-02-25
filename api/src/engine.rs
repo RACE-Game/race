@@ -8,19 +8,14 @@ use crate::{
     types::EntryType,
 };
 
-/// A subset of on-chain account, used for game handler
-/// initialization.  The `access_version` may refer to an old state
-/// when the game is started by transactor.
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
+/// A set of arguments for game handler initialization.
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 pub struct InitAccount {
-    pub addr: String,
+    pub max_players: u16,
+    pub entry_type: EntryType,
     pub players: Vec<GamePlayer>,
     pub data: Vec<u8>,
-    pub access_version: u64,
-    pub settle_version: u64,
-    pub max_players: u16,
     pub checkpoint: Vec<u8>,
-    pub entry_type: EntryType,
 }
 
 impl InitAccount {
@@ -42,7 +37,6 @@ impl InitAccount {
     /// This function will panic when a duplicated position is
     /// specified.
     pub fn add_player(&mut self, id: u64, position: usize, balance: u64) {
-        self.access_version += 1;
         if self.players.iter().any(|p| p.position as usize == position) {
             panic!("Failed to add player, duplicated position");
         }
@@ -57,30 +51,20 @@ impl InitAccount {
 impl Default for InitAccount {
     fn default() -> Self {
         Self {
-            addr: "".into(),
+            max_players: 0,
+            entry_type: EntryType::Disabled,
             players: Vec::new(),
             data: Vec::new(),
-            access_version: 0,
-            settle_version: 0,
-            max_players: 10,
             checkpoint: Vec::new(),
-            entry_type: EntryType::Cash {
-                min_deposit: 100,
-                max_deposit: 200,
-            },
         }
     }
 }
 
 pub trait GameHandler: Sized + BorshSerialize + BorshDeserialize {
-    type Checkpoint: BorshSerialize + BorshDeserialize;
-
-    /// Initialize handler state with on-chain game account data.
+    /// Initialize handler state with on-chain game account data.  The
+    /// initial state must be determined by the `init_account`.
     fn init_state(effect: &mut Effect, init_account: InitAccount) -> HandleResult<Self>;
 
     /// Handle event.
     fn handle_event(&mut self, effect: &mut Effect, event: Event) -> HandleResult<()>;
-
-    /// Create checkpoint from current state.
-    fn into_checkpoint(self) -> HandleResult<Self::Checkpoint>;
 }

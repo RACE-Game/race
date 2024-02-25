@@ -90,7 +90,13 @@ impl ValidatorHandle {
         info!("InitAccount: {:?}", init_account);
 
         // Dispatch init state
-        event_bus.send(EventFrame::InitState { init_account }).await;
+        event_bus
+            .send(EventFrame::InitState {
+                init_account,
+                access_version: game_account.access_version,
+                settle_version: game_account.settle_version,
+            })
+            .await;
 
         event_bus.attach(&mut subscriber_handle).await;
         Ok(Self {

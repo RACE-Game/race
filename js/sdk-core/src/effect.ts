@@ -126,7 +126,7 @@ export class GamePlayer {
   }
 }
 
-export class LaunchSubGame {
+export class SubGame {
   @field('usize')
   subId!: number;
   @field('string')
@@ -137,7 +137,7 @@ export class LaunchSubGame {
   initData!: Uint8Array;
   @field('u8-array')
   checkpoint!: Uint8Array;
-  constructor(fields: Fields<LaunchSubGame>) {
+  constructor(fields: Fields<SubGame>) {
     Object.assign(this, fields)
   }
 }
@@ -222,8 +222,8 @@ export class Effect {
   @field(array(struct(Transfer)))
   transfers!: Transfer[];
 
-  @field(array(struct(LaunchSubGame)))
-  launchSubGames!: LaunchSubGame[];
+  @field(array(struct(SubGame)))
+  launchSubGames!: SubGame[];
 
   @field(array(struct(EmitBridgeEvent)))
   bridgeEvents!: EmitBridgeEvent[];
@@ -262,7 +262,7 @@ export class Effect {
     const error = undefined;
     const allowExit = context.allowExit;
     const transfers: Transfer[] = [];
-    const launchSubGames: LaunchSubGame[] = [];
+    const launchSubGames: SubGame[] = [];
     const bridgeEvents: EmitBridgeEvent[] = [];
     return new Effect({
       actionTimeout,

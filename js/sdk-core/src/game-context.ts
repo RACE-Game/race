@@ -13,8 +13,8 @@ import {
   Shutdown,
   WaitingTimeout,
 } from './events';
-import { Effect, EmitBridgeEvent, LaunchSubGame, Settle, Transfer } from './effect';
-import { GameAccount } from './accounts';
+import { Effect, EmitBridgeEvent, SubGame, Settle, Transfer, GamePlayer, SettleOp, SettleAdd, SettleSub, SettleEject } from './effect';
+import { EntryType, GameAccount } from './accounts';
 import { Ciphertext, Digest, Id } from './types';
 
 const OPERATION_TIMEOUT = 15_000n;
@@ -48,16 +48,19 @@ export interface IdAddrPair {
   addr: string;
 }
 
-export type SubGame = {
-  subId: number;
-  bundleAddr: string;
+export type EventEffects = {
+  settles: Settle[];
+  transfers: Transfer[];
+  checkpoint: Uint8Array | undefined;
+  launchSubGames: SubGame[];
+  bridgeEvents: EmitBridgeEvent[];
+  startGame: boolean;
 }
 
 export class GameContext {
   gameAddr: string;
   accessVersion: bigint;
   settleVersion: bigint;
-  transactorAddr: string;
   status: GameStatus;
   nodes: INode[];
   dispatch: DispatchEvent | undefined;
@@ -66,12 +69,13 @@ export class GameContext {
   allowExit: boolean;
   randomStates: RandomState[];
   decisionStates: DecisionState[];
-  settles: Settle[] | undefined;
-  transfers: Transfer[] | undefined;
   checkpoint: Uint8Array | undefined;
-  checkpointAccessVersion: bigint;
-  launchSubGames: LaunchSubGame[];
-  bridgeEvents: EmitBridgeEvent[];
+  subGames: SubGame[];
+  nextSettleVersion: bigint;
+  initData: Uint8Array | undefined;
+  maxPlayers: number;
+  players: GamePlayer[];
+  entryType: EntryType;
 
   constructor(context: GameContext);
   constructor(gameAccount: GameAccount);
@@ -81,7 +85,6 @@ export class GameContext {
       this.gameAddr = context.gameAddr;
       this.accessVersion = context.accessVersion;
       this.settleVersion = context.settleVersion;
-      this.transactorAddr = context.transactorAddr;
       this.status = context.status;
       this.nodes = context.nodes.map(n => Object.assign({}, n));
       this.dispatch = context.dispatch;
@@ -90,12 +93,13 @@ export class GameContext {
       this.allowExit = context.allowExit;
       this.randomStates = context.randomStates;
       this.decisionStates = context.decisionStates;
-      this.settles = context.settles;
-      this.transfers = context.transfers;
       this.checkpoint = undefined;
-      this.checkpointAccessVersion = context.checkpointAccessVersion;
-      this.launchSubGames = context.launchSubGames.map(sg => Object.assign({}, sg));
-      this.bridgeEvents = context.bridgeEvents;
+      this.subGames = context.subGames.map(sg => Object.assign({}, sg));
+      this.nextSettleVersion = context.nextSettleVersion;
+      this.initData = context.initData;
+      this.maxPlayers = context.maxPlayers;
+      this.players = context.players.map(p => Object.assign({}, p))
+      this.entryType = context.entryType;
     } else {
       const gameAccount = init;
       const transactorAddr = gameAccount.transactorAddr;
@@ -126,8 +130,15 @@ export class GameContext {
           },
       }))
 
+      const players = gameAccount.players
+        .filter(p => p.accessVersion <= gameAccount.accessVersion)
+        .map(p => new GamePlayer({
+          balance: p.balance,
+          id: p.accessVersion,
+          position: p.position
+        }))
+
       this.gameAddr = gameAccount.addr;
-      this.transactorAddr = transactorAddr;
       this.accessVersion = gameAccount.accessVersion;
       this.settleVersion = gameAccount.settleVersion;
       this.status = 'idle';
@@ -137,30 +148,29 @@ export class GameContext {
       this.allowExit = false;
       this.randomStates = [];
       this.decisionStates = [];
-      this.settles = undefined;
-      this.transfers = undefined;
       this.handlerState = Uint8Array.of();
       this.checkpoint = undefined;
-      this.checkpointAccessVersion = gameAccount.checkpointAccessVersion;
-      this.launchSubGames = [];
-      this.bridgeEvents = [];
+      this.subGames = [];
+      this.nextSettleVersion = gameAccount.settleVersion + 1n;
+      this.initData = gameAccount.data;
+      this.maxPlayers = gameAccount.maxPlayers;
+      this.players = players;
+      this.entryType = gameAccount.entryType;
     }
   }
 
-  subContext(launchSubGame: LaunchSubGame): GameContext {
+  subContext(subGame: SubGame): GameContext {
     const c = new GameContext(this);
-    c.gameAddr = c.gameAddr + launchSubGame.subId;
+    c.gameAddr = c.gameAddr + subGame.subId;
     c.dispatch = undefined;
     c.timestamp = 0n;
     c.allowExit = false;
     c.randomStates = [];
     c.decisionStates = [];
-    c.settles = undefined;
-    c.transfers = undefined;
     c.handlerState = Uint8Array.of();
-    c.checkpoint = launchSubGame.checkpoint;
-    c.launchSubGames = [];
-    c.bridgeEvents = [];
+    c.checkpoint = subGame.checkpoint;
+    c.subGames = [];
+    c.players = subGame.players;
     return c;
   }
 
@@ -365,39 +375,8 @@ export class GameContext {
     }
   }
 
-  settle(settles: Settle[]) {
-    this.settles = settles;
-  }
-
-  transfer(transfers: Transfer[]) {
-    this.transfers = transfers;
-  }
-
   bumpSettleVersion() {
     this.settleVersion += 1n;
-  }
-
-  /*
-  This function refers to the backend function `take_settles_and_transfers`.
-  Here, we don't have to deal with transfers before we introducing settlement validation.
-   */
-  applyAndTakeSettles(): Settle[] | undefined {
-    if (this.settles === undefined) {
-      return undefined;
-    }
-    let settles = this.settles;
-    this.settles = undefined;
-    settles = settles.sort((s1, s2) => s1.compare(s2));
-    this.bumpSettleVersion();
-    return settles;
-  }
-
-  addSettle(settle: Settle) {
-    if (this.settles === undefined) {
-      this.settles = [settle];
-    } else {
-      this.settles.push(settle);
-    }
   }
 
   addRevealedRandom(randomId: Id, revealed: Map<number, string>) {
@@ -427,7 +406,7 @@ export class GameContext {
     return st.revealed;
   }
 
-  applyEffect(effect: Effect) {
+  applyEffect(effect: Effect): EventEffects {
     if (effect.startGame) {
       this.startGame();
     } else if (effect.stopGame) {
@@ -453,17 +432,42 @@ export class GameContext {
     for (const spec of effect.initRandomStates) {
       this.initRandomState(spec);
     }
+
+    let settles: Settle[] = [];
+
     if (effect.isCheckpoint) {
-      this.settle(effect.settles);
-      this.transfer(effect.transfers);
+      this.randomStates = [];
+      this.decisionStates = [];
+      settles = effect.settles;
+      settles = settles.sort((s1, s2) => s1.compare(s2));
+      for (let s of settles) {
+        if (s.op instanceof SettleAdd) {
+          this.playerSubBalance(s.id, s.op.amount);
+        } else if (s.op instanceof SettleSub) {
+          this.playerAddBalance(s.id, s.op.amount);
+        } else if (s.op instanceof SettleEject) {
+          this.removePlayer(s.id);
+        }
+      }
       this.checkpoint = effect.checkpoint;
       this.status = 'idle';
     }
+
     if (effect.handlerState !== undefined) {
       this.handlerState = effect.handlerState;
     }
-    this.launchSubGames.push(...effect.launchSubGames);
-    this.bridgeEvents = effect.bridgeEvents;
+
+    this.subGames.push(...effect.launchSubGames);
+    this.bumpSettleVersion();
+
+    return {
+      checkpoint: effect.checkpoint,
+      settles,
+      transfers: effect.transfers,
+      startGame: effect.startGame,
+      launchSubGames: effect.launchSubGames,
+      bridgeEvents: effect.bridgeEvents,
+    };
   }
 
   setNodeReady(accessVersion: bigint) {
@@ -490,7 +494,31 @@ export class GameContext {
     this.checkpoint = undefined;
   }
 
-  findSubGame(subId: number): LaunchSubGame | undefined {
-    return this.launchSubGames.find(g => g.subId === Number(subId));
+  findSubGame(subId: number): SubGame | undefined {
+    return this.subGames.find(g => g.subId === Number(subId));
+  }
+
+  addPlayer(player: GamePlayer) {
+    this.players.push(player);
+  }
+
+  removePlayer(playerId: bigint) {
+    this.players = this.players.filter(p => p.id !== playerId);
+  }
+
+  playerAddBalance(playerId: bigint, amount: bigint) {
+    let p = this.players.find(p => p.id === playerId);
+    if (p === undefined) {
+      throw new Error(`Player not in game: ${playerId}`)
+    }
+    p.balance = p.balance + amount;
+  }
+
+  playerSubBalance(playerId: bigint, amount: bigint) {
+    let p = this.players.find(p => p.id === playerId);
+    if (p === undefined) {
+      throw new Error(`Player not in game: ${playerId}`)
+    }
+    p.balance = p.balance - amount;
   }
 }

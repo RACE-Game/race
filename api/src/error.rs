@@ -275,6 +275,9 @@ pub enum Error {
 
     #[error("Cannot bump settle version")]
     CantBumpSettleVersion,
+
+    #[error("Game uninitialized")]
+    GameUninitialized,
 }
 
 #[cfg(feature = "serde")]

@@ -135,11 +135,13 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
 
         while let Some(event) = ports.recv().await {
             match event {
-                EventFrame::Settle {
+                EventFrame::Checkpoint {
                     settles,
                     transfers,
                     checkpoint,
                     settle_version,
+                    previous_settle_version,
+                    ..
                 } => {
                     let res = queue_tx
                         .send(SettleParams {
@@ -147,8 +149,8 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                             settles,
                             transfers,
                             checkpoint,
-                            settle_version,
-                            next_settle_version: settle_version + 1,
+                            settle_version: previous_settle_version,
+                            next_settle_version: settle_version,
                         })
                         .await;
                     if let Err(e) = res {

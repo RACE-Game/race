@@ -4,9 +4,10 @@ import { IConnection, SubscribeEventParams } from './connection';
 import { DecryptionCache } from './decryption-cache';
 import { IEncryptor } from './encryptor';
 import { GameContext } from './game-context';
-import { Handler, IInitAccount, InitAccount } from './handler';
+import { InitAccount } from './init-account';
+import { Handler } from './handler';
 import { ITransport } from './transport';
-import { GameInfo, ConnectionStateCallbackFunction, EventCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
+import { GameInfo, ConnectionStateCallbackFunction, EventCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction, ErrorCallbackFunction } from './types';
 import { IWallet } from './wallet';
 
 export type SubClientCtorOpts = {
@@ -22,6 +23,7 @@ export type SubClientCtorOpts = {
   onMessage: MessageCallbackFunction | undefined;
   onTxState: TxStateCallbackFunction | undefined;
   onConnectionState: ConnectionStateCallbackFunction | undefined;
+  onError: ErrorCallbackFunction | undefined;
   encryptor: IEncryptor;
   info: GameInfo;
   decryptionCache: DecryptionCache;

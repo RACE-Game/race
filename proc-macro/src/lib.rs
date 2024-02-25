@@ -83,13 +83,6 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
                 Err(e) => effect.__set_error(e),
             }
 
-            if effect.is_checkpoint {
-                match handler.into_checkpoint() {
-                    Ok(checkpoint_state) => effect.__set_checkpoint(checkpoint_state),
-                    Err(e) => effect.__set_error(e),
-                }
-            }
-
             let mut ptr = 1 as *mut u8;
             write_ptr(&mut ptr, effect)
         }

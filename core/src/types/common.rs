@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use race_api::prelude::InitAccount;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 pub use race_api::types::*;
@@ -35,17 +36,14 @@ impl std::fmt::Display for Signature {
 }
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SubGameSpec {
     pub game_addr: String,
     pub sub_id: usize,
-    pub players: Vec<GamePlayer>,
     pub bundle_addr: String,
-    pub init_data: Vec<u8>,
     pub nodes: Vec<Node>,
-    pub checkpoint: Vec<u8>,
     pub access_version: u64,
     pub settle_version: u64,
+    pub init_account: InitAccount,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]

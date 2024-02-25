@@ -37,6 +37,7 @@ pub enum BroadcastFrame {
         event: Event,
         timestamp: u64,
         remain: u16,
+        state_sha: String,
     },
     // Arbitrary message
     Message {

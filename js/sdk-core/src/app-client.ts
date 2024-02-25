@@ -5,7 +5,8 @@ import {
 import { GameContext } from './game-context';
 import { ITransport, TransactionResult } from './transport';
 import { IWallet } from './wallet';
-import { Handler, InitAccount } from './handler';
+import { InitAccount } from './init-account';
+import { Handler } from './handler';
 import { Encryptor, IEncryptor } from './encryptor';
 import { SdkError } from './error';
 import { Client } from './client';
@@ -13,8 +14,8 @@ import { IStorage, getTtlCache, setTtlCache } from './storage';
 import { DecryptionCache } from './decryption-cache';
 import { ProfileLoader } from './profile-loader';
 import { BaseClient } from './base-client';
-import { EntryTypeCash, GameAccount, GameBundle, IToken } from './accounts';
-import { ConnectionStateCallbackFunction, EventCallbackFunction, GameInfo, MessageCallbackFunction, TxStateCallbackFunction, PlayerProfileWithPfp, ProfileCallbackFunction } from './types';
+import { EntryTypeCash, EntryTypeDisabled, GameAccount, GameBundle, IToken } from './accounts';
+import { ConnectionStateCallbackFunction, EventCallbackFunction, GameInfo, MessageCallbackFunction, TxStateCallbackFunction, PlayerProfileWithPfp, ProfileCallbackFunction, ErrorCallbackFunction } from './types';
 import { SubClient } from './sub-client';
 
 const BUNDLE_CACHE_TTL = 3600 * 365;
@@ -27,6 +28,7 @@ export type AppClientInitOpts = {
   onEvent: EventCallbackFunction;
   onMessage?: MessageCallbackFunction;
   onTxState?: TxStateCallbackFunction;
+  onError?: ErrorCallbackFunction;
   onConnectionState?: ConnectionStateCallbackFunction;
   storage?: IStorage;
 };
@@ -37,6 +39,7 @@ export type SubClientInitOpts = {
   onEvent: EventCallbackFunction;
   onMessage?: MessageCallbackFunction;
   onTxState?: TxStateCallbackFunction;
+  onError?: ErrorCallbackFunction;
   onConnectionState?: ConnectionStateCallbackFunction;
 };
 
@@ -58,6 +61,7 @@ export type AppClientCtorOpts = {
   onMessage: MessageCallbackFunction | undefined;
   onTxState: TxStateCallbackFunction | undefined;
   onConnectionState: ConnectionStateCallbackFunction | undefined;
+  onError: ErrorCallbackFunction | undefined;
   encryptor: IEncryptor;
   info: GameInfo;
   decryptionCache: DecryptionCache;
@@ -82,7 +86,7 @@ export class AppClient extends BaseClient {
   }
 
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
-    const { transport, wallet, gameAddr, onEvent, onMessage, onTxState, onConnectionState, onProfile, storage } = opts;
+    const { transport, wallet, gameAddr, onEvent, onMessage, onTxState, onConnectionState, onError, onProfile, storage } = opts;
 
     console.groupCollapsed('AppClient initialization');
     try {
@@ -134,6 +138,7 @@ export class AppClient extends BaseClient {
         onMessage,
         onTxState,
         onConnectionState,
+        onError,
         encryptor,
         info,
         decryptionCache,
@@ -148,7 +153,7 @@ export class AppClient extends BaseClient {
 
   async subClient(opts: SubClientInitOpts): Promise<SubClient> {
     try {
-      const { subId, onEvent, onMessage, onTxState, onConnectionState } = opts;
+      const { subId, onEvent, onMessage, onTxState, onConnectionState, onError } = opts;
 
       const addr = `${this.__gameAddr}:${subId.toString()}`;
 
@@ -173,14 +178,11 @@ export class AppClient extends BaseClient {
       const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache);
       const gameContext = this.__gameContext.subContext(subGame);
       const initAccount = new InitAccount({
-        addr,
-        accessVersion: this.__gameContext.accessVersion,
-        settleVersion: this.__gameContext.settleVersion,
         data: subGame.initData,
         players: subGame.players,
         maxPlayers: 0,
         checkpoint: subGame.checkpoint,
-        entryType: new EntryTypeCash({ minDeposit: 0n, maxDeposit: 0n }),
+        entryType: new EntryTypeDisabled({}),
       });
 
       return new SubClient({
@@ -192,6 +194,7 @@ export class AppClient extends BaseClient {
         onMessage,
         onTxState,
         onConnectionState,
+        onError,
         handler,
         connection,
         client,

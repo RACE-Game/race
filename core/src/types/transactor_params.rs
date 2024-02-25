@@ -14,6 +14,10 @@ pub struct AttachGameParams {
     pub key: NodePublicKeyRaw,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct GetStateParams {}
+
 impl Display for AttachGameParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "AttachGameParams")

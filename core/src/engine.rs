@@ -20,8 +20,6 @@ pub fn general_handle_event(
     // General event handling
     match event {
         Event::Ready => {
-            // This is the first event, we make it a checkpoint
-            // context.checkpoint = true;
             Ok(())
         }
 
@@ -74,7 +72,12 @@ pub fn general_handle_event(
 
         Event::RandomnessReady { .. } => Ok(()),
 
-        Event::Join { .. } => Ok(()),
+        Event::Join { players } => {
+            for p in players {
+                context.add_player(p.to_owned());
+            }
+            Ok(())
+        }
 
         Event::Leave { .. } => {
             if !context.allow_exit {
@@ -145,14 +148,6 @@ pub fn general_handle_event(
     }
 }
 
-/// Context maintaining after event handling.
-pub fn post_handle_event(
-    _old_context: &GameContext,
-    _new_context: &mut GameContext,
-) -> Result<(), Error> {
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -164,7 +159,7 @@ mod tests {
     fn test_handle_game_start() -> anyhow::Result<()> {
         let encryptor = DummyEncryptor::default();
         let mut context = GameContext::default();
-        let event = Event::GameStart { access_version: 1 };
+        let event = Event::GameStart;
         general_handle_event(&mut context, &event, &encryptor)?;
         assert_eq!(context.status, GameStatus::Running);
         Ok(())

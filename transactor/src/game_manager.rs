@@ -165,6 +165,14 @@ impl GameManager {
         }
     }
 
+    pub async fn get_state(&self, game_addr: &str) -> Result<Vec<u8>> {
+        let games = self.games.lock().await;
+        let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
+        let broadcaster = handle.broadcaster()?;
+        let state = broadcaster.get_state().await;
+        state.ok_or(Error::GameNotLoaded)
+    }
+
     /// Get the broadcast channel of game, and its event histories
     pub async fn get_broadcast(
         &self,

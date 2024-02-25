@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::{
     engine::InitAccount,
-    event::{Event, Message},
+    event::{Event, Message}
 };
 use race_core::{
     context::GameContext,
@@ -37,6 +37,8 @@ pub enum EventFrame {
         player_addr: String,
     },
     InitState {
+        access_version: u64,
+        settle_version: u64,
         init_account: InitAccount,
     },
     SendEvent {
@@ -49,20 +51,20 @@ pub enum EventFrame {
         event: Event,
     },
     Checkpoint {
+        settles: Vec<SettleWithAddr>,
+        transfers: Vec<Transfer>,
+        checkpoint: Vec<u8>,
         access_version: u64,
         settle_version: u64,
+        previous_settle_version: u64,
     },
     Broadcast {
         event: Event,
         access_version: u64,
         settle_version: u64,
         timestamp: u64,
-    },
-    Settle {
-        settles: Vec<SettleWithAddr>,
-        transfers: Vec<Transfer>,
-        checkpoint: Vec<u8>,
-        settle_version: u64,
+        state: Vec<u8>,
+        state_sha: String,
     },
     ContextUpdated {
         context: Box<GameContext>,
@@ -96,10 +98,10 @@ impl std::fmt::Display for EventFrame {
             EventFrame::GameStart { access_version } => {
                 write!(f, "GameStart, access_version = {}", access_version)
             }
-            EventFrame::InitState { init_account, .. } => write!(
+            EventFrame::InitState { access_version, settle_version, .. } => write!(
                 f,
                 "InitState, access_version = {}, settle_version = {}",
-                init_account.access_version, init_account.settle_version
+                access_version, settle_version
             ),
             EventFrame::Sync {
                 new_players,
@@ -126,7 +128,6 @@ impl std::fmt::Display for EventFrame {
             EventFrame::SendServerEvent { event } => write!(f, "SendServerEvent: {}", event),
             EventFrame::Checkpoint { .. } => write!(f, "Checkpoint"),
             EventFrame::Broadcast { event, .. } => write!(f, "Broadcast: {}", event),
-            EventFrame::Settle { .. } => write!(f, "Settle"),
             EventFrame::SendMessage { message } => write!(f, "SendMessage: {}", message.sender),
             EventFrame::ContextUpdated { context: _ } => write!(f, "ContextUpdated"),
             EventFrame::Shutdown => write!(f, "Shutdown"),

@@ -3,15 +3,14 @@ use std::collections::HashMap;
 use crate::types::{ClientMode, GameAccount, SettleWithAddr, SubGameSpec};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::decision::DecisionState;
-use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, LaunchSubGame, Release, Reveal};
+use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, Release, Reveal, SubGame};
 use race_api::engine::GameHandler;
 use race_api::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
-use race_api::prelude::BridgeEvent;
 use race_api::random::{RandomSpec, RandomState, RandomStatus};
 use race_api::types::{
-    Addr, Ciphertext, DecisionId, GameStatus, RandomId, SecretDigest, SecretShare, Settle,
-    SettleOp, Transfer,
+    Addr, Ciphertext, DecisionId, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare,
+    SettleOp, Transfer, EntryType,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -93,7 +92,7 @@ pub struct EventEffects {
     pub settles: Vec<SettleWithAddr>,
     pub transfers: Vec<Transfer>,
     pub checkpoint: Option<Vec<u8>>,
-    pub launch_sub_games: Vec<LaunchSubGame>,
+    pub launch_sub_games: Vec<SubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
     pub start_game: bool,
 }
@@ -144,38 +143,41 @@ pub struct GameContext {
     /// All runtime decision states, each stores the answer.
     pub(crate) decision_states: Vec<DecisionState>,
     /// Settles, if is not None, will be handled by event loop.
-    pub(crate) settles: Option<Vec<Settle>>,
-    /// Transfers, if is not None, will be handled by event loop.
-    pub(crate) transfers: Option<Vec<Transfer>>,
-    /// The latest checkpoint state
     pub(crate) checkpoint: Option<Vec<u8>>,
     /// The sub games to launch
-    pub(crate) launch_sub_games: Vec<LaunchSubGame>,
-    /// The bridge events to emit
-    pub(crate) bridge_events: Vec<EmitBridgeEvent>,
-    /// Start a new game
-    pub(crate) start_game: bool,
+    pub(crate) sub_games: Vec<SubGame>,
     /// Next settle version to use when we bump. It defaults to
     /// current + 1 for a normal game, and is decided by the parent game
     /// for a sub game.
     pub(crate) next_settle_version: u64,
+    /// Init data from `InitAccount`.
+    pub(crate) init_data: Option<Vec<u8>>,
+    /// Maximum number of players.
+    pub(crate) max_players: u16,
+    /// Game Players
+    pub(crate) players: Vec<GamePlayer>,
+    pub(crate) entry_type: EntryType,
 }
 
 impl GameContext {
-    pub fn try_new_with_sub_game_spec(spec: SubGameSpec) -> Result<Self> {
+    pub fn try_new_with_sub_game_spec(spec: &SubGameSpec) -> Result<Self> {
         let SubGameSpec {
             game_addr,
             nodes,
             sub_id,
+            init_account,
             ..
         } = spec;
 
         Ok(Self {
             game_addr: format!("{}:{}", game_addr, sub_id),
-            nodes,
+            nodes: nodes.clone(),
             settle_version: spec.settle_version,
             access_version: spec.access_version,
             next_settle_version: spec.settle_version + 1,
+            max_players: init_account.max_players,
+            players: init_account.players.clone(),
+            entry_type: EntryType::Disabled,
             ..Default::default()
         })
     }
@@ -202,6 +204,13 @@ impl GameContext {
             })
             .collect();
 
+        let players = game_account
+            .players
+            .iter()
+            .filter(|p| p.access_version <= game_account.access_version)
+            .map(|p| GamePlayer::new(p.access_version, p.balance, p.position))
+            .collect();
+
         Ok(Self {
             game_addr: game_account.addr.clone(),
             access_version: game_account.access_version,
@@ -213,14 +222,14 @@ impl GameContext {
             allow_exit: false,
             random_states: vec![],
             decision_states: vec![],
-            settles: None,
-            transfers: None,
             handler_state: "".into(),
             checkpoint: None,
-            launch_sub_games: vec![],
-            bridge_events: vec![],
-            start_game: false,
+            sub_games: vec![],
             next_settle_version: game_account.settle_version + 1,
+            init_data: None,
+            max_players: game_account.max_players,
+            players,
+            entry_type: game_account.entry_type.clone(),
         })
     }
 
@@ -328,11 +337,6 @@ impl GameContext {
         ));
     }
 
-    pub fn start_game(&mut self) {
-        self.random_states.clear();
-        self.start_game = true;
-    }
-
     pub fn shutdown_game(&mut self) {
         self.dispatch = Some(DispatchEvent::new(Event::Shutdown, 0));
     }
@@ -383,15 +387,15 @@ impl GameContext {
         self.dispatch = None;
     }
 
-    pub fn get_access_version(&self) -> u64 {
+    pub fn access_version(&self) -> u64 {
         self.access_version
     }
 
-    pub fn get_settle_version(&self) -> u64 {
+    pub fn settle_version(&self) -> u64 {
         self.settle_version
     }
 
-    pub fn get_next_settle_version(&self) -> u64 {
+    pub fn next_settle_version(&self) -> u64 {
         self.next_settle_version
     }
 
@@ -631,26 +635,6 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn settle(&mut self, settles: Vec<Settle>) {
-        self.settles = Some(settles);
-    }
-
-    pub fn transfer(&mut self, transfers: Vec<Transfer>) {
-        self.transfers = Some(transfers);
-    }
-
-    pub fn get_settles(&self) -> &Option<Vec<Settle>> {
-        &self.settles
-    }
-
-    pub fn get_bridge_events<E: BridgeEvent>(&self) -> Result<Vec<E>> {
-        self.bridge_events
-            .iter()
-            .cloned()
-            .map(|e| E::try_from_slice(&e.raw).map_err(|_e| Error::DeserializeError))
-            .collect()
-    }
-
     pub fn bump_settle_version(&mut self) -> Result<()> {
         if self.next_settle_version <= self.settle_version {
             return Err(Error::CantBumpSettleVersion);
@@ -662,53 +646,6 @@ impl GameContext {
 
     pub fn update_next_settle_version(&mut self, next_settle_version: u64) {
         self.next_settle_version = u64::max(next_settle_version, self.settle_version + 1);
-    }
-
-    pub fn take_event_effects(&mut self) -> Result<EventEffects> {
-        let mut settles = vec![];
-        let mut transfers = vec![];
-
-        if self.checkpoint.is_some() {
-            if let Some(ss) = self.settles.take() {
-                for s in ss {
-                    let addr = self.id_to_addr(s.id)?;
-                    settles.push(SettleWithAddr { addr, op: s.op });
-                }
-            }
-
-            settles.sort_by_key(|s| match s.op {
-                SettleOp::Add(_) => 0,
-                SettleOp::Sub(_) => 1,
-                SettleOp::Eject => 2,
-                SettleOp::AssignSlot(_) => 3,
-            });
-
-            if let Some(mut t) = self.transfers.take() {
-                transfers.append(&mut t);
-            }
-            self.bump_settle_version()?;
-        }
-
-        let launch_sub_games = self.launch_sub_games.drain(..).collect();
-
-        let bridge_events = self.bridge_events.drain(..).collect();
-
-        Ok(EventEffects {
-            settles,
-            transfers,
-            checkpoint: self.get_checkpoint(),
-            launch_sub_games,
-            bridge_events,
-            start_game: self.start_game,
-        })
-    }
-
-    pub fn add_settle(&mut self, settle: Settle) {
-        if let Some(ref mut settles) = self.settles {
-            settles.push(settle);
-        } else {
-            self.settles = Some(vec![settle]);
-        }
     }
 
     pub fn add_revealed_random(
@@ -791,7 +728,7 @@ impl GameContext {
         }
     }
 
-    pub fn apply_effect(&mut self, effect: Effect) -> Result<()> {
+    pub fn apply_effect(&mut self, effect: Effect) -> Result<EventEffects> {
         let Effect {
             action_timeout,
             wait_timeout,
@@ -815,7 +752,8 @@ impl GameContext {
 
         // Handle dispatching
         if start_game {
-            self.start_game();
+            self.random_states.clear();
+            self.decision_states.clear();
         } else if stop_game {
             self.shutdown_game();
         } else if let Some(t) = action_timeout {
@@ -855,24 +793,51 @@ impl GameContext {
             self.init_random_state(spec)?;
         }
 
+        let mut settles1 = Vec::with_capacity(settles.len());
         if let Some(checkpoint_state) = checkpoint {
             self.checkpoint = Some(checkpoint_state);
-            self.settle(settles);
-            self.transfer(transfers);
+            self.bump_settle_version()?;
+            for s in settles {
+                match s.op {
+                    SettleOp::Eject => {
+                        self.remove_player(s.id)?;
+                    }
+                    SettleOp::Add(amount) => {
+                        self.player_add_balance(s.id, amount)?;
+                    }
+                    SettleOp::Sub(amount) => {
+                        self.player_sub_balance(s.id, amount)?;
+                    }
+                    _ => {}
+                }
+                let addr = self.id_to_addr(s.id)?;
+                settles1.push(SettleWithAddr { addr, op: s.op });
+            }
             self.set_game_status(GameStatus::Idle);
         } else if (!settles.is_empty()) || (!transfers.is_empty()) {
             return Err(Error::SettleWithoutCheckpoint);
         }
+        settles1.sort_by_key(|s| match s.op {
+            SettleOp::Add(_) => 0,
+            SettleOp::Sub(_) => 1,
+            SettleOp::Eject => 2,
+            SettleOp::AssignSlot(_) => 3,
+        });
 
         if let Some(state) = handler_state {
             self.handler_state = state;
         }
 
-        self.launch_sub_games = launch_sub_games;
+        self.sub_games = launch_sub_games.clone();
 
-        self.bridge_events = bridge_events;
-
-        Ok(())
+        Ok(EventEffects {
+            settles: settles1,
+            transfers,
+            checkpoint: self.get_checkpoint(),
+            launch_sub_games,
+            bridge_events,
+            start_game,
+        })
     }
 
     pub fn set_node_ready(&mut self, access_version: u64) {
@@ -898,8 +863,65 @@ impl GameContext {
     pub fn prepare_for_next_event(&mut self, timestamp: u64) {
         self.set_timestamp(timestamp);
         self.checkpoint = None;
-        self.start_game = false;
-        self.bridge_events.clear();
+    }
+
+    pub fn set_init_data(&mut self, init_data: Vec<u8>) {
+        self.init_data.replace(init_data);
+    }
+
+    pub fn init_data(&self) -> Result<Vec<u8>> {
+        if let Some(init_data) = &self.init_data {
+            Ok(init_data.clone())
+        } else {
+            Err(Error::GameUninitialized)
+        }
+    }
+
+    pub fn max_players(&self) -> u16 {
+        self.max_players
+    }
+
+    pub fn players(&self) -> &[GamePlayer] {
+        &self.players
+    }
+
+    pub fn add_player(&mut self, player: GamePlayer) {
+        self.players.push(player)
+    }
+
+    pub fn player_sub_balance(&mut self, player_id: u64, amount: u64) -> Result<()> {
+        let mut p = self.players
+            .iter_mut()
+            .find(|p| p.id == player_id)
+            .ok_or(Error::PlayerNotInGame)?;
+
+        p.balance = p.balance.checked_sub(amount).ok_or(Error::InvalidAmount)?;
+
+        Ok(())
+    }
+
+    pub fn player_add_balance(&mut self, player_id: u64, amount: u64) -> Result<()> {
+        let mut p = self.players
+            .iter_mut()
+            .find(|p| p.id == player_id)
+            .ok_or(Error::PlayerNotInGame)?;
+
+        p.balance = p.balance.checked_add(amount).ok_or(Error::InvalidAmount)?;
+
+        Ok(())
+    }
+
+    pub fn remove_player(&mut self, player_id: u64) -> Result<()> {
+        let l = self.players.len();
+        self.players.retain(|p| p.id != player_id);
+        if self.players.len() != l - 1 {
+            return Err(Error::PlayerNotInGame);
+        }
+        Ok(())
+    }
+
+    pub fn entry_type(&self) -> EntryType {
+        self.entry_type.clone()
     }
 }
 
@@ -917,13 +939,13 @@ impl Default for GameContext {
             allow_exit: false,
             random_states: Vec::new(),
             decision_states: Vec::new(),
-            settles: None,
-            transfers: None,
             checkpoint: None,
-            launch_sub_games: Vec::new(),
-            bridge_events: Vec::new(),
-            start_game: false,
+            sub_games: Vec::new(),
             next_settle_version: 0,
+            init_data: None,
+            max_players: 0,
+            players: Vec::new(),
+            entry_type: EntryType::Disabled,
         }
     }
 }

@@ -38,6 +38,12 @@ export type EventCallbackFunction = (
   isHistory: boolean,
 ) => void;
 
+export type ErrorKind =
+  | 'state-sha-mismatch'
+  | 'onchain-data-not-found'
+  | 'attach-failed'
+  | 'handle-event-error'
+
 export type MessageCallbackFunction = (message: Message) => void;
 
 export type TxStateCallbackFunction = (txState: TxState) => void;
@@ -47,3 +53,5 @@ export type ConnectionStateCallbackFunction = (connState: ConnectionState) => vo
 export type ProfileCallbackFunction = (id: bigint | undefined, profile: PlayerProfileWithPfp) => void;
 
 export type LoadProfileCallbackFunction = (id: bigint, addr: string) => void;
+
+export type ErrorCallbackFunction = (error: ErrorKind, arg: any) => void;

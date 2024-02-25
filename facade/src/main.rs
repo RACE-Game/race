@@ -343,6 +343,8 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
             EntryType::Ticket { slot_id, amount } => todo!(),
             #[allow(unused)]
             EntryType::Gating { collection } => todo!(),
+            #[allow(unused)]
+            EntryType::Disabled => todo!(),
         }
     } else {
         return Err(custom_error(Error::GameAccountNotFound));
@@ -865,6 +867,7 @@ fn cli() -> Command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    println!("Start at {}", HTTP_HOST);
     let matches = cli().get_matches();
     let mut context = Context::default();
     context.load_default_tokens();

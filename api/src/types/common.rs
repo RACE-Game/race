@@ -246,6 +246,8 @@ pub enum EntryType {
     /// A player can join the game by showing a gate NFT
     #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
     Gating { collection: String },
+    #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+    Disabled,
 }
 
 impl Default for EntryType {

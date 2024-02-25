@@ -5,8 +5,8 @@ use crate::component::{
     LocalConnection, PortsHandle, Submitter, WrappedClient, WrappedHandler,
 };
 use crate::frame::{EventFrame, SignalFrame};
-use race_api::error::{Result, Error};
-use race_api::types::{ServerJoin, PlayerJoin};
+use race_api::error::{Error, Result};
+use race_api::types::{PlayerJoin, ServerJoin};
 use race_core::context::GameContext;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount};
@@ -38,7 +38,10 @@ fn create_init_sync(game_account: &GameAccount) -> Result<EventFrame> {
         .cloned()
         .collect();
 
-    let transactor_addr = game_account.transactor_addr.clone().ok_or(Error::GameNotServed)?;
+    let transactor_addr = game_account
+        .transactor_addr
+        .clone()
+        .ok_or(Error::GameNotServed)?;
 
     let init_sync = EventFrame::Sync {
         access_version: game_account.access_version,
@@ -107,7 +110,13 @@ impl TransactorHandle {
         // Dispatch init state
         let init_account = game_account.derive_checkpoint_init_account();
         info!("InitAccount: {:?}", init_account);
-        event_bus.send(EventFrame::InitState { init_account }).await;
+        event_bus
+            .send(EventFrame::InitState {
+                init_account,
+                access_version: game_account.access_version,
+                settle_version: game_account.settle_version,
+            })
+            .await;
         event_bus.send(create_init_sync(game_account)?).await;
 
         let mut synchronizer_handle = synchronizer.start(&game_account.addr, synchronizer_ctx);

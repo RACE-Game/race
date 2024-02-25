@@ -55,6 +55,7 @@ export class Random extends SecretShare {
   constructor(fields: EventFields<Random>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, Random.prototype)
   }
 }
 
@@ -69,6 +70,7 @@ export class Answer extends SecretShare {
   constructor(fields: EventFields<Answer>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, Answer.prototype)
   }
 }
 
@@ -87,6 +89,7 @@ export class Custom extends GameEvent implements IEventKind {
   constructor(fields: EventFields<Custom>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, Custom.prototype)
   }
   kind(): EventKind {
     return 'Custom';
@@ -104,6 +107,7 @@ export function makeCustomEvent(sender: bigint, customEvent: ICustomEvent): Cust
 export class Ready extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
+    Object.setPrototypeOf(this, Ready.prototype)
   }
   kind(): EventKind {
     return 'Ready';
@@ -119,6 +123,7 @@ export class ShareSecrets extends GameEvent implements IEventKind {
   constructor(fields: EventFields<ShareSecrets>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, ShareSecrets.prototype)
   }
   kind(): EventKind {
     return 'ShareSecrets';
@@ -131,6 +136,7 @@ export class OperationTimeout extends GameEvent implements IEventKind {
   ids!: bigint[];
   constructor(fields: EventFields<OperationTimeout>) {
     super();
+    Object.setPrototypeOf(this, OperationTimeout.prototype)
     Object.assign(this, fields);
   }
   kind(): EventKind {
@@ -149,6 +155,7 @@ export class Mask extends GameEvent implements IEventKind {
   constructor(fields: EventFields<Mask>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, Mask.prototype)
   }
   kind(): EventKind {
     return 'Mask';
@@ -176,6 +183,7 @@ export class Lock extends GameEvent implements IEventKind {
   constructor(fields: EventFields<Lock>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, Lock.prototype)
   }
   kind(): EventKind {
     return 'Lock';
@@ -189,6 +197,7 @@ export class RandomnessReady extends GameEvent implements IEventKind {
   constructor(fields: EventFields<RandomnessReady>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, RandomnessReady.prototype)
   }
   kind(): EventKind {
     return 'RandomnessReady';
@@ -202,6 +211,7 @@ export class Join extends GameEvent implements IEventKind {
   constructor(fields: EventFields<Join>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, Join.prototype)
   }
   kind(): EventKind {
     return 'Join';
@@ -215,6 +225,7 @@ export class ServerLeave extends GameEvent implements IEventKind {
   constructor(fields: EventFields<ServerLeave>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, ServerLeave.prototype)
   }
   kind(): EventKind {
     return 'ServerLeave';
@@ -228,6 +239,7 @@ export class Leave extends GameEvent implements IEventKind {
   constructor(fields: EventFields<Leave>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, Leave.prototype)
   }
   kind(): EventKind {
     return 'Leave';
@@ -238,6 +250,7 @@ export class Leave extends GameEvent implements IEventKind {
 export class GameStart extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
+    Object.setPrototypeOf(this, GameStart.prototype)
   }
   kind(): EventKind {
     return 'GameStart';
@@ -248,6 +261,7 @@ export class GameStart extends GameEvent implements IEventKind {
 export class WaitingTimeout extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
+    Object.setPrototypeOf(this, WaitingTimeout.prototype)
   }
   kind(): EventKind {
     return 'WaitingTimeout';
@@ -265,6 +279,7 @@ export class DrawRandomItems extends GameEvent implements IEventKind {
   constructor(fields: EventFields<DrawRandomItems>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, DrawRandomItems.prototype)
   }
   kind(): EventKind {
     return 'DrawRandomItems';
@@ -275,6 +290,7 @@ export class DrawRandomItems extends GameEvent implements IEventKind {
 export class DrawTimeout extends GameEvent implements IEventKind {
   constructor(_: {}) {
     super();
+    Object.setPrototypeOf(this, DrawTimeout.prototype)
   }
   kind(): EventKind {
     return 'DrawTimeout';
@@ -288,6 +304,7 @@ export class ActionTimeout extends GameEvent implements IEventKind {
   constructor(fields: EventFields<ActionTimeout>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, ActionTimeout.prototype)
   }
   kind(): EventKind {
     return 'ActionTimeout';
@@ -307,6 +324,7 @@ export class AnswerDecision extends GameEvent implements IEventKind {
   constructor(fields: EventFields<AnswerDecision>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, AnswerDecision.prototype)
   }
   kind(): EventKind {
     return 'AnswerDecision';
@@ -321,6 +339,7 @@ export class SecretsReady extends GameEvent implements IEventKind {
   constructor(fields: EventFields<SecretsReady>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, SecretsReady.prototype)
   }
   kind(): EventKind {
     return 'SecretsReady';
@@ -331,6 +350,7 @@ export class SecretsReady extends GameEvent implements IEventKind {
 export class Shutdown extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super();
+    Object.setPrototypeOf(this, Shutdown.prototype)
   }
   kind(): EventKind {
     return 'Shutdown';
@@ -347,6 +367,7 @@ export class Bridge extends GameEvent implements IEventKind {
   constructor(fields: EventFields<Bridge>) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, Bridge.prototype)
   }
   kind(): EventKind {
     return 'Bridge';

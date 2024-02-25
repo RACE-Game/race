@@ -8,6 +8,7 @@ use crate::{
     engine::GameHandler,
     error::{Error, HandleError, Result},
     event::BridgeEvent,
+    prelude::InitAccount,
     random::RandomSpec,
     types::{DecisionId, GamePlayer, RandomId, Settle, Transfer},
 };
@@ -42,12 +43,10 @@ pub struct ActionTimeout {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
-pub struct LaunchSubGame {
+pub struct SubGame {
     pub id: usize,
     pub bundle_addr: String,
-    pub players: Vec<GamePlayer>,
-    pub init_data: Vec<u8>,
-    pub checkpoint: Vec<u8>,
+    pub init_account: InitAccount,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
@@ -62,10 +61,11 @@ pub struct SubGameLeave {
     pub player_ids: Vec<u64>,
 }
 
-impl LaunchSubGame {
+impl SubGame {
     pub fn try_new<S: BorshSerialize>(
         id: usize,
         bundle_addr: String,
+        max_players: u16,
         players: Vec<GamePlayer>,
         init_data: S,
         checkpoint: S,
@@ -73,9 +73,13 @@ impl LaunchSubGame {
         Ok(Self {
             id,
             bundle_addr,
-            players,
-            init_data: init_data.try_to_vec()?,
-            checkpoint: checkpoint.try_to_vec()?,
+            init_account: InitAccount {
+                max_players,
+                entry_type: crate::types::EntryType::Disabled,
+                players,
+                data: init_data.try_to_vec()?,
+                checkpoint: checkpoint.try_to_vec()?,
+            },
         })
     }
 }
@@ -211,7 +215,7 @@ pub struct Effect {
     pub error: Option<HandleError>,
     pub allow_exit: bool,
     pub transfers: Vec<Transfer>,
-    pub launch_sub_games: Vec<LaunchSubGame>,
+    pub launch_sub_games: Vec<SubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
 }
 
@@ -314,8 +318,13 @@ impl Effect {
         self.allow_exit = allow_exit
     }
 
-    pub fn checkpoint(&mut self) {
-        self.is_checkpoint = true;
+    /// Set checkpoint can trigger settlements.
+    pub fn checkpoint<S: BorshSerialize>(&mut self, checkpoint_state: S) {
+        if let Ok(checkpoint) = checkpoint_state.try_to_vec() {
+            self.checkpoint = Some(checkpoint);
+        } else {
+            self.error = Some(HandleError::SerializationError)
+        }
     }
 
     /// Submit settlements.
@@ -333,16 +342,21 @@ impl Effect {
         &mut self,
         id: usize,
         bundle_addr: String,
+        max_players: u16,
         players: Vec<GamePlayer>,
         init_data: D,
         checkpoint: C,
     ) -> Result<()> {
-        self.launch_sub_games.push(LaunchSubGame {
+        self.launch_sub_games.push(SubGame {
             id,
             bundle_addr,
-            players,
-            init_data: init_data.try_to_vec()?,
-            checkpoint: checkpoint.try_to_vec()?,
+            init_account: InitAccount {
+                max_players,
+                entry_type: crate::types::EntryType::Disabled,
+                players,
+                data: init_data.try_to_vec()?,
+                checkpoint: checkpoint.try_to_vec()?,
+            },
         });
         Ok(())
     }
@@ -363,17 +377,6 @@ impl Effect {
     pub fn __set_handler_state<S: BorshSerialize>(&mut self, handler_state: S) {
         if let Ok(state) = handler_state.try_to_vec() {
             self.handler_state = Some(state);
-        } else {
-            self.error = Some(HandleError::SerializationError);
-        }
-    }
-
-    /// Set checkpoint.
-    ///
-    /// This is an internal function, DO NOT use in game handler.
-    pub fn __set_checkpoint<S: BorshSerialize>(&mut self, checkpoint_state: S) {
-        if let Ok(state) = checkpoint_state.try_to_vec() {
-            self.checkpoint = Some(state);
         } else {
             self.error = Some(HandleError::SerializationError);
         }

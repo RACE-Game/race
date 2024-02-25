@@ -25,6 +25,7 @@ pub struct EventBackup {
     pub timestamp: u64,
     pub access_version: u64,
     pub settle_version: u64,
+    pub state_sha: String,
 }
 
 #[derive(Debug)]
@@ -44,6 +45,7 @@ pub struct EventBackupGroup {
 
 pub struct BroadcasterContext {
     id: String,
+    state: Arc<Mutex<Option<Vec<u8>>>>,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
@@ -51,6 +53,7 @@ pub struct BroadcasterContext {
 /// A component that pushes event to clients.
 pub struct Broadcaster {
     id: String,
+    state: Arc<Mutex<Option<Vec<u8>>>>,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
@@ -59,19 +62,26 @@ impl Broadcaster {
     pub fn init(id: String) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
+        let state = Arc::new(Mutex::new(None));
         drop(broadcast_rx);
         (
             Self {
                 id: id.clone(),
+                state: state.clone(),
                 event_backup_groups: event_backup_groups.clone(),
                 broadcast_tx: broadcast_tx.clone(),
             },
             BroadcasterContext {
                 id,
+                state,
                 event_backup_groups,
                 broadcast_tx,
             },
         )
+    }
+
+    pub async fn get_state(&self) -> Option<Vec<u8>> {
+        self.state.lock().await.clone()
     }
 
     pub fn get_broadcast_rx(&self) -> broadcast::Receiver<BroadcastFrame> {
@@ -84,9 +94,36 @@ impl Broadcaster {
             Self::name(),
             settle_version
         );
-        let event_backup_groups = self.event_backup_groups.lock().await;
 
         let mut histories: Vec<BroadcastFrame> = Vec::new();
+        let event_backup_groups = self.event_backup_groups.lock().await;
+
+        // If the `settle_version` is greater than the current
+        // one. Just return the latest group.  This is a patch for
+        // frontend sub game initialization, due to the fact that sub
+        // game always initialize with the its parent game's
+        // `settle_version` which is usually greater than the correct
+        // one.
+        if let Some(group) = event_backup_groups.back() {
+            if settle_version > group.settle_version {
+                histories.push(BroadcastFrame::Sync {
+                    sync: group.sync.clone(),
+                });
+                let cnt = group.events.len();
+                let mut i = cnt as _;
+                for event in group.events.iter() {
+                    i -= 1;
+                    histories.push(BroadcastFrame::Event {
+                        game_addr: self.id.clone(),
+                        event: event.event.clone(),
+                        timestamp: event.timestamp,
+                        remain: i,
+                        state_sha: event.state_sha.clone(),
+                    })
+                }
+                return histories;
+            }
+        }
 
         for group in event_backup_groups.iter() {
             if group.settle_version >= settle_version {
@@ -107,6 +144,7 @@ impl Broadcaster {
                         event: event.event.clone(),
                         timestamp: event.timestamp,
                         remain: i,
+                        state_sha: event.state_sha.clone(),
                     })
                 }
             }
@@ -140,9 +178,16 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
                     }
                 }
+
                 EventFrame::Checkpoint {
                     access_version,
                     settle_version,
+                    ..
+                }
+                | EventFrame::InitState {
+                    access_version,
+                    settle_version,
+                    ..
                 } => {
                     info!(
                         "{} Create new history group with access_version = {}, settle_version = {}",
@@ -191,8 +236,10 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     access_version,
                     settle_version,
                     timestamp,
+                    state,
+                    state_sha,
                 } => {
-                    debug!("{} Broadcaster receive event: {}", env.log_prefix, event);
+                    info!("{} Broadcaster receive event: {}", env.log_prefix, event);
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
 
                     if let Some(current) = event_backup_groups.back_mut() {
@@ -201,6 +248,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                             settle_version,
                             access_version,
                             timestamp,
+                            state_sha: state_sha.clone(),
                         });
                     } else {
                         error!("{} Received event without checkpoint", env.log_prefix);
@@ -216,7 +264,10 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         event,
                         timestamp,
                         remain: 0,
+                        state_sha,
                     });
+
+                    ctx.state.lock().await.replace(state);
 
                     if let Err(e) = r {
                         // Usually it means no receivers
@@ -292,6 +343,7 @@ mod tests {
                     sender: alice.id(),
                     raw: "CUSTOM EVENT".into(),
                 },
+                state_sha: "".into(),
             };
 
             let broadcast_frame = BroadcastFrame::Event {
@@ -302,6 +354,7 @@ mod tests {
                     raw: "CUSTOM EVENT".into(),
                 },
                 remain: 0,
+                state_sha: "".into(),
             };
 
             handle.send_unchecked(event_frame).await;

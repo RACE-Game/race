@@ -5,7 +5,7 @@ echo "Current timestamp is $START_TIME"
 DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
                   -u64 "$START_TIME" \
                   -u8 2 \
-                  -u64 10 \
+                  -u64 500000 \
                   -u64 60000 \
                   -u32 0 \
                   -u32 3 \
@@ -23,8 +23,8 @@ JSON=$(cat <<EOF
   "maxPlayers": 10,
   "entryType": {
     "cash": {
-      "minDeposit": 5000,
-      "maxDeposit": 5000
+      "minDeposit": 100000000,
+      "maxDeposit": 100000000
     }
   },
   "data": $DATA

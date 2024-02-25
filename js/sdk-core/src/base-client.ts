@@ -11,18 +11,19 @@ import {
   BroadcastFrame,
   SubmitMessageParams,
 } from './connection';
-import { GameContext } from './game-context';
+import { EventEffects, GameContext } from './game-context';
 import { GameContextSnapshot } from './game-context-snapshot';
 import { ITransport } from './transport';
 import { IWallet } from './wallet';
-import { Handler, InitAccount } from './handler';
-import { IEncryptor } from './encryptor';
+import { Handler } from './handler';
+import { InitAccount } from './init-account';
+import { IEncryptor, sha256 } from './encryptor';
 import { GameAccount } from './accounts';
 import { PlayerConfirming } from './tx-state';
 import { Client } from './client';
-import { Custom, GameEvent, ICustomEvent, Join } from './events';
+import { Custom, GameEvent, ICustomEvent } from './events';
 import { DecryptionCache } from './decryption-cache';
-import { ConnectionStateCallbackFunction, EventCallbackFunction, GameInfo, LoadProfileCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
+import { ConnectionStateCallbackFunction, ErrorCallbackFunction, ErrorKind, EventCallbackFunction, GameInfo, LoadProfileCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
 
 const MAX_RETRIES = 3;
 
@@ -38,6 +39,7 @@ export type BaseClientCtorOpts = {
   onMessage: MessageCallbackFunction | undefined;
   onTxState: TxStateCallbackFunction | undefined;
   onConnectionState: ConnectionStateCallbackFunction | undefined;
+  onError: ErrorCallbackFunction | undefined;
   onLoadProfile: LoadProfileCallbackFunction;
   encryptor: IEncryptor;
   info: GameInfo;
@@ -55,6 +57,7 @@ export class BaseClient {
   __onEvent: EventCallbackFunction;
   __onMessage?: MessageCallbackFunction;
   __onTxState?: TxStateCallbackFunction;
+  __onError?: ErrorCallbackFunction;
   __onConnectionState?: ConnectionStateCallbackFunction;
   __onLoadProfile: LoadProfileCallbackFunction;
   __encryptor: IEncryptor;
@@ -72,6 +75,7 @@ export class BaseClient {
     this.__onEvent = opts.onEvent;
     this.__onMessage = opts.onMessage;
     this.__onTxState = opts.onTxState;
+    this.__onError = opts.onError;
     this.__onConnectionState = opts.onConnectionState;
     this.__encryptor = opts.encryptor;
     this.__info = opts.info;
@@ -184,20 +188,29 @@ export class BaseClient {
       await this.__client.attachGame();
       sub = this.__connection.subscribeEvents();
       const gameAccount = await this.__getGameAccount();
-      const initAccount = InitAccount.createFromGameAccount(gameAccount, this.gameContext.accessVersion, this.gameContext.settleVersion);
+      const initAccount = InitAccount.createFromGameAccount(gameAccount);
       this.__gameContext = new GameContext(gameAccount);
       this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
-
+      console.log('Game context created,', this.__gameContext);
       for (const p of gameAccount.players) this.__onLoadProfile(p.accessVersion, p.addr);
       await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
       await this.__initializeState(initAccount);
     } catch (e) {
       console.error('Attaching game failed', e);
+      this.__invokeErrorCallback('attach-failed')
       throw e;
     } finally {
       console.groupEnd();
     }
-    await this.__processSubscription(sub);
+    if (sub !== undefined) await this.__processSubscription(sub);
+  }
+
+  __invokeErrorCallback(err: ErrorKind, arg?: any) {
+    if (this.__onError) {
+      this.__onError(err, arg)
+    } else {
+      console.error(`An error occured: ${err}, to handle it, use \`onError\`.`)
+    }
   }
 
   async __invokeEventCallback(event: GameEvent | undefined, isHistory: boolean) {
@@ -217,7 +230,8 @@ export class BaseClient {
     let retries = 0;
     while (true) {
       if (retries === MAX_RETRIES) {
-          throw new Error(`Game account not found, after ${retries} retries`);
+        this.__invokeErrorCallback('onchain-data-not-found')
+        throw new Error(`Game account not found, after ${retries} retries`);
       }
       try {
         const gameAccount = await this.__transport.getGameAccount(this.gameAddr);
@@ -293,22 +307,57 @@ export class BaseClient {
       const { event, timestamp } = frame;
       console.groupCollapsed('Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
       console.log('Event: ', event);
-      try {
-        this.__gameContext.prepareForNextEvent(timestamp);
+      let state: Uint8Array | undefined;
+      let err: ErrorKind | undefined;
+      let effects: EventEffects | undefined;
+
+      try {                     // For log group
+
         try {
-          let context = new GameContext(this.__gameContext);
-          await this.__handler.handleEvent(context, event);
-          this.__gameContext = context;
-          console.log("Game Context:", this.__gameContext);
-        } catch (err: any) {
-          console.error(err);
+          this.__gameContext.prepareForNextEvent(timestamp);
+          effects = await this.__handler.handleEvent(this.__gameContext, event);
+          state = this.__gameContext.handlerState;
+          const sha = await sha256(this.__gameContext.handlerState)
+          if (sha !== frame.stateSha) {
+            const remoteState = await this.__connection.getState();
+            console.log('Remote state:', remoteState);
+            console.log('Local state:', state);
+            err = 'state-sha-mismatch'
+          }
+        } catch (e: any) {
+          console.error(e);
+          err = 'handle-event-error';
         }
-        await this.__invokeEventCallback(event, frame.remain !== 0);
-      } catch (e: any) {
-        console.log("Game context in error:", this.__gameContext);
-        throw e;
+
+        if (!err) {
+          await this.__invokeEventCallback(event, frame.remain !== 0);
+        }
+
+        if ((!err) && effects?.checkpoint) {
+          console.log('Rebuild state for checkpoint');
+          const initData = this.__gameContext.initData;
+          if (initData === undefined) {
+            err = 'state-sha-mismatch'
+          } else {
+            const initAccount = new InitAccount({
+              entryType: this.__gameContext.entryType,
+              data: initData,
+              players: this.__gameContext.players,
+              checkpoint: effects.checkpoint,
+              maxPlayers: this.__gameContext.maxPlayers,
+            });
+            await this.__initializeState(initAccount);
+            await this.__invokeEventCallback(event, frame.remain !== 0);
+          }
+        }
+
+        if (err) {
+          this.__invokeErrorCallback(err, state);
+          throw new Error(`An error occurred in event loop: ${err}`);
+        }
+
       } finally {
-        console.groupEnd();
+        console.groupEnd()
       }
     }
   }
@@ -321,7 +370,7 @@ export class BaseClient {
       console.log('Disconnected, try reset state and context');
       const gameAccount = await this.__getGameAccount();
       this.__gameContext = new GameContext(gameAccount);
-      const initAccount = InitAccount.createFromGameAccount(gameAccount, this.__gameContext.accessVersion, this.__gameContext.settleVersion);
+      const initAccount = InitAccount.createFromGameAccount(gameAccount);
       this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
       await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
       await this.__initializeState(initAccount);

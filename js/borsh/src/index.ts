@@ -19,6 +19,36 @@ import { BinaryWriter } from './writer';
 import { BinaryReader } from './reader';
 import { invalidByteArrayLength, extendedWriterNotFound, extendedReaderNotFound, invalidEnumField } from './errors';
 
+class DeserializeError extends Error {
+  cause: Error;
+  path: string[];
+  obj: any | undefined;
+
+  constructor(path: string[], cause: Error, obj: any) {
+    super('Deserialize failed')
+    this.cause = cause;
+    this.path = path;
+    this.obj = obj;
+    Object.setPrototypeOf(this, DeserializeError.prototype)
+  }
+}
+
+class SerializeError extends Error {
+  cause: Error;
+  path: string[];
+  fieldType: FieldType;
+  value: any;
+
+  constructor(path: string[], cause: Error, fieldType: FieldType, value: any) {
+    super('Serialize failed')
+    this.cause = cause;
+    this.path = path;
+    this.fieldType = fieldType;
+    this.value = value;
+    Object.setPrototypeOf(this, SerializeError.prototype)
+  }
+}
+
 function addSchemaField(prototype: any, key: FieldKey, fieldType: FieldType) {
   let fields: Field[] = prototype.__schema_fields || [];
   fields.push([key, fieldType]);
@@ -115,8 +145,11 @@ function serializeValue(path: string[], value: any, fieldType: FieldType, writer
       }
     }
   } catch (err: any) {
-    console.error('Borsh serialize failed, path:', path, 'error:', err);
-    throw err;
+    if (err instanceof SerializeError) {
+      throw err;
+    } else {
+      throw new SerializeError(path, err, fieldType, value)
+    }
   }
 }
 
@@ -189,8 +222,11 @@ function deserializeValue(path: string[], fieldType: FieldType, reader: BinaryRe
       }
     }
   } catch (err: any) {
-    console.error('Borsh deserialize failed, path:', path, 'error:', err);
-    throw err;
+    if (err instanceof DeserializeError) {
+      throw err
+    } else {
+      throw new DeserializeError(path, err, undefined)
+    }
   }
 }
 
@@ -234,7 +270,9 @@ function deserializeEnum(path: string[], enumClass: Function, reader: BinaryRead
   if (enumVariants instanceof Array) {
     const i = reader.readU8();
     const variant = enumVariants[i];
-    return deserializeStruct([...path, `<Variant[${i}]>`], variant, reader);
+    let obj = deserializeStruct([...path, `<Variant[${i}]>`], variant, reader);
+    Object.setPrototypeOf(obj, variant.prototype);
+    return obj;
   } else {
     invalidEnumField(path);
   }
@@ -244,8 +282,15 @@ function deserializeStruct<T>(path: string[], ctor: Ctor<T>, reader: BinaryReade
   const prototype = ctor.prototype;
   const fields = getSchemaFields(prototype);
   let obj = {};
-  for (const field of fields) {
-    obj = deserializeField(path, obj, field, reader);
+  try {
+    for (const field of fields) {
+      obj = deserializeField(path, obj, field, reader);
+    }
+  } catch (e) {
+    if (e instanceof DeserializeError) {
+      e.obj = obj;
+    }
+    throw e;
   }
   return new ctor(obj);
 }
@@ -288,10 +333,17 @@ export function enums(enumClass: Function): EnumFieldType {
 
 export function serialize(obj: any): Uint8Array {
   const writer = new BinaryWriter();
-  if (isVariantObject(obj)) {
-    serializeEnum([], obj, writer);
-  } else {
-    serializeStruct([], obj, writer);
+  try {
+    if (isVariantObject(obj)) {
+      serializeEnum([], obj, writer);
+    } else {
+      serializeStruct([], obj, writer);
+    }
+  } catch (e) {
+    if (e instanceof SerializeError) {
+      console.error('Serialize failed, path:', e.path, ', fieldType:', e.fieldType, ', value:', e.value, ', cause:', e.cause);
+    }
+    throw e;
   }
   return writer.toArray();
 }
@@ -300,10 +352,17 @@ export function deserialize<T>(enumClass: EnumClass<T>, data: Uint8Array): T;
 export function deserialize<T>(ctor: Ctor<T>, data: Uint8Array): T;
 export function deserialize<T>(classType: Ctor<T> | EnumClass<T>, data: Uint8Array): T {
   const reader = new BinaryReader(data);
-  if (isEnumClass(classType)) {
-    return deserializeEnum([], classType, reader);
-  } else {
-    return deserializeStruct([], classType, reader);
+  try {
+    if (isEnumClass(classType)) {
+      return deserializeEnum([], classType, reader);
+    } else {
+      return deserializeStruct([], classType, reader);
+    }
+  } catch (e) {
+    if (e instanceof DeserializeError) {
+      console.error('Deserialize failed, path:', e.path, ', current object:', e.obj, ', cause:', e.cause);
+    }
+    throw e;
   }
 }
 

@@ -7,7 +7,7 @@ import { PlayerJoin, ServerJoin } from './accounts';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'reconnected' | 'closed';
 
-type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event' | 'submit_message' | 'ping';
+type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event' | 'submit_message' | 'get_state' | 'ping';
 
 interface IAttachGameParams {
   signer: string;
@@ -92,6 +92,8 @@ export class BroadcastFrameEvent extends BroadcastFrame {
   timestamp!: bigint;
   @field('u16')
   remain!: number;
+  @field('string')
+  stateSha!: string;
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
@@ -138,6 +140,8 @@ export class BroadcastFrameSync extends BroadcastFrame {
 
 export interface IConnection {
   attachGame(params: AttachGameParams): Promise<void>;
+
+  getState(): Promise<Uint8Array>;
 
   submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined>;
 
@@ -289,6 +293,12 @@ export class Connection implements IConnection {
   async attachGame(params: AttachGameParams): Promise<void> {
     const req = this.makeReqNoSig(this.target, 'attach_game', params);
     await this.requestXhr(req);
+  }
+
+  async getState(): Promise<Uint8Array> {
+    const req = this.makeReqNoSig(this.target, "get_state", {});
+    const resp: { result: string } = await this.requestXhr(req);
+    return Uint8Array.from(JSON.parse(resp.result));
   }
 
   async submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined> {

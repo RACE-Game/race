@@ -146,53 +146,34 @@ pub struct GameAccount {
 
 impl GameAccount {
     pub fn derive_init_account(&self) -> InitAccount {
-        let game_account = self.to_owned();
         InitAccount {
-            addr: game_account.addr,
-            players: game_account
+            max_players: self.max_players,
+            entry_type: self.entry_type.clone(),
+            players: self
                 .players
                 .iter()
                 .cloned()
                 .map(Into::into)
                 .collect(),
-            data: game_account.data.clone(),
-            access_version: game_account.access_version,
-            settle_version: game_account.settle_version,
-            max_players: game_account.max_players,
-            checkpoint: game_account.checkpoint,
-            entry_type: game_account.entry_type,
+            data: self.data.clone(),
+            checkpoint: self.checkpoint.clone(),
         }
     }
 
     pub fn derive_checkpoint_init_account(&self) -> InitAccount {
-        let game_account = self.to_owned();
-        let Self {
-            players,
-            addr,
-            data,
-            max_players,
-            checkpoint,
-            checkpoint_access_version,
-            settle_version,
-            entry_type,
-            ..
-        } = game_account;
-
-        let players = players
-            .into_iter()
-            .filter(|p| p.access_version <= checkpoint_access_version)
+        let players = self.players
+            .iter()
+            .cloned()
+            .filter(|p| p.access_version <= self.checkpoint_access_version)
             .map(|p| p.into())
             .collect();
 
         InitAccount {
-            addr,
+            entry_type: self.entry_type.clone(),
+            max_players: self.max_players,
             players,
-            data,
-            access_version: checkpoint_access_version,
-            settle_version,
-            max_players,
-            checkpoint,
-            entry_type,
+            data: self.data.clone(),
+            checkpoint: self.checkpoint.clone(),
         }
     }
 }

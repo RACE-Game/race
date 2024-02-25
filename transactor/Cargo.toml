@@ -43,6 +43,7 @@ async-stream = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 base64 = { workspace = true }
+sha256 = { workspace = true }
 
 [dev-dependencies]
 race-test = { path = "../test" }

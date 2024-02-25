@@ -1,3 +1,5 @@
+use race_api::prelude::InitAccount;
+use sha256::digest;
 use std::time::{Duration, UNIX_EPOCH};
 
 use async_trait::async_trait;
@@ -38,7 +40,7 @@ pub trait WrappedGameHandler: Send {
 
 pub struct EventLoop {}
 
-async fn handle(
+async fn handle_event(
     handler: &mut WrappedHandler,
     game_context: &mut GameContext,
     event: Event,
@@ -48,11 +50,14 @@ async fn handle(
 ) -> Option<CloseReason> {
     info!("{} Handle event: {}", env.log_prefix, event);
 
-    let access_version = game_context.get_access_version();
-    let settle_version = game_context.get_settle_version();
+    let access_version = game_context.access_version();
+    let settle_version = game_context.settle_version();
 
     match handler.handle_event(game_context, &event) {
         Ok(effects) => {
+            let state = game_context.get_handler_state_raw();
+            let state_sha = digest(state);
+
             // Broacast the event to clients
             ports
                 .send(EventFrame::Broadcast {
@@ -60,6 +65,8 @@ async fn handle(
                     access_version,
                     settle_version,
                     timestamp: game_context.get_timestamp(),
+                    state: state.to_owned(),
+                    state_sha,
                 })
                 .await;
 
@@ -74,7 +81,7 @@ async fn handle(
             if effects.start_game {
                 ports
                     .send(EventFrame::GameStart {
-                        access_version: game_context.get_access_version(),
+                        access_version: game_context.access_version(),
                     })
                     .await;
             }
@@ -83,8 +90,12 @@ async fn handle(
             if let Some(checkpoint) = effects.checkpoint {
                 ports
                     .send(EventFrame::Checkpoint {
-                        access_version: game_context.get_access_version(),
-                        settle_version: game_context.get_settle_version(),
+                        access_version: game_context.access_version(),
+                        settle_version: game_context.settle_version(),
+                        previous_settle_version: settle_version,
+                        checkpoint,
+                        settles: effects.settles,
+                        transfers: effects.transfers,
                     })
                     .await;
 
@@ -92,15 +103,6 @@ async fn handle(
                     "{} Create checkpoint, settle_version: {}",
                     env.log_prefix, settle_version
                 );
-
-                ports
-                    .send(EventFrame::Settle {
-                        settles: effects.settles,
-                        transfers: effects.transfers,
-                        checkpoint,
-                        settle_version,
-                    })
-                    .await;
             }
 
             // Launch sub games
@@ -110,12 +112,10 @@ async fn handle(
                         game_addr: game_context.get_game_addr().to_owned(),
                         sub_id: launch_sub_game.id,
                         bundle_addr: launch_sub_game.bundle_addr,
-                        players: launch_sub_game.players,
-                        init_data: launch_sub_game.init_data,
                         nodes: game_context.get_nodes().into(),
-                        checkpoint: launch_sub_game.checkpoint,
-                        access_version: game_context.get_access_version(),
-                        settle_version: game_context.get_settle_version(),
+                        access_version: game_context.access_version(),
+                        settle_version: game_context.settle_version(),
+                        init_account: launch_sub_game.init_account,
                     }),
                 };
                 ports.send(ef).await;
@@ -131,8 +131,8 @@ async fn handle(
                             dest: be.dest,
                             raw: be.raw,
                         },
-                        access_version: game_context.get_access_version(),
-                        settle_version: game_context.get_settle_version(),
+                        access_version: game_context.access_version(),
+                        settle_version: game_context.settle_version(),
                     };
                     ports.send(ef).await;
                 }
@@ -207,12 +207,14 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
             game_context.prepare_for_next_event(current_timestamp());
 
             match event_frame {
-                EventFrame::InitState { init_account } => {
-                    if let Err(e) = game_context
-                        .apply_checkpoint(init_account.access_version, init_account.settle_version)
-                    {
+                EventFrame::InitState {
+                    init_account,
+                    access_version,
+                    settle_version,
+                } => {
+                    if let Err(e) = game_context.apply_checkpoint(access_version, settle_version) {
                         error!("{} Failed to apply checkpoint: {:?}, context settle version: {}, init account settle version: {}", env.log_prefix, e,
-                            game_context.get_settle_version(), init_account.settle_version);
+                            game_context.settle_version(), settle_version);
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Fault(e);
                     }
@@ -225,23 +227,46 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     info!(
                         "{} Initialize game state, access_version = {}, settle_version = {}",
-                        env.log_prefix, init_account.access_version, init_account.settle_version
+                        env.log_prefix, access_version, settle_version
                     );
 
+                    game_context.set_init_data(init_account.data);
                     game_context.dispatch_safe(Event::Ready, 0);
-                    ports
-                        .send(EventFrame::Checkpoint {
-                            access_version: init_account.access_version,
-                            settle_version: init_account.settle_version,
-                        })
-                        .await;
+                }
+
+                EventFrame::Checkpoint {
+                    settle_version,
+                    access_version,
+                    checkpoint,
+                    ..
+                } => {
+                    let init_data = match game_context.init_data() {
+                        Ok(init_data) => init_data,
+                        Err(e) => return CloseReason::Fault(e)
+                    };
+                    let init_account = InitAccount {
+                        max_players: game_context.max_players(),
+                        entry_type: game_context.entry_type(),
+                        players: game_context.players().to_vec(),
+                        data: init_data,
+                        checkpoint,
+                    };
+                    if let Err(e) = handler.init_state(&mut game_context, &init_account) {
+                        error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
+                        ports.send(EventFrame::Shutdown).await;
+                        return CloseReason::Fault(e);
+                    }
+                    info!(
+                        "{} Rebuild game state from checkpoint, access_version = {}, settle_version = {}",
+                        env.log_prefix, access_version, settle_version
+                    );
                 }
 
                 EventFrame::GameStart { access_version } => {
                     game_context.set_node_ready(access_version);
                     if ctx.mode == ClientMode::Transactor {
                         let event = Event::GameStart;
-                        if let Some(close_reason) = handle(
+                        if let Some(close_reason) = handle_event(
                             &mut handler,
                             &mut game_context,
                             event,
@@ -290,7 +315,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         let event = Event::Join {
                             players: new_players_1,
                         };
-                        if let Some(close_reason) = handle(
+                        if let Some(close_reason) = handle_event(
                             &mut handler,
                             &mut game_context,
                             event,
@@ -308,7 +333,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 EventFrame::PlayerLeaving { player_addr } => {
                     if let Ok(player_id) = game_context.addr_to_id(&player_addr) {
                         let event = Event::Leave { player_id };
-                        if let Some(close_reason) = handle(
+                        if let Some(close_reason) = handle_event(
                             &mut handler,
                             &mut game_context,
                             event,
@@ -338,11 +363,11 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     info!(
                         "{} Set next settle version to {}, current: {}",
                         env.log_prefix,
-                        game_context.get_next_settle_version(),
-                        game_context.get_settle_version()
+                        game_context.next_settle_version(),
+                        game_context.settle_version()
                     );
 
-                    if let Some(close_reason) = handle(
+                    if let Some(close_reason) = handle_event(
                         &mut handler,
                         &mut game_context,
                         event,
@@ -357,7 +382,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
                 EventFrame::SendEvent { event } => {
-                    if let Some(close_reason) = handle(
+                    if let Some(close_reason) = handle_event(
                         &mut handler,
                         &mut game_context,
                         event,
@@ -376,7 +401,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if matches!(event, Event::Shutdown) {
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Complete;
-                    } else if let Some(close_reason) = handle(
+                    } else if let Some(close_reason) = handle_event(
                         &mut handler,
                         &mut game_context,
                         event,
