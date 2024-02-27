@@ -177,13 +177,7 @@ export class AppClient extends BaseClient {
       const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr);
       const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache);
       const gameContext = this.__gameContext.subContext(subGame);
-      const initAccount = new InitAccount({
-        data: subGame.initData,
-        players: subGame.players,
-        maxPlayers: 0,
-        checkpoint: subGame.checkpoint,
-        entryType: new EntryTypeDisabled({}),
-      });
+      const initAccount = subGame.initAccount;
 
       return new SubClient({
         gameAddr: addr,

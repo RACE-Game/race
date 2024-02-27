@@ -244,6 +244,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         Ok(init_data) => init_data,
                         Err(e) => return CloseReason::Fault(e)
                     };
+                    info!(
+                        "{} Rebuild game state from checkpoint, access_version = {}, settle_version = {}, checkpoint: {:?}",
+                        env.log_prefix, access_version, settle_version, checkpoint
+                    );
                     let init_account = InitAccount {
                         max_players: game_context.max_players(),
                         entry_type: game_context.entry_type(),
@@ -256,10 +260,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Fault(e);
                     }
-                    info!(
-                        "{} Rebuild game state from checkpoint, access_version = {}, settle_version = {}",
-                        env.log_prefix, access_version, settle_version
-                    );
                 }
 
                 EventFrame::GameStart { access_version } => {

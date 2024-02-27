@@ -89,11 +89,11 @@ impl Broadcaster {
     }
 
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
-        info!(
-            "{} Retrieve the histories, settle_version: {}",
-            Self::name(),
-            settle_version
-        );
+        // info!(
+        //     "{} Retrieve the histories, settle_version: {}",
+        //     Self::name(),
+        //     settle_version
+        // );
 
         let mut histories: Vec<BroadcastFrame> = Vec::new();
         let event_backup_groups = self.event_backup_groups.lock().await;
@@ -127,11 +127,11 @@ impl Broadcaster {
 
         for group in event_backup_groups.iter() {
             if group.settle_version >= settle_version {
-                info!(
-                    "{} Found histories with settle_version = {}",
-                    Self::name(),
-                    group.settle_version
-                );
+                // info!(
+                //     "{} Found histories with settle_version = {}",
+                //     Self::name(),
+                //     group.settle_version
+                // );
                 histories.push(BroadcastFrame::Sync {
                     sync: group.sync.clone(),
                 });

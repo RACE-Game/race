@@ -168,9 +168,10 @@ export class GameContext {
     c.randomStates = [];
     c.decisionStates = [];
     c.handlerState = Uint8Array.of();
-    c.checkpoint = subGame.checkpoint;
+    c.checkpoint = subGame.initAccount.checkpoint;
     c.subGames = [];
-    c.players = subGame.players;
+    // Currently, the `players` is always empty for subgame.
+    c.players = subGame.initAccount.players;
     return c;
   }
 

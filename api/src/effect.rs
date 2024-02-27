@@ -326,6 +326,10 @@ impl Effect {
         }
     }
 
+    pub fn is_checkpoint(&self) -> bool {
+        self.checkpoint.is_some()
+    }
+
     /// Submit settlements.
     pub fn settle(&mut self, settle: Settle) {
         self.settles.push(settle);

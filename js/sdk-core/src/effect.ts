@@ -3,6 +3,7 @@ import { HandleError } from './error';
 import { GameContext } from './game-context';
 import { enums, field, map, option, struct, variant, array } from '@race-foundation/borsh';
 import { Fields, Id } from './types';
+import { InitAccount } from './init-account';
 
 export abstract class SettleOp {}
 
@@ -131,12 +132,8 @@ export class SubGame {
   subId!: number;
   @field('string')
   bundleAddr!: string;
-  @field(array(struct(GamePlayer)))
-  players!: GamePlayer[];
-  @field('u8-array')
-  initData!: Uint8Array;
-  @field('u8-array')
-  checkpoint!: Uint8Array;
+  @field(struct(InitAccount))
+  initAccount!: InitAccount;
   constructor(fields: Fields<SubGame>) {
     Object.assign(this, fields)
   }
