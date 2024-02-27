@@ -182,7 +182,7 @@ mod tests {
     #[tokio::test]
     async fn test_dummy_connection() -> Result<()> {
         let conn = DummyConnection::default();
-        let event = Event::GameStart { access_version: 1 };
+        let event = Event::GameStart;
         conn.submit_event(
             "",
             SubmitEventParams {

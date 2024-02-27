@@ -58,7 +58,7 @@ export class SubClient extends BaseClient {
       await this.__client.attachGame();
       sub = this.__connection.subscribeEvents();
       await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
-      await this.__initializeState(this.__initAccount);
+      await this.__initializeState(this.__initAccount, true);
     } catch (e) {
       console.error('Attaching game failed', e);
       throw e;

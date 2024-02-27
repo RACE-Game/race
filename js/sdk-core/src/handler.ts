@@ -87,7 +87,7 @@ export class Handler implements IHandler {
       const addr = context.idToAddr(sender);
       context.lock(addr, randomId, ciphertextsAndDigests);
     } else if (event instanceof Join) {
-      // No op here
+      event.players.forEach(p => context.addPlayer(p));
     } else if (event instanceof Leave) {
       if (!context.allowExit) {
         throw new Error('Leave is not allowed')

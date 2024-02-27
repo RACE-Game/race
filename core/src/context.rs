@@ -188,7 +188,7 @@ impl GameContext {
             .as_ref()
             .ok_or(Error::GameNotServed)?;
 
-        let nodes = game_account
+        let mut nodes: Vec<Node> = game_account
             .servers
             .iter()
             .map(|s| {
@@ -203,13 +203,12 @@ impl GameContext {
                 )
             })
             .collect();
-
-        let players = game_account
-            .players
-            .iter()
-            .filter(|p| p.access_version <= game_account.access_version)
-            .map(|p| GamePlayer::new(p.access_version, p.balance, p.position))
-            .collect();
+        let mut players = vec![];
+        game_account.players.iter()
+            .for_each(|p| {
+                players.push(GamePlayer::new(p.access_version, p.balance, p.position));
+                nodes.push(Node::new_pending(p.addr.clone(), p.access_version, ClientMode::Player))
+            });
 
         Ok(Self {
             game_addr: game_account.addr.clone(),
@@ -234,6 +233,7 @@ impl GameContext {
     }
 
     pub fn id_to_addr(&self, id: u64) -> Result<String> {
+        println!("Nodes: {:?}", self.nodes);
         self.nodes
             .iter()
             .find(|n| n.id == id)
@@ -716,7 +716,6 @@ impl GameContext {
             init_random_states: Vec::new(),
             revealed,
             answered,
-            is_checkpoint: false,
             checkpoint: None,
             settles: Vec::new(),
             handler_state: Some(self.handler_state.clone()),

@@ -23,7 +23,7 @@ import { PlayerConfirming } from './tx-state';
 import { Client } from './client';
 import { Custom, GameEvent, ICustomEvent } from './events';
 import { DecryptionCache } from './decryption-cache';
-import { ConnectionStateCallbackFunction, ErrorCallbackFunction, ErrorKind, EventCallbackFunction, GameInfo, LoadProfileCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
+import { ConnectionStateCallbackFunction, ErrorCallbackFunction, ErrorKind, EventCallbackFlags, EventCallbackFunction, GameInfo, LoadProfileCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
 
 const MAX_RETRIES = 3;
 
@@ -194,7 +194,7 @@ export class BaseClient {
       console.log('Game context created,', this.__gameContext);
       for (const p of gameAccount.players) this.__onLoadProfile(p.accessVersion, p.addr);
       await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
-      await this.__initializeState(initAccount);
+      await this.__initializeState(initAccount, true);
     } catch (e) {
       console.error('Attaching game failed', e);
       this.__invokeErrorCallback('attach-failed')
@@ -213,17 +213,20 @@ export class BaseClient {
     }
   }
 
-  async __invokeEventCallback(event: GameEvent | undefined, isHistory: boolean) {
+  async __invokeEventCallback(event: GameEvent | undefined, flags: EventCallbackFlags) {
     const snapshot = new GameContextSnapshot(this.__gameContext);
     const state = this.__gameContext.handlerState;
-    this.__onEvent(snapshot, state, event, isHistory);
+    this.__onEvent(snapshot, state, event, flags);
   }
 
-  async __initializeState(initAccount: InitAccount): Promise<void> {
+  async __initializeState(initAccount: InitAccount, isHistory: boolean): Promise<void> {
     console.log('Initialize state with', initAccount);
-    await this.__handler.initState(this.__gameContext, initAccount);
+    const effects = await this.__handler.initState(this.__gameContext, initAccount);
     console.log('State initialized');
-    await this.__invokeEventCallback(undefined, true);
+    await this.__invokeEventCallback(undefined, {
+      isCheckpoint: effects.checkpoint !== undefined,
+      isHistory,
+    });
   }
 
   async __getGameAccount(): Promise<GameAccount> {
@@ -259,6 +262,71 @@ export class BaseClient {
       } else {
         await this.__handleConnectionState(item);
       }
+    }
+  }
+
+  async __handleBroadcastFrameEvent(frame: BroadcastFrameEvent) {
+
+    const { event, timestamp } = frame;
+    console.groupCollapsed('Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
+    console.log('Event: ', event);
+    let state: Uint8Array | undefined;
+    let err: ErrorKind | undefined;
+    let effects: EventEffects | undefined;
+    const isHistory = frame.remain !== 0;
+
+    try {                     // For log group
+      try {
+        this.__gameContext.prepareForNextEvent(timestamp);
+        console.log('Game context before:', this.__gameContext);
+        effects = await this.__handler.handleEvent(this.__gameContext, event);
+        console.log('Game context after:', this.__gameContext);
+        console.log('Output:', effects);
+        state = this.__gameContext.handlerState;
+        const sha = await sha256(this.__gameContext.handlerState)
+        console.log('SHA:', sha);
+        if (sha !== frame.stateSha) {
+          const remoteState = await this.__connection.getState();
+          console.log('Remote state:', remoteState);
+          console.log('Local state:', state);
+          err = 'state-sha-mismatch'
+        }
+      } catch (e: any) {
+        console.error(e);
+        err = 'handle-event-error';
+      }
+
+      if (!err) {
+        await this.__invokeEventCallback(event, {
+          isCheckpoint: effects?.checkpoint !== undefined,
+          isHistory,
+        });
+      }
+
+      if ((!err) && effects?.checkpoint) {
+        console.log('Rebuild state for checkpoint:', effects.checkpoint);
+        const initData = this.__gameContext.initData;
+        if (initData === undefined) {
+          err = 'state-sha-mismatch'
+        } else {
+          const initAccount = new InitAccount({
+            entryType: this.__gameContext.entryType,
+            data: initData,
+            players: this.__gameContext.players,
+            checkpoint: effects.checkpoint,
+            maxPlayers: this.__gameContext.maxPlayers,
+          });
+          await this.__initializeState(initAccount, isHistory);
+        }
+      }
+
+      if (err) {
+        this.__invokeErrorCallback(err, state);
+        throw new Error(`An error occurred in event loop: ${err}`);
+      }
+
+    } finally {
+      console.groupEnd()
     }
   }
 
@@ -304,61 +372,7 @@ export class BaseClient {
         console.groupEnd();
       }
     } else if (frame instanceof BroadcastFrameEvent) {
-      const { event, timestamp } = frame;
-      console.groupCollapsed('Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
-      console.log('Event: ', event);
-      let state: Uint8Array | undefined;
-      let err: ErrorKind | undefined;
-      let effects: EventEffects | undefined;
-
-      try {                     // For log group
-
-        try {
-          this.__gameContext.prepareForNextEvent(timestamp);
-          effects = await this.__handler.handleEvent(this.__gameContext, event);
-          state = this.__gameContext.handlerState;
-          const sha = await sha256(this.__gameContext.handlerState)
-          if (sha !== frame.stateSha) {
-            const remoteState = await this.__connection.getState();
-            console.log('Remote state:', remoteState);
-            console.log('Local state:', state);
-            err = 'state-sha-mismatch'
-          }
-        } catch (e: any) {
-          console.error(e);
-          err = 'handle-event-error';
-        }
-
-        if (!err) {
-          await this.__invokeEventCallback(event, frame.remain !== 0);
-        }
-
-        if ((!err) && effects?.checkpoint) {
-          console.log('Rebuild state for checkpoint');
-          const initData = this.__gameContext.initData;
-          if (initData === undefined) {
-            err = 'state-sha-mismatch'
-          } else {
-            const initAccount = new InitAccount({
-              entryType: this.__gameContext.entryType,
-              data: initData,
-              players: this.__gameContext.players,
-              checkpoint: effects.checkpoint,
-              maxPlayers: this.__gameContext.maxPlayers,
-            });
-            await this.__initializeState(initAccount);
-            await this.__invokeEventCallback(event, frame.remain !== 0);
-          }
-        }
-
-        if (err) {
-          this.__invokeErrorCallback(err, state);
-          throw new Error(`An error occurred in event loop: ${err}`);
-        }
-
-      } finally {
-        console.groupEnd()
-      }
+      await this.__handleBroadcastFrameEvent(frame);
     }
   }
 
@@ -373,7 +387,7 @@ export class BaseClient {
       const initAccount = InitAccount.createFromGameAccount(gameAccount);
       this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
       await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
-      await this.__initializeState(initAccount);
+      await this.__initializeState(initAccount, true);
     } else if (state === 'connected') {
       if (this.__onConnectionState !== undefined) {
         this.__onConnectionState('connected')

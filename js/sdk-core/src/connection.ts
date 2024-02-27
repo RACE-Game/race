@@ -97,6 +97,7 @@ export class BroadcastFrameEvent extends BroadcastFrame {
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, BroadcastFrameEvent);
   }
 }
 
@@ -109,6 +110,7 @@ export class BroadcastFrameMessage extends BroadcastFrame {
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, BroadcastFrameMessage);
   }
 }
 
@@ -119,6 +121,7 @@ export class BroadcastFrameTxState extends BroadcastFrame {
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, BroadcastFrameTxState);
   }
 }
 
@@ -135,6 +138,7 @@ export class BroadcastFrameSync extends BroadcastFrame {
   constructor(fields: any) {
     super();
     Object.assign(this, fields)
+    Object.setPrototypeOf(this, BroadcastFrameSync);
   }
 }
 
@@ -339,11 +343,14 @@ export class Connection implements IConnection {
     await this.waitSocketReady();
     this.streamMessagePromise = new Promise(r => (this.streamResolve = r));
     while (true) {
-      if (this.streamMessageQueue.length > 0) {
-        yield this.streamMessageQueue.shift()!;
+      while (this.streamMessageQueue.length > 0) {
+        yield this.streamMessageQueue.shift();
+      }
+      if (this.streamResolve === undefined) {
+        this.streamMessagePromise = new Promise(r => (this.streamResolve = r));
+        yield this.streamMessagePromise;
       } else {
         yield this.streamMessagePromise;
-        this.streamMessagePromise = new Promise(r => (this.streamResolve = r));
       }
     }
   }

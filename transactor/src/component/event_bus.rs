@@ -129,7 +129,7 @@ mod tests {
 
     #[async_trait]
     impl Component<ProducerPorts, TestProducerCtx> for TestProducer {
-        fn name(&self) -> &str {
+        fn name() -> &'static str {
             "Test Producer"
         }
 

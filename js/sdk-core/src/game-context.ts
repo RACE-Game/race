@@ -407,6 +407,8 @@ export class GameContext {
   }
 
   applyEffect(effect: Effect): EventEffects {
+    console.log('Apply effect:', effect);
+
     if (effect.startGame) {
       this.startGame();
     } else if (effect.stopGame) {
@@ -435,26 +437,33 @@ export class GameContext {
 
     let settles: Settle[] = [];
 
-    if (effect.isCheckpoint) {
+    if (effect.checkpoint !== undefined) {
+      // Reset random states
       this.randomStates = [];
       this.decisionStates = [];
+
+      // Sort settles and track player states
+      settles.push(...effect.settles);
       settles = effect.settles;
       settles = settles.sort((s1, s2) => s1.compare(s2));
       for (let s of settles) {
         if (s.op instanceof SettleAdd) {
-          this.playerSubBalance(s.id, s.op.amount);
-        } else if (s.op instanceof SettleSub) {
           this.playerAddBalance(s.id, s.op.amount);
+        } else if (s.op instanceof SettleSub) {
+          this.playerSubBalance(s.id, s.op.amount);
         } else if (s.op instanceof SettleEject) {
           this.removePlayer(s.id);
         }
       }
+
       this.checkpoint = effect.checkpoint;
       this.status = 'idle';
     }
 
     if (effect.handlerState !== undefined) {
       this.handlerState = effect.handlerState;
+    } else {
+      console.warn('Effect has no handler state');
     }
 
     this.subGames.push(...effect.launchSubGames);

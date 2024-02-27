@@ -201,9 +201,6 @@ export class Effect {
   @field(map('usize', 'string'))
   answered!: Map<number, string>;
 
-  @field('bool')
-  isCheckpoint!: boolean;
-
   @field(option('u8-array'))
   checkpoint!: Uint8Array | undefined;
 
@@ -255,7 +252,6 @@ export class Effect {
     const releases: Release[] = [];
     const reveals: Reveal[] = [];
     const initRandomStates: RandomSpec[] = [];
-    const isCheckpoint = false;
     const checkpoint = undefined;
     const settles: Settle[] = [];
     const handlerState = context.handlerState;
@@ -281,7 +277,6 @@ export class Effect {
       initRandomStates,
       revealed,
       answered,
-      isCheckpoint,
       checkpoint,
       settles,
       handlerState,
