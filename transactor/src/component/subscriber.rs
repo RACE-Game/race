@@ -136,6 +136,9 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                 BroadcastFrame::TxState { .. } => {
                     // Dropped
                 }
+                BroadcastFrame::EndOfHistory => {
+                    // Dropped
+                }
             }
         }
 

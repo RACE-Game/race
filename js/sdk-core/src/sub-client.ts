@@ -9,6 +9,7 @@ import { Handler } from './handler';
 import { ITransport } from './transport';
 import { GameInfo, ConnectionStateCallbackFunction, EventCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction, ErrorCallbackFunction } from './types';
 import { IWallet } from './wallet';
+import { Init } from './events';
 
 export type SubClientCtorOpts = {
   gameAddr: string;
@@ -58,7 +59,8 @@ export class SubClient extends BaseClient {
       await this.__client.attachGame();
       sub = this.__connection.subscribeEvents();
       await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
-      await this.__initializeState(this.__initAccount, true);
+      await this.__handler.initState(this.__gameContext, this.__initAccount);
+      this.__invokeEventCallback(new Init());
     } catch (e) {
       console.error('Attaching game failed', e);
       throw e;

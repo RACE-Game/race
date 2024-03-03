@@ -30,16 +30,10 @@ export type PlayerProfileWithPfp = {
   nick: string,
 };
 
-export type EventCallbackFlags = {
-  isHistory: boolean,
-  isCheckpoint: boolean,
-}
-
 export type EventCallbackFunction = (
   context: GameContextSnapshot,
   state: Uint8Array,
   event: GameEvent | undefined,
-  flags: EventCallbackFlags,
 ) => void;
 
 export type ErrorKind =

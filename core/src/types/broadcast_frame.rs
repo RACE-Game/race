@@ -36,7 +36,6 @@ pub enum BroadcastFrame {
         game_addr: String,
         event: Event,
         timestamp: u64,
-        remain: u16,
         state_sha: String,
     },
     // Arbitrary message
@@ -52,6 +51,8 @@ pub enum BroadcastFrame {
     Sync {
         sync: BroadcastSync,
     },
+    // This frame is used when there's no further history events
+    EndOfHistory,
 }
 
 impl Display for BroadcastFrame {
@@ -68,6 +69,9 @@ impl Display for BroadcastFrame {
             }
             BroadcastFrame::Sync { sync } => {
                 write!(f, "BroadcastFrame::Sync: access_version {}", sync.access_version)
+            }
+            BroadcastFrame::EndOfHistory => {
+                write!(f, "BroadcastFrame::EndOfHistory")
             }
         }
     }

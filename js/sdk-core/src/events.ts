@@ -24,7 +24,11 @@ export type EventKind =
   | 'AnswerDecision'
   | 'SecretsReady'
   | 'Shutdown'
-  | 'Bridge';
+  | 'Bridge'
+  // Client-only events
+  | 'Init'
+  | 'Checkpoint'
+  | 'EndOfHistory';
 
 export interface ICustomEvent {
   serialize(): Uint8Array;
@@ -371,6 +375,35 @@ export class Bridge extends GameEvent implements IEventKind {
   }
   kind(): EventKind {
     return 'Bridge';
+  }
+}
+
+// Client-only events, they can't be serialized and deserialized.
+
+export class Init extends GameEvent implements IEventKind {
+  constructor() {
+    super();
+  }
+  kind(): EventKind {
+    return 'Init'
+  }
+}
+
+export class Checkpoint extends GameEvent implements IEventKind {
+  constructor() {
+    super();
+  }
+  kind(): EventKind {
+    return 'Checkpoint'
+  }
+}
+
+export class EndOfHistory extends GameEvent implements IEventKind {
+  constructor() {
+    super();
+  }
+  kind(): EventKind {
+    return 'EndOfHistory'
   }
 }
 

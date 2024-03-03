@@ -10,6 +10,7 @@ import {
   ConnectionSubscription,
   BroadcastFrame,
   SubmitMessageParams,
+  BroadcastFrameEndOfHistory,
 } from './connection';
 import { EventEffects, GameContext } from './game-context';
 import { GameContextSnapshot } from './game-context-snapshot';
@@ -21,9 +22,9 @@ import { IEncryptor, sha256 } from './encryptor';
 import { GameAccount } from './accounts';
 import { PlayerConfirming } from './tx-state';
 import { Client } from './client';
-import { Custom, GameEvent, ICustomEvent } from './events';
+import { Checkpoint, Custom, EndOfHistory, GameEvent, ICustomEvent, Init } from './events';
 import { DecryptionCache } from './decryption-cache';
-import { ConnectionStateCallbackFunction, ErrorCallbackFunction, ErrorKind, EventCallbackFlags, EventCallbackFunction, GameInfo, LoadProfileCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
+import { ConnectionStateCallbackFunction, ErrorCallbackFunction, ErrorKind, EventCallbackFunction, GameInfo, LoadProfileCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
 
 const MAX_RETRIES = 3;
 
@@ -194,7 +195,8 @@ export class BaseClient {
       console.log('Game context created,', this.__gameContext);
       for (const p of gameAccount.players) this.__onLoadProfile(p.accessVersion, p.addr);
       await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
-      await this.__initializeState(initAccount, true);
+      await this.__handler.initState(this.__gameContext, initAccount);
+      this.__invokeEventCallback(new Init());
     } catch (e) {
       console.error('Attaching game failed', e);
       this.__invokeErrorCallback('attach-failed')
@@ -213,20 +215,10 @@ export class BaseClient {
     }
   }
 
-  async __invokeEventCallback(event: GameEvent | undefined, flags: EventCallbackFlags) {
+  async __invokeEventCallback(event: GameEvent | undefined) {
     const snapshot = new GameContextSnapshot(this.__gameContext);
     const state = this.__gameContext.handlerState;
-    this.__onEvent(snapshot, state, event, flags);
-  }
-
-  async __initializeState(initAccount: InitAccount, isHistory: boolean): Promise<void> {
-    console.log('Initialize state with', initAccount);
-    const effects = await this.__handler.initState(this.__gameContext, initAccount);
-    console.log('State initialized');
-    await this.__invokeEventCallback(undefined, {
-      isCheckpoint: effects.checkpoint !== undefined,
-      isHistory,
-    });
+    this.__onEvent(snapshot, state, event);
   }
 
   async __getGameAccount(): Promise<GameAccount> {
@@ -273,7 +265,6 @@ export class BaseClient {
     let state: Uint8Array | undefined;
     let err: ErrorKind | undefined;
     let effects: EventEffects | undefined;
-    const isHistory = frame.remain !== 0;
 
     try {                     // For log group
       try {
@@ -297,10 +288,7 @@ export class BaseClient {
       }
 
       if (!err) {
-        await this.__invokeEventCallback(event, {
-          isCheckpoint: effects?.checkpoint !== undefined,
-          isHistory,
-        });
+        await this.__invokeEventCallback(event);
       }
 
       if ((!err) && effects?.checkpoint) {
@@ -316,7 +304,9 @@ export class BaseClient {
             checkpoint: effects.checkpoint,
             maxPlayers: this.__gameContext.maxPlayers,
           });
-          await this.__initializeState(initAccount, isHistory);
+          console.log('Initialize state with', initAccount);
+          await this.__handler.initState(this.__gameContext, initAccount);
+          this.__invokeEventCallback(new Checkpoint());
         }
       }
 
@@ -373,6 +363,8 @@ export class BaseClient {
       }
     } else if (frame instanceof BroadcastFrameEvent) {
       await this.__handleBroadcastFrameEvent(frame);
+    } else if (frame instanceof BroadcastFrameEndOfHistory) {
+      this.__invokeEventCallback(new EndOfHistory())
     }
   }
 
@@ -387,7 +379,9 @@ export class BaseClient {
       const initAccount = InitAccount.createFromGameAccount(gameAccount);
       this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
       await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
-      await this.__initializeState(initAccount, true);
+      console.log('Initialize state with', initAccount);
+      await this.__handler.initState(this.__gameContext, initAccount);
+      this.__invokeEventCallback(new Init());
     } else if (state === 'connected') {
       if (this.__onConnectionState !== undefined) {
         this.__onConnectionState('connected')

@@ -109,15 +109,11 @@ impl Broadcaster {
                 histories.push(BroadcastFrame::Sync {
                     sync: group.sync.clone(),
                 });
-                let cnt = group.events.len();
-                let mut i = cnt as _;
                 for event in group.events.iter() {
-                    i -= 1;
                     histories.push(BroadcastFrame::Event {
                         game_addr: self.id.clone(),
                         event: event.event.clone(),
                         timestamp: event.timestamp,
-                        remain: i,
                         state_sha: event.state_sha.clone(),
                     })
                 }
@@ -135,15 +131,11 @@ impl Broadcaster {
                 histories.push(BroadcastFrame::Sync {
                     sync: group.sync.clone(),
                 });
-                let cnt = group.events.len();
-                let mut i = cnt as _;
                 for event in group.events.iter() {
-                    i -= 1;
                     histories.push(BroadcastFrame::Event {
                         game_addr: self.id.clone(),
                         event: event.event.clone(),
                         timestamp: event.timestamp,
-                        remain: i,
                         state_sha: event.state_sha.clone(),
                     })
                 }
@@ -263,7 +255,6 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         game_addr: ctx.id.clone(),
                         event,
                         timestamp,
-                        remain: 0,
                         state_sha,
                     });
 

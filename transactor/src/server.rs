@@ -13,6 +13,7 @@ use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
 use race_api::event::Message;
+use race_core::types::BroadcastFrame;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
     AttachGameParams, ExitGameParams, GetStateParams, Signature, SubmitEventParams,
@@ -76,7 +77,10 @@ fn ping(_: Params<'_>, _: &ApplicationContext) -> Result<String, RpcError> {
     Ok("pong".to_string())
 }
 
-async fn get_state(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<String, RpcError> {
+async fn get_state(
+    params: Params<'_>,
+    context: Arc<ApplicationContext>,
+) -> Result<String, RpcError> {
     let (game_addr, GetStateParams {}) = parse_params_no_sig(params)?;
     context
         .get_state(&game_addr)
@@ -166,6 +170,11 @@ fn subscribe_event(
                     })
                     .unwrap();
             });
+
+            // Send EndOfHistory to indicate all history events are sent
+            let end_of_history =
+                utils::base64_encode(&BroadcastFrame::EndOfHistory.try_to_vec().unwrap());
+            sink.send(&end_of_history).unwrap();
 
             let rx = BroadcastStream::new(receiver);
             let serialized_rx = rx.map(|f| match f {

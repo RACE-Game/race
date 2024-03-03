@@ -80,7 +80,7 @@ export class Message {
   }
 }
 
-export abstract class BroadcastFrame { }
+export abstract class BroadcastFrame {}
 
 @variant(0)
 export class BroadcastFrameEvent extends BroadcastFrame {
@@ -90,8 +90,6 @@ export class BroadcastFrameEvent extends BroadcastFrame {
   event!: GameEvent;
   @field('u64')
   timestamp!: bigint;
-  @field('u16')
-  remain!: number;
   @field('string')
   stateSha!: string;
   constructor(fields: any) {
@@ -139,6 +137,14 @@ export class BroadcastFrameSync extends BroadcastFrame {
     super();
     Object.assign(this, fields)
     Object.setPrototypeOf(this, BroadcastFrameSync);
+  }
+}
+
+@variant(4)
+export class BroadcastFrameEndOfHistory extends BroadcastFrame {
+  constructor(_: any) {
+    super();
+    Object.setPrototypeOf(this, BroadcastFrameEndOfHistory);
   }
 }
 
@@ -356,21 +362,26 @@ export class Connection implements IConnection {
   }
 
   parseEventMessage(raw: string): BroadcastFrame | ConnectionState | undefined {
-    let resp = JSON.parse(raw);
-    if (resp.result === 'pong') {
-      this.lastPong = new Date().getTime();
-      return undefined;
-    } else if (resp.method === 's_event') {
-      if (resp.params.error === undefined) {
-        let result: string = resp.params.result;
-        let data = base64ToUint8Array(result);
-        let frame = deserialize(BroadcastFrame, data);
-        return frame;
+    try {
+      let resp = JSON.parse(raw);
+      if (resp.result === 'pong') {
+        this.lastPong = new Date().getTime();
+        return undefined;
+      } else if (resp.method === 's_event') {
+        if (resp.params.error === undefined) {
+          let result: string = resp.params.result;
+          let data = base64ToUint8Array(result);
+          let frame = deserialize(BroadcastFrame, data);
+          return frame;
+        } else {
+          return 'disconnected'
+        }
       } else {
-        return 'disconnected'
+        return undefined;
       }
-    } else {
-      return undefined;
+    } catch (e) {
+      console.error(`Parse event message error: ${raw}`)
+      throw e
     }
   }
 
