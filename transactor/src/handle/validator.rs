@@ -8,7 +8,7 @@ use crate::frame::{EventFrame, SignalFrame};
 use race_api::error::{Error, Result};
 use race_core::context::GameContext;
 use race_core::transport::TransportT;
-use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount};
+use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount, GameMode};
 use race_encryptor::Encryptor;
 use tokio::sync::mpsc;
 use tracing::info;
@@ -53,7 +53,7 @@ impl ValidatorHandle {
         let mut bridge_handle = bridge.start(&game_account.addr, bridge_ctx);
 
         let (event_loop, event_loop_ctx) =
-            EventLoop::init(handler, game_context, ClientMode::Validator);
+            EventLoop::init(handler, game_context, ClientMode::Validator, GameMode::Main);
         let mut event_loop_handle = event_loop.start(&game_account.addr, event_loop_ctx);
 
         let connection = Arc::new(

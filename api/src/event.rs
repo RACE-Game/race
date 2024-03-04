@@ -129,6 +129,7 @@ pub enum Event {
     Bridge {
         dest: usize,
         raw: Vec<u8>,
+        join_players: Vec<GamePlayer>,
     },
 }
 
@@ -136,7 +137,23 @@ impl std::fmt::Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {:?}", sender, raw),
-            Event::Bridge { dest, raw } => write!(f, "Bridge to {}, inner: [{}...]", dest, raw[0]),
+            Event::Bridge {
+                dest,
+                raw,
+                join_players,
+            } => {
+                let players = join_players
+                    .iter()
+                    .map(|p| p.id.to_string())
+                    .collect::<Vec<String>>()
+                    .join(",");
+
+                write!(
+                    f,
+                    "Bridge to {}, inner: [{}...], join_players: [{}]",
+                    dest, raw[0], players
+                )
+            }
             Event::Ready => write!(f, "Ready"),
             Event::ShareSecrets { sender, shares } => {
                 let repr = shares
@@ -165,7 +182,7 @@ impl std::fmt::Display for Event {
                 write!(f, "Join, players: [{}]", players)
             }
             Event::Leave { player_id } => write!(f, "Leave from {}", player_id),
-            Event::GameStart { } => {
+            Event::GameStart {} => {
                 write!(f, "GameStart")
             }
             Event::WaitingTimeout => write!(f, "WaitTimeout"),
@@ -183,13 +200,7 @@ impl std::fmt::Display for Event {
             Event::SecretsReady { random_ids } => {
                 write!(f, "SecretsReady for {:?}", random_ids)
             }
-            Event::ServerLeave {
-                server_id,
-            } => write!(
-                f,
-                "ServerLeave {}",
-                server_id
-            ),
+            Event::ServerLeave { server_id } => write!(f, "ServerLeave {}", server_id),
             Event::AnswerDecision { decision_id, .. } => {
                 write!(f, "AnswerDecision for {}", decision_id)
             }
@@ -211,10 +222,11 @@ impl Event {
         }
     }
 
-    pub fn bridge<E: BridgeEvent>(dest: usize, e: &E) -> Self {
+    pub fn bridge<E: BridgeEvent>(dest: usize, e: &E, join_players: Vec<GamePlayer>) -> Self {
         Self::Bridge {
             dest,
             raw: e.try_to_vec().unwrap(),
+            join_players,
         }
     }
 }

@@ -205,6 +205,7 @@ export class EntryTypeCash extends EntryType implements IEntryTypeKind {
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, EntryTypeCash.prototype);
   }
   kind(): EntryTypeKind {
     return 'Cash';
@@ -220,6 +221,7 @@ export class EntryTypeTicket extends EntryType implements IEntryTypeKind {
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, EntryTypeTicket.prototype);
   }
   kind(): EntryTypeKind {
     return 'Ticket';
@@ -233,6 +235,7 @@ export class EntryTypeGating extends EntryType implements IEntryTypeKind {
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, EntryTypeGating.prototype);
   }
   kind(): EntryTypeKind {
     return 'Gating';
@@ -243,9 +246,10 @@ export class EntryTypeGating extends EntryType implements IEntryTypeKind {
 export class EntryTypeDisabled extends EntryType implements IEntryTypeKind {
   constructor(_: any) {
     super();
+    Object.setPrototypeOf(this, EntryTypeDisabled.prototype);
   }
   kind(): EntryTypeKind {
-    return 'Disabled'
+    return 'Disabled';
   }
 }
 

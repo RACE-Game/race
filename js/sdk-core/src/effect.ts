@@ -3,7 +3,7 @@ import { HandleError } from './error';
 import { GameContext } from './game-context';
 import { enums, field, map, option, struct, variant, array } from '@race-foundation/borsh';
 import { Fields, Id } from './types';
-import { InitAccount } from './init-account';
+import { GamePlayer, InitAccount } from './init-account';
 
 export abstract class SettleOp {}
 
@@ -115,18 +115,6 @@ export class ActionTimeout {
   }
 }
 
-export class GamePlayer {
-  @field('u64')
-  id!: bigint;
-  @field('u16')
-  position!: number;
-  @field('u64')
-  balance!: bigint;
-  constructor(fields: Fields<GamePlayer>) {
-    Object.assign(this, fields)
-  }
-}
-
 export class SubGame {
   @field('usize')
   subId!: number;
@@ -144,6 +132,9 @@ export class EmitBridgeEvent {
   dest!: number;
   @field('u8-array')
   raw!: Uint8Array;
+  @field(array(struct(GamePlayer)))
+  joinPlayers!: GamePlayer[];
+
   constructor(fields: Fields<EmitBridgeEvent>) {
     Object.assign(this, fields)
   }
@@ -222,6 +213,9 @@ export class Effect {
   @field(array(struct(EmitBridgeEvent)))
   bridgeEvents!: EmitBridgeEvent[];
 
+  @field(array(struct(GamePlayer)))
+  validPlayers!: GamePlayer[];
+
   constructor(fields: Fields<Effect>) {
     Object.assign(this, fields);
   }
@@ -257,6 +251,7 @@ export class Effect {
     const transfers: Transfer[] = [];
     const launchSubGames: SubGame[] = [];
     const bridgeEvents: EmitBridgeEvent[] = [];
+    const validPlayers = context.players;
     return new Effect({
       actionTimeout,
       waitTimeout,
@@ -282,6 +277,7 @@ export class Effect {
       transfers,
       launchSubGames,
       bridgeEvents,
+      validPlayers
     });
   }
 }

@@ -724,6 +724,7 @@ impl GameContext {
             transfers: Vec::new(),
             launch_sub_games: Vec::new(),
             bridge_events: Vec::new(),
+            valid_players: self.players.clone(),
         }
     }
 

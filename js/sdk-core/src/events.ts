@@ -1,6 +1,6 @@
 import { field, array, enums, option, variant, struct } from '@race-foundation/borsh';
 import { Fields, Id } from './types';
-import { GamePlayer } from './effect';
+import { GamePlayer } from './init-account';
 
 type EventFields<T> = Omit<Fields<T>, 'kind'>;
 

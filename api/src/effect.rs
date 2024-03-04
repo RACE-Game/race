@@ -88,13 +88,19 @@ impl SubGame {
 pub struct EmitBridgeEvent {
     pub dest: usize,
     pub raw: Vec<u8>,
+    pub join_players: Vec<GamePlayer>,
 }
 
 impl EmitBridgeEvent {
-    pub fn try_new<E: BridgeEvent>(dest: usize, bridge_event: E) -> Result<Self> {
+    pub fn try_new<E: BridgeEvent>(
+        dest: usize,
+        bridge_event: E,
+        join_players: Vec<GamePlayer>,
+    ) -> Result<Self> {
         Ok(Self {
             dest,
             raw: bridge_event.try_to_vec()?,
+            join_players,
         })
     }
 }
@@ -216,9 +222,19 @@ pub struct Effect {
     pub transfers: Vec<Transfer>,
     pub launch_sub_games: Vec<SubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
+    pub valid_players: Vec<GamePlayer>,
 }
 
 impl Effect {
+
+    fn assert_player_id(&self, id: u64) -> Result<()> {
+        if self.valid_players.iter().find(|p| p.id == id).is_some() {
+           Ok(())
+        } else {
+           Err(Error::InvalidPlayerId(id, self.valid_players.iter().map(|p| p.id).collect()))
+        }
+    }
+
     /// Return the number of nodes, including both the pending and joined.
     pub fn count_nodes(&self) -> usize {
         self.nodes_count as usize
@@ -233,12 +249,14 @@ impl Effect {
     }
 
     /// Assign some random items to a specific player.
-    pub fn assign(&mut self, random_id: RandomId, player_id: u64, indexes: Vec<usize>) {
+    pub fn assign(&mut self, random_id: RandomId, player_id: u64, indexes: Vec<usize>) -> Result<()> {
+        self.assert_player_id(player_id)?;
         self.assigns.push(Assign {
             random_id,
             player_id,
             indexes,
-        })
+        });
+        Ok(())
     }
 
     /// Reveal some random items to the public.
@@ -268,11 +286,12 @@ impl Effect {
     }
 
     /// Ask a player for a decision, return the new decision id.
-    pub fn ask(&mut self, player_id: u64) -> DecisionId {
+    pub fn ask(&mut self, player_id: u64) -> Result<DecisionId> {
+        self.assert_player_id(player_id)?;
         self.asks.push(Ask { player_id });
         let decision_id = self.curr_decision_id;
         self.curr_decision_id += 1;
-        decision_id
+        Ok(decision_id)
     }
 
     pub fn release(&mut self, decision_id: DecisionId) {
@@ -280,8 +299,10 @@ impl Effect {
     }
 
     /// Dispatch action timeout event for a player after certain milliseconds.
-    pub fn action_timeout(&mut self, player_id: u64, timeout: u64) {
+    pub fn action_timeout(&mut self, player_id: u64, timeout: u64) -> Result<()> {
+        self.assert_player_id(player_id)?;
         self.action_timeout = Some(ActionTimeout { player_id, timeout });
+        Ok(())
     }
 
     /// Return current timestamp.
@@ -331,8 +352,10 @@ impl Effect {
     }
 
     /// Submit settlements.
-    pub fn settle(&mut self, settle: Settle) {
+    pub fn settle(&mut self, settle: Settle) -> Result<()> {
+        self.assert_player_id(settle.id)?;
         self.settles.push(settle);
+        Ok(())
     }
 
     /// Transfer the assets to a recipient slot
@@ -350,6 +373,10 @@ impl Effect {
         init_data: D,
         checkpoint: C,
     ) -> Result<()> {
+        for p in players.iter() {
+            self.assert_player_id(p.id)?;
+        }
+
         self.launch_sub_games.push(SubGame {
             id,
             bundle_addr,
@@ -408,11 +435,18 @@ impl Effect {
     }
 
     /// Emit a bridge event.
-    pub fn bridge_event<E: BridgeEvent>(&mut self, dest: usize, evt: E) -> Result<()> {
-        self.bridge_events.push(EmitBridgeEvent {
-            dest,
-            raw: evt.try_to_vec()?,
-        });
+    pub fn bridge_event<E: BridgeEvent>(
+        &mut self,
+        dest: usize,
+        evt: E,
+        join_players: Vec<GamePlayer>,
+    ) -> Result<()> {
+        for p in join_players.iter() {
+            self.assert_player_id(p.id)?;
+        }
+
+        self.bridge_events
+            .push(EmitBridgeEvent::try_new(dest, evt, join_players)?);
         Ok(())
     }
 }
@@ -469,6 +503,7 @@ mod tests {
             checkpoint: None,
             launch_sub_games: vec![],
             bridge_events: vec![],
+            valid_players: vec![],
         };
         let bs = effect.try_to_vec()?;
 

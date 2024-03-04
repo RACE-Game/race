@@ -23,8 +23,7 @@ import {
 } from '../src/events';
 import { assert } from 'chai';
 import { deserialize, serialize, field } from '@race-foundation/borsh';
-import { ServerJoin, PlayerJoin } from '../src/accounts';
-import { GamePlayer } from '../src/effect';
+import { GamePlayer } from '../src/init-account';
 
 class TestCustom implements ICustomEvent {
   @field('u32')

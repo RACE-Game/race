@@ -19,9 +19,7 @@ pub fn general_handle_event(
 ) -> Result<(), Error> {
     // General event handling
     match event {
-        Event::Ready => {
-            Ok(())
-        }
+        Event::Ready => Ok(()),
 
         Event::ShareSecrets { sender, shares } => {
             let addr = context.id_to_addr(*sender)?;
@@ -140,6 +138,16 @@ pub fn general_handle_event(
             }
             for (decision_id, revealed) in res.into_iter() {
                 context.add_revealed_answer(decision_id, revealed)?;
+            }
+            Ok(())
+        }
+
+        Event::Bridge {
+            join_players,
+            ..
+        } => {
+            for p in join_players {
+                context.add_player(p.to_owned());
             }
             Ok(())
         }

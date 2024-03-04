@@ -13,7 +13,7 @@ use crate::component::common::{Component, PipelinePorts};
 use crate::component::event_bus::CloseReason;
 use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
-use race_core::types::{ClientMode, GameAccount, GamePlayer, SubGameSpec};
+use race_core::types::{ClientMode, GameAccount, GameMode, GamePlayer, SubGameSpec};
 
 use super::ComponentEnv;
 
@@ -29,7 +29,8 @@ fn log_execution_context(ctx: &GameContext, evt: &Event) {
 pub struct EventLoopContext {
     handler: WrappedHandler,
     game_context: GameContext,
-    mode: ClientMode,
+    client_mode: ClientMode,
+    game_mode: GameMode,
 }
 
 pub trait WrappedGameHandler: Send {
@@ -45,7 +46,8 @@ async fn handle_event(
     game_context: &mut GameContext,
     event: Event,
     ports: &PipelinePorts,
-    mode: ClientMode,
+    client_mode: ClientMode,
+    game_mode: GameMode,
     env: &ComponentEnv,
 ) -> Option<CloseReason> {
     info!("{} Handle event: {}", env.log_prefix, event);
@@ -59,16 +61,18 @@ async fn handle_event(
             let state_sha = digest(state);
 
             // Broacast the event to clients
-            ports
-                .send(EventFrame::Broadcast {
-                    event,
-                    access_version,
-                    settle_version,
-                    timestamp: game_context.get_timestamp(),
-                    state: state.to_owned(),
-                    state_sha,
-                })
-                .await;
+            if client_mode == ClientMode::Transactor {
+                ports
+                    .send(EventFrame::Broadcast {
+                        event,
+                        access_version,
+                        settle_version,
+                        timestamp: game_context.get_timestamp(),
+                        state: state.to_owned(),
+                        state_sha,
+                    })
+                    .await;
+            }
 
             // Update the local client
             ports
@@ -78,12 +82,14 @@ async fn handle_event(
                 .await;
 
             // Start game
-            if effects.start_game {
-                ports
-                    .send(EventFrame::GameStart {
-                        access_version: game_context.access_version(),
-                    })
-                    .await;
+            if client_mode == ClientMode::Transactor {
+                if effects.start_game {
+                    ports
+                        .send(EventFrame::GameStart {
+                            access_version: game_context.access_version(),
+                        })
+                        .await;
+                }
             }
 
             // Send the settlement when there's one
@@ -106,23 +112,25 @@ async fn handle_event(
             }
 
             // Launch sub games
-            for launch_sub_game in effects.launch_sub_games {
-                let ef = EventFrame::LaunchSubGame {
-                    spec: Box::new(SubGameSpec {
-                        game_addr: game_context.get_game_addr().to_owned(),
-                        sub_id: launch_sub_game.id,
-                        bundle_addr: launch_sub_game.bundle_addr,
-                        nodes: game_context.get_nodes().into(),
-                        access_version: game_context.access_version(),
-                        settle_version: game_context.settle_version(),
-                        init_account: launch_sub_game.init_account,
-                    }),
-                };
-                ports.send(ef).await;
+            if game_mode == GameMode::Main {
+                for launch_sub_game in effects.launch_sub_games {
+                    let ef = EventFrame::LaunchSubGame {
+                        spec: Box::new(SubGameSpec {
+                            game_addr: game_context.get_game_addr().to_owned(),
+                            sub_id: launch_sub_game.id,
+                            bundle_addr: launch_sub_game.bundle_addr,
+                            nodes: game_context.get_nodes().into(),
+                            access_version: game_context.access_version(),
+                            settle_version: game_context.settle_version(),
+                            init_account: launch_sub_game.init_account,
+                        }),
+                    };
+                    ports.send(ef).await;
+                }
             }
 
             // Emit bridge events
-            if mode == ClientMode::Transactor {
+            if client_mode == ClientMode::Transactor {
                 for be in effects.bridge_events {
                     info!("Emit bridge event: {:?}", be);
                     let ef = EventFrame::SendBridgeEvent {
@@ -130,6 +138,7 @@ async fn handle_event(
                         event: Event::Bridge {
                             dest: be.dest,
                             raw: be.raw,
+                            join_players: be.join_players,
                         },
                         access_version: game_context.access_version(),
                         settle_version: game_context.settle_version(),
@@ -201,7 +210,9 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         let mut game_context = ctx.game_context;
 
         // Read games from event bus
-        while let Some(event_frame) = read_event(&mut ports, &mut game_context, ctx.mode).await {
+        while let Some(event_frame) =
+            read_event(&mut ports, &mut game_context, ctx.client_mode).await
+        {
             // Set timestamp to current time
             // Reset some disposable states.
             game_context.prepare_for_next_event(current_timestamp());
@@ -242,7 +253,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 } => {
                     let init_data = match game_context.init_data() {
                         Ok(init_data) => init_data,
-                        Err(e) => return CloseReason::Fault(e)
+                        Err(e) => return CloseReason::Fault(e),
                     };
                     info!(
                         "{} Rebuild game state from checkpoint, access_version = {}, settle_version = {}, checkpoint: {:?}",
@@ -264,14 +275,15 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                 EventFrame::GameStart { access_version } => {
                     game_context.set_node_ready(access_version);
-                    if ctx.mode == ClientMode::Transactor {
+                    if ctx.client_mode == ClientMode::Transactor {
                         let event = Event::GameStart;
                         if let Some(close_reason) = handle_event(
                             &mut handler,
                             &mut game_context,
                             event,
                             &ports,
-                            ctx.mode,
+                            ctx.client_mode,
+                            ctx.game_mode,
                             &env,
                         )
                         .await
@@ -310,8 +322,11 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         game_context.add_node(p.addr.clone(), p.access_version, ClientMode::Player);
                     }
 
-                    // Generate
-                    if ctx.mode == ClientMode::Transactor && !new_players.is_empty() {
+                    // We only generate join event in Transactor & Main mode.
+                    if ctx.client_mode == ClientMode::Transactor
+                        && ctx.game_mode == GameMode::Main
+                        && !new_players.is_empty()
+                    {
                         let event = Event::Join {
                             players: new_players_1,
                         };
@@ -320,7 +335,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             &mut game_context,
                             event,
                             &ports,
-                            ctx.mode,
+                            ctx.client_mode,
+                            ctx.game_mode,
                             &env,
                         )
                         .await
@@ -338,7 +354,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             &mut game_context,
                             event,
                             &ports,
-                            ctx.mode,
+                            ctx.client_mode,
+                            ctx.game_mode,
                             &env,
                         )
                         .await
@@ -372,7 +389,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         &mut game_context,
                         event,
                         &ports,
-                        ctx.mode,
+                        ctx.client_mode,
+                        ctx.game_mode,
                         &env,
                     )
                     .await
@@ -387,7 +405,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         &mut game_context,
                         event,
                         &ports,
-                        ctx.mode,
+                        ctx.client_mode,
+                        ctx.game_mode,
                         &env,
                     )
                     .await
@@ -406,7 +425,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         &mut game_context,
                         event,
                         &ports,
-                        ctx.mode,
+                        ctx.client_mode,
+                        ctx.game_mode,
                         &env,
                     )
                     .await
@@ -431,14 +451,16 @@ impl EventLoop {
     pub fn init(
         handler: WrappedHandler,
         game_context: GameContext,
-        mode: ClientMode,
+        client_mode: ClientMode,
+        game_mode: GameMode,
     ) -> (Self, EventLoopContext) {
         (
             Self {},
             EventLoopContext {
                 handler,
                 game_context,
-                mode,
+                client_mode,
+                game_mode,
             },
         )
     }

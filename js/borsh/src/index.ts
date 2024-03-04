@@ -17,7 +17,7 @@ import {
 } from './types';
 import { BinaryWriter } from './writer';
 import { BinaryReader } from './reader';
-import { invalidByteArrayLength, extendedWriterNotFound, extendedReaderNotFound, invalidEnumField } from './errors';
+import { invalidByteArrayLength, extendedWriterNotFound, extendedReaderNotFound, invalidEnumField, invalidCtor } from './errors';
 
 class DeserializeError extends Error {
   cause: Error;
@@ -123,7 +123,7 @@ function serializeValue(path: string[], value: any, fieldType: FieldType, writer
       } else if (kind === 'array') {
         writer.writeU32(value.length);
         for (let i = 0; i < value.length; i++) {
-          serializeValue([...path, `<Array[${i}]>`], value[i], v, writer);
+          serializeValue([...path, `<Array[${i}/${value.length}]>`], value[i], v, writer);
         }
       } else if (kind === 'struct') {
         serializeStruct(path, value, writer);
@@ -187,7 +187,7 @@ function deserializeValue(path: string[], fieldType: FieldType, reader: BinaryRe
         let arr = [];
         const length = reader.readU32();
         for (let i = 0; i < length; i++) {
-          let v = deserializeValue([...path, `<Array[${i}]>`], value, reader);
+          let v = deserializeValue([...path, `<Array[${i}/${length}]>`], value, reader);
           arr.push(v);
         }
         return arr;
@@ -279,6 +279,7 @@ function deserializeEnum(path: string[], enumClass: Function, reader: BinaryRead
 }
 
 function deserializeStruct<T>(path: string[], ctor: Ctor<T>, reader: BinaryReader): T {
+  if (ctor === undefined) invalidCtor(path);
   const prototype = ctor.prototype;
   const fields = getSchemaFields(prototype);
   let obj = {};
@@ -288,7 +289,9 @@ function deserializeStruct<T>(path: string[], ctor: Ctor<T>, reader: BinaryReade
     }
   } catch (e) {
     if (e instanceof DeserializeError) {
-      e.obj = obj;
+      if (e.obj === undefined) {
+        e.obj = obj;
+      }
     }
     throw e;
   }
@@ -297,6 +300,7 @@ function deserializeStruct<T>(path: string[], ctor: Ctor<T>, reader: BinaryReade
 
 export function field(fieldType: FieldType) {
   return function (target: any, key: PropertyKey) {
+    if (target?.constructor?.prototype === undefined) throw new Error(`Invalid field argument for key: ${key.toString()}`)
     addSchemaField(target.constructor.prototype, key, fieldType);
   };
 }
@@ -360,7 +364,7 @@ export function deserialize<T>(classType: Ctor<T> | EnumClass<T>, data: Uint8Arr
     }
   } catch (e) {
     if (e instanceof DeserializeError) {
-      console.error('Deserialize failed, path:', e.path, ', current object:', e.obj, ', cause:', e.cause);
+      console.error('Deserialize failed, path:', e.path, ', current object:', e.obj, ', cause:', e.cause, ', data:', data);
     }
     throw e;
   }

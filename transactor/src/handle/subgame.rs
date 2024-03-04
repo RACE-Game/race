@@ -8,7 +8,7 @@ use crate::frame::EventFrame;
 use race_api::error::{Error, Result};
 use race_core::context::GameContext;
 use race_core::transport::TransportT;
-use race_core::types::{ClientMode, ServerAccount, SubGameSpec};
+use race_core::types::{ClientMode, GameMode, ServerAccount, SubGameSpec};
 use race_encryptor::Encryptor;
 
 #[allow(dead_code)]
@@ -29,6 +29,7 @@ impl SubGameHandle {
         transport: Arc<dyn TransportT + Send + Sync>,
     ) -> Result<Self> {
         println!("Launch sub game, nodes: {:?}", spec.nodes);
+        println!("Sub game players: {:?}", spec.init_account.players);
 
         let game_addr = spec.game_addr.clone();
         let sub_id = spec.sub_id.clone();
@@ -42,6 +43,7 @@ impl SubGameHandle {
 
         // Build an InitAccount
         let game_context = GameContext::try_new_with_sub_game_spec(&spec)?;
+
         let access_version = spec.access_version;
         let settle_version = spec.settle_version;
 
@@ -54,7 +56,7 @@ impl SubGameHandle {
         let mut bridge_handle = bridge.start(&addr, bridge_ctx);
 
         let (event_loop, event_loop_ctx) =
-            EventLoop::init(handler, game_context, ClientMode::Transactor);
+            EventLoop::init(handler, game_context, ClientMode::Transactor, GameMode::Sub);
         let mut event_loop_handle = event_loop.start(&addr, event_loop_ctx);
 
         let mut connection = LocalConnection::new(encryptor.clone());

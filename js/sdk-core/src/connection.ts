@@ -95,7 +95,7 @@ export class BroadcastFrameEvent extends BroadcastFrame {
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
-    Object.setPrototypeOf(this, BroadcastFrameEvent);
+    Object.setPrototypeOf(this, BroadcastFrameEvent.prototype);
   }
 }
 
@@ -108,7 +108,7 @@ export class BroadcastFrameMessage extends BroadcastFrame {
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
-    Object.setPrototypeOf(this, BroadcastFrameMessage);
+    Object.setPrototypeOf(this, BroadcastFrameMessage.prototype);
   }
 }
 
@@ -119,7 +119,7 @@ export class BroadcastFrameTxState extends BroadcastFrame {
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
-    Object.setPrototypeOf(this, BroadcastFrameTxState);
+    Object.setPrototypeOf(this, BroadcastFrameTxState.prototype);
   }
 }
 
@@ -136,7 +136,7 @@ export class BroadcastFrameSync extends BroadcastFrame {
   constructor(fields: any) {
     super();
     Object.assign(this, fields)
-    Object.setPrototypeOf(this, BroadcastFrameSync);
+    Object.setPrototypeOf(this, BroadcastFrameSync.prototype);
   }
 }
 
@@ -144,7 +144,7 @@ export class BroadcastFrameSync extends BroadcastFrame {
 export class BroadcastFrameEndOfHistory extends BroadcastFrame {
   constructor(_: any) {
     super();
-    Object.setPrototypeOf(this, BroadcastFrameEndOfHistory);
+    Object.setPrototypeOf(this, BroadcastFrameEndOfHistory.prototype);
   }
 }
 

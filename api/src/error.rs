@@ -278,6 +278,12 @@ pub enum Error {
 
     #[error("Game uninitialized")]
     GameUninitialized,
+
+    #[error("Invalid bridge event")]
+    InvalidBridgeEvent,
+
+    #[error("Invalid player id: {0}, availables: {1:?}")]
+    InvalidPlayerId(u64, Vec<u64>),
 }
 
 #[cfg(feature = "serde")]

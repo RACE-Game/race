@@ -1,6 +1,18 @@
 import { array, deserialize, enums, field, serialize, struct } from "@race-foundation/borsh";
-import { GamePlayer } from "./effect";
 import { EntryType, GameAccount } from "./accounts";
+import { Fields } from "./types";
+
+export class GamePlayer {
+  @field('u64')
+  id!: bigint;
+  @field('u16')
+  position!: number;
+  @field('u64')
+  balance!: bigint;
+  constructor(fields: Fields<GamePlayer>) {
+    Object.assign(this, fields)
+  }
+}
 
 /**
  * A subset of GameAccount, used in handler initialization.
@@ -26,11 +38,11 @@ export class InitAccount {
   readonly checkpoint: Uint8Array;
 
   constructor(fields: IInitAccount) {
-    this.data = fields.data;
-    this.players = fields.players;
     this.maxPlayers = fields.maxPlayers;
-    this.checkpoint = fields.checkpoint;
     this.entryType = fields.entryType;
+    this.players = fields.players;
+    this.data = fields.data;
+    this.checkpoint = fields.checkpoint;
   }
 
   static createFromGameAccount(

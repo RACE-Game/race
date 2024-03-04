@@ -13,7 +13,8 @@ import {
   Shutdown,
   WaitingTimeout,
 } from './events';
-import { Effect, EmitBridgeEvent, SubGame, Settle, Transfer, GamePlayer, SettleOp, SettleAdd, SettleSub, SettleEject } from './effect';
+import { GamePlayer } from './init-account';
+import { Effect, EmitBridgeEvent, SubGame, Settle, Transfer, SettleAdd, SettleSub, SettleEject } from './effect';
 import { EntryType, GameAccount } from './accounts';
 import { Ciphertext, Digest, Id } from './types';
 
