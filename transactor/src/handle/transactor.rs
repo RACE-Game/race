@@ -61,6 +61,7 @@ impl TransactorHandle {
         encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
         signal_tx: mpsc::Sender<SignalFrame>,
+        debug_mode: bool,
     ) -> Result<Self> {
         info!(
             "Start game handle for {} with Transactor mode",
@@ -72,7 +73,7 @@ impl TransactorHandle {
 
         let event_bus = EventBus::new(game_account.addr.clone());
 
-        let (broadcaster, broadcaster_ctx) = Broadcaster::init(game_account.addr.clone());
+        let (broadcaster, broadcaster_ctx) = Broadcaster::init(game_account.addr.clone(), debug_mode);
         let mut broadcaster_handle = broadcaster.start(&game_account.addr, broadcaster_ctx);
 
         let (bridge, bridge_ctx) = EventBridgeParent::init(signal_tx);

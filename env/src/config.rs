@@ -32,6 +32,7 @@ pub struct TransactorConfig {
     pub address: String,
     pub reg_addresses: Vec<String>,
     pub disable_blacklist: Option<bool>,
+    pub debug_mode: Option<bool>,
 }
 
 #[derive(Deserialize)]

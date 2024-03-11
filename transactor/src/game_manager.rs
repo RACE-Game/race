@@ -64,10 +64,11 @@ impl GameManager {
         server_account: &ServerAccount,
         transport: Arc<WrappedTransport>,
         encryptor: Arc<Encryptor>,
+        debug_mode: bool,
     ) {
         let game_addr = spec.game_addr.clone();
         let sub_id = spec.sub_id;
-        match Handle::try_new_sub_game_handle(spec, bridge_parent, server_account, encryptor, transport).await {
+        match Handle::try_new_sub_game_handle(spec, bridge_parent, server_account, encryptor, transport, debug_mode).await {
             Ok(mut handle) => {
                 let mut games = self.games.lock().await;
                 let addr = format!("{}:{}", game_addr, sub_id);
@@ -95,10 +96,11 @@ impl GameManager {
         server_account: &ServerAccount,
         blacklist: Arc<Mutex<Blacklist>>,
         signal_tx: mpsc::Sender<SignalFrame>,
+        debug_mode: bool,
     ) {
         let mut games = self.games.lock().await;
         if let Entry::Vacant(e) = games.entry(game_addr.clone()) {
-            match Handle::try_new(transport, encryptor, server_account, e.key(), signal_tx).await {
+            match Handle::try_new(transport, encryptor, server_account, e.key(), signal_tx, debug_mode).await {
                 Ok(mut handle) => {
                     info!("Game handle created: {}", e.key());
                     let join_handle = handle.wait();

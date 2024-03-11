@@ -27,6 +27,7 @@ impl SubGameHandle {
         server_account: &ServerAccount,
         encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
+        debug_mode: bool,
     ) -> Result<Self> {
         println!("Launch sub game, nodes: {:?}", spec.nodes);
         println!("Sub game players: {:?}", spec.init_account.players);
@@ -49,7 +50,7 @@ impl SubGameHandle {
 
         let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 
-        let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone());
+        let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone(), debug_mode);
         let mut broadcaster_handle = broadcaster.start(&addr, broadcaster_ctx);
 
         let (bridge, bridge_ctx) = bridge_parent.derive_child(sub_id.clone());

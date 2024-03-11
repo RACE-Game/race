@@ -48,6 +48,7 @@ pub struct BroadcasterContext {
     id: String,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
+    debug_mode: bool,
 }
 
 /// A component that pushes event to clients.
@@ -58,7 +59,7 @@ pub struct Broadcaster {
 }
 
 impl Broadcaster {
-    pub fn init(id: String) -> (Self, BroadcasterContext) {
+    pub fn init(id: String, debug_mode: bool) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);
@@ -70,6 +71,7 @@ impl Broadcaster {
             },
             BroadcasterContext {
                 id,
+                debug_mode,
                 event_backup_groups,
                 broadcast_tx,
             },
@@ -244,7 +246,11 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                             access_version,
                             timestamp,
                             state_sha: state_sha.clone(),
-                            state: Some(state.clone()),
+                            state: if ctx.debug_mode {
+                                Some(state.clone())
+                            } else {
+                                None
+                            },
                         });
                     } else {
                         error!("{} Received event without checkpoint", env.log_prefix);
@@ -260,7 +266,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         event,
                         timestamp,
                         state_sha,
-                        state: Some(state),
+                        state: if ctx.debug_mode { Some(state) } else { None },
                     });
 
                     if let Err(e) = r {

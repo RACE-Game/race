@@ -29,6 +29,7 @@ impl ValidatorHandle {
         encryptor: Arc<Encryptor>,
         transport: Arc<WrappedTransport>,
         signal_tx: mpsc::Sender<SignalFrame>,
+        _debug_mode: bool,
     ) -> Result<Self> {
         info!(
             "Start game handle for {} with Validator mode",

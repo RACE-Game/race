@@ -39,6 +39,7 @@ impl Handle {
         server_account: &ServerAccount,
         addr: &str,
         signal_tx: mpsc::Sender<SignalFrame>,
+        debug_mode: bool,
     ) -> Result<Self> {
         info!("Try create game handle for {}", addr);
         let mode = QueryMode::Finalized;
@@ -65,6 +66,7 @@ impl Handle {
                         encryptor.clone(),
                         transport.clone(),
                         signal_tx,
+                        debug_mode,
                     )
                     .await?,
                 ))
@@ -77,6 +79,7 @@ impl Handle {
                         encryptor.clone(),
                         transport.clone(),
                         signal_tx,
+                        debug_mode,
                     )
                     .await?,
                 ))
@@ -92,9 +95,10 @@ impl Handle {
         server_account: &ServerAccount,
         encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
+        debug_mode: bool,
     ) -> Result<Self> {
         let handle =
-            SubGameHandle::try_new(spec, bridge_parent, server_account, encryptor, transport)
+            SubGameHandle::try_new(spec, bridge_parent, server_account, encryptor, transport, debug_mode)
                 .await?;
         Ok(Self::SubGame(handle))
     }

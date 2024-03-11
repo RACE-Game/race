@@ -45,6 +45,8 @@ impl ApplicationContext {
             .await?
             .ok_or(Error::ServerAccountMissing)?;
 
+        let debug_mode = transactor_config.debug_mode.unwrap_or(false);
+
         let game_manager = Arc::new(GameManager::default());
         let game_manager_1 = game_manager.clone();
 
@@ -71,6 +73,7 @@ impl ApplicationContext {
                                 &account_1,
                                 blacklist_1.clone(),
                                 signal_tx_1.clone(),
+                                debug_mode,
                             )
                             .await;
                     }
@@ -89,6 +92,7 @@ impl ApplicationContext {
                                 &account_1,
                                 transport_1.clone(),
                                 encryptor_1.clone(),
+                                debug_mode,
                             )
                             .await;
                     }
