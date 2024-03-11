@@ -21,10 +21,10 @@ export class NoEnoughPlayers extends HandleError {
 }
 
 @variant(2)
-export class PlayerNotInGame extends HandleError {
+export class InvalidPlayer extends HandleError {
   constructor(_: any) {
     super();
-    this.message = 'Player not in game';
+    this.message = 'Invalid player';
   }
 }
 
@@ -53,6 +53,14 @@ export class MalformedGameAccountData extends HandleError {
 }
 
 @variant(6)
+export class MalformedCheckpointData extends HandleError {
+  constructor(_: any) {
+    super();
+    this.message = 'Malformed checkpoint data';
+  }
+}
+
+@variant(7)
 export class MalformedCustomEvent extends HandleError {
   constructor(_: any) {
     super();
@@ -60,7 +68,15 @@ export class MalformedCustomEvent extends HandleError {
   }
 }
 
-@variant(7)
+@variant(8)
+export class MalformedBridgeEvent extends HandleError {
+  constructor(_: any) {
+    super();
+    this.message = 'Malformed bridge event';
+  }
+}
+
+@variant(9)
 export class SerializationError extends HandleError {
   constructor(_: any) {
     super();
@@ -68,7 +84,7 @@ export class SerializationError extends HandleError {
   }
 }
 
-@variant(8)
+@variant(10)
 export class NoEnoughServers extends HandleError {
   constructor(_: any) {
     super();
@@ -76,7 +92,7 @@ export class NoEnoughServers extends HandleError {
   }
 }
 
-@variant(9)
+@variant(11)
 export class InternalError extends HandleError {
   @field('string')
   message: string;

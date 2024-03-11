@@ -1,5 +1,5 @@
 TIME=$(date +%s%3N)
-START_TIME=$(expr $TIME + 60000)
+START_TIME=$(expr $TIME + 30000)
 echo "Current timestamp is $START_TIME"
 
 DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \

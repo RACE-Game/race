@@ -132,7 +132,7 @@ export class GameContext {
       }))
 
       const players = gameAccount.players
-        .filter(p => p.accessVersion <= gameAccount.accessVersion)
+        .filter(p => p.accessVersion <= gameAccount.checkpointAccessVersion)
         .map(p => new GamePlayer({
           balance: p.balance,
           id: p.accessVersion,
@@ -171,7 +171,9 @@ export class GameContext {
     c.handlerState = Uint8Array.of();
     c.checkpoint = subGame.initAccount.checkpoint;
     c.subGames = [];
-    // Currently, the `players` is always empty for subgame.
+    c.initData = subGame.initAccount.data;
+    c.maxPlayers = subGame.initAccount.maxPlayers;
+    c.entryType = subGame.initAccount.entryType;
     c.players = subGame.initAccount.players;
     return c;
   }
@@ -468,6 +470,10 @@ export class GameContext {
       console.warn('Effect has no handler state');
     }
 
+    for (const subGame of effect.launchSubGames) {
+      this.addSubGame(subGame);
+    }
+
     this.subGames.push(...effect.launchSubGames);
     this.bumpSettleVersion();
 
@@ -507,6 +513,15 @@ export class GameContext {
 
   findSubGame(subId: number): SubGame | undefined {
     return this.subGames.find(g => g.subId === Number(subId));
+  }
+
+  addSubGame(subGame: SubGame) {
+    const found = this.subGames.find(s => s.subId === subGame.subId);
+    if (found === undefined) {
+      this.subGames.push(subGame);
+    } else {
+      found.initAccount = subGame.initAccount;
+    }
   }
 
   addPlayer(player: GamePlayer) {

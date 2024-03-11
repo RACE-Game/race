@@ -45,6 +45,7 @@ export type BaseClientCtorOpts = {
   encryptor: IEncryptor;
   info: GameInfo;
   decryptionCache: DecryptionCache;
+  logPrefix: string;
 };
 
 export class BaseClient {
@@ -64,6 +65,7 @@ export class BaseClient {
   __encryptor: IEncryptor;
   __info: GameInfo;
   __decryptionCache: DecryptionCache;
+  __logPrefix: string;
 
   constructor(opts: BaseClientCtorOpts) {
     this.__gameAddr = opts.gameAddr;
@@ -82,6 +84,7 @@ export class BaseClient {
     this.__info = opts.info;
     this.__decryptionCache = opts.decryptionCache;
     this.__onLoadProfile = opts.onLoadProfile;
+    this.__logPrefix = opts.logPrefix;
   }
 
   get playerAddr(): string {
@@ -198,7 +201,7 @@ export class BaseClient {
       await this.__handler.initState(this.__gameContext, initAccount);
       this.__invokeEventCallback(new Init());
     } catch (e) {
-      console.error('Attaching game failed', e);
+      console.error(this.__logPrefix + 'Attaching game failed', e);
       this.__invokeErrorCallback('attach-failed')
       throw e;
     } finally {
@@ -211,7 +214,7 @@ export class BaseClient {
     if (this.__onError) {
       this.__onError(err, arg)
     } else {
-      console.error(`An error occured: ${err}, to handle it, use \`onError\`.`)
+      console.error(`${this.__logPrefix}An error occured: ${err}, to handle it, use \`onError\`.`)
     }
   }
 
@@ -260,7 +263,7 @@ export class BaseClient {
   async __handleBroadcastFrameEvent(frame: BroadcastFrameEvent) {
 
     const { event, timestamp } = frame;
-    console.groupCollapsed('Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
+    console.groupCollapsed(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
     console.log('Event: ', event);
     let state: Uint8Array | undefined;
     let err: ErrorKind | undefined;
@@ -272,18 +275,18 @@ export class BaseClient {
         console.log('Game context before:', this.__gameContext);
         effects = await this.__handler.handleEvent(this.__gameContext, event);
         console.log('Game context after:', this.__gameContext);
+        console.log('count players', this.__gameContext.players.length);
         console.log('Output:', effects);
         state = this.__gameContext.handlerState;
         const sha = await sha256(this.__gameContext.handlerState)
         console.log('SHA:', sha);
         if (sha !== frame.stateSha) {
-          const remoteState = await this.__connection.getState();
-          console.log('Remote state:', remoteState);
+          console.log('Remote state:', frame.state);
           console.log('Local state:', state);
           err = 'state-sha-mismatch'
         }
       } catch (e: any) {
-        console.error(e);
+        console.error(this.__logPrefix, e);
         err = 'handle-event-error';
       }
 
@@ -322,20 +325,22 @@ export class BaseClient {
 
   async __handleBroadcastFrame(frame: BroadcastFrame) {
     if (frame instanceof BroadcastFrameMessage) {
-      console.groupCollapsed('Receive message broadcast');
+      console.groupCollapsed(`${this.__logPrefix}Receive message broadcast`);
       try {
         if (this.__onMessage !== undefined) {
           const { message } = frame;
+          console.log('Message:', message);
           this.__onMessage(message);
         }
       } finally {
         console.groupEnd();
       }
     } else if (frame instanceof BroadcastFrameTxState) {
-      console.groupCollapsed('Receive transaction state broadcast');
+      console.groupCollapsed(`${this.__logPrefix}Receive transaction state broadcast`);
       try {
         if (this.__onTxState !== undefined) {
           const { txState } = frame;
+          console.log('TxState:', txState);
           if (txState instanceof PlayerConfirming) {
             txState.confirmPlayers.forEach(p => {
               this.__onLoadProfile(p.id, p.addr);
@@ -347,8 +352,9 @@ export class BaseClient {
         console.groupEnd();
       }
     } else if (frame instanceof BroadcastFrameSync) {
-      console.groupCollapsed('Receive sync broadcast');
+      console.groupCollapsed(`${this.__logPrefix}Receive sync broadcast`);
       try {
+        console.log('Sync:', frame);
         for (const node of frame.newServers) {
           this.__gameContext.addNode(node.addr, node.accessVersion,
             node.addr === frame.transactor_addr ? 'transactor' : 'validator');

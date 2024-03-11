@@ -233,7 +233,6 @@ impl GameContext {
     }
 
     pub fn id_to_addr(&self, id: u64) -> Result<String> {
-        println!("Nodes: {:?}", self.nodes);
         self.nodes
             .iter()
             .find(|n| n.id == id)
@@ -890,7 +889,7 @@ impl GameContext {
     }
 
     pub fn player_sub_balance(&mut self, player_id: u64, amount: u64) -> Result<()> {
-        let mut p = self.players
+        let p = self.players
             .iter_mut()
             .find(|p| p.id == player_id)
             .ok_or(Error::PlayerNotInGame)?;
@@ -901,7 +900,7 @@ impl GameContext {
     }
 
     pub fn player_add_balance(&mut self, player_id: u64, amount: u64) -> Result<()> {
-        let mut p = self.players
+        let p = self.players
             .iter_mut()
             .find(|p| p.id == player_id)
             .ok_or(Error::PlayerNotInGame)?;

@@ -26,6 +26,7 @@ pub struct EventBackup {
     pub access_version: u64,
     pub settle_version: u64,
     pub state_sha: String,
+    pub state: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -45,7 +46,6 @@ pub struct EventBackupGroup {
 
 pub struct BroadcasterContext {
     id: String,
-    state: Arc<Mutex<Option<Vec<u8>>>>,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
@@ -53,7 +53,6 @@ pub struct BroadcasterContext {
 /// A component that pushes event to clients.
 pub struct Broadcaster {
     id: String,
-    state: Arc<Mutex<Option<Vec<u8>>>>,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
@@ -62,30 +61,32 @@ impl Broadcaster {
     pub fn init(id: String) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
-        let state = Arc::new(Mutex::new(None));
         drop(broadcast_rx);
         (
             Self {
                 id: id.clone(),
-                state: state.clone(),
                 event_backup_groups: event_backup_groups.clone(),
                 broadcast_tx: broadcast_tx.clone(),
             },
             BroadcasterContext {
                 id,
-                state,
                 event_backup_groups,
                 broadcast_tx,
             },
         )
     }
 
-    pub async fn get_state(&self) -> Option<Vec<u8>> {
-        self.state.lock().await.clone()
-    }
-
     pub fn get_broadcast_rx(&self) -> broadcast::Receiver<BroadcastFrame> {
         self.broadcast_tx.subscribe()
+    }
+
+    pub async fn get_state(&self) -> Option<Vec<u8>> {
+        let groups = self.event_backup_groups.lock().await;
+        if let Some(event) = groups.back().and_then(|g| g.events.back()) {
+            event.state.clone()
+        } else {
+            None
+        }
     }
 
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
@@ -115,6 +116,7 @@ impl Broadcaster {
                         event: event.event.clone(),
                         timestamp: event.timestamp,
                         state_sha: event.state_sha.clone(),
+                        state: event.state.clone(),
                     })
                 }
                 return histories;
@@ -137,6 +139,7 @@ impl Broadcaster {
                         event: event.event.clone(),
                         timestamp: event.timestamp,
                         state_sha: event.state_sha.clone(),
+                        state: event.state.clone(),
                     })
                 }
             }
@@ -241,6 +244,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                             access_version,
                             timestamp,
                             state_sha: state_sha.clone(),
+                            state: Some(state.clone()),
                         });
                     } else {
                         error!("{} Received event without checkpoint", env.log_prefix);
@@ -256,9 +260,8 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         event,
                         timestamp,
                         state_sha,
+                        state: Some(state),
                     });
-
-                    ctx.state.lock().await.replace(state);
 
                     if let Err(e) = r {
                         // Usually it means no receivers

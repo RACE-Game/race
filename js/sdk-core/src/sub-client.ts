@@ -39,6 +39,7 @@ export class SubClient extends BaseClient {
   constructor(opts: SubClientCtorOpts) {
     super({
       onLoadProfile: (_id: bigint, _addr: string) => {},
+      logPrefix: `SubGame#${opts.subId}|`,
       ...opts
     })
     this.__subId = opts.subId;
@@ -53,7 +54,7 @@ export class SubClient extends BaseClient {
    * Connect to the transactor and retrieve the event stream.
    */
   async attachGame() {
-    console.groupCollapsed('Attach to game');
+    console.groupCollapsed(`${this.__logPrefix}Attach to game`);
     let sub;
     try {
       await this.__client.attachGame();

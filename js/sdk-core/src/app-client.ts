@@ -5,7 +5,6 @@ import {
 import { GameContext } from './game-context';
 import { ITransport, TransactionResult } from './transport';
 import { IWallet } from './wallet';
-import { InitAccount } from './init-account';
 import { Handler } from './handler';
 import { Encryptor, IEncryptor } from './encryptor';
 import { SdkError } from './error';
@@ -14,7 +13,7 @@ import { IStorage, getTtlCache, setTtlCache } from './storage';
 import { DecryptionCache } from './decryption-cache';
 import { ProfileLoader } from './profile-loader';
 import { BaseClient } from './base-client';
-import { EntryTypeCash, EntryTypeDisabled, GameAccount, GameBundle, IToken } from './accounts';
+import { EntryTypeCash, GameAccount, GameBundle, IToken } from './accounts';
 import { ConnectionStateCallbackFunction, EventCallbackFunction, GameInfo, MessageCallbackFunction, TxStateCallbackFunction, PlayerProfileWithPfp, ProfileCallbackFunction, ErrorCallbackFunction } from './types';
 import { SubClient } from './sub-client';
 
@@ -78,6 +77,7 @@ export class AppClient extends BaseClient {
   constructor(opts: AppClientCtorOpts) {
     super({
       onLoadProfile: (id, addr) => opts.profileLoader.load(id, addr),
+      logPrefix: 'MainGame|',
       ...opts
     });
     this.__profileLoader = opts.profileLoader;
@@ -88,7 +88,7 @@ export class AppClient extends BaseClient {
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
     const { transport, wallet, gameAddr, onEvent, onMessage, onTxState, onConnectionState, onError, onProfile, storage } = opts;
 
-    console.groupCollapsed('AppClient initialization');
+    console.groupCollapsed('AppClient initialize');
     try {
       const playerAddr = wallet.walletAddr;
       const encryptor = await Encryptor.create(playerAddr, storage);

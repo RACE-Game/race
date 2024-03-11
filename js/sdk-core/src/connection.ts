@@ -1,7 +1,7 @@
 import { IEncryptor, PublicKeyRaws } from './encryptor';
 import { TxState } from './tx-state';
 import { GameEvent } from './events';
-import { deserialize, array, enums, field, serialize, struct, variant } from '@race-foundation/borsh';
+import { deserialize, array, enums, field, serialize, struct, variant, option } from '@race-foundation/borsh';
 import { arrayBufferToBase64, base64ToUint8Array } from './utils';
 import { PlayerJoin, ServerJoin } from './accounts';
 
@@ -92,6 +92,8 @@ export class BroadcastFrameEvent extends BroadcastFrame {
   timestamp!: bigint;
   @field('string')
   stateSha!: string;
+  @field(option('u8-array'))
+  state!: Uint8Array | undefined;
   constructor(fields: any) {
     super();
     Object.assign(this, fields);

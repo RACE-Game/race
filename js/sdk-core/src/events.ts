@@ -367,12 +367,15 @@ export class Bridge extends GameEvent implements IEventKind {
   dest!: number;
   @field('u8-array')
   raw!: Uint8Array;
+  @field(array(struct(GamePlayer)))
+  joinPlayers!: GamePlayer[];
 
   constructor(fields: EventFields<Bridge>) {
     super();
     Object.assign(this, fields);
     Object.setPrototypeOf(this, Bridge.prototype)
   }
+
   kind(): EventKind {
     return 'Bridge';
   }
@@ -405,11 +408,4 @@ export class EndOfHistory extends GameEvent implements IEventKind {
   kind(): EventKind {
     return 'EndOfHistory'
   }
-}
-
-export function makeBridgeEvent(dest: number, bridgeEvent: IBridgeEvent): Bridge {
-  return new Bridge({
-    dest,
-    raw: bridgeEvent.serialize(),
-  });
 }
