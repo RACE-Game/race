@@ -62,13 +62,13 @@ pub struct SubGameLeave {
 }
 
 impl SubGame {
-    pub fn try_new<S: BorshSerialize>(
+    pub fn try_new<S: BorshSerialize, T: BorshSerialize>(
         id: usize,
         bundle_addr: String,
         max_players: u16,
         players: Vec<GamePlayer>,
         init_data: S,
-        checkpoint: S,
+        checkpoint: T,
     ) -> Result<Self> {
         Ok(Self {
             id,
