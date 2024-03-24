@@ -88,7 +88,7 @@ export class AppClient extends BaseClient {
   static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
     const { transport, wallet, gameAddr, onEvent, onMessage, onTxState, onConnectionState, onError, onProfile, storage } = opts;
 
-    console.groupCollapsed('AppClient initialize');
+    console.group('AppClient initialize');
     try {
       const playerAddr = wallet.walletAddr;
       const encryptor = await Encryptor.create(playerAddr, storage);
@@ -157,7 +157,7 @@ export class AppClient extends BaseClient {
 
       const addr = `${this.__gameAddr}:${subId.toString()}`;
 
-      console.groupCollapsed(`SubClient initialization, id: ${subId}`);
+      console.group(`SubClient initialization, id: ${subId}`);
 
       const subGame = this.__gameContext.findSubGame(subId);
 

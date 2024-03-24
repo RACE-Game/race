@@ -54,7 +54,7 @@ export class SubClient extends BaseClient {
    * Connect to the transactor and retrieve the event stream.
    */
   async attachGame() {
-    console.groupCollapsed(`${this.__logPrefix}Attach to game`);
+    console.group(`${this.__logPrefix}Attach to game`);
     let sub;
     try {
       await this.__client.attachGame();

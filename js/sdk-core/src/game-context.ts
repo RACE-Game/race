@@ -411,8 +411,6 @@ export class GameContext {
   }
 
   applyEffect(effect: Effect): EventEffects {
-    console.log('Apply effect:', effect);
-
     if (effect.startGame) {
       this.startGame();
     } else if (effect.stopGame) {

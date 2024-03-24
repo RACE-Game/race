@@ -186,7 +186,7 @@ export class BaseClient {
    * Connect to the transactor and retrieve the event stream.
    */
   async attachGame() {
-    console.groupCollapsed('Attach to game');
+    console.group('Attach to game');
     let sub;
     try {
       await this.__client.attachGame();
@@ -263,7 +263,7 @@ export class BaseClient {
   async __handleBroadcastFrameEvent(frame: BroadcastFrameEvent) {
 
     const { event, timestamp } = frame;
-    console.groupCollapsed(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
+    console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
     console.log('Event: ', event);
     let state: Uint8Array | undefined;
     let err: ErrorKind | undefined;
@@ -272,17 +272,12 @@ export class BaseClient {
     try {                     // For log group
       try {
         this.__gameContext.prepareForNextEvent(timestamp);
-        console.log('Game context before:', this.__gameContext);
         effects = await this.__handler.handleEvent(this.__gameContext, event);
-        console.log('Game context after:', this.__gameContext);
-        console.log('count players', this.__gameContext.players.length);
-        console.log('Output:', effects);
         state = this.__gameContext.handlerState;
         const sha = await sha256(this.__gameContext.handlerState)
-        console.log('SHA:', sha);
         if (sha !== frame.stateSha) {
-          console.log('Remote state:', frame.state);
-          console.log('Local state:', state);
+          console.warn('Remote state:', frame.state);
+          console.warn('Local state:', state);
           err = 'state-sha-mismatch'
         }
       } catch (e: any) {
@@ -325,7 +320,7 @@ export class BaseClient {
 
   async __handleBroadcastFrame(frame: BroadcastFrame) {
     if (frame instanceof BroadcastFrameMessage) {
-      console.groupCollapsed(`${this.__logPrefix}Receive message broadcast`);
+      console.group(`${this.__logPrefix}Receive message broadcast`);
       try {
         if (this.__onMessage !== undefined) {
           const { message } = frame;
@@ -336,7 +331,7 @@ export class BaseClient {
         console.groupEnd();
       }
     } else if (frame instanceof BroadcastFrameTxState) {
-      console.groupCollapsed(`${this.__logPrefix}Receive transaction state broadcast`);
+      console.group(`${this.__logPrefix}Receive transaction state broadcast`);
       try {
         if (this.__onTxState !== undefined) {
           const { txState } = frame;
@@ -352,7 +347,7 @@ export class BaseClient {
         console.groupEnd();
       }
     } else if (frame instanceof BroadcastFrameSync) {
-      console.groupCollapsed(`${this.__logPrefix}Receive sync broadcast`);
+      console.group(`${this.__logPrefix}Receive sync broadcast`);
       try {
         console.log('Sync:', frame);
         for (const node of frame.newServers) {

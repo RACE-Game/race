@@ -1,6 +1,6 @@
 import { deserialize, serialize } from '@race-foundation/borsh';
 import { GameBundle } from './accounts';
-import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Join } from './events';
+import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Join, Bridge } from './events';
 import { EventEffects, GameContext } from './game-context';
 import { IEncryptor } from './encryptor';
 import { Effect } from './effect';
@@ -110,6 +110,8 @@ export class Handler implements IHandler {
         );
         context.addRevealedRandom(st.id, revealed);
       }
+    } else if (event instanceof Bridge) {
+      event.joinPlayers.forEach(p => context.addPlayer(p));
     }
   }
 
@@ -164,8 +166,6 @@ export class Handler implements IHandler {
 
     const eventBytes = serialize(event);
     const eventSize = eventBytes.length;
-
-    console.log("Effect:", effect);
 
     if (buf.length < 1 + eventSize + effectSize) {
       throw new Error(`WASM memory overflow, buffer length: ${buf.length}, required: ${1 + eventSize + effectSize}`);

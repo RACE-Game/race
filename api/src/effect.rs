@@ -228,6 +228,11 @@ pub struct Effect {
 impl Effect {
 
     fn assert_player_id(&self, id: u64) -> Result<()> {
+        if self.valid_players.is_empty() {
+            // Skip check
+            return Ok(());
+        }
+
         if self.valid_players.iter().find(|p| p.id == id).is_some() {
            Ok(())
         } else {
