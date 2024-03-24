@@ -180,6 +180,9 @@ pub enum Error {
     #[error("Not supported in validator mode")]
     NotSupportedInValidatorMode,
 
+    #[error("Not supported in sub game mode")]
+    NotSupportedInSubGameMode,
+
     #[error("Invalid voter: {0}")]
     InvalidVoter(String),
 
@@ -260,6 +263,27 @@ pub enum Error {
 
     #[error("Settle version mismatch, given: {0}, expected: {1}")]
     SettleVersionMismatch(u64, u64),
+
+    #[error("Duplicated sub game id")]
+    DuplicatedSubGameId,
+
+    #[error("Cannot map id to address: {0}")]
+    CantMapIdToAddr(u64),
+
+    #[error("Cannot map address to id: {0}")]
+    CantMapAddrToId(String),
+
+    #[error("Cannot bump settle version")]
+    CantBumpSettleVersion,
+
+    #[error("Game uninitialized")]
+    GameUninitialized,
+
+    #[error("Invalid bridge event")]
+    InvalidBridgeEvent,
+
+    #[error("Invalid player id: {0}, availables: {1:?}")]
+    InvalidPlayerId(u64, Vec<u64>),
 }
 
 #[cfg(feature = "serde")]
@@ -303,6 +327,9 @@ pub enum HandleError {
 
     #[error("Malformed custom event")]
     MalformedCustomEvent,
+
+    #[error("Malformed bridge event")]
+    MalformedBridgeEvent,
 
     #[error("Serialization error")]
     SerializationError,

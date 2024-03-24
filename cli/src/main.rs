@@ -456,6 +456,7 @@ async fn main() {
 
     println!("Interact with chain: {:?}", chain);
     println!("RPC Endpoint: {:?}", rpc);
+    println!("Specified keyfile: {:?}", keyfile);
 
     match matches.subcommand() {
         Some(("publish", sub_matches)) => {

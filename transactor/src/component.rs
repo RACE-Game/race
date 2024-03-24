@@ -10,11 +10,13 @@ mod voter;
 mod wrapped_client;
 mod wrapped_handler;
 mod wrapped_transport;
+mod event_bridge;
 
 pub use event_bus::CloseReason;
 pub use broadcaster::Broadcaster;
 pub use common::Component;
 pub use common::PortsHandle;
+pub use common::ComponentEnv;
 pub use connection::{LocalConnection, RemoteConnection};
 pub use event_bus::EventBus;
 pub use event_loop::EventLoop;
@@ -25,3 +27,4 @@ pub use voter::Voter;
 pub use wrapped_client::WrappedClient;
 pub use wrapped_handler::WrappedHandler;
 pub use wrapped_transport::WrappedTransport;
+pub use event_bridge::{EventBridgeChild, EventBridgeParent};

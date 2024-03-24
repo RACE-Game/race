@@ -6,14 +6,14 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use race_api::event::Event;
-use race_core::types::{BroadcastFrame, GameAccount, TxState};
+use race_core::types::{BroadcastFrame, BroadcastSync, TxState};
 use tokio::sync::{broadcast, Mutex};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use crate::component::common::{Component, ConsumerPorts};
 use crate::frame::EventFrame;
 
-use super::CloseReason;
+use super::{CloseReason, ComponentEnv};
 
 /// Backup events in memeory, for new connected clients.  The
 /// `settle_version` and `access_version` are the values at the time
@@ -25,6 +25,8 @@ pub struct EventBackup {
     pub timestamp: u64,
     pub access_version: u64,
     pub settle_version: u64,
+    pub state_sha: String,
+    pub state: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -35,6 +37,7 @@ pub struct Checkpoint {
 
 #[derive(Debug)]
 pub struct EventBackupGroup {
+    pub sync: BroadcastSync,
     pub events: LinkedList<EventBackup>,
     pub checkpoint: Checkpoint,
     pub settle_version: u64,
@@ -42,31 +45,33 @@ pub struct EventBackupGroup {
 }
 
 pub struct BroadcasterContext {
-    game_addr: String,
+    id: String,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
+    debug_mode: bool,
 }
 
 /// A component that pushes event to clients.
 pub struct Broadcaster {
-    game_addr: String,
+    id: String,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 impl Broadcaster {
-    pub fn init(game_account: &GameAccount) -> (Self, BroadcasterContext) {
+    pub fn init(id: String, debug_mode: bool) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);
         (
             Self {
-                game_addr: game_account.addr.clone(),
+                id: id.clone(),
                 event_backup_groups: event_backup_groups.clone(),
                 broadcast_tx: broadcast_tx.clone(),
             },
             BroadcasterContext {
-                game_addr: game_account.addr.clone(),
+                id,
+                debug_mode,
                 event_backup_groups,
                 broadcast_tx,
             },
@@ -77,18 +82,66 @@ impl Broadcaster {
         self.broadcast_tx.subscribe()
     }
 
+    pub async fn get_state(&self) -> Option<Vec<u8>> {
+        let groups = self.event_backup_groups.lock().await;
+        if let Some(event) = groups.back().and_then(|g| g.events.back()) {
+            event.state.clone()
+        } else {
+            None
+        }
+    }
+
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
-        let event_backup_groups = self.event_backup_groups.lock().await;
+        // info!(
+        //     "{} Retrieve the histories, settle_version: {}",
+        //     Self::name(),
+        //     settle_version
+        // );
 
         let mut histories: Vec<BroadcastFrame> = Vec::new();
+        let event_backup_groups = self.event_backup_groups.lock().await;
+
+        // If the `settle_version` is greater than the current
+        // one. Just return the latest group.  This is a patch for
+        // frontend sub game initialization, due to the fact that sub
+        // game always initialize with the its parent game's
+        // `settle_version` which is usually greater than the correct
+        // one.
+        if let Some(group) = event_backup_groups.back() {
+            if settle_version > group.settle_version {
+                histories.push(BroadcastFrame::Sync {
+                    sync: group.sync.clone(),
+                });
+                for event in group.events.iter() {
+                    histories.push(BroadcastFrame::Event {
+                        game_addr: self.id.clone(),
+                        event: event.event.clone(),
+                        timestamp: event.timestamp,
+                        state_sha: event.state_sha.clone(),
+                        state: event.state.clone(),
+                    })
+                }
+                return histories;
+            }
+        }
 
         for group in event_backup_groups.iter() {
             if group.settle_version >= settle_version {
+                // info!(
+                //     "{} Found histories with settle_version = {}",
+                //     Self::name(),
+                //     group.settle_version
+                // );
+                histories.push(BroadcastFrame::Sync {
+                    sync: group.sync.clone(),
+                });
                 for event in group.events.iter() {
                     histories.push(BroadcastFrame::Event {
-                        game_addr: self.game_addr.clone(),
+                        game_addr: self.id.clone(),
                         event: event.event.clone(),
                         timestamp: event.timestamp,
+                        state_sha: event.state_sha.clone(),
+                        state: event.state.clone(),
                     })
                 }
             }
@@ -100,28 +153,43 @@ impl Broadcaster {
 
 #[async_trait]
 impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
-    fn name(&self) -> &str {
+    fn name() -> &'static str {
         "Broadcaster"
     }
 
-    async fn run(mut ports: ConsumerPorts, ctx: BroadcasterContext) -> CloseReason {
+    async fn run(
+        mut ports: ConsumerPorts,
+        ctx: BroadcasterContext,
+        env: ComponentEnv,
+    ) -> CloseReason {
         while let Some(event) = ports.recv().await {
             match event {
                 EventFrame::SendMessage { message } => {
                     let r = ctx.broadcast_tx.send(BroadcastFrame::Message {
-                        game_addr: ctx.game_addr.clone(),
+                        game_addr: ctx.id.clone(),
                         message,
                     });
 
                     if let Err(e) = r {
                         // Usually it means no receivers
-                        debug!("Failed to broadcast event: {:?}", e);
+                        debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
                     }
                 }
+
                 EventFrame::Checkpoint {
                     access_version,
                     settle_version,
+                    ..
+                }
+                | EventFrame::InitState {
+                    access_version,
+                    settle_version,
+                    ..
                 } => {
+                    info!(
+                        "{} Create new history group with access_version = {}, settle_version = {}",
+                        env.log_prefix, access_version, settle_version
+                    );
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
 
                     let checkpoint = Checkpoint {
@@ -130,6 +198,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     };
 
                     event_backup_groups.push_back(EventBackupGroup {
+                        sync: Default::default(),
                         events: LinkedList::new(),
                         checkpoint,
                         access_version,
@@ -137,28 +206,25 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     });
                 }
                 EventFrame::TxState { tx_state } => match tx_state {
-                    TxState::PlayerConfirming {
-                        confirm_players,
-                        access_version,
-                    } => {
-                        let tx_state = TxState::PlayerConfirming {
-                            confirm_players,
-                            access_version,
-                        };
-
+                    TxState::SettleSucceed { .. } => {
                         let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
 
                         if let Err(e) = r {
-                            debug!("Failed to broadcast event: {:?}", e);
+                            debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
                         }
                     }
-                    TxState::PlayerConfirmingFailed(access_version) => {
-                        let r = ctx.broadcast_tx.send(BroadcastFrame::TxState {
-                            tx_state: TxState::PlayerConfirmingFailed(access_version),
-                        });
+                    TxState::PlayerConfirming { .. } => {
+                        let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
 
                         if let Err(e) = r {
-                            debug!("Failed to broadcast event: {:?}", e);
+                            debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
+                        }
+                    }
+                    TxState::PlayerConfirmingFailed(_) => {
+                        let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
+
+                        if let Err(e) = r {
+                            debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
                         }
                     }
                 },
@@ -167,8 +233,10 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     access_version,
                     settle_version,
                     timestamp,
+                    state,
+                    state_sha,
                 } => {
-                    debug!("Broadcaster receive event: {}", event);
+                    info!("{} Broadcaster receive event: {}", env.log_prefix, event);
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
 
                     if let Some(current) = event_backup_groups.back_mut() {
@@ -177,24 +245,62 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                             settle_version,
                             access_version,
                             timestamp,
+                            state_sha: state_sha.clone(),
+                            state: if ctx.debug_mode {
+                                Some(state.clone())
+                            } else {
+                                None
+                            },
                         });
                     } else {
-                        error!("Received event without checkpoint");
+                        error!("{} Received event without checkpoint", env.log_prefix);
                     }
                     // Keep 10 groups at most
                     if event_backup_groups.len() > 10 {
                         event_backup_groups.pop_front();
                     }
+                    drop(event_backup_groups);
 
                     let r = ctx.broadcast_tx.send(BroadcastFrame::Event {
-                        game_addr: ctx.game_addr.clone(),
+                        game_addr: ctx.id.clone(),
                         event,
                         timestamp,
+                        state_sha,
+                        state: if ctx.debug_mode { Some(state) } else { None },
                     });
 
                     if let Err(e) = r {
                         // Usually it means no receivers
-                        debug!("Failed to broadcast event: {:?}", e);
+                        debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
+                    }
+                }
+                EventFrame::Sync {
+                    new_servers,
+                    new_players,
+                    access_version,
+                    transactor_addr,
+                } => {
+                    let sync = BroadcastSync {
+                        new_players,
+                        new_servers,
+                        access_version,
+                        transactor_addr,
+                    };
+
+                    let mut event_backup_groups = ctx.event_backup_groups.lock().await;
+                    if let Some(current) = event_backup_groups.back_mut() {
+                        current.sync.merge(&sync);
+                    }
+                    drop(event_backup_groups);
+
+                    let broadcast_frame = BroadcastFrame::Sync { sync };
+                    let r = ctx.broadcast_tx.send(broadcast_frame);
+
+                    if let Err(e) = r {
+                        debug!(
+                            "{} Failed to broadcast node updates: {:?}",
+                            env.log_prefix, e
+                        );
                     }
                 }
                 EventFrame::Shutdown => {
@@ -216,14 +322,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_broadcast_event() {
-        let alice = TestClient::player("alice");
-        let bob = TestClient::player("bob");
+        let mut alice = TestClient::player("alice");
+        let mut bob = TestClient::player("bob");
         let game_account = TestGameAccountBuilder::default()
-            .add_player(&alice, 100)
-            .add_player(&bob, 100)
+            .add_player(&mut alice, 100)
+            .add_player(&mut bob, 100)
             .build();
-        let (broadcaster, ctx) = Broadcaster::init(&game_account);
-        let handle = broadcaster.start(ctx);
+
+        let (broadcaster, ctx) = Broadcaster::init(game_account.addr.clone());
+        let handle = broadcaster.start("", ctx);
         let mut rx = broadcaster.get_broadcast_rx();
 
         // BroadcastFrame::Event
@@ -233,18 +340,21 @@ mod tests {
                 settle_version: 10,
                 timestamp: 0,
                 event: Event::Custom {
-                    sender: "Alice".into(),
+                    sender: alice.id(),
                     raw: "CUSTOM EVENT".into(),
                 },
+                state_sha: "".into(),
             };
 
             let broadcast_frame = BroadcastFrame::Event {
                 game_addr: game_account.addr,
                 timestamp: 0,
                 event: Event::Custom {
-                    sender: "Alice".into(),
+                    sender: alice.id(),
                     raw: "CUSTOM EVENT".into(),
                 },
+                remain: 0,
+                state_sha: "".into(),
             };
 
             handle.send_unchecked(event_frame).await;
@@ -261,7 +371,8 @@ mod tests {
                     balance: 100,
                     access_version: 10,
                     verify_key: "alice".into(),
-                }],
+                }
+                .into()],
                 access_version: 10,
             };
             let event_frame = EventFrame::TxState {

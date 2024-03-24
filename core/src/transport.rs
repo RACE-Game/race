@@ -133,7 +133,7 @@ pub trait TransportT: Send + Sync {
 
     async fn publish_game(&self, params: PublishGameParams) -> Result<String>;
 
-    async fn settle_game(&self, params: SettleParams) -> Result<()>;
+    async fn settle_game(&self, params: SettleParams) -> Result<String>;
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String>;
 

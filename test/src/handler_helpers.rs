@@ -3,20 +3,12 @@ use std::mem::swap;
 use race_api::engine::GameHandler;
 use race_api::error::Result;
 use race_api::event::Event;
-use race_api::effect::Effect;
 use race_core::context::GameContext;
 use race_core::engine::{general_handle_event, general_init_state};
 use race_core::types::GameAccount;
 use race_encryptor::Encryptor;
 
 use crate::client_helpers::TestClient;
-
-fn parse_effect_checkpoint<H: GameHandler>(effect: &mut Effect) -> Result<()> {
-    if effect.is_checkpoint {
-        effect.__set_checkpoint_raw(vec![]);
-    }
-    Ok(())
-}
 
 /// A wrapped handler for testing
 /// This handler includes the general event handling, which is necessary for integration test.
@@ -45,8 +37,6 @@ impl<H: GameHandler> TestHandler<H> {
         general_handle_event(&mut new_context, event, &encryptor)?;
         let mut effect = new_context.derive_effect();
         self.handler.handle_event(&mut effect, event.to_owned())?;
-        parse_effect_checkpoint::<H>(&mut effect)?;
-        new_context.apply_effect(effect)?;
         swap(context, &mut new_context);
         Ok(())
     }
@@ -61,8 +51,24 @@ impl<H: GameHandler> TestHandler<H> {
             .expect("No dispatch event")
             .event
             .clone();
+        context.cancel_dispatch();
         self.handle_event(context, &event)?;
         Ok(())
+    }
+
+    pub fn handle_dispatch_until_no_events(
+        &mut self,
+        context: &mut GameContext,
+        clients: Vec<&mut TestClient>,
+    ) -> Result<()> {
+        let event = context
+            .get_dispatch()
+            .as_ref()
+            .expect("No dispatch event")
+            .event
+            .clone();
+        context.cancel_dispatch();
+        self.handle_until_no_events(context, &event, clients)
     }
 
     /// This fn keeps handling events of the following two types, until there is none:

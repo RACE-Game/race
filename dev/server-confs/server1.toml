@@ -5,6 +5,7 @@ chain = "facade"
 address = "Server 1"
 reg_addresses = ["DEFAULT_REGISTRATION_ADDRESS"]
 disable_blacklist = true
+debug_mode = true
 
 [facade]
 host = "http://localhost:12002"

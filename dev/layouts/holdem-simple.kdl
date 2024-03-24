@@ -5,17 +5,16 @@ layout {
     pane {
       name "Facade"
       focus true
-      cwd "./"
-      command "bash"
-      args "dev/create-mtt-game.sh"
-      start_suspended true
+      cwd "../"
+      command "just"
+      args "dev-facade" "-g" "dev/game-specs/holdem-cash.json"
     }
     pane split_direction="horizontal" {
         pane {
             name "Transactor"
             command "just"
-            cwd "./"
-            args "facade-transactor" "1"
+            cwd "../"
+            args "dev-transactor" "dev/server-confs/server1.toml"
             start_suspended true
         }
         pane

@@ -1,6 +1,7 @@
 import { EntryTypeCash, GameAccount, INft, IToken, PlayerProfile, TokenWithBalance } from './accounts';
 import { IStorage } from './storage';
 import { CreateGameAccountParams, ITransport, TransactionResult } from './transport';
+import { PlayerProfileWithPfp } from './types';
 import { IWallet } from './wallet';
 
 
@@ -118,8 +119,15 @@ export class AppHelper {
    * @param addr - The address of player profile account
    * @returns The player profile account or undefined when not found
    */
-  async getProfile(addr: string): Promise<PlayerProfile | undefined> {
-    return await this.#transport.getPlayerProfile(addr);
+  async getProfile(addr: string): Promise<PlayerProfileWithPfp | undefined> {
+    const profile = await this.#transport.getPlayerProfile(addr);
+    if (profile === undefined) return undefined;
+    if (profile.pfp !== undefined) {
+      const pfp = await this.#transport.getNft(profile.pfp, this.#storage);
+      return { nick: profile.nick, addr: profile.addr, pfp };
+    } else {
+      return { nick: profile.nick, addr: profile.addr, pfp: undefined };
+    }
   }
 
   /**
@@ -194,5 +202,17 @@ export class AppHelper {
       }
       return new TokenWithBalance(t, balance);
     });
+  }
+
+  /**
+   * Claim the fees collected by game.
+   *
+   * @param wallet - The wallet adapter to sign the transaction
+   * @param gameAddr - The address of game account.
+   */
+  async claim(wallet: IWallet, gameAddr: string): Promise<TransactionResult<void>> {
+    const gameAccount = await this.#transport.getGameAccount(gameAddr);
+    if (gameAccount === undefined) throw new Error('Game account not found');
+    return await this.#transport.recipientClaim(wallet, { recipientAddr: gameAccount?.recipientAddr });
   }
 }

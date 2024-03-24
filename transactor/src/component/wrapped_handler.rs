@@ -7,10 +7,10 @@ use race_api::effect::Effect;
 use race_api::engine::InitAccount;
 use race_api::error::{Error, Result};
 use race_api::event::Event;
-use race_core::context::GameContext;
+use race_core::context::{EventEffects, GameContext};
 use race_core::encryptor::EncryptorT;
-use race_core::engine::{general_handle_event, general_init_state, post_handle_event};
-use race_core::types::{GameBundle, Settle, Transfer};
+use race_core::engine::{general_handle_event, general_init_state};
+use race_core::types::GameBundle;
 use race_encryptor::Encryptor;
 use tracing::info;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
@@ -28,13 +28,6 @@ pub struct WrappedHandler {
     store: Store,
     instance: Instance,
     encryptor: Arc<dyn EncryptorT>,
-}
-
-#[derive(Debug)]
-pub struct Effects {
-    pub settles: Vec<Settle>,
-    pub transfers: Vec<Transfer>,
-    pub checkpoint: Vec<u8>,
 }
 
 impl WrappedHandler {
@@ -75,7 +68,7 @@ impl WrappedHandler {
         &mut self,
         context: &mut GameContext,
         init_account: &InitAccount,
-    ) -> Result<()> {
+    ) -> Result<EventEffects> {
         let memory = self
             .instance
             .exports
@@ -116,18 +109,23 @@ impl WrappedHandler {
             )
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
 
-        if len == 0 {
-            return Err(Error::WasmInitializationError(
-                "Seriliazing effect failed".into(),
-            ));
-        } else if len == 1 {
-            return Err(Error::WasmInitializationError(
-                "Deserializing effect failed".into(),
-            ));
-        } else if len == 2 {
-            return Err(Error::WasmInitializationError(
-                "Deserializing event failed".into(),
-            ));
+        match len {
+            0 => {
+                return Err(Error::WasmInitializationError(
+                    "Serializing effect failed".into(),
+                ))
+            }
+            1 => {
+                return Err(Error::WasmInitializationError(
+                    "Deserializing effect failed".into(),
+                ))
+            }
+            2 => {
+                return Err(Error::WasmInitializationError(
+                    "Deserializing event failed".into(),
+                ))
+            }
+            _ => (),
         }
 
         let mut buf = vec![0; len as _];
@@ -144,7 +142,7 @@ impl WrappedHandler {
         }
     }
 
-    fn custom_handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
+    fn custom_handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<EventEffects> {
         let memory = self
             .instance
             .exports
@@ -180,8 +178,23 @@ impl WrappedHandler {
                 Error::WasmExecutionError(e.to_string())
             })?;
 
-        if len == 0 {
-            return Err(Error::WasmExecutionError("Internal error".into()));
+        match len {
+            0 => {
+                return Err(Error::WasmExecutionError(
+                    "Serializing effect failed".into(),
+                ))
+            }
+            1 => {
+                return Err(Error::WasmExecutionError(
+                    "Deserializing effect failed".into(),
+                ))
+            }
+            2 => {
+                return Err(Error::WasmExecutionError(
+                    "Deserializing event failed".into(),
+                ))
+            }
+            _ => (),
         }
 
         let mut buf = vec![0; len as _];
@@ -202,36 +215,33 @@ impl WrappedHandler {
         &mut self,
         context: &mut GameContext,
         event: &Event,
-    ) -> Result<Option<Effects>> {
+    ) -> Result<EventEffects> {
         let mut new_context = context.clone();
         general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
-        self.custom_handle_event(&mut new_context, event)?;
-        post_handle_event(context, &mut new_context)?;
-        let settles_and_transfers = new_context.take_settles_and_transfers()?;
+        let event_effects = self.custom_handle_event(&mut new_context, event)?;
         swap(context, &mut new_context);
-        if let Some((settles, transfers, checkpoint)) = settles_and_transfers {
-            Ok(Some(Effects { settles, transfers, checkpoint }))
-        } else {
-            Ok(None)
-        }
+        Ok(event_effects)
     }
 
     pub fn init_state(
         &mut self,
         context: &mut GameContext,
         init_account: &InitAccount,
-    ) -> Result<()> {
+    ) -> Result<EventEffects> {
         let mut new_context = context.clone();
         general_init_state(&mut new_context, init_account)?;
-        self.custom_init_state(&mut new_context, init_account)?;
+        let event_effects = self.custom_init_state(&mut new_context, init_account)?;
         swap(context, &mut new_context);
-        Ok(())
+        Ok(event_effects)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use race_api::{prelude::{CustomEvent, HandleError}, types::GameStatus};
+    use race_api::{
+        prelude::{CustomEvent, HandleError},
+        types::GameStatus,
+    };
     use race_test::prelude::*;
 
     use super::*;
@@ -252,13 +262,14 @@ mod tests {
         }
     }
 
-    fn make_game_account() -> GameAccount {
+    fn setup_game() -> (GameAccount, TestClient) {
         let data = MinimalAccountData { init_n: 42 };
-        let transactor = TestClient::transactor("transactor");
-        TestGameAccountBuilder::default()
-            .set_transactor(&transactor)
+        let mut transactor = TestClient::transactor("transactor");
+        let acc = TestGameAccountBuilder::default()
+            .set_transactor(&mut transactor)
             .with_data(data)
-            .build()
+            .build();
+        (acc, transactor)
     }
 
     fn make_wrapped_handler() -> WrappedHandler {
@@ -270,7 +281,7 @@ mod tests {
     #[test]
     fn test_init_state() {
         let mut hdlr = make_wrapped_handler();
-        let game_account = make_game_account();
+        let (game_account, _tx) = setup_game();
         let init_account = game_account.derive_init_account();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
@@ -283,7 +294,7 @@ mod tests {
     #[test]
     fn test_handle_event() {
         let mut hdlr = make_wrapped_handler();
-        let game_account = make_game_account();
+        let (game_account, _tx) = setup_game();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
         let event = Event::GameStart {
             access_version: game_account.access_version,
@@ -302,9 +313,9 @@ mod tests {
     #[test]
     fn test_handle_custom_event() {
         let mut hdlr = make_wrapped_handler();
-        let game_account = make_game_account();
+        let (game_account, _tx) = setup_game();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
-        let event = Event::custom("Alice", &MinimalEvent::Increment(1));
+        let event = Event::custom(0, &MinimalEvent::Increment(1));
         let init_account = game_account.derive_init_account();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);

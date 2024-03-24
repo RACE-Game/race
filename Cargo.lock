@@ -2028,6 +2028,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fed44880c466736ef9a5c5b5facefb5ed0785676d0c02d612db14e54f0d84286"
 
 [[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
 name = "histogram"
 version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3510,48 +3516,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "race-example-draw-card"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arrayref",
- "borsh",
- "race-api",
- "race-proc-macro",
- "race-test",
-]
-
-[[package]]
-name = "race-example-minimal"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "race-api",
- "race-proc-macro",
- "race-test",
-]
-
-[[package]]
-name = "race-example-raffle"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "race-api",
- "race-proc-macro",
- "race-test",
-]
-
-[[package]]
-name = "race-example-simple-settle"
-version = "0.1.0"
-dependencies = [
- "borsh",
- "race-api",
- "race-proc-macro",
- "race-test",
-]
-
-[[package]]
 name = "race-facade"
 version = "0.2.6"
 dependencies = [
@@ -3655,6 +3619,7 @@ dependencies = [
  "race-transport",
  "serde",
  "serde_json",
+ "sha256",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -4378,6 +4343,19 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest 0.10.6",
+]
+
+[[package]]
+name = "sha256"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18278f6a914fa3070aa316493f7d2ddfb9ac86ebc06fa3b83bffda487e9065b0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "hex",
+ "sha2 0.10.6",
+ "tokio",
 ]
 
 [[package]]
@@ -5596,11 +5574,12 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.28.0"
+version = "1.29.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3c786bf8134e5a3a166db9b29ab8f48134739014a3eca7bc6bfa95d673b136f"
+checksum = "532826ff75199d5833b9d2c5fe410f29235e25704ee5f0ef599fb51c21f4a4da"
 dependencies = [
  "autocfg",
+ "backtrace",
  "bytes",
  "libc",
  "mio",

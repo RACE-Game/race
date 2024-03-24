@@ -33,18 +33,19 @@
   "devDependencies": {
     "@types/chai": "^4.3.4",
     "@types/jest": "^29.5.1",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
     "chai": "^4.3.7",
-    "eslint": "^8.40.0",
+    "eslint": "^8.56.0",
     "jest": "^29.5.0",
     "npm-run-all": "^4.1.5",
     "prettier": "^2.8.7",
     "ts-jest": "^29.1.0",
-    "typescript": "^5.0.4"
+    "typescript": "^5.3.3"
   },
   "peerDependencies": {
     "@race-foundation/borsh": "*",
     "ts-chacha20": "^1.2.0"
   },
-  "testDependencies": {
-  }
+  "testDependencies": {}
 }

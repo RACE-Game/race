@@ -3,10 +3,10 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use tokio::time::sleep;
 
-use crate::{frame::EventFrame, utils::addr_shorthand};
+use crate::frame::EventFrame;
 use race_core::{
     transport::TransportT,
-    types::{GameAccount, PlayerJoin, QueryMode, ServerJoin, TxState},
+    types::{ConfirmingPlayer, GameAccount, PlayerJoin, QueryMode, ServerJoin, TxState},
 };
 use tracing::{info, warn};
 
@@ -14,6 +14,8 @@ use crate::component::{
     common::{Component, ProducerPorts},
     event_bus::CloseReason,
 };
+
+use super::ComponentEnv;
 
 pub struct GameSynchronizerContext {
     transport: Arc<dyn TransportT>,
@@ -48,21 +50,22 @@ impl GameSynchronizer {
 #[allow(unused_assignments)]
 #[async_trait]
 impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
-    fn name(&self) -> &str {
-        "Game synchronizer"
+    fn name() -> &'static str {
+        "Game Synchronizer"
     }
 
-    async fn run(ports: ProducerPorts, ctx: GameSynchronizerContext) -> CloseReason {
+    async fn run(
+        ports: ProducerPorts,
+        ctx: GameSynchronizerContext,
+        env: ComponentEnv,
+    ) -> CloseReason {
         let mut prev_access_version = ctx.access_version;
         let mut access_version = ctx.access_version;
         let mut mode = ctx.mode;
         let mut num_of_retries = 0;
 
         loop {
-            let state = ctx
-                .transport
-                .get_game_account(&ctx.game_addr, mode)
-                .await;
+            let state = ctx.transport.get_game_account(&ctx.game_addr, mode).await;
 
             if ports.is_tx_closed() {
                 return CloseReason::Complete;
@@ -74,7 +77,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                         if access_version < state.access_version {
                             info!(
                                 "{} Synchronizer found confirming state, access_version = {}, settle_version = {}",
-                                addr_shorthand(&ctx.game_addr),
+                                env.log_prefix,
                                 state.access_version,
                                 state.settle_version,
                             );
@@ -85,9 +88,10 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                                 ..
                             } = state;
 
-                            let confirm_players: Vec<PlayerJoin> = players
+                            let confirm_players: Vec<ConfirmingPlayer> = players
                                 .into_iter()
                                 .filter(|p| p.access_version > access_version)
+                                .map(Into::into)
                                 .collect();
 
                             if !confirm_players.is_empty() {
@@ -125,7 +129,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                         if access_version <= state.access_version {
                             info!(
                                 "{} Synchronizer found a finalized state, access_version = {}, settle_version = {}",
-                                addr_shorthand(&ctx.game_addr),
+                                env.log_prefix,
                                 state.access_version,
                                 state.settle_version,
                             );
@@ -191,19 +195,19 @@ mod tests {
     #[tokio::test]
     async fn test_sync_state() {
         let transport = Arc::new(DummyTransport::default());
-        let alice = TestClient::player("alice");
-        let bob = TestClient::player("bob");
-        let foo = TestClient::transactor("foo");
-        let bar = TestClient::validator("bar");
+        let mut alice = TestClient::player("alice");
+        let mut bob = TestClient::player("bob");
+        let mut foo = TestClient::transactor("foo");
+        let mut bar = TestClient::validator("bar");
         let ga_0 = TestGameAccountBuilder::default()
-            .add_player(&alice, 100)
-            .set_transactor(&foo)
+            .add_player(&mut alice, 100)
+            .set_transactor(&mut foo)
             .build();
         let ga_1 = TestGameAccountBuilder::default()
-            .add_player(&alice, 100)
-            .set_transactor(&foo)
-            .add_player(&bob, 100)
-            .add_validator(&bar)
+            .add_player(&mut alice, 100)
+            .set_transactor(&mut foo)
+            .add_player(&mut bob, 100)
+            .add_validator(&mut bar)
             .build();
 
         println!("ga_0: {:?}", ga_0);

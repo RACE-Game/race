@@ -1,14 +1,14 @@
 //! The data structures for on-chain accounts.
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::prelude::InitAccount;
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-use crate::types::{PlayerJoin, PlayerDeposit, ServerJoin};
 use super::{
     common::{EntryType, VoteType},
     RecipientSlot,
 };
+use crate::types::{PlayerDeposit, PlayerJoin, ServerJoin};
+use borsh::{BorshDeserialize, BorshSerialize};
+use race_api::prelude::InitAccount;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -146,46 +146,34 @@ pub struct GameAccount {
 
 impl GameAccount {
     pub fn derive_init_account(&self) -> InitAccount {
-        let game_account = self.to_owned();
         InitAccount {
-            addr: game_account.addr,
-            players: game_account.players.clone(),
-            servers:  game_account.servers.clone(),
-            data: game_account.data.clone(),
-            access_version: game_account.access_version,
-            settle_version: game_account.settle_version,
-            max_players: game_account.max_players,
-            checkpoint: game_account.checkpoint,
+            max_players: self.max_players,
+            entry_type: self.entry_type.clone(),
+            players: self
+                .players
+                .iter()
+                .cloned()
+                .map(Into::into)
+                .collect(),
+            data: self.data.clone(),
+            checkpoint: self.checkpoint.clone(),
         }
     }
 
-    pub fn derive_rollbacked_init_account(&self) -> InitAccount {
-        let game_account = self.to_owned();
-        let Self { players, servers, addr, data, max_players, checkpoint, checkpoint_access_version, settle_version, transactor_addr, .. } = game_account;
-
-
-        let is_transactor = |addr: &String| {
-            transactor_addr.clone().is_some_and(|a| a.eq(addr))
-        };
-        let players = players
-            .into_iter()
-            .filter(|p| p.access_version <= checkpoint_access_version)
-            .collect();
-        let servers = servers
-            .into_iter()
-            // There's no sync event for transactor, so here we always include transactor address
-            .filter(|s| s.access_version <= checkpoint_access_version || is_transactor(&s.addr))
+    pub fn derive_checkpoint_init_account(&self) -> InitAccount {
+        let players = self.players
+            .iter()
+            .cloned()
+            .filter(|p| p.access_version <= self.checkpoint_access_version)
+            .map(|p| p.into())
             .collect();
 
         InitAccount {
-            addr,
+            entry_type: self.entry_type.clone(),
+            max_players: self.max_players,
             players,
-            servers,
-            data,
-            access_version: checkpoint_access_version,
-            settle_version,
-            max_players,
-            checkpoint
+            data: self.data.clone(),
+            checkpoint: self.checkpoint.clone(),
         }
     }
 }
@@ -294,7 +282,7 @@ mod tests {
             122, 110, 49, 71, 84, 111, 88, 119, 77, 116, 69, 51, 86, 84, 118, 103, 50, 105, 121,
             105, 109, 81, 85, 111, 113, 69, 76, 101, 6, 0, 0, 0, 71, 101, 110, 116, 111, 111, 0,
         ])
-            .unwrap();
+        .unwrap();
         assert_eq!(p.addr, p1.addr);
         assert_eq!(p.nick, p1.nick);
         assert_eq!(p.pfp, p1.pfp);
@@ -445,7 +433,7 @@ mod tests {
             114, 32, 48, 1, 0, 0, 0, 8, 0, 0, 0, 115, 101, 114, 118, 101, 114, 32, 49, 8, 0, 0, 0,
             115, 101, 114, 118, 101, 114, 32, 48, 0, 0, 30, 0, 10, 0, 0, 0, 10, 0, 0, 0, 0, 1, 2,
             3, 4, 5, 6, 7, 8, 9, 0, 100, 0, 0, 0, 0, 0, 0, 0, 250, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
-            114, 101, 99, 105, 112, 105, 101, 110, 116, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            114, 101, 99, 105, 112, 105, 101, 110, 116, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
         let ser = game_account.try_to_vec().unwrap();
         println!("Serialized game account {:?}", ser);
