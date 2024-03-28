@@ -449,6 +449,9 @@ impl Effect {
         for p in join_players.iter() {
             self.assert_player_id(p.id)?;
         }
+        if self.bridge_events.iter().any(|x| x.dest == dest) {
+            return Err(Error::DuplicatedBridgeEventTarget)
+        }
 
         self.bridge_events
             .push(EmitBridgeEvent::try_new(dest, evt, join_players)?);

@@ -75,16 +75,20 @@ pub enum EventFrame {
     },
     Shutdown,
     SendBridgeEvent {
+        from: usize,
         dest: usize,
         event: Event,
         access_version: u64,
         settle_version: u64,
+        checkpoint: Option<Vec<u8>>,
     },
     RecvBridgeEvent {
+        from: usize,
         dest: usize,
         event: Event,
         access_version: u64,
         settle_version: u64,
+        checkpoint: Option<Vec<u8>>,
     },
     LaunchSubGame {
         spec: Box<SubGameSpec>,

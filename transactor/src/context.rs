@@ -48,55 +48,64 @@ impl ApplicationContext {
         let debug_mode = transactor_config.debug_mode.unwrap_or(false);
 
         let game_manager = Arc::new(GameManager::default());
-        let game_manager_1 = game_manager.clone();
 
         let (signal_tx, mut signal_rx) = mpsc::channel(3);
 
-        let transport_1 = transport.clone();
-        let encryptor_1 = encryptor.clone();
-        let account_1 = account.clone();
         let blacklist = Arc::new(Mutex::new(Blacklist::new(
             transactor_config.disable_blacklist.ne(&(Some(true))),
         )));
-        let blacklist_1 = blacklist.clone();
-        let signal_tx_1 = signal_tx.clone();
+
+        let game_manager_0 = game_manager.clone();
+        let transport_0 = transport.clone();
+        let encryptor_0 = encryptor.clone();
+        let account_0 = account.clone();
+        let blacklist_0 = blacklist.clone();
+        let signal_tx_0 = signal_tx.clone();
 
         tokio::spawn(async move {
             while let Some(signal) = signal_rx.recv().await {
-                match signal {
-                    SignalFrame::StartGame { game_addr } => {
-                        game_manager_1
-                            .load_game(
-                                game_addr,
-                                transport_1.clone(),
-                                encryptor_1.clone(),
-                                &account_1,
-                                blacklist_1.clone(),
-                                signal_tx_1.clone(),
-                                debug_mode,
-                            )
-                            .await;
-                    }
-                    SignalFrame::LaunchSubGame { spec } => {
-                        let bridge_parent = game_manager_1
-                            .get_event_parent(&spec.game_addr)
-                            .await
-                            .expect(
-                                format!("Bridge parent not found: {}", spec.game_addr).as_str(),
-                            );
+                let game_manager_1 = game_manager_0.clone();
+                let transport_1 = transport_0.clone();
+                let encryptor_1 = encryptor_0.clone();
+                let account_1 = account_0.clone();
+                let blacklist_1 = blacklist_0.clone();
+                let signal_tx_1 = signal_tx_0.clone();
+                tokio::spawn(async move {
+                    match signal {
+                        SignalFrame::StartGame { game_addr } => {
+                            game_manager_1
+                                .load_game(
+                                    game_addr,
+                                    transport_1.clone(),
+                                    encryptor_1.clone(),
+                                    &account_1,
+                                    blacklist_1.clone(),
+                                    signal_tx_1.clone(),
+                                    debug_mode,
+                                )
+                                .await;
+                        }
+                        SignalFrame::LaunchSubGame { spec } => {
+                            let bridge_parent = game_manager_1
+                                .get_event_parent(&spec.game_addr)
+                                .await
+                                .expect(
+                                    format!("Bridge parent not found: {}", spec.game_addr).as_str(),
+                                );
 
-                        game_manager_1
-                            .launch_sub_game(
-                                spec,
-                                bridge_parent,
-                                &account_1,
-                                transport_1.clone(),
-                                encryptor_1.clone(),
-                                debug_mode,
-                            )
-                            .await;
+                            game_manager_1
+                                .launch_sub_game(
+                                    spec,
+                                    bridge_parent,
+                                    &account_1,
+                                    transport_1.clone(),
+                                    encryptor_1.clone(),
+                                    debug_mode,
+                                )
+                                .await;
+                        }
                     }
-                }
+                });
             }
         });
 

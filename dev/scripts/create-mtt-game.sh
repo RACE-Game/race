@@ -5,7 +5,7 @@ echo "Current timestamp is $START_TIME"
 DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
                           -u64 "$START_TIME" \
                           -u64 100000000 \
-                          -u8 2 \
+                          -u8 3 \
                           -u64 500000 \
                           -u64 60000 \
                           -u32 0 \

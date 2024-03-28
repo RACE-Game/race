@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::checkpoint::Checkpoint;
 use crate::types::{ClientMode, GameAccount, SettleWithAddr, SubGameSpec};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::decision::DecisionState;
@@ -9,7 +10,7 @@ use race_api::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
 use race_api::random::{RandomSpec, RandomState, RandomStatus};
 use race_api::types::{
-    Addr, Ciphertext, DecisionId, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare,
+    Ciphertext, DecisionId, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare,
     SettleOp, Transfer, EntryType,
 };
 #[cfg(feature = "serde")]
@@ -123,7 +124,9 @@ pub struct EventEffects {
 /// rejected.
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct GameContext {
-    pub(crate) game_addr: Addr,
+    pub(crate) game_addr: String,
+    /// The id of game, always be zero in master game.
+    pub(crate) sub_id: usize,
     /// Version numbers for player/server access.  This number will be
     /// increased whenever a new player joins or a server gets attached.
     pub(crate) access_version: u64,
@@ -142,8 +145,7 @@ pub struct GameContext {
     pub(crate) random_states: Vec<RandomState>,
     /// All runtime decision states, each stores the answer.
     pub(crate) decision_states: Vec<DecisionState>,
-    /// Settles, if is not None, will be handled by event loop.
-    pub(crate) checkpoint: Option<Vec<u8>>,
+    pub(crate) checkpoint: Checkpoint,
     /// The sub games to launch
     pub(crate) sub_games: Vec<SubGame>,
     /// Next settle version to use when we bump. It defaults to
@@ -171,6 +173,7 @@ impl GameContext {
 
         Ok(Self {
             game_addr: format!("{}:{}", game_addr, sub_id),
+            sub_id: *sub_id,
             nodes: nodes.clone(),
             settle_version: spec.settle_version,
             access_version: spec.access_version,
@@ -212,6 +215,7 @@ impl GameContext {
 
         Ok(Self {
             game_addr: game_account.addr.clone(),
+            sub_id: 0,
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
             status: GameStatus::Idle,
@@ -222,7 +226,7 @@ impl GameContext {
             random_states: vec![],
             decision_states: vec![],
             handler_state: "".into(),
-            checkpoint: None,
+            checkpoint: Checkpoint::default(),
             sub_games: vec![],
             next_settle_version: game_account.settle_version + 1,
             init_data: None,
@@ -271,8 +275,8 @@ impl GameContext {
         H::try_from_slice(&self.handler_state).unwrap()
     }
 
-    pub fn get_checkpoint(&self) -> Option<Vec<u8>> {
-        self.checkpoint.clone()
+    pub fn get_checkpoint(&self) -> Result<Vec<u8>> {
+        self.checkpoint.try_to_vec().map_err(|_e| Error::InvalidCheckpoint)
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
@@ -286,8 +290,12 @@ impl GameContext {
         &self.nodes
     }
 
-    pub fn get_game_addr(&self) -> &str {
+    pub fn game_addr(&self) -> &str {
         &self.game_addr
+    }
+
+    pub fn sub_id(&self) -> usize {
+        self.sub_id
     }
 
     pub fn get_transactor_addr(&self) -> Result<&str> {
@@ -354,17 +362,9 @@ impl GameContext {
         self.timestamp
     }
 
-    pub fn is_checkpoint(&self) -> bool {
-        self.checkpoint.is_some()
-    }
-
     pub fn get_status(&self) -> GameStatus {
         self.status
     }
-
-    // pub(crate) fn set_players(&mut self, players: Vec<Player>) {
-    //     self.players = players;
-    // }
 
     pub fn list_random_states(&self) -> &Vec<RandomState> {
         &self.random_states
@@ -793,8 +793,10 @@ impl GameContext {
         }
 
         let mut settles1 = Vec::with_capacity(settles.len());
+        let mut is_checkpoint = false;
         if let Some(checkpoint_state) = checkpoint {
-            self.checkpoint = Some(checkpoint_state);
+            is_checkpoint = true;
+            self.checkpoint.set_data(checkpoint_state);
             self.bump_settle_version()?;
             for s in settles {
                 match s.op {
@@ -832,7 +834,11 @@ impl GameContext {
         Ok(EventEffects {
             settles: settles1,
             transfers,
-            checkpoint: self.get_checkpoint(),
+            checkpoint: if is_checkpoint {
+                Some(self.get_checkpoint()?)
+            } else {
+                None
+            },
             launch_sub_games,
             bridge_events,
             start_game,
@@ -861,7 +867,6 @@ impl GameContext {
 
     pub fn prepare_for_next_event(&mut self, timestamp: u64) {
         self.set_timestamp(timestamp);
-        self.checkpoint = None;
     }
 
     pub fn set_init_data(&mut self, init_data: Vec<u8>) {
@@ -928,6 +933,7 @@ impl Default for GameContext {
     fn default() -> Self {
         Self {
             game_addr: "".into(),
+            sub_id: 0,
             access_version: 0,
             settle_version: 0,
             status: GameStatus::Idle,
@@ -938,7 +944,7 @@ impl Default for GameContext {
             allow_exit: false,
             random_states: Vec::new(),
             decision_states: Vec::new(),
-            checkpoint: None,
+            checkpoint: Checkpoint::default(),
             sub_games: Vec::new(),
             next_settle_version: 0,
             init_data: None,

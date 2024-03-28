@@ -104,18 +104,22 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
             if from_bridge {
                 match event_frame {
                     EventFrame::SendBridgeEvent {
+                        from,
                         dest,
                         event,
                         access_version,
                         settle_version,
+                        checkpoint,
                     } => {
                         info!("{} Receives event: {}", env.log_prefix, event);
                         ports
                             .send(EventFrame::RecvBridgeEvent {
+                                from,
                                 dest,
                                 event,
                                 access_version,
                                 settle_version,
+                                checkpoint,
                             })
                             .await;
                     }
@@ -213,18 +217,22 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         ports.send(event_frame).await;
                     }
                     EventFrame::SendBridgeEvent {
+                        from,
                         dest,
                         event,
                         access_version,
                         settle_version,
+                        checkpoint,
                     } if dest == ctx.sub_id => {
                         info!("{} Receives event: {}", env.log_prefix, event);
                         ports
                             .send(EventFrame::RecvBridgeEvent {
+                                from,
                                 dest,
                                 event,
                                 access_version,
                                 settle_version,
+                                checkpoint,
                             })
                             .await;
                     }

@@ -92,8 +92,10 @@ async fn handle_event(
                 }
             }
 
+            let mut cp: Option<Vec<u8>> = None;
             // Send the settlement when there's one
             if let Some(checkpoint) = effects.checkpoint {
+                cp.replace(checkpoint.clone());
                 ports
                     .send(EventFrame::Checkpoint {
                         access_version: game_context.access_version(),
@@ -116,7 +118,7 @@ async fn handle_event(
                 for launch_sub_game in effects.launch_sub_games {
                     let ef = EventFrame::LaunchSubGame {
                         spec: Box::new(SubGameSpec {
-                            game_addr: game_context.get_game_addr().to_owned(),
+                            game_addr: game_context.game_addr().to_owned(),
                             sub_id: launch_sub_game.id,
                             bundle_addr: launch_sub_game.bundle_addr,
                             nodes: game_context.get_nodes().into(),
@@ -134,6 +136,7 @@ async fn handle_event(
                 for be in effects.bridge_events {
                     info!("Emit bridge event: {:?}", be);
                     let ef = EventFrame::SendBridgeEvent {
+                        from: game_context.sub_id(),
                         dest: be.dest,
                         event: Event::Bridge {
                             dest: be.dest,
@@ -142,6 +145,7 @@ async fn handle_event(
                         },
                         access_version: game_context.access_version(),
                         settle_version: game_context.settle_version(),
+                        checkpoint: cp.clone(),
                     };
                     ports.send(ef).await;
                 }

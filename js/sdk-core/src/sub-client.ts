@@ -55,6 +55,7 @@ export class SubClient extends BaseClient {
    */
   async attachGame() {
     console.group(`${this.__logPrefix}Attach to game`);
+    console.log('Init Account:', this.__initAccount);
     let sub;
     try {
       await this.__client.attachGame();

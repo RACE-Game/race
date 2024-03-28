@@ -89,9 +89,9 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                                     break 'outer;
                                 }
                             }
-                            if context.is_checkpoint() {
-                                client.flush_secret_states();
-                            }
+                            // if context.is_checkpoint() {
+                            //     client.flush_secret_states();
+                            // }
                         }
                         Err(e) => {
                             error!("{} Client error: {:?}", env.log_prefix, e);
@@ -99,6 +99,9 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                             break 'outer;
                         }
                     }
+                }
+                EventFrame::GameStart { .. } => {
+                    client.flush_secret_states();
                 }
                 EventFrame::Shutdown => break,
                 _ => (),

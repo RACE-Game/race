@@ -284,6 +284,12 @@ pub enum Error {
 
     #[error("Invalid player id: {0}, availables: {1:?}")]
     InvalidPlayerId(u64, Vec<u64>),
+
+    #[error("Invalid sub game id")]
+    InvalidSubGameId,
+
+    #[error("Duplicated bridge event target")]
+    DuplicatedBridgeEventTarget,
 }
 
 #[cfg(feature = "serde")]
