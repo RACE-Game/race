@@ -95,7 +95,7 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
             } else {
                 return 1
             };
-            let init_account: race_api::engine::InitAccount = if let Some(init_account) = read_ptr(&mut ptr, init_account_size) {
+            let init_account: race_api::init_account::InitAccount = if let Some(init_account) = read_ptr(&mut ptr, init_account_size) {
                 init_account
             } else {
                 return 2

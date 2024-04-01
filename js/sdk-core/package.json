@@ -3,6 +3,7 @@
   "version": "0.2.6",
   "description": "The type definitions for Race SDK",
   "scripts": {
+    "check": "tsc -p tsconfig.types.json --skipLibCheck",
     "test": "jest",
     "test:watch": "jest --watch",
     "build": "run-p -l build:*",

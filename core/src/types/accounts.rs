@@ -4,7 +4,7 @@ use super::{
     common::{EntryType, VoteType},
     RecipientSlot,
 };
-use crate::types::{PlayerDeposit, PlayerJoin, ServerJoin};
+use crate::{types::{PlayerDeposit, PlayerJoin, ServerJoin}, checkpoint::Checkpoint};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::prelude::InitAccount;
 #[cfg(feature = "serde")]
@@ -146,6 +146,13 @@ pub struct GameAccount {
 
 impl GameAccount {
     pub fn derive_init_account(&self) -> InitAccount {
+        let checkpoint = if self.checkpoint.len() == 0 {
+            vec![]
+        } else {
+            let cp = Checkpoint::try_from_slice(&self.checkpoint).unwrap();
+            cp.data(0)
+        };
+
         InitAccount {
             max_players: self.max_players,
             entry_type: self.entry_type.clone(),
@@ -156,7 +163,7 @@ impl GameAccount {
                 .map(Into::into)
                 .collect(),
             data: self.data.clone(),
-            checkpoint: self.checkpoint.clone(),
+            checkpoint,
         }
     }
 
@@ -168,12 +175,19 @@ impl GameAccount {
             .map(|p| p.into())
             .collect();
 
+        let checkpoint = if self.checkpoint.len() == 0 {
+            vec![]
+        } else {
+            let cp = Checkpoint::try_from_slice(&self.checkpoint).unwrap();
+            cp.data(0)
+        };
+
         InitAccount {
             entry_type: self.entry_type.clone(),
             max_players: self.max_players,
             players,
             data: self.data.clone(),
-            checkpoint: self.checkpoint.clone(),
+            checkpoint,
         }
     }
 }

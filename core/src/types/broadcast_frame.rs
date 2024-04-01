@@ -19,6 +19,13 @@ pub struct BroadcastSync {
 }
 
 impl BroadcastSync {
+    pub fn new(access_version: u64) -> Self {
+        Self {
+            access_version,
+            ..Default::default()
+        }
+    }
+
     pub fn merge(&mut self, other: &Self) {
         self.new_players.append(&mut other.new_players.clone());
         self.new_servers.append(&mut other.new_servers.clone());

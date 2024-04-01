@@ -92,7 +92,7 @@ impl DispatchEvent {
 pub struct EventEffects {
     pub settles: Vec<SettleWithAddr>,
     pub transfers: Vec<Transfer>,
-    pub checkpoint: Option<Vec<u8>>,
+    pub checkpoint: Option<Checkpoint>,
     pub launch_sub_games: Vec<SubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
     pub start_game: bool,
@@ -126,7 +126,7 @@ pub struct EventEffects {
 pub struct GameContext {
     pub(crate) game_addr: String,
     /// The id of game, always be zero in master game.
-    pub(crate) sub_id: usize,
+    pub(crate) game_id: usize,
     /// Version numbers for player/server access.  This number will be
     /// increased whenever a new player joins or a server gets attached.
     pub(crate) access_version: u64,
@@ -166,14 +166,14 @@ impl GameContext {
         let SubGameSpec {
             game_addr,
             nodes,
-            sub_id,
+            game_id,
             init_account,
             ..
         } = spec;
 
         Ok(Self {
-            game_addr: format!("{}:{}", game_addr, sub_id),
-            sub_id: *sub_id,
+            game_addr: format!("{}:{}", game_addr, game_id),
+            game_id: *game_id,
             nodes: nodes.clone(),
             settle_version: spec.settle_version,
             access_version: spec.access_version,
@@ -181,6 +181,7 @@ impl GameContext {
             max_players: init_account.max_players,
             players: init_account.players.clone(),
             entry_type: EntryType::Disabled,
+            checkpoint: Checkpoint::new(*game_id, spec.settle_version, &init_account.checkpoint),
             ..Default::default()
         })
     }
@@ -213,9 +214,15 @@ impl GameContext {
                 nodes.push(Node::new_pending(p.addr.clone(), p.access_version, ClientMode::Player))
             });
 
+        let checkpoint = if game_account.checkpoint.len() == 0 {
+            Checkpoint::default()
+        } else {
+            Checkpoint::try_from_slice(&game_account.checkpoint)?
+        };
+
         Ok(Self {
             game_addr: game_account.addr.clone(),
-            sub_id: 0,
+            game_id: 0,
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
             status: GameStatus::Idle,
@@ -226,7 +233,7 @@ impl GameContext {
             random_states: vec![],
             decision_states: vec![],
             handler_state: "".into(),
-            checkpoint: Checkpoint::default(),
+            checkpoint,
             sub_games: vec![],
             next_settle_version: game_account.settle_version + 1,
             init_data: None,
@@ -275,8 +282,8 @@ impl GameContext {
         H::try_from_slice(&self.handler_state).unwrap()
     }
 
-    pub fn get_checkpoint(&self) -> Result<Vec<u8>> {
-        self.checkpoint.try_to_vec().map_err(|_e| Error::InvalidCheckpoint)
+    pub fn clone_checkpoint(&self) -> Checkpoint {
+        self.checkpoint.clone()
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
@@ -294,8 +301,8 @@ impl GameContext {
         &self.game_addr
     }
 
-    pub fn sub_id(&self) -> usize {
-        self.sub_id
+    pub fn game_id(&self) -> usize {
+        self.game_id
     }
 
     pub fn get_transactor_addr(&self) -> Result<&str> {
@@ -528,6 +535,7 @@ impl GameContext {
             .nodes
             .iter()
             .filter_map(|n| {
+                println!("N: {:?}", n);
                 if n.status == NodeStatus::Ready
                     && matches!(n.mode, ClientMode::Transactor | ClientMode::Validator)
                 {
@@ -538,6 +546,7 @@ impl GameContext {
             })
             .collect();
 
+        println!("owners: {:?}", owners);
         // The only failure case is that when there are not enough owners.
         // Here we know the game is served, so the servers must not be empty.
         let random_state = RandomState::try_new(random_id, spec, &owners)?;
@@ -796,7 +805,7 @@ impl GameContext {
         let mut is_checkpoint = false;
         if let Some(checkpoint_state) = checkpoint {
             is_checkpoint = true;
-            self.checkpoint.set_data(checkpoint_state);
+            self.checkpoint.set_data(self.game_id, checkpoint_state)?;
             self.bump_settle_version()?;
             for s in settles {
                 match s.op {
@@ -835,7 +844,7 @@ impl GameContext {
             settles: settles1,
             transfers,
             checkpoint: if is_checkpoint {
-                Some(self.get_checkpoint()?)
+                Some(self.clone_checkpoint())
             } else {
                 None
             },
@@ -933,7 +942,7 @@ impl Default for GameContext {
     fn default() -> Self {
         Self {
             game_addr: "".into(),
-            sub_id: 0,
+            game_id: 0,
             access_version: 0,
             settle_version: 0,
             status: GameStatus::Idle,

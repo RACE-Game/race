@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::effect::Effect;
-use race_api::engine::InitAccount;
+use race_api::init_account::InitAccount;
 use race_api::error::{Error, Result};
 use race_api::event::Event;
 use race_core::context::{EventEffects, GameContext};

@@ -143,12 +143,13 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     previous_settle_version,
                     ..
                 } => {
+                    let checkpoint_data = checkpoint.serialize().unwrap();
                     let res = queue_tx
                         .send(SettleParams {
                             addr: ctx.addr.clone(),
                             settles,
                             transfers,
-                            checkpoint,
+                            checkpoint: checkpoint_data,
                             settle_version: previous_settle_version,
                             next_settle_version: settle_version,
                         })

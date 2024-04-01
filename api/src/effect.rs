@@ -417,14 +417,6 @@ impl Effect {
         }
     }
 
-    pub fn __set_checkpoint_raw(&mut self, raw: Vec<u8>) {
-        self.checkpoint = Some(raw);
-    }
-
-    pub fn __checkpoint(&mut self) -> Option<Vec<u8>> {
-        self.checkpoint.take()
-    }
-
     /// Set error.
     ///
     /// This is an internal function, DO NOT use in game handler.

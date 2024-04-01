@@ -1,5 +1,5 @@
 use crate::{context::GameContext, encryptor::EncryptorT, types::GameStatus};
-use race_api::engine::InitAccount;
+use race_api::init_account::InitAccount;
 use race_api::error::{Error, HandleError};
 use race_api::event::Event;
 use race_api::random::RandomStatus;
@@ -86,6 +86,8 @@ pub fn general_handle_event(
         }
 
         Event::GameStart => {
+            // Update nodes' status based on current `access_version`.
+            context.set_node_ready(context.access_version());
             context.set_game_status(GameStatus::Running);
             Ok(())
         }

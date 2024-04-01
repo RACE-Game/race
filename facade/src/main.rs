@@ -624,7 +624,6 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
     if account.transactor_addr.is_none() {
         is_transactor = true;
         account.transactor_addr = Some(server_addr.clone());
-        account.checkpoint_access_version = new_access_version;
     }
 
     let server_account = servers

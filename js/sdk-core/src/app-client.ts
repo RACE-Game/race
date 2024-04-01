@@ -33,7 +33,7 @@ export type AppClientInitOpts = {
 };
 
 export type SubClientInitOpts = {
-  subId: number;
+  gameId: number;
   gameAddr: string;
   onEvent: EventCallbackFunction;
   onMessage?: MessageCallbackFunction;
@@ -153,17 +153,17 @@ export class AppClient extends BaseClient {
 
   async subClient(opts: SubClientInitOpts): Promise<SubClient> {
     try {
-      const { subId, onEvent, onMessage, onTxState, onConnectionState, onError } = opts;
+      const { gameId, onEvent, onMessage, onTxState, onConnectionState, onError } = opts;
 
-      const addr = `${this.__gameAddr}:${subId.toString()}`;
+      const addr = `${this.__gameAddr}:${gameId.toString()}`;
 
-      console.group(`SubClient initialization, id: ${subId}`);
+      console.group(`SubClient initialization, id: ${gameId}`);
 
-      const subGame = this.__gameContext.findSubGame(subId);
+      const subGame = this.__gameContext.findSubGame(gameId);
 
       if (subGame === undefined) {
         console.warn('Game context:', this.__gameContext);
-        throw SdkError.invalidSubId(subId);
+        throw SdkError.invalidSubId(gameId);
       }
 
       const bundleAddr = subGame.bundleAddr;
@@ -195,7 +195,7 @@ export class AppClient extends BaseClient {
         info: this.__info,
         decryptionCache,
         gameContext,
-        subId,
+        gameId,
         initAccount,
       });
     } finally {
@@ -219,8 +219,8 @@ export class AppClient extends BaseClient {
     return this.__profileLoader.getProfile(addr);
   }
 
-  makeSubGameAddr(subId: number): string {
-    return `${this.__gameAddr}:${subId}`;
+  makeSubGameAddr(gameId: number): string {
+    return `${this.__gameAddr}:${gameId}`;
   }
 
   /**

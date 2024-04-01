@@ -33,8 +33,8 @@ impl SubGameHandle {
         println!("Sub game players: {:?}", spec.init_account.players);
 
         let game_addr = spec.game_addr.clone();
-        let sub_id = spec.sub_id.clone();
-        let addr = format!("{}:{}", game_addr, sub_id);
+        let game_id = spec.game_id.clone();
+        let addr = format!("{}:{}", game_addr, game_id);
         let event_bus = EventBus::new(addr.to_string());
 
         let bundle_account = transport
@@ -53,7 +53,7 @@ impl SubGameHandle {
         let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone(), debug_mode);
         let mut broadcaster_handle = broadcaster.start(&addr, broadcaster_ctx);
 
-        let (bridge, bridge_ctx) = bridge_parent.derive_child(sub_id.clone());
+        let (bridge, bridge_ctx) = bridge_parent.derive_child(game_id.clone());
         let mut bridge_handle = bridge.start(&addr, bridge_ctx);
 
         let (event_loop, event_loop_ctx) =
@@ -87,7 +87,7 @@ impl SubGameHandle {
             .await;
 
         Ok(Self {
-            addr: format!("{}:{}", game_addr, sub_id),
+            addr: format!("{}:{}", game_addr, game_id),
             event_bus,
             handles: vec![broadcaster_handle, bridge_handle, event_loop_handle],
             broadcaster,

@@ -117,7 +117,7 @@ export class ActionTimeout {
 
 export class SubGame {
   @field('usize')
-  subId!: number;
+  gameId!: number;
   @field('string')
   bundleAddr!: string;
   @field(struct(InitAccount))

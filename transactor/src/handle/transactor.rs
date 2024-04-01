@@ -24,6 +24,7 @@ pub struct TransactorHandle {
 }
 
 fn create_init_sync(game_account: &GameAccount) -> Result<EventFrame> {
+    println!("{:?}", game_account);
     let new_players: Vec<PlayerJoin> = game_account
         .players
         .iter()
@@ -118,7 +119,9 @@ impl TransactorHandle {
                 settle_version: game_account.settle_version,
             })
             .await;
-        event_bus.send(create_init_sync(game_account)?).await;
+        let init_sync = create_init_sync(game_account)?;
+        info!("Dispatch init sync: {:?}", init_sync);
+        event_bus.send(init_sync).await;
 
         let mut synchronizer_handle = synchronizer.start(&game_account.addr, synchronizer_ctx);
         event_bus.attach(&mut synchronizer_handle).await;

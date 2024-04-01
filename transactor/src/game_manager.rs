@@ -67,11 +67,11 @@ impl GameManager {
         debug_mode: bool,
     ) {
         let game_addr = spec.game_addr.clone();
-        let sub_id = spec.sub_id;
+        let game_id = spec.game_id;
         match Handle::try_new_sub_game_handle(spec, bridge_parent, server_account, encryptor, transport, debug_mode).await {
             Ok(mut handle) => {
                 let mut games = self.games.lock().await;
-                let addr = format!("{}:{}", game_addr, sub_id);
+                let addr = format!("{}:{}", game_addr, game_id);
                 info!("Launch sub game {}", addr);
                 let join_handle = handle.wait();
                 games.insert(addr.clone(), handle);
@@ -80,7 +80,7 @@ impl GameManager {
             Err(e) => {
                 warn!(
                     "Error loading sub game with id {}: {}",
-                    sub_id,
+                    game_id,
                     e.to_string()
                 );
             }

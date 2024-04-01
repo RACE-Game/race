@@ -49,6 +49,7 @@ async fn handle_event(
     client_mode: ClientMode,
     game_mode: GameMode,
     env: &ComponentEnv,
+    no_broadcast: bool
 ) -> Option<CloseReason> {
     info!("{} Handle event: {}", env.log_prefix, event);
 
@@ -61,7 +62,7 @@ async fn handle_event(
             let state_sha = digest(state);
 
             // Broacast the event to clients
-            if client_mode == ClientMode::Transactor {
+            if client_mode == ClientMode::Transactor && !no_broadcast {
                 ports
                     .send(EventFrame::Broadcast {
                         event,
@@ -92,10 +93,8 @@ async fn handle_event(
                 }
             }
 
-            let mut cp: Option<Vec<u8>> = None;
             // Send the settlement when there's one
             if let Some(checkpoint) = effects.checkpoint {
-                cp.replace(checkpoint.clone());
                 ports
                     .send(EventFrame::Checkpoint {
                         access_version: game_context.access_version(),
@@ -119,7 +118,7 @@ async fn handle_event(
                     let ef = EventFrame::LaunchSubGame {
                         spec: Box::new(SubGameSpec {
                             game_addr: game_context.game_addr().to_owned(),
-                            sub_id: launch_sub_game.id,
+                            game_id: launch_sub_game.id,
                             bundle_addr: launch_sub_game.bundle_addr,
                             nodes: game_context.get_nodes().into(),
                             access_version: game_context.access_version(),
@@ -133,10 +132,11 @@ async fn handle_event(
 
             // Emit bridge events
             if client_mode == ClientMode::Transactor {
+                let checkpoint_data = game_context.clone_checkpoint();
                 for be in effects.bridge_events {
                     info!("Emit bridge event: {:?}", be);
                     let ef = EventFrame::SendBridgeEvent {
-                        from: game_context.sub_id(),
+                        from: game_context.game_id(),
                         dest: be.dest,
                         event: Event::Bridge {
                             dest: be.dest,
@@ -145,7 +145,7 @@ async fn handle_event(
                         },
                         access_version: game_context.access_version(),
                         settle_version: game_context.settle_version(),
-                        checkpoint: cp.clone(),
+                        checkpoint: checkpoint_data.clone(),
                     };
                     ports.send(ef).await;
                 }
@@ -268,7 +268,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         entry_type: game_context.entry_type(),
                         players: game_context.players().to_vec(),
                         data: init_data,
-                        checkpoint,
+                        checkpoint: checkpoint.data(game_context.game_id()).clone(),
                     };
                     if let Err(e) = handler.init_state(&mut game_context, &init_account) {
                         error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
@@ -277,8 +277,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
 
-                EventFrame::GameStart { access_version } => {
-                    game_context.set_node_ready(access_version);
+                EventFrame::GameStart { .. } => {
                     if ctx.client_mode == ClientMode::Transactor {
                         let event = Event::GameStart;
                         if let Some(close_reason) = handle_event(
@@ -289,6 +288,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.client_mode,
                             ctx.game_mode,
                             &env,
+                            false
                         )
                         .await
                         {
@@ -318,6 +318,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ClientMode::Validator
                         };
                         game_context.add_node(server.addr.clone(), server.access_version, mode);
+                        info!("{} Game context add server: {:?}", env.log_prefix, server.addr);
                     }
 
                     let mut new_players_1: Vec<GamePlayer> = Vec::with_capacity(new_players.len());
@@ -342,6 +343,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.client_mode,
                             ctx.game_mode,
                             &env,
+                            false
                         )
                         .await
                         {
@@ -361,6 +363,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.client_mode,
                             ctx.game_mode,
                             &env,
+                            false
                         )
                         .await
                         {
@@ -396,6 +399,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.client_mode,
                         ctx.game_mode,
                         &env,
+                        false,
                     )
                     .await
                     {
@@ -412,6 +416,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.client_mode,
                         ctx.game_mode,
                         &env,
+                        false,
                     )
                     .await
                     {
@@ -432,6 +437,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.client_mode,
                         ctx.game_mode,
                         &env,
+                        false,
                     )
                     .await
                     {

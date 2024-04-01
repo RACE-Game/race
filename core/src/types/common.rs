@@ -46,7 +46,7 @@ impl std::fmt::Display for Signature {
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub struct SubGameSpec {
     pub game_addr: String,
-    pub sub_id: usize,
+    pub game_id: usize,
     pub bundle_addr: String,
     pub nodes: Vec<Node>,
     pub access_version: u64,

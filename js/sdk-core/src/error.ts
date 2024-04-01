@@ -131,7 +131,7 @@ export class SdkError extends Error {
     return new SdkError(`Token ${addr} not found`);
   }
 
-  static invalidSubId(subId: number) {
-    return new SdkError(`Invalid subId: ${subId}`);
+  static invalidSubId(gameId: number) {
+    return new SdkError(`Invalid gameId: ${gameId}`);
   }
 }

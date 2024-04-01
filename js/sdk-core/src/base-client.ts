@@ -260,9 +260,7 @@ export class BaseClient {
     }
   }
 
-  async __handleBroadcastFrameEvent(frame: BroadcastFrameEvent) {
-
-    const { event, timestamp } = frame;
+  async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string, remoteState: Uint8Array | undefined) {
     console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
     console.log('Event: ', event);
     let state: Uint8Array | undefined;
@@ -275,8 +273,8 @@ export class BaseClient {
         effects = await this.__handler.handleEvent(this.__gameContext, event);
         state = this.__gameContext.handlerState;
         const sha = await sha256(this.__gameContext.handlerState)
-        if (sha !== frame.stateSha) {
-          console.warn('Remote state:', frame.state);
+        if (sha !== stateSha) {
+          console.warn('Remote state:', remoteState);
           console.warn('Local state:', state);
           err = 'state-sha-mismatch'
         }
@@ -363,7 +361,9 @@ export class BaseClient {
         console.groupEnd();
       }
     } else if (frame instanceof BroadcastFrameEvent) {
-      await this.__handleBroadcastFrameEvent(frame);
+      // await this.__handleBroadcastFrameEvent(frame);
+      const { event, timestamp, stateSha, state } = frame;
+      await this.__handleEvent(event, timestamp, stateSha, state);
     } else if (frame instanceof BroadcastFrameEndOfHistory) {
       this.__invokeEventCallback(new EndOfHistory())
     }

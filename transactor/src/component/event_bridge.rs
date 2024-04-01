@@ -21,13 +21,13 @@ pub struct EventBridgeParent {
 }
 
 pub struct EventBridgeChildContext {
-    pub sub_id: usize,
+    pub game_id: usize,
     tx: mpsc::Sender<EventFrame>,
     rx: broadcast::Receiver<EventFrame>,
 }
 
 pub struct EventBridgeChild {
-    pub sub_id: usize,
+    pub game_id: usize,
 }
 
 impl EventBridgeParent {
@@ -47,13 +47,13 @@ impl EventBridgeParent {
         )
     }
 
-    pub fn derive_child(&self, sub_id: usize) -> (EventBridgeChild, EventBridgeChildContext) {
+    pub fn derive_child(&self, game_id: usize) -> (EventBridgeChild, EventBridgeChildContext) {
         (
             EventBridgeChild {
-                sub_id: sub_id.clone(),
+                game_id: game_id.clone(),
             },
             EventBridgeChildContext {
-                sub_id,
+                game_id,
                 tx: self.tx.clone(),
                 rx: self.bc.subscribe(),
             },
@@ -223,7 +223,7 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         access_version,
                         settle_version,
                         checkpoint,
-                    } if dest == ctx.sub_id => {
+                    } if dest == ctx.game_id => {
                         info!("{} Receives event: {}", env.log_prefix, event);
                         ports
                             .send(EventFrame::RecvBridgeEvent {
@@ -241,7 +241,7 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
             } else {
                 match event_frame {
                     EventFrame::Shutdown => break,
-                    EventFrame::SendBridgeEvent { dest, .. } if dest != ctx.sub_id => {
+                    EventFrame::SendBridgeEvent { dest, .. } if dest != ctx.game_id => {
                         info!("{} Sends event: {}", env.log_prefix, event_frame);
                         if let Err(e) = ctx.tx.send(event_frame).await {
                             error!("{} Failed to send: {}", env.log_prefix, e);

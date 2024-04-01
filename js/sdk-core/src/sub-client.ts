@@ -13,7 +13,7 @@ import { Init } from './events';
 
 export type SubClientCtorOpts = {
   gameAddr: string;
-  subId: number;
+  gameId: number;
   handler: Handler;
   wallet: IWallet;
   client: Client;
@@ -33,21 +33,21 @@ export type SubClientCtorOpts = {
 
 export class SubClient extends BaseClient {
 
-  __subId: number;
+  __gameId: number;
   __initAccount: InitAccount;
 
   constructor(opts: SubClientCtorOpts) {
     super({
       onLoadProfile: (_id: bigint, _addr: string) => {},
-      logPrefix: `SubGame#${opts.subId}|`,
+      logPrefix: `SubGame#${opts.gameId}|`,
       ...opts
     })
-    this.__subId = opts.subId;
+    this.__gameId = opts.gameId;
     this.__initAccount = opts.initAccount;
   }
 
-  get subId(): number {
-    return this.__subId;
+  get gameId(): number {
+    return this.__gameId;
   }
 
   /**

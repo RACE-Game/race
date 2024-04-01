@@ -1,11 +1,11 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::{
-    engine::InitAccount,
+    init_account::InitAccount,
     event::{Event, Message}
 };
 use race_core::{
     context::GameContext,
-    types::{PlayerJoin, ServerJoin, SettleWithAddr, SubGameSpec, Transfer, TxState, VoteType},
+    types::{PlayerJoin, ServerJoin, SettleWithAddr, SubGameSpec, Transfer, TxState, VoteType}, checkpoint::Checkpoint,
 };
 
 #[derive(Debug, Clone)]
@@ -53,7 +53,7 @@ pub enum EventFrame {
     Checkpoint {
         settles: Vec<SettleWithAddr>,
         transfers: Vec<Transfer>,
-        checkpoint: Vec<u8>,
+        checkpoint: Checkpoint,
         access_version: u64,
         settle_version: u64,
         previous_settle_version: u64,
@@ -74,21 +74,27 @@ pub enum EventFrame {
         vote_type: VoteType,
     },
     Shutdown,
+    /// Represent a event send in current event bus.  `from` is the
+    /// source of event, `dest` is the target of the event.  value 0
+    /// represent the master game.  When there's an available
+    /// checkpoint in the context, it will be sent along with
+    /// `checkpoint`.
     SendBridgeEvent {
         from: usize,
         dest: usize,
         event: Event,
         access_version: u64,
         settle_version: u64,
-        checkpoint: Option<Vec<u8>>,
+        checkpoint: Checkpoint,
     },
+    /// Similar to `SendBridgeEvent`, but for receiver's event bus.
     RecvBridgeEvent {
         from: usize,
         dest: usize,
         event: Event,
         access_version: u64,
         settle_version: u64,
-        checkpoint: Option<Vec<u8>>,
+        checkpoint: Checkpoint,
     },
     LaunchSubGame {
         spec: Box<SubGameSpec>,

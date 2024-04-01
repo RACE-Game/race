@@ -101,30 +101,6 @@ impl Broadcaster {
         let mut histories: Vec<BroadcastFrame> = Vec::new();
         let event_backup_groups = self.event_backup_groups.lock().await;
 
-        // If the `settle_version` is greater than the current
-        // one. Just return the latest group.  This is a patch for
-        // frontend sub game initialization, due to the fact that sub
-        // game always initialize with the its parent game's
-        // `settle_version` which is usually greater than the correct
-        // one.
-        if let Some(group) = event_backup_groups.back() {
-            if settle_version > group.settle_version {
-                histories.push(BroadcastFrame::Sync {
-                    sync: group.sync.clone(),
-                });
-                for event in group.events.iter() {
-                    histories.push(BroadcastFrame::Event {
-                        game_addr: self.id.clone(),
-                        event: event.event.clone(),
-                        timestamp: event.timestamp,
-                        state_sha: event.state_sha.clone(),
-                        state: event.state.clone(),
-                    })
-                }
-                return histories;
-            }
-        }
-
         for group in event_backup_groups.iter() {
             if group.settle_version >= settle_version {
                 // info!(
@@ -132,6 +108,7 @@ impl Broadcaster {
                 //     Self::name(),
                 //     group.settle_version
                 // );
+                info!("Broadcast sync {:?}", group.sync);
                 histories.push(BroadcastFrame::Sync {
                     sync: group.sync.clone(),
                 });
@@ -198,7 +175,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     };
 
                     event_backup_groups.push_back(EventBackupGroup {
-                        sync: Default::default(),
+                        sync: BroadcastSync::new(access_version),
                         events: LinkedList::new(),
                         checkpoint,
                         access_version,
@@ -289,7 +266,10 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
 
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
                     if let Some(current) = event_backup_groups.back_mut() {
+                        info!("{} Merge sync: {:?}", env.log_prefix, sync);
                         current.sync.merge(&sync);
+                    } else {
+                        error!("{} Sync dropped", env.log_prefix);
                     }
                     drop(event_backup_groups);
 
@@ -329,7 +309,7 @@ mod tests {
             .add_player(&mut bob, 100)
             .build();
 
-        let (broadcaster, ctx) = Broadcaster::init(game_account.addr.clone());
+        let (broadcaster, ctx) = Broadcaster::init(game_account.addr.clone(), true);
         let handle = broadcaster.start("", ctx);
         let mut rx = broadcaster.get_broadcast_rx();
 
@@ -344,6 +324,7 @@ mod tests {
                     raw: "CUSTOM EVENT".into(),
                 },
                 state_sha: "".into(),
+                state: vec![],
             };
 
             let broadcast_frame = BroadcastFrame::Event {
@@ -353,7 +334,7 @@ mod tests {
                     sender: alice.id(),
                     raw: "CUSTOM EVENT".into(),
                 },
-                remain: 0,
+                state: Some(vec![]),
                 state_sha: "".into(),
             };
 

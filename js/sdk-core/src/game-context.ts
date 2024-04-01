@@ -1,5 +1,6 @@
 import { RandomState, RandomSpec } from './random-state';
 import { DecisionState } from './decision-state';
+import { Checkpoint } from './checkpoint';
 import {
   ActionTimeout,
   Answer,
@@ -60,6 +61,7 @@ export type EventEffects = {
 
 export class GameContext {
   gameAddr: string;
+  gameId: number;
   accessVersion: bigint;
   settleVersion: bigint;
   status: GameStatus;
@@ -70,7 +72,7 @@ export class GameContext {
   allowExit: boolean;
   randomStates: RandomState[];
   decisionStates: DecisionState[];
-  checkpoint: Uint8Array | undefined;
+  checkpoint: Checkpoint;
   subGames: SubGame[];
   nextSettleVersion: bigint;
   initData: Uint8Array | undefined;
@@ -84,6 +86,7 @@ export class GameContext {
     if (init instanceof GameContext) {
       const context = init;
       this.gameAddr = context.gameAddr;
+      this.gameId = context.gameId;
       this.accessVersion = context.accessVersion;
       this.settleVersion = context.settleVersion;
       this.status = context.status;
@@ -94,14 +97,14 @@ export class GameContext {
       this.allowExit = context.allowExit;
       this.randomStates = context.randomStates;
       this.decisionStates = context.decisionStates;
-      this.checkpoint = undefined;
+      this.checkpoint = init.checkpoint;
       this.subGames = context.subGames.map(sg => Object.assign({}, sg));
       this.nextSettleVersion = context.nextSettleVersion;
       this.initData = context.initData;
       this.maxPlayers = context.maxPlayers;
       this.players = context.players.map(p => Object.assign({}, p))
       this.entryType = context.entryType;
-    } else {
+    } else {                    // GameAccount
       const gameAccount = init;
       const transactorAddr = gameAccount.transactorAddr;
       if (transactorAddr === undefined) {
@@ -140,6 +143,7 @@ export class GameContext {
         }))
 
       this.gameAddr = gameAccount.addr;
+      this.gameId = 0;
       this.accessVersion = gameAccount.accessVersion;
       this.settleVersion = gameAccount.settleVersion;
       this.status = 'idle';
@@ -150,7 +154,7 @@ export class GameContext {
       this.randomStates = [];
       this.decisionStates = [];
       this.handlerState = Uint8Array.of();
-      this.checkpoint = undefined;
+      this.checkpoint = Checkpoint.fromRaw(init.checkpoint);
       this.subGames = [];
       this.nextSettleVersion = gameAccount.settleVersion + 1n;
       this.initData = gameAccount.data;
@@ -162,14 +166,16 @@ export class GameContext {
 
   subContext(subGame: SubGame): GameContext {
     const c = new GameContext(this);
-    c.gameAddr = c.gameAddr + subGame.subId;
+    c.gameAddr = c.gameAddr + subGame.gameId;
+    c.gameId = subGame.gameId;
     c.dispatch = undefined;
     c.timestamp = 0n;
     c.allowExit = false;
     c.randomStates = [];
     c.decisionStates = [];
     c.handlerState = Uint8Array.of();
-    c.checkpoint = subGame.initAccount.checkpoint;
+    // TODO, use settle version as checkpoint version?
+    c.checkpoint = Checkpoint.fromData(subGame.gameId, 0n, subGame.initAccount.checkpoint);
     c.subGames = [];
     c.initData = subGame.initAccount.data;
     c.maxPlayers = subGame.initAccount.maxPlayers;
@@ -458,7 +464,7 @@ export class GameContext {
         }
       }
 
-      this.checkpoint = effect.checkpoint;
+      this.checkpoint.setData(this.gameId, effect.checkpoint);
       this.status = 'idle';
     }
 
@@ -506,15 +512,14 @@ export class GameContext {
 
   prepareForNextEvent(timestamp: bigint) {
     this.timestamp = timestamp;
-    this.checkpoint = undefined;
   }
 
-  findSubGame(subId: number): SubGame | undefined {
-    return this.subGames.find(g => g.subId === Number(subId));
+  findSubGame(gameId: number): SubGame | undefined {
+    return this.subGames.find(g => g.gameId === Number(gameId));
   }
 
   addSubGame(subGame: SubGame) {
-    const found = this.subGames.find(s => s.subId === subGame.subId);
+    const found = this.subGames.find(s => s.gameId === subGame.gameId);
     if (found === undefined) {
       this.subGames.push(subGame);
     } else {

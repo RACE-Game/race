@@ -100,7 +100,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                         }
                     }
                 }
-                EventFrame::GameStart { .. } => {
+                EventFrame::Checkpoint { .. } => {
                     client.flush_secret_states();
                 }
                 EventFrame::Shutdown => break,

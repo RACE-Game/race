@@ -15,8 +15,8 @@ use tracing::warn;
 
 use crate::frame::EventFrame;
 
-use super::ComponentEnv;
 use super::common::{Component, ProducerPorts};
+use super::ComponentEnv;
 use super::{event_bus::CloseReason, RemoteConnection};
 
 pub struct SubscriberContext {
@@ -92,7 +92,10 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                         warn!("{} Shutdown subscriber", env.log_prefix);
                         return CloseReason::Complete;
                     } else {
-                        error!("{} Failed to subscribe events: {}, will retry", env.log_prefix, e);
+                        error!(
+                            "{} Failed to subscribe events: {}, will retry",
+                            env.log_prefix, e
+                        );
                         retries += 1;
                         continue;
                     }
@@ -114,9 +117,17 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                     }
                 }
 
-                BroadcastFrame::Sync { sync} => {
-                    let BroadcastSync { new_players, new_servers, access_version, transactor_addr } = sync;
-                    info!("{} Receive Sync broadcast, new_players: {:?}, new_servers: {:?}", env.log_prefix, new_players, new_servers);
+                BroadcastFrame::Sync { sync } => {
+                    let BroadcastSync {
+                        new_players,
+                        new_servers,
+                        access_version,
+                        transactor_addr,
+                    } = sync;
+                    info!(
+                        "{} Receive Sync broadcast, new_players: {:?}, new_servers: {:?}",
+                        env.log_prefix, new_players, new_servers
+                    );
                     if let Err(e) = ports
                         .try_send(EventFrame::Sync {
                             new_players,
@@ -130,6 +141,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                         break;
                     }
                 }
+
                 BroadcastFrame::Message { .. } => {
                     // Dropped
                 }
