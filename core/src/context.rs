@@ -8,10 +8,11 @@ use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, Release, Reveal, Su
 use race_api::engine::GameHandler;
 use race_api::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
+use race_api::prelude::InitAccount;
 use race_api::random::{RandomSpec, RandomState, RandomStatus};
 use race_api::types::{
-    Ciphertext, DecisionId, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare,
-    SettleOp, Transfer, EntryType,
+    Ciphertext, DecisionId, EntryType, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare,
+    SettleOp, Transfer,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -153,7 +154,7 @@ pub struct GameContext {
     /// for a sub game.
     pub(crate) next_settle_version: u64,
     /// Init data from `InitAccount`.
-    pub(crate) init_data: Option<Vec<u8>>,
+    pub(crate) init_data: Vec<u8>,
     /// Maximum number of players.
     pub(crate) max_players: u16,
     /// Game Players
@@ -208,11 +209,18 @@ impl GameContext {
             })
             .collect();
         let mut players = vec![];
-        game_account.players.iter()
-            .for_each(|p| {
+        game_account.players.iter().for_each(|p| {
+            // Only include those players joined before last checkpoint
+            if p.access_version <= game_account.checkpoint_access_version {
                 players.push(GamePlayer::new(p.access_version, p.balance, p.position));
-                nodes.push(Node::new_pending(p.addr.clone(), p.access_version, ClientMode::Player))
-            });
+            }
+
+            nodes.push(Node::new_pending(
+                p.addr.clone(),
+                p.access_version,
+                ClientMode::Player,
+            ))
+        });
 
         let checkpoint = if game_account.checkpoint.len() == 0 {
             Checkpoint::default()
@@ -236,10 +244,20 @@ impl GameContext {
             checkpoint,
             sub_games: vec![],
             next_settle_version: game_account.settle_version + 1,
-            init_data: None,
+            init_data: game_account.data.clone(),
             max_players: game_account.max_players,
             players,
             entry_type: game_account.entry_type.clone(),
+        })
+    }
+
+    pub fn init_account(&self) -> Result<InitAccount> {
+        Ok(InitAccount {
+            max_players: self.max_players,
+            entry_type: self.entry_type.clone(),
+            players: self.players.clone(),
+            data: self.init_data.clone(),
+            checkpoint: self.checkpoint.data(self.game_id),
         })
     }
 
@@ -886,16 +904,8 @@ impl GameContext {
         self.set_timestamp(timestamp);
     }
 
-    pub fn set_init_data(&mut self, init_data: Vec<u8>) {
-        self.init_data.replace(init_data);
-    }
-
-    pub fn init_data(&self) -> Result<Vec<u8>> {
-        if let Some(init_data) = &self.init_data {
-            Ok(init_data.clone())
-        } else {
-            Err(Error::GameUninitialized)
-        }
+    pub fn init_data(&self) -> Vec<u8> {
+        self.init_data.clone()
     }
 
     pub fn max_players(&self) -> u16 {
@@ -911,7 +921,8 @@ impl GameContext {
     }
 
     pub fn player_sub_balance(&mut self, player_id: u64, amount: u64) -> Result<()> {
-        let p = self.players
+        let p = self
+            .players
             .iter_mut()
             .find(|p| p.id == player_id)
             .ok_or(Error::PlayerNotInGame)?;
@@ -922,7 +933,8 @@ impl GameContext {
     }
 
     pub fn player_add_balance(&mut self, player_id: u64, amount: u64) -> Result<()> {
-        let p = self.players
+        let p = self
+            .players
             .iter_mut()
             .find(|p| p.id == player_id)
             .ok_or(Error::PlayerNotInGame)?;
@@ -964,7 +976,7 @@ impl Default for GameContext {
             checkpoint: Checkpoint::default(),
             sub_games: Vec::new(),
             next_settle_version: 0,
-            init_data: None,
+            init_data: Vec::new(),
             max_players: 0,
             players: Vec::new(),
             entry_type: EntryType::Disabled,

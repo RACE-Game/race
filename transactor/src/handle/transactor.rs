@@ -70,6 +70,7 @@ impl TransactorHandle {
         );
 
         let game_context = GameContext::try_new(game_account)?;
+        let init_account = game_context.init_account()?;
         let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
 
         let event_bus = EventBus::new(game_account.addr.clone());
@@ -110,7 +111,7 @@ impl TransactorHandle {
         event_bus.attach(&mut client_handle).await;
 
         // Dispatch init state
-        let init_account = game_account.derive_checkpoint_init_account();
+        // let init_account = game_account.derive_checkpoint_init_account();
         info!("InitAccount: {:?}", init_account);
         event_bus
             .send(EventFrame::InitState {

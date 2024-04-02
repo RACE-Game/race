@@ -290,6 +290,9 @@ pub enum Error {
 
     #[error("Duplicated bridge event target")]
     DuplicatedBridgeEventTarget,
+
+    #[error("Missing init data")]
+    MissingInitData,
 }
 
 #[cfg(feature = "serde")]

@@ -244,7 +244,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         env.log_prefix, access_version, settle_version
                     );
 
-                    game_context.set_init_data(init_account.data);
                     game_context.dispatch_safe(Event::Ready, 0);
                 }
 
@@ -254,10 +253,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     checkpoint,
                     ..
                 } => {
-                    let init_data = match game_context.init_data() {
-                        Ok(init_data) => init_data,
-                        Err(e) => return CloseReason::Fault(e),
-                    };
+                    let init_data = game_context.init_data();
                     info!(
                         "{} Rebuild game state from checkpoint, access_version = {}, settle_version = {}, checkpoint: {:?}",
                         env.log_prefix, access_version, settle_version, checkpoint
