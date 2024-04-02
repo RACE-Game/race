@@ -52,13 +52,16 @@ export class InitAccount {
     let { players, data, checkpointAccessVersion } = gameAccount;
     const game_players = players.filter(p => p.accessVersion <= checkpointAccessVersion)
       .map(p => new GamePlayer({ id: p.accessVersion, balance: p.balance, position: p.position }));
-    let checkpoint;
-    if (gameAccount.checkpoint.length === 0) {
-      checkpoint = Uint8Array.of();
-    } else {
+
+    let checkpoint = Uint8Array.of();
+    if (gameAccount.checkpoint.length > 0) {
       const cp = Checkpoint.fromRaw(gameAccount.checkpoint);
-      checkpoint = cp.getData(0);
+      const checkpointData = cp.getData(0);
+      if (checkpointData !== undefined) {
+        checkpoint = checkpointData;
+      }
     }
+
     return new InitAccount({
       data,
       players: game_players,

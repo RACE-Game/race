@@ -132,7 +132,6 @@ async fn handle_event(
 
             // Emit bridge events
             if client_mode == ClientMode::Transactor {
-                let checkpoint_data = game_context.clone_checkpoint();
                 for be in effects.bridge_events {
                     info!("Emit bridge event: {:?}", be);
                     let ef = EventFrame::SendBridgeEvent {
@@ -145,7 +144,7 @@ async fn handle_event(
                         },
                         access_version: game_context.access_version(),
                         settle_version: game_context.settle_version(),
-                        checkpoint: checkpoint_data.clone(),
+                        checkpoint: game_context.checkpoint().data(game_context.game_id()),
                     };
                     ports.send(ef).await;
                 }
@@ -379,10 +378,12 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
                 EventFrame::RecvBridgeEvent {
                     event,
-                    settle_version,
+                    dest,
+                    from,
+                    checkpoint,
                     ..
                 } => {
-                    game_context.update_next_settle_version(settle_version);
+                    // game_context.update_next_settle_version(settle_version);
 
                     info!(
                         "{} Set next settle version to {}, current: {}",
@@ -390,6 +391,12 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         game_context.next_settle_version(),
                         game_context.settle_version()
                     );
+
+                    if game_context.game_id() == 0 && dest == 0 && from != 0 {
+                        if let Err(e) = game_context.checkpoint_mut().set_data(from, checkpoint) {
+                            error!("Failed to update checkpoint at {} due to {:?}", from, e);
+                        }
+                    }
 
                     if let Some(close_reason) = handle_event(
                         &mut handler,

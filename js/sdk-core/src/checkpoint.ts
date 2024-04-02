@@ -34,12 +34,12 @@ export class Checkpoint {
     });
   }
 
-  getData(id: number): Uint8Array {
-    return this.data.get(id)?.data || Uint8Array.of()
+  getData(id: number): Uint8Array | undefined {
+    return this.data.get(id)?.data
   }
 
   setData(id: number, data: Uint8Array) {
-    const ver = this.getVersion();
+    const ver = this.getVersion(0);
     let vd = this.data.get(id);
     if (vd !== undefined) {
       vd.data = data;
@@ -60,7 +60,7 @@ export class Checkpoint {
     }
   }
 
-  getVersion(): bigint {
-    return this.data.get(0)?.version || 0n
+  getVersion(id: number): bigint {
+    return this.data.get(id)?.version || 0n
   }
 }

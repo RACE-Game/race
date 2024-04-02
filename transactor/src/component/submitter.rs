@@ -16,6 +16,8 @@ use race_core::transport::TransportT;
 use super::ComponentEnv;
 use super::common::PipelinePorts;
 
+const MAX_PENDING_TXS: usize = 10;
+
 /// Squash two settles into one.
 fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
     let SettleParams {
@@ -39,13 +41,13 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
     }
 }
 
-/// Read at most 3 settle events from channel.
+/// Read at most `MAX_PENDING_TXS` settle events from channel.
 async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>) -> Vec<SettleParams> {
     let mut v = vec![];
     let mut cnt = 0;
 
     loop {
-        if cnt == 3 {
+        if cnt == MAX_PENDING_TXS {
             break;
         }
 

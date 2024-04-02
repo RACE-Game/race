@@ -286,6 +286,14 @@ impl GameContext {
         self.checkpoint.clone()
     }
 
+    pub fn checkpoint(&self) -> &Checkpoint {
+        &self.checkpoint
+    }
+
+    pub fn checkpoint_mut(&mut self) -> &mut Checkpoint {
+        &mut self.checkpoint
+    }
+
     pub fn set_handler_state<H>(&mut self, handler: &H)
     where
         H: GameHandler,

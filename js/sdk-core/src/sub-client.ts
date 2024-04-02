@@ -60,7 +60,7 @@ export class SubClient extends BaseClient {
     try {
       await this.__client.attachGame();
       sub = this.__connection.subscribeEvents();
-      await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
+      await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.checkpointVersion() }));
       await this.__handler.initState(this.__gameContext, this.__initAccount);
       this.__invokeEventCallback(new Init());
     } catch (e) {

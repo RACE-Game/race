@@ -16,6 +16,8 @@ import { BaseClient } from './base-client';
 import { EntryTypeCash, GameAccount, GameBundle, IToken } from './accounts';
 import { ConnectionStateCallbackFunction, EventCallbackFunction, GameInfo, MessageCallbackFunction, TxStateCallbackFunction, PlayerProfileWithPfp, ProfileCallbackFunction, ErrorCallbackFunction } from './types';
 import { SubClient } from './sub-client';
+import { Checkpoint } from './checkpoint';
+import { InitAccount } from './init-account';
 
 const BUNDLE_CACHE_TTL = 3600 * 365;
 
@@ -176,8 +178,17 @@ export class AppClient extends BaseClient {
       const client = new Client(playerAddr, this.__encryptor, connection);
       const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr);
       const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache);
-      const gameContext = this.__gameContext.subContext(subGame);
-      const initAccount = subGame.initAccount;
+
+      let initAccount = subGame.initAccount;
+      /// Prefer to use the checkpoint from on-chain state.
+      const gameAccount = await this.__getGameAccount();
+      const checkpoint = Checkpoint.fromRaw(gameAccount.checkpoint);
+      const checkpointData = checkpoint.getData(subGame.gameId);
+      if (checkpointData !== undefined) {
+        initAccount = new InitAccount({ ...initAccount, checkpoint: checkpointData });
+      }
+
+      const gameContext = this.__gameContext.subContext(subGame, checkpoint);
 
       return new SubClient({
         gameAddr: addr,

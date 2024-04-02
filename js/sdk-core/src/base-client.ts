@@ -17,7 +17,7 @@ import { GameContextSnapshot } from './game-context-snapshot';
 import { ITransport } from './transport';
 import { IWallet } from './wallet';
 import { Handler } from './handler';
-import { InitAccount } from './init-account';
+import { IInitAccount, InitAccount } from './init-account';
 import { IEncryptor, sha256 } from './encryptor';
 import { GameAccount } from './accounts';
 import { PlayerConfirming } from './tx-state';
@@ -191,14 +191,8 @@ export class BaseClient {
     try {
       await this.__client.attachGame();
       sub = this.__connection.subscribeEvents();
-      const gameAccount = await this.__getGameAccount();
-      const initAccount = InitAccount.createFromGameAccount(gameAccount);
-      this.__gameContext = new GameContext(gameAccount);
-      this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
-      console.log('Game context created,', this.__gameContext);
+      const { gameAccount } = await this.__startSubscribeAndInitState();
       for (const p of gameAccount.players) this.__onLoadProfile(p.accessVersion, p.addr);
-      await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
-      await this.__handler.initState(this.__gameContext, initAccount);
       this.__invokeEventCallback(new Init());
     } catch (e) {
       console.error(this.__logPrefix + 'Attaching game failed', e);
@@ -369,19 +363,26 @@ export class BaseClient {
     }
   }
 
+  async __startSubscribeAndInitState(): Promise<{
+    gameAccount: GameAccount,
+    initAccount: InitAccount,
+  }> {
+    const gameAccount = await this.__getGameAccount();
+    this.__gameContext = new GameContext(gameAccount);
+    const initAccount = InitAccount.createFromGameAccount(gameAccount);
+    this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
+    await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.checkpointVersion() }));
+    await this.__handler.initState(this.__gameContext, initAccount);
+    return { gameAccount, initAccount };
+  }
+
   async __handleConnectionState(state: ConnectionState) {
     if (state === 'disconnected') {
       if (this.__onConnectionState !== undefined) {
         this.__onConnectionState('disconnected')
       }
       console.log('Disconnected, try reset state and context');
-      const gameAccount = await this.__getGameAccount();
-      this.__gameContext = new GameContext(gameAccount);
-      const initAccount = InitAccount.createFromGameAccount(gameAccount);
-      this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
-      await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
-      console.log('Initialize state with', initAccount);
-      await this.__handler.initState(this.__gameContext, initAccount);
+      await this.__startSubscribeAndInitState();
       this.__invokeEventCallback(new Init());
     } else if (state === 'connected') {
       if (this.__onConnectionState !== undefined) {

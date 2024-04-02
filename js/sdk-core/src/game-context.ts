@@ -164,8 +164,10 @@ export class GameContext {
     }
   }
 
-  subContext(subGame: SubGame): GameContext {
+  subContext(subGame: SubGame, checkpoint: Checkpoint): GameContext {
     const c = new GameContext(this);
+    c.accessVersion = c.accessVersion;
+    c.settleVersion = c.settleVersion;
     c.gameAddr = c.gameAddr + subGame.gameId;
     c.gameId = subGame.gameId;
     c.dispatch = undefined;
@@ -174,14 +176,17 @@ export class GameContext {
     c.randomStates = [];
     c.decisionStates = [];
     c.handlerState = Uint8Array.of();
-    // TODO, use settle version as checkpoint version?
-    c.checkpoint = Checkpoint.fromData(subGame.gameId, 0n, subGame.initAccount.checkpoint);
+    c.checkpoint = checkpoint;
     c.subGames = [];
     c.initData = subGame.initAccount.data;
     c.maxPlayers = subGame.initAccount.maxPlayers;
     c.entryType = subGame.initAccount.entryType;
     c.players = subGame.initAccount.players;
     return c;
+  }
+
+  checkpointVersion(): bigint {
+    return this.checkpoint.getVersion(this.gameId)
   }
 
   idToAddrUnchecked(id: bigint): string | undefined {

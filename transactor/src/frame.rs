@@ -85,7 +85,7 @@ pub enum EventFrame {
         event: Event,
         access_version: u64,
         settle_version: u64,
-        checkpoint: Checkpoint,
+        checkpoint: Vec<u8>,
     },
     /// Similar to `SendBridgeEvent`, but for receiver's event bus.
     RecvBridgeEvent {
@@ -94,7 +94,7 @@ pub enum EventFrame {
         event: Event,
         access_version: u64,
         settle_version: u64,
-        checkpoint: Checkpoint,
+        checkpoint: Vec<u8>,
     },
     LaunchSubGame {
         spec: Box<SubGameSpec>,
