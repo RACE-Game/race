@@ -38,19 +38,20 @@ export class Checkpoint {
     return this.data.get(id)?.data
   }
 
+  initData(id: number, data: Uint8Array) {
+    const version = this.getVersion(0);
+    this.data.set(id, new VersionedData({
+      version,
+      data
+    }));
+  }
+
   setData(id: number, data: Uint8Array) {
-    const ver = this.getVersion(0);
     let vd = this.data.get(id);
     if (vd !== undefined) {
       vd.data = data;
-      vd.version = ver + 1n;
-    } else {
-      this.data.set(id, new VersionedData({
-        version: ver + 1n,
-        data
-      }))
+      vd.version += 1n;
     }
-    this.__setVersion(0, ver + 1n);
   }
 
   __setVersion(id: number, version: bigint) {

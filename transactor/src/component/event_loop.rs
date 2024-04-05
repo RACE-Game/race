@@ -49,7 +49,7 @@ async fn handle_event(
     client_mode: ClientMode,
     game_mode: GameMode,
     env: &ComponentEnv,
-    no_broadcast: bool
+    no_broadcast: bool,
 ) -> Option<CloseReason> {
     info!("{} Handle event: {}", env.log_prefix, event);
 
@@ -108,13 +108,16 @@ async fn handle_event(
 
                 info!(
                     "{} Create checkpoint, settle_version: {}",
-                    env.log_prefix, settle_version
+                    env.log_prefix, game_context.settle_version()
                 );
             }
 
             // Launch sub games
             if game_mode == GameMode::Main {
                 for launch_sub_game in effects.launch_sub_games {
+                    game_context
+                        .checkpoint_mut()
+                        .maybe_init_data(launch_sub_game.id, &launch_sub_game.init_account.data);
                     let ef = EventFrame::LaunchSubGame {
                         spec: Box::new(SubGameSpec {
                             game_addr: game_context.game_addr().to_owned(),
@@ -133,7 +136,6 @@ async fn handle_event(
             // Emit bridge events
             if client_mode == ClientMode::Transactor {
                 for be in effects.bridge_events {
-                    info!("Emit bridge event: {:?}", be);
                     let ef = EventFrame::SendBridgeEvent {
                         from: game_context.game_id(),
                         dest: be.dest,
@@ -247,22 +249,17 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     game_context.dispatch_safe(Event::Ready, 0);
                 }
 
-                EventFrame::Checkpoint {
-                    settle_version,
-                    access_version,
-                    checkpoint,
-                    ..
-                } => {
-                    let init_data = game_context.init_data();
+                EventFrame::Checkpoint { checkpoint, .. } => {
                     info!(
-                        "{} Rebuild game state from checkpoint, access_version = {}, settle_version = {}, checkpoint: {:?}",
-                        env.log_prefix, access_version, settle_version, checkpoint
+                        "{} Rebuild game state from checkpoint: {}",
+                        env.log_prefix,
+                        checkpoint
                     );
                     let init_account = InitAccount {
                         max_players: game_context.max_players(),
                         entry_type: game_context.entry_type(),
                         players: game_context.players().to_vec(),
-                        data: init_data,
+                        data: game_context.init_data(),
                         checkpoint: checkpoint.data(game_context.game_id()).clone(),
                     };
                     if let Err(e) = handler.init_state(&mut game_context, &init_account) {
@@ -283,7 +280,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.client_mode,
                             ctx.game_mode,
                             &env,
-                            false
+                            false,
                         )
                         .await
                         {
@@ -313,7 +310,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ClientMode::Validator
                         };
                         game_context.add_node(server.addr.clone(), server.access_version, mode);
-                        info!("{} Game context add server: {:?}", env.log_prefix, server.addr);
+                        info!(
+                            "{} Game context add server: {:?}",
+                            env.log_prefix, server.addr
+                        );
                     }
 
                     let mut new_players_1: Vec<GamePlayer> = Vec::with_capacity(new_players.len());
@@ -338,7 +338,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.client_mode,
                             ctx.game_mode,
                             &env,
-                            false
+                            false,
                         )
                         .await
                         {
@@ -358,7 +358,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.client_mode,
                             ctx.game_mode,
                             &env,
-                            false
+                            false,
                         )
                         .await
                         {
@@ -379,15 +379,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     checkpoint,
                     ..
                 } => {
-                    // game_context.update_next_settle_version(settle_version);
-
-                    info!(
-                        "{} Set next settle version to {}, current: {}",
-                        env.log_prefix,
-                        game_context.next_settle_version(),
-                        game_context.settle_version()
-                    );
-
                     if game_context.game_id() == 0 && dest == 0 && from != 0 {
                         if let Err(e) = game_context.checkpoint_mut().set_data(from, checkpoint) {
                             error!("Failed to update checkpoint at {} due to {:?}", from, e);

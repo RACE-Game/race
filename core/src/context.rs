@@ -149,10 +149,6 @@ pub struct GameContext {
     pub(crate) checkpoint: Checkpoint,
     /// The sub games to launch
     pub(crate) sub_games: Vec<SubGame>,
-    /// Next settle version to use when we bump. It defaults to
-    /// current + 1 for a normal game, and is decided by the parent game
-    /// for a sub game.
-    pub(crate) next_settle_version: u64,
     /// Init data from `InitAccount`.
     pub(crate) init_data: Vec<u8>,
     /// Maximum number of players.
@@ -178,9 +174,9 @@ impl GameContext {
             nodes: nodes.clone(),
             settle_version: spec.settle_version,
             access_version: spec.access_version,
-            next_settle_version: spec.settle_version + 1,
             max_players: init_account.max_players,
             players: init_account.players.clone(),
+            init_data: init_account.data.clone(),
             entry_type: EntryType::Disabled,
             checkpoint: Checkpoint::new(*game_id, spec.settle_version, &init_account.checkpoint),
             ..Default::default()
@@ -243,7 +239,6 @@ impl GameContext {
             handler_state: "".into(),
             checkpoint,
             sub_games: vec![],
-            next_settle_version: game_account.settle_version + 1,
             init_data: game_account.data.clone(),
             max_players: game_account.max_players,
             players,
@@ -427,10 +422,6 @@ impl GameContext {
         self.settle_version
     }
 
-    pub fn next_settle_version(&self) -> u64 {
-        self.next_settle_version
-    }
-
     /// Get the random state by its id.
     pub fn get_random_state(&self, id: RandomId) -> Result<&RandomState> {
         if id == 0 {
@@ -561,7 +552,6 @@ impl GameContext {
             .nodes
             .iter()
             .filter_map(|n| {
-                println!("N: {:?}", n);
                 if n.status == NodeStatus::Ready
                     && matches!(n.mode, ClientMode::Transactor | ClientMode::Validator)
                 {
@@ -572,7 +562,6 @@ impl GameContext {
             })
             .collect();
 
-        println!("owners: {:?}", owners);
         // The only failure case is that when there are not enough owners.
         // Here we know the game is served, so the servers must not be empty.
         let random_state = RandomState::try_new(random_id, spec, &owners)?;
@@ -670,16 +659,8 @@ impl GameContext {
     }
 
     pub fn bump_settle_version(&mut self) -> Result<()> {
-        if self.next_settle_version <= self.settle_version {
-            return Err(Error::CantBumpSettleVersion);
-        }
-        self.settle_version = self.next_settle_version;
-        self.next_settle_version += 1;
+        self.settle_version += 1;
         Ok(())
-    }
-
-    pub fn update_next_settle_version(&mut self, next_settle_version: u64) {
-        self.next_settle_version = u64::max(next_settle_version, self.settle_version + 1);
     }
 
     pub fn add_revealed_random(
@@ -975,7 +956,6 @@ impl Default for GameContext {
             decision_states: Vec::new(),
             checkpoint: Checkpoint::default(),
             sub_games: Vec::new(),
-            next_settle_version: 0,
             init_data: Vec::new(),
             max_players: 0,
             players: Vec::new(),

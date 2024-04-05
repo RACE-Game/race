@@ -28,13 +28,11 @@ export type SubClientCtorOpts = {
   encryptor: IEncryptor;
   info: GameInfo;
   decryptionCache: DecryptionCache;
-  initAccount: InitAccount;
 }
 
 export class SubClient extends BaseClient {
 
   __gameId: number;
-  __initAccount: InitAccount;
 
   constructor(opts: SubClientCtorOpts) {
     super({
@@ -43,7 +41,6 @@ export class SubClient extends BaseClient {
       ...opts
     })
     this.__gameId = opts.gameId;
-    this.__initAccount = opts.initAccount;
   }
 
   get gameId(): number {
@@ -55,13 +52,16 @@ export class SubClient extends BaseClient {
    */
   async attachGame() {
     console.group(`${this.__logPrefix}Attach to game`);
-    console.log('Init Account:', this.__initAccount);
     let sub;
     try {
+      console.log('Checkpoint:', this.__gameContext.checkpoint);
       await this.__client.attachGame();
       sub = this.__connection.subscribeEvents();
-      await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.checkpointVersion() }));
-      await this.__handler.initState(this.__gameContext, this.__initAccount);
+      const settleVersion = this.__gameContext.checkpointVersion();
+      await this.__connection.connect(new SubscribeEventParams({ settleVersion }));
+      const initAccount = this.__gameContext.initAccount();
+      console.log('Init Account:', initAccount);
+      await this.__handler.initState(this.__gameContext, initAccount);
       this.__invokeEventCallback(new Init());
     } catch (e) {
       console.error('Attaching game failed', e);

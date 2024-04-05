@@ -189,6 +189,7 @@ export class BaseClient {
     console.group('Attach to game');
     let sub;
     try {
+      console.log('Checkpoint:', this.__gameContext.checkpoint);
       await this.__client.attachGame();
       sub = this.__connection.subscribeEvents();
       const { gameAccount } = await this.__startSubscribeAndInitState();
@@ -244,7 +245,6 @@ export class BaseClient {
   async __processSubscription(sub: ConnectionSubscription) {
     for await (const item of sub) {
       if (item === undefined) {
-        console.log('Subscribe stream ended')
         break;
       } else if (item instanceof BroadcastFrame) {
         await this.__handleBroadcastFrame(item);
@@ -282,7 +282,6 @@ export class BaseClient {
       }
 
       if ((!err) && effects?.checkpoint) {
-        console.log('Rebuild state for checkpoint:', effects.checkpoint);
         const initData = this.__gameContext.initData;
         if (initData === undefined) {
           err = 'state-sha-mismatch'
@@ -294,7 +293,6 @@ export class BaseClient {
             checkpoint: effects.checkpoint,
             maxPlayers: this.__gameContext.maxPlayers,
           });
-          console.log('Initialize state with', initAccount);
           await this.__handler.initState(this.__gameContext, initAccount);
           this.__invokeEventCallback(new Checkpoint());
         }
@@ -369,7 +367,7 @@ export class BaseClient {
   }> {
     const gameAccount = await this.__getGameAccount();
     this.__gameContext = new GameContext(gameAccount);
-    const initAccount = InitAccount.createFromGameAccount(gameAccount);
+    const initAccount = this.__gameContext.initAccount();
     this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
     await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.checkpointVersion() }));
     await this.__handler.initState(this.__gameContext, initAccount);

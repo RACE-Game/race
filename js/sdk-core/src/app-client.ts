@@ -120,6 +120,7 @@ export class AppClient extends BaseClient {
       const client = new Client(playerAddr, encryptor, connection);
       const handler = await Handler.initialize(gameBundle, encryptor, client, decryptionCache);
       const gameContext = new GameContext(gameAccount);
+      console.log('Game Context:', gameContext);
       const token = await transport.getToken(gameAccount.tokenAddr);
       if (token === undefined) {
         throw SdkError.tokenNotFound(gameAccount.tokenAddr);
@@ -178,17 +179,8 @@ export class AppClient extends BaseClient {
       const client = new Client(playerAddr, this.__encryptor, connection);
       const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr);
       const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache);
-
-      let initAccount = subGame.initAccount;
-      /// Prefer to use the checkpoint from on-chain state.
-      const gameAccount = await this.__getGameAccount();
-      const checkpoint = Checkpoint.fromRaw(gameAccount.checkpoint);
-      const checkpointData = checkpoint.getData(subGame.gameId);
-      if (checkpointData !== undefined) {
-        initAccount = new InitAccount({ ...initAccount, checkpoint: checkpointData });
-      }
-
-      const gameContext = this.__gameContext.subContext(subGame, checkpoint);
+      const gameContext = this.__gameContext.subContext(subGame);
+      console.log('GameContext:', gameContext);
 
       return new SubClient({
         gameAddr: addr,
@@ -207,7 +199,6 @@ export class AppClient extends BaseClient {
         decryptionCache,
         gameContext,
         gameId,
-        initAccount,
       });
     } finally {
       console.groupEnd();

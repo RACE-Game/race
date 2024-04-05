@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use borsh::{BorshSerialize, BorshDeserialize};
 use race_api::error::{Result, Error};
@@ -26,6 +26,13 @@ impl Default for Checkpoint {
     }
 }
 
+impl Display for Checkpoint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = self.data.iter().map(|(id, vd)| format!("{}#{}", id, vd.version)).collect::<Vec<String>>();
+        write!(f, "{}", s.join(","))
+    }
+}
+
 impl Checkpoint {
     pub fn try_new_from_slice(data: &[u8]) -> Result<Self> {
         Checkpoint::try_from_slice(data).map_err(|_| Error::DeserializeError)
@@ -50,35 +57,32 @@ impl Checkpoint {
         self.data.get(&id).map(|d| d.data.clone()).unwrap_or_else(|| vec![])
     }
 
+    /// Set the data of the checkpoint of game.
     pub fn set_data(&mut self, id: usize, data: Vec<u8>) -> Result<()> {
-        let ver = self.version();
-        let sub = self.data.get_mut(&id).ok_or(Error::InvalidSubGameId)?;
-        sub.data = data;
-        sub.version = ver + 1;
-        self.set_version(0, ver + 1);
+        if let Some(old) = self.data.get_mut(&id) {
+            old.data = data;
+            old.version += 1;
+        }
         Ok(())
     }
 
-    pub fn init_sub(&mut self, id: usize, data: Vec<u8>) -> Result<()> {
+    pub fn maybe_init_data(&mut self, id: usize, data: &[u8]) {
         let version = self.version();
         match self.data.entry(id) {
             std::collections::hash_map::Entry::Occupied(_) => {
-                return Err(Error::InvalidSubGameId)
+                return
             }
             std::collections::hash_map::Entry::Vacant(e) => {
                 e.insert(VersionedData {
-                    data,
-                    version
+                    version,
+                    data: data.into()
                 });
             }
         }
-        Ok(())
     }
 
-    fn set_version(&mut self, id: usize, version: u64) {
-        if let Some(vd) = self.data.get_mut(&id) {
-            vd.version = version;
-        }
+    pub fn get_version(&self, id: usize) -> u64 {
+        self.data.get(&id).map(|d| d.version).unwrap_or(0)
     }
 
     /// Get version from game with id zero.
@@ -98,17 +102,6 @@ mod tests {
         c.set_data(0, d)?;
         assert_eq!(c.version(), 1);
         assert_eq!(c.data.get(&0).map(|x| x.data.clone()), Some(vec![1]));
-        Ok(())
-    }
-
-    #[test]
-    fn test_set_sub_data() -> anyhow::Result<()> {
-        let mut c = Checkpoint::default();
-        let d = vec![1];
-        c.init_sub(1, d.clone())?;
-        assert_eq!(c.version(), 0);
-        c.set_data(1, d)?;
-        assert_eq!(c.version(), 1);
         Ok(())
     }
 }

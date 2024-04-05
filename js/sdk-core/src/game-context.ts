@@ -14,7 +14,7 @@ import {
   Shutdown,
   WaitingTimeout,
 } from './events';
-import { GamePlayer } from './init-account';
+import { GamePlayer, InitAccount } from './init-account';
 import { Effect, EmitBridgeEvent, SubGame, Settle, Transfer, SettleAdd, SettleSub, SettleEject } from './effect';
 import { EntryType, GameAccount } from './accounts';
 import { Ciphertext, Digest, Id } from './types';
@@ -74,8 +74,7 @@ export class GameContext {
   decisionStates: DecisionState[];
   checkpoint: Checkpoint;
   subGames: SubGame[];
-  nextSettleVersion: bigint;
-  initData: Uint8Array | undefined;
+  initData: Uint8Array;
   maxPlayers: number;
   players: GamePlayer[];
   entryType: EntryType;
@@ -99,7 +98,6 @@ export class GameContext {
       this.decisionStates = context.decisionStates;
       this.checkpoint = init.checkpoint;
       this.subGames = context.subGames.map(sg => Object.assign({}, sg));
-      this.nextSettleVersion = context.nextSettleVersion;
       this.initData = context.initData;
       this.maxPlayers = context.maxPlayers;
       this.players = context.players.map(p => Object.assign({}, p))
@@ -156,7 +154,6 @@ export class GameContext {
       this.handlerState = Uint8Array.of();
       this.checkpoint = Checkpoint.fromRaw(init.checkpoint);
       this.subGames = [];
-      this.nextSettleVersion = gameAccount.settleVersion + 1n;
       this.initData = gameAccount.data;
       this.maxPlayers = gameAccount.maxPlayers;
       this.players = players;
@@ -164,7 +161,7 @@ export class GameContext {
     }
   }
 
-  subContext(subGame: SubGame, checkpoint: Checkpoint): GameContext {
+  subContext(subGame: SubGame): GameContext {
     const c = new GameContext(this);
     c.accessVersion = c.accessVersion;
     c.settleVersion = c.settleVersion;
@@ -176,7 +173,7 @@ export class GameContext {
     c.randomStates = [];
     c.decisionStates = [];
     c.handlerState = Uint8Array.of();
-    c.checkpoint = checkpoint;
+    c.checkpoint = this.checkpoint;
     c.subGames = [];
     c.initData = subGame.initAccount.data;
     c.maxPlayers = subGame.initAccount.maxPlayers;
@@ -187,6 +184,16 @@ export class GameContext {
 
   checkpointVersion(): bigint {
     return this.checkpoint.getVersion(this.gameId)
+  }
+
+  initAccount(): InitAccount {
+    return new InitAccount({
+      maxPlayers: this.maxPlayers,
+      players: this.players.map(p => new GamePlayer(p)),
+      entryType: this.entryType,
+      data: this.initData,
+      checkpoint: this.checkpoint.getData(this.gameId) || Uint8Array.of(),
+    });
   }
 
   idToAddrUnchecked(id: bigint): string | undefined {
@@ -481,10 +488,10 @@ export class GameContext {
 
     for (const subGame of effect.launchSubGames) {
       this.addSubGame(subGame);
+      // Init the subgame's checkpoint when launch subgame.
+      const checkpointData = subGame.initAccount.checkpoint;
+      this.checkpoint.initData(subGame.gameId, checkpointData);
     }
-
-    this.subGames.push(...effect.launchSubGames);
-    this.bumpSettleVersion();
 
     return {
       checkpoint: effect.checkpoint,

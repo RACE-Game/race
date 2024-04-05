@@ -53,6 +53,7 @@ export class Handler implements IHandler {
   }
 
   async initState(context: GameContext, initAccount: InitAccount): Promise<EventEffects> {
+    console.log('InitState with:', initAccount);
     await this.generalPreInitState(context, initAccount);
     return await this.customInitState(context, initAccount);
   }
