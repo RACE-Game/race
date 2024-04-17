@@ -369,6 +369,8 @@ impl Effect {
     }
 
     /// Launch sub game
+    ///
+    /// Pass `None` to `checkpoint` to reuse the existing subgame checkpoint.
     pub fn launch_sub_game<D: BorshSerialize, C: BorshSerialize>(
         &mut self,
         id: usize,
@@ -376,11 +378,17 @@ impl Effect {
         max_players: u16,
         players: Vec<GamePlayer>,
         init_data: D,
-        checkpoint: C,
+        checkpoint: Option<C>,
     ) -> Result<()> {
         for p in players.iter() {
             self.assert_player_id(p.id)?;
         }
+
+        let checkpoint_data = if let Some(cp) = checkpoint {
+            cp.try_to_vec()?
+        } else {
+            vec![]
+        };
 
         self.launch_sub_games.push(SubGame {
             id,
@@ -390,7 +398,7 @@ impl Effect {
                 entry_type: crate::types::EntryType::Disabled,
                 players,
                 data: init_data.try_to_vec()?,
-                checkpoint: checkpoint.try_to_vec()?,
+                checkpoint: checkpoint_data,
             },
         });
         Ok(())

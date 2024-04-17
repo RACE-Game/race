@@ -4,7 +4,6 @@ import { IConnection, SubscribeEventParams } from './connection';
 import { DecryptionCache } from './decryption-cache';
 import { IEncryptor } from './encryptor';
 import { GameContext } from './game-context';
-import { InitAccount } from './init-account';
 import { Handler } from './handler';
 import { ITransport } from './transport';
 import { GameInfo, ConnectionStateCallbackFunction, EventCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction, ErrorCallbackFunction } from './types';

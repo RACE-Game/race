@@ -9,10 +9,17 @@ use race_core::{
     },
 };
 use race_env::{default_keyfile, parse_with_default_rpc};
-use race_storage::{arweave::Arweave, metadata::{make_metadata, MetadataT}};
+use race_storage::{
+    arweave::Arweave,
+    metadata::{make_metadata, MetadataT},
+};
 use race_transport::TransportBuilder;
 use serde::{Deserialize, Serialize};
-use std::{fs::{File, self}, path::PathBuf, sync::Arc};
+use std::{
+    fs::{self, File},
+    path::PathBuf,
+    sync::Arc,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +74,14 @@ fn cli() -> Command {
                 .arg_required_else_help(true),
         )
         .subcommand(
+            Command::new("mint-nft")
+                .about("Mint NFT with an Arweave URL")
+                .arg(arg!(<NAME> "The name of game"))
+                .arg(arg!(<SYMBOL> "The symbol used for game metadata file"))
+                .arg(arg!(<ARWEAVE_URL> "The Arweave URL"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
             Command::new("bundle-info")
                 .about("Query game bundle information")
                 .arg(arg!(<ADDRESS> "The game bundle address"))
@@ -95,6 +110,13 @@ fn cli() -> Command {
             Command::new("create-game")
                 .about("Create game account")
                 .arg(arg!(<SPEC_FILE> "The path to specification file"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
+            Command::new("reg-game")
+                .about("Register game account")
+                .arg(arg!(<REG> "The address of registration account"))
+                .arg(arg!(<GAME> "The address of game account"))
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -145,6 +167,16 @@ async fn create_transport(chain: &str, rpc: &str, keyfile: Option<String>) -> Ar
     Arc::from(transport)
 }
 
+async fn mint_nft(name: String, symbol: String, arweave_url: String, transport: Arc<dyn TransportT>) {
+    let params = PublishGameParams {
+        uri: arweave_url,
+        name,
+        symbol,
+    };
+    let resp = transport.publish_game(params).await.expect("RPC error");
+    println!("Address: {}", &resp);
+}
+
 async fn publish(
     chain: &str,
     name: String,
@@ -156,10 +188,23 @@ async fn publish(
 ) {
     let mut arweave = Arweave::try_new(&arkey_path).expect("Creating arweave failed");
     let data = fs::read(PathBuf::from(&bundle)).expect("Wasm bundle not found");
-    let bundle_addr = arweave.upload_file(data, None).await.expect("Arweave uploading wasm bundle failed");
-    let metadata = make_metadata(chain, name.clone(), symbol.clone(), creator_addr, bundle_addr.clone()).expect("Creating metadata failed");
+    let bundle_addr = arweave
+        .upload_file(data, None)
+        .await
+        .expect("Arweave uploading wasm bundle failed");
+    let metadata = make_metadata(
+        chain,
+        name.clone(),
+        symbol.clone(),
+        creator_addr,
+        bundle_addr.clone(),
+    )
+    .expect("Creating metadata failed");
     let json_meta = metadata.json_vec().expect("Jsonify metadata failed");
-    let meta_addr = arweave.upload_file(json_meta, Some("application/json")).await.expect("Arweave uploading metadata failed");
+    let meta_addr = arweave
+        .upload_file(json_meta, Some("application/json"))
+        .await
+        .expect("Arweave uploading metadata failed");
 
     let params = PublishGameParams {
         uri: meta_addr,
@@ -203,7 +248,10 @@ fn print_hex(data: Vec<u8>) {
     for i in data {
         row.push(format!("{:02x}", i));
     }
-    let rows = row.chunks(8).map(|rows| rows.join(" ")).collect::<Vec<String>>();
+    let rows = row
+        .chunks(8)
+        .map(|rows| rows.join(" "))
+        .collect::<Vec<String>>();
     for row in rows {
         println!("{}", row)
     }
@@ -425,6 +473,24 @@ async fn close_game(game_addr: String, transport: Arc<dyn TransportT>) {
     }
 }
 
+async fn reg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) {
+    println!(
+        "Register game {} from registration {}",
+        game_addr, reg_addr
+    );
+    let r = transport
+        .register_game(RegisterGameParams {
+            game_addr: game_addr.to_owned(),
+            reg_addr: reg_addr.to_owned(),
+        })
+        .await;
+    if let Err(e) = r {
+        println!("Failed to register game due to: {}", e.to_string());
+    } else {
+        println!("Game registered");
+    }
+}
+
 async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) {
     println!(
         "Unregister game {} from registration {}",
@@ -472,10 +538,19 @@ async fn main() {
                 symbol.to_owned(),
                 creator.to_owned(),
                 bundle.to_owned(),
-                arweave_keyfile.expect("Arweave keyfile is required").to_owned(),
+                arweave_keyfile
+                    .expect("Arweave keyfile is required")
+                    .to_owned(),
                 transport,
             )
             .await;
+        }
+        Some(("mint-nft", sub_matches)) => {
+            let name = sub_matches.get_one::<String>("NAME").expect("required");
+            let symbol = sub_matches.get_one::<String>("SYMBOL").expect("required");
+            let arweave_url = sub_matches.get_one::<String>("ARWEAVE_URL").expect("required");
+            let transport = create_transport(&chain, &rpc, None).await;
+            mint_nft(name.to_owned(), symbol.to_owned(), arweave_url.to_owned(), transport).await;
         }
         Some(("bundle-info", sub_matches)) => {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
@@ -503,6 +578,12 @@ async fn main() {
             let specs = CreateGameSpecs::from_file(spec_file.into());
             let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
             create_game(specs, transport).await;
+        }
+        Some(("reg-game", sub_matches)) => {
+            let reg_addr = sub_matches.get_one::<String>("REG").expect("required");
+            let game_addr = sub_matches.get_one::<String>("GAME").expect("required");
+            let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
+            reg_game(reg_addr.clone(), game_addr.clone(), transport).await;
         }
         Some(("unreg-game", sub_matches)) => {
             let reg_addr = sub_matches.get_one::<String>("REG").expect("required");

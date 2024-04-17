@@ -137,8 +137,13 @@ impl TransportT for SolanaTransport {
             ],
         );
 
+        let fee =
+            self.get_recent_prioritization_fees(&[game_account_pubkey, stake_account_pubkey])?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
         let message = Message::new(
             &[
+                set_cu_prize_ix,
                 create_game_account_ix,
                 create_stake_account_ix,
                 init_stake_account_ix,
@@ -171,7 +176,7 @@ impl TransportT for SolanaTransport {
             self.program_id,
             &RaceInstruction::CloseGameAccount,
             vec![
-                AccountMeta::new(payer_pubkey, true),
+                AccountMeta::new(payer_pubkey, false),
                 AccountMeta::new(game_account_pubkey, false),
                 AccountMeta::new(stake_account_pubkey, false),
                 AccountMeta::new_readonly(pda, false),
@@ -179,7 +184,11 @@ impl TransportT for SolanaTransport {
             ],
         );
 
-        let message = Message::new(&[close_game_ix], Some(&payer.pubkey()));
+        let fee =
+            self.get_recent_prioritization_fees(&[game_account_pubkey, stake_account_pubkey])?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
+        let message = Message::new(&[set_cu_prize_ix, close_game_ix], Some(&payer.pubkey()));
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
         tx.sign(&[payer], blockhash);
@@ -198,13 +207,6 @@ impl TransportT for SolanaTransport {
             Pubkey::create_with_seed(&payer_pubkey, SERVER_PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::AddressCreationFailed)?;
         let lamports = self.get_min_lamports(SERVER_ACCOUNT_LEN)?;
-
-        // match self.client.get_account(&server_account_pubkey) {
-        //     Ok(_) => {
-        //         return Err(TransportError::DuplicateServerAccount)?;
-        //     }
-        //     _ => {}
-        // }
 
         let get_server_account_ix = create_account_with_seed(
             &payer_pubkey,
@@ -227,8 +229,13 @@ impl TransportT for SolanaTransport {
             ],
         );
 
+        let fee =
+            self.get_recent_prioritization_fees(&[server_account_pubkey])?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
+
         let message = Message::new(
-            &[get_server_account_ix, init_or_update_ix],
+            &[set_cu_prize_ix, get_server_account_ix, init_or_update_ix],
             Some(&payer_pubkey),
         );
 
@@ -360,7 +367,11 @@ impl TransportT for SolanaTransport {
             ],
         );
 
-        let message = Message::new(&[serve_game_ix], Some(&payer_pubkey));
+        let fee =
+            self.get_recent_prioritization_fees(&[game_account_pubkey])?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
+        let message = Message::new(&[set_cu_prize_ix, serve_game_ix], Some(&payer_pubkey));
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
         tx.sign(&[payer], blockhash);
@@ -421,6 +432,12 @@ impl TransportT for SolanaTransport {
         );
 
         ixs.push(init_profile_ix);
+
+        let fee =
+            self.get_recent_prioritization_fees(&[profile_account_pubkey])?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+        ixs.insert(0, set_cu_prize_ix);
+
 
         let message = Message::new(&ixs, Some(&payer_pubkey));
 
@@ -512,8 +529,14 @@ impl TransportT for SolanaTransport {
             accounts,
         );
 
+        let fee =
+            self.get_recent_prioritization_fees(&[mint_pubkey, metadata_pda, edition_pda])?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
+
         let message = Message::new(
             &[
+                set_cu_prize_ix,
                 create_mint_account_ix,
                 init_mint_ix,
                 create_ata_account_ix,
@@ -583,12 +606,15 @@ impl TransportT for SolanaTransport {
         ];
 
         let mut ix_settles: Vec<IxSettle> = Vec::new();
+        let mut calc_cu_prize_addrs = vec![Pubkey::from_str(&addr).unwrap(), game_state.stake_account.clone()];
+
         for settle in settles.iter() {
             match &settle.op {
                 &SettleOp::Eject => {
                     let addr = parse_pubkey(&settle.addr)?;
                     let ata = get_associated_token_address(&addr, &game_state.token_mint);
                     accounts.push(AccountMeta::new(ata, false));
+                    calc_cu_prize_addrs.push(ata.clone());
                     let position = player_addr_to_postition(&game_state, &addr)?;
                     ix_settles.push(IxSettle {
                         position,
@@ -612,6 +638,7 @@ impl TransportT for SolanaTransport {
         for Transfer { slot_id, .. } in transfers.iter() {
             if let Some(slot) = recipient_state.slots.iter().find(|s| s.id == *slot_id) {
                 accounts.push(AccountMeta::new(slot.stake_addr, false));
+                calc_cu_prize_addrs.push(slot.stake_addr.clone());
             }
         }
 
@@ -635,10 +662,14 @@ impl TransportT for SolanaTransport {
         };
 
         let set_cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(1200000);
+        let fee =
+            self.get_recent_prioritization_fees(&calc_cu_prize_addrs)?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
 
         let settle_ix = Instruction::new_with_borsh(self.program_id, &params, accounts);
 
-        let message = Message::new(&[set_cu_limit_ix, settle_ix], Some(&payer.pubkey()));
+        let message = Message::new(&[set_cu_prize_ix, set_cu_limit_ix, settle_ix], Some(&payer.pubkey()));
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
         tx.sign(&[payer], blockhash);
@@ -670,8 +701,12 @@ impl TransportT for SolanaTransport {
             ],
         );
 
+        let fee =
+            self.get_recent_prioritization_fees(&[registry_account_pubkey])?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
         let message = Message::new(
-            &[create_account_ix, create_registry_ix],
+            &[set_cu_prize_ix, create_account_ix, create_registry_ix],
             Some(&payer.pubkey()),
         );
         let blockhash = self.get_blockhash()?;
@@ -827,7 +862,11 @@ impl TransportT for SolanaTransport {
             accounts,
         );
 
-        let message = Message::new(&[register_game_ix], Some(&payer.pubkey()));
+        let fee =
+            self.get_recent_prioritization_fees(&[reg_account_pubkey])?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
+        let message = Message::new(&[set_cu_prize_ix, register_game_ix], Some(&payer.pubkey()));
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
         tx.sign(&[payer], blockhash);
@@ -855,7 +894,11 @@ impl TransportT for SolanaTransport {
             accounts,
         );
 
-        let message = Message::new(&[unregister_game_ix], Some(&payer.pubkey()));
+        let fee =
+            self.get_recent_prioritization_fees(&[reg_account_pubkey])?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
+        let message = Message::new(&[set_cu_prize_ix, unregister_game_ix], Some(&payer.pubkey()));
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self
             .client
@@ -1067,6 +1110,21 @@ impl SolanaTransport {
     fn parse_pubkey(addr: &str) -> TransportResult<Pubkey> {
         Pubkey::from_str(addr)
             .map_err(|_| TransportError::InvalidConfig(format!("Can't parse public key: {}", addr)))
+    }
+
+    fn get_recent_prioritization_fees(&self, pubkeys: &[Pubkey]) -> TransportResult<u64> {
+        let fees = self
+            .client
+            .get_recent_prioritization_fees(pubkeys)
+            .map_err(|e| TransportError::FeeCalculationError(e.to_string()))?;
+        let mut fee = 0;
+        for f in fees {
+            if f.prioritization_fee > fee {
+                fee = f.prioritization_fee;
+            }
+        }
+        println!("Estimate fee: {}", fee);
+        return Ok(fee);
     }
 
     fn get_min_lamports(&self, account_len: usize) -> TransportResult<u64> {

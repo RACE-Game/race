@@ -146,6 +146,9 @@ pub enum TransportError {
     #[error("Invalid settle address: {0}")]
     InvalidSettleAddress(String),
 
+    #[error("Fee calculation error: {0}")]
+    FeeCalculationError(String),
+
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;
