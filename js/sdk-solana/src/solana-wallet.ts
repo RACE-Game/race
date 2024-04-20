@@ -16,12 +16,12 @@ export class SolanaWalletAdapter implements IWallet {
     this.#wallet = wallet;
   }
 
-  async sendTransaction(tx: TransactionInstruction, conn: Connection): Promise<TransactionResult<void>> {
+  async sendTransaction(tx: TransactionInstruction, conn: Connection, config?: any): Promise<TransactionResult<void>> {
     const {
-      context: { slot: minContextSlot },
       value: { blockhash, lastValidBlockHeight },
     } = await conn.getLatestBlockhashAndContext();
-    const signature: TransactionSignature = await this.#wallet.sendTransaction(tx, conn, { minContextSlot });
+
+    const signature: TransactionSignature = await this.#wallet.sendTransaction(tx, conn, config);
     const resp = await conn.confirmTransaction({ blockhash, lastValidBlockHeight, signature });
     if (resp.value.err !== null) {
       return {

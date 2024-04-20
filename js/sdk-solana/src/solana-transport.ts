@@ -1,4 +1,4 @@
-import { SystemProgram, Connection, PublicKey, Transaction, Keypair } from '@solana/web3.js';
+import { SystemProgram, Connection, PublicKey, Keypair, ComputeBudgetProgram, TransactionMessage, TransactionInstruction, VersionedTransaction } from '@solana/web3.js';
 import { Buffer } from 'buffer';
 import {
   AccountLayout,
@@ -92,7 +92,7 @@ export class SolanaTransport implements ITransport {
     const payerKey = new PublicKey(wallet.walletAddr);
     console.log('Payer publick key: ', payerKey);
 
-    let tx = await makeTransaction(conn, payerKey);
+    let ixs = [];
 
     const gameAccount = Keypair.generate();
     const gameAccountKey = gameAccount.publicKey;
@@ -104,7 +104,7 @@ export class SolanaTransport implements ITransport {
       space: GAME_ACCOUNT_LEN,
       programId: PROGRAM_ID,
     });
-    tx.add(createGameAccount);
+    ixs.push(createGameAccount);
 
     const tokenMintKey = new PublicKey(tokenAddr);
     const stakeAccount = Keypair.generate();
@@ -117,7 +117,7 @@ export class SolanaTransport implements ITransport {
       space: AccountLayout.span,
       programId: TOKEN_PROGRAM_ID,
     });
-    tx.add(createStakeAccount);
+    ixs.push(createStakeAccount);
 
     const initStakeAccount = createInitializeAccountInstruction(
       stakeAccountKey,
@@ -125,7 +125,7 @@ export class SolanaTransport implements ITransport {
       payerKey,
       TOKEN_PROGRAM_ID
     );
-    tx.add(initStakeAccount);
+    ixs.push(initStakeAccount);
 
     const bundleKey = new PublicKey(bundleAddr);
     const createGame = instruction.createGameAccount({
@@ -138,10 +138,14 @@ export class SolanaTransport implements ITransport {
       maxPlayers: params.maxPlayers,
       entryType: params.entryType,
     });
-    tx.add(createGame);
-    tx.partialSign(gameAccount, stakeAccount);
+    ixs.push(createGame);
+    let tx = await makeTransaction(this.#conn, payerKey, ixs);
 
-    const res = await wallet.sendTransaction(tx, conn);
+
+    const res = await wallet.sendTransaction(tx, conn,
+      { signers: [gameAccount, stakeAccount] }
+    );
+
     if (res.result === 'ok') {
       return { result: 'ok', value: gameAccountKey.toBase58() };
     } else {
@@ -188,12 +192,15 @@ export class SolanaTransport implements ITransport {
     const tempAccountLen = AccountLayout.span;
     const tempAccountLamports = await conn.getMinimumBalanceForRentExemption(tempAccountLen);
 
-    const tx = await makeTransaction(conn, playerKey);
+    let ixs = [];
+
+    let prioritizationFee = await this._getPrioritizationFee([gameAccountKey]);
+    ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }))
 
     if (params.createProfile) {
-      await this.addCreateProfileIxToTransaction(tx, wallet, {
+      ixs.push(...(await this.makeCreateProfileIxs(wallet, {
         nick: wallet.walletAddr.substring(0, 6),
-      });
+      })));
     }
 
     const createTempAccountIx = SystemProgram.createAccount({
@@ -203,10 +210,10 @@ export class SolanaTransport implements ITransport {
       space: tempAccountLen,
       programId: TOKEN_PROGRAM_ID,
     });
-    tx.add(createTempAccountIx);
+    ixs.push(createTempAccountIx);
 
     const initTempAccountIx = createInitializeAccountInstruction(tempAccountKey, mintKey, playerKey);
-    tx.add(initTempAccountIx);
+    ixs.push(initTempAccountIx);
 
     if (isWsol) {
       const transferAmount = amount - BigInt(tempAccountLamports);
@@ -215,11 +222,11 @@ export class SolanaTransport implements ITransport {
         toPubkey: tempAccountKey,
         lamports: transferAmount,
       });
-      tx.add(transferIx);
+      ixs.push(transferIx);
     } else {
       const playerAta = getAssociatedTokenAddressSync(mintKey, playerKey);
       const transferIx = createTransferInstruction(playerAta, tempAccountKey, playerKey, amount);
-      tx.add(transferIx);
+      ixs.push(transferIx);
     }
 
     const joinGameIx = await join({
@@ -233,11 +240,11 @@ export class SolanaTransport implements ITransport {
       position,
       verifyKey,
     });
-    tx.add(joinGameIx);
+    ixs.push(joinGameIx);
 
-    tx.partialSign(tempAccountKeypair);
+    const tx = await makeTransaction(this.#conn, playerKey, ixs);
 
-    return await wallet.sendTransaction(tx, this.#conn);
+    return await wallet.sendTransaction(tx, this.#conn, { signers: [tempAccountKeypair] });
   }
 
   async deposit(_wallet: IWallet, _params: DepositParams): Promise<TransactionResult<void>> {
@@ -264,14 +271,13 @@ export class SolanaTransport implements ITransport {
     const recipientClaimIx = instruction.claim({
       recipientKey, payerKey, recipientState
     });
-    const tx = await makeTransaction(this.#conn, payerKey);
-
-    tx.add(recipientClaimIx);
+    const tx = await makeTransaction(this.#conn, payerKey, [recipientClaimIx]);
 
     return await wallet.sendTransaction(tx, this.#conn);
   }
 
-  async addCreateProfileIxToTransaction(tx: Transaction, wallet: IWallet, params: CreatePlayerProfileParams): Promise<void> {
+  async makeCreateProfileIxs(wallet: IWallet, params: CreatePlayerProfileParams): Promise<TransactionInstruction[]> {
+    let ixs = [];
     const { nick, pfp } = params;
     if (nick.length > 16) {
       throw new Error('Player nick name exceeds 16 chars');
@@ -294,19 +300,23 @@ export class SolanaTransport implements ITransport {
         space: PROFILE_ACCOUNT_LEN,
         programId: PROGRAM_ID,
       });
-      tx.add(createProfileAccount);
+      ixs.push(createProfileAccount);
     }
+
+    const prioritizationFee = await this._getPrioritizationFee([profileKey]);
+    ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }));
 
     const pfpKey = !pfp ? PublicKey.default : new PublicKey(pfp);
     const createProfile = instruction.createPlayerProfile(payerKey, profileKey, nick, pfpKey);
 
-    tx.add(createProfile);
+    ixs.push(createProfile);
+    return ixs;
   }
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<TransactionResult<void>> {
     const payerKey = new PublicKey(wallet.walletAddr);
-    let tx = await makeTransaction(this.#conn, payerKey);
-    await this.addCreateProfileIxToTransaction(tx, wallet, params);
+    let ixs = await this.makeCreateProfileIxs(wallet, params);
+    let tx = await makeTransaction(this.#conn, payerKey, ixs);
     return await wallet.sendTransaction(tx, this.#conn);
   }
 
@@ -430,6 +440,17 @@ export class SolanaTransport implements ITransport {
     } catch (e) {
       return undefined;
     }
+  }
+
+  async _getPrioritizationFee(pubkeys: PublicKey[]): Promise<number> {
+    const prioritizationFee = await this.#conn.getRecentPrioritizationFees({
+      lockedWritableAccounts: pubkeys
+    });
+    let f = 0;
+    for (const fee of prioritizationFee) {
+      f = fee.prioritizationFee;
+    }
+    return f;
   }
 
   async getToken(addr: string): Promise<IToken | undefined> {
@@ -689,11 +710,24 @@ export class SolanaTransport implements ITransport {
   }
 }
 
-async function makeTransaction(conn: Connection, feePayer: PublicKey): Promise<Transaction> {
-  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash();
-  return new Transaction({
-    feePayer,
-    blockhash,
-    lastValidBlockHeight,
-  });
+async function makeTransaction(
+  conn: Connection,
+  feePayer: PublicKey,
+  instructions: TransactionInstruction[]
+): Promise<VersionedTransaction> {
+  const slot = await conn.getSlot();
+  const block = await conn.getBlock(slot, { maxSupportedTransactionVersion: 0 });
+  if (block === null) {
+    throw new Error('Cannot find block');
+  }
+
+  const messageV0 = new TransactionMessage({
+    payerKey: feePayer,
+    recentBlockhash: block.blockhash,
+    instructions
+  }).compileToV0Message();
+
+  const transaction = new VersionedTransaction(messageV0);
+
+  return transaction;
 }
