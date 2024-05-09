@@ -163,8 +163,12 @@ export class FacadeTransport implements ITransport {
   }
   async join(wallet: IWallet, params: JoinParams): Promise<TransactionResult<void>> {
     const playerAddr = wallet.walletAddr;
-    const ix: JoinInstruction = { playerAddr, ...params };
-    if (params.createProfile) {
+    const gameAccount = await this.getGameAccount(params.gameAddr);
+    if (gameAccount === undefined) {
+      throw new Error('Game not found')
+    }
+    const ix: JoinInstruction = { playerAddr, accessVersion: gameAccount.accessVersion, ...params };
+    if (params.createProfileIfNeeded) {
       await this.createPlayerProfile(wallet, { nick: wallet.walletAddr.substring(0, 6) });
     }
     await this.sendInstruction('join', ix);

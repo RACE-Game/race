@@ -248,6 +248,7 @@ export function closeGameAccount(opts: CloseGameAccountOptions): TransactionInst
 
 export type JoinOptions = {
   playerKey: PublicKey;
+  profileKey: PublicKey;
   paymentKey: PublicKey;
   gameAccountKey: PublicKey;
   mint: PublicKey;
@@ -258,11 +259,9 @@ export type JoinOptions = {
   verifyKey: string;
 };
 
-export async function join(opts: JoinOptions): Promise<TransactionInstruction> {
-  const { playerKey, paymentKey, gameAccountKey, mint, stakeAccountKey, amount, accessVersion, position, verifyKey } =
+export function join(opts: JoinOptions): TransactionInstruction {
+  const { playerKey, profileKey, paymentKey, gameAccountKey, mint, stakeAccountKey, amount, accessVersion, position, verifyKey } =
     opts;
-
-  const profileKey = await PublicKey.createWithSeed(playerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
 
   let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID);
   const data = new JoinGameData(amount, accessVersion, position, verifyKey).serialize();

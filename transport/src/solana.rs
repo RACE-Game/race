@@ -1124,7 +1124,8 @@ impl SolanaTransport {
             }
         }
         println!("Estimate fee: {}", fee);
-        return Ok(fee);
+        // XXX: We add a fixed amount to recommended fee
+        return Ok(fee + 50);
     }
 
     fn get_min_lamports(&self, account_len: usize) -> TransportResult<u64> {

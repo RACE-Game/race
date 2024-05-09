@@ -320,6 +320,11 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                     return Err(custom_error(Error::PlayerAlreadyJoined(player_addr)));
                 } else {
                     game_account.access_version += 1;
+                    // Find available position
+                    let mut pos_list = vec![position];
+                    pos_list.extend(0..100);
+                    let position = pos_list.into_iter().find(|p| game_account.players.iter().find(|player| player.position == *p).is_none()).unwrap();
+
                     let player_join = PlayerJoin {
                         addr: player_addr.clone(),
                         position,
@@ -729,7 +734,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
     );
 
     // Simulate the finality time
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::time::sleep(Duration::from_secs(10)).await;
     // ---
 
     let mut context = context.lock().await;

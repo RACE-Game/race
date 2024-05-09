@@ -229,45 +229,14 @@ export class AppClient extends BaseClient {
    * Join game.
    */
   async join(params: JoinOpts): Promise<TransactionResult<void>> {
-    const gameAccount = await this.__transport.getGameAccount(this.gameAddr);
-    if (gameAccount === undefined) {
-      throw new Error('Game account not found');
-    }
-    const playersCount = gameAccount.players.length;
-    if (gameAccount.maxPlayers <= playersCount) {
-      throw new Error(`Game is full, current number of players: ${playersCount}`);
-    }
-    let position: number | undefined = params.position;
-    if (position === undefined) {
-      for (let i = 0; i < gameAccount.maxPlayers; i++) {
-        if (gameAccount.players.find(p => p.position === i) === undefined) {
-          position = i;
-          break;
-        }
-      }
-    }
-    if (position === undefined) {
-      throw new Error(`The position has been taken: ${params.position}`);
-    }
-
     const publicKey = await this.__encryptor.exportPublicKey();
-
-    let createProfile = false;
-    if (params.createProfileIfNeeded) {
-      const p = await this.__transport.getPlayerProfile(this.playerAddr);
-      if (p === undefined) {
-        createProfile = true;
-        console.log('No profile account found, will create a new one.')
-      }
-    }
 
     return await this.__transport.join(this.__wallet, {
       gameAddr: this.gameAddr,
       amount: params.amount,
-      accessVersion: gameAccount.accessVersion,
-      position,
+      position: params.position || 0,
       verifyKey: publicKey.ec,
-      createProfile,
+      createProfileIfNeeded: params.createProfileIfNeeded,
     });
   }
 

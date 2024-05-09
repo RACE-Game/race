@@ -45,10 +45,9 @@ export type CloseGameAccountParams = {
 export type JoinParams = {
   gameAddr: string;
   amount: bigint;
-  accessVersion: bigint;
   position: number;
   verifyKey: string;
-  createProfile?: boolean;
+  createProfileIfNeeded?: boolean;
 };
 
 export type DepositParams = {

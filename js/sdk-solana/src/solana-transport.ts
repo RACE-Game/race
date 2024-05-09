@@ -158,17 +158,29 @@ export class SolanaTransport implements ITransport {
   }
 
   async join(wallet: IWallet, params: JoinParams): Promise<TransactionResult<void>> {
-    const conn = this.#conn;
-    const { gameAddr, amount: amountRaw, accessVersion: accessVersionRaw, position, verifyKey } = params;
+    let ixs = [];
 
-    const accessVersion = BigInt(accessVersionRaw);
-    const playerKey = new PublicKey(wallet.walletAddr);
+    const tempAccountLen = AccountLayout.span;
+
+    const conn = this.#conn;
+    const { gameAddr, amount: amountRaw, position, verifyKey } = params;
     const gameAccountKey = new PublicKey(gameAddr);
-    const gameState = await this._getGameState(gameAccountKey);
+    const playerKey = new PublicKey(wallet.walletAddr);
+
+    // Call RPC functions in Parallel
+    const [tempAccountLamports, prioritizationFee, gameState, profileKey, playerProfile] = await Promise.all([
+      conn.getMinimumBalanceForRentExemption(tempAccountLen),
+      this._getPrioritizationFee([gameAccountKey]),
+      this._getGameState(gameAccountKey),
+      PublicKey.createWithSeed(playerKey, PLAYER_PROFILE_SEED, PROGRAM_ID),
+      this.getPlayerProfile(wallet.walletAddr)
+    ])
+
     if (gameState === undefined) {
       throw new Error('Game account not found');
     }
 
+    const accessVersion = gameState.accessVersion;
     if (!(gameState.entryType instanceof EntryTypeCash)) {
       throw new Error('Unsupported entry type');
     }
@@ -189,15 +201,10 @@ export class SolanaTransport implements ITransport {
     const stakeAccountKey = gameState.stakeKey;
     const tempAccountKeypair = Keypair.generate();
     const tempAccountKey = tempAccountKeypair.publicKey;
-    const tempAccountLen = AccountLayout.span;
-    const tempAccountLamports = await conn.getMinimumBalanceForRentExemption(tempAccountLen);
 
-    let ixs = [];
-
-    let prioritizationFee = await this._getPrioritizationFee([gameAccountKey]);
     ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }))
 
-    if (params.createProfile) {
+    if (params.createProfileIfNeeded && playerProfile === undefined) {
       ixs.push(...(await this.makeCreateProfileIxs(wallet, {
         nick: wallet.walletAddr.substring(0, 6),
       })));
@@ -229,8 +236,9 @@ export class SolanaTransport implements ITransport {
       ixs.push(transferIx);
     }
 
-    const joinGameIx = await join({
+    const joinGameIx = join({
       playerKey,
+      profileKey,
       paymentKey: tempAccountKey,
       gameAccountKey,
       mint: mintKey,
@@ -450,6 +458,7 @@ export class SolanaTransport implements ITransport {
     for (const fee of prioritizationFee) {
       f = fee.prioritizationFee;
     }
+    console.log('Prioritization fee:', f);
     return f;
   }
 
