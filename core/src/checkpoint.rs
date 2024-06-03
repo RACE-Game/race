@@ -54,7 +54,7 @@ impl Checkpoint {
     }
 
     pub fn data(&self, id: usize) -> Vec<u8> {
-        self.data.get(&id).map(|d| d.data.clone()).unwrap_or_else(|| vec![])
+        self.data.get(&id).map(|d| d.data.clone()).unwrap_or_else(Vec::new)
     }
 
     /// Set the data of the checkpoint of game.
@@ -69,9 +69,7 @@ impl Checkpoint {
     pub fn maybe_init_data(&mut self, id: usize, data: &[u8]) {
         let version = self.version();
         match self.data.entry(id) {
-            std::collections::hash_map::Entry::Occupied(_) => {
-                return
-            }
+            std::collections::hash_map::Entry::Occupied(_) => (),
             std::collections::hash_map::Entry::Vacant(e) => {
                 e.insert(VersionedData {
                     version,

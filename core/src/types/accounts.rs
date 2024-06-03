@@ -146,7 +146,7 @@ pub struct GameAccount {
 
 impl GameAccount {
     pub fn derive_init_account(&self) -> InitAccount {
-        let checkpoint = if self.checkpoint.len() == 0 {
+        let checkpoint = if self.checkpoint.is_empty() {
             vec![]
         } else {
             let cp = Checkpoint::try_from_slice(&self.checkpoint).unwrap();
@@ -175,7 +175,7 @@ impl GameAccount {
             .map(|p| p.into())
             .collect();
 
-        let checkpoint = if self.checkpoint.len() == 0 {
+        let checkpoint = if self.checkpoint.is_empty() {
             vec![]
         } else {
             let cp = Checkpoint::try_from_slice(&self.checkpoint).unwrap();

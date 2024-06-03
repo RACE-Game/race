@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use race_api::event::Event;
-use race_core::types::{BroadcastFrame, BroadcastSync, TxState};
+use race_core::types::{BroadcastFrame, BroadcastSync, EventHistory, TxState};
 use tokio::sync::{broadcast, Mutex};
 use tracing::{debug, error, info};
 
@@ -26,7 +26,6 @@ pub struct EventBackup {
     pub access_version: u64,
     pub settle_version: u64,
     pub state_sha: String,
-    pub state: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -42,12 +41,15 @@ pub struct EventBackupGroup {
     pub checkpoint: Checkpoint,
     pub settle_version: u64,
     pub access_version: u64,
+    pub state_sha: Option<String>,
+    pub state: Option<Vec<u8>>,
 }
 
 pub struct BroadcasterContext {
     id: String,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
+    #[allow(unused)]
     debug_mode: bool,
 }
 
@@ -84,11 +86,7 @@ impl Broadcaster {
 
     pub async fn get_state(&self) -> Option<Vec<u8>> {
         let groups = self.event_backup_groups.lock().await;
-        if let Some(event) = groups.back().and_then(|g| g.events.back()) {
-            event.state.clone()
-        } else {
-            None
-        }
+        groups.back().and_then(|g| g.state.clone())
     }
 
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
@@ -98,33 +96,31 @@ impl Broadcaster {
         //     settle_version
         // );
 
-        let mut histories: Vec<BroadcastFrame> = Vec::new();
+        let mut frames: Vec<BroadcastFrame> = Vec::new();
         let event_backup_groups = self.event_backup_groups.lock().await;
 
         for group in event_backup_groups.iter() {
+            let mut histories: Vec<EventHistory> = Vec::new();
             if group.settle_version >= settle_version {
-                // info!(
-                //     "{} Found histories with settle_version = {}",
-                //     Self::name(),
-                //     group.settle_version
-                // );
                 info!("Broadcast sync {:?}", group.sync);
-                histories.push(BroadcastFrame::Sync {
+                frames.push(BroadcastFrame::Sync {
                     sync: group.sync.clone(),
                 });
                 for event in group.events.iter() {
-                    histories.push(BroadcastFrame::Event {
-                        game_addr: self.id.clone(),
+                    histories.push(EventHistory {
                         event: event.event.clone(),
                         timestamp: event.timestamp,
                         state_sha: event.state_sha.clone(),
-                        state: event.state.clone(),
-                    })
+                    });
                 }
+                frames.push(BroadcastFrame::EventHistories {
+                    game_addr: self.id.clone(),
+                    histories,
+                })
             }
         }
 
-        histories
+        frames
     }
 }
 
@@ -180,6 +176,8 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         checkpoint,
                         access_version,
                         settle_version,
+                        state_sha: None,
+                        state: None,
                     });
                 }
                 EventFrame::TxState { tx_state } => match tx_state {
@@ -210,8 +208,8 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     access_version,
                     settle_version,
                     timestamp,
-                    state,
                     state_sha,
+                    ..
                 } => {
                     info!("{} Broadcaster receive event: {}", env.log_prefix, event);
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
@@ -223,11 +221,6 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                             access_version,
                             timestamp,
                             state_sha: state_sha.clone(),
-                            state: if ctx.debug_mode {
-                                Some(state.clone())
-                            } else {
-                                None
-                            },
                         });
                     } else {
                         error!("{} Received event without checkpoint", env.log_prefix);
@@ -243,7 +236,6 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         event,
                         timestamp,
                         state_sha,
-                        state: if ctx.debug_mode { Some(state) } else { None },
                     });
 
                     if let Err(e) = r {

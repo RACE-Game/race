@@ -148,8 +148,19 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                 BroadcastFrame::TxState { .. } => {
                     // Dropped
                 }
-                BroadcastFrame::EndOfHistory => {
-                    // Dropped
+                BroadcastFrame::EventHistories { histories, .. } => {
+                    info!(
+                        "{} Receive event histories: {}",
+                        env.log_prefix,
+                        histories.len()
+                    );
+                    for hist in histories {
+                        if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event: hist.event.clone() }).await
+                        {
+                            error!("Send server event error: {}", e);
+                            break;
+                        }
+                    }
                 }
             }
         }

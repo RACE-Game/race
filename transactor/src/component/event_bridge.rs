@@ -1,6 +1,4 @@
 use crate::frame::{EventFrame, SignalFrame};
-///! The component to bridge two event buses, typically to be used
-///! between the parent game and the sub games.
 use async_trait::async_trait;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{info, log::error};

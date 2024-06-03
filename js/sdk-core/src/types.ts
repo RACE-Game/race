@@ -41,6 +41,7 @@ export type ErrorKind =
   | 'onchain-data-not-found'
   | 'attach-failed'
   | 'handle-event-error'
+  | 'init-data-invalid'
 
 export type MessageCallbackFunction = (message: Message) => void;
 

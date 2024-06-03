@@ -1,6 +1,6 @@
 import { IEncryptor, PublicKeyRaws } from './encryptor';
 import { TxState } from './tx-state';
-import { GameEvent } from './events';
+import { EventHistory, GameEvent } from './events';
 import { deserialize, array, enums, field, serialize, struct, variant, option } from '@race-foundation/borsh';
 import { arrayBufferToBase64, base64ToUint8Array } from './utils';
 import { PlayerJoin, ServerJoin } from './accounts';
@@ -143,10 +143,15 @@ export class BroadcastFrameSync extends BroadcastFrame {
 }
 
 @variant(4)
-export class BroadcastFrameEndOfHistory extends BroadcastFrame {
-  constructor(_: any) {
+export class BroadcastFrameEventHistories extends BroadcastFrame {
+  @field('string')
+  gameAddr!: string;
+  @field(array(struct(EventHistory)))
+  histories!: EventHistory[];
+  constructor(fields: any) {
     super();
-    Object.setPrototypeOf(this, BroadcastFrameEndOfHistory.prototype);
+    Object.assign(this, fields);
+    Object.setPrototypeOf(this, BroadcastFrameEventHistories.prototype);
   }
 }
 

@@ -606,7 +606,7 @@ impl TransportT for SolanaTransport {
         ];
 
         let mut ix_settles: Vec<IxSettle> = Vec::new();
-        let mut calc_cu_prize_addrs = vec![Pubkey::from_str(&addr).unwrap(), game_state.stake_account.clone()];
+        let mut calc_cu_prize_addrs = vec![Pubkey::from_str(&addr).unwrap(), game_state.stake_account];
 
         for settle in settles.iter() {
             match &settle.op {
@@ -614,7 +614,7 @@ impl TransportT for SolanaTransport {
                     let addr = parse_pubkey(&settle.addr)?;
                     let ata = get_associated_token_address(&addr, &game_state.token_mint);
                     accounts.push(AccountMeta::new(ata, false));
-                    calc_cu_prize_addrs.push(ata.clone());
+                    calc_cu_prize_addrs.push(ata);
                     let position = player_addr_to_postition(&game_state, &addr)?;
                     ix_settles.push(IxSettle {
                         position,
@@ -638,7 +638,7 @@ impl TransportT for SolanaTransport {
         for Transfer { slot_id, .. } in transfers.iter() {
             if let Some(slot) = recipient_state.slots.iter().find(|s| s.id == *slot_id) {
                 accounts.push(AccountMeta::new(slot.stake_addr, false));
-                calc_cu_prize_addrs.push(slot.stake_addr.clone());
+                calc_cu_prize_addrs.push(slot.stake_addr);
             }
         }
 
@@ -1125,7 +1125,7 @@ impl SolanaTransport {
         }
         println!("Estimate fee: {}", fee);
         // XXX: We add a fixed amount to recommended fee
-        return Ok(fee + 50);
+        Ok(fee + 50)
     }
 
     fn get_min_lamports(&self, account_len: usize) -> TransportResult<u64> {

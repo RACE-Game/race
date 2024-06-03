@@ -233,7 +233,7 @@ impl Effect {
             return Ok(());
         }
 
-        if self.valid_players.iter().find(|p| p.id == id).is_some() {
+        if self.valid_players.iter().any(|p| p.id == id) {
            Ok(())
         } else {
            Err(Error::InvalidPlayerId(id, self.valid_players.iter().map(|p| p.id).collect()))

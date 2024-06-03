@@ -218,7 +218,7 @@ impl GameContext {
             ))
         });
 
-        let checkpoint = if game_account.checkpoint.len() == 0 {
+        let checkpoint = if game_account.checkpoint.is_empty() {
             Checkpoint::default()
         } else {
             Checkpoint::try_from_slice(&game_account.checkpoint)?

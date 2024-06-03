@@ -10,14 +10,14 @@ import {
   ConnectionSubscription,
   BroadcastFrame,
   SubmitMessageParams,
-  BroadcastFrameEndOfHistory,
+  BroadcastFrameEventHistories,
 } from './connection';
 import { EventEffects, GameContext } from './game-context';
 import { GameContextSnapshot } from './game-context-snapshot';
 import { ITransport } from './transport';
 import { IWallet } from './wallet';
 import { Handler } from './handler';
-import { IInitAccount, InitAccount } from './init-account';
+import { InitAccount } from './init-account';
 import { IEncryptor, sha256 } from './encryptor';
 import { GameAccount } from './accounts';
 import { PlayerConfirming } from './tx-state';
@@ -254,7 +254,19 @@ export class BaseClient {
     }
   }
 
-  async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string, remoteState: Uint8Array | undefined) {
+  async __checkStateSha(stateSha: string, remoteState: Uint8Array | undefined) {
+    const sha = await sha256(this.__gameContext.handlerState)
+    if (sha !== stateSha) {
+      const state = this.__gameContext.handlerState
+      console.warn('Remote state:', remoteState);
+      console.warn('Local state:',);
+      const err = 'state-sha-mismatch'
+      this.__invokeErrorCallback(err, state);
+      throw new Error(`An error occurred in event loop: ${err}`);
+    }
+  }
+
+  async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string) {
     console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
     console.log('Event: ', event);
     let state: Uint8Array | undefined;
@@ -266,16 +278,12 @@ export class BaseClient {
         this.__gameContext.prepareForNextEvent(timestamp);
         effects = await this.__handler.handleEvent(this.__gameContext, event);
         state = this.__gameContext.handlerState;
-        const sha = await sha256(this.__gameContext.handlerState)
-        if (sha !== stateSha) {
-          console.warn('Remote state:', remoteState);
-          console.warn('Local state:', state);
-          err = 'state-sha-mismatch'
-        }
       } catch (e: any) {
         console.error(this.__logPrefix, e);
         err = 'handle-event-error';
       }
+
+      await this.__checkStateSha(stateSha, undefined);
 
       if (!err) {
         await this.__invokeEventCallback(event);
@@ -284,7 +292,7 @@ export class BaseClient {
       if ((!err) && effects?.checkpoint) {
         const initData = this.__gameContext.initData;
         if (initData === undefined) {
-          err = 'state-sha-mismatch'
+          err = 'init-data-invalid'
         } else {
           const initAccount = new InitAccount({
             entryType: this.__gameContext.entryType,
@@ -353,10 +361,12 @@ export class BaseClient {
         console.groupEnd();
       }
     } else if (frame instanceof BroadcastFrameEvent) {
-      // await this.__handleBroadcastFrameEvent(frame);
-      const { event, timestamp, stateSha, state } = frame;
-      await this.__handleEvent(event, timestamp, stateSha, state);
-    } else if (frame instanceof BroadcastFrameEndOfHistory) {
+      const { event, timestamp, stateSha } = frame;
+      await this.__handleEvent(event, timestamp, stateSha);
+    } else if (frame instanceof BroadcastFrameEventHistories) {
+      for (const h of frame.histories) {
+        await this.__handleEvent(h.event, h.timestamp, h.stateSha);
+      }
       this.__invokeEventCallback(new EndOfHistory())
     }
   }

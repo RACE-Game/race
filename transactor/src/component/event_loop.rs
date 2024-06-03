@@ -83,14 +83,12 @@ async fn handle_event(
                 .await;
 
             // Start game
-            if client_mode == ClientMode::Transactor {
-                if effects.start_game {
-                    ports
-                        .send(EventFrame::GameStart {
-                            access_version: game_context.access_version(),
-                        })
-                        .await;
-                }
+            if client_mode == ClientMode::Transactor && effects.start_game {
+                ports
+                    .send(EventFrame::GameStart {
+                        access_version: game_context.access_version(),
+                    })
+                    .await;
             }
 
             // Send the settlement when there's one
@@ -108,7 +106,8 @@ async fn handle_event(
 
                 info!(
                     "{} Create checkpoint, settle_version: {}",
-                    env.log_prefix, game_context.settle_version()
+                    env.log_prefix,
+                    game_context.settle_version()
                 );
             }
 
@@ -252,8 +251,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 EventFrame::Checkpoint { checkpoint, .. } => {
                     info!(
                         "{} Rebuild game state from checkpoint: {}",
-                        env.log_prefix,
-                        checkpoint
+                        env.log_prefix, checkpoint
                     );
                     let init_account = InitAccount {
                         max_players: game_context.max_players(),

@@ -13,7 +13,6 @@ use jsonrpsee::types::SubscriptionEmptyError;
 use jsonrpsee::SubscriptionSink;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
 use race_api::event::Message;
-use race_core::types::BroadcastFrame;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
     AttachGameParams, ExitGameParams, GetStateParams, Signature, SubmitEventParams,
@@ -160,7 +159,7 @@ fn subscribe_event(
                 histories.len()
             );
             histories.into_iter().for_each(|x| {
-                // info!("Broadcast history: {}", x);
+                info!("Broadcast history: {}", x);
                 let v = x.try_to_vec().unwrap();
                 let s = utils::base64_encode(&v);
                 sink.send(&s)
@@ -170,11 +169,6 @@ fn subscribe_event(
                     })
                     .unwrap();
             });
-
-            // Send EndOfHistory to indicate all history events are sent
-            let end_of_history =
-                utils::base64_encode(&BroadcastFrame::EndOfHistory.try_to_vec().unwrap());
-            sink.send(&end_of_history).unwrap();
 
             let rx = BroadcastStream::new(receiver);
             let serialized_rx = rx.map(|f| match f {

@@ -37,6 +37,15 @@ impl BroadcastSync {
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct EventHistory {
+    pub event: Event,
+    pub timestamp: u64,
+    pub state_sha: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum BroadcastFrame {
     // Game event
     Event {
@@ -44,7 +53,6 @@ pub enum BroadcastFrame {
         event: Event,
         timestamp: u64,
         state_sha: String,
-        state: Option<Vec<u8>>,
     },
     // Arbitrary message
     Message {
@@ -59,8 +67,10 @@ pub enum BroadcastFrame {
     Sync {
         sync: BroadcastSync,
     },
-    // This frame is used when there's no further history events
-    EndOfHistory,
+    EventHistories {
+        game_addr: String,
+        histories: Vec<EventHistory>,
+    },
 }
 
 impl Display for BroadcastFrame {
@@ -76,10 +86,14 @@ impl Display for BroadcastFrame {
                 write!(f, "BroadcastFrame::TxState: {:?}", tx_state)
             }
             BroadcastFrame::Sync { sync } => {
-                write!(f, "BroadcastFrame::Sync: access_version {}", sync.access_version)
+                write!(
+                    f,
+                    "BroadcastFrame::Sync: access_version {}",
+                    sync.access_version
+                )
             }
-            BroadcastFrame::EndOfHistory => {
-                write!(f, "BroadcastFrame::EndOfHistory")
+            BroadcastFrame::EventHistories { histories, .. } => {
+                write!(f, "BroadcastFrame::EventHistories, len: {}", histories.len())
             }
         }
     }
