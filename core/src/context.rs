@@ -165,6 +165,8 @@ impl GameContext {
             nodes,
             game_id,
             init_account,
+            settle_version,
+            access_version,
             ..
         } = spec;
 
@@ -172,13 +174,13 @@ impl GameContext {
             game_addr: format!("{}:{}", game_addr, game_id),
             game_id: *game_id,
             nodes: nodes.clone(),
-            settle_version: spec.settle_version,
-            access_version: spec.access_version,
+            settle_version: *settle_version,
+            access_version: *access_version,
             max_players: init_account.max_players,
             players: init_account.players.clone(),
             init_data: init_account.data.clone(),
             entry_type: EntryType::Disabled,
-            checkpoint: Checkpoint::new(*game_id, spec.settle_version, &init_account.checkpoint),
+            checkpoint: Checkpoint::new(*game_id, *settle_version, &init_account.checkpoint),
             ..Default::default()
         })
     }

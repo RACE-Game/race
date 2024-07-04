@@ -37,7 +37,8 @@ export type EventCallbackFunction = (
 ) => void;
 
 export type ErrorKind =
-  | 'state-sha-mismatch'
+  | 'event-state-sha-mismatch'
+  | 'checkpoint-state-sha-mismatch'
   | 'onchain-data-not-found'
   | 'attach-failed'
   | 'handle-event-error'

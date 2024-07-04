@@ -490,7 +490,7 @@ export class GameContext {
       this.addSubGame(subGame);
       // Init the subgame's checkpoint when launch subgame.
       const checkpointData = subGame.initAccount.checkpoint;
-      this.checkpoint.initData(subGame.gameId, checkpointData);
+      this.checkpoint.maybeInitData(subGame.gameId, checkpointData);
     }
 
     return {

@@ -41,7 +41,6 @@ pub struct EventBackupGroup {
     pub checkpoint: Checkpoint,
     pub settle_version: u64,
     pub access_version: u64,
-    pub state_sha: Option<String>,
     pub state: Option<Vec<u8>>,
 }
 
@@ -176,7 +175,6 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         checkpoint,
                         access_version,
                         settle_version,
-                        state_sha: None,
                         state: None,
                     });
                 }
@@ -326,7 +324,6 @@ mod tests {
                     sender: alice.id(),
                     raw: "CUSTOM EVENT".into(),
                 },
-                state: Some(vec![]),
                 state_sha: "".into(),
             };
 

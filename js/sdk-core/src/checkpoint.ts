@@ -38,12 +38,21 @@ export class Checkpoint {
     return this.data.get(id)?.data
   }
 
-  initData(id: number, data: Uint8Array) {
-    const version = this.getVersion(0);
-    this.data.set(id, new VersionedData({
-      version,
-      data
-    }));
+  // initData(id: number, data: Uint8Array) {
+  //   const version = this.getVersion(0);
+  //   this.data.set(id, new VersionedData({
+  //     version,
+  //     data
+  //   }));
+  // }
+
+  maybeInitData(id: number, data: Uint8Array) {
+    if (!this.data.has(id)) {
+      this.data.set(id, new VersionedData({
+        version: 0n,
+        data
+      }))
+    }
   }
 
   setData(id: number, data: Uint8Array) {

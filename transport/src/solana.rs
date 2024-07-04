@@ -561,6 +561,7 @@ impl TransportT for SolanaTransport {
             checkpoint,
             settle_version,
             next_settle_version,
+            checkpoint_state_sha,
         } = params;
 
         let payer = &self.keypair;

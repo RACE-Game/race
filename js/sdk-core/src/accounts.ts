@@ -375,6 +375,8 @@ export class GameAccount implements IGameAccount {
   readonly checkpoint!: Uint8Array;
   @field('u64')
   readonly checkpointAccessVersion!: bigint;
+  @field('string')
+  readonly checkpointStateSha!: string;
   constructor(fields: IGameAccount) {
     Object.assign(this, fields);
   }

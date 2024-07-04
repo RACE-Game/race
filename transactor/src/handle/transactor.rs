@@ -24,7 +24,6 @@ pub struct TransactorHandle {
 }
 
 fn create_init_sync(game_account: &GameAccount) -> Result<EventFrame> {
-    println!("{:?}", game_account);
     let new_players: Vec<PlayerJoin> = game_account
         .players
         .iter()

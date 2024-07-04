@@ -293,6 +293,9 @@ pub enum Error {
 
     #[error("Missing init data")]
     MissingInitData,
+
+    #[error("Checkpoint state sha mismatch")]
+    CheckpointStateShaMismatch,
 }
 
 #[cfg(feature = "serde")]

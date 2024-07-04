@@ -33,6 +33,7 @@ impl Default for TestGameAccountBuilder {
             token_addr: "".into(),
             checkpoint: vec![],
             checkpoint_access_version: 0,
+            checkpoint_state_sha: "".to_string(),
         };
         TestGameAccountBuilder { account }
     }

@@ -118,6 +118,16 @@ pub struct RecipientAccount {
 ///
 /// The address to receive payment from the game.  This is used for a
 /// complex payment or commission payment.
+///
+/// # Checkpoint
+///
+/// The checkpoint is a piece of data that can be used to restore the
+/// whole state.  The `checkpoint_access_version` is used to determine
+/// whether a player joined the game before or after the
+/// settlement. If the `chcekpoint_access_version` is smaller than a
+/// player's `access_version`, we know the player joined the game after
+/// the last settlement.  The `checkpoint_state_sha` is the sha of the
+/// state at the time of the checkpoint generation.
 #[derive(Debug, Default, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -142,6 +152,7 @@ pub struct GameAccount {
     pub recipient_addr: String,
     pub checkpoint: Vec<u8>,
     pub checkpoint_access_version: u64,
+    pub checkpoint_state_sha: String,
 }
 
 impl GameAccount {

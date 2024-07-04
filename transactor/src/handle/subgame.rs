@@ -29,9 +29,6 @@ impl SubGameHandle {
         transport: Arc<dyn TransportT + Send + Sync>,
         debug_mode: bool,
     ) -> Result<Self> {
-        println!("Launch sub game, nodes: {:?}", spec.nodes);
-        println!("Sub game players: {:?}", spec.init_account.players);
-
         let game_addr = spec.game_addr.clone();
         let game_id = spec.game_id.clone();
         let addr = format!("{}:{}", game_addr, game_id);

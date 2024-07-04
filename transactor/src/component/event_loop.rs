@@ -49,7 +49,6 @@ async fn handle_event(
     client_mode: ClientMode,
     game_mode: GameMode,
     env: &ComponentEnv,
-    no_broadcast: bool,
 ) -> Option<CloseReason> {
     info!("{} Handle event: {}", env.log_prefix, event);
 
@@ -60,9 +59,11 @@ async fn handle_event(
         Ok(effects) => {
             let state = game_context.get_handler_state_raw();
             let state_sha = digest(state);
+            info!("{} SHA after event handling: {}", env.log_prefix, state_sha);
+            // info!("{} Game state raw: {:?}", env.log_prefix, state);
 
             // Broacast the event to clients
-            if client_mode == ClientMode::Transactor && !no_broadcast {
+            if client_mode == ClientMode::Transactor {
                 ports
                     .send(EventFrame::Broadcast {
                         event,
@@ -70,7 +71,7 @@ async fn handle_event(
                         settle_version,
                         timestamp: game_context.get_timestamp(),
                         state: state.to_owned(),
-                        state_sha,
+                        state_sha: state_sha.clone(),
                     })
                     .await;
             }
@@ -93,6 +94,34 @@ async fn handle_event(
 
             // Send the settlement when there's one
             if let Some(checkpoint) = effects.checkpoint {
+                info!(
+                    "{} Rebuild game state from checkpoint: {}",
+                    env.log_prefix, checkpoint
+                );
+                let init_account = InitAccount {
+                    max_players: game_context.max_players(),
+                    entry_type: game_context.entry_type(),
+                    players: game_context.players().to_vec(),
+                    data: game_context.init_data(),
+                    checkpoint: checkpoint.data(game_context.game_id()).clone(),
+                };
+                info!("{} InitAccount: {:?}", env.log_prefix, init_account);
+
+                if let Err(e) = handler.init_state(game_context, &init_account) {
+                    error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
+                    ports.send(EventFrame::Shutdown).await;
+                    return Some(CloseReason::Fault(e));
+                }
+
+                let checkpoint_state_sha = digest(game_context.get_handler_state_raw());
+                info!("State: {:?}", game_context.get_handler_state_raw());
+
+                info!(
+                    "{} Create checkpoint, settle_version: {}, SHA: {}",
+                    env.log_prefix,
+                    game_context.settle_version(),
+                    checkpoint_state_sha,
+                );
                 ports
                     .send(EventFrame::Checkpoint {
                         access_version: game_context.access_version(),
@@ -101,22 +130,18 @@ async fn handle_event(
                         checkpoint,
                         settles: effects.settles,
                         transfers: effects.transfers,
+                        checkpoint_state_sha,
                     })
                     .await;
-
-                info!(
-                    "{} Create checkpoint, settle_version: {}",
-                    env.log_prefix,
-                    game_context.settle_version()
-                );
             }
 
             // Launch sub games
             if game_mode == GameMode::Main {
                 for launch_sub_game in effects.launch_sub_games {
-                    game_context
-                        .checkpoint_mut()
-                        .maybe_init_data(launch_sub_game.id, &launch_sub_game.init_account.data);
+                    let cp = game_context.checkpoint_mut();
+                    cp.maybe_init_data(launch_sub_game.id, &launch_sub_game.init_account.data);
+                    let settle_version = cp.get_version(launch_sub_game.id);
+
                     let ef = EventFrame::LaunchSubGame {
                         spec: Box::new(SubGameSpec {
                             game_addr: game_context.game_addr().to_owned(),
@@ -124,7 +149,7 @@ async fn handle_event(
                             bundle_addr: launch_sub_game.bundle_addr,
                             nodes: game_context.get_nodes().into(),
                             access_version: game_context.access_version(),
-                            settle_version: game_context.settle_version(),
+                            settle_version,
                             init_account: launch_sub_game.init_account,
                         }),
                     };
@@ -248,25 +273,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     game_context.dispatch_safe(Event::Ready, 0);
                 }
 
-                EventFrame::Checkpoint { checkpoint, .. } => {
-                    info!(
-                        "{} Rebuild game state from checkpoint: {}",
-                        env.log_prefix, checkpoint
-                    );
-                    let init_account = InitAccount {
-                        max_players: game_context.max_players(),
-                        entry_type: game_context.entry_type(),
-                        players: game_context.players().to_vec(),
-                        data: game_context.init_data(),
-                        checkpoint: checkpoint.data(game_context.game_id()).clone(),
-                    };
-                    if let Err(e) = handler.init_state(&mut game_context, &init_account) {
-                        error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
-                        ports.send(EventFrame::Shutdown).await;
-                        return CloseReason::Fault(e);
-                    }
-                }
-
                 EventFrame::GameStart { .. } => {
                     if ctx.client_mode == ClientMode::Transactor {
                         let event = Event::GameStart;
@@ -278,7 +284,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.client_mode,
                             ctx.game_mode,
                             &env,
-                            false,
                         )
                         .await
                         {
@@ -336,7 +341,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.client_mode,
                             ctx.game_mode,
                             &env,
-                            false,
                         )
                         .await
                         {
@@ -356,7 +360,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.client_mode,
                             ctx.game_mode,
                             &env,
-                            false,
                         )
                         .await
                         {
@@ -391,7 +394,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.client_mode,
                         ctx.game_mode,
                         &env,
-                        false,
                     )
                     .await
                     {
@@ -408,7 +410,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.client_mode,
                         ctx.game_mode,
                         &env,
-                        false,
                     )
                     .await
                     {
@@ -429,7 +430,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.client_mode,
                         ctx.game_mode,
                         &env,
-                        false,
                     )
                     .await
                     {

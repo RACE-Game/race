@@ -26,12 +26,18 @@ fn cli() -> Command {
 
 #[tokio::main]
 pub async fn main() {
+
+    let logfile = tracing_appender::rolling::daily("logs", "transactor.log");
+
     let log_format = tracing_subscriber::fmt::format()
         .compact()
         .without_time()
         .with_target(false)
         .compact();
-    tracing_subscriber::fmt().event_format(log_format).init();
+    tracing_subscriber::fmt()
+        .with_ansi(true)
+        .with_writer(logfile)
+        .event_format(log_format).init();
 
     let matches = cli().get_matches();
     let config = Config::from_path(&matches.get_one::<String>("config").unwrap().into()).await;

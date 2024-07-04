@@ -254,15 +254,12 @@ export class BaseClient {
     }
   }
 
-  async __checkStateSha(stateSha: string, remoteState: Uint8Array | undefined) {
+  async __checkStateSha(stateSha: string, err: ErrorKind) {
     const sha = await sha256(this.__gameContext.handlerState)
-    if (sha !== stateSha) {
+    if (sha !== stateSha && stateSha !== '') {
       const state = this.__gameContext.handlerState
-      console.warn('Remote state:', remoteState);
-      console.warn('Local state:',);
-      const err = 'state-sha-mismatch'
       this.__invokeErrorCallback(err, state);
-      throw new Error(`An error occurred in event loop: ${err}`);
+      throw new Error(`An error occurred in event loop: ${err}, game: ${this.__gameAddr}, local: ${sha}, remote: ${stateSha}`);
     }
   }
 
@@ -283,12 +280,13 @@ export class BaseClient {
         err = 'handle-event-error';
       }
 
-      await this.__checkStateSha(stateSha, undefined);
+      await this.__checkStateSha(stateSha, 'event-state-sha-mismatch');
 
       if (!err) {
         await this.__invokeEventCallback(event);
       }
 
+      // Rebuild the game state after a checkpoint.
       if ((!err) && effects?.checkpoint) {
         const initData = this.__gameContext.initData;
         if (initData === undefined) {
@@ -381,6 +379,7 @@ export class BaseClient {
     this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
     await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.checkpointVersion() }));
     await this.__handler.initState(this.__gameContext, initAccount);
+    this.__checkStateSha(gameAccount.checkpointStateSha, 'checkpoint-state-sha-mismatch');
     return { gameAccount, initAccount };
   }
 

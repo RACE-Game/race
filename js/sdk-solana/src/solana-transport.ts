@@ -168,13 +168,14 @@ export class SolanaTransport implements ITransport {
     const playerKey = new PublicKey(wallet.walletAddr);
 
     // Call RPC functions in Parallel
-    const [tempAccountLamports, prioritizationFee, gameState, profileKey, playerProfile] = await Promise.all([
+    const [tempAccountLamports, prioritizationFee, gameState, playerProfile] = await Promise.all([
       conn.getMinimumBalanceForRentExemption(tempAccountLen),
       this._getPrioritizationFee([gameAccountKey]),
       this._getGameState(gameAccountKey),
-      PublicKey.createWithSeed(playerKey, PLAYER_PROFILE_SEED, PROGRAM_ID),
       this.getPlayerProfile(wallet.walletAddr)
     ])
+
+    const profileKey0 = playerProfile !== undefined ? new PublicKey(playerProfile?.addr): undefined;
 
     if (gameState === undefined) {
       throw new Error('Game account not found');
@@ -204,10 +205,15 @@ export class SolanaTransport implements ITransport {
 
     ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }))
 
-    if (params.createProfileIfNeeded && playerProfile === undefined) {
-      ixs.push(...(await this.makeCreateProfileIxs(wallet, {
+    let profileKey: PublicKey;
+    if (profileKey0 !== undefined) {
+      profileKey = profileKey0;
+    } else if (params.createProfileIfNeeded) {
+      profileKey = await this.appendCreateProfileIxs(ixs, wallet, {
         nick: wallet.walletAddr.substring(0, 6),
-      })));
+      })
+    } else {
+      throw new Error('Player has no profile account');
     }
 
     const createTempAccountIx = SystemProgram.createAccount({
@@ -251,7 +257,6 @@ export class SolanaTransport implements ITransport {
     ixs.push(joinGameIx);
 
     const tx = await makeTransaction(this.#conn, playerKey, ixs);
-
     return await wallet.sendTransaction(tx, this.#conn, { signers: [tempAccountKeypair] });
   }
 
@@ -284,17 +289,16 @@ export class SolanaTransport implements ITransport {
     return await wallet.sendTransaction(tx, this.#conn);
   }
 
-  async makeCreateProfileIxs(wallet: IWallet, params: CreatePlayerProfileParams): Promise<TransactionInstruction[]> {
-    let ixs = [];
+  async appendCreateProfileIxs(ixs: TransactionInstruction[], wallet: IWallet, params: CreatePlayerProfileParams): Promise<PublicKey> {
     const { nick, pfp } = params;
     if (nick.length > 16) {
       throw new Error('Player nick name exceeds 16 chars');
     }
     const payerKey = new PublicKey(wallet.walletAddr);
-    console.log('Payer Public Key:', payerKey);
+    console.log('Payer Public Key:', payerKey.toBase58());
 
     const profileKey = await PublicKey.createWithSeed(payerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
-    console.log('Player profile public key: ', profileKey);
+    console.log('Player profile public key: ', profileKey.toBase58());
 
     if (!(await this.#conn.getAccountInfo(profileKey))) {
       let lamports = await this.#conn.getMinimumBalanceForRentExemption(PROFILE_ACCOUNT_LEN);
@@ -311,19 +315,21 @@ export class SolanaTransport implements ITransport {
       ixs.push(createProfileAccount);
     }
 
-    const prioritizationFee = await this._getPrioritizationFee([profileKey]);
-    ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }));
-
     const pfpKey = !pfp ? PublicKey.default : new PublicKey(pfp);
     const createProfile = instruction.createPlayerProfile(payerKey, profileKey, nick, pfpKey);
 
     ixs.push(createProfile);
-    return ixs;
+    return profileKey;
   }
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<TransactionResult<void>> {
+    let ixs: TransactionInstruction[] = [];
+
     const payerKey = new PublicKey(wallet.walletAddr);
-    let ixs = await this.makeCreateProfileIxs(wallet, params);
+    // const prioritizationFee = await this._getPrioritizationFee([]);
+    // ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }));
+    await this.appendCreateProfileIxs(ixs, wallet, params);
+
     let tx = await makeTransaction(this.#conn, payerKey, ixs);
     return await wallet.sendTransaction(tx, this.#conn);
   }
@@ -725,7 +731,7 @@ async function makeTransaction(
   instructions: TransactionInstruction[]
 ): Promise<VersionedTransaction> {
   const slot = await conn.getSlot();
-  const block = await conn.getBlock(slot, { maxSupportedTransactionVersion: 0 });
+  const block = await conn.getBlock(slot, { maxSupportedTransactionVersion: 0, transactionDetails: 'none' });
   if (block === null) {
     throw new Error('Cannot find block');
   }

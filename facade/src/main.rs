@@ -727,6 +727,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         checkpoint,
         settle_version,
         next_settle_version,
+        checkpoint_state_sha,
     } = params.one()?;
     println!(
         "! Handle settlements {}, settles: {:?}, transfers: {:?} ",
@@ -768,6 +769,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
     println!("! Bump settle version to {}", game.settle_version);
     game.checkpoint = checkpoint;
     game.checkpoint_access_version = game.access_version;
+    game.checkpoint_state_sha = checkpoint_state_sha;
 
     // Handle settles
     for s in settles.into_iter() {

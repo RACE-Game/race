@@ -97,6 +97,8 @@ pub struct GameState {
     pub checkpoint: Vec<u8>,
     // the value of access version when checkpoint is set
     pub checkpoint_access_version: u64,
+    // the sha of state when checkpoint is set
+    pub checkpoint_state_sha: String,
 }
 
 impl GameState {
@@ -118,6 +120,7 @@ impl GameState {
             recipient_addr,
             checkpoint,
             checkpoint_access_version,
+            checkpoint_state_sha,
             ..
         } = self;
 
@@ -145,6 +148,7 @@ impl GameState {
             entry_type,
             checkpoint,
             checkpoint_access_version,
+            checkpoint_state_sha,
         }
     }
 }

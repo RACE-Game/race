@@ -67,12 +67,11 @@ impl Checkpoint {
     }
 
     pub fn maybe_init_data(&mut self, id: usize, data: &[u8]) {
-        let version = self.version();
         match self.data.entry(id) {
             std::collections::hash_map::Entry::Occupied(_) => (),
             std::collections::hash_map::Entry::Vacant(e) => {
                 e.insert(VersionedData {
-                    version,
+                    version: 0, // The new checkpoint data should always start from zero
                     data: data.into()
                 });
             }
