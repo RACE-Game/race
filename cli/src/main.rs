@@ -296,7 +296,7 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             }
             println!("Current transactor: {:?}", game_account.transactor_addr);
             println!("Checkpoint:");
-            print_hex(game_account.checkpoint);
+            print_hex(game_account.checkpoint.serialize().unwrap());
         }
         None => {
             println!("Game account not found");

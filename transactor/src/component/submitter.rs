@@ -25,7 +25,6 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         settles,
         transfers,
         checkpoint,
-        checkpoint_state_sha,
         ..
     } = next;
     prev.settles.extend(settles);
@@ -39,7 +38,6 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         // Use the old settle_version
         settle_version: prev.settle_version,
         next_settle_version: prev.next_settle_version + 1,
-        checkpoint_state_sha,
     }
 }
 
@@ -145,7 +143,6 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     checkpoint,
                     settle_version,
                     previous_settle_version,
-                    checkpoint_state_sha,
                     ..
                 } => {
                     let checkpoint_data = checkpoint.serialize().unwrap();
@@ -157,7 +154,6 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                             checkpoint: checkpoint_data,
                             settle_version: previous_settle_version,
                             next_settle_version: settle_version,
-                            checkpoint_state_sha,
                         })
                         .await;
                     if let Err(e) = res {

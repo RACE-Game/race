@@ -59,8 +59,8 @@ export class SubClient extends BaseClient {
       const settleVersion = this.__gameContext.checkpointVersion();
       await this.__connection.connect(new SubscribeEventParams({ settleVersion }));
       const initAccount = this.__gameContext.initAccount();
-      console.log('Init Account:', initAccount);
       await this.__handler.initState(this.__gameContext, initAccount);
+      this.__checkStateSha(this.__gameContext.checkpointStateSha, 'checkpoint-state-sha-mismatch');
       this.__invokeEventCallback(new Init());
     } catch (e) {
       console.error('Attaching game failed', e);

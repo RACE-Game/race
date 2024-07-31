@@ -561,7 +561,6 @@ impl TransportT for SolanaTransport {
             checkpoint,
             settle_version,
             next_settle_version,
-            checkpoint_state_sha,
         } = params;
 
         let payer = &self.keypair;
@@ -916,7 +915,7 @@ impl TransportT for SolanaTransport {
         let game_state = self
             .internal_get_game_state(&game_account_pubkey, mode)
             .await?;
-        Ok(Some(game_state.into_account(addr)))
+        Ok(Some(game_state.into_account(addr)?))
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {

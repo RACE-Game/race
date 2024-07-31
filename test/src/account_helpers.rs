@@ -1,6 +1,6 @@
 use crate::client_helpers::TestClient;
 use borsh::BorshSerialize;
-use race_core::types::{ClientMode, EntryType, GameAccount, GameBundle, PlayerJoin, ServerJoin};
+use race_core::{types::{ClientMode, EntryType, GameAccount, GameBundle, PlayerJoin, ServerJoin}, checkpoint::Checkpoint};
 
 pub fn test_game_addr() -> String {
     "TEST".into()
@@ -31,9 +31,7 @@ impl Default for TestGameAccountBuilder {
             recipient_addr: "".into(),
             entry_type: EntryType::default(),
             token_addr: "".into(),
-            checkpoint: vec![],
-            checkpoint_access_version: 0,
-            checkpoint_state_sha: "".to_string(),
+            checkpoint: Checkpoint::default(),
         };
         TestGameAccountBuilder { account }
     }
@@ -194,8 +192,8 @@ impl TestGameAccountBuilder {
         self.with_checkpoint_vec(checkpoint)
     }
 
-    pub fn with_checkpoint_vec(mut self, checkpoint: Vec<u8>) -> Self {
-        self.account.checkpoint = checkpoint;
+    pub fn with_checkpoint_vec(mut self, data: Vec<u8>) -> Self {
+        self.account.checkpoint = Checkpoint::new(0, 0, 0, &data);
         self
     }
 

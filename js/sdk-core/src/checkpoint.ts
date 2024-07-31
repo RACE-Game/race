@@ -3,6 +3,10 @@ import { deserialize, field, map, struct } from '@race-foundation/borsh';
 export class VersionedData {
   @field('u64')
   version!: bigint;
+
+  @field('string')
+  sha!: string;
+
   @field('u8-array')
   data!: Uint8Array;
   constructor(fields: any) {
@@ -12,6 +16,9 @@ export class VersionedData {
 
 /// Represent the on-chain checkpoint.
 export class Checkpoint {
+  @field('u64')
+  accessVersion!: bigint;
+
   @field(map('usize', struct(VersionedData)))
   data!: Map<number, VersionedData>;
   constructor(fields: any) {
@@ -19,7 +26,7 @@ export class Checkpoint {
   }
 
   static default(): Checkpoint {
-    return new Checkpoint({ data: new Map() })
+    return new Checkpoint({ accessVersion: 0n, data: new Map() })
   }
 
   static fromRaw(raw: Uint8Array): Checkpoint {
@@ -35,7 +42,11 @@ export class Checkpoint {
   }
 
   getData(id: number): Uint8Array | undefined {
-    return this.data.get(id)?.data
+    return this.data.get(id)?.data;
+  }
+
+  getSha(id: number): string | undefined {
+    return this.data.get(id)?.sha;
   }
 
   // initData(id: number, data: Uint8Array) {
@@ -61,6 +72,10 @@ export class Checkpoint {
       vd.data = data;
       vd.version += 1n;
     }
+  }
+
+  setAccessVersion(accessVersion: bigint) {
+    this.accessVersion = accessVersion;
   }
 
   __setVersion(id: number, version: bigint) {

@@ -16,6 +16,7 @@ use race_api::types::{
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use sha256::digest;
 
 const OPERATION_TIMEOUT: u64 = 15_000;
 
@@ -180,7 +181,12 @@ impl GameContext {
             players: init_account.players.clone(),
             init_data: init_account.data.clone(),
             entry_type: EntryType::Disabled,
-            checkpoint: Checkpoint::new(*game_id, *settle_version, &init_account.checkpoint),
+            checkpoint: Checkpoint::new(
+                *game_id,
+                *access_version,
+                *settle_version,
+                &init_account.checkpoint,
+            ),
             ..Default::default()
         })
     }
@@ -209,7 +215,7 @@ impl GameContext {
         let mut players = vec![];
         game_account.players.iter().for_each(|p| {
             // Only include those players joined before last checkpoint
-            if p.access_version <= game_account.checkpoint_access_version {
+            if p.access_version <= game_account.checkpoint.access_version {
                 players.push(GamePlayer::new(p.access_version, p.balance, p.position));
             }
 
@@ -219,12 +225,6 @@ impl GameContext {
                 ClientMode::Player,
             ))
         });
-
-        let checkpoint = if game_account.checkpoint.is_empty() {
-            Checkpoint::default()
-        } else {
-            Checkpoint::try_from_slice(&game_account.checkpoint)?
-        };
 
         Ok(Self {
             game_addr: game_account.addr.clone(),
@@ -239,7 +239,7 @@ impl GameContext {
             random_states: vec![],
             decision_states: vec![],
             handler_state: "".into(),
-            checkpoint,
+            checkpoint: game_account.checkpoint.clone(),
             sub_games: vec![],
             init_data: game_account.data.clone(),
             max_players: game_account.max_players,
@@ -764,6 +764,7 @@ impl GameContext {
             checkpoint,
             launch_sub_games,
             bridge_events,
+            error,
             ..
         } = effect;
 
@@ -810,57 +811,65 @@ impl GameContext {
             self.init_random_state(spec)?;
         }
 
-        let mut settles1 = Vec::with_capacity(settles.len());
-        let mut is_checkpoint = false;
-        if let Some(checkpoint_state) = checkpoint {
-            is_checkpoint = true;
-            self.checkpoint.set_data(self.game_id, checkpoint_state)?;
-            self.bump_settle_version()?;
-            for s in settles {
-                match s.op {
-                    SettleOp::Eject => {
-                        self.remove_player(s.id)?;
-                    }
-                    SettleOp::Add(amount) => {
-                        self.player_add_balance(s.id, amount)?;
-                    }
-                    SettleOp::Sub(amount) => {
-                        self.player_sub_balance(s.id, amount)?;
-                    }
-                    _ => {}
-                }
-                let addr = self.id_to_addr(s.id)?;
-                settles1.push(SettleWithAddr { addr, op: s.op });
-            }
-            self.set_game_status(GameStatus::Idle);
-        } else if (!settles.is_empty()) || (!transfers.is_empty()) {
-            return Err(Error::SettleWithoutCheckpoint);
-        }
-        settles1.sort_by_key(|s| match s.op {
-            SettleOp::Add(_) => 0,
-            SettleOp::Sub(_) => 1,
-            SettleOp::Eject => 2,
-            SettleOp::AssignSlot(_) => 3,
-        });
-
         if let Some(state) = handler_state {
+            let sha = digest(&state);
             self.handler_state = state;
+
+            let mut settles1 = Vec::with_capacity(settles.len());
+            let mut is_checkpoint = false;
+            if let Some(checkpoint_state) = checkpoint {
+                is_checkpoint = true;
+                self.checkpoint
+                    .set_data(self.game_id, checkpoint_state, sha)?;
+                self.checkpoint.set_access_version(self.access_version);
+                self.bump_settle_version()?;
+                for s in settles {
+                    match s.op {
+                        SettleOp::Eject => {
+                            self.remove_player(s.id)?;
+                        }
+                        SettleOp::Add(amount) => {
+                            self.player_add_balance(s.id, amount)?;
+                        }
+                        SettleOp::Sub(amount) => {
+                            self.player_sub_balance(s.id, amount)?;
+                        }
+                        _ => {}
+                    }
+                    let addr = self.id_to_addr(s.id)?;
+                    settles1.push(SettleWithAddr { addr, op: s.op });
+                }
+                self.set_game_status(GameStatus::Idle);
+            } else if (!settles.is_empty()) || (!transfers.is_empty()) {
+                return Err(Error::SettleWithoutCheckpoint);
+            }
+            settles1.sort_by_key(|s| match s.op {
+                SettleOp::Add(_) => 0,
+                SettleOp::Sub(_) => 1,
+                SettleOp::Eject => 2,
+                SettleOp::AssignSlot(_) => 3,
+            });
+
+            // Fully reset current sub games.
+            self.sub_games = launch_sub_games.clone();
+
+            return Ok(EventEffects {
+                settles: settles1,
+                transfers,
+                checkpoint: if is_checkpoint {
+                    Some(self.clone_checkpoint())
+                } else {
+                    None
+                },
+                launch_sub_games,
+                bridge_events,
+                start_game,
+            })
+        } else if let Some(e) = error {
+            return Err(Error::HandleError(e))
+        } else {
+            return Err(Error::InternalError("Missing both state and error".to_string()))
         }
-
-        self.sub_games = launch_sub_games.clone();
-
-        Ok(EventEffects {
-            settles: settles1,
-            transfers,
-            checkpoint: if is_checkpoint {
-                Some(self.clone_checkpoint())
-            } else {
-                None
-            },
-            launch_sub_games,
-            bridge_events,
-            start_game,
-        })
     }
 
     pub fn set_node_ready(&mut self, access_version: u64) {

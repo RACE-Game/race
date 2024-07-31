@@ -133,7 +133,7 @@ export class GameContext {
       }))
 
       const players = gameAccount.players
-        .filter(p => p.accessVersion <= gameAccount.checkpointAccessVersion)
+        .filter(p => p.accessVersion <= gameAccount.checkpoint.accessVersion)
         .map(p => new GamePlayer({
           balance: p.balance,
           id: p.accessVersion,
@@ -152,7 +152,7 @@ export class GameContext {
       this.randomStates = [];
       this.decisionStates = [];
       this.handlerState = Uint8Array.of();
-      this.checkpoint = Checkpoint.fromRaw(init.checkpoint);
+      this.checkpoint = init.checkpoint;
       this.subGames = [];
       this.initData = gameAccount.data;
       this.maxPlayers = gameAccount.maxPlayers;
@@ -178,7 +178,7 @@ export class GameContext {
     c.initData = subGame.initAccount.data;
     c.maxPlayers = subGame.initAccount.maxPlayers;
     c.entryType = subGame.initAccount.entryType;
-    c.players = subGame.initAccount.players;
+    c.players = subGame.initAccount.players.map(p => new GamePlayer(p));
     return c;
   }
 
@@ -194,6 +194,10 @@ export class GameContext {
       data: this.initData,
       checkpoint: this.checkpoint.getData(this.gameId) || Uint8Array.of(),
     });
+  }
+
+  get checkpointStateSha(): string {
+    return this.checkpoint.getSha(this.gameId) || '';
   }
 
   idToAddrUnchecked(id: bigint): string | undefined {
@@ -457,6 +461,9 @@ export class GameContext {
 
     let settles: Settle[] = [];
 
+    // Fully reset subGames
+    this.subGames = effect.launchSubGames;
+
     if (effect.checkpoint !== undefined) {
       // Reset random states
       this.randomStates = [];
@@ -477,6 +484,7 @@ export class GameContext {
       }
 
       this.checkpoint.setData(this.gameId, effect.checkpoint);
+      this.checkpoint.setAccessVersion(this.accessVersion);
       this.status = 'idle';
     }
 
@@ -522,7 +530,7 @@ export class GameContext {
     this.accessVersion = accessVersion;
   }
 
-  prepareForNextEvent(timestamp: bigint) {
+  setTimestamp(timestamp: bigint) {
     this.timestamp = timestamp;
   }
 

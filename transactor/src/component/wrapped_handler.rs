@@ -229,6 +229,7 @@ impl WrappedHandler {
         init_account: &InitAccount,
     ) -> Result<EventEffects> {
         let mut new_context = context.clone();
+        new_context.set_timestamp(0);
         general_init_state(&mut new_context, init_account)?;
         let event_effects = self.custom_init_state(&mut new_context, init_account)?;
         swap(context, &mut new_context);

@@ -296,6 +296,9 @@ pub enum Error {
 
     #[error("Checkpoint state sha mismatch")]
     CheckpointStateShaMismatch,
+
+    #[error("Malformed checkpoint")]
+    MalformedCheckpoint,
 }
 
 #[cfg(feature = "serde")]

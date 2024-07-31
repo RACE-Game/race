@@ -1,7 +1,6 @@
 import { array, deserialize, enums, field, serialize, struct } from "@race-foundation/borsh";
 import { EntryType, GameAccount } from "./accounts";
 import { Fields } from "./types";
-import { Checkpoint } from "./checkpoint";
 
 export class GamePlayer {
   @field('u64')
@@ -49,24 +48,18 @@ export class InitAccount {
   static createFromGameAccount(
     gameAccount: GameAccount,
   ): InitAccount {
-    let { players, data, checkpointAccessVersion } = gameAccount;
-    const game_players = players.filter(p => p.accessVersion <= checkpointAccessVersion)
+    let { players, data, checkpoint } = gameAccount;
+    const game_players = players.filter(p => p.accessVersion <= checkpoint.accessVersion)
       .map(p => new GamePlayer({ id: p.accessVersion, balance: p.balance, position: p.position }));
 
-    let checkpoint = Uint8Array.of();
-    if (gameAccount.checkpoint.length > 0) {
-      const cp = Checkpoint.fromRaw(gameAccount.checkpoint);
-      const checkpointData = cp.getData(0);
-      if (checkpointData !== undefined) {
-        checkpoint = checkpointData;
-      }
-    }
+    let cp = checkpoint.getData(0);
+    if (cp === undefined) throw new Error('Cannot create InitAccount, checkpoint is undefined');
 
     return new InitAccount({
       data,
       players: game_players,
       maxPlayers: gameAccount.maxPlayers,
-      checkpoint,
+      checkpoint: cp,
       entryType: gameAccount.entryType,
     });
   }

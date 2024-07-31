@@ -260,11 +260,13 @@ export class BaseClient {
       const state = this.__gameContext.handlerState
       this.__invokeErrorCallback(err, state);
       throw new Error(`An error occurred in event loop: ${err}, game: ${this.__gameAddr}, local: ${sha}, remote: ${stateSha}`);
+    } else {
+      console.log('State SHA validation passed:', stateSha);
     }
   }
 
   async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string) {
-    console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + new Date(Number(timestamp)).toLocaleString());
+    console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + timestamp);
     console.log('Event: ', event);
     let state: Uint8Array | undefined;
     let err: ErrorKind | undefined;
@@ -272,7 +274,7 @@ export class BaseClient {
 
     try {                     // For log group
       try {
-        this.__gameContext.prepareForNextEvent(timestamp);
+        this.__gameContext.setTimestamp(timestamp);
         effects = await this.__handler.handleEvent(this.__gameContext, event);
         state = this.__gameContext.handlerState;
       } catch (e: any) {
@@ -376,10 +378,10 @@ export class BaseClient {
     const gameAccount = await this.__getGameAccount();
     this.__gameContext = new GameContext(gameAccount);
     const initAccount = this.__gameContext.initAccount();
-    this.__gameContext.applyCheckpoint(gameAccount.checkpointAccessVersion, this.__gameContext.settleVersion);
+    this.__gameContext.applyCheckpoint(gameAccount.checkpoint.accessVersion, this.__gameContext.settleVersion);
     await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.checkpointVersion() }));
     await this.__handler.initState(this.__gameContext, initAccount);
-    this.__checkStateSha(gameAccount.checkpointStateSha, 'checkpoint-state-sha-mismatch');
+    this.__checkStateSha(this.__gameContext.checkpointStateSha, 'checkpoint-state-sha-mismatch');
     return { gameAccount, initAccount };
   }
 

@@ -1,13 +1,14 @@
 //! This facade server emulates the behavior of its blockchain counterparts.
 //! It is supposed to be used for testing and developing.
 
-use borsh::BorshSerialize;
+use borsh::{BorshSerialize, BorshDeserialize};
 use clap::{arg, Command};
 use hyper::Method;
 use jsonrpsee::server::{AllowHosts, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error as RpcError, RpcModule};
 use race_api::error::Error;
+use race_core::checkpoint::Checkpoint;
 use race_core::types::{
     DepositParams, EntryType, GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin,
     PlayerProfile, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin, SettleOp,
@@ -727,7 +728,6 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         checkpoint,
         settle_version,
         next_settle_version,
-        checkpoint_state_sha,
     } = params.one()?;
     println!(
         "! Handle settlements {}, settles: {:?}, transfers: {:?} ",
@@ -767,9 +767,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
     // Increase the `settle_version`
     game.settle_version = next_settle_version;
     println!("! Bump settle version to {}", game.settle_version);
-    game.checkpoint = checkpoint;
-    game.checkpoint_access_version = game.access_version;
-    game.checkpoint_state_sha = checkpoint_state_sha;
+    game.checkpoint = Checkpoint::try_from_slice(&checkpoint).unwrap();
 
     // Handle settles
     for s in settles.into_iter() {

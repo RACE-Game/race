@@ -3484,6 +3484,7 @@ dependencies = [
  "race-api",
  "serde",
  "serde_json",
+ "sha256",
  "thiserror",
 ]
 

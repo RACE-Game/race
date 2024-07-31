@@ -126,8 +126,7 @@ pub struct RecipientAccount {
 /// whether a player joined the game before or after the
 /// settlement. If the `chcekpoint_access_version` is smaller than a
 /// player's `access_version`, we know the player joined the game after
-/// the last settlement.  The `checkpoint_state_sha` is the sha of the
-/// state at the time of the checkpoint generation.
+/// the last settlement.
 #[derive(Debug, Default, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -150,19 +149,12 @@ pub struct GameAccount {
     pub data: Vec<u8>,
     pub entry_type: EntryType,
     pub recipient_addr: String,
-    pub checkpoint: Vec<u8>,
-    pub checkpoint_access_version: u64,
-    pub checkpoint_state_sha: String,
+    pub checkpoint: Checkpoint,
 }
 
 impl GameAccount {
     pub fn derive_init_account(&self) -> InitAccount {
-        let checkpoint = if self.checkpoint.is_empty() {
-            vec![]
-        } else {
-            let cp = Checkpoint::try_from_slice(&self.checkpoint).unwrap();
-            cp.data(0)
-        };
+        let cp = self.checkpoint.data(0);
 
         InitAccount {
             max_players: self.max_players,
@@ -174,7 +166,7 @@ impl GameAccount {
                 .map(Into::into)
                 .collect(),
             data: self.data.clone(),
-            checkpoint,
+            checkpoint: cp,
         }
     }
 
@@ -182,16 +174,11 @@ impl GameAccount {
         let players = self.players
             .iter()
             .cloned()
-            .filter(|p| p.access_version <= self.checkpoint_access_version)
+            .filter(|p| p.access_version <= self.checkpoint.access_version)
             .map(|p| p.into())
             .collect();
 
-        let checkpoint = if self.checkpoint.is_empty() {
-            vec![]
-        } else {
-            let cp = Checkpoint::try_from_slice(&self.checkpoint).unwrap();
-            cp.data(0)
-        };
+        let checkpoint = self.checkpoint.data(0);
 
         InitAccount {
             entry_type: self.entry_type.clone(),

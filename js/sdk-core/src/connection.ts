@@ -92,8 +92,6 @@ export class BroadcastFrameEvent extends BroadcastFrame {
   timestamp!: bigint;
   @field('string')
   stateSha!: string;
-  @field(option('u8-array'))
-  state!: Uint8Array | undefined;
   constructor(fields: any) {
     super();
     Object.assign(this, fields);

@@ -27,14 +27,14 @@ fn create_init_sync(game_account: &GameAccount) -> Result<EventFrame> {
     let new_players: Vec<PlayerJoin> = game_account
         .players
         .iter()
-        .filter(|p| p.access_version > game_account.checkpoint_access_version)
+        .filter(|p| p.access_version > game_account.checkpoint.access_version)
         .cloned()
         .collect();
 
     let new_servers: Vec<ServerJoin> = game_account
         .servers
         .iter()
-        .filter(|s| s.access_version > game_account.checkpoint_access_version)
+        .filter(|s| s.access_version > game_account.checkpoint.access_version)
         .cloned()
         .collect();
 
