@@ -41,12 +41,26 @@ export class Checkpoint {
     });
   }
 
+  clone(): Checkpoint {
+    return new Checkpoint({
+      accessVersion: this.accessVersion,
+      data: new Map(this.data.entries())
+    })
+  }
+
   getData(id: number): Uint8Array | undefined {
     return this.data.get(id)?.data;
   }
 
   getSha(id: number): string | undefined {
     return this.data.get(id)?.sha;
+  }
+
+  setSha(id: number, sha: string) {
+    const data = this.data.get(id);
+    if (data !== undefined) {
+      data.sha = sha;
+    }
   }
 
   // initData(id: number, data: Uint8Array) {

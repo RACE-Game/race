@@ -303,6 +303,9 @@ export class BaseClient {
           });
           await this.__handler.initState(this.__gameContext, initAccount);
           this.__invokeEventCallback(new Checkpoint());
+          // Update state SHA
+          const sha = await sha256(this.__gameContext.handlerState);
+          this.__gameContext.checkpoint.setSha(this.__gameContext.gameId, sha);
         }
       }
 

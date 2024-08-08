@@ -173,7 +173,7 @@ export class GameContext {
     c.randomStates = [];
     c.decisionStates = [];
     c.handlerState = Uint8Array.of();
-    c.checkpoint = this.checkpoint;
+    c.checkpoint = this.checkpoint.clone();
     c.subGames = [];
     c.initData = subGame.initAccount.data;
     c.maxPlayers = subGame.initAccount.maxPlayers;
