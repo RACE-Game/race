@@ -9,3 +9,4 @@ export * from './connection';
 export * from './storage';
 export * from './sub-client';
 export * from './types';
+export * from './checkpoint';

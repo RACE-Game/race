@@ -148,13 +148,13 @@ export interface IRecipientSlot {
   readonly slotType: RecipientSlotType;
   readonly tokenAddr: string;
   readonly shares: IRecipientSlotShare[];
+  readonly balance: bigint;
 }
 
 export interface IRecipientSlotShare {
   readonly owner: RecipientSlotOwner;
   readonly weights: number;
   readonly claimAmount: bigint;
-  readonly claimAmountCap: bigint;
 }
 
 export abstract class RecipientSlotOwner {}
@@ -454,8 +454,6 @@ export class RecipientSlotShare implements IRecipientSlotShare {
   weights!: number;
   @field('u64')
   claimAmount!: bigint;
-  @field('u64')
-  claimAmountCap!: bigint;
   constructor(fields: IRecipientSlotShare) {
     Object.assign(this, fields);
   }
@@ -470,6 +468,8 @@ export class RecipientSlot implements IRecipientSlot {
   tokenAddr!: string;
   @field(array(struct(RecipientSlotShare)))
   shares!: IRecipientSlotShare[];
+  @field('u64')
+  balance!: bigint;
   constructor(fields: IRecipientSlot) {
     Object.assign(this, fields);
   }

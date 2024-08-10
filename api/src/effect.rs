@@ -227,7 +227,7 @@ pub struct Effect {
 
 impl Effect {
 
-    fn assert_player_id(&self, id: u64) -> Result<()> {
+    fn assert_player_id(&self, id: u64, reason: &str) -> Result<()> {
         if self.valid_players.is_empty() {
             // Skip check
             return Ok(());
@@ -236,7 +236,7 @@ impl Effect {
         if self.valid_players.iter().any(|p| p.id == id) {
            Ok(())
         } else {
-           Err(Error::InvalidPlayerId(id, self.valid_players.iter().map(|p| p.id).collect()))
+           Err(Error::InvalidPlayerId(id, self.valid_players.iter().map(|p| p.id).collect(), reason.to_string()))
         }
     }
 
@@ -255,7 +255,7 @@ impl Effect {
 
     /// Assign some random items to a specific player.
     pub fn assign(&mut self, random_id: RandomId, player_id: u64, indexes: Vec<usize>) -> Result<()> {
-        self.assert_player_id(player_id)?;
+        self.assert_player_id(player_id, "assign random id")?;
         self.assigns.push(Assign {
             random_id,
             player_id,
@@ -292,7 +292,7 @@ impl Effect {
 
     /// Ask a player for a decision, return the new decision id.
     pub fn ask(&mut self, player_id: u64) -> Result<DecisionId> {
-        self.assert_player_id(player_id)?;
+        self.assert_player_id(player_id, "ask decision")?;
         self.asks.push(Ask { player_id });
         let decision_id = self.curr_decision_id;
         self.curr_decision_id += 1;
@@ -305,7 +305,7 @@ impl Effect {
 
     /// Dispatch action timeout event for a player after certain milliseconds.
     pub fn action_timeout(&mut self, player_id: u64, timeout: u64) -> Result<()> {
-        self.assert_player_id(player_id)?;
+        self.assert_player_id(player_id, "set action timeout")?;
         self.action_timeout = Some(ActionTimeout { player_id, timeout });
         Ok(())
     }
@@ -358,7 +358,7 @@ impl Effect {
 
     /// Submit settlements.
     pub fn settle(&mut self, settle: Settle) -> Result<()> {
-        self.assert_player_id(settle.id)?;
+        self.assert_player_id(settle.id, "create settle")?;
         self.settles.push(settle);
         Ok(())
     }
@@ -381,7 +381,7 @@ impl Effect {
         checkpoint: Option<C>,
     ) -> Result<()> {
         for p in players.iter() {
-            self.assert_player_id(p.id)?;
+            self.assert_player_id(p.id, "launch sub game")?;
         }
 
         let checkpoint_data = if let Some(cp) = checkpoint {
@@ -447,7 +447,7 @@ impl Effect {
         join_players: Vec<GamePlayer>,
     ) -> Result<()> {
         for p in join_players.iter() {
-            self.assert_player_id(p.id)?;
+            self.assert_player_id(p.id, "emit bridge event")?;
         }
         if self.bridge_events.iter().any(|x| x.dest == dest) {
             return Err(Error::DuplicatedBridgeEventTarget)

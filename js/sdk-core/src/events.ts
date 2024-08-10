@@ -405,7 +405,7 @@ export class Init extends GameEvent implements IEventKind {
   }
 }
 
-export class Checkpoint extends GameEvent implements IEventKind {
+export class CheckpointReady extends GameEvent implements IEventKind {
   constructor() {
     super();
   }

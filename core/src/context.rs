@@ -919,7 +919,7 @@ impl GameContext {
             .find(|p| p.id == player_id)
             .ok_or(Error::PlayerNotInGame)?;
 
-        p.balance = p.balance.checked_sub(amount).ok_or(Error::InvalidAmount)?;
+        p.balance = p.balance.checked_sub(amount).ok_or(Error::SubBalanceError(player_id, p.balance, amount))?;
 
         Ok(())
     }
@@ -931,7 +931,7 @@ impl GameContext {
             .find(|p| p.id == player_id)
             .ok_or(Error::PlayerNotInGame)?;
 
-        p.balance = p.balance.checked_add(amount).ok_or(Error::InvalidAmount)?;
+        p.balance = p.balance.checked_add(amount).ok_or(Error::AddBalanceError(player_id, p.balance, amount))?;
 
         Ok(())
     }

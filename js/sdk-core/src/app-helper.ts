@@ -10,6 +10,11 @@ export type AppHelperInitOpts = {
   storage?: IStorage,
 };
 
+export type ClaimPreview = {
+  tokenAddr: string,
+  amount: bigint,
+};
+
 /**
  * The helper for common interaction.
  *
@@ -214,5 +219,42 @@ export class AppHelper {
     const gameAccount = await this.#transport.getGameAccount(gameAddr);
     if (gameAccount === undefined) throw new Error('Game account not found');
     return await this.#transport.recipientClaim(wallet, { recipientAddr: gameAccount?.recipientAddr });
+  }
+
+  /**
+   * Preview the claim information.
+   *
+   * @param wallet - The wallet adapter to sign the transaction
+   * @param gameAddr - The address of game account.
+   */
+  async previewClaim(wallet: IWallet, gameAddr: string): Promise<ClaimPreview[]> {
+    const gameAccount = await this.#transport.getGameAccount(gameAddr);
+    if (gameAccount === undefined) throw new Error('Game account not found');
+    const recipientAccount = await this.#transport.getRecipient(gameAccount.recipientAddr);
+    if (recipientAccount === undefined) throw new Error('Recipient account not found');
+    let ret: ClaimPreview[] = [];
+    for (const slot of recipientAccount.slots) {
+      let weights = 0;
+      let totalWeights = 0;
+      let totalClaimed = 0n;
+      let claimed = 0n;
+      for (const share of slot.shares) {
+        totalClaimed += share.claimAmount;
+        totalWeights += share.weights;
+        if (share.owner === wallet.walletAddr) {
+          weights += share.weights;
+          claimed += share.claimAmount;
+        }
+      }
+      const totalAmount = totalClaimed + slot.balance;
+      const amountToClaim = BigInt(Number(totalAmount) * weights / totalWeights) - claimed;
+      if (amountToClaim > 0n) {
+        ret.push({
+          amount: amountToClaim,
+          tokenAddr: slot.tokenAddr
+        });
+      }
+    }
+    return ret;
   }
 }

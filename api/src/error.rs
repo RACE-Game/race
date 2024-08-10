@@ -282,8 +282,8 @@ pub enum Error {
     #[error("Invalid bridge event")]
     InvalidBridgeEvent,
 
-    #[error("Invalid player id: {0}, availables: {1:?}")]
-    InvalidPlayerId(u64, Vec<u64>),
+    #[error("Invalid player id found when {2}, id: {0}, availables: {1:?}")]
+    InvalidPlayerId(u64, Vec<u64>, String),
 
     #[error("Invalid sub game id")]
     InvalidSubGameId,
@@ -299,6 +299,12 @@ pub enum Error {
 
     #[error("Malformed checkpoint")]
     MalformedCheckpoint,
+
+    #[error("Add balance error, player: {0}, origin: {1}, amount: {2}")]
+    AddBalanceError(u64, u64, u64), // player_id, from_balance, to_balance
+
+    #[error("Sub balance error, player: {0}, origin: {1}, amount: {2}")]
+    SubBalanceError(u64, u64, u64), // player_id, from_balance, to_balance
 }
 
 #[cfg(feature = "serde")]

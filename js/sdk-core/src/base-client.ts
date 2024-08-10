@@ -22,7 +22,7 @@ import { IEncryptor, sha256 } from './encryptor';
 import { GameAccount } from './accounts';
 import { PlayerConfirming } from './tx-state';
 import { Client } from './client';
-import { Checkpoint, Custom, EndOfHistory, GameEvent, ICustomEvent, Init } from './events';
+import { CheckpointReady, Custom, EndOfHistory, GameEvent, ICustomEvent, Init } from './events';
 import { DecryptionCache } from './decryption-cache';
 import { ConnectionStateCallbackFunction, ErrorCallbackFunction, ErrorKind, EventCallbackFunction, GameInfo, LoadProfileCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
 
@@ -302,7 +302,7 @@ export class BaseClient {
             maxPlayers: this.__gameContext.maxPlayers,
           });
           await this.__handler.initState(this.__gameContext, initAccount);
-          this.__invokeEventCallback(new Checkpoint());
+          this.__invokeEventCallback(new CheckpointReady());
           // Update state SHA
           const sha = await sha256(this.__gameContext.handlerState);
           this.__gameContext.checkpoint.setSha(this.__gameContext.gameId, sha);

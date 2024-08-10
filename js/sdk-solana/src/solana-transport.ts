@@ -31,6 +31,7 @@ import {
   INft,
   RegistrationWithGames,
   RecipientAccount,
+  RecipientSlot,
   RecipientClaimParams,
   EntryTypeCash,
   IStorage,
@@ -439,11 +440,14 @@ export class SolanaTransport implements ITransport {
   async getRecipient(addr: String): Promise<RecipientAccount | undefined> {
     const recipientKey = new PublicKey(addr);
     const recipientState = await this._getRecipientState(recipientKey);
-    if (recipientState !== undefined) {
-      return recipientState.generalize();
-    } else {
-      return undefined;
+    if (recipientState === undefined) return undefined;
+    let slots: RecipientSlot[] = [];
+    for (const slot of recipientState.slots) {
+      const resp = await this.#conn.getTokenAccountBalance(slot.stakeAddr);
+      const balance = BigInt(resp.value.amount);
+      slots.push(slot.generalize(balance));
     }
+    return recipientState.generalize(slots);
   }
 
   async _fetchImageFromDataUri(dataUri: string): Promise<string | undefined> {
