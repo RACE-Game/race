@@ -196,6 +196,10 @@ export class GameContext {
     });
   }
 
+  get checkpointStateSha(): string {
+    return this.checkpoint.getSha(this.gameId) || '';
+  }
+
   idToAddrUnchecked(id: bigint): string | undefined {
     return this.nodes.find(x => x.id === id)?.addr;
   }
