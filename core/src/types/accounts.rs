@@ -42,7 +42,7 @@ pub struct ServerAccount {
 ///
 /// NFTs and Tokens are grouped by slots.  A slot can only store one
 /// NFT or one kind of token.
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct RecipientAccount {

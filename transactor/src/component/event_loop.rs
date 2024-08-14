@@ -354,6 +354,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
                 EventFrame::PlayerLeaving { player_addr } => {
+                    info!("Current allow_exit = {}", game_context.is_allow_exit());
                     if let Ok(player_id) = game_context.addr_to_id(&player_addr) {
                         let event = Event::Leave { player_id };
                         if let Some(close_reason) = handle_event(

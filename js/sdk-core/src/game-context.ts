@@ -483,7 +483,8 @@ export class GameContext {
         }
       }
 
-      this.checkpoint.setData(this.gameId, effect.checkpoint);
+      const oldVer = this.checkpoint.getVersion(this.gameId);
+      this.checkpoint.setData(this.gameId, effect.checkpoint, '', oldVer + 1n);
       this.checkpoint.setAccessVersion(this.accessVersion);
       this.status = 'idle';
     }

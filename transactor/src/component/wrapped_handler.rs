@@ -4,15 +4,16 @@ use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::effect::Effect;
-use race_api::init_account::InitAccount;
 use race_api::error::{Error, Result};
 use race_api::event::Event;
+use race_api::init_account::InitAccount;
 use race_core::context::{EventEffects, GameContext};
 use race_core::encryptor::EncryptorT;
 use race_core::engine::{general_handle_event, general_init_state};
 use race_core::types::GameBundle;
 use race_encryptor::Encryptor;
 use tracing::info;
+use tracing::log::error;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
 
 fn log_execution_context(effect_bs: &Vec<u8>, event_bs: &Vec<u8>) {
@@ -142,7 +143,11 @@ impl WrappedHandler {
         }
     }
 
-    fn custom_handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<EventEffects> {
+    fn custom_handle_event(
+        &mut self,
+        context: &mut GameContext,
+        event: &Event,
+    ) -> Result<EventEffects> {
         let memory = self
             .instance
             .exports
@@ -180,19 +185,22 @@ impl WrappedHandler {
 
         match len {
             0 => {
+                error!("Effect: {:?}", effect_bs);
                 return Err(Error::WasmExecutionError(
                     "Serializing effect failed".into(),
-                ))
+                ));
             }
             1 => {
+                error!("Effect: {:?}", effect_bs);
                 return Err(Error::WasmExecutionError(
                     "Deserializing effect failed".into(),
-                ))
+                ));
             }
             2 => {
+                error!("Effect: {:?}", effect_bs);
                 return Err(Error::WasmExecutionError(
                     "Deserializing event failed".into(),
-                ))
+                ));
             }
             _ => (),
         }
@@ -205,6 +213,7 @@ impl WrappedHandler {
         let mut effect =
             Effect::try_from_slice(&buf).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         if let Some(e) = effect.__take_error() {
+            error!("Effect: {:?}", effect_bs);
             Err(e.into())
         } else {
             context.apply_effect(effect)

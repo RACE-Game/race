@@ -12,7 +12,7 @@ use race_core::checkpoint::Checkpoint;
 use race_core::types::{
     DepositParams, EntryType, GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin,
     PlayerProfile, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin, SettleOp,
-    SettleParams, TokenAccount, Vote, VoteParams, VoteType,
+    SettleParams, TokenAccount, Vote, VoteParams, VoteType, RecipientAccount,
 };
 use regex::Regex;
 use serde::Deserialize;
@@ -117,6 +117,7 @@ pub struct Context {
     servers: HashMap<String, ServerAccount>,
     games: HashMap<String, GameAccount>,
     bundles: HashMap<String, GameBundle>,
+    recipients: HashMap<String, RecipientAccount>,
 }
 
 #[derive(Clone, BorshSerialize)]
@@ -213,6 +214,7 @@ impl Context {
         let re = Regex::new(r"[^a-zA-Z0-9]").unwrap();
         let bundle_addr = re.replace_all(&bundle, "").into_owned();
         let game_addr = re.replace_all(&spec_path, "").into_owned();
+        let recipient_addr = format!("{}_recipient", game_addr);
         let mut f = File::open(&bundle).expect(&format!("Bundle {} not found", &bundle));
         let mut data = vec![];
         f.read_to_end(&mut data).unwrap();
@@ -232,8 +234,13 @@ impl Context {
             entry_type,
             ..Default::default()
         };
+        let recipient = RecipientAccount {
+            addr: recipient_addr.clone(),
+            ..Default::default()
+        };
         self.bundles.insert(bundle_addr.clone(), bundle);
         self.games.insert(game_addr.clone(), game);
+        self.recipients.insert(recipient_addr.clone(), recipient);
         println!("! Load game from `{}`", spec_path);
         println!("+ Game: {}", game_addr);
         println!("+ Bundle: {}", bundle_addr);
@@ -720,6 +727,18 @@ async fn get_player_info(
     Ok(Some(player.try_to_vec().unwrap()))
 }
 
+async fn get_recipient(
+    params: Params<'_>,
+    context: Arc<Mutex<Context>>,
+) -> RpcResult<Option<Vec<u8>>> {
+    let addr: String = params.one()?;
+    let context = context.lock().await;
+    let Some(recipient) = context.recipients.get(&addr) else {
+        return Ok(None);
+    };
+    Ok(Some(recipient.try_to_vec().unwrap()))
+}
+
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {
     let SettleParams {
         addr,
@@ -846,6 +865,8 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     module.register_async_method("get_game_bundle", get_game_bundle)?;
     module.register_async_method("get_registration_info", get_registration_info)?;
     module.register_async_method("get_balance", get_balance)?;
+    module.register_async_method("get_player_info", get_player_info)?;
+    module.register_async_method("get_recipient", get_recipient)?;
     module.register_async_method("register_server", register_server)?;
     module.register_async_method("create_profile", create_profile)?;
     module.register_async_method("get_profile", get_profile)?;
@@ -856,7 +877,6 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     module.register_async_method("settle", settle)?;
     module.register_async_method("vote", vote)?;
     module.register_async_method("list_tokens", list_tokens)?;
-    module.register_async_method("get_player_info", get_player_info)?;
 
     let handle = http_server.start(module)?;
     Ok(handle)

@@ -1,4 +1,4 @@
-import { AttachGameParams, IConnection, SubmitEventParams } from './connection';
+import { AttachGameParams, AttachResponse, IConnection, SubmitEventParams } from './connection';
 import { IEncryptor } from './encryptor';
 import { SecretState } from './secret-state';
 import { GameContext } from './game-context';
@@ -39,9 +39,9 @@ export class Client {
     this.__secretState = new SecretState(encryptor);
   }
 
-  async attachGame(): Promise<void> {
+  async attachGame(): Promise<AttachResponse> {
     const key = await this.__encryptor.exportPublicKey(undefined);
-    await this.__connection.attachGame(
+    return await this.__connection.attachGame(
       new AttachGameParams({
         signer: this.__addr,
         key,

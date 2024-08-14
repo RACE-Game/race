@@ -119,7 +119,7 @@ impl GameManager {
 
     pub async fn is_game_loaded(&self, game_addr: &str) -> bool {
         let games = self.games.lock().await;
-        games.get(game_addr).is_some()
+        games.contains_key(game_addr)
     }
 
     pub async fn send_event(&self, game_addr: &str, event: Event) -> Result<()> {

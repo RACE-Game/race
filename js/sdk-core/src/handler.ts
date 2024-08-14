@@ -56,10 +56,14 @@ export class Handler implements IHandler {
     console.log('InitState with:', initAccount);
     context.setTimestamp(0n); // Use 0 timestamp for initState
     await this.generalPreInitState(context, initAccount);
-    return await this.customInitState(context, initAccount);
+    const eventEffects = await this.customInitState(context, initAccount);
+    console.log('State:', context.handlerState);
+    return eventEffects;
   }
 
-  async generalPreInitState(_context: GameContext, _initAccount: InitAccount) {}
+  async generalPreInitState(context: GameContext, _initAccount: InitAccount) {
+    context.dispatch = undefined;
+  }
 
   async generalPreHandleEvent(context: GameContext, event: GameEvent, encryptor: IEncryptor) {
     if (event instanceof ShareSecrets) {

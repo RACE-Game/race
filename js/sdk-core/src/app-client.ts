@@ -160,6 +160,18 @@ export class AppClient extends BaseClient {
 
       console.group(`SubClient initialization, id: ${gameId}`);
 
+      // Query the on-chain game account to get the latest checkpoint.
+      // To not affect the master game, we only overwrite the subgame's checkpoint and its SHA.
+      const gameAccount = await this.__getGameAccount();
+      const subCheckpoint = gameAccount.checkpoint;
+      const subCheckpointData = subCheckpoint.getData(gameId);
+      const subCheckpointSha = subCheckpoint.getSha(gameId);
+      const subCheckpointVer = subCheckpoint.getVersion(gameId);
+
+      if (subCheckpointData !== undefined && subCheckpointSha !== undefined) {
+        this.gameContext.checkpoint.setData(gameId, subCheckpointData, subCheckpointSha, subCheckpointVer);
+      }
+
       const subGame = this.__gameContext.findSubGame(gameId);
 
       if (subGame === undefined) {

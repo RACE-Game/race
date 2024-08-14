@@ -56,11 +56,24 @@ export class Checkpoint {
     return this.data.get(id)?.sha;
   }
 
+  setVersion(id: number, version: bigint) {
+    const data = this.data.get(id);
+    if (data !== undefined) {
+      data.version = version;
+    }
+  }
+
   setSha(id: number, sha: string) {
     const data = this.data.get(id);
     if (data !== undefined) {
       data.sha = sha;
     }
+  }
+
+  setData(id: number, data: Uint8Array, sha: string, version: bigint) {
+    this.data.set(id, new VersionedData({
+      version, sha, data
+    }));
   }
 
   // initData(id: number, data: Uint8Array) {
@@ -80,13 +93,13 @@ export class Checkpoint {
     }
   }
 
-  setData(id: number, data: Uint8Array) {
-    let vd = this.data.get(id);
-    if (vd !== undefined) {
-      vd.data = data;
-      vd.version += 1n;
-    }
-  }
+  // setData(id: number, data: Uint8Array) {
+  //   let vd = this.data.get(id);
+  //   if (vd !== undefined) {
+  //     vd.data = data;
+  //     vd.version += 1n;
+  //   }
+  // }
 
   setAccessVersion(accessVersion: bigint) {
     this.accessVersion = accessVersion;

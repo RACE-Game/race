@@ -181,6 +181,7 @@ impl GameContext {
             players: init_account.players.clone(),
             init_data: init_account.data.clone(),
             entry_type: EntryType::Disabled,
+            allow_exit: false,
             checkpoint: Checkpoint::new(
                 *game_id,
                 *access_version,
@@ -864,11 +865,13 @@ impl GameContext {
                 launch_sub_games,
                 bridge_events,
                 start_game,
-            })
+            });
         } else if let Some(e) = error {
-            return Err(Error::HandleError(e))
+            return Err(Error::HandleError(e));
         } else {
-            return Err(Error::InternalError("Missing both state and error".to_string()))
+            return Err(Error::InternalError(
+                "Missing both state and error".to_string(),
+            ));
         }
     }
 
@@ -919,7 +922,10 @@ impl GameContext {
             .find(|p| p.id == player_id)
             .ok_or(Error::PlayerNotInGame)?;
 
-        p.balance = p.balance.checked_sub(amount).ok_or(Error::SubBalanceError(player_id, p.balance, amount))?;
+        p.balance = p
+            .balance
+            .checked_sub(amount)
+            .ok_or(Error::SubBalanceError(player_id, p.balance, amount))?;
 
         Ok(())
     }
@@ -931,15 +937,18 @@ impl GameContext {
             .find(|p| p.id == player_id)
             .ok_or(Error::PlayerNotInGame)?;
 
-        p.balance = p.balance.checked_add(amount).ok_or(Error::AddBalanceError(player_id, p.balance, amount))?;
+        p.balance = p
+            .balance
+            .checked_add(amount)
+            .ok_or(Error::AddBalanceError(player_id, p.balance, amount))?;
 
         Ok(())
     }
 
     pub fn remove_player(&mut self, player_id: u64) -> Result<()> {
-        let l = self.players.len();
-        self.players.retain(|p| p.id != player_id);
-        if self.players.len() != l - 1 {
+        if let Some(index) = self.players.iter().position(|p| p.id == player_id) {
+            self.players.remove(index);
+        } else {
             return Err(Error::PlayerNotInGame);
         }
         Ok(())

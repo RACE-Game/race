@@ -61,15 +61,21 @@ fn parse_params<T: BorshDeserialize>(
 }
 
 /// Ask transactor to load game and provide client's public key for further encryption.
-async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
-    let (_game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
+async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<String, RpcError> {
+    let (game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
 
     info!("Attach to game, signer: {}", signer);
+
+    if !context.game_manager.is_game_loaded(&game_addr).await {
+        return Err(RpcError::Custom("Game not loaded".to_string()))
+    }
 
     context
         .register_key(signer, key)
         .await
-        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
+
+    Ok("success".to_string())
 }
 
 fn ping(_: Params<'_>, _: &ApplicationContext) -> Result<String, RpcError> {

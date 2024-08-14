@@ -1,11 +1,13 @@
 import { IEncryptor, PublicKeyRaws } from './encryptor';
 import { TxState } from './tx-state';
 import { EventHistory, GameEvent } from './events';
-import { deserialize, array, enums, field, serialize, struct, variant, option } from '@race-foundation/borsh';
+import { deserialize, array, enums, field, serialize, struct, variant } from '@race-foundation/borsh';
 import { arrayBufferToBase64, base64ToUint8Array } from './utils';
 import { PlayerJoin, ServerJoin } from './accounts';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'reconnected' | 'closed';
+
+export type AttachResponse = 'success' | 'game-not-loaded';
 
 type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event' | 'submit_message' | 'get_state' | 'ping';
 
@@ -154,7 +156,7 @@ export class BroadcastFrameEventHistories extends BroadcastFrame {
 }
 
 export interface IConnection {
-  attachGame(params: AttachGameParams): Promise<void>;
+  attachGame(params: AttachGameParams): Promise<AttachResponse>;
 
   getState(): Promise<Uint8Array>;
 
@@ -305,9 +307,14 @@ export class Connection implements IConnection {
     await this.requestWs(req);
   }
 
-  async attachGame(params: AttachGameParams): Promise<void> {
+  async attachGame(params: AttachGameParams): Promise<AttachResponse> {
     const req = this.makeReqNoSig(this.target, 'attach_game', params);
-    await this.requestXhr(req);
+    const resp: any = await this.requestXhr(req);
+    if (resp.result == 'success') {
+      return 'success'
+    } else {
+      return 'game-not-loaded'
+    }
   }
 
   async getState(): Promise<Uint8Array> {

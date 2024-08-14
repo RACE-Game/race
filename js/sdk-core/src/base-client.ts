@@ -182,6 +182,20 @@ export class BaseClient {
     }
   }
 
+  async __attachGameWithRetry() {
+      for (let i = 0; i < 10; i++) {
+        const resp = await this.__client.attachGame();
+        console.log('Attach response:', resp);
+        if (resp === 'success') {
+          break;
+        } else {
+          console.log(this.__logPrefix + 'Game is not ready, try again after 2 second.');
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+
+  }
+
   /**
    * Connect to the transactor and retrieve the event stream.
    */
@@ -190,7 +204,7 @@ export class BaseClient {
     let sub;
     try {
       console.log('Checkpoint:', this.__gameContext.checkpoint);
-      await this.__client.attachGame();
+      await this.__attachGameWithRetry();
       sub = this.__connection.subscribeEvents();
       const { gameAccount } = await this.__startSubscribeAndInitState();
       for (const p of gameAccount.players) this.__onLoadProfile(p.accessVersion, p.addr);
@@ -268,6 +282,7 @@ export class BaseClient {
   async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string) {
     console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + timestamp);
     console.log('Event: ', event);
+    console.log('Game Context before:', this.__gameContext);
     let state: Uint8Array | undefined;
     let err: ErrorKind | undefined;
     let effects: EventEffects | undefined;
@@ -303,9 +318,10 @@ export class BaseClient {
           });
           await this.__handler.initState(this.__gameContext, initAccount);
           this.__invokeEventCallback(new CheckpointReady());
-          // Update state SHA
+          // Update state SHA and version
           const sha = await sha256(this.__gameContext.handlerState);
           this.__gameContext.checkpoint.setSha(this.__gameContext.gameId, sha);
+          // this.__gameContext.checkpoint.setVersion(this.__gameContext.gameId, this.__gameContext.settleVersion);
         }
       }
 
@@ -315,6 +331,7 @@ export class BaseClient {
       }
 
     } finally {
+      console.log('Game Context after:', this.__gameContext);
       console.groupEnd()
     }
   }
