@@ -255,6 +255,7 @@ export class GameState implements IGameState {
   }
 
   generalize(addr: PublicKey): RaceCore.GameAccount {
+
     return new RaceCore.GameAccount({
       addr: addr.toBase58(),
       title: this.title,

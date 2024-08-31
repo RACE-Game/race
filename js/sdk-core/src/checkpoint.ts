@@ -30,6 +30,9 @@ export class Checkpoint {
   }
 
   static fromRaw(raw: Uint8Array): Checkpoint {
+    if (raw.length === 0) {
+      return Checkpoint.default();
+    }
     return deserialize(Checkpoint, raw);
   }
 

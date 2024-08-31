@@ -1,12 +1,22 @@
 TIME=$(date +%s%3N)
 START_TIME=$(expr $TIME + 30000)
+TICKET=100000000
+TABLE_SIZE=3
+START_CHIPS=10000
+
+
 echo "Current timestamp is $START_TIME"
+echo "Ticket is $TICKET"
+echo "Table size is $TABLE_SIZE"
+echo "Start chips is $START_CHIPS"
+
 
 DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
                           -u64 "$START_TIME" \
-                          -u64 100000000 \
-                          -u8 3 \
-                          -u64 500000 \
+                          -u64 "$TICKET" \
+                          -u8 "$TABLE_SIZE" \
+                          -u64 "$START_CHIPS" \
+                          -u64 50 \
                           -u64 60000 \
                           -u32 0 \
                           -u32 3 \

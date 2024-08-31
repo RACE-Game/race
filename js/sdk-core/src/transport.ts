@@ -35,6 +35,7 @@ export type CreateGameAccountParams = {
   tokenAddr: string;
   maxPlayers: number;
   entryType: EntryType;
+  recipientAddr: string;
   data: Uint8Array;
 };
 

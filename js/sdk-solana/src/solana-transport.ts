@@ -1,4 +1,4 @@
-import { SystemProgram, Connection, PublicKey, Keypair, ComputeBudgetProgram, TransactionMessage, TransactionInstruction, VersionedTransaction } from '@solana/web3.js';
+import { SystemProgram, Connection, PublicKey, Keypair, ComputeBudgetProgram, TransactionMessage, TransactionInstruction, VersionedTransaction, AccountInfo } from '@solana/web3.js';
 import { Buffer } from 'buffer';
 import {
   AccountLayout,
@@ -83,7 +83,7 @@ export class SolanaTransport implements ITransport {
   }
 
   async createGameAccount(wallet: IWallet, params: CreateGameAccountParams): Promise<TransactionResult<string>> {
-    const { title, bundleAddr, tokenAddr } = params;
+    const { title, bundleAddr, tokenAddr, recipientAddr } = params;
     if (title.length > NAME_LEN) {
       // FIXME: better error message?
       throw Error('Game title length exceeds 16 chars');
@@ -107,6 +107,7 @@ export class SolanaTransport implements ITransport {
     });
     ixs.push(createGameAccount);
 
+    const recipientAccountKey = new PublicKey(recipientAddr);
     const tokenMintKey = new PublicKey(tokenAddr);
     const stakeAccount = Keypair.generate();
     const stakeAccountKey = stakeAccount.publicKey;
@@ -133,6 +134,7 @@ export class SolanaTransport implements ITransport {
       ownerKey: payerKey,
       gameAccountKey: gameAccountKey,
       stakeAccountKey: stakeAccountKey,
+      recipientAccountKey: recipientAccountKey,
       mint: tokenMintKey,
       gameBundleKey: bundleKey,
       title: title,

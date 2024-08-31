@@ -150,6 +150,7 @@ export type CreateGameOptions = {
   ownerKey: PublicKey;
   gameAccountKey: PublicKey;
   stakeAccountKey: PublicKey;
+  recipientAccountKey: PublicKey;
   mint: PublicKey;
   gameBundleKey: PublicKey;
   title: string;
@@ -188,6 +189,11 @@ export function createGameAccount(opts: CreateGameOptions): TransactionInstructi
       },
       {
         pubkey: opts.gameBundleKey,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: opts.recipientAccountKey,
         isSigner: false,
         isWritable: false,
       },

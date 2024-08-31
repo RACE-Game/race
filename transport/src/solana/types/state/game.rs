@@ -124,7 +124,11 @@ impl GameState {
 
         let players = players.into_iter().map(Into::into).collect();
         let servers = servers.into_iter().map(Into::into).collect();
-        let checkpoint = Checkpoint::deserialize(&checkpoint)?;
+        let checkpoint = if checkpoint.is_empty() {
+            Checkpoint::default()
+        } else {
+            Checkpoint::deserialize(&checkpoint)?
+        };
 
         Ok(GameAccount {
             addr: addr.into(),
