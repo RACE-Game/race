@@ -106,7 +106,17 @@ export class Token implements IToken {
   }
 }
 
-export class TokenWithBalance implements IToken {
+export interface ITokenWithBalance extends IToken {
+  readonly addr: string;
+  readonly icon: string;
+  readonly name: string;
+  readonly symbol: string;
+  readonly decimals: number;
+  readonly amount: bigint;
+  readonly uiAmount: string;
+}
+
+export class TokenWithBalance implements ITokenWithBalance {
   readonly addr!: string;
   readonly icon!: string;
   readonly name!: string;

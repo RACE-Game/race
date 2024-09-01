@@ -1,4 +1,4 @@
-import { EntryTypeCash, GameAccount, INft, IToken, PlayerProfile, TokenWithBalance } from './accounts';
+import { EntryTypeCash, GameAccount, INft, IToken, ITokenWithBalance, PlayerProfile, TokenWithBalance } from './accounts';
 import { IStorage } from './storage';
 import { CreateGameAccountParams, ITransport, TransactionResult } from './transport';
 import { PlayerProfileWithPfp } from './types';
@@ -155,12 +155,21 @@ export class AppHelper {
   }
 
   /**
-   * List available tokens.
+   * List tokens.
    *
    * @return A list of token info.
    */
-  async listTokens(): Promise<IToken[]> {
-    return await this.#transport.listTokens(this.#storage);
+  async listTokens(tokenAddrs: string[]): Promise<IToken[]> {
+    return await this.#transport.listTokens(tokenAddrs, this.#storage);
+  }
+
+  /**
+   * List tokens with their balance.
+   *
+   * @return A list of token info.
+   */
+  async listTokensWithBalance(walletAddr: string, tokenAddrs: string[]): Promise<ITokenWithBalance[]> {
+    return await this.#transport.listTokensWithBalance(walletAddr, tokenAddrs, this.#storage);
   }
 
   /**
@@ -187,26 +196,6 @@ export class AppHelper {
    */
   async getNft(addr: string): Promise<INft | undefined> {
     return await this.#transport.getNft(addr, this.#storage)
-  }
-
-  /**
-   * Fetch tokens and balances
-   *
-   * @param walletAddr - The player's wallet address
-   *
-   * @return The list of tokens with `amount` and `uiAmount` added.
-   */
-  async listTokensWithBalance(walletAddr: string): Promise<TokenWithBalance[]> {
-    const tokens = await this.listTokens();
-    const tokenAddrs = tokens.map(t => t.addr);
-    const balanceMap = await this.#transport.fetchBalances(walletAddr, tokenAddrs);
-    return tokens.map(t => {
-      let balance = balanceMap.get(t.addr);
-      if (balance === undefined) {
-        balance = 0n;
-      }
-      return new TokenWithBalance(t, balance);
-    });
   }
 
   /**

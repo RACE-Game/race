@@ -156,10 +156,49 @@ export type CreateGameOptions = {
   title: string;
   maxPlayers: number;
   entryType: EntryType;
+  data: Uint8Array,
 };
 
+export type RegisterGameOptions = {
+  ownerKey: PublicKey;
+  gameAccountKey: PublicKey;
+  registrationAccountKey: PublicKey;
+}
+
+export function registerGame(opts: RegisterGameOptions): TransactionInstruction {
+  const data = Buffer.from(Uint8Array.of(Instruction.RegisterGame));
+  return new TransactionInstruction({
+    keys: [
+      {
+        pubkey: opts.ownerKey,
+        isSigner: true,
+        isWritable: false,
+      },
+      {
+        pubkey: opts.registrationAccountKey,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: opts.gameAccountKey,
+        isSigner: false,
+        isWritable: false,
+      }
+    ],
+    programId: PROGRAM_ID,
+    data,
+  });
+}
+
 export function createGameAccount(opts: CreateGameOptions): TransactionInstruction {
-  const data = new CreateGameAccountData(opts).serialize();
+  const params = new CreateGameAccountData({
+    title: opts.title,
+    entryType: opts.entryType,
+    maxPlayers: opts.maxPlayers,
+    data: opts.data,
+  })
+  console.log('CreateGameAccountParams:', params);
+  const data = params.serialize();
   return new TransactionInstruction({
     keys: [
       {

@@ -2,6 +2,7 @@ import { SystemProgram, Connection, PublicKey, Keypair, ComputeBudgetProgram, Tr
 import { Buffer } from 'buffer';
 import {
   AccountLayout,
+  MintLayout,
   NATIVE_MINT,
   TOKEN_PROGRAM_ID,
   createInitializeAccountInstruction,
@@ -38,6 +39,9 @@ import {
   getTtlCache,
   setTtlCache,
   TransactionResult,
+  ITokenWithBalance,
+  TokenWithBalance,
+  Token,
 } from '@race-foundation/sdk-core';
 import * as instruction from './instruction';
 
@@ -97,6 +101,7 @@ export class SolanaTransport implements ITransport {
 
     const gameAccount = Keypair.generate();
     const gameAccountKey = gameAccount.publicKey;
+    const registrationAccountKey = new PublicKey(params.registrationAddr);
     const lamports = await conn.getMinimumBalanceForRentExemption(GAME_ACCOUNT_LEN);
     const createGameAccount = SystemProgram.createAccount({
       fromPubkey: payerKey,
@@ -105,6 +110,7 @@ export class SolanaTransport implements ITransport {
       space: GAME_ACCOUNT_LEN,
       programId: PROGRAM_ID,
     });
+    console.log(createGameAccount);
     ixs.push(createGameAccount);
 
     const recipientAccountKey = new PublicKey(recipientAddr);
@@ -119,6 +125,7 @@ export class SolanaTransport implements ITransport {
       space: AccountLayout.span,
       programId: TOKEN_PROGRAM_ID,
     });
+    console.log(createStakeAccount);
     ixs.push(createStakeAccount);
 
     const initStakeAccount = createInitializeAccountInstruction(
@@ -127,6 +134,7 @@ export class SolanaTransport implements ITransport {
       payerKey,
       TOKEN_PROGRAM_ID
     );
+    console.log(initStakeAccount);
     ixs.push(initStakeAccount);
 
     const bundleKey = new PublicKey(bundleAddr);
@@ -140,10 +148,20 @@ export class SolanaTransport implements ITransport {
       title: title,
       maxPlayers: params.maxPlayers,
       entryType: params.entryType,
+      data: params.data,
     });
+    console.log(createGame);
     ixs.push(createGame);
-    let tx = await makeTransaction(this.#conn, payerKey, ixs);
 
+    const registerGame = instruction.registerGame({
+      ownerKey: payerKey,
+      gameAccountKey: gameAccountKey,
+      registrationAccountKey: registrationAccountKey
+    });
+    console.log(registerGame);
+    ixs.push(registerGame);
+
+    let tx = await makeTransaction(this.#conn, payerKey, ixs);
 
     const res = await wallet.sendTransaction(tx, conn,
       { signers: [gameAccount, stakeAccount] }
@@ -178,7 +196,7 @@ export class SolanaTransport implements ITransport {
       this.getPlayerProfile(wallet.walletAddr)
     ])
 
-    const profileKey0 = playerProfile !== undefined ? new PublicKey(playerProfile?.addr): undefined;
+    const profileKey0 = playerProfile !== undefined ? new PublicKey(playerProfile?.addr) : undefined;
 
     if (gameState === undefined) {
       throw new Error('Game account not found');
@@ -522,58 +540,147 @@ export class SolanaTransport implements ITransport {
     }
   }
 
-  /**
-   * List popular tokens.
-   *
-   * [USDT, USDC, SOL, RACE]
-   */
-  async listTokens(storage?: IStorage): Promise<IToken[]> {
-    const popularTokenAddrs = [
-      'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
-      'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-      'So11111111111111111111111111111111111111112',
-    ];
-
-    let tokens = [];
-    for (const addr of popularTokenAddrs) {
-      const cacheKey = `TOKEN_CACHE__${this.chain}__${addr}`;
-
-      // Read token info from cache
-      if (storage !== undefined) {
-        const tokenInfo: IToken | undefined = getTtlCache(storage, cacheKey)
-        if (tokenInfo !== undefined) {
-          tokens.push(tokenInfo);
-          continue;
-        }
-      }
-
-      // Read on-chain data
-      const tokenInfo = await this.getToken(addr);
-      if (tokenInfo !== undefined) {
-        tokens.push(tokenInfo);
-
-        // Save to cache
-        if (storage !== undefined) {
-          setTtlCache(storage, cacheKey, tokenInfo, TOKEN_CACHE_TTL);
-        }
-      }
+  // Return [name, symbol, icon]
+  async parseTokenMetadata(addr: string, metadataAccount: AccountInfo<Buffer>): Promise<[string | undefined, string | undefined, string | undefined]> {
+    const metadataState = Metadata.deserialize(metadataAccount.data);
+    const uri = trimString(metadataState.data.uri);
+    const image = uri ? await this._fetchImageFromDataUri(uri): undefined;
+    if (this.#legacyTokens === undefined) {
+      await this._fetchLegacyTokens();
     }
-    return tokens;
+    let legacyToken: LegacyToken | undefined = undefined;
+    if (this.#legacyTokens !== undefined) {
+      legacyToken = this.#legacyTokens.find(t => t.address === addr);
+    }
+
+    const name = metadataState.data.name
+      ? trimString(metadataState.data.name)
+      : legacyToken
+        ? legacyToken.name
+        : '';
+    const symbol = metadataState.data.symbol
+      ? trimString(metadataState.data.symbol)
+      : legacyToken
+        ? legacyToken.symbol
+        : '';
+    const icon = image ? image : legacyToken?.logoURI ? legacyToken.logoURI : '';
+    return [name, symbol, icon];
   }
 
-  async fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>> {
-    const walletKey = new PublicKey(walletAddr);
-    let ret = new Map<string, bigint>();
-    for (const tokenAddr of tokenAddrs) {
-      const tokenAccountKey = getAssociatedTokenAddressSync(new PublicKey(tokenAddr), walletKey);
-      try {
-        const resp = await this.#conn.getTokenAccountBalance(tokenAccountKey);
-        ret.set(tokenAddr, BigInt(resp.value.amount));
-      } catch (e) {
-        ret.set(tokenAddr, 0n);
+  async listTokens(tokenAddrs: string[], storage?: IStorage): Promise<IToken[]> {
+    if (tokenAddrs.length > 30) {
+      throw new Error('Too many token addresses in a row');
+    }
+
+    let results = [];
+
+    let mintMetaList: [PublicKey, PublicKey][] = [];
+    for (const t of tokenAddrs) {
+      const mintKey = new PublicKey(t);
+      const [metadataKey] = PublicKey.findProgramAddressSync(
+        [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
+        METAPLEX_PROGRAM_ID
+      );
+      mintMetaList.push([mintKey, metadataKey]);
+    }
+
+    const accountInfos = await this.#conn.getMultipleAccountsInfo(mintMetaList.flat())
+    for (let i = 0; i < mintMetaList.length; i++) {
+      const mintKey = mintMetaList[i][0];
+      const mintAccount = accountInfos[2 * i];
+      const metadataAccount = accountInfos[2 * i + 1];
+
+      let addr = mintKey.toBase58();
+      let decimals: number | undefined = undefined;
+      let name: string | undefined = undefined;
+      let symbol: string | undefined = undefined;
+      let icon: string | undefined = undefined;
+
+      if (mintAccount) {
+        const m = MintLayout.decode(mintAccount.data);
+        decimals = m.decimals;
+      }
+
+      if (metadataAccount) {
+        [name, symbol, icon] = await this.parseTokenMetadata(addr, metadataAccount);
+      }
+
+      console.log(addr, decimals, name, symbol, icon);
+
+      if (decimals !== undefined
+        && name !== undefined
+        && symbol !== undefined
+        && icon !== undefined
+      ) {
+        results.push(new Token({ addr, name, symbol, icon, decimals }));
       }
     }
-    return ret;
+
+    return results;
+  }
+
+  /**
+   * List tokens.
+   */
+  async listTokensWithBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<ITokenWithBalance[]> {
+    if (tokenAddrs.length > 30) {
+      throw new Error('Too many token addresses in a row');
+    }
+
+    let results = [];
+
+    const ownerKey = new PublicKey(walletAddr);
+    let mintAtaList: [PublicKey, PublicKey, PublicKey][] = [];
+    for (const t of tokenAddrs) {
+      const mintKey = new PublicKey(t);
+      const ataKey = getAssociatedTokenAddressSync(mintKey, ownerKey);
+      const [metadataKey] = PublicKey.findProgramAddressSync(
+        [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
+        METAPLEX_PROGRAM_ID
+      );
+      mintAtaList.push([mintKey, ataKey, metadataKey]);
+    }
+
+    const accountInfos = await this.#conn.getMultipleAccountsInfo(mintAtaList.flat())
+    for (let i = 0; i < mintAtaList.length; i++) {
+      const mintKey = mintAtaList[i][0];
+      const mintAccount = accountInfos[3 * i];
+      const ataAccount = accountInfos[3 * i + 1];
+      const metadataAccount = accountInfos[3 * i + 2];
+
+      let addr = mintKey.toBase58();
+      let decimals: number | undefined = undefined;
+      let name: string | undefined = undefined;
+      let symbol: string | undefined = undefined;
+      let icon: string | undefined = undefined;
+      let balance: bigint = 0n;
+
+      if (mintAccount) {
+        const m = MintLayout.decode(mintAccount.data);
+        decimals = m.decimals;
+      }
+
+      if (metadataAccount) {
+        [name, symbol, icon] = await this.parseTokenMetadata(addr, metadataAccount);
+      }
+
+      if (ataAccount) {
+        const acc = AccountLayout.decode(ataAccount.data);
+        balance = acc.amount;
+      }
+
+      console.log(addr, decimals, name, symbol, icon, balance);
+
+      if (decimals !== undefined
+        && name !== undefined
+        && symbol !== undefined
+        && icon !== undefined
+      ) {
+        results.push(new TokenWithBalance({ addr, name, symbol, icon, decimals }, balance));
+      }
+    }
+
+    return results;
   }
 
   async getNft(addr: string | PublicKey, storage?: IStorage): Promise<INft | undefined> {
