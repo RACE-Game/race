@@ -218,14 +218,14 @@ impl Event {
     pub fn custom<E: CustomEvent>(sender: u64, e: &E) -> Self {
         Self::Custom {
             sender,
-            raw: e.try_to_vec().unwrap(),
+            raw: borsh::to_vec(&e).unwrap(),
         }
     }
 
     pub fn bridge<E: BridgeEvent>(dest: usize, e: &E, join_players: Vec<GamePlayer>) -> Self {
         Self::Bridge {
             dest,
-            raw: e.try_to_vec().unwrap(),
+            raw: borsh::to_vec(&e).unwrap(),
             join_players,
         }
     }

@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
 use jsonrpsee::core::client::ClientT;
+use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::rpc_params;
 
 use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBuilder};
@@ -36,15 +37,16 @@ pub struct RegisterServerInstruction {
 
 pub struct FacadeTransport {
     addr: String,
-    client: Client,
+    client: Client<HttpBackend>,
 }
 
 impl FacadeTransport {
     pub async fn try_new(addr: String, url: &str) -> TransportResult<Self> {
         let client = ClientBuilder::default()
-            .max_request_body_size(64_000_000)
+            .max_request_size(64_000_000)
             .build(url)
             .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
+
         Ok(Self { addr, client })
     }
 

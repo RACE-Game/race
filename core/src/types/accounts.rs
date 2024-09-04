@@ -256,7 +256,7 @@ mod tests {
             7, 0, 0, 0, 97, 110, 32, 97, 100, 100, 114, 14, 0, 0, 0, 104, 116, 116, 112, 58, 47,
             47, 102, 111, 111, 46, 98, 97, 114,
         ];
-        let ser = s.try_to_vec().unwrap();
+        let ser = borsh::to_vec(s).unwrap();
         println!("Serialized server account {:?}", ser);
         assert_eq!(ser, res_bytes);
         // let decoded = ServerAccount::try_from_slice(&res).unwrap();
@@ -275,7 +275,7 @@ mod tests {
             0, 0, 0, 65, 119, 101, 115, 111, 109, 101, 32, 80, 70, 80,
         ];
 
-        let ser = p.try_to_vec().unwrap();
+        let ser = borsh::to_vec(s).unwrap();
         println!("Serialized player profile {:?}", ser);
 
         assert_eq!(ser, bytes);
@@ -331,7 +331,7 @@ mod tests {
             108, 101, 32, 49,
         ];
 
-        let ser = reg.try_to_vec().unwrap();
+        let ser = borsh::to_vec(s).unwrap();
         println!("Serialized reg {:?}", ser);
 
         assert_eq!(ser, bytes);
@@ -349,7 +349,7 @@ mod tests {
             14, 0, 0, 0, 104, 116, 116, 112, 58, 47, 47, 102, 111, 111, 46, 98, 97, 114, 12, 0, 0,
             0, 65, 119, 101, 115, 111, 109, 101, 32, 71, 97, 109, 101, 4, 0, 0, 0, 1, 2, 3, 4,
         ];
-        let ser = game_bunle.try_to_vec().unwrap();
+        let ser = borsh::to_vec(&game_bundle).unwrap();
         println!("Serialized game bundle {:?}", ser);
 
         assert_eq!(ser, bytes);
@@ -447,7 +447,7 @@ mod tests {
             3, 4, 5, 6, 7, 8, 9, 0, 100, 0, 0, 0, 0, 0, 0, 0, 250, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
             114, 101, 99, 105, 112, 105, 101, 110, 116, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
-        let ser = game_account.try_to_vec().unwrap();
+        let ser = borsh::to_vec(&game_account).unwrap();
         println!("Serialized game account {:?}", ser);
 
         assert_eq!(ser, bytes);
@@ -482,7 +482,6 @@ mod tests {
             50, 84, 120, 81, 89, 54, 67, 76, 57, 52, 55, 68, 113, 70,
         ];
         let der = RegistrationAccount::try_from_slice(&bytes).unwrap();
-        // let ser = reg_account.try_to_vec().unwrap();
         assert_eq!(der, reg_account);
     }
 }

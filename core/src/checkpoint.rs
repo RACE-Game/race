@@ -57,7 +57,7 @@ impl Checkpoint {
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>> {
-        self.try_to_vec().map_err(|_| Error::SerializationError)
+        borsh::to_vec(&self).map_err(|_| Error::SerializationError)
     }
 
     pub fn deserialize(data: &[u8]) -> Result<Self> {

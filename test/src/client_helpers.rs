@@ -166,7 +166,7 @@ impl TestClient {
     pub fn custom_event<E: CustomEvent>(&self, custom_event: E) -> Event {
         Event::Custom {
             sender: self.id(),
-            raw: custom_event.try_to_vec().unwrap(),
+            raw: borsh::to_vec(&custom_event).unwrap(),
         }
     }
 

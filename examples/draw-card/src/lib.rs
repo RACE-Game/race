@@ -325,7 +325,7 @@ mod tests {
             max_bet: 1000,
         };
 
-        let data = account_data.try_to_vec().unwrap();
+        let data = borsh::to_vec(&account_data).unwrap();
         println!("data: {:?}", data);
         println!("data len: {}", data.len());
     }

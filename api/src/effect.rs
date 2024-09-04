@@ -77,8 +77,8 @@ impl SubGame {
                 max_players,
                 entry_type: crate::types::EntryType::Disabled,
                 players,
-                data: init_data.try_to_vec()?,
-                checkpoint: checkpoint.try_to_vec()?,
+                data: borsh::to_vec(&init_data)?,
+                checkpoint: borsh::to_vec(&checkpoint)?,
             },
         })
     }
@@ -99,7 +99,7 @@ impl EmitBridgeEvent {
     ) -> Result<Self> {
         Ok(Self {
             dest,
-            raw: bridge_event.try_to_vec()?,
+            raw: borsh::to_vec(&bridge_event)?,
             join_players,
         })
     }
@@ -345,7 +345,7 @@ impl Effect {
 
     /// Set checkpoint can trigger settlements.
     pub fn checkpoint<S: BorshSerialize>(&mut self, checkpoint_state: S) {
-        if let Ok(checkpoint) = checkpoint_state.try_to_vec() {
+        if let Ok(checkpoint) = borsh::to_vec(&checkpoint_state) {
             self.checkpoint = Some(checkpoint);
         } else {
             self.error = Some(HandleError::SerializationError)
@@ -385,7 +385,7 @@ impl Effect {
         }
 
         let checkpoint_data = if let Some(cp) = checkpoint {
-            cp.try_to_vec()?
+            borsh::to_vec(&cp)?
         } else {
             vec![]
         };
@@ -397,7 +397,7 @@ impl Effect {
                 max_players,
                 entry_type: crate::types::EntryType::Disabled,
                 players,
-                data: init_data.try_to_vec()?,
+                data: borsh::to_vec(&init_data)?,
                 checkpoint: checkpoint_data,
             },
         });
@@ -418,7 +418,7 @@ impl Effect {
     ///
     /// This is an internal function, DO NOT use in game handler.
     pub fn __set_handler_state<S: BorshSerialize>(&mut self, handler_state: S) {
-        if let Ok(state) = handler_state.try_to_vec() {
+        if let Ok(state) = borsh::to_vec(&handler_state) {
             self.handler_state = Some(state);
         } else {
             self.error = Some(HandleError::SerializationError);
@@ -513,7 +513,7 @@ mod tests {
             bridge_events: vec![],
             valid_players: vec![],
         };
-        let bs = effect.try_to_vec()?;
+        let bs = borsh::to_vec(&effect)?;
 
         let parsed = Effect::try_from_slice(&bs)?;
 

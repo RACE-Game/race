@@ -188,7 +188,7 @@ impl TestGameAccountBuilder {
     }
 
     pub fn with_checkpoint<T: BorshSerialize>(self, checkpoint: T) -> Self {
-        let checkpoint = checkpoint.try_to_vec().expect("Serialize data failed");
+        let checkpoint = borsh::to_vec(&checkpoint).expect("Serialize data failed");
         self.with_checkpoint_vec(checkpoint)
     }
 
@@ -198,7 +198,7 @@ impl TestGameAccountBuilder {
     }
 
     pub fn with_data<T: BorshSerialize>(self, account_data: T) -> Self {
-        let data = account_data.try_to_vec().expect("Serialize data failed");
+        let data = borsh::to_vec(&account_data).expect("Serialize data failed");
         self.with_data_vec(data)
     }
 

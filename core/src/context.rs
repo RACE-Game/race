@@ -314,7 +314,7 @@ impl GameContext {
     where
         H: GameHandler,
     {
-        self.handler_state = handler.try_to_vec().unwrap()
+        self.handler_state = borsh::to_vec(&handler).unwrap()
     }
 
     pub fn get_nodes(&self) -> &[Node] {

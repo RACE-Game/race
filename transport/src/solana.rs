@@ -1,5 +1,6 @@
 mod constants;
 mod types;
+mod metadata;
 
 use constants::*;
 use tracing::{error, info};
@@ -25,9 +26,8 @@ use race_core::{
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use mpl_token_metadata as metaplex_program;
-use mpl_token_metadata::state::Metadata;
-use solana_client::{rpc_client::RpcClient, rpc_config::RpcSendTransactionConfig};
+use solana_rpc_client_api::config::RpcSendTransactionConfig;
+use solana_rpc_client::rpc_client::RpcClient;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
@@ -54,6 +54,8 @@ use spl_token::{
 };
 
 mod nft;
+
+const METAPLEX_PROGRAM_ID: &str = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s";
 
 fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
     let keypair = solana_sdk::signature::read_keypair_file(path)
@@ -451,6 +453,8 @@ impl TransportT for SolanaTransport {
     // TODO: add close_player_profile
 
     async fn publish_game(&self, params: PublishGameParams) -> Result<String> {
+        let metaplex_program_id = Pubkey::from_str(METAPLEX_PROGRAM_ID).unwrap();
+
         if params.name.len() > MAX_NAME_LENGTH {
             return Err(TransportError::InvalidMetadataNameLength)?;
         }
@@ -485,20 +489,20 @@ impl TransportT for SolanaTransport {
         let (metadata_pda, _bump_seed) = Pubkey::find_program_address(
             &[
                 "metadata".as_bytes(),
-                metaplex_program::id().as_ref(),
+                metaplex_program_id.as_ref(),
                 mint_pubkey.as_ref(),
             ],
-            &metaplex_program::id(),
+            &metaplex_program_id
         );
 
         let (edition_pda, _bump_seed) = Pubkey::find_program_address(
             &[
                 "metadata".as_bytes(),
-                metaplex_program::id().as_ref(),
+                metaplex_program_id.as_ref(),
                 mint_pubkey.as_ref(),
                 "edition".as_bytes(),
             ],
-            &metaplex_program::id(),
+            &metaplex_program_id
         );
 
         let ata_pubkey = get_associated_token_address(&payer_pubkey, &mint_pubkey);
@@ -516,7 +520,7 @@ impl TransportT for SolanaTransport {
             AccountMeta::new(metadata_pda, false),
             AccountMeta::new(edition_pda, false),
             AccountMeta::new_readonly(spl_token::id(), false),
-            AccountMeta::new_readonly(metaplex_program::id(), false),
+            AccountMeta::new_readonly(metaplex_program_id, false),
             AccountMeta::new_readonly(rent::id(), false),
             AccountMeta::new_readonly(system_program::id(), false),
         ];
@@ -920,16 +924,22 @@ impl TransportT for SolanaTransport {
 
     async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
         let mint_pubkey = Self::parse_pubkey(addr)?;
+        let metaplex_program_id = Pubkey::from_str(METAPLEX_PROGRAM_ID).unwrap();
 
         let (metadata_account_pubkey, _) =
-            metaplex_program::pda::find_metadata_account(&mint_pubkey);
+            Pubkey::find_program_address(&[b"metadata", metaplex_program_id.as_ref(), mint_pubkey.as_ref()], &metaplex_program_id);
 
         let metadata_account_data = self
             .client
             .get_account_data(&metadata_account_pubkey)
             .map_err(|e| TransportError::NetworkError(e.to_string()))?;
-        let metadata_account_state = Metadata::deserialize(&mut metadata_account_data.as_slice())
-            .map_err(|_| TransportError::MetadataDeserializeError)?;
+        let metadata_account_state = match metadata::Metadata::deserialize(&mut metadata_account_data.as_slice()) {
+            Ok(x) => x,
+            Err(e) => {
+                error!("Failed to deserialize metadata account: {:?}", e);
+                return Err(TransportError::MetadataDeserializeError)?;
+            }
+        };
         let metadata_data = metadata_account_state.data;
         let uri = metadata_data.uri.trim_end_matches('\0').to_string();
 
@@ -973,7 +983,7 @@ impl TransportT for SolanaTransport {
         // Add amount information by querying stake accounts
         for (i, stake_addr) in stake_addrs.iter().enumerate() {
             tracing::info!("Check stake account: {}", stake_addr);
-            let mut slot = recipient_account
+            let slot = recipient_account
                 .slots
                 .get_mut(i)
                 .ok_or(Error::TransportError(

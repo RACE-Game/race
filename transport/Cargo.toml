@@ -24,12 +24,12 @@ serde = { workspace = true }
 tracing = { workspace = true }
 borsh = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client"]}
-solana-client = { workspace = true }
+solana-rpc-client = { workspace = true }
+solana-rpc-client-api = { workspace = true }
 solana-sdk = { workspace = true }
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
 reqwest = { workspace = true, features = [ "json"] }
-mpl-token-metadata = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }

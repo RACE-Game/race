@@ -147,11 +147,11 @@ impl RemoteConnection {
     where
         P: BorshSerialize,
     {
-        let params_bytes = params.try_to_vec()?;
+        let params_bytes = borsh::to_vec(&params)?;
         let sig = self
             .encryptor
             .sign(&params_bytes, self.server_addr.clone())?;
-        let sig_bytes = sig.try_to_vec()?;
+        let sig_bytes = borsh::to_vec(&sig)?;
         let p = base64_encode(&params_bytes);
         let s = base64_encode(&sig_bytes);
         Ok(rpc_params![game_addr, p, s])
@@ -161,7 +161,7 @@ impl RemoteConnection {
     where
         P: BorshSerialize,
     {
-        let params_bytes = params.try_to_vec()?;
+        let params_bytes = borsh::to_vec(&params)?;
         let p = base64_encode(&params_bytes);
         Ok(rpc_params![game_addr, p])
     }

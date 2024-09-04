@@ -258,7 +258,7 @@ async fn get_game_bundle(
     let addr: String = params.one()?;
     let context = context.lock().await;
     if let Some(bundle) = context.bundles.get(&addr) {
-        Ok(Some(bundle.to_owned().try_to_vec().unwrap()))
+        Ok(borsh::to_vec(&bundle).ok())
     } else {
         println!("? get_game_bundle, addr: {}, not found", addr);
         Ok(None)
@@ -282,15 +282,13 @@ async fn get_registration_info(
         })
         .collect();
     Ok(Some(
-        RegistrationAccount {
+        borsh::to_vec(&RegistrationAccount {
             addr,
             is_private: false,
             size: 100,
             owner: None,
             games,
-        }
-        .try_to_vec()
-        .unwrap(),
+        }).unwrap()
     ))
 }
 
@@ -406,7 +404,7 @@ async fn get_server_info(
     let addr: String = params.one()?;
     let context = context.lock().await;
     if let Some(server) = context.servers.get(&addr) {
-        Ok(Some(server.to_owned().try_to_vec().unwrap()))
+        Ok(Some(borsh::to_vec(&server).unwrap()))
     } else {
         println!("? get_server_info, addr: {}, not found", addr);
         Ok(None)
@@ -507,7 +505,7 @@ async fn get_profile(
     let addr: String = params.one()?;
     let context = context.lock().await;
     match context.players.get(&addr) {
-        Some(player_info) => Ok(Some(player_info.profile.clone().try_to_vec().unwrap())),
+        Some(player_info) => Ok(Some(borsh::to_vec(player_info).unwrap())),
         None => Ok(None),
     }
 }
@@ -691,7 +689,7 @@ async fn get_balance(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcRes
     } else {
         println!("? get_balance, player_addr: {}, not found", player_addr);
     }
-    Ok(amount.try_to_vec().unwrap())
+    Ok(borsh::to_vec(&amount).unwrap())
 }
 
 async fn get_account_info(
@@ -701,7 +699,7 @@ async fn get_account_info(
     let addr: String = params.one()?;
     let context = context.lock().await;
     if let Some(account) = context.games.get(&addr) {
-        Ok(Some(account.to_owned().try_to_vec().unwrap()))
+        Ok(Some(borsh::to_vec(&account).unwrap()))
     } else {
         println!("? get_account_info, addr: {}, not found", addr);
         Ok(None)
@@ -711,7 +709,7 @@ async fn get_account_info(
 async fn list_tokens(_params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<Vec<u8>> {
     let context = context.lock().await;
     let tokens: Vec<&TokenAccount> = context.tokens.values().collect();
-    let bytes = tokens.try_to_vec()?;
+    let bytes = borsh::to_vec(&tokens)?;
     Ok(bytes)
 }
 
@@ -724,7 +722,7 @@ async fn get_player_info(
     let Some(player) = context.players.get(&addr) else {
         return Ok(None);
     };
-    Ok(Some(player.try_to_vec().unwrap()))
+    Ok(Some(borsh::to_vec(player).unwrap()))
 }
 
 async fn get_recipient(
@@ -736,7 +734,7 @@ async fn get_recipient(
     let Some(recipient) = context.recipients.get(&addr) else {
         return Ok(None);
     };
-    Ok(Some(recipient.try_to_vec().unwrap()))
+    Ok(Some(borsh::to_vec(recipient).unwrap()))
 }
 
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {

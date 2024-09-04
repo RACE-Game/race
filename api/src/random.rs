@@ -719,7 +719,7 @@ mod tests {
     #[test]
     fn test_mask_serialize() {
         let mask = Mask::new("hello");
-        let encoded = mask.try_to_vec().unwrap();
+        let encoded = borsh::to_vec(&mask).unwrap();
         let decoded = Mask::try_from_slice(&encoded).unwrap();
         assert_eq!(mask, decoded);
     }

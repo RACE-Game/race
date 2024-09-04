@@ -1,3 +1,9 @@
+//! Synchronize the updates from game account. Currently we use pulls
+//! instead of websocket. Firstly we query the state with confirming
+//! status, if a new state is found, we swtich to query with finalized
+//! status. For confirming query we have 5 seconds as interval, for
+//! finalized query, we use 2 seconds as interval.
+
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
@@ -110,7 +116,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                             access_version = av;
                             mode = QueryMode::Finalized;
                         } else {
-                            sleep(Duration::from_secs(1)).await;
+                            sleep(Duration::from_secs(5)).await;
                         }
                     }
                 }
@@ -160,9 +166,10 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                             num_of_retries = 0;
                             access_version = av;
                             mode = QueryMode::Confirming;
+                            sleep(Duration::from_secs(5)).await;
                         } else if num_of_retries < MAX_RETRIES {
                             num_of_retries += 1;
-                            sleep(Duration::from_secs(1)).await;
+                            sleep(Duration::from_secs(2)).await;
                         } else {
                             // Signal absence of a new game state
                             let tx_state = TxState::PlayerConfirmingFailed(access_version);
@@ -176,6 +183,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                             mode = QueryMode::Confirming;
                             num_of_retries = 0;
                             access_version = prev_access_version;
+                            sleep(Duration::from_secs(5)).await;
                         }
                     } else {
                         warn!("Game account not found, shutdown synchronizer");

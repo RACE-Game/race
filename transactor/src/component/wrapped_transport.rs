@@ -110,8 +110,11 @@ impl TransportT for WrappedTransport {
                     tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
                     continue;
                 }
-                // The `settle_version` had been bumped, indicates the transaction was succeed
-                // NOTE: The transaction can success with error result due to unstable network
+                // The `settle_version` had been bumped, which
+                // indicates the transaction was succeed
+
+                //NOTE: The transaction may success with error result
+                // due to unstable network
                 if curr_settle_version.is_some_and(|v| v < game_account.settle_version) {
                     return Ok("".into());
                 }

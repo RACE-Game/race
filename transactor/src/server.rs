@@ -3,15 +3,14 @@ use std::{net::SocketAddr, sync::Arc};
 use crate::context::ApplicationContext;
 use crate::utils;
 use borsh::BorshDeserialize;
-use borsh::BorshSerialize;
 use hyper::Method;
 use jsonrpsee::core::error::Error as RpcError;
-use jsonrpsee::core::error::SubscriptionClosed;
+use jsonrpsee::core::StringError;
 use jsonrpsee::server::AllowHosts;
 use jsonrpsee::types::error::CallError;
-use jsonrpsee::types::SubscriptionEmptyError;
-use jsonrpsee::SubscriptionSink;
+use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
+use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage, TrySendError};
 use race_api::event::Message;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
@@ -61,13 +60,16 @@ fn parse_params<T: BorshDeserialize>(
 }
 
 /// Ask transactor to load game and provide client's public key for further encryption.
-async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<String, RpcError> {
+async fn attach_game(
+    params: Params<'_>,
+    context: Arc<ApplicationContext>,
+) -> Result<String, RpcError> {
     let (game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
 
     info!("Attach to game, signer: {}", signer);
 
     if !context.game_manager.is_game_loaded(&game_addr).await {
-        return Err(RpcError::Custom("Game not loaded".to_string()))
+        return Err(RpcError::Custom("Game not loaded".to_string()));
     }
 
     context
@@ -134,73 +136,81 @@ async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Resu
         .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
 
-fn subscribe_event(
+async fn subscribe_event(
     params: Params<'_>,
-    mut sink: SubscriptionSink,
+    pending: PendingSubscriptionSink,
     context: Arc<ApplicationContext>,
-) -> Result<(), SubscriptionEmptyError> {
+) -> Result<(), StringError> {
     {
-        let (game_addr, SubscribeEventParams { settle_version }) =
-            parse_params_no_sig(params).or(Err(SubscriptionEmptyError))?;
+        let (game_addr, SubscribeEventParams { settle_version }) = match parse_params_no_sig(params)
+        {
+            Ok(p) => p,
+            Err(e) => {
+                let _ = pending.reject(ErrorObjectOwned::from(e)).await;
+                return Ok(());
+            }
+        };
 
-        tokio::spawn(async move {
-            let (receiver, histories) =
-                match context.get_broadcast(&game_addr, settle_version).await {
-                    Ok(x) => x,
-                    Err(e) => {
-                        warn!("Game not found: {:?}", game_addr);
-                        sink.close(SubscriptionClosed::Failed(
-                            CallError::Failed(e.into()).into(),
-                        ));
-                        return;
-                    }
-                };
+        let (receiver, histories) = match context.get_broadcast(&game_addr, settle_version).await {
+            Ok(x) => x,
+            Err(e) => {
+                warn!("Game not found: {}", game_addr);
+                let _ = pending.reject(CallError::Failed(e.into())).await;
+                return Ok(());
+            }
+        };
 
-            drop(context);
+        drop(context);
+        info!(
+            "Subscribe event stream, game: {:?}, settle version: {}, number of histories: {}",
+            game_addr,
+            settle_version,
+            histories.len()
+        );
 
-            info!(
-                "Subscribe event stream, game: {:?}, settle version: {}, number of histories: {}",
-                game_addr,
-                settle_version,
-                histories.len()
-            );
-            histories.into_iter().for_each(|x| {
-                info!("Broadcast history: {}", x);
-                let v = x.try_to_vec().unwrap();
+        let mut sink = pending.accept().await?;
+
+        for hist in histories.into_iter() {
+            let v = borsh::to_vec(&hist).unwrap();
+            let s = utils::base64_encode(&v);
+            sink.send(SubscriptionMessage::from(&s))
+                .await
+                .map_err(|e| {
+                    error!("Error occurred when broadcasting event histories: {:?}", e);
+                    e
+                })
+                .unwrap();
+        }
+
+        let rx = BroadcastStream::new(receiver);
+        let mut serialized_rx = rx.map(|f| match f {
+            Ok(x) => {
+                let v = borsh::to_vec(&x).unwrap();
                 let s = utils::base64_encode(&v);
-                sink.send(&s)
-                    .map_err(|e| {
-                        error!("Error occurred when broadcasting event histories: {:?}", e);
-                        e
-                    })
-                    .unwrap();
-            });
-
-            let rx = BroadcastStream::new(receiver);
-            let serialized_rx = rx.map(|f| match f {
-                Ok(x) => {
-                    let v = x.try_to_vec().unwrap();
-                    let s = utils::base64_encode(&v);
-                    // info!("Broadcast: {}", x);
-                    Ok(s)
-                }
-                Err(e) => Err(e),
-            });
-
-            match sink.pipe_from_try_stream(serialized_rx).await {
-                SubscriptionClosed::Success => {
-                    info!("Subscription closed successfully");
-                    sink.close(SubscriptionClosed::Success);
-                }
-                SubscriptionClosed::RemotePeerAborted => {
-                    warn!("Remote peer aborted");
-                }
-                SubscriptionClosed::Failed(err) => {
-                    warn!("Subscription error: {:?}", err);
-                    sink.close(err);
-                }
-            };
+                Ok(s)
+            }
+            Err(e) => Err(e),
         });
+
+        loop {
+            tokio::select! {
+                _ = sink.closed() => break Err(anyhow::anyhow!("Subscription was closed")),
+                maybe_item = serialized_rx.next() => {
+                    let item = match maybe_item {
+                        Some(Ok(item)) => item,
+                        _ => break Err(anyhow::anyhow!("Event stream ended")),
+                    };
+                    let msg = SubscriptionMessage::from(&item);
+                    match sink.try_send(msg) {
+                        Ok(_) => (),
+                        Err(TrySendError::Closed(_)) => break Err(anyhow::anyhow!("Client disconnected, subscription closed")),
+                        Err(TrySendError::Full(_)) => {
+                            warn!("TrySendError::Full");
+                        }
+                    }
+                },
+            }
+        }?;
         Ok(())
     }
 }

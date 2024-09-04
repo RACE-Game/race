@@ -2,7 +2,7 @@ use std::mem::swap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use race_api::effect::Effect;
 use race_api::error::{Error, Result};
 use race_api::event::Event;
@@ -86,11 +86,9 @@ impl WrappedHandler {
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
         let effect = context.derive_effect();
-        let effect_bs = effect
-            .try_to_vec()
+        let effect_bs = borsh::to_vec(&effect)
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
-        let init_account_bs = init_account
-            .try_to_vec()
+        let init_account_bs = borsh::to_vec(&init_account)
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let mut offset = 1u32;
         mem_view
@@ -160,11 +158,9 @@ impl WrappedHandler {
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
         let effect = context.derive_effect();
-        let effect_bs = effect
-            .try_to_vec()
+        let effect_bs = borsh::to_vec(&effect)
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
-        let event_bs = event
-            .try_to_vec()
+        let event_bs = borsh::to_vec(&event)
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mut offset = 1u32;
         mem_view
