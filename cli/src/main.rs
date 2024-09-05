@@ -15,11 +15,11 @@ use race_storage::{
 };
 use race_transport::TransportBuilder;
 use serde::{Deserialize, Serialize};
+use tracing::level_filters::LevelFilter;
 use std::{
-    fs::{self, File},
-    path::PathBuf,
-    sync::Arc,
+    fs::{self, File}, path::PathBuf, sync::Arc
 };
+use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -126,6 +126,12 @@ fn cli() -> Command {
                 .arg_required_else_help(true),
         )
         .subcommand(
+            Command::new("close-all-games")
+                .about("Unregister and close all games for a registration")
+                .arg(arg!(<REG> "The address of registration account"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
             Command::new("unreg-game")
                 .about("Unregister game account")
                 .arg(arg!(<REG> "The address of registration account"))
@@ -167,7 +173,12 @@ async fn create_transport(chain: &str, rpc: &str, keyfile: Option<String>) -> Ar
     Arc::from(transport)
 }
 
-async fn mint_nft(name: String, symbol: String, arweave_url: String, transport: Arc<dyn TransportT>) {
+async fn mint_nft(
+    name: String,
+    symbol: String,
+    arweave_url: String,
+    transport: Arc<dyn TransportT>,
+) {
     let params = PublishGameParams {
         uri: arweave_url,
         name,
@@ -474,10 +485,7 @@ async fn close_game(game_addr: String, transport: Arc<dyn TransportT>) {
 }
 
 async fn reg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) {
-    println!(
-        "Register game {} from registration {}",
-        game_addr, reg_addr
-    );
+    println!("Register game {} from registration {}", game_addr, reg_addr);
     let r = transport
         .register_game(RegisterGameParams {
             game_addr: game_addr.to_owned(),
@@ -491,9 +499,30 @@ async fn reg_game(reg_addr: String, game_addr: String, transport: Arc<dyn Transp
     }
 }
 
+async fn close_all_games(reg_addr: String, transport: Arc<dyn TransportT>) {
+    println!(
+        "Unregister and close all games from registration {}",
+        reg_addr
+    );
+    let reg = transport
+        .get_registration(&reg_addr)
+        .await
+        .expect("Failed to load registration account");
+    match reg {
+        Some(reg) => {
+            for g in reg.games {
+                unreg_game(reg_addr.clone(), g.addr, transport.clone()).await;
+            }
+        }
+        None => {
+            println!("Registration account {} not found", reg_addr);
+        }
+    }
+}
+
 async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) {
     println!(
-        "Unregister game {} from registration {}",
+        "Unregister and close game {} from registration {}",
         game_addr, reg_addr
     );
     let r = transport
@@ -512,7 +541,16 @@ async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn Tran
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    let subscriber = tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(
+            EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .try_from_env()
+                .expect("Failed to parse EnvFilter"),
+        );
+    tracing::subscriber::set_global_default(subscriber).expect("Failed to configure logger");
+
     let matches = cli().get_matches();
 
     let chain = matches.get_one::<String>("chain").expect("required");
@@ -548,9 +586,17 @@ async fn main() {
         Some(("mint-nft", sub_matches)) => {
             let name = sub_matches.get_one::<String>("NAME").expect("required");
             let symbol = sub_matches.get_one::<String>("SYMBOL").expect("required");
-            let arweave_url = sub_matches.get_one::<String>("ARWEAVE_URL").expect("required");
+            let arweave_url = sub_matches
+                .get_one::<String>("ARWEAVE_URL")
+                .expect("required");
             let transport = create_transport(&chain, &rpc, None).await;
-            mint_nft(name.to_owned(), symbol.to_owned(), arweave_url.to_owned(), transport).await;
+            mint_nft(
+                name.to_owned(),
+                symbol.to_owned(),
+                arweave_url.to_owned(),
+                transport,
+            )
+            .await;
         }
         Some(("bundle-info", sub_matches)) => {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
@@ -590,6 +636,11 @@ async fn main() {
             let game_addr = sub_matches.get_one::<String>("GAME").expect("required");
             let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
             unreg_game(reg_addr.clone(), game_addr.clone(), transport).await;
+        }
+        Some(("close-all-games", sub_matches)) => {
+            let reg_addr = sub_matches.get_one::<String>("REG").expect("required");
+            let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
+            close_all_games(reg_addr.clone(), transport).await;
         }
         Some(("close-game", sub_matches)) => {
             let game_addr = sub_matches.get_one::<String>("GAME").expect("required");
