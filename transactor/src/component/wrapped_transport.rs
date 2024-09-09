@@ -1,5 +1,6 @@
 //! Wrapped transport, which support retry
 
+use futures::Stream;
 use jsonrpsee::core::async_trait;
 use race_api::error::Result;
 use race_core::types::{
@@ -16,6 +17,7 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
+use std::pin::Pin;
 use std::time::Duration;
 use tracing::error;
 
@@ -43,6 +45,10 @@ impl WrappedTransport {
 
 #[async_trait]
 impl TransportT for WrappedTransport {
+    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
+        self.inner.subscribe_game_account(addr).await
+    }
+
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
         self.inner.create_game_account(params).await
     }

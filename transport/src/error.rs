@@ -149,6 +149,8 @@ pub enum TransportError {
     #[error("Fee calculation error: {0}")]
     FeeCalculationError(String),
 
+    #[error("Subscription error: {0}")]
+    SubscriptionError(String),
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

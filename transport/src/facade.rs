@@ -1,5 +1,9 @@
+use std::pin::Pin;
+
+use async_stream::stream;
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
+use futures::Stream;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::rpc_params;
@@ -128,6 +132,15 @@ impl TransportT for FacadeTransport {
         } else {
             Err(Error::GameAccountNotFound)
         }
+    }
+
+    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
+        Ok(Box::pin(stream! {
+            match self.fetch("get_account_info", addr).await {
+                Ok(game_account_opt) => yield game_account_opt,
+                Err(e) => yield None,
+            }
+        }))
     }
 
     async fn get_game_account(&self, addr: &str, mode: QueryMode) -> Result<Option<GameAccount>> {

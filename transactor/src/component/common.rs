@@ -133,6 +133,7 @@ impl ProducerPorts {
         self.tx.send(frame).await
     }
 
+    #[allow(dead_code)]
     pub fn is_tx_closed(&self) -> bool {
         self.tx.is_closed()
     }

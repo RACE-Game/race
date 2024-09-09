@@ -1,10 +1,10 @@
 use std::{
-    io::Read,
-    ops::Deref,
-    sync::{Arc, Mutex},
+    io::Read, ops::Deref, pin::Pin, sync::{Arc, Mutex}
 };
 
 use async_trait::async_trait;
+use async_stream::stream;
+use futures::Stream;
 use base64::prelude::Engine;
 use race_core::types::{CreateRecipientParams, AssignRecipientParams, RecipientAccount, RecipientClaimParams, SettleWithAddr};
 use race_api::error::{Error, Result};
@@ -62,6 +62,14 @@ impl Default for DummyTransport {
 #[async_trait]
 #[allow(unused_variables)]
 impl TransportT for DummyTransport {
+    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
+        let mut states = self.states.lock().unwrap().clone();
+        Ok(Box::pin(stream! {
+            let game_account = states.remove(0);
+            yield Some(game_account);
+        }))
+    }
+
     async fn create_game_account(&self, _params: CreateGameAccountParams) -> Result<String> {
         Ok(Self::default_game_addr())
     }

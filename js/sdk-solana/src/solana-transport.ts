@@ -457,7 +457,7 @@ export class SolanaTransport implements ITransport {
     });
   }
 
-  async getRecipient(addr: String): Promise<RecipientAccount | undefined> {
+  async getRecipient(addr: string): Promise<RecipientAccount | undefined> {
     const recipientKey = new PublicKey(addr);
     const recipientState = await this._getRecipientState(recipientKey);
     if (recipientState === undefined) return undefined;
@@ -467,7 +467,7 @@ export class SolanaTransport implements ITransport {
       const balance = BigInt(resp.value.amount);
       slots.push(slot.generalize(balance));
     }
-    return recipientState.generalize(slots);
+    return recipientState.generalize(addr, slots);
   }
 
   async _fetchImageFromDataUri(dataUri: string): Promise<string | undefined> {

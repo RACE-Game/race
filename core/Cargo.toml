@@ -21,6 +21,7 @@ thiserror = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
 borsh = { workspace = true }
+futures = { workspace = true }
 
 [dev-dependencies]
 anyhow.workspace = true

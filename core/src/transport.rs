@@ -1,3 +1,5 @@
+use std::pin::Pin;
+
 use crate::types::{
     AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams,
     CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
@@ -7,6 +9,7 @@ use crate::types::{
     VoteParams,
 };
 use async_trait::async_trait;
+use futures::Stream;
 use race_api::error::Result;
 
 #[async_trait]
@@ -143,6 +146,9 @@ pub trait TransportT: Send + Sync {
 
     /// Get game account by its address.
     async fn get_game_account(&self, addr: &str, mode: QueryMode) -> Result<Option<GameAccount>>;
+
+    /// Subscribe game account by its address.
+    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>>;
 
     /// Get game bundle account by its address.
     async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>>;

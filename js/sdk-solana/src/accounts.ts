@@ -78,9 +78,9 @@ export interface IServerState {
 }
 
 export interface IRecipientState {
-  readonly addr: PublicKey;
-  readonly capAddr: PublicKey | undefined;
-  readonly slots: IRecipientSlot[];
+  isInitialized: boolean;
+  capAddr: PublicKey | undefined;
+  slots: IRecipientSlot[];
 }
 
 const RECIPIENT_SLOT_TYPE = {
@@ -441,8 +441,8 @@ export class RecipientSlot implements IRecipientSlot {
 }
 
 export class RecipientState implements IRecipientState {
-  @field(publicKeyExt)
-  addr!: PublicKey;
+  @field('bool')
+  isInitialized!: boolean;
   @field(option(publicKeyExt))
   capAddr: PublicKey | undefined;
   @field(array(struct(RecipientSlot)))
@@ -460,9 +460,9 @@ export class RecipientState implements IRecipientState {
     return deserialize(this, data);
   }
 
-  generalize(slots: RaceCore.RecipientSlot[]): RaceCore.RecipientAccount {
+  generalize(addr: string, slots: RaceCore.RecipientSlot[]): RaceCore.RecipientAccount {
     return new RaceCore.RecipientAccount({
-      addr: this.addr.toBase58(),
+      addr,
       capAddr: this.capAddr?.toBase58(),
       slots
     });

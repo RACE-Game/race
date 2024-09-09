@@ -1,4 +1,4 @@
-import { EntryTypeCash, GameAccount, INft, IToken, ITokenWithBalance, PlayerProfile, TokenWithBalance } from './accounts';
+import { EntryTypeCash, GameAccount, INft, IToken, ITokenWithBalance, PlayerProfile, RecipientAccount, TokenWithBalance } from './accounts';
 import { IStorage } from './storage';
 import { CreateGameAccountParams, ITransport, TransactionResult } from './transport';
 import { PlayerProfileWithPfp } from './types';
@@ -210,19 +210,29 @@ export class AppHelper {
     return await this.#transport.recipientClaim(wallet, { recipientAddr: gameAccount?.recipientAddr });
   }
 
+  async getRecipient(recipientAddr: string): Promise<RecipientAccount | undefined> {
+    return await this.#transport.getRecipient(recipientAddr);
+  }
+
   /**
    * Preview the claim information.
    *
    * @param wallet - The wallet adapter to sign the transaction
-   * @param gameAddr - The address of game account.
+   * @param recipientAddr | recipientAccount - The address of a recipient account.
    */
-  async previewClaim(wallet: IWallet, gameAddr: string): Promise<ClaimPreview[]> {
-    const gameAccount = await this.#transport.getGameAccount(gameAddr);
-    if (gameAccount === undefined) throw new Error('Game account not found');
-    const recipientAccount = await this.#transport.getRecipient(gameAccount.recipientAddr);
-    if (recipientAccount === undefined) throw new Error('Recipient account not found');
+  previewClaim(wallet: IWallet, recipientAddr: string): Promise<ClaimPreview[]>
+  previewClaim(wallet: IWallet, recipientAccount: RecipientAccount): Promise<ClaimPreview[]>
+  async previewClaim(wallet: IWallet, recipient: RecipientAccount | string): Promise<ClaimPreview[]> {
+    if (typeof recipient === 'string') {
+      const r = await this.#transport.getRecipient(recipient);
+      if (r === undefined) {
+        throw new Error('Recipient account not found');
+      }
+      recipient = r;
+    }
+
     let ret: ClaimPreview[] = [];
-    for (const slot of recipientAccount.slots) {
+    for (const slot of recipient.slots) {
       let weights = 0;
       let totalWeights = 0;
       let totalClaimed = 0n;

@@ -45,7 +45,7 @@
             nodePackages.typescript-language-server
             zellij
           ];
-          RUST_LOG = "info,hyper,wasmer_compiler_cranelift=info,solana_rpc_client=debug,solana_client=debug,jsonrpsee_server=info";
+          RUST_LOG = "info,hyper=error,wasmer_compiler_cranelift=info,solana_rpc_client=debug,solana_client=debug,jsonrpsee_server=info";
           RUST_BACKTRACE = 1;
         };
       }
