@@ -3184,8 +3184,10 @@ name = "race-local-db"
 version = "0.2.6"
 dependencies = [
  "anyhow",
+ "async-trait",
  "borsh 1.5.1",
  "race-api",
+ "race-core",
  "race-env",
  "race-transport",
  "rusqlite",
@@ -3193,8 +3195,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

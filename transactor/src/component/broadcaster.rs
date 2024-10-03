@@ -314,7 +314,6 @@ mod tests {
                     raw: "CUSTOM EVENT".into(),
                 },
                 state_sha: "".into(),
-                state: vec![],
             };
 
             let broadcast_frame = BroadcastFrame::Event {

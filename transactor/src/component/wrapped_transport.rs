@@ -210,7 +210,7 @@ mod tests {
             })
             .await;
 
-        assert_eq!(r, Ok(()));
+        assert_eq!(r, Ok("".to_string()));
         Ok(())
     }
 
@@ -234,7 +234,7 @@ mod tests {
             })
             .await;
 
-        assert_eq!(r, Ok(()));
+        assert_eq!(r, Ok("".to_string()));
         Ok(())
     }
 }

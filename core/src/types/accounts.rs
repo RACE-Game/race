@@ -256,7 +256,7 @@ mod tests {
             7, 0, 0, 0, 97, 110, 32, 97, 100, 100, 114, 14, 0, 0, 0, 104, 116, 116, 112, 58, 47,
             47, 102, 111, 111, 46, 98, 97, 114,
         ];
-        let ser = borsh::to_vec(s).unwrap();
+        let ser = borsh::to_vec(&s).unwrap();
         println!("Serialized server account {:?}", ser);
         assert_eq!(ser, res_bytes);
         // let decoded = ServerAccount::try_from_slice(&res).unwrap();
@@ -275,7 +275,7 @@ mod tests {
             0, 0, 0, 65, 119, 101, 115, 111, 109, 101, 32, 80, 70, 80,
         ];
 
-        let ser = borsh::to_vec(s).unwrap();
+        let ser = borsh::to_vec(&p).unwrap();
         println!("Serialized player profile {:?}", ser);
 
         assert_eq!(ser, bytes);
@@ -331,7 +331,7 @@ mod tests {
             108, 101, 32, 49,
         ];
 
-        let ser = borsh::to_vec(s).unwrap();
+        let ser = borsh::to_vec(&reg).unwrap();
         println!("Serialized reg {:?}", ser);
 
         assert_eq!(ser, bytes);
@@ -339,7 +339,7 @@ mod tests {
 
     #[test]
     fn test_game_bundle() {
-        let game_bunle = GameBundle {
+        let game_bundle = GameBundle {
             uri: "http://foo.bar".to_string(),
             name: "Awesome Game".to_string(),
             data: vec![1, 2, 3, 4],
@@ -422,8 +422,7 @@ mod tests {
                 min_deposit: 100,
                 max_deposit: 250,
             },
-            checkpoint: vec![],
-            checkpoint_access_version: 0,
+            checkpoint: Checkpoint::default()
         };
         let bytes = [
             9, 0, 0, 0, 103, 97, 109, 101, 32, 97, 100, 100, 114, 18, 0, 0, 0, 97, 119, 101, 115,

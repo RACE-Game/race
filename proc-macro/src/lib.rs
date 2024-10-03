@@ -55,7 +55,7 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
         }
 
         pub fn write_ptr<T: BorshSerialize>(ptr: &mut *mut u8, data: T) -> u32 {
-            if let Ok(vec) = borsh::to_vec(data) {
+            if let Ok(vec) = borsh::to_vec(&data) {
                 unsafe { std::ptr::copy(vec.as_ptr(), *ptr, vec.len()) }
                 vec.len() as _
             } else {

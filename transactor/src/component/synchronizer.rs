@@ -264,6 +264,7 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use race_core::types::{ConfirmingPlayer, TxState};
     use race_test::prelude::*;
 
     #[tokio::test]
@@ -290,15 +291,14 @@ mod tests {
         // Use vec to simulate game accounts
         transport.simulate_states(vec![ga_1.clone(), ga_0.clone(), ga_1.clone()]);
         let (synchronizer, ctx) = GameSynchronizer::init(transport.clone(), &ga_0);
-        let mut handle = synchronizer.start(ctx);
+        let mut handle = synchronizer.start("synchronizer", ctx);
         let frame = handle.recv_unchecked().await.unwrap();
 
-        let test_confirm_players = vec![PlayerJoin {
-            addr: "bob".into(),
+        let test_confirm_players = vec![ConfirmingPlayer {
+            id: 1,
+            addr: "bob".to_string(),
             position: 1,
             balance: 100,
-            access_version: 3,
-            verify_key: "".into(),
         }];
 
         let test_tx_state = TxState::PlayerConfirming {

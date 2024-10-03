@@ -7,10 +7,10 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ConfirmingPlayer {
-    id: u64,
-    addr: String,
-    position: u16,
-    balance: u64,
+    pub id: u64,
+    pub addr: String,
+    pub position: u16,
+    pub balance: u64,
 }
 
 impl From<PlayerJoin> for ConfirmingPlayer {

@@ -119,7 +119,7 @@ mod tests {
     fn test_set_data() -> anyhow::Result<()> {
         let mut c = Checkpoint::default();
         let d = vec![1];
-        c.set_data(0, d)?;
+        c.set_data(0, d, "sha".to_string())?;
         assert_eq!(c.version(), 1);
         assert_eq!(c.data.get(&0).map(|x| x.data.clone()), Some(vec![1]));
         Ok(())

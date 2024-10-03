@@ -179,6 +179,8 @@ impl TransportT for SolanaTransport {
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
 
+        let ata_account_pubkey = get_associated_token_address(&game_account_pubkey, &game_state.token_mint);
+
         let close_game_ix = Instruction::new_with_borsh(
             self.program_id,
             &RaceInstruction::CloseGameAccount,
@@ -187,6 +189,7 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new(game_account_pubkey, false),
                 AccountMeta::new(stake_account_pubkey, false),
                 AccountMeta::new_readonly(pda, false),
+                AccountMeta::new_readonly(ata_account_pubkey, false),
                 AccountMeta::new_readonly(spl_token::id(), false),
             ],
         );
@@ -948,7 +951,6 @@ impl TransportT for SolanaTransport {
 
             while let Some(rpc_response) = stream.next().await {
                 let ui_account = rpc_response.value;
-                info!("UiAccount: {:?}", ui_account);
                 let Some(data) = ui_account.data.decode() else {
                     error!("Found an empty account data");
                     return;
@@ -957,7 +959,7 @@ impl TransportT for SolanaTransport {
                     Ok(x) => x,
                     Err(e) => {
                         error!("Game state deserialization error: {}", e.to_string());
-                        unsub();
+                        unsub().await;
                         yield None;
                         break;
                     }
@@ -966,7 +968,7 @@ impl TransportT for SolanaTransport {
                     Ok(x) => x,
                     Err(e) => {
                         error!("Game account parsing error: {}", e.to_string());
-                        unsub();
+                        unsub().await;
                         yield None;
                         break;
                     }

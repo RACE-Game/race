@@ -4,7 +4,9 @@ mod common;
 mod accounts;
 mod broadcast_frame;
 mod tx_state;
+mod storage_params;
 
+pub use storage_params::*;
 pub use transport_params::*;
 pub use transactor_params::*;
 pub use common::*;

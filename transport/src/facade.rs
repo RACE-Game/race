@@ -15,10 +15,12 @@ use race_api::error::{Error, Result};
 use race_core::transport::TransportT;
 
 use race_core::types::{
-    CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
-    CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-    PublishGameParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-    ServerAccount, SettleParams, UnregisterGameParams, VoteParams, CreateRecipientParams, AssignRecipientParams, RecipientAccount,QueryMode, RecipientClaimParams
+    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams,
+    CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
+    GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, QueryMode,
+    RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
+    RegistrationAccount, ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
+    VoteParams,
 };
 use serde::Serialize;
 
@@ -134,19 +136,32 @@ impl TransportT for FacadeTransport {
         }
     }
 
-    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
+    async fn subscribe_game_account<'a>(
+        &'a self,
+        addr: &'a str,
+    ) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
         Ok(Box::pin(stream! {
-            match self.fetch("get_account_info", addr).await {
-                Ok(game_account_opt) => yield game_account_opt,
-                Err(e) => yield None,
+            let mut access_version = 0;
+            loop {
+                match self.fetch::<GameAccount>("get_account_info", addr).await {
+                    Ok(game_account_opt) => {
+                        if let Some(game_account) = game_account_opt {
+                            if game_account.access_version > access_version {
+                                access_version = game_account.access_version;
+                                yield Some(game_account);
+                            }
+                        }
+                    }
+                    Err(e) => yield None,
+                }
             }
         }))
     }
 
     async fn get_game_account(&self, addr: &str, mode: QueryMode) -> Result<Option<GameAccount>> {
         match mode {
-            QueryMode::Confirming => {},
-            QueryMode::Finalized => {},
+            QueryMode::Confirming => {}
+            QueryMode::Finalized => {}
         }
         self.fetch("get_account_info", addr).await
     }

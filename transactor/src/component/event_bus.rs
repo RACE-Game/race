@@ -115,7 +115,7 @@ pub enum CloseReason {
 #[cfg(test)]
 mod tests {
 
-    use crate::component::common::{Component, ConsumerPorts, ProducerPorts};
+    use crate::component::{common::{Component, ConsumerPorts, ProducerPorts}, ComponentEnv};
 
     use super::*;
     use async_trait::async_trait;
@@ -133,7 +133,7 @@ mod tests {
             "Test Producer"
         }
 
-        async fn run(ports: ProducerPorts, _ctx: TestProducerCtx) -> CloseReason {
+        async fn run(ports: ProducerPorts, _ctx: TestProducerCtx, env: ComponentEnv) -> CloseReason {
             loop {
                 println!("Producer started");
                 let event = EventFrame::Sync {
@@ -172,11 +172,11 @@ mod tests {
 
     #[async_trait]
     impl Component<ConsumerPorts, TestConsumerCtx> for TestConsumer {
-        fn name(&self) -> &str {
+        fn name() -> &'static str {
             "Test Consumer"
         }
 
-        async fn run(mut ports: ConsumerPorts, ctx: TestConsumerCtx) -> CloseReason {
+        async fn run(mut ports: ConsumerPorts, ctx: TestConsumerCtx, env: ComponentEnv) -> CloseReason {
             println!("Consumer started");
             loop {
                 match ports.recv().await {
@@ -207,8 +207,8 @@ mod tests {
         let (c, c_ctx) = TestConsumer::init();
         let eb = EventBus::default();
 
-        let mut p_handle = p.start(p_ctx);
-        let mut c_handle = c.start(c_ctx);
+        let mut p_handle = p.start("producer", p_ctx,);
+        let mut c_handle = c.start("consumer", c_ctx);
 
         eb.attach(&mut p_handle).await;
         eb.attach(&mut c_handle).await;

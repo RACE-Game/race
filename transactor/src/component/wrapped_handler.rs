@@ -244,6 +244,7 @@ impl WrappedHandler {
 
 #[cfg(test)]
 mod tests {
+    use borsh::BorshSerialize;
     use race_api::{
         prelude::{CustomEvent, HandleError},
         types::GameStatus,
@@ -302,9 +303,7 @@ mod tests {
         let mut hdlr = make_wrapped_handler();
         let (game_account, _tx) = setup_game();
         let mut ctx = GameContext::try_new(&game_account).unwrap();
-        let event = Event::GameStart {
-            access_version: game_account.access_version,
-        };
+        let event = Event::GameStart;
         let init_account = game_account.derive_init_account();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);

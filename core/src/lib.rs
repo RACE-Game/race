@@ -6,3 +6,4 @@ pub mod engine;
 pub mod secret;
 pub mod connection;
 pub mod transport;
+pub mod storage;
