@@ -36,8 +36,14 @@ pub struct TransactorConfig {
 }
 
 #[derive(Deserialize)]
+pub struct StorageConfig {
+    pub db_file_name: String,
+}
+
+#[derive(Deserialize)]
 pub struct Config {
     pub transactor: Option<TransactorConfig>,
+    pub storage: Option<StorageConfig>,
     pub facade: Option<FacadeConfig>,
     pub solana: Option<SolanaConfig>,
     pub bnb: Option<BnbConfig>,

@@ -6,7 +6,7 @@ use race_core::{
     storage::StorageT,
     types::{GetCheckpointParams, SaveCheckpointParams, SaveResult},
 };
-use rusqlite::{params, Connection, OpenFlags};
+use rusqlite::{params, Connection};
 use tokio::sync::Mutex;
 
 pub struct LocalDbStorage {
@@ -71,8 +71,8 @@ impl LocalDbStorage {
         })
     }
 
-    pub fn try_new() -> Result<Self> {
-        let conn = Connection::open_with_flags("transactor-db", OpenFlags::SQLITE_OPEN_CREATE)
+    pub fn try_new(db_file_path: &str) -> Result<Self> {
+        let conn = Connection::open(&db_file_path)
             .map_err(|e| Error::StorageError(e.to_string()))?;
 
         init_table(&conn)?;
@@ -92,7 +92,7 @@ mod tests {
         let game_addr = "testaddr1".to_string();
         let state = vec![1, 2, 3, 4];
         let settle_version = 10;
-        let storage = LocalDbStorage::try_new_mem().unwrap();
+        let storage = LocalDbStorage::try_new("trasnactor-db").unwrap();
         storage
             .save_checkpoint(SaveCheckpointParams {
                 game_addr: game_addr.clone(),

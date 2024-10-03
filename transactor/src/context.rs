@@ -1,5 +1,5 @@
 use crate::blacklist::Blacklist;
-use crate::component::WrappedTransport;
+use crate::component::{WrappedStorage, WrappedTransport};
 use crate::frame::SignalFrame;
 use crate::game_manager::GameManager;
 use race_api::error::{Error, Result};
@@ -32,6 +32,8 @@ impl ApplicationContext {
 
         let transport = Arc::new(WrappedTransport::try_new(&config).await?);
 
+        let storage = Arc::new(WrappedStorage::try_new(&config).await?);
+
         let encryptor = Arc::new(Encryptor::default());
 
         let transactor_config = config.transactor.ok_or(Error::TransactorConfigMissing)?;
@@ -57,6 +59,7 @@ impl ApplicationContext {
 
         let game_manager_0 = game_manager.clone();
         let transport_0 = transport.clone();
+        let storage_0 = storage.clone();
         let encryptor_0 = encryptor.clone();
         let account_0 = account.clone();
         let blacklist_0 = blacklist.clone();
@@ -66,6 +69,7 @@ impl ApplicationContext {
             while let Some(signal) = signal_rx.recv().await {
                 let game_manager_1 = game_manager_0.clone();
                 let transport_1 = transport_0.clone();
+                let storage_1 = storage_0.clone();
                 let encryptor_1 = encryptor_0.clone();
                 let account_1 = account_0.clone();
                 let blacklist_1 = blacklist_0.clone();
@@ -77,6 +81,7 @@ impl ApplicationContext {
                                 .load_game(
                                     game_addr,
                                     transport_1.clone(),
+                                    storage_1.clone(),
                                     encryptor_1.clone(),
                                     &account_1,
                                     blacklist_1.clone(),

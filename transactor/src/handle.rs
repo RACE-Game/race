@@ -4,7 +4,7 @@ mod validator;
 
 use std::sync::Arc;
 
-use crate::component::{Broadcaster, CloseReason, EventBridgeParent, EventBus, WrappedTransport};
+use crate::component::{Broadcaster, CloseReason, EventBridgeParent, EventBus, WrappedStorage, WrappedTransport};
 use crate::frame::SignalFrame;
 use race_encryptor::Encryptor;
 use race_api::error::{Error, Result};
@@ -35,6 +35,7 @@ impl Handle {
     /// Create game handle.
     pub async fn try_new(
         transport: Arc<WrappedTransport>,
+        storage: Arc<WrappedStorage>,
         encryptor: Arc<Encryptor>,
         server_account: &ServerAccount,
         addr: &str,
@@ -65,6 +66,7 @@ impl Handle {
                         &game_bundle,
                         encryptor.clone(),
                         transport.clone(),
+                        storage.clone(),
                         signal_tx,
                         debug_mode,
                     )

@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
 use crate::blacklist::Blacklist;
-use crate::component::{CloseReason, EventBridgeParent, WrappedTransport};
+use crate::component::{CloseReason, EventBridgeParent, WrappedStorage, WrappedTransport};
 use crate::frame::{EventFrame, SignalFrame};
 use crate::handle::Handle;
 
@@ -92,6 +92,7 @@ impl GameManager {
         &self,
         game_addr: String,
         transport: Arc<WrappedTransport>,
+        storage: Arc<WrappedStorage>,
         encryptor: Arc<Encryptor>,
         server_account: &ServerAccount,
         blacklist: Arc<Mutex<Blacklist>>,
@@ -100,7 +101,7 @@ impl GameManager {
     ) {
         let mut games = self.games.lock().await;
         if let Entry::Vacant(e) = games.entry(game_addr.clone()) {
-            match Handle::try_new(transport, encryptor, server_account, e.key(), signal_tx, debug_mode).await {
+            match Handle::try_new(transport, storage, encryptor, server_account, e.key(), signal_tx, debug_mode).await {
                 Ok(mut handle) => {
                     info!("Game handle created: {}", e.key());
                     let join_handle = handle.wait();

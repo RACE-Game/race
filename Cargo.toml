@@ -25,6 +25,7 @@ members = [
 
 [workspace.dependencies]
 race-api = { path = "api", version = ">=0.2.6" }
+race-local-db = { path = "local-db", version = ">=0.2.6" }
 race-proc-macro = { path = "proc-macro", version = ">=0.2.6" }
 race-core = { path = "core", version = ">=0.2.6" }
 race-client = { path = "client", version = ">=0.2.6" }

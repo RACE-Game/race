@@ -8,6 +8,7 @@ use crate::frame::{EventFrame, SignalFrame};
 use race_api::error::{Error, Result};
 use race_api::types::{PlayerJoin, ServerJoin};
 use race_core::context::GameContext;
+use race_core::storage::StorageT;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount, GameMode};
 use race_encryptor::Encryptor;
@@ -60,6 +61,7 @@ impl TransactorHandle {
         bundle_account: &GameBundle,
         encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
+        storage: Arc<dyn StorageT + Send + Sync>,
         signal_tx: mpsc::Sender<SignalFrame>,
         debug_mode: bool,
     ) -> Result<Self> {
@@ -84,7 +86,7 @@ impl TransactorHandle {
             EventLoop::init(handler, game_context, ClientMode::Transactor, GameMode::Main);
         let mut event_loop_handle = event_loop.start(&game_account.addr, event_loop_ctx);
 
-        let (submitter, submitter_ctx) = Submitter::init(game_account, transport.clone());
+        let (submitter, submitter_ctx) = Submitter::init(game_account, transport.clone(), storage.clone());
         let mut submitter_handle = submitter.start(&game_account.addr, submitter_ctx);
 
         let (synchronizer, synchronizer_ctx) =

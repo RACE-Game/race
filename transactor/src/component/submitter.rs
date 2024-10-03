@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use race_api::error::Error;
+use race_core::storage::StorageT;
 use race_core::types::{GameAccount, SettleParams, TxState};
 use tokio::select;
 use tokio::sync::mpsc;
@@ -16,7 +17,7 @@ use race_core::transport::TransportT;
 use super::ComponentEnv;
 use super::common::PipelinePorts;
 
-const MAX_PENDING_TXS: usize = 5;
+const MAX_PENDING_TXS: usize = 10;
 
 /// Squash two settles into one.
 fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
@@ -76,6 +77,7 @@ async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>) -> Vec<Settle
 pub struct SubmitterContext {
     addr: String,
     transport: Arc<dyn TransportT>,
+    storage: Arc<dyn StorageT>,
 }
 
 pub struct Submitter {}
@@ -84,12 +86,14 @@ impl Submitter {
     pub fn init(
         game_account: &GameAccount,
         transport: Arc<dyn TransportT>,
+        storage: Arc<dyn StorageT>,
     ) -> (Self, SubmitterContext) {
         (
             Self {},
             SubmitterContext {
                 addr: game_account.addr.clone(),
                 transport,
+                storage,
             },
         )
     }
@@ -186,6 +190,7 @@ mod tests {
 
     use super::*;
     use race_core::types::SettleWithAddr;
+    use race_local_db::LocalDbStorage;
     use race_test::prelude::*;
 
     #[tokio::test]
@@ -199,7 +204,8 @@ mod tests {
             .add_player(&mut charlie, 100)
             .build();
         let transport = Arc::new(DummyTransport::default());
-        let (submitter, ctx) = Submitter::init(&game_account, transport.clone());
+        let storage = Arc::new(LocalDbStorage::try_new_mem().unwrap());
+        let (submitter, ctx) = Submitter::init(&game_account, transport.clone(), storage.clone());
 
         let settles = vec![
             SettleWithAddr::sub("alice", 50),
