@@ -6,10 +6,12 @@ use std::sync::Arc;
 
 use crate::component::{Broadcaster, CloseReason, EventBridgeParent, EventBus, WrappedStorage, WrappedTransport};
 use crate::frame::SignalFrame;
+use race_core::checkpoint::Checkpoint;
+use race_core::storage::StorageT;
 use race_encryptor::Encryptor;
 use race_api::error::{Error, Result};
 use race_core::transport::TransportT;
-use race_core::types::{QueryMode, ServerAccount, SubGameSpec};
+use race_core::types::{GetCheckpointParams, QueryMode, ServerAccount, SubGameSpec};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tracing::info;
@@ -44,10 +46,17 @@ impl Handle {
     ) -> Result<Self> {
         info!("Try create game handle for {}", addr);
         let mode = QueryMode::Finalized;
-        let game_account = transport
+        let mut game_account = transport
             .get_game_account(addr, mode)
             .await?
             .ok_or(Error::GameAccountNotFound)?;
+
+        let checkpoint_offchain = storage.get_checkpoint(GetCheckpointParams {
+            game_addr: addr.to_owned(),
+            settle_version: game_account.settle_version,
+        }).await?;
+        let checkpoint = Checkpoint::new_from_parts(checkpoint_offchain, game_account.checkpoint_onchain.clone());
+        game_account.set_checkpoint(checkpoint);
 
         if let Some(ref transactor_addr) = game_account.transactor_addr {
             info!("Current transactor: {}", transactor_addr);

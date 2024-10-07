@@ -68,7 +68,7 @@ impl SubGame {
         max_players: u16,
         players: Vec<GamePlayer>,
         init_data: S,
-        checkpoint: T,
+        checkpoint_state: T,
     ) -> Result<Self> {
         Ok(Self {
             id,
@@ -78,7 +78,7 @@ impl SubGame {
                 entry_type: crate::types::EntryType::Disabled,
                 players,
                 data: borsh::to_vec(&init_data)?,
-                checkpoint: borsh::to_vec(&checkpoint)?,
+                checkpoint: borsh::to_vec(&checkpoint_state)?,
             },
         })
     }
@@ -214,7 +214,7 @@ pub struct Effect {
     pub init_random_states: Vec<RandomSpec>,
     pub revealed: HashMap<RandomId, HashMap<usize, String>>,
     pub answered: HashMap<DecisionId, String>,
-    pub checkpoint: Option<Vec<u8>>,
+    pub is_checkpoint: bool,
     pub settles: Vec<Settle>,
     pub handler_state: Option<Vec<u8>>,
     pub error: Option<HandleError>,
@@ -343,28 +343,28 @@ impl Effect {
         self.allow_exit = allow_exit
     }
 
-    /// Set checkpoint can trigger settlements.
-    pub fn checkpoint<S: BorshSerialize>(&mut self, checkpoint_state: S) {
-        if let Ok(checkpoint) = borsh::to_vec(&checkpoint_state) {
-            self.checkpoint = Some(checkpoint);
-        } else {
-            self.error = Some(HandleError::SerializationError)
-        }
+    /// Set current state as the checkpoint.
+    pub fn checkpoint(&mut self) {
+        self.is_checkpoint = true;
     }
 
     pub fn is_checkpoint(&self) -> bool {
-        self.checkpoint.is_some()
+        self.is_checkpoint
     }
 
     /// Submit settlements.
+    /// This will set current state as checkpoint automatically.
     pub fn settle(&mut self, settle: Settle) -> Result<()> {
+        self.checkpoint();
         self.assert_player_id(settle.id, "create settle")?;
         self.settles.push(settle);
         Ok(())
     }
 
     /// Transfer the assets to a recipient slot
+    /// This will set current state as checkpoint automatically.
     pub fn transfer(&mut self, slot_id: u8, amount: u64) {
+        self.checkpoint();
         self.transfers.push(Transfer { slot_id, amount });
     }
 

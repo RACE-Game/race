@@ -4,7 +4,7 @@ use super::{
     common::{EntryType, VoteType},
     RecipientSlot,
 };
-use crate::{types::{PlayerDeposit, PlayerJoin, ServerJoin}, checkpoint::Checkpoint};
+use crate::{checkpoint::{Checkpoint, CheckpointOnChain}, types::{PlayerDeposit, PlayerJoin, ServerJoin}};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::prelude::InitAccount;
 #[cfg(feature = "serde")]
@@ -121,13 +121,12 @@ pub struct RecipientAccount {
 ///
 /// # Checkpoint
 ///
-/// The checkpoint is a piece of data that can be used to restore the
-/// whole state.  The `checkpoint_access_version` is used to determine
-/// whether a player joined the game before or after the
-/// settlement. If the `chcekpoint_access_version` is smaller than a
-/// player's `access_version`, we know the player joined the game after
-/// the last settlement.
-#[derive(Debug, Default, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+/// The checkpoint is the state of the game when the settlement is
+/// made.  We only save the root of checkpoint merkle tree on chain.
+/// When initializing GameAccount from onchain data, the checkpoint is
+/// set with empty default, and we overwrite it later with the data
+/// from local data.
+#[derive(Debug, Default, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GameAccount {
@@ -149,6 +148,7 @@ pub struct GameAccount {
     pub data: Vec<u8>,
     pub entry_type: EntryType,
     pub recipient_addr: String,
+    pub checkpoint_onchain: CheckpointOnChain,
     pub checkpoint: Checkpoint,
 }
 
@@ -173,20 +173,22 @@ impl GameAccount {
     pub fn derive_checkpoint_init_account(&self) -> InitAccount {
         let players = self.players
             .iter()
-            .cloned()
             .filter(|p| p.access_version <= self.checkpoint.access_version)
+            .cloned()
             .map(|p| p.into())
             .collect();
-
-        let checkpoint = self.checkpoint.data(0);
 
         InitAccount {
             entry_type: self.entry_type.clone(),
             max_players: self.max_players,
             players,
             data: self.data.clone(),
-            checkpoint,
+            checkpoint: self.checkpoint.data(0),
         }
+    }
+
+    pub fn set_checkpoint(&mut self, checkpoint: Checkpoint) {
+        self.checkpoint = checkpoint;
     }
 }
 

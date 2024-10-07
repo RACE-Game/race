@@ -661,7 +661,7 @@ impl TransportT for SolanaTransport {
             params: IxSettleParams {
                 settles: ix_settles,
                 transfers,
-                checkpoint,
+                checkpoint: borsh::to_vec(&checkpoint)?,
                 settle_version,
                 next_settle_version,
             },

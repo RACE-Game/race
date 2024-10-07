@@ -1,13 +1,13 @@
 use async_trait::async_trait;
 use race_api::error::Result;
 
-use crate::types::{GetCheckpointParams, SaveCheckpointParams, SaveResult};
+use crate::{checkpoint::CheckpointOffChain, types::{GetCheckpointParams, SaveCheckpointParams}};
 
 #[async_trait]
 pub trait StorageT: Send + Sync {
     /// Upload the checkpoint to storage, return the proof.
-    async fn save_checkpoint(&self, params: SaveCheckpointParams) -> Result<SaveResult>;
+    async fn save_checkpoint(&self, params: SaveCheckpointParams) -> Result<()>;
 
     /// Get data by key from storage.
-    async fn get_checkpoint(&self, params: GetCheckpointParams) -> Result<Vec<u8>>;
+    async fn get_checkpoint(&self, params: GetCheckpointParams) -> Result<CheckpointOffChain>;
 }

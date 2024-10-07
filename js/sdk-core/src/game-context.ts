@@ -464,35 +464,31 @@ export class GameContext {
     // Fully reset subGames
     this.subGames = effect.launchSubGames;
 
-    if (effect.checkpoint !== undefined) {
-      // Reset random states
-      this.randomStates = [];
-      this.decisionStates = [];
-
-      // Sort settles and track player states
-      settles.push(...effect.settles);
-      settles = effect.settles;
-      settles = settles.sort((s1, s2) => s1.compare(s2));
-      for (let s of settles) {
-        if (s.op instanceof SettleAdd) {
-          this.playerAddBalance(s.id, s.op.amount);
-        } else if (s.op instanceof SettleSub) {
-          this.playerSubBalance(s.id, s.op.amount);
-        } else if (s.op instanceof SettleEject) {
-          this.removePlayer(s.id);
-        }
-      }
-
-      const oldVer = this.checkpoint.getVersion(this.gameId);
-      this.checkpoint.setData(this.gameId, effect.checkpoint, '', oldVer + 1n);
-      this.checkpoint.setAccessVersion(this.accessVersion);
-      this.status = 'idle';
-    }
-
     if (effect.handlerState !== undefined) {
-      this.handlerState = effect.handlerState;
-    } else {
-      console.warn('Effect has no handler state');
+      if (effect.isCheckpoint) {
+        // Reset random states
+        this.randomStates = [];
+        this.decisionStates = [];
+
+        // Sort settles and track player states
+        settles.push(...effect.settles);
+        settles = effect.settles;
+        settles = settles.sort((s1, s2) => s1.compare(s2));
+        for (let s of settles) {
+          if (s.op instanceof SettleAdd) {
+            this.playerAddBalance(s.id, s.op.amount);
+          } else if (s.op instanceof SettleSub) {
+            this.playerSubBalance(s.id, s.op.amount);
+          } else if (s.op instanceof SettleEject) {
+            this.removePlayer(s.id);
+          }
+        }
+
+        const oldVer = this.checkpoint.getVersion(this.gameId);
+        this.checkpoint.setData(this.gameId, effect.handlerState, '', oldVer + 1n);
+        this.checkpoint.setAccessVersion(this.accessVersion);
+        this.status = 'idle';
+      }
     }
 
     for (const subGame of effect.launchSubGames) {
@@ -503,7 +499,7 @@ export class GameContext {
     }
 
     return {
-      checkpoint: effect.checkpoint,
+      checkpoint: effect.handlerState,
       settles,
       transfers: effect.transfers,
       startGame: effect.startGame,

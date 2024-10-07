@@ -108,7 +108,6 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         access_version,
                         settle_version,
                         checkpoint,
-                        checkpoint_state_sha,
                     } => {
                         info!("{} Receives event: {}", env.log_prefix, event);
                         ports
@@ -119,7 +118,6 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                                 access_version,
                                 settle_version,
                                 checkpoint,
-                                checkpoint_state_sha,
                             })
                             .await;
                     }
@@ -223,7 +221,6 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         access_version,
                         settle_version,
                         checkpoint,
-                        checkpoint_state_sha,
                     } if dest == ctx.game_id => {
                         info!("{} Receives event: {}", env.log_prefix, event);
                         ports
@@ -234,7 +231,6 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                                 access_version,
                                 settle_version,
                                 checkpoint,
-                                checkpoint_state_sha,
                             })
                             .await;
                     }

@@ -1,87 +1,137 @@
 use std::{collections::HashMap, fmt::Display};
 
-use borsh::{BorshSerialize, BorshDeserialize};
-use race_api::error::{Result, Error};
+use borsh::{BorshDeserialize, BorshSerialize};
+use race_api::error::Result;
+use rs_merkle::{
+    algorithms::Sha256, proof_serializers::ReverseHashesOrder, Hasher,
+    MerkleTree,
+};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// Checkpoint represents the state snapshot of game.
 /// It is used as a submission to the blockchain.
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Checkpoint {
+    pub root: Vec<u8>,
     pub access_version: u64,
-    pub data: HashMap<usize, VersionedData>
+    pub data: HashMap<usize, VersionedData>,
+    pub proofs: HashMap<usize, Vec<u8>>,
 }
 
-#[derive(Clone, Debug, BorshSerialize, BorshDeserialize, Default, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct CheckpointOnChain {
+    pub root: Vec<u8>,
+    pub size: usize,
+    pub access_version: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct CheckpointOffChain {
+    pub data: HashMap<usize, VersionedData>,
+    pub proofs: HashMap<usize, Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct VersionedData {
+    pub id: usize,
     pub version: u64,
-    pub sha: String,
     pub data: Vec<u8>,
+    pub sha: Vec<u8>,
 }
 
 impl Default for Checkpoint {
     fn default() -> Self {
         Self {
+            root: Vec::new(),
             access_version: 0,
-            data: HashMap::from([
-                (0, VersionedData::default())
-            ])
+            data: HashMap::default(),
+            proofs: HashMap::default(),
         }
     }
 }
 
 impl Display for Checkpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = self.data.iter().map(|(id, vd)| format!("{}#{}", id, vd.version)).collect::<Vec<String>>();
+        let s = self
+            .data
+            .iter()
+            .map(|(id, vd)| format!("{}#{}", id, vd.version))
+            .collect::<Vec<String>>();
         write!(f, "{}", s.join(","))
     }
 }
 
 impl Checkpoint {
-
     pub fn new(id: usize, access_version: u64, root_version: u64, root_data: &[u8]) -> Self {
-        Self {
+        let sha = Sha256::hash(root_data);
+        let mut ret = Self {
+            root: Vec::new(),
             access_version,
-            data: HashMap::from([
-                (id, VersionedData {
+            data: HashMap::from([(
+                id,
+                VersionedData {
+                    id,
                     version: root_version,
-                    sha: "".to_string(),
                     data: root_data.into(),
-                })
-            ])
+                    sha: sha.into(),
+                },
+            )]),
+            proofs: HashMap::new(),
+        };
+        ret.update_root_and_proofs();
+        ret
+    }
+
+    pub fn new_from_parts(offchain_part: CheckpointOffChain, onchain_part: CheckpointOnChain) -> Self {
+        Self {
+            proofs: offchain_part.proofs,
+            data: offchain_part.data,
+            access_version: onchain_part.access_version,
+            root: onchain_part.root,
         }
     }
 
-    pub fn serialize(&self) -> Result<Vec<u8>> {
-        borsh::to_vec(&self).map_err(|_| Error::SerializationError)
-    }
-
-    pub fn deserialize(data: &[u8]) -> Result<Self> {
-        Self::try_from_slice(data).map_err(|_| Error::MalformedCheckpoint)
+    pub fn update_root_and_proofs(&mut self) {
+        let merkle_tree = self.to_merkle_tree();
+        let root = merkle_tree
+            .root()
+            .expect("Expect to get root from merkle tree");
+        self.root = root.into();
+        let mut i = 0;
+        while self.data.contains_key(&i) {
+            let proof = merkle_tree.proof(&[i]);
+            let proof_bs = proof.serialize::<ReverseHashesOrder>();
+            self.proofs.insert(i, proof_bs);
+            i += 1;
+        }
     }
 
     pub fn data(&self, id: usize) -> Vec<u8> {
-        self.data.get(&id).map(|d| d.data.clone()).unwrap_or_else(Vec::new)
+        self.data
+            .get(&id)
+            .map(|d| d.data.clone())
+            .unwrap_or_default()
     }
 
     /// Set the data of the checkpoint of game.
-    pub fn set_data(&mut self, id: usize, data: Vec<u8>, sha: String) -> Result<()> {
+    pub fn set_data(&mut self, id: usize, data: Vec<u8>) -> Result<()> {
+        let sha = Sha256::hash(&data);
         if let Some(old) = self.data.get_mut(&id) {
             old.data = data;
             old.version += 1;
-            old.sha = sha;
+            old.sha = sha.into();
         }
+        self.update_root_and_proofs();
         Ok(())
-    }
-
-    pub fn set_state_sha(&mut self, id: usize, sha: String) {
-        if let Some(old) = self.data.get_mut(&id) {
-            old.sha = sha;
-        }
     }
 
     pub fn set_access_version(&mut self, access_version: u64) {
@@ -92,22 +142,60 @@ impl Checkpoint {
         match self.data.entry(id) {
             std::collections::hash_map::Entry::Occupied(_) => (),
             std::collections::hash_map::Entry::Vacant(e) => {
+                let sha = Sha256::hash(data);
                 e.insert(VersionedData {
+                    id,
                     version: 0, // The new checkpoint data should always start from zero
-                    sha: "".to_string(),
-                    data: data.into()
+                    data: data.into(),
+                    sha: sha.into(),
                 });
             }
         }
+        self.update_root_and_proofs();
     }
 
     pub fn get_version(&self, id: usize) -> u64 {
         self.data.get(&id).map(|d| d.version).unwrap_or(0)
     }
 
+    pub fn get_sha(&self, id: usize) -> Option<[u8; 32]> {
+        self.data
+            .get(&id)
+            .map(|d| d.sha.clone().try_into().unwrap())
+    }
+
     /// Get version from game with id zero.
     pub fn version(&self) -> u64 {
         self.data.get(&0).map(|d| d.version).unwrap_or(0)
+    }
+
+    pub fn to_merkle_tree(&self) -> MerkleTree<Sha256> {
+        let mut leaves: Vec<[u8; 32]> = vec![];
+        let mut i = 0;
+        while let Some(vd) = self.data.get(&i) {
+            leaves.push(vd.sha.clone().try_into().unwrap());
+            i += 1;
+        }
+        MerkleTree::from_leaves(&leaves)
+    }
+
+    pub fn size(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn derive_onchain_part(&self) -> CheckpointOnChain {
+        CheckpointOnChain {
+            size: self.data.len(),
+            root: self.root.clone(),
+            access_version: self.access_version,
+        }
+    }
+
+    pub fn derive_offchain_part(&self) -> CheckpointOffChain {
+        CheckpointOffChain {
+            proofs: self.proofs.clone(),
+            data: self.data.clone(),
+        }
     }
 }
 
@@ -116,10 +204,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_merkle_tree() -> anyhow::Result<()> {
+        let mut c = Checkpoint::default();
+        let d0 = vec![1];
+        c.maybe_init_data(0, &d0);
+        let d1 = vec![2];
+        c.maybe_init_data(1, &d1);
+        let d2 = vec![3];
+        c.maybe_init_data(2, &d2);
+        println!("checkpoint: {:?}", c);
+        let mt = c.to_merkle_tree();
+        let root = mt.root().unwrap();
+        let indices = vec![0];
+        let proof = mt.proof(&indices);
+        println!("checkpoint: {:?}", c);
+        println!("merkle root: {:?}", root);
+        let leaves = vec![c.get_sha(0).unwrap()];
+        println!("leaves: {:?}", leaves);
+        assert!(proof.verify(root, &indices, &leaves, c.size()));
+        Ok(())
+    }
+
+    #[test]
     fn test_set_data() -> anyhow::Result<()> {
         let mut c = Checkpoint::default();
         let d = vec![1];
-        c.set_data(0, d, "sha".to_string())?;
+        c.set_data(0, d)?;
         assert_eq!(c.version(), 1);
         assert_eq!(c.data.get(&0).map(|x| x.data.clone()), Some(vec![1]));
         Ok(())

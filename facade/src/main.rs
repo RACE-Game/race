@@ -1,18 +1,17 @@
 //! This facade server emulates the behavior of its blockchain counterparts.
 //! It is supposed to be used for testing and developing.
 
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::BorshSerialize;
 use clap::{arg, Command};
 use hyper::Method;
 use jsonrpsee::server::{AllowHosts, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error as RpcError, RpcModule};
 use race_api::error::Error;
-use race_core::checkpoint::Checkpoint;
 use race_core::types::{
     DepositParams, EntryType, GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin,
-    PlayerProfile, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin, SettleOp,
-    SettleParams, TokenAccount, Vote, VoteParams, VoteType, RecipientAccount,
+    PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin,
+    SettleOp, SettleParams, TokenAccount, Vote, VoteParams, VoteType,
 };
 use regex::Regex;
 use serde::Deserialize;
@@ -138,13 +137,13 @@ pub struct PlayerInfo {
 
 impl Context {
     pub fn load_games(&mut self, spec_paths: &[&str]) {
-        for spec_path in spec_paths.into_iter() {
+        for spec_path in spec_paths.iter() {
             self.add_game(spec_path);
         }
     }
 
     pub fn load_bundles(&mut self, bundle_paths: &[&str]) {
-        for bundle_path in bundle_paths.into_iter() {
+        for bundle_path in bundle_paths.iter() {
             self.add_bundle(bundle_path)
         }
     }
@@ -288,7 +287,8 @@ async fn get_registration_info(
             size: 100,
             owner: None,
             games,
-        }).unwrap()
+        })
+        .unwrap(),
     ))
 }
 
@@ -329,7 +329,16 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                     // Find available position
                     let mut pos_list = vec![position];
                     pos_list.extend(0..100);
-                    let position = pos_list.into_iter().find(|p| game_account.players.iter().find(|player| player.position == *p).is_none()).unwrap();
+                    let position = pos_list
+                        .into_iter()
+                        .find(|p| {
+                            game_account
+                                .players
+                                .iter()
+                                .find(|player| player.position == *p)
+                                .is_none()
+                        })
+                        .unwrap();
 
                     let player_join = PlayerJoin {
                         addr: player_addr.clone(),
@@ -784,7 +793,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
     // Increase the `settle_version`
     game.settle_version = next_settle_version;
     println!("! Bump settle version to {}", game.settle_version);
-    game.checkpoint = Checkpoint::try_from_slice(&checkpoint).unwrap();
+    game.checkpoint_onchain = checkpoint;
 
     // Handle settles
     for s in settles.into_iter() {

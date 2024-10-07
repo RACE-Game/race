@@ -5,6 +5,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use race_api::types::{RecipientSlotOwner, RecipientSlotType};
+use crate::checkpoint::CheckpointOnChain;
+
 use super::{common::{EntryType, RecipientSlot, VoteType}, Transfer, SettleWithAddr};
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
@@ -174,7 +176,7 @@ pub struct SettleParams {
     pub addr: String,
     pub settles: Vec<SettleWithAddr>,
     pub transfers: Vec<Transfer>,
-    pub checkpoint: Vec<u8>,
+    pub checkpoint: CheckpointOnChain,
     pub settle_version: u64,
     pub next_settle_version: u64,
 }

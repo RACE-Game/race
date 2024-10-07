@@ -1,4 +1,4 @@
-use race_core::{storage::StorageT, types::{GetCheckpointParams, SaveCheckpointParams, SaveResult}};
+use race_core::{checkpoint::CheckpointOffChain, storage::StorageT, types::{GetCheckpointParams, SaveCheckpointParams}};
 use race_env::Config;
 use jsonrpsee::core::async_trait;
 use race_api::error::Result;
@@ -22,11 +22,11 @@ impl WrappedStorage {
 
 #[async_trait]
 impl StorageT for WrappedStorage {
-    async fn save_checkpoint(&self, params: SaveCheckpointParams) -> Result<SaveResult> {
+    async fn save_checkpoint(&self, params: SaveCheckpointParams) -> Result<()> {
         self.inner.save_checkpoint(params).await
     }
 
-    async fn get_checkpoint(&self, params: GetCheckpointParams) -> Result<Vec<u8>> {
+    async fn get_checkpoint(&self, params: GetCheckpointParams) -> Result<CheckpointOffChain> {
         self.inner.get_checkpoint(params).await
     }
 }

@@ -189,8 +189,8 @@ export class Effect {
   @field(map('usize', 'string'))
   answered!: Map<number, string>;
 
-  @field(option('u8-array'))
-  checkpoint!: Uint8Array | undefined;
+  @field('bool')
+  isCheckpoint!: boolean;
 
   @field(array(struct(Settle)))
   settles!: Settle[];
@@ -243,7 +243,7 @@ export class Effect {
     const releases: Release[] = [];
     const reveals: Reveal[] = [];
     const initRandomStates: RandomSpec[] = [];
-    const checkpoint = undefined;
+    const isCheckpoint = false;
     const settles: Settle[] = [];
     const handlerState = context.handlerState;
     const error = undefined;
@@ -269,7 +269,7 @@ export class Effect {
       initRandomStates,
       revealed,
       answered,
-      checkpoint,
+      isCheckpoint,
       settles,
       handlerState,
       error,

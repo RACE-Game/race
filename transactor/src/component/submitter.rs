@@ -4,7 +4,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use race_api::error::Error;
 use race_core::storage::StorageT;
-use race_core::types::{GameAccount, SettleParams, TxState};
+use race_core::types::{GameAccount, SaveCheckpointParams, SettleParams, TxState};
 use tokio::select;
 use tokio::sync::mpsc;
 use tracing::error;
@@ -149,13 +149,27 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     previous_settle_version,
                     ..
                 } => {
-                    let checkpoint_data = checkpoint.serialize().unwrap();
+                    let checkpoint_onchain = checkpoint.derive_onchain_part();
+                    let checkpoint_offchain = checkpoint.derive_offchain_part();
+
+                    let save_checkpoint_result = ctx.storage.save_checkpoint(SaveCheckpointParams {
+                        game_addr: ctx.addr.clone(),
+                        settle_version,
+                        checkpoint: checkpoint_offchain,
+                    }).await;
+
+                    if let Err(e) = save_checkpoint_result {
+                        error!("{} Submitter failed to save checkpoint offchain: {}",
+                            env.log_prefix, e.to_string());
+                        break;
+                    }
+
                     let res = queue_tx
                         .send(SettleParams {
                             addr: ctx.addr.clone(),
                             settles,
                             transfers,
-                            checkpoint: checkpoint_data,
+                            checkpoint: checkpoint_onchain,
                             settle_version: previous_settle_version,
                             next_settle_version: settle_version,
                         })

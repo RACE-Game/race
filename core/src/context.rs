@@ -16,7 +16,6 @@ use race_api::types::{
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use sha256::digest;
 
 const OPERATION_TIMEOUT: u64 = 15_000;
 
@@ -734,7 +733,7 @@ impl GameContext {
             init_random_states: Vec::new(),
             revealed,
             answered,
-            checkpoint: None,
+            is_checkpoint: false,
             settles: Vec::new(),
             handler_state: Some(self.handler_state.clone()),
             error: None,
@@ -762,7 +761,7 @@ impl GameContext {
             transfers,
             handler_state,
             allow_exit,
-            checkpoint,
+            is_checkpoint,
             launch_sub_games,
             bridge_events,
             error,
@@ -813,15 +812,12 @@ impl GameContext {
         }
 
         if let Some(state) = handler_state {
-            let sha = digest(&state);
-            self.handler_state = state;
+            self.handler_state = state.clone();
 
             let mut settles1 = Vec::with_capacity(settles.len());
-            let mut is_checkpoint = false;
-            if let Some(checkpoint_state) = checkpoint {
-                is_checkpoint = true;
-                self.checkpoint
-                    .set_data(self.game_id, checkpoint_state, sha)?;
+
+            if is_checkpoint {
+                self.checkpoint.set_data(self.game_id, state)?;
                 self.checkpoint.set_access_version(self.access_version);
                 self.bump_settle_version()?;
                 for s in settles {
@@ -841,9 +837,8 @@ impl GameContext {
                     settles1.push(SettleWithAddr { addr, op: s.op });
                 }
                 self.set_game_status(GameStatus::Idle);
-            } else if (!settles.is_empty()) || (!transfers.is_empty()) {
-                return Err(Error::SettleWithoutCheckpoint);
             }
+
             settles1.sort_by_key(|s| match s.op {
                 SettleOp::Add(_) => 0,
                 SettleOp::Sub(_) => 1,

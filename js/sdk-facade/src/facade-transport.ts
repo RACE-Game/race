@@ -24,6 +24,7 @@ import {
   VoteParams,
   IStorage,
   TransactionResult,
+  ITokenWithBalance,
 } from '@race-foundation/sdk-core';
 import { deserialize } from '@race-foundation/borsh';
 
@@ -151,8 +152,22 @@ export class FacadeTransport implements ITransport {
     throw new Error('Method not implemented.');
   }
 
-  async listTokens(_storage?: IStorage): Promise<IToken[]> {
-    return Object.values(tokenMap);
+  async listTokens(tokenAddrs: string[], _storage?: IStorage): Promise<IToken[]> {
+    return Object.values(tokenMap).filter(t => tokenAddrs.includes(t.addr));
+  }
+
+  async listTokensWithBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<ITokenWithBalance[]> {
+    const balances = await this.fetchBalances(walletAddr, tokenAddrs);
+    const tokens = Object.values(tokenMap).filter(t => tokenAddrs.includes(t.addr))
+    let ret: ITokenWithBalance[] = [];
+    for (const token of tokens) {
+      const amount = balances.get(token.addr) || 0n;
+      const uiAmount = (Number(amount) / Math.pow(10, token.decimals)).toString()
+      ret.push({
+        amount, uiAmount, ...token
+      })
+    }
+    return ret;
   }
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<TransactionResult<void>> {
