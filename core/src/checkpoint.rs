@@ -31,7 +31,7 @@ pub struct CheckpointOnChain {
     pub access_version: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct CheckpointOffChain {
@@ -98,6 +98,10 @@ impl Checkpoint {
             access_version: onchain_part.access_version,
             root: onchain_part.root,
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 
     pub fn update_root_and_proofs(&mut self) {

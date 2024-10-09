@@ -305,6 +305,9 @@ pub enum Error {
 
     #[error("Sub balance error, player: {0}, origin: {1}, amount: {2}")]
     SubBalanceError(u64, u64, u64), // player_id, from_balance, to_balance
+
+    #[error("Missing Checkpoint")]
+    MissingCheckpoint,
 }
 
 #[cfg(feature = "serde")]

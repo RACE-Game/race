@@ -26,7 +26,7 @@ impl StorageT for WrappedStorage {
         self.inner.save_checkpoint(params).await
     }
 
-    async fn get_checkpoint(&self, params: GetCheckpointParams) -> Result<CheckpointOffChain> {
+    async fn get_checkpoint(&self, params: GetCheckpointParams) -> Result<Option<CheckpointOffChain>> {
         self.inner.get_checkpoint(params).await
     }
 }

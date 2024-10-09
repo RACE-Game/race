@@ -124,7 +124,11 @@ impl GameState {
 
         let players = players.into_iter().map(Into::into).collect();
         let servers = servers.into_iter().map(Into::into).collect();
-        let checkpoint_onchain = CheckpointOnChain::try_from_slice(&checkpoint).map_err(|_| Error::MalformedCheckpoint)?;
+        let checkpoint_onchain = if checkpoint.is_empty() {
+            Some(CheckpointOnChain::try_from_slice(&checkpoint).map_err(|_| Error::MalformedCheckpoint)?)
+        } else {
+            None
+        };
         let checkpoint = Checkpoint::default();
 
         Ok(GameAccount {

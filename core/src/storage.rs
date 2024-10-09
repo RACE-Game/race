@@ -9,5 +9,5 @@ pub trait StorageT: Send + Sync {
     async fn save_checkpoint(&self, params: SaveCheckpointParams) -> Result<()>;
 
     /// Get data by key from storage.
-    async fn get_checkpoint(&self, params: GetCheckpointParams) -> Result<CheckpointOffChain>;
+    async fn get_checkpoint(&self, params: GetCheckpointParams) -> Result<Option<CheckpointOffChain>>;
 }

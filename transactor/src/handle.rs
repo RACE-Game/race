@@ -4,18 +4,20 @@ mod validator;
 
 use std::sync::Arc;
 
-use crate::component::{Broadcaster, CloseReason, EventBridgeParent, EventBus, WrappedStorage, WrappedTransport};
+use crate::component::{
+    Broadcaster, CloseReason, EventBridgeParent, EventBus, WrappedStorage, WrappedTransport,
+};
 use crate::frame::SignalFrame;
+use race_api::error::{Error, Result};
 use race_core::checkpoint::Checkpoint;
 use race_core::storage::StorageT;
-use race_encryptor::Encryptor;
-use race_api::error::{Error, Result};
 use race_core::transport::TransportT;
 use race_core::types::{GetCheckpointParams, QueryMode, ServerAccount, SubGameSpec};
+use race_encryptor::Encryptor;
+use subgame::SubGameHandle;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tracing::info;
-use subgame::SubGameHandle;
+use tracing::{error, info};
 use transactor::TransactorHandle;
 use validator::ValidatorHandle;
 
@@ -51,12 +53,30 @@ impl Handle {
             .await?
             .ok_or(Error::GameAccountNotFound)?;
 
-        let checkpoint_offchain = storage.get_checkpoint(GetCheckpointParams {
-            game_addr: addr.to_owned(),
-            settle_version: game_account.settle_version,
-        }).await?;
-        let checkpoint = Checkpoint::new_from_parts(checkpoint_offchain, game_account.checkpoint_onchain.clone());
-        game_account.set_checkpoint(checkpoint);
+        let checkpoint_offchain = storage
+            .get_checkpoint(GetCheckpointParams {
+                game_addr: addr.to_owned(),
+                settle_version: game_account.settle_version,
+            })
+            .await?;
+
+        if let Some(checkpoint_offchain) = checkpoint_offchain {
+            if let Some(ref checkpoint_onchain) = game_account.checkpoint_onchain {
+                // Both onchain and offchain parts are available
+                let checkpoint = Checkpoint::new_from_parts(
+                    checkpoint_offchain,
+                    checkpoint_onchain.clone(),
+                );
+                game_account.set_checkpoint(checkpoint);
+            } else {
+                return Err(Error::InvalidCheckpoint);
+            }
+        } else if game_account.checkpoint_onchain.is_none() {
+            game_account.set_checkpoint(Checkpoint::default());
+        } else {
+            error!("Cannot start game handle, the checkpoint is missing in local db");
+            return Err(Error::MissingCheckpoint);
+        }
 
         if let Some(ref transactor_addr) = game_account.transactor_addr {
             info!("Current transactor: {}", transactor_addr);
@@ -108,9 +128,15 @@ impl Handle {
         transport: Arc<dyn TransportT + Send + Sync>,
         debug_mode: bool,
     ) -> Result<Self> {
-        let handle =
-            SubGameHandle::try_new(spec, bridge_parent, server_account, encryptor, transport, debug_mode)
-                .await?;
+        let handle = SubGameHandle::try_new(
+            spec,
+            bridge_parent,
+            server_account,
+            encryptor,
+            transport,
+            debug_mode,
+        )
+        .await?;
         Ok(Self::SubGame(handle))
     }
 

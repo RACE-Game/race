@@ -46,7 +46,10 @@
   },
   "peerDependencies": {
     "@race-foundation/borsh": "*",
-    "ts-chacha20": "^1.2.0"
+    "ts-chacha20": "^1.2.0",
+    "merkletreejs": "^0.4.0"
   },
-  "testDependencies": {}
+  "testDependencies": {},
+  "dependencies": {
+  }
 }

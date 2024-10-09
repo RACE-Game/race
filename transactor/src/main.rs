@@ -32,14 +32,14 @@ fn setup_logger() {
         .with_target(true)
         .with_level(true)
         .with_ansi(false)
-        .with_filter(EnvFilter::new("INFO"));
+        .with_filter(EnvFilter::from_default_env());
     let console_layer = fmt::layer()
         .compact()
         .with_writer(std::io::stdout)
         .with_level(true)
         .with_ansi(true)
         .without_time()
-        .with_filter(EnvFilter::new("DEBUG"));
+        .with_filter(EnvFilter::from_default_env());
     let subscriber = tracing_subscriber::registry()
         .with(console_layer)
         .with(file_layer);

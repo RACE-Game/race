@@ -8,7 +8,7 @@ use race_core::{
     storage::StorageT,
     types::{GetCheckpointParams, SaveCheckpointParams},
 };
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use tokio::sync::Mutex;
 
 pub struct LocalDbStorage {
@@ -19,7 +19,7 @@ pub struct LocalDbStorage {
 impl StorageT for LocalDbStorage {
     async fn save_checkpoint(&self, params: SaveCheckpointParams) -> Result<()> {
         let conn = self.conn.lock().await;
-        let checkpoint_bs = borsh::to_vec(&params.checkpoint).unwrap();
+        let checkpoint_bs = borsh::to_vec(&params.checkpoint).or(Err(Error::MalformedCheckpoint))?;
         conn.execute(
             "INSERT INTO game_checkpoints (game_addr, settle_version, checkpoint) VALUES (?1, ?2, ?3)",
             params![params.game_addr, params.settle_version, checkpoint_bs],
@@ -29,7 +29,10 @@ impl StorageT for LocalDbStorage {
         Ok(())
     }
 
-    async fn get_checkpoint(&self, params: GetCheckpointParams) -> Result<CheckpointOffChain> {
+    async fn get_checkpoint(
+        &self,
+        params: GetCheckpointParams,
+    ) -> Result<Option<CheckpointOffChain>> {
         let conn = self.conn.lock().await;
 
         let checkpoint_bs = conn
@@ -37,17 +40,19 @@ impl StorageT for LocalDbStorage {
                 "SELECT checkpoint FROM game_checkpoints WHERE game_addr = ?1 and settle_version = ?2",
                 params![params.game_addr, params.settle_version],
                 |row| {
-                    let checkpoint_bs = row.get::<_, Vec<u8>>(0);
-                    Ok(checkpoint_bs)
+                    row.get::<_, Vec<u8>>(0)
                 }
-            )
-            .map_err(|e| Error::StorageError(e.to_string()))?
+            ).optional()
             .map_err(|e| Error::StorageError(e.to_string()))?;
 
-        let checkpoint = CheckpointOffChain::try_from_slice(&checkpoint_bs)
-            .map_err(|e| Error::StorageError(e.to_string()))?;
+        if let Some(checkpoint_bs) = checkpoint_bs {
+            let checkpoint = CheckpointOffChain::try_from_slice(&checkpoint_bs)
+                .map_err(|e| Error::StorageError(e.to_string()))?;
 
-        Ok(checkpoint)
+            Ok(Some(checkpoint))
+        } else {
+            Ok(None)
+        }
     }
 }
 
