@@ -154,8 +154,6 @@ pub struct GameAccount {
 
 impl GameAccount {
     pub fn derive_init_account(&self) -> InitAccount {
-        let cp = self.checkpoint.data(0);
-
         InitAccount {
             max_players: self.max_players,
             entry_type: self.entry_type.clone(),
@@ -166,7 +164,6 @@ impl GameAccount {
                 .map(Into::into)
                 .collect(),
             data: self.data.clone(),
-            checkpoint: cp,
         }
     }
 
@@ -183,8 +180,11 @@ impl GameAccount {
             max_players: self.max_players,
             players,
             data: self.data.clone(),
-            checkpoint: self.checkpoint.data(0),
         }
+    }
+
+    pub fn checkpoint(&self) -> &Checkpoint {
+        &self.checkpoint
     }
 
     pub fn set_checkpoint(&mut self, checkpoint: Checkpoint) {

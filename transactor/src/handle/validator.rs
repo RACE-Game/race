@@ -37,6 +37,8 @@ impl ValidatorHandle {
         );
         let game_context = GameContext::try_new(game_account)?;
         let init_account = game_context.init_account()?;
+        let checkpoint_state = game_context.checkpoint_state();
+
         let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
 
         let transactor_addr = game_account
@@ -97,6 +99,7 @@ impl ValidatorHandle {
                 init_account,
                 access_version: game_account.access_version,
                 settle_version: game_account.settle_version,
+                checkpoint_state,
             })
             .await;
 

@@ -144,8 +144,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     init_account,
                     access_version,
                     settle_version,
+                    checkpoint_state,
                 } => {
-
                     if let Err(e) = game_context.apply_checkpoint(access_version, settle_version) {
                         error!("{} Failed to apply checkpoint: {:?}, context settle version: {}, init account settle version: {}", env.log_prefix, e,
                             game_context.settle_version(), settle_version);
@@ -153,7 +153,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         return CloseReason::Fault(e);
                     }
 
-                    if let Err(e) = handler.init_state(&mut game_context, &init_account) {
+                    if let Err(e) = handler.init_state(&mut game_context, &init_account, checkpoint_state) {
                         error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Fault(e);

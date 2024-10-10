@@ -1,6 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::{error::HandleError, types::{GamePlayer, EntryType}};
+use crate::{
+    error::HandleError,
+    types::{EntryType, GamePlayer},
+};
 
 /// A set of arguments for game handler initialization.
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
@@ -9,22 +12,11 @@ pub struct InitAccount {
     pub entry_type: EntryType,
     pub players: Vec<GamePlayer>,
     pub data: Vec<u8>,
-    pub checkpoint: Vec<u8>,
 }
 
 impl InitAccount {
     pub fn data<S: BorshDeserialize>(&self) -> Result<S, HandleError> {
         S::try_from_slice(&self.data).or(Err(HandleError::MalformedGameAccountData))
-    }
-
-    pub fn checkpoint<S: BorshDeserialize>(&self) -> Result<Option<S>, HandleError> {
-        if self.checkpoint.is_empty() {
-            Ok(None)
-        } else {
-            S::try_from_slice(&self.checkpoint)
-                .or(Err(HandleError::MalformedCheckpointData))
-                .map(Some)
-        }
     }
 
     /// Add a new player.  This function is only available in tests.
@@ -49,7 +41,6 @@ impl Default for InitAccount {
             entry_type: EntryType::Disabled,
             players: Vec::new(),
             data: Vec::new(),
-            checkpoint: Vec::new(),
         }
     }
 }

@@ -1,3 +1,4 @@
+use crate::checkpoint::CheckpointWithProof;
 use crate::types::PlayerJoin;
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::event::{Event, Message};
@@ -67,8 +68,10 @@ pub enum BroadcastFrame {
     Sync {
         sync: BroadcastSync,
     },
+    // This frame is the first frame in broadcast stream.
     EventHistories {
         game_addr: String,
+        checkpoint_with_proof: Option<CheckpointWithProof>,
         histories: Vec<EventHistory>,
     },
 }

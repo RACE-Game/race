@@ -9,7 +9,7 @@ use race_api::event::Event;
 use race_api::init_account::InitAccount;
 use race_core::context::{EventEffects, GameContext};
 use race_core::encryptor::EncryptorT;
-use race_core::engine::{general_handle_event, general_init_state};
+use race_core::engine::general_handle_event;
 use race_core::types::GameBundle;
 use race_encryptor::Encryptor;
 use tracing::info;
@@ -86,8 +86,8 @@ impl WrappedHandler {
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
         let effect = context.derive_effect();
-        let effect_bs = borsh::to_vec(&effect)
-            .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
+        let effect_bs =
+            borsh::to_vec(&effect).map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let init_account_bs = borsh::to_vec(&init_account)
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let mut offset = 1u32;
@@ -158,10 +158,10 @@ impl WrappedHandler {
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
         let effect = context.derive_effect();
-        let effect_bs = borsh::to_vec(&effect)
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
-        let event_bs = borsh::to_vec(&event)
-            .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+        let effect_bs =
+            borsh::to_vec(&effect).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+        let event_bs =
+            borsh::to_vec(&event).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mut offset = 1u32;
         mem_view
             .write(offset as _, &effect_bs)
@@ -228,17 +228,22 @@ impl WrappedHandler {
         Ok(event_effects)
     }
 
+    // Initialize game state
     pub fn init_state(
         &mut self,
         context: &mut GameContext,
         init_account: &InitAccount,
+        checkpoint_state: Vec<u8>,
     ) -> Result<EventEffects> {
         let mut new_context = context.clone();
         new_context.set_timestamp(0);
-        general_init_state(&mut new_context, init_account)?;
-        let event_effects = self.custom_init_state(&mut new_context, init_account)?;
+        if checkpoint_state.is_empty() {
+            self.custom_init_state(&mut new_context, init_account)?;
+        } else {
+            new_context.set_handler_state_raw(checkpoint_state);
+        };
         swap(context, &mut new_context);
-        Ok(event_effects)
+        Ok(EventEffects::default())
     }
 }
 

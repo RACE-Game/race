@@ -47,6 +47,7 @@ pub struct SubGame {
     pub id: usize,
     pub bundle_addr: String,
     pub init_account: InitAccount,
+    pub checkpoint_state: Vec<u8>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
@@ -73,12 +74,12 @@ impl SubGame {
         Ok(Self {
             id,
             bundle_addr,
+            checkpoint_state: borsh::to_vec(&checkpoint_state)?,
             init_account: InitAccount {
                 max_players,
                 entry_type: crate::types::EntryType::Disabled,
                 players,
                 data: borsh::to_vec(&init_data)?,
-                checkpoint: borsh::to_vec(&checkpoint_state)?,
             },
         })
     }
@@ -226,7 +227,6 @@ pub struct Effect {
 }
 
 impl Effect {
-
     fn assert_player_id(&self, id: u64, reason: &str) -> Result<()> {
         if self.valid_players.is_empty() {
             // Skip check
@@ -234,9 +234,13 @@ impl Effect {
         }
 
         if self.valid_players.iter().any(|p| p.id == id) {
-           Ok(())
+            Ok(())
         } else {
-           Err(Error::InvalidPlayerId(id, self.valid_players.iter().map(|p| p.id).collect(), reason.to_string()))
+            Err(Error::InvalidPlayerId(
+                id,
+                self.valid_players.iter().map(|p| p.id).collect(),
+                reason.to_string(),
+            ))
         }
     }
 
@@ -254,7 +258,12 @@ impl Effect {
     }
 
     /// Assign some random items to a specific player.
-    pub fn assign(&mut self, random_id: RandomId, player_id: u64, indexes: Vec<usize>) -> Result<()> {
+    pub fn assign(
+        &mut self,
+        random_id: RandomId,
+        player_id: u64,
+        indexes: Vec<usize>,
+    ) -> Result<()> {
         self.assert_player_id(player_id, "assign random id")?;
         self.assigns.push(Assign {
             random_id,
@@ -384,7 +393,7 @@ impl Effect {
             self.assert_player_id(p.id, "launch sub game")?;
         }
 
-        let checkpoint_data = if let Some(cp) = checkpoint {
+        let checkpoint_state = if let Some(cp) = checkpoint {
             borsh::to_vec(&cp)?
         } else {
             vec![]
@@ -398,8 +407,8 @@ impl Effect {
                 entry_type: crate::types::EntryType::Disabled,
                 players,
                 data: borsh::to_vec(&init_data)?,
-                checkpoint: checkpoint_data,
             },
+            checkpoint_state,
         });
         Ok(())
     }
@@ -450,7 +459,7 @@ impl Effect {
             self.assert_player_id(p.id, "emit bridge event")?;
         }
         if self.bridge_events.iter().any(|x| x.dest == dest) {
-            return Err(Error::DuplicatedBridgeEventTarget)
+            return Err(Error::DuplicatedBridgeEventTarget);
         }
 
         self.bridge_events

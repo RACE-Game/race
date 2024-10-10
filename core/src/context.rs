@@ -89,7 +89,7 @@ impl DispatchEvent {
 /// - launch_sub_games: to launch a list of sub games.
 /// - bridge_events: to send events to sub games.
 /// - start_game: to start game.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct EventEffects {
     pub settles: Vec<SettleWithAddr>,
     pub transfers: Vec<Transfer>,
@@ -167,6 +167,7 @@ impl GameContext {
             init_account,
             settle_version,
             access_version,
+            checkpoint_state,
             ..
         } = spec;
 
@@ -185,7 +186,7 @@ impl GameContext {
                 *game_id,
                 *access_version,
                 *settle_version,
-                &init_account.checkpoint,
+                checkpoint_state,
             ),
             ..Default::default()
         })
@@ -254,7 +255,6 @@ impl GameContext {
             entry_type: self.entry_type.clone(),
             players: self.players.clone(),
             data: self.init_data.clone(),
-            checkpoint: self.checkpoint.data(self.game_id),
         })
     }
 
@@ -303,6 +303,11 @@ impl GameContext {
 
     pub fn checkpoint(&self) -> &Checkpoint {
         &self.checkpoint
+    }
+
+    // Get the checkpoint state for current game
+    pub fn checkpoint_state(&self) -> Vec<u8> {
+        self.checkpoint.data(self.game_id)
     }
 
     pub fn checkpoint_mut(&mut self) -> &mut Checkpoint {

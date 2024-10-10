@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use race_api::event::Event;
+use race_core::checkpoint::Checkpoint;
 use race_core::types::{BroadcastFrame, BroadcastSync, EventHistory, TxState};
 use tokio::sync::{broadcast, Mutex};
 use tracing::{debug, error, info};
@@ -29,19 +30,12 @@ pub struct EventBackup {
 }
 
 #[derive(Debug)]
-pub struct Checkpoint {
-    pub access_version: u64,
-    pub settle_version: u64,
-}
-
-#[derive(Debug)]
 pub struct EventBackupGroup {
     pub sync: BroadcastSync,
     pub events: LinkedList<EventBackup>,
-    pub checkpoint: Checkpoint,
     pub settle_version: u64,
     pub access_version: u64,
-    pub state: Option<Vec<u8>>,
+    pub checkpoint: Option<Checkpoint>,
 }
 
 pub struct BroadcasterContext {
@@ -55,18 +49,20 @@ pub struct BroadcasterContext {
 /// A component that pushes event to clients.
 pub struct Broadcaster {
     id: String,
+    game_id: usize,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 impl Broadcaster {
-    pub fn init(id: String, debug_mode: bool) -> (Self, BroadcasterContext) {
+    pub fn init(id: String, game_id: usize, debug_mode: bool) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);
         (
             Self {
                 id: id.clone(),
+                game_id,
                 event_backup_groups: event_backup_groups.clone(),
                 broadcast_tx: broadcast_tx.clone(),
             },
@@ -81,11 +77,6 @@ impl Broadcaster {
 
     pub fn get_broadcast_rx(&self) -> broadcast::Receiver<BroadcastFrame> {
         self.broadcast_tx.subscribe()
-    }
-
-    pub async fn get_state(&self) -> Option<Vec<u8>> {
-        let groups = self.event_backup_groups.lock().await;
-        groups.back().and_then(|g| g.state.clone())
     }
 
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
@@ -114,6 +105,7 @@ impl Broadcaster {
                 }
                 frames.push(BroadcastFrame::EventHistories {
                     game_addr: self.id.clone(),
+                    checkpoint_with_proof: group.checkpoint.as_ref().and_then(|c| c.get_checkpoint_with_proof(self.game_id)),
                     histories,
                 })
             }
@@ -151,11 +143,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                 EventFrame::Checkpoint {
                     access_version,
                     settle_version,
-                    ..
-                }
-                | EventFrame::InitState {
-                    access_version,
-                    settle_version,
+                    checkpoint,
                     ..
                 } => {
                     info!(
@@ -164,19 +152,29 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     );
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
 
-                    let checkpoint = Checkpoint {
+                    event_backup_groups.push_back(EventBackupGroup {
+                        sync: BroadcastSync::new(access_version),
+                        events: LinkedList::new(),
                         access_version,
                         settle_version,
-                    };
+                        checkpoint: Some(checkpoint),
+                    });
+                }
+                EventFrame::InitState { access_version, settle_version, .. } => {
+                                        info!(
+                        "{} Create new history group with access_version = {}, settle_version = {}",
+                        env.log_prefix, access_version, settle_version
+                    );
+                    let mut event_backup_groups = ctx.event_backup_groups.lock().await;
 
                     event_backup_groups.push_back(EventBackupGroup {
                         sync: BroadcastSync::new(access_version),
                         events: LinkedList::new(),
-                        checkpoint,
                         access_version,
                         settle_version,
-                        state: None,
+                        checkpoint: None,
                     });
+
                 }
                 EventFrame::TxState { tx_state } => match tx_state {
                     TxState::SettleSucceed { .. } => {

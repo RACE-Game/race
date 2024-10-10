@@ -1,15 +1,7 @@
 use crate::{context::GameContext, encryptor::EncryptorT, types::GameStatus};
-use race_api::init_account::InitAccount;
-use race_api::error::{Error, HandleError};
+use race_api::error::Error;
 use race_api::event::Event;
 use race_api::random::RandomStatus;
-
-pub fn general_init_state(
-    _context: &mut GameContext,
-    _init_account: &InitAccount,
-) -> Result<(), HandleError> {
-    Ok(())
-}
 
 /// A general function for system events handling.
 pub fn general_handle_event(

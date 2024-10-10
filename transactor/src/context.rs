@@ -160,10 +160,6 @@ impl ApplicationContext {
         self.game_manager.send_message(game_addr, message).await
     }
 
-    pub async fn get_state(&self, game_addr: &str) -> Result<Vec<u8>> {
-        self.game_manager.get_state(game_addr).await
-    }
-
     pub async fn get_broadcast(
         &self,
         game_addr: &str,

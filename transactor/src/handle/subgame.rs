@@ -41,13 +41,14 @@ impl SubGameHandle {
 
         // Build an InitAccount
         let game_context = GameContext::try_new_with_sub_game_spec(&spec)?;
+        let checkpoint_state = game_context.checkpoint_state();
 
         let access_version = spec.access_version;
         let settle_version = spec.settle_version;
 
         let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 
-        let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone(), debug_mode);
+        let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone(), game_id, debug_mode);
         let mut broadcaster_handle = broadcaster.start(&addr, broadcaster_ctx);
 
         let (bridge, bridge_ctx) = bridge_parent.derive_child(game_id.clone());
@@ -80,6 +81,7 @@ impl SubGameHandle {
                 init_account: spec.init_account,
                 access_version,
                 settle_version,
+                checkpoint_state,
             })
             .await;
 

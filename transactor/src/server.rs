@@ -14,7 +14,7 @@ use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage, TrySendError};
 use race_api::event::Message;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
-    AttachGameParams, ExitGameParams, GetStateParams, Signature, SubmitEventParams,
+    AttachGameParams, ExitGameParams, Signature, SubmitEventParams,
     SubscribeEventParams,
 };
 use tokio_stream::wrappers::BroadcastStream;
@@ -82,18 +82,6 @@ async fn attach_game(
 
 fn ping(_: Params<'_>, _: &ApplicationContext) -> Result<String, RpcError> {
     Ok("pong".to_string())
-}
-
-async fn get_state(
-    params: Params<'_>,
-    context: Arc<ApplicationContext>,
-) -> Result<String, RpcError> {
-    let (game_addr, GetStateParams {}) = parse_params_no_sig(params)?;
-    context
-        .get_state(&game_addr)
-        .await
-        .map(|st| serde_json::to_string(&st).unwrap())
-        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
 
 async fn submit_message(
@@ -241,7 +229,6 @@ pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;
     module.register_async_method("exit_game", exit_game)?;
-    module.register_async_method("get_state", get_state)?;
     module.register_subscription(
         "subscribe_event",
         "s_event",

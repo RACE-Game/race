@@ -72,11 +72,13 @@ impl TransactorHandle {
 
         let game_context = GameContext::try_new(game_account)?;
         let init_account = game_context.init_account()?;
+        let checkpoint_state = game_context.checkpoint_state();
+
         let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
 
         let event_bus = EventBus::new(game_account.addr.clone());
 
-        let (broadcaster, broadcaster_ctx) = Broadcaster::init(game_account.addr.clone(), debug_mode);
+        let (broadcaster, broadcaster_ctx) = Broadcaster::init(game_account.addr.clone(), 0, debug_mode);
         let mut broadcaster_handle = broadcaster.start(&game_account.addr, broadcaster_ctx);
 
         let (bridge, bridge_ctx) = EventBridgeParent::init(signal_tx);
@@ -119,6 +121,7 @@ impl TransactorHandle {
                 init_account,
                 access_version: game_account.access_version,
                 settle_version: game_account.settle_version,
+                checkpoint_state,
             })
             .await;
         let init_sync = create_init_sync(game_account)?;
