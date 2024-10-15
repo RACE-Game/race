@@ -122,6 +122,8 @@ export class SubGame {
   bundleAddr!: string;
   @field(struct(InitAccount))
   initAccount!: InitAccount;
+  @field('u8-array')
+  checkpointState!: Uint8Array;
   constructor(fields: Fields<SubGame>) {
     Object.assign(this, fields)
   }

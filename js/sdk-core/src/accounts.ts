@@ -1,5 +1,5 @@
 import { field, array, struct, option, enums, variant } from '@race-foundation/borsh';
-import { Checkpoint } from './checkpoint';
+import { Checkpoint, CheckpointOnChain } from './checkpoint';
 
 export interface IPlayerJoin {
   readonly addr: string;
@@ -59,7 +59,8 @@ export interface IGameAccount {
   readonly data: Uint8Array;
   readonly entryType: EntryType;
   readonly recipientAddr: string;
-  readonly checkpoint: Checkpoint;
+  readonly checkpointOnChain: CheckpointOnChain | undefined;
+  checkpoint: Checkpoint;
 }
 
 export interface IServerAccount {
@@ -381,8 +382,10 @@ export class GameAccount implements IGameAccount {
   readonly entryType!: EntryType;
   @field('string')
   readonly recipientAddr!: string;
+  @field(option(struct(CheckpointOnChain)))
+  readonly checkpointOnChain: CheckpointOnChain | undefined;
   @field(struct(Checkpoint))
-  readonly checkpoint!: Checkpoint;
+  checkpoint!: Checkpoint;
   constructor(fields: IGameAccount) {
     Object.assign(this, fields);
   }

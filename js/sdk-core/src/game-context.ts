@@ -192,7 +192,6 @@ export class GameContext {
       players: this.players.map(p => new GamePlayer(p)),
       entryType: this.entryType,
       data: this.initData,
-      checkpoint: this.checkpoint.getData(this.gameId) || Uint8Array.of(),
     });
   }
 
@@ -432,7 +431,7 @@ export class GameContext {
     return st.revealed;
   }
 
-  applyEffect(effect: Effect): EventEffects {
+  async applyEffect(effect: Effect): Promise<EventEffects> {
     if (effect.startGame) {
       this.startGame();
     } else if (effect.stopGame) {
@@ -484,18 +483,16 @@ export class GameContext {
           }
         }
 
-        const oldVer = this.checkpoint.getVersion(this.gameId);
-        this.checkpoint.setData(this.gameId, effect.handlerState, '', oldVer + 1n);
+        this.checkpoint.setData(this.gameId, effect.handlerState);
         this.checkpoint.setAccessVersion(this.accessVersion);
         this.status = 'idle';
       }
     }
 
+    this.subGames = effect.launchSubGames;
     for (const subGame of effect.launchSubGames) {
+      this.checkpoint.maybeInitData(subGame.gameId, subGame.checkpointState);
       this.addSubGame(subGame);
-      // Init the subgame's checkpoint when launch subgame.
-      const checkpointData = subGame.initAccount.checkpoint;
-      this.checkpoint.maybeInitData(subGame.gameId, checkpointData);
     }
 
     return {

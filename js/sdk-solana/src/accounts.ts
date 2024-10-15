@@ -256,6 +256,11 @@ export class GameState implements IGameState {
 
   generalize(addr: PublicKey): RaceCore.GameAccount {
 
+    let checkpointOnChain = undefined;
+    if (this.checkpoint.length !== 0) {
+      checkpointOnChain = RaceCore.CheckpointOnChain.fromRaw(this.checkpoint);
+    }
+
     return new RaceCore.GameAccount({
       addr: addr.toBase58(),
       title: this.title,
@@ -275,7 +280,8 @@ export class GameState implements IGameState {
       unlockTime: this.unlockTime,
       entryType: this.entryType,
       recipientAddr: this.recipientAddr.toBase58(),
-      checkpoint: RaceCore.Checkpoint.fromRaw(this.checkpoint),
+      checkpoint: RaceCore.Checkpoint.default(),
+      checkpointOnChain,
     });
   }
 }

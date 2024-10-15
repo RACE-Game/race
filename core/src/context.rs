@@ -852,7 +852,11 @@ impl GameContext {
             });
 
             // Fully reset current sub games.
-            self.sub_games = launch_sub_games.clone();
+            for sub_game in launch_sub_games.iter().cloned() {
+                self.checkpoint
+                    .maybe_init_data(sub_game.id, &sub_game.checkpoint_state);
+                self.sub_games.push(sub_game);
+            }
 
             return Ok(EventEffects {
                 settles: settles1,

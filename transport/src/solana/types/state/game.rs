@@ -150,7 +150,7 @@ impl GameState {
             unlock_time: None,
             recipient_addr: recipient_addr.to_string(),
             entry_type,
-            checkpoint_onchain,
+            checkpoint_on_chain: checkpoint_onchain,
             checkpoint,
         })
     }

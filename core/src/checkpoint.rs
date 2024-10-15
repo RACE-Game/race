@@ -10,14 +10,6 @@ use rs_merkle::{
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct CheckpointWithProof {
-    state: Vec<u8>,
-    proof: Vec<u8>,
-}
-
 /// Checkpoint represents the state snapshot of game.
 /// It is used as a submission to the blockchain.
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -125,18 +117,6 @@ impl Checkpoint {
             self.proofs.insert(i, proof_bs);
             i += 1;
         }
-    }
-
-    pub fn get_checkpoint_with_proof(&self, id: usize) -> Option<CheckpointWithProof> {
-        if let Some(d) = self.data.get(&id) {
-            if let Some(p) = self.proofs.get(&id) {
-                return Some(CheckpointWithProof {
-                    state: d.data.clone(),
-                    proof: p.clone(),
-                })
-            }
-        }
-        None
     }
 
     pub fn data(&self, id: usize) -> Vec<u8> {

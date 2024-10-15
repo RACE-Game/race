@@ -49,6 +49,7 @@ pub struct BroadcasterContext {
 /// A component that pushes event to clients.
 pub struct Broadcaster {
     id: String,
+    #[allow(unused)]
     game_id: usize,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
@@ -105,7 +106,7 @@ impl Broadcaster {
                 }
                 frames.push(BroadcastFrame::EventHistories {
                     game_addr: self.id.clone(),
-                    checkpoint_with_proof: group.checkpoint.as_ref().and_then(|c| c.get_checkpoint_with_proof(self.game_id)),
+                    checkpoint_off_chain: group.checkpoint.as_ref().map(|c| c.derive_offchain_part()),
                     histories,
                 })
             }

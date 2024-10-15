@@ -1,5 +1,6 @@
 import { EntryType, INft, IToken } from "./accounts";
-import { ConnectionState, Message } from "./connection";
+import { Message } from "./broadcast-frames";
+import { ConnectionState } from "./connection";
 import { GameEvent } from "./events";
 import { GameContextSnapshot } from "./game-context-snapshot";
 import { TxState } from "./tx-state";

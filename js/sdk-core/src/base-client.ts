@@ -1,16 +1,10 @@
 import {
-  BroadcastFrameEvent,
-  BroadcastFrameMessage,
-  BroadcastFrameTxState,
-  BroadcastFrameSync,
   ConnectionState,
   IConnection,
   SubmitEventParams,
   SubscribeEventParams,
   ConnectionSubscription,
-  BroadcastFrame,
   SubmitMessageParams,
-  BroadcastFrameEventHistories,
 } from './connection';
 import { EventEffects, GameContext } from './game-context';
 import { GameContextSnapshot } from './game-context-snapshot';
@@ -25,6 +19,7 @@ import { Client } from './client';
 import { CheckpointReady, Custom, EndOfHistory, GameEvent, ICustomEvent, Init } from './events';
 import { DecryptionCache } from './decryption-cache';
 import { ConnectionStateCallbackFunction, ErrorCallbackFunction, ErrorKind, EventCallbackFunction, GameInfo, LoadProfileCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
+import { BroadcastFrame, BroadcastFrameEventHistories, BroadcastFrameMessage, BroadcastFrameSync, BroadcastFrameEvent, BroadcastFrameTxState } from './broadcast-frames';
 
 const MAX_RETRIES = 3;
 
@@ -183,16 +178,16 @@ export class BaseClient {
   }
 
   async __attachGameWithRetry() {
-      for (let i = 0; i < 10; i++) {
-        const resp = await this.__client.attachGame();
-        console.log('Attach response:', resp);
-        if (resp === 'success') {
-          break;
-        } else {
-          console.log(this.__logPrefix + 'Game is not ready, try again after 2 second.');
-          await new Promise(r => setTimeout(r, 2000));
-        }
+    for (let i = 0; i < 10; i++) {
+      const resp = await this.__client.attachGame();
+      console.log('Attach response:', resp);
+      if (resp === 'success') {
+        break;
+      } else {
+        console.log(this.__logPrefix + 'Game is not ready, try again after 2 second.');
+        await new Promise(r => setTimeout(r, 2000));
       }
+    }
 
   }
 
@@ -313,7 +308,6 @@ export class BaseClient {
             entryType: this.__gameContext.entryType,
             data: initData,
             players: this.__gameContext.players,
-            checkpoint: effects.checkpoint,
             maxPlayers: this.__gameContext.maxPlayers,
           });
           await this.__handler.initState(this.__gameContext, initAccount);

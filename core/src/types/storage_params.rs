@@ -27,11 +27,3 @@ pub struct GetCheckpointParams {
 pub struct SaveResult {
     pub proof: String,
 }
-
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct CheckpointWithProof {
-    pub state: Vec<u8>,
-    pub proof: Vec<u8>,
-}

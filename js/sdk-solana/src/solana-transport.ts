@@ -53,7 +53,6 @@ import { join } from './instruction';
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants';
 import { Metadata } from './metadata';
 
-const TOKEN_CACHE_TTL = 24 * 3600;
 const NFT_CACHE_TTL = 24 * 30 * 3600;
 
 function trimString(s: string): string {

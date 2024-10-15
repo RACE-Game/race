@@ -148,7 +148,7 @@ pub struct GameAccount {
     pub data: Vec<u8>,
     pub entry_type: EntryType,
     pub recipient_addr: String,
-    pub checkpoint_onchain: Option<CheckpointOnChain>,
+    pub checkpoint_on_chain: Option<CheckpointOnChain>,
     pub checkpoint: Checkpoint,
 }
 

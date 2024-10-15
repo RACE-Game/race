@@ -22,7 +22,6 @@ export interface IInitAccount {
   entryType: EntryType;
   players: GamePlayer[];
   data: Uint8Array;
-  checkpoint: Uint8Array;
 }
 
 export class InitAccount {
@@ -34,15 +33,12 @@ export class InitAccount {
   readonly players: GamePlayer[];
   @field('u8-array')
   readonly data: Uint8Array;
-  @field('u8-array')
-  readonly checkpoint: Uint8Array;
 
   constructor(fields: IInitAccount) {
     this.maxPlayers = fields.maxPlayers;
     this.entryType = fields.entryType;
     this.players = fields.players;
     this.data = fields.data;
-    this.checkpoint = fields.checkpoint;
   }
 
   static createFromGameAccount(
@@ -52,14 +48,10 @@ export class InitAccount {
     const game_players = players.filter(p => p.accessVersion <= checkpoint.accessVersion)
       .map(p => new GamePlayer({ id: p.accessVersion, balance: p.balance, position: p.position }));
 
-    let cp = checkpoint.getData(0);
-    if (cp === undefined) throw new Error('Cannot create InitAccount, checkpoint is undefined');
-
     return new InitAccount({
       data,
       players: game_players,
       maxPlayers: gameAccount.maxPlayers,
-      checkpoint: cp,
       entryType: gameAccount.entryType,
     });
   }

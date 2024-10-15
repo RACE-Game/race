@@ -157,7 +157,7 @@ export class Handler implements IHandler {
       console.error(newEffect.error);
       throw newEffect.error;
     } else {
-      return context.applyEffect(newEffect);
+      return await context.applyEffect(newEffect);
     }
   }
 
@@ -207,7 +207,7 @@ export class Handler implements IHandler {
     if (newEffect.error !== undefined) {
       throw newEffect.error;
     } else {
-      return context.applyEffect(newEffect);
+      return await context.applyEffect(newEffect);
     }
   }
 }

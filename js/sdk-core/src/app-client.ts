@@ -169,7 +169,7 @@ export class AppClient extends BaseClient {
       const subCheckpointVer = subCheckpoint.getVersion(gameId);
 
       if (subCheckpointData !== undefined && subCheckpointSha !== undefined) {
-        this.gameContext.checkpoint.setData(gameId, subCheckpointData, subCheckpointSha, subCheckpointVer);
+        this.gameContext.checkpoint.setData(gameId, subCheckpointData);
       }
 
       const subGame = this.__gameContext.findSubGame(gameId);

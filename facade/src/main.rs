@@ -793,7 +793,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
     // Increase the `settle_version`
     game.settle_version = next_settle_version;
     println!("! Bump settle version to {}", game.settle_version);
-    game.checkpoint_onchain = Some(checkpoint);
+    game.checkpoint_on_chain = Some(checkpoint);
 
     // Handle settles
     for s in settles.into_iter() {

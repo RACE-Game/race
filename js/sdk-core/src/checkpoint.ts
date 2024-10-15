@@ -1,6 +1,29 @@
 import { deserialize, field, map, struct } from '@race-foundation/borsh';
+import { sha256 } from './encryptor';
+
+export class CheckpointOnChain {
+  @field('u8-array')
+  root!: Uint8Array
+
+  @field('usize')
+  size!: number
+
+  @field('u64')
+  accessVersion!: bigint
+
+  constructor(fields: any) {
+    Object.assign(this, fields)
+  }
+
+  static fromRaw(raw: Uint8Array): CheckpointOnChain {
+    return deserialize(CheckpointOnChain, raw);
+  }
+}
 
 export class VersionedData {
+  @field('usize')
+  id!: number;
+
   @field('u64')
   version!: bigint;
 
@@ -10,23 +33,51 @@ export class VersionedData {
   @field('u8-array')
   data!: Uint8Array;
   constructor(fields: any) {
-    Object.assign(this, fields)
+    Object.assign(this, fields);
+  }
+}
+
+export class CheckpointOffChain {
+  @field(map('usize', struct(VersionedData)))
+  data!: Map<number, VersionedData>
+
+  @field(map('usize', 'u8-array'))
+  proofs!: Map<number, Uint8Array>
+
+  constructor(fields: any) {
+    Object.assign(this, fields);
   }
 }
 
 /// Represent the on-chain checkpoint.
 export class Checkpoint {
+  @field('u8-array')
+  root!: Uint8Array;
+
   @field('u64')
   accessVersion!: bigint;
 
   @field(map('usize', struct(VersionedData)))
   data!: Map<number, VersionedData>;
+
+  @field(map('usize', 'u8-array'))
+  proofs!: Map<number, Uint8Array>;
+
   constructor(fields: any) {
     Object.assign(this, fields)
   }
 
   static default(): Checkpoint {
     return new Checkpoint({ accessVersion: 0n, data: new Map() })
+  }
+
+  static fromParts(offchainPart: CheckpointOffChain, onchainPart: CheckpointOnChain): Checkpoint {
+    let checkpoint = Checkpoint.default();
+    checkpoint.proofs = offchainPart.proofs;
+    checkpoint.data = offchainPart.data;
+    checkpoint.accessVersion = onchainPart.accessVersion;
+    checkpoint.root = onchainPart.root;
+    return checkpoint;
   }
 
   static fromRaw(raw: Uint8Array): Checkpoint {
@@ -73,19 +124,20 @@ export class Checkpoint {
     }
   }
 
-  setData(id: number, data: Uint8Array, sha: string, version: bigint) {
-    this.data.set(id, new VersionedData({
-      version, sha, data
-    }));
+  async setData(id: number, data: Uint8Array) {
+    const sha = await sha256(data);
+    const old = this.data.get(id);
+    if (old !== undefined) {
+      old.data = data;
+      old.version += 1n;
+      old.sha = sha;
+    }
+    this.updateRootAndProofs();
   }
 
-  // initData(id: number, data: Uint8Array) {
-  //   const version = this.getVersion(0);
-  //   this.data.set(id, new VersionedData({
-  //     version,
-  //     data
-  //   }));
-  // }
+  updateRootAndProofs() {
+
+  }
 
   maybeInitData(id: number, data: Uint8Array) {
     if (!this.data.has(id)) {
@@ -95,14 +147,6 @@ export class Checkpoint {
       }))
     }
   }
-
-  // setData(id: number, data: Uint8Array) {
-  //   let vd = this.data.get(id);
-  //   if (vd !== undefined) {
-  //     vd.data = data;
-  //     vd.version += 1n;
-  //   }
-  // }
 
   setAccessVersion(accessVersion: bigint) {
     this.accessVersion = accessVersion;

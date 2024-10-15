@@ -61,7 +61,7 @@ impl Handle {
             .await?;
 
         if let Some(checkpoint_offchain) = checkpoint_offchain {
-            if let Some(ref checkpoint_onchain) = game_account.checkpoint_onchain {
+            if let Some(ref checkpoint_onchain) = game_account.checkpoint_on_chain {
                 // Both onchain and offchain parts are available
                 let checkpoint = Checkpoint::new_from_parts(
                     checkpoint_offchain,
@@ -71,7 +71,7 @@ impl Handle {
             } else {
                 return Err(Error::InvalidCheckpoint);
             }
-        } else if game_account.checkpoint_onchain.is_none() {
+        } else if game_account.checkpoint_on_chain.is_none() {
             game_account.set_checkpoint(Checkpoint::default());
         } else {
             error!("Cannot start game handle, the checkpoint is missing in local db");
