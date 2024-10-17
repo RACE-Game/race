@@ -21,7 +21,7 @@ impl StorageT for LocalDbStorage {
         let conn = self.conn.lock().await;
         let checkpoint_bs = borsh::to_vec(&params.checkpoint).or(Err(Error::MalformedCheckpoint))?;
         conn.execute(
-            "INSERT INTO game_checkpoints (game_addr, settle_version, checkpoint) VALUES (?1, ?2, ?3)",
+            "INSERT OR REPLACE INTO game_checkpoints (game_addr, settle_version, checkpoint) VALUES (?1, ?2, ?3)",
             params![params.game_addr, params.settle_version, checkpoint_bs],
         )
         .map_err(|e| Error::StorageError(e.to_string()))?;
@@ -59,9 +59,10 @@ impl StorageT for LocalDbStorage {
 pub fn init_table(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS game_checkpoints (
-          game_addr TEXT PRIMARY KEY,
+          game_addr TEXT,
           settle_version INTEGER NOT NULL,
-          checkpoint BLOB
+          checkpoint BLOB,
+          PRIMARY KEY(game_addr, settle_version)
         )",
         (),
     )

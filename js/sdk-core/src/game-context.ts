@@ -104,6 +104,7 @@ export class GameContext {
       this.entryType = context.entryType;
     } else {                    // GameAccount
       const gameAccount = init;
+      const checkpointAccessVersion = gameAccount.checkpointOnChain?.accessVersion || 0;
       const transactorAddr = gameAccount.transactorAddr;
       if (transactorAddr === undefined) {
         throw new Error('Game not served');
@@ -133,7 +134,7 @@ export class GameContext {
       }))
 
       const players = gameAccount.players
-        .filter(p => p.accessVersion <= gameAccount.checkpoint.accessVersion)
+        .filter(p => p.accessVersion <= checkpointAccessVersion)
         .map(p => new GamePlayer({
           balance: p.balance,
           id: p.accessVersion,
@@ -195,9 +196,9 @@ export class GameContext {
     });
   }
 
-  get checkpointStateSha(): string {
-    return this.checkpoint.getSha(this.gameId) || '';
-  }
+  // get checkpointStateSha(): string {
+  //   return this.checkpoint.getSha(this.gameId) || '';
+  // }
 
   idToAddrUnchecked(id: bigint): string | undefined {
     return this.nodes.find(x => x.id === id)?.addr;
@@ -464,6 +465,7 @@ export class GameContext {
     this.subGames = effect.launchSubGames;
 
     if (effect.handlerState !== undefined) {
+      this.handlerState = effect.handlerState;
       if (effect.isCheckpoint) {
         // Reset random states
         this.randomStates = [];
@@ -496,7 +498,7 @@ export class GameContext {
     }
 
     return {
-      checkpoint: effect.handlerState,
+      checkpoint: effect.isCheckpoint ? effect.handlerState : undefined,
       settles,
       transfers: effect.transfers,
       startGame: effect.startGame,

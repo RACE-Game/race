@@ -11,7 +11,7 @@ import { InitAccount } from './init-account';
 export interface IHandler {
   handleEvent(context: GameContext, event: GameEvent): Promise<EventEffects>;
 
-  initState(context: GameContext, initAccount: InitAccount): Promise<EventEffects>;
+  initState(context: GameContext, initAccount: InitAccount): Promise<void>;
 }
 
 export class Handler implements IHandler {
@@ -52,13 +52,12 @@ export class Handler implements IHandler {
     return await this.customHandleEvent(context, event);
   }
 
-  async initState(context: GameContext, initAccount: InitAccount): Promise<EventEffects> {
+  async initState(context: GameContext): Promise<void> {
+    const initAccount = context.initAccount();
     console.log('InitState with:', initAccount);
     context.setTimestamp(0n); // Use 0 timestamp for initState
     await this.generalPreInitState(context, initAccount);
-    const eventEffects = await this.customInitState(context, initAccount);
-    console.log('State:', context.handlerState);
-    return eventEffects;
+    await this.customInitState(context, initAccount);
   }
 
   async generalPreInitState(context: GameContext, _initAccount: InitAccount) {

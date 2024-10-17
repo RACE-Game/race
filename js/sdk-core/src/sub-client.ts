@@ -9,6 +9,7 @@ import { ITransport } from './transport';
 import { GameInfo, ConnectionStateCallbackFunction, EventCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction, ErrorCallbackFunction } from './types';
 import { IWallet } from './wallet';
 import { Init } from './events';
+import { CheckpointOnChain } from './checkpoint';
 
 export type SubClientCtorOpts = {
   gameAddr: string;
@@ -19,6 +20,7 @@ export type SubClientCtorOpts = {
   transport: ITransport;
   connection: IConnection;
   gameContext: GameContext;
+  latestCheckpointOnChain: CheckpointOnChain | undefined;
   onEvent: EventCallbackFunction;
   onMessage: MessageCallbackFunction | undefined;
   onTxState: TxStateCallbackFunction | undefined;
@@ -30,20 +32,12 @@ export type SubClientCtorOpts = {
 }
 
 export class SubClient extends BaseClient {
-
-  __gameId: number;
-
   constructor(opts: SubClientCtorOpts) {
     super({
       onLoadProfile: (_id: bigint, _addr: string) => {},
       logPrefix: `SubGame#${opts.gameId}|`,
       ...opts
     })
-    this.__gameId = opts.gameId;
-  }
-
-  get gameId(): number {
-    return this.__gameId;
   }
 
   /**
@@ -59,10 +53,10 @@ export class SubClient extends BaseClient {
       console.log('Subscription:', sub);
       const settleVersion = this.__gameContext.checkpointVersion();
       await this.__connection.connect(new SubscribeEventParams({ settleVersion }));
-      const initAccount = this.__gameContext.initAccount();
-      await this.__handler.initState(this.__gameContext, initAccount);
-      this.__checkStateSha(this.__gameContext.checkpointStateSha, 'checkpoint-state-sha-mismatch');
-      this.__invokeEventCallback(new Init());
+      // const initAccount = this.__gameContext.initAccount();
+      // await this.__handler.initState(this.__gameContext, initAccount);
+      // this.__checkStateSha(this.__gameContext.checkpointStateSha, 'checkpoint-state-sha-mismatch');
+      // this.__invokeEventCallback(new Init());
     } catch (e) {
       console.error('Attaching game failed', e);
       throw e;

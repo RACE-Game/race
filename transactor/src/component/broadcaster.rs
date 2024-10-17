@@ -148,7 +148,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     ..
                 } => {
                     info!(
-                        "{} Create new history group with access_version = {}, settle_version = {}",
+                        "{} Create new history group (via Checkpoint) with access_version = {}, settle_version = {}",
                         env.log_prefix, access_version, settle_version
                     );
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
@@ -162,8 +162,8 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     });
                 }
                 EventFrame::InitState { access_version, settle_version, .. } => {
-                                        info!(
-                        "{} Create new history group with access_version = {}, settle_version = {}",
+                    info!(
+                        "{} Create new history group (via InitState) with access_version = {}, settle_version = {}",
                         env.log_prefix, access_version, settle_version
                     );
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
@@ -208,7 +208,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     state_sha,
                     ..
                 } => {
-                    info!("{} Broadcaster receive event: {}", env.log_prefix, event);
+                    // info!("{} Broadcaster receive event: {}", env.log_prefix, event);
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
 
                     if let Some(current) = event_backup_groups.back_mut() {
@@ -340,7 +340,7 @@ mod tests {
                     access_version: 10,
                     verify_key: "alice".into(),
                 }
-                .into()],
+                    .into()],
                 access_version: 10,
             };
             let event_frame = EventFrame::TxState {

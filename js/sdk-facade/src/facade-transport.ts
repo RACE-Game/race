@@ -298,6 +298,7 @@ export class FacadeTransport implements ITransport {
       throw new Error('Failed to fetch data at :' + params);
     }
     const { result } = await resp.json();
+    console.debug('Api request:', { method, params, result });
     if (result !== null) {
       return Uint8Array.from(result);
     } else {

@@ -11,3 +11,6 @@ debug_mode = true
 host = "http://localhost:12002"
 registration_address = "DEFAULT_REGISTRATION_ADDRESS"
 address = "Server 1"
+
+[storage]
+db_file_name = "dev/test.db"

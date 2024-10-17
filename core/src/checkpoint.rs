@@ -133,6 +133,13 @@ impl Checkpoint {
             old.data = data;
             old.version += 1;
             old.sha = sha.into();
+        } else {
+            self.data.insert(id, VersionedData {
+                id,
+                version: 0,
+                data,
+                sha: sha.into(),
+            });
         }
         self.update_root_and_proofs();
         Ok(())
@@ -174,6 +181,7 @@ impl Checkpoint {
     }
 
     pub fn to_merkle_tree(&self) -> MerkleTree<Sha256> {
+        println!("Build merkle tree, current checkpoint size: {}", self.data.len());
         let mut leaves: Vec<[u8; 32]> = vec![];
         let mut i = 0;
         while let Some(vd) = self.data.get(&i) {

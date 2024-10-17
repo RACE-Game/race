@@ -1,7 +1,8 @@
 import { TxState } from './tx-state';
 import { PlayerJoin, ServerJoin } from './accounts';
-import { array, enums, field, struct, variant } from '@race-foundation/borsh';
+import { array, enums, field, option, struct, variant } from '@race-foundation/borsh';
 import { EventHistory, GameEvent } from './events';
+import { CheckpointOffChain } from './checkpoint';
 
 export class Message {
   @field('string')
@@ -77,6 +78,8 @@ export class BroadcastFrameSync extends BroadcastFrame {
 export class BroadcastFrameEventHistories extends BroadcastFrame {
   @field('string')
   gameAddr!: string;
+  @field(option(struct(CheckpointOffChain)))
+  checkpointOffChain: CheckpointOffChain | undefined;
   @field(array(struct(EventHistory)))
   histories!: EventHistory[];
   constructor(fields: any) {

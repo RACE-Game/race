@@ -27,11 +27,12 @@ export class VersionedData {
   @field('u64')
   version!: bigint;
 
-  @field('string')
-  sha!: string;
-
   @field('u8-array')
   data!: Uint8Array;
+
+  @field('u8-array')
+  sha!: Uint8Array;
+
   constructor(fields: any) {
     Object.assign(this, fields);
   }
@@ -102,11 +103,11 @@ export class Checkpoint {
     })
   }
 
-  getData(id: number): Uint8Array | undefined {
-    return this.data.get(id)?.data;
+  getData(id: number): Uint8Array {
+    return this.data.get(id)?.data || Uint8Array.of();
   }
 
-  getSha(id: number): string | undefined {
+  getSha(id: number): Uint8Array | undefined {
     return this.data.get(id)?.sha;
   }
 
@@ -114,13 +115,6 @@ export class Checkpoint {
     const data = this.data.get(id);
     if (data !== undefined) {
       data.version = version;
-    }
-  }
-
-  setSha(id: number, sha: string) {
-    const data = this.data.get(id);
-    if (data !== undefined) {
-      data.sha = sha;
     }
   }
 

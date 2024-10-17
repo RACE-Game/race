@@ -90,6 +90,11 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                 ..
             } = game_account;
 
+            // Drop duplicated updates
+            if access_version <= prev_access_version {
+                continue;
+            }
+
             info!(
                 "{} Synchronizer found new game state, access_version = {}, settle_version = {}",
                 env.log_prefix, game_account.access_version, game_account.settle_version,

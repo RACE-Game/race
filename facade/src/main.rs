@@ -514,7 +514,7 @@ async fn get_profile(
     let addr: String = params.one()?;
     let context = context.lock().await;
     match context.players.get(&addr) {
-        Some(player_info) => Ok(Some(borsh::to_vec(player_info).unwrap())),
+        Some(player_info) => Ok(Some(borsh::to_vec(&player_info.profile).unwrap())),
         None => Ok(None),
     }
 }
@@ -784,6 +784,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         .retain(|d| d.settle_version < game.settle_version);
 
     if game.settle_version != settle_version {
+        println!("E The settle_versions mismach");
         return Err(custom_error(Error::InvalidSettle(format!(
             "Invalid settle version, current: {}, transaction: {}",
             game.settle_version, settle_version,

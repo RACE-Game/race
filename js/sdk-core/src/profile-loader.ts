@@ -35,6 +35,7 @@ export class ProfileLoader {
       } else {
         p = { pfp: undefined, addr: profile.addr, nick: profile.nick };
       }
+      console.debug(`Load profile, address = ${playerAddr}`, profile);
       return p;
     }
   }
@@ -56,7 +57,10 @@ export class ProfileLoader {
           } else {
             if (this.onProfile !== undefined) {
               const id = this.addrToId.get(p.addr);
-              if (id === undefined) throw new Error('Cannot find the mapping from address to id');
+              if (id === undefined) {
+                console.warn(`Cannot find the mapping from address = ${p.addr} to id, available mapping:`, this.addrToId);
+                throw new Error('Cannot find the mapping from address to id');
+              }
               this.onProfile(id, p);
             }
             this.caches.set(addr, p);

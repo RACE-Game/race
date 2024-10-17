@@ -11,7 +11,6 @@ import { GameContextSnapshot } from './game-context-snapshot';
 import { ITransport } from './transport';
 import { IWallet } from './wallet';
 import { Handler } from './handler';
-import { InitAccount } from './init-account';
 import { IEncryptor, sha256 } from './encryptor';
 import { GameAccount } from './accounts';
 import { PlayerConfirming } from './tx-state';
@@ -20,17 +19,26 @@ import { CheckpointReady, Custom, EndOfHistory, GameEvent, ICustomEvent, Init } 
 import { DecryptionCache } from './decryption-cache';
 import { ConnectionStateCallbackFunction, ErrorCallbackFunction, ErrorKind, EventCallbackFunction, GameInfo, LoadProfileCallbackFunction, MessageCallbackFunction, TxStateCallbackFunction } from './types';
 import { BroadcastFrame, BroadcastFrameEventHistories, BroadcastFrameMessage, BroadcastFrameSync, BroadcastFrameEvent, BroadcastFrameTxState } from './broadcast-frames';
+import { IInitAccount, InitAccount } from './init-account';
+import { Checkpoint, CheckpointOnChain } from './checkpoint';
 
 const MAX_RETRIES = 3;
 
+export type InitState = {
+  initAccount: InitAccount,
+  checkpointOnChain: CheckpointOnChain | undefined,
+};
+
 export type BaseClientCtorOpts = {
   gameAddr: string;
+  gameId: number;
   handler: Handler;
   wallet: IWallet;
   client: Client;
   transport: ITransport;
   connection: IConnection;
   gameContext: GameContext;
+  latestCheckpointOnChain: CheckpointOnChain | undefined;
   onEvent: EventCallbackFunction;
   onMessage: MessageCallbackFunction | undefined;
   onTxState: TxStateCallbackFunction | undefined;
@@ -45,6 +53,7 @@ export type BaseClientCtorOpts = {
 
 export class BaseClient {
   __gameAddr: string;
+  __gameId: number;
   __handler: Handler;
   __wallet: IWallet;
   __client: Client;
@@ -61,9 +70,12 @@ export class BaseClient {
   __info: GameInfo;
   __decryptionCache: DecryptionCache;
   __logPrefix: string;
+  __latestCheckpointOnChain: CheckpointOnChain | undefined;
 
   constructor(opts: BaseClientCtorOpts) {
     this.__gameAddr = opts.gameAddr;
+    this.__gameId = opts.gameId;
+    this.__latestCheckpointOnChain = opts.latestCheckpointOnChain;
     this.__handler = opts.handler;
     this.__wallet = opts.wallet;
     this.__client = opts.client;
@@ -191,29 +203,6 @@ export class BaseClient {
 
   }
 
-  /**
-   * Connect to the transactor and retrieve the event stream.
-   */
-  async attachGame() {
-    console.group('Attach to game');
-    let sub;
-    try {
-      console.log('Checkpoint:', this.__gameContext.checkpoint);
-      await this.__attachGameWithRetry();
-      sub = this.__connection.subscribeEvents();
-      const { gameAccount } = await this.__startSubscribeAndInitState();
-      for (const p of gameAccount.players) this.__onLoadProfile(p.accessVersion, p.addr);
-      this.__invokeEventCallback(new Init());
-    } catch (e) {
-      console.error(this.__logPrefix + 'Attaching game failed', e);
-      this.__invokeErrorCallback('attach-failed')
-      throw e;
-    } finally {
-      console.groupEnd();
-    }
-    if (sub !== undefined) await this.__processSubscription(sub);
-  }
-
   __invokeErrorCallback(err: ErrorKind, arg?: any) {
     if (this.__onError) {
       this.__onError(err, arg)
@@ -263,16 +252,16 @@ export class BaseClient {
     }
   }
 
-  async __checkStateSha(stateSha: string, err: ErrorKind) {
-    const sha = await sha256(this.__gameContext.handlerState)
-    if (sha !== stateSha && stateSha !== '') {
-      const state = this.__gameContext.handlerState
-      this.__invokeErrorCallback(err, state);
-      throw new Error(`An error occurred in event loop: ${err}, game: ${this.__gameAddr}, local: ${sha}, remote: ${stateSha}`);
-    } else {
-      console.log('State SHA validation passed:', stateSha);
-    }
-  }
+  // async __checkStateSha(stateSha: string, err: ErrorKind) {
+  //   const sha = await sha256(this.__gameContext.handlerState)
+  //   if (sha !== stateSha && stateSha !== '') {
+  //     const state = this.__gameContext.handlerState
+  //     this.__invokeErrorCallback(err, state);
+  //     throw new Error(`An error occurred in event loop: ${err}, game: ${this.__gameAddr}, local: ${sha}, remote: ${stateSha}`);
+  //   } else {
+  //     console.log('State SHA validation passed:', stateSha);
+  //   }
+  // }
 
   async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string) {
     console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + timestamp);
@@ -292,31 +281,15 @@ export class BaseClient {
         err = 'handle-event-error';
       }
 
-      await this.__checkStateSha(stateSha, 'event-state-sha-mismatch');
+      // await this.__checkStateSha(stateSha, 'event-state-sha-mismatch');
 
       if (!err) {
         await this.__invokeEventCallback(event);
       }
 
-      // Rebuild the game state after a checkpoint.
+      // When there's a checkpoint, emit an event to indicate that.
       if ((!err) && effects?.checkpoint) {
-        const initData = this.__gameContext.initData;
-        if (initData === undefined) {
-          err = 'init-data-invalid'
-        } else {
-          const initAccount = new InitAccount({
-            entryType: this.__gameContext.entryType,
-            data: initData,
-            players: this.__gameContext.players,
-            maxPlayers: this.__gameContext.maxPlayers,
-          });
-          await this.__handler.initState(this.__gameContext, initAccount);
-          this.__invokeEventCallback(new CheckpointReady());
-          // Update state SHA and version
-          const sha = await sha256(this.__gameContext.handlerState);
-          this.__gameContext.checkpoint.setSha(this.__gameContext.gameId, sha);
-          // this.__gameContext.checkpoint.setVersion(this.__gameContext.gameId, this.__gameContext.settleVersion);
-        }
+        this.__invokeEventCallback(new CheckpointReady());
       }
 
       if (err) {
@@ -378,25 +351,38 @@ export class BaseClient {
       const { event, timestamp, stateSha } = frame;
       await this.__handleEvent(event, timestamp, stateSha);
     } else if (frame instanceof BroadcastFrameEventHistories) {
-      for (const h of frame.histories) {
-        await this.__handleEvent(h.event, h.timestamp, h.stateSha);
+      console.group(`${this.__logPrefix}Receive event histories`);
+      try {
+        console.log('History events:', frame.histories);
+        console.log('Checkpoint offchain:', frame.checkpointOffChain);
+        if (frame.checkpointOffChain !== undefined) { // Non-empty checkpoint, we should use the state as our handler state
+          if (this.__latestCheckpointOnChain === undefined) {
+            throw new Error('Missing the on chain part of checkpoint');
+          }
+          const checkpoint = Checkpoint.fromParts(
+            frame.checkpointOffChain,
+            this.__latestCheckpointOnChain
+          );
+          console.log('Checkpoint created, use it as the handler state:', checkpoint);
+          this.__gameContext.handlerState = checkpoint.getData(this.__gameId);
+        } else { // Empty checkpoint, we should initialize handler state in wasm
+          console.log('Checkpoint is empty, initialize handler state');
+          await this.__handler.initState(this.__gameContext)
+        }
+        this.__invokeEventCallback(new Init());
+
+        for (const h of frame.histories) {
+          await this.__handleEvent(h.event, h.timestamp, h.stateSha);
+        }
+        this.__invokeEventCallback(new EndOfHistory())
+      } finally {
+        console.groupEnd();
       }
-      this.__invokeEventCallback(new EndOfHistory())
     }
   }
 
-  async __startSubscribeAndInitState(): Promise<{
-    gameAccount: GameAccount,
-    initAccount: InitAccount,
-  }> {
-    const gameAccount = await this.__getGameAccount();
-    this.__gameContext = new GameContext(gameAccount);
-    const initAccount = this.__gameContext.initAccount();
-    this.__gameContext.applyCheckpoint(gameAccount.checkpoint.accessVersion, this.__gameContext.settleVersion);
-    await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.checkpointVersion() }));
-    await this.__handler.initState(this.__gameContext, initAccount);
-    this.__checkStateSha(this.__gameContext.checkpointStateSha, 'checkpoint-state-sha-mismatch');
-    return { gameAccount, initAccount };
+  async __startSubscribe(): Promise<void> {
+    await this.__connection.connect(new SubscribeEventParams({ settleVersion: this.__gameContext.settleVersion }));
   }
 
   async __handleConnectionState(state: ConnectionState) {
@@ -405,8 +391,7 @@ export class BaseClient {
         this.__onConnectionState('disconnected')
       }
       console.log('Disconnected, try reset state and context');
-      await this.__startSubscribeAndInitState();
-      this.__invokeEventCallback(new Init());
+      await this.__startSubscribe();
     } else if (state === 'connected') {
       if (this.__onConnectionState !== undefined) {
         this.__onConnectionState('connected')
@@ -420,5 +405,9 @@ export class BaseClient {
         this.__onConnectionState('reconnected')
       }
     }
+  }
+
+  get gameId(): number {
+    return this.__gameId;
   }
 }

@@ -7,7 +7,7 @@ use race_core::storage::StorageT;
 use race_core::types::{GameAccount, SaveCheckpointParams, SettleParams, TxState};
 use tokio::select;
 use tokio::sync::mpsc;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::component::common::Component;
 use crate::component::event_bus::CloseReason;
@@ -152,6 +152,9 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     let checkpoint_onchain = checkpoint.derive_onchain_part();
                     let checkpoint_offchain = checkpoint.derive_offchain_part();
 
+                    info!("{} Submitter save checkpoint to storage, settle_version = {}",
+                        env.log_prefix, settle_version
+                    );
                     let save_checkpoint_result = ctx.storage.save_checkpoint(SaveCheckpointParams {
                         game_addr: ctx.addr.clone(),
                         settle_version,
