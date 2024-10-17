@@ -25,7 +25,7 @@ use race_core::types::{Ciphertext, SecretDigest, SecretKey};
 use race_core::encryptor::{EncryptorError, EncryptorResult, EncryptorT, NodePublicKeyRaw};
 use race_core::types::Signature;
 use rand::seq::SliceRandom;
-use sha1::{Digest, Sha1};
+use sha2::{Digest, Sha256};
 
 // Since we use different secrets for each encryption,
 // we can use a fixed IV.
@@ -360,7 +360,7 @@ impl EncryptorT for Encryptor {
     }
 
     fn digest(&self, text: &[u8]) -> SecretDigest {
-        Sha1::digest(text).to_vec()
+        Sha256::digest(text).to_vec()
     }
 
     fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<NodePublicKeyRaw> {

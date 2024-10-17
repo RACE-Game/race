@@ -29,21 +29,23 @@
 
         devShell = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
-            (rust-bin.stable.latest.default.override {
+            (rust-bin.stable."1.77.0".default.override {
               extensions = [ "rust-src" ];
              targets = [ "wasm32-unknown-unknown" ];
             })
             cargo
             openssl
             pkg-config
-            rust-analyzer
-            simple-http-server
             nodejs_18
             just
             binaryen
+            # For development
+            rust-analyzer
+            nodePackages.typescript
             nodePackages.typescript-language-server
+            zellij
           ];
-          RUST_LOG = "info,wasmer_compiler_cranelift=info,solana_rpc_client=debug,solana_client=debug,jsonrpsee_server=info";
+          RUST_LOG = "info,hyper=error,wasmer_compiler_cranelift=info,solana_rpc_client=debug,solana_client=debug,jsonrpsee_server=info";
           RUST_BACKTRACE = 1;
         };
       }

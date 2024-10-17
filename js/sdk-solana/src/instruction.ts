@@ -1,10 +1,11 @@
-import { PublicKey, SYSVAR_RENT_PUBKEY, TransactionInstruction } from '@solana/web3.js';
+import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { publicKeyExt } from './utils';
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID, PLAYER_PROFILE_SEED } from './constants';
 import { enums, field, serialize } from '@race-foundation/borsh';
 import { Buffer } from 'buffer';
 import { EntryType } from '@race-foundation/sdk-core';
+import { RecipientSlotOwnerAssigned, RecipientState } from './accounts';
 
 // Instruction types
 
@@ -21,6 +22,9 @@ export enum Instruction {
   UnregisterGame = 9,
   JoinGame = 10,
   PublishGame = 11,
+  CreateRecipient = 12,
+  AssignRecipient = 13,
+  RecipientClaim = 14,
 }
 
 // Instruction data definitations
@@ -146,15 +150,55 @@ export type CreateGameOptions = {
   ownerKey: PublicKey;
   gameAccountKey: PublicKey;
   stakeAccountKey: PublicKey;
+  recipientAccountKey: PublicKey;
   mint: PublicKey;
   gameBundleKey: PublicKey;
   title: string;
   maxPlayers: number;
   entryType: EntryType;
+  data: Uint8Array,
 };
 
+export type RegisterGameOptions = {
+  ownerKey: PublicKey;
+  gameAccountKey: PublicKey;
+  registrationAccountKey: PublicKey;
+}
+
+export function registerGame(opts: RegisterGameOptions): TransactionInstruction {
+  const data = Buffer.from(Uint8Array.of(Instruction.RegisterGame));
+  return new TransactionInstruction({
+    keys: [
+      {
+        pubkey: opts.ownerKey,
+        isSigner: true,
+        isWritable: false,
+      },
+      {
+        pubkey: opts.registrationAccountKey,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: opts.gameAccountKey,
+        isSigner: false,
+        isWritable: false,
+      }
+    ],
+    programId: PROGRAM_ID,
+    data,
+  });
+}
+
 export function createGameAccount(opts: CreateGameOptions): TransactionInstruction {
-  const data = new CreateGameAccountData(opts).serialize();
+  const params = new CreateGameAccountData({
+    title: opts.title,
+    entryType: opts.entryType,
+    maxPlayers: opts.maxPlayers,
+    data: opts.data,
+  })
+  console.log('CreateGameAccountParams:', params);
+  const data = params.serialize();
   return new TransactionInstruction({
     keys: [
       {
@@ -184,6 +228,11 @@ export function createGameAccount(opts: CreateGameOptions): TransactionInstructi
       },
       {
         pubkey: opts.gameBundleKey,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: opts.recipientAccountKey,
         isSigner: false,
         isWritable: false,
       },
@@ -244,6 +293,7 @@ export function closeGameAccount(opts: CloseGameAccountOptions): TransactionInst
 
 export type JoinOptions = {
   playerKey: PublicKey;
+  profileKey: PublicKey;
   paymentKey: PublicKey;
   gameAccountKey: PublicKey;
   mint: PublicKey;
@@ -254,11 +304,9 @@ export type JoinOptions = {
   verifyKey: string;
 };
 
-export async function join(opts: JoinOptions): Promise<TransactionInstruction> {
-  const { playerKey, paymentKey, gameAccountKey, mint, stakeAccountKey, amount, accessVersion, position, verifyKey } =
+export function join(opts: JoinOptions): TransactionInstruction {
+  const { playerKey, profileKey, paymentKey, gameAccountKey, mint, stakeAccountKey, amount, accessVersion, position, verifyKey } =
     opts;
-
-  const profileKey = await PublicKey.createWithSeed(playerKey, PLAYER_PROFILE_SEED, PROGRAM_ID);
 
   let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID);
   const data = new JoinGameData(amount, accessVersion, position, verifyKey).serialize();
@@ -386,5 +434,72 @@ export function publishGame(opts: PublishGameOptions): TransactionInstruction {
     ],
     programId: PROGRAM_ID,
     data,
+  });
+}
+
+
+export type ClaimOpts = {
+  payerKey: PublicKey,
+  recipientKey: PublicKey,
+  recipientState: RecipientState,
+};
+
+export function claim(opts: ClaimOpts): TransactionInstruction {
+  const [pda, _] = PublicKey.findProgramAddressSync([opts.recipientKey.toBuffer()], PROGRAM_ID);
+
+  let keys = [
+    {
+      pubkey: opts.payerKey,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: opts.recipientKey,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: pda,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: TOKEN_PROGRAM_ID,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    },
+  ];
+
+  for (const slot of opts.recipientState.slots) {
+    for (const slotShare of slot.shares) {
+      if (slotShare.owner instanceof RecipientSlotOwnerAssigned && slotShare.owner.addr === opts.payerKey) {
+        keys.push({
+          pubkey: slot.stakeAddr,
+          isSigner: false,
+          isWritable: false,
+        });
+        const ata = getAssociatedTokenAddressSync(slotShare.owner.addr, slot.tokenAddr);
+        keys.push({
+          pubkey: ata,
+          isSigner: false,
+          isWritable: false,
+        })
+      }
+    }
+  }
+
+  if (keys.length === 5) {
+    throw new Error('No slot to claim');
+  }
+
+  return new TransactionInstruction({
+    keys,
+    programId: PROGRAM_ID,
+    data: Buffer.from(Uint8Array.of(Instruction.RecipientClaim)),
   });
 }

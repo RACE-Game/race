@@ -1,14 +1,14 @@
 //! The data structures for on-chain accounts.
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::prelude::InitAccount;
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-use crate::types::{PlayerJoin, PlayerDeposit, ServerJoin};
 use super::{
     common::{EntryType, VoteType},
     RecipientSlot,
 };
+use crate::{checkpoint::{Checkpoint, CheckpointOnChain}, types::{PlayerDeposit, PlayerJoin, ServerJoin}};
+use borsh::{BorshDeserialize, BorshSerialize};
+use race_api::prelude::InitAccount;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -42,7 +42,7 @@ pub struct ServerAccount {
 ///
 /// NFTs and Tokens are grouped by slots.  A slot can only store one
 /// NFT or one kind of token.
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct RecipientAccount {
@@ -118,7 +118,15 @@ pub struct RecipientAccount {
 ///
 /// The address to receive payment from the game.  This is used for a
 /// complex payment or commission payment.
-#[derive(Debug, Default, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+///
+/// # Checkpoint
+///
+/// The checkpoint is the state of the game when the settlement is
+/// made.  We only save the root of checkpoint merkle tree on chain.
+/// When initializing GameAccount from onchain data, the checkpoint is
+/// set with empty default, and we overwrite it later with the data
+/// from local data.
+#[derive(Debug, Default, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GameAccount {
@@ -140,53 +148,47 @@ pub struct GameAccount {
     pub data: Vec<u8>,
     pub entry_type: EntryType,
     pub recipient_addr: String,
-    pub checkpoint: Vec<u8>,
-    pub checkpoint_access_version: u64,
+    pub checkpoint_on_chain: Option<CheckpointOnChain>,
+    pub checkpoint: Checkpoint,
 }
 
 impl GameAccount {
     pub fn derive_init_account(&self) -> InitAccount {
-        let game_account = self.to_owned();
         InitAccount {
-            addr: game_account.addr,
-            players: game_account.players.clone(),
-            servers:  game_account.servers.clone(),
-            data: game_account.data.clone(),
-            access_version: game_account.access_version,
-            settle_version: game_account.settle_version,
-            max_players: game_account.max_players,
-            checkpoint: game_account.checkpoint,
+            max_players: self.max_players,
+            entry_type: self.entry_type.clone(),
+            players: self
+                .players
+                .iter()
+                .cloned()
+                .map(Into::into)
+                .collect(),
+            data: self.data.clone(),
         }
     }
 
-    pub fn derive_rollbacked_init_account(&self) -> InitAccount {
-        let game_account = self.to_owned();
-        let Self { players, servers, addr, data, max_players, checkpoint, checkpoint_access_version, settle_version, transactor_addr, .. } = game_account;
-
-
-        let is_transactor = |addr: &String| {
-            transactor_addr.clone().is_some_and(|a| a.eq(addr))
-        };
-        let players = players
-            .into_iter()
-            .filter(|p| p.access_version <= checkpoint_access_version)
-            .collect();
-        let servers = servers
-            .into_iter()
-            // There's no sync event for transactor, so here we always include transactor address
-            .filter(|s| s.access_version <= checkpoint_access_version || is_transactor(&s.addr))
+    pub fn derive_checkpoint_init_account(&self) -> InitAccount {
+        let players = self.players
+            .iter()
+            .filter(|p| p.access_version <= self.checkpoint.access_version)
+            .cloned()
+            .map(|p| p.into())
             .collect();
 
         InitAccount {
-            addr,
+            entry_type: self.entry_type.clone(),
+            max_players: self.max_players,
             players,
-            servers,
-            data,
-            access_version: checkpoint_access_version,
-            settle_version,
-            max_players,
-            checkpoint
+            data: self.data.clone(),
         }
+    }
+
+    pub fn checkpoint(&self) -> &Checkpoint {
+        &self.checkpoint
+    }
+
+    pub fn set_checkpoint(&mut self, checkpoint: Checkpoint) {
+        self.checkpoint = checkpoint;
     }
 }
 
@@ -256,7 +258,7 @@ mod tests {
             7, 0, 0, 0, 97, 110, 32, 97, 100, 100, 114, 14, 0, 0, 0, 104, 116, 116, 112, 58, 47,
             47, 102, 111, 111, 46, 98, 97, 114,
         ];
-        let ser = s.try_to_vec().unwrap();
+        let ser = borsh::to_vec(&s).unwrap();
         println!("Serialized server account {:?}", ser);
         assert_eq!(ser, res_bytes);
         // let decoded = ServerAccount::try_from_slice(&res).unwrap();
@@ -275,7 +277,7 @@ mod tests {
             0, 0, 0, 65, 119, 101, 115, 111, 109, 101, 32, 80, 70, 80,
         ];
 
-        let ser = p.try_to_vec().unwrap();
+        let ser = borsh::to_vec(&p).unwrap();
         println!("Serialized player profile {:?}", ser);
 
         assert_eq!(ser, bytes);
@@ -294,7 +296,7 @@ mod tests {
             122, 110, 49, 71, 84, 111, 88, 119, 77, 116, 69, 51, 86, 84, 118, 103, 50, 105, 121,
             105, 109, 81, 85, 111, 113, 69, 76, 101, 6, 0, 0, 0, 71, 101, 110, 116, 111, 111, 0,
         ])
-            .unwrap();
+        .unwrap();
         assert_eq!(p.addr, p1.addr);
         assert_eq!(p.nick, p1.nick);
         assert_eq!(p.pfp, p1.pfp);
@@ -331,7 +333,7 @@ mod tests {
             108, 101, 32, 49,
         ];
 
-        let ser = reg.try_to_vec().unwrap();
+        let ser = borsh::to_vec(&reg).unwrap();
         println!("Serialized reg {:?}", ser);
 
         assert_eq!(ser, bytes);
@@ -339,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_game_bundle() {
-        let game_bunle = GameBundle {
+        let game_bundle = GameBundle {
             uri: "http://foo.bar".to_string(),
             name: "Awesome Game".to_string(),
             data: vec![1, 2, 3, 4],
@@ -349,7 +351,7 @@ mod tests {
             14, 0, 0, 0, 104, 116, 116, 112, 58, 47, 47, 102, 111, 111, 46, 98, 97, 114, 12, 0, 0,
             0, 65, 119, 101, 115, 111, 109, 101, 32, 71, 97, 109, 101, 4, 0, 0, 0, 1, 2, 3, 4,
         ];
-        let ser = game_bunle.try_to_vec().unwrap();
+        let ser = borsh::to_vec(&game_bundle).unwrap();
         println!("Serialized game bundle {:?}", ser);
 
         assert_eq!(ser, bytes);
@@ -422,8 +424,7 @@ mod tests {
                 min_deposit: 100,
                 max_deposit: 250,
             },
-            checkpoint: vec![],
-            checkpoint_access_version: 0,
+            checkpoint: Checkpoint::default()
         };
         let bytes = [
             9, 0, 0, 0, 103, 97, 109, 101, 32, 97, 100, 100, 114, 18, 0, 0, 0, 97, 119, 101, 115,
@@ -445,9 +446,9 @@ mod tests {
             114, 32, 48, 1, 0, 0, 0, 8, 0, 0, 0, 115, 101, 114, 118, 101, 114, 32, 49, 8, 0, 0, 0,
             115, 101, 114, 118, 101, 114, 32, 48, 0, 0, 30, 0, 10, 0, 0, 0, 10, 0, 0, 0, 0, 1, 2,
             3, 4, 5, 6, 7, 8, 9, 0, 100, 0, 0, 0, 0, 0, 0, 0, 250, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
-            114, 101, 99, 105, 112, 105, 101, 110, 116, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            114, 101, 99, 105, 112, 105, 101, 110, 116, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
-        let ser = game_account.try_to_vec().unwrap();
+        let ser = borsh::to_vec(&game_account).unwrap();
         println!("Serialized game account {:?}", ser);
 
         assert_eq!(ser, bytes);
@@ -482,7 +483,6 @@ mod tests {
             50, 84, 120, 81, 89, 54, 67, 76, 57, 52, 55, 68, 113, 70,
         ];
         let der = RegistrationAccount::try_from_slice(&bytes).unwrap();
-        // let ser = reg_account.try_to_vec().unwrap();
         assert_eq!(der, reg_account);
     }
 }

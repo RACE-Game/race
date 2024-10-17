@@ -457,3 +457,8 @@ export class Encryptor implements IEncryptor {
     return res;
   }
 }
+
+export async function sha256(data: Uint8Array): Promise<Uint8Array> {
+  let hashBuffer = await subtle.digest('SHA-256', data)
+  return new Uint8Array(hashBuffer);
+}

@@ -5,6 +5,7 @@
 
 pub mod decision;
 pub mod effect;
+pub mod init_account;
 pub mod engine;
 pub mod error;
 pub mod event;

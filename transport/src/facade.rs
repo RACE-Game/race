@@ -1,6 +1,11 @@
+use std::pin::Pin;
+
+use async_stream::stream;
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
+use futures::Stream;
 use jsonrpsee::core::client::ClientT;
+use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::rpc_params;
 
 use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBuilder};
@@ -10,10 +15,12 @@ use race_api::error::{Error, Result};
 use race_core::transport::TransportT;
 
 use race_core::types::{
-    CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
-    CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile,
-    PublishGameParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams,
-    ServerAccount, SettleParams, UnregisterGameParams, VoteParams, CreateRecipientParams, AssignRecipientParams, RecipientAccount,QueryMode, RecipientClaimParams
+    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams,
+    CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
+    GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, QueryMode,
+    RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
+    RegistrationAccount, ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
+    VoteParams,
 };
 use serde::Serialize;
 
@@ -36,15 +43,16 @@ pub struct RegisterServerInstruction {
 
 pub struct FacadeTransport {
     addr: String,
-    client: Client,
+    client: Client<HttpBackend>,
 }
 
 impl FacadeTransport {
     pub async fn try_new(addr: String, url: &str) -> TransportResult<Self> {
         let client = ClientBuilder::default()
-            .max_request_body_size(64_000_000)
+            .max_request_size(64_000_000)
             .build(url)
             .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
+
         Ok(Self { addr, client })
     }
 
@@ -128,10 +136,32 @@ impl TransportT for FacadeTransport {
         }
     }
 
+    async fn subscribe_game_account<'a>(
+        &'a self,
+        addr: &'a str,
+    ) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
+        Ok(Box::pin(stream! {
+            let mut access_version = 0;
+            loop {
+                match self.fetch::<GameAccount>("get_account_info", addr).await {
+                    Ok(game_account_opt) => {
+                        if let Some(game_account) = game_account_opt {
+                            if game_account.access_version > access_version {
+                                access_version = game_account.access_version;
+                                yield Some(game_account);
+                            }
+                        }
+                    }
+                    Err(e) => yield None,
+                }
+            }
+        }))
+    }
+
     async fn get_game_account(&self, addr: &str, mode: QueryMode) -> Result<Option<GameAccount>> {
         match mode {
-            QueryMode::Confirming => {},
-            QueryMode::Finalized => {},
+            QueryMode::Confirming => {}
+            QueryMode::Finalized => {}
         }
         self.fetch("get_account_info", addr).await
     }
@@ -164,7 +194,7 @@ impl TransportT for FacadeTransport {
         unimplemented!()
     }
 
-    async fn settle_game(&self, params: SettleParams) -> Result<()> {
+    async fn settle_game(&self, params: SettleParams) -> Result<String> {
         self.client
             .request("settle", rpc_params![params])
             .await

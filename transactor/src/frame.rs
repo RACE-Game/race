@@ -1,21 +1,25 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::{
-    engine::InitAccount,
-    event::{Event, Message},
+    init_account::InitAccount,
+    event::{Event, Message}
 };
 use race_core::{
     context::GameContext,
-    types::{PlayerJoin, ServerJoin, Settle, Transfer, TxState, VoteType},
+    types::{PlayerJoin, ServerJoin, SettleWithAddr, SubGameSpec, Transfer, TxState, VoteType}, checkpoint::Checkpoint,
 };
 
 #[derive(Debug, Clone)]
 pub enum SignalFrame {
     StartGame { game_addr: String },
+    LaunchSubGame { spec: SubGameSpec },
 }
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub enum EventFrame {
     Empty,
+    GameStart {
+        access_version: u64,
+    },
     Sync {
         new_players: Vec<PlayerJoin>,
         new_servers: Vec<ServerJoin>,
@@ -33,7 +37,10 @@ pub enum EventFrame {
         player_addr: String,
     },
     InitState {
+        access_version: u64,
+        settle_version: u64,
         init_account: InitAccount,
+        checkpoint_state: Vec<u8>,
     },
     SendEvent {
         event: Event,
@@ -45,23 +52,19 @@ pub enum EventFrame {
         event: Event,
     },
     Checkpoint {
+        settles: Vec<SettleWithAddr>,
+        transfers: Vec<Transfer>,
+        checkpoint: Checkpoint,
         access_version: u64,
         settle_version: u64,
+        previous_settle_version: u64,
     },
     Broadcast {
         event: Event,
         access_version: u64,
         settle_version: u64,
         timestamp: u64,
-    },
-    Settle {
-        settles: Vec<Settle>,
-        transfers: Vec<Transfer>,
-        checkpoint: Vec<u8>,
-        settle_version: u64,
-    },
-    SettleFinalized {
-        settle_version: u64,
+        state_sha: String,
     },
     ContextUpdated {
         context: Box<GameContext>,
@@ -71,16 +74,44 @@ pub enum EventFrame {
         vote_type: VoteType,
     },
     Shutdown,
+    /// Represent a event send in current event bus.  `from` is the
+    /// source of event, `dest` is the target of the event.  value 0
+    /// represent the master game.  When there's an available
+    /// checkpoint in the context, it will be sent along with
+    /// `checkpoint`.
+    SendBridgeEvent {
+        from: usize,
+        dest: usize,
+        event: Event,
+        access_version: u64,
+        settle_version: u64,
+        checkpoint: Vec<u8>,
+    },
+    /// Similar to `SendBridgeEvent`, but for receiver's event bus.
+    RecvBridgeEvent {
+        from: usize,
+        dest: usize,
+        event: Event,
+        access_version: u64,
+        settle_version: u64,
+        checkpoint: Vec<u8>,
+    },
+    LaunchSubGame {
+        spec: Box<SubGameSpec>,
+    },
 }
 
 impl std::fmt::Display for EventFrame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EventFrame::Empty => write!(f, "Empty"),
-            EventFrame::InitState { init_account, .. } => write!(
+            EventFrame::GameStart { access_version } => {
+                write!(f, "GameStart, access_version = {}", access_version)
+            }
+            EventFrame::InitState { access_version, settle_version, .. } => write!(
                 f,
                 "InitState, access_version = {}, settle_version = {}",
-                init_account.access_version, init_account.settle_version
+                access_version, settle_version
             ),
             EventFrame::Sync {
                 new_players,
@@ -107,13 +138,20 @@ impl std::fmt::Display for EventFrame {
             EventFrame::SendServerEvent { event } => write!(f, "SendServerEvent: {}", event),
             EventFrame::Checkpoint { .. } => write!(f, "Checkpoint"),
             EventFrame::Broadcast { event, .. } => write!(f, "Broadcast: {}", event),
-            EventFrame::Settle { .. } => write!(f, "Settle"),
-            EventFrame::SettleFinalized { .. } => write!(f, "SettleFinalized"),
             EventFrame::SendMessage { message } => write!(f, "SendMessage: {}", message.sender),
             EventFrame::ContextUpdated { context: _ } => write!(f, "ContextUpdated"),
             EventFrame::Shutdown => write!(f, "Shutdown"),
             EventFrame::Vote { votee, vote_type } => {
                 write!(f, "Vote: to {} for {:?}", votee, vote_type)
+            }
+            EventFrame::SendBridgeEvent { dest, event, settle_version, .. } => {
+                write!(f, "SendBridgeEvent: dest {}, settle_version: {}, event: {}", dest, settle_version, event)
+            }
+            EventFrame::RecvBridgeEvent { dest, event, settle_version, .. } => {
+                write!(f, "RecvBridgeEvent: dest {}, settle_version: {}, event: {}", dest, settle_version, event)
+            }
+            EventFrame::LaunchSubGame { spec } => {
+                write!(f, "LaunchSubGame: {:?}", spec)
             }
         }
     }

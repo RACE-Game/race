@@ -7,3 +7,6 @@ export * from './events';
 export * from './game-context-snapshot';
 export * from './connection';
 export * from './storage';
+export * from './sub-client';
+export * from './types';
+export * from './checkpoint';

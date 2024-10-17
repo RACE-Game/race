@@ -1,19 +1,7 @@
-use crate::{
-    context::GameContext,
-    encryptor::EncryptorT,
-    types::{GameStatus, Settle},
-};
-use race_api::engine::InitAccount;
-use race_api::error::{Error, HandleError};
+use crate::{context::GameContext, encryptor::EncryptorT, types::GameStatus};
+use race_api::error::Error;
 use race_api::event::Event;
 use race_api::random::RandomStatus;
-
-pub fn general_init_state(
-    _context: &mut GameContext,
-    _init_account: &InitAccount,
-) -> Result<(), HandleError> {
-    Ok(())
-}
 
 /// A general function for system events handling.
 pub fn general_handle_event(
@@ -23,14 +11,11 @@ pub fn general_handle_event(
 ) -> Result<(), Error> {
     // General event handling
     match event {
-        Event::Ready => {
-            // This is the first event, we make it a checkpoint
-            // context.checkpoint = true;
-            Ok(())
-        }
+        Event::Ready => Ok(()),
 
         Event::ShareSecrets { sender, shares } => {
-            context.add_shared_secrets(sender, shares.clone())?;
+            let addr = context.id_to_addr(*sender)?;
+            context.add_shared_secrets(addr, shares.clone())?;
             let mut random_ids = Vec::<usize>::default();
             for random_state in context.list_random_states_mut() {
                 if random_state.status == RandomStatus::Shared {
@@ -50,7 +35,8 @@ pub fn general_handle_event(
             ciphertext,
             digest,
         } => {
-            context.answer_decision(*decision_id, sender, ciphertext.clone(), digest.clone())?;
+            let addr = context.id_to_addr(*sender)?;
+            context.answer_decision(*decision_id, &addr, ciphertext.clone(), digest.clone())?;
             Ok(())
         }
 
@@ -59,7 +45,8 @@ pub fn general_handle_event(
             random_id,
             ciphertexts,
         } => {
-            context.randomize_and_mask(sender, *random_id, ciphertexts.clone())?;
+            let addr = context.id_to_addr(*sender)?;
+            context.randomize_and_mask(&addr, *random_id, ciphertexts.clone())?;
             Ok(())
         }
 
@@ -68,60 +55,43 @@ pub fn general_handle_event(
             random_id,
             ciphertexts_and_digests: ciphertexts_and_tests,
         } => {
-            context.lock(sender, *random_id, ciphertexts_and_tests.clone())?;
+            let addr = context.id_to_addr(*sender)?;
+            context.lock(&addr, *random_id, ciphertexts_and_tests.clone())?;
             Ok(())
         }
 
         Event::RandomnessReady { .. } => Ok(()),
 
-        Event::Sync {
-            new_players,
-            new_servers,
-            transactor_addr: _,
-            access_version,
-        } => {
-            if *access_version <= context.access_version {
-                return Err(Error::EventIgnored);
+        Event::Join { players } => {
+            for p in players {
+                context.add_player(p.to_owned());
             }
-            for p in new_players.iter() {
-                context.add_player(p)?;
-            }
-            for s in new_servers.iter() {
-                context.add_server(s)?;
-            }
-            context.access_version = *access_version;
-
             Ok(())
         }
 
-        Event::Leave { player_addr } => {
+        Event::Leave { .. } => {
             if !context.allow_exit {
                 Err(Error::CantLeave)
-            } else if !context
-                .players
-                .iter()
-                .any(|p| p.addr.eq(player_addr))
-            {
-                Err(Error::InvalidPlayerAddress)
             } else {
                 Ok(())
             }
         }
 
-        Event::GameStart { access_version } => {
+        Event::GameStart => {
+            // Update nodes' status based on current `access_version`.
+            context.set_node_ready(context.access_version());
             context.set_game_status(GameStatus::Running);
-            context.set_node_ready(*access_version);
             Ok(())
         }
 
-        Event::OperationTimeout { addrs: _ } => {
+        Event::OperationTimeout { ids: _ } => {
             // This event is for game handler
             Ok(())
         }
 
         Event::WaitingTimeout => Ok(()),
 
-        Event::ActionTimeout { player_addr: _ } => {
+        Event::ActionTimeout { player_id: _ } => {
             // This event is for game handler
             Ok(())
         }
@@ -166,35 +136,23 @@ pub fn general_handle_event(
             Ok(())
         }
 
+        Event::Bridge {
+            join_players,
+            ..
+        } => {
+            for p in join_players {
+                context.add_player(p.to_owned());
+            }
+            Ok(())
+        }
+
         _ => Ok(()),
     }
-}
-
-/// Context maintaining after event handling.
-pub fn post_handle_event(
-    old_context: &GameContext,
-    new_context: &mut GameContext,
-) -> Result<(), Error> {
-    // Find all leaving player, submit during the settlement.
-    // Or create a settlement for just player leaving.
-    let mut left_players = vec![];
-    for p in old_context.players.iter() {
-        if new_context.get_player_by_address(&p.addr).is_none() {
-            left_players.push(p.addr.to_owned());
-        }
-    }
-
-    for p in left_players.into_iter() {
-        new_context.add_settle(Settle::eject(p));
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
 
-    use race_api::types::{ServerJoin, PlayerJoin};
     use crate::encryptor::tests::DummyEncryptor;
 
     use super::*;
@@ -203,47 +161,9 @@ mod tests {
     fn test_handle_game_start() -> anyhow::Result<()> {
         let encryptor = DummyEncryptor::default();
         let mut context = GameContext::default();
-        let event = Event::GameStart { access_version: 1 };
+        let event = Event::GameStart;
         general_handle_event(&mut context, &event, &encryptor)?;
         assert_eq!(context.status, GameStatus::Running);
-        Ok(())
-    }
-
-    #[test]
-    fn test_handle_sync() -> anyhow::Result<()> {
-        let encryptor = DummyEncryptor::default();
-        let mut context = GameContext::default();
-        let event = Event::Sync {
-            new_players: vec![
-                PlayerJoin {
-                    addr: "alice".into(),
-                    position: 0,
-                    balance: 100,
-                    access_version: 1,
-                    verify_key: "VERIFY KEY".into(),
-                },
-                PlayerJoin {
-                    addr: "bob".into(),
-                    position: 1,
-                    balance: 100,
-                    access_version: 1,
-                    verify_key: "VERIFY KEY".into(),
-                },
-            ],
-            new_servers: vec![ServerJoin {
-                addr: "foo".into(),
-                endpoint: "foo.endpoint".into(),
-                access_version: 1,
-                verify_key: "VERIFY KEY".into(),
-            }],
-            transactor_addr: "".into(),
-            access_version: 1,
-        };
-
-        general_handle_event(&mut context, &event, &encryptor)?;
-
-        assert_eq!(context.count_players(), 2);
-        assert_eq!(context.count_servers(), 1);
         Ok(())
     }
 }

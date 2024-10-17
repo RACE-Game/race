@@ -1,5 +1,6 @@
 //! Wrapped transport, which support retry
 
+use futures::Stream;
 use jsonrpsee::core::async_trait;
 use race_api::error::Result;
 use race_core::types::{
@@ -16,6 +17,7 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
+use std::pin::Pin;
 use std::time::Duration;
 use tracing::error;
 
@@ -43,6 +45,10 @@ impl WrappedTransport {
 
 #[async_trait]
 impl TransportT for WrappedTransport {
+    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
+        self.inner.subscribe_game_account(addr).await
+    }
+
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
         self.inner.create_game_account(params).await
     }
@@ -93,7 +99,7 @@ impl TransportT for WrappedTransport {
 
     /// `settle_version` is used to identify the settle state,
     /// Until the `settle_version` is bumped, we keep retrying.
-    async fn settle_game(&self, params: SettleParams) -> Result<()> {
+    async fn settle_game(&self, params: SettleParams) -> Result<String> {
         let mut curr_settle_version: Option<u64> = None;
         loop {
             let game_account = self
@@ -110,21 +116,25 @@ impl TransportT for WrappedTransport {
                     tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
                     continue;
                 }
-                // The `settle_version` had been bumped, indicates the transaction was succeed
-                // NOTE: The transaction can success with error result due to unstable network
+                // The `settle_version` had been bumped, which
+                // indicates the transaction was succeed
+
+                //NOTE: The transaction may success with error result
+                // due to unstable network
                 if curr_settle_version.is_some_and(|v| v < game_account.settle_version) {
-                    return Ok(());
+                    return Ok("".into());
                 }
                 curr_settle_version = Some(game_account.settle_version);
-                if let Err(e) = self.inner.settle_game(params.clone()).await {
-                    error!(
-                        "Error in settlement: {:?}, will retry in {} secs",
-                        e, RETRY_INTERVAL
-                    );
-                    tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
-                    continue;
-                } else {
-                    return Ok(());
+                match self.inner.settle_game(params.clone()).await {
+                    Ok(sig) => return Ok(sig),
+                    Err(e) => {
+                        error!(
+                            "Error in settlement: {:?}, will retry in {} secs",
+                            e, RETRY_INTERVAL
+                        );
+                        tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
+                        continue;
+                    }
                 }
             } else {
                 error!(
@@ -200,7 +210,7 @@ mod tests {
             })
             .await;
 
-        assert_eq!(r, Ok(()));
+        assert_eq!(r, Ok("".to_string()));
         Ok(())
     }
 
@@ -224,7 +234,7 @@ mod tests {
             })
             .await;
 
-        assert_eq!(r, Ok(()));
+        assert_eq!(r, Ok("".to_string()));
         Ok(())
     }
 }

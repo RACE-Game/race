@@ -12,7 +12,7 @@ use race_core::{
 };
 use tracing::{info, warn};
 
-use super::common::{Component, PipelinePorts};
+use super::{common::{Component, PipelinePorts}, ComponentEnv};
 use crate::frame::EventFrame;
 
 use super::event_bus::CloseReason;
@@ -44,11 +44,11 @@ impl Voter {
 
 #[async_trait]
 impl Component<PipelinePorts, VoterContext> for Voter {
-    fn name(&self) -> &str {
+    fn name() -> &'static str {
         "Voter"
     }
 
-    async fn run(mut ports: PipelinePorts, ctx: VoterContext) -> CloseReason {
+    async fn run(mut ports: PipelinePorts, ctx: VoterContext, env: ComponentEnv) -> CloseReason {
         while let Some(frame) = ports.recv().await {
             match frame {
                 EventFrame::Vote { votee, vote_type } => {
@@ -64,19 +64,19 @@ impl Component<PipelinePorts, VoterContext> for Voter {
                         let r = ctx.transport.vote(params.clone()).await;
                         match r {
                             Ok(_) | Err(Error::DuplicatedVote) => {
-                                info!("Vote sent");
+                                info!("{} Vote sent", env.log_prefix);
                                 ports.send(EventFrame::Shutdown).await;
                                 break;
                             }
                             Err(e) => {
-                                warn!("An error occurred in vote: {:?}, will retry.", e);
+                                warn!("{} An error occurred in vote: {:?}, will retry.", env.log_prefix, e);
                                 tokio::time::sleep(Duration::from_secs(3)).await;
                             }
                         }
                     }
                 }
                 EventFrame::Shutdown => {
-                    warn!("Shutdown voter");
+                    warn!("{} Shutdown voter", env.log_prefix);
                     break;
                 }
                 _ => (),

@@ -55,7 +55,7 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
         }
 
         pub fn write_ptr<T: BorshSerialize>(ptr: &mut *mut u8, data: T) -> u32 {
-            if let Ok(vec) = data.try_to_vec() {
+            if let Ok(vec) = borsh::to_vec(&data) {
                 unsafe { std::ptr::copy(vec.as_ptr(), *ptr, vec.len()) }
                 vec.len() as _
             } else {
@@ -83,13 +83,6 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
                 Err(e) => effect.__set_error(e),
             }
 
-            if effect.is_checkpoint {
-                match handler.into_checkpoint() {
-                    Ok(checkpoint_state) => effect.__set_checkpoint(checkpoint_state),
-                    Err(e) => effect.__set_error(e),
-                }
-            }
-
             let mut ptr = 1 as *mut u8;
             write_ptr(&mut ptr, effect)
         }
@@ -102,7 +95,7 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
             } else {
                 return 1
             };
-            let init_account: race_api::engine::InitAccount = if let Some(init_account) = read_ptr(&mut ptr, init_account_size) {
+            let init_account: race_api::init_account::InitAccount = if let Some(init_account) = read_ptr(&mut ptr, init_account_size) {
                 init_account
             } else {
                 return 2
