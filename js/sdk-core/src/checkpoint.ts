@@ -48,6 +48,10 @@ export class CheckpointOffChain {
   constructor(fields: any) {
     Object.assign(this, fields);
   }
+
+  static deserialize(raw: Uint8Array): CheckpointOffChain {
+    return deserialize(CheckpointOffChain, raw)
+  }
 }
 
 /// Represent the on-chain checkpoint.
@@ -73,6 +77,7 @@ export class Checkpoint {
   }
 
   static fromParts(offchainPart: CheckpointOffChain, onchainPart: CheckpointOnChain): Checkpoint {
+    console.debug('Build checkpoint, offchain:', offchainPart, 'onchain:', onchainPart);
     let checkpoint = Checkpoint.default();
     checkpoint.proofs = offchainPart.proofs;
     checkpoint.data = offchainPart.data;
@@ -125,6 +130,10 @@ export class Checkpoint {
       old.data = data;
       old.version += 1n;
       old.sha = sha;
+    } else {
+      this.data.set(id, new VersionedData({
+        id, sha, data, version: 0n
+      }))
     }
     this.updateRootAndProofs();
   }
@@ -133,14 +142,6 @@ export class Checkpoint {
 
   }
 
-  maybeInitData(id: number, data: Uint8Array) {
-    if (!this.data.has(id)) {
-      this.data.set(id, new VersionedData({
-        version: 0n,
-        data
-      }))
-    }
-  }
 
   setAccessVersion(accessVersion: bigint) {
     this.accessVersion = accessVersion;

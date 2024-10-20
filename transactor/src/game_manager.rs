@@ -1,5 +1,6 @@
 use race_api::error::{Error, Result};
 use race_api::event::{Event, Message};
+use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::{BroadcastFrame, ServerAccount, SubGameSpec};
 use race_encryptor::Encryptor;
 use std::collections::hash_map::Entry;
@@ -166,6 +167,14 @@ impl GameManager {
             warn!("Game not loaded, discard leaving request");
             Err(Error::GameNotLoaded)
         }
+    }
+
+    pub async fn get_checkpoint(&self, game_addr: &str, settle_version: u64) -> Result<Option<CheckpointOffChain>> {
+        let games = self.games.lock().await;
+        let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
+        let broadcaster = handle.broadcaster()?;
+        let checkpoint = broadcaster.get_checkpoint(settle_version).await;
+        Ok(checkpoint)
     }
 
     /// Get the broadcast channel of game, and its event histories

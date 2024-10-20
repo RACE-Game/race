@@ -4,7 +4,10 @@ use super::{
     common::{EntryType, VoteType},
     RecipientSlot,
 };
-use crate::{checkpoint::{Checkpoint, CheckpointOnChain}, types::{PlayerDeposit, PlayerJoin, ServerJoin}};
+use crate::{
+    checkpoint::{Checkpoint, CheckpointOnChain},
+    types::{PlayerDeposit, PlayerJoin, ServerJoin},
+};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::prelude::InitAccount;
 #[cfg(feature = "serde")]
@@ -123,9 +126,6 @@ pub struct RecipientAccount {
 ///
 /// The checkpoint is the state of the game when the settlement is
 /// made.  We only save the root of checkpoint merkle tree on chain.
-/// When initializing GameAccount from onchain data, the checkpoint is
-/// set with empty default, and we overwrite it later with the data
-/// from local data.
 #[derive(Debug, Default, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -149,28 +149,24 @@ pub struct GameAccount {
     pub entry_type: EntryType,
     pub recipient_addr: String,
     pub checkpoint_on_chain: Option<CheckpointOnChain>,
-    pub checkpoint: Checkpoint,
 }
 
 impl GameAccount {
-    pub fn derive_init_account(&self) -> InitAccount {
+    pub fn derive_init_account(&self, checkpoint: &Checkpoint) -> InitAccount {
         InitAccount {
             max_players: self.max_players,
             entry_type: self.entry_type.clone(),
-            players: self
-                .players
-                .iter()
-                .cloned()
-                .map(Into::into)
-                .collect(),
+            players: self.players.iter().cloned().map(Into::into).collect(),
             data: self.data.clone(),
+            checkpoint: checkpoint.get_data(0),
         }
     }
 
-    pub fn derive_checkpoint_init_account(&self) -> InitAccount {
-        let players = self.players
+    pub fn derive_checkpoint_init_account(&self, checkpoint: &Checkpoint) -> InitAccount {
+        let players = self
+            .players
             .iter()
-            .filter(|p| p.access_version <= self.checkpoint.access_version)
+            .filter(|p| p.access_version <= checkpoint.access_version)
             .cloned()
             .map(|p| p.into())
             .collect();
@@ -180,15 +176,8 @@ impl GameAccount {
             max_players: self.max_players,
             players,
             data: self.data.clone(),
+            checkpoint: checkpoint.get_data(0),
         }
-    }
-
-    pub fn checkpoint(&self) -> &Checkpoint {
-        &self.checkpoint
-    }
-
-    pub fn set_checkpoint(&mut self, checkpoint: Checkpoint) {
-        self.checkpoint = checkpoint;
     }
 }
 
@@ -424,7 +413,7 @@ mod tests {
                 min_deposit: 100,
                 max_deposit: 250,
             },
-            checkpoint: Checkpoint::default()
+            checkpoint: Checkpoint::default(),
         };
         let bytes = [
             9, 0, 0, 0, 103, 97, 109, 101, 32, 97, 100, 100, 114, 18, 0, 0, 0, 97, 119, 101, 115,

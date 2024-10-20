@@ -1,4 +1,4 @@
-import { array, deserialize, enums, field, serialize, struct } from "@race-foundation/borsh";
+import { array, deserialize, enums, field, option, serialize, struct } from "@race-foundation/borsh";
 import { EntryType, GameAccount } from "./accounts";
 import { Fields } from "./types";
 
@@ -22,6 +22,7 @@ export interface IInitAccount {
   entryType: EntryType;
   players: GamePlayer[];
   data: Uint8Array;
+  checkpoint: Uint8Array | undefined;
 }
 
 export class InitAccount {
@@ -33,6 +34,8 @@ export class InitAccount {
   readonly players: GamePlayer[];
   @field('u8-array')
   readonly data: Uint8Array;
+  @field(option('u8-array'))
+  readonly checkpoint: Uint8Array | undefined;
 
   constructor(fields: IInitAccount) {
     this.maxPlayers = fields.maxPlayers;
@@ -41,20 +44,6 @@ export class InitAccount {
     this.data = fields.data;
   }
 
-  static createFromGameAccount(
-    gameAccount: GameAccount,
-  ): InitAccount {
-    let { players, data, checkpoint } = gameAccount;
-    const game_players = players.filter(p => p.accessVersion <= checkpoint.accessVersion)
-      .map(p => new GamePlayer({ id: p.accessVersion, balance: p.balance, position: p.position }));
-
-    return new InitAccount({
-      data,
-      players: game_players,
-      maxPlayers: gameAccount.maxPlayers,
-      entryType: gameAccount.entryType,
-    });
-  }
   serialize(): Uint8Array {
     return serialize(InitAccount);
   }

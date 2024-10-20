@@ -3,12 +3,20 @@ import { GameEvent } from './events';
 import { deserialize, enums, field, serialize, struct } from '@race-foundation/borsh';
 import { arrayBufferToBase64, base64ToUint8Array } from './utils';
 import { BroadcastFrame } from './broadcast-frames';
+import { CheckpointOffChain } from './checkpoint';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'reconnected' | 'closed';
 
 export type AttachResponse = 'success' | 'game-not-loaded';
 
-type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event' | 'submit_message' | 'get_state' | 'ping';
+type Method = 'attach_game'
+  | 'submit_event'
+  | 'exit_game'
+  | 'subscribe_event'
+  | 'submit_message'
+  | 'get_state'
+  | 'ping'
+  | 'checkpoint';
 
 interface IAttachGameParams {
   signer: string;
@@ -25,6 +33,10 @@ interface ISubmitEventParams {
 
 interface ISubmitMessageParams {
   content: string;
+}
+
+interface IGetCheckpointParams {
+  settleVersion: bigint;
 }
 
 export type ConnectionSubscriptionItem = BroadcastFrame | ConnectionState | undefined;
@@ -68,6 +80,14 @@ export class SubmitMessageParams {
   content: string;
   constructor(fields: ISubmitMessageParams) {
     this.content = fields.content;
+  }
+}
+
+export class GetCheckpointParams {
+  @field('u64')
+  settleVersion: bigint;
+  constructor(fields: IGetCheckpointParams) {
+    this.settleVersion = fields.settleVersion;
   }
 }
 
@@ -234,9 +254,16 @@ export class Connection implements IConnection {
   }
 
   async getState(): Promise<Uint8Array> {
-    const req = this.makeReqNoSig(this.target, "get_state", {});
+    const req = this.makeReqNoSig(this.target, 'get_state', {});
     const resp: { result: string } = await this.requestXhr(req);
     return Uint8Array.from(JSON.parse(resp.result));
+  }
+
+  async getCheckpoint(params: GetCheckpointParams): Promise<CheckpointOffChain | undefined> {
+    const req = this.makeReqNoSig(this.target, 'checkpoint', params)
+    const resp: { result: number[] | null } = await this.requestXhr(req);
+    if (resp.result === null) return undefined;
+    return CheckpointOffChain.deserialize(Uint8Array.from(resp.result));
   }
 
   async submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined> {

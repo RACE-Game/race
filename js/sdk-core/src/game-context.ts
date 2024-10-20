@@ -80,8 +80,8 @@ export class GameContext {
   entryType: EntryType;
 
   constructor(context: GameContext);
-  constructor(gameAccount: GameAccount);
-  constructor(init: GameAccount | GameContext) {
+  constructor(gameAccount: GameAccount, checkpoint: Checkpoint);
+  constructor(init: GameAccount | GameContext, checkpoint?: Checkpoint) {
     if (init instanceof GameContext) {
       const context = init;
       this.gameAddr = context.gameAddr;
@@ -104,6 +104,10 @@ export class GameContext {
       this.entryType = context.entryType;
     } else {                    // GameAccount
       const gameAccount = init;
+      if (checkpoint === undefined) {
+        throw new Error('Missing checkpoint');
+      }
+      console.log('Build game context with checkpoint:', checkpoint);
       const checkpointAccessVersion = gameAccount.checkpointOnChain?.accessVersion || 0;
       const transactorAddr = gameAccount.transactorAddr;
       if (transactorAddr === undefined) {
@@ -153,7 +157,7 @@ export class GameContext {
       this.randomStates = [];
       this.decisionStates = [];
       this.handlerState = Uint8Array.of();
-      this.checkpoint = init.checkpoint;
+      this.checkpoint = checkpoint;
       this.subGames = [];
       this.initData = gameAccount.data;
       this.maxPlayers = gameAccount.maxPlayers;
@@ -188,11 +192,13 @@ export class GameContext {
   }
 
   initAccount(): InitAccount {
+    const checkpoint = this.checkpoint.getData(this.gameId);
     return new InitAccount({
       maxPlayers: this.maxPlayers,
       players: this.players.map(p => new GamePlayer(p)),
       entryType: this.entryType,
       data: this.initData,
+      checkpoint,
     });
   }
 
@@ -493,7 +499,11 @@ export class GameContext {
 
     this.subGames = effect.launchSubGames;
     for (const subGame of effect.launchSubGames) {
-      this.checkpoint.maybeInitData(subGame.gameId, subGame.checkpointState);
+      const checkpointState = subGame.initAccount.checkpoint;
+      if (checkpointState === undefined) {
+        throw new Error('No checkpoint found for SubGame');
+      }
+      this.checkpoint.setData(subGame.gameId, checkpointState);
       this.addSubGame(subGame);
     }
 

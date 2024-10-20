@@ -12,9 +12,10 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage, TrySendError};
 use race_api::event::Message;
+use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
-    AttachGameParams, ExitGameParams, Signature, SubmitEventParams,
+    AttachGameParams, CheckpointParams, ExitGameParams, Signature, SubmitEventParams,
     SubscribeEventParams,
 };
 use tokio_stream::wrappers::BroadcastStream;
@@ -112,6 +113,27 @@ async fn submit_event(
         .send_event(&game_addr, event)
         .await
         .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
+}
+
+async fn get_checkpoint(
+    params: Params<'_>,
+    context: Arc<ApplicationContext>,
+) -> Result<Option<Vec<u8>>, RpcError> {
+    let (game_addr, CheckpointParams { settle_version }) = parse_params_no_sig(params)?;
+
+    info!("Get checkpoint, game_addr: {}", game_addr);
+
+    let checkpoint: Option<CheckpointOffChain> = context
+        .game_manager
+        .get_checkpoint(&game_addr, settle_version)
+        .await
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
+
+    let bs = checkpoint
+        .map(|c| borsh::to_vec(&c).map_err(|e| RpcError::Call(CallError::Failed(e.into()))))
+        .transpose()?;
+
+    Ok(bs)
 }
 
 async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
@@ -225,6 +247,7 @@ pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
     let mut module = RpcModule::new(context);
 
     module.register_method("ping", ping)?;
+    module.register_async_method("checkpoint", get_checkpoint)?;
     module.register_async_method("attach_game", attach_game)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;

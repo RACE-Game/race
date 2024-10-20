@@ -49,7 +49,12 @@ async fn handle_event(
     game_mode: GameMode,
     env: &ComponentEnv,
 ) -> Option<CloseReason> {
-    info!("{} Handle event: {}, timestamp: {}", env.log_prefix, event, game_context.get_timestamp());
+    info!(
+        "{} Handle event: {}, timestamp: {}",
+        env.log_prefix,
+        event,
+        game_context.get_timestamp()
+    );
 
     let access_version = game_context.access_version();
     let settle_version = game_context.settle_version();
@@ -114,7 +119,13 @@ async fn handle_event(
                 for launch_sub_game in effects.launch_sub_games {
                     info!("{} Launch sub game: {}", env.log_prefix, launch_sub_game.id);
                     let cp = game_context.checkpoint_mut();
-                    cp.maybe_init_data(launch_sub_game.id, &launch_sub_game.init_account.data);
+                    let checkpoint_state = launch_sub_game
+                        .init_account
+                        .checkpoint
+                        .as_ref()
+                        .expect("Checkpoint is available for subgame")
+                        .clone();
+                    cp.set_data(launch_sub_game.id, checkpoint_state);
                     let settle_version = cp.get_version(launch_sub_game.id);
 
                     let ef = EventFrame::LaunchSubGame {
@@ -126,7 +137,6 @@ async fn handle_event(
                             access_version: game_context.access_version(),
                             settle_version,
                             init_account: launch_sub_game.init_account,
-                            checkpoint_state: launch_sub_game.checkpoint_state,
                         }),
                     };
                     ports.send(ef).await;
@@ -226,7 +236,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     init_account,
                     access_version,
                     settle_version,
-                    checkpoint_state,
                 } => {
                     if let Err(e) = game_context.apply_checkpoint(access_version, settle_version) {
                         error!("{} Failed to apply checkpoint: {:?}, context settle version: {}, init account settle version: {}", env.log_prefix, e,
@@ -235,7 +244,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         return CloseReason::Fault(e);
                     }
 
-                    if let Err(e) = handler.init_state(&mut game_context, &init_account, checkpoint_state) {
+                    if let Err(e) = handler.init_state(&mut game_context, &init_account) {
                         error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Fault(e);
@@ -246,9 +255,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         "{} Initialize game state, SHA: {}",
                         env.log_prefix, state_sha
                     );
-                    info!(
-                        "{} Init Account: {:?}", env.log_prefix, init_account
-                    );
+                    // info!("{} Init Account: {:?}", env.log_prefix, init_account);
 
                     game_context.dispatch_safe(Event::Ready, 0);
                 }
@@ -265,7 +272,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.game_mode,
                             &env,
                         )
-                            .await
+                        .await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -322,7 +329,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.game_mode,
                             &env,
                         )
-                            .await
+                        .await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -342,7 +349,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.game_mode,
                             &env,
                         )
-                            .await
+                        .await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -362,12 +369,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     ..
                 } => {
                     if game_context.game_id() == 0 && dest == 0 && from != 0 {
-                        if let Err(e) = game_context.checkpoint_mut().set_data(
-                            from,
-                            checkpoint,
-                        ) {
-                            error!("Failed to update checkpoint at {} due to {:?}", from, e);
-                        }
+                        game_context.checkpoint_mut().set_data(from, checkpoint)
                     }
 
                     if let Some(close_reason) = handle_event(
@@ -379,7 +381,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         &env,
                     )
-                        .await
+                    .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
@@ -395,7 +397,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         &env,
                     )
-                        .await
+                    .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
@@ -415,7 +417,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         &env,
                     )
-                        .await
+                    .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;

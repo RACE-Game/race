@@ -1,5 +1,6 @@
 import {
   Connection,
+  GetCheckpointParams,
   IConnection,
 } from './connection';
 import { GameContext } from './game-context';
@@ -25,6 +26,7 @@ import {
   ErrorCallbackFunction
 } from './types';
 import { SubClient } from './sub-client';
+import { Checkpoint } from './checkpoint';
 
 const BUNDLE_CACHE_TTL = 3600 * 365;
 
@@ -132,7 +134,20 @@ export class AppClient extends BaseClient {
       const connection = Connection.initialize(gameAddr, playerAddr, endpoint, encryptor);
       const client = new Client(playerAddr, encryptor, connection);
       const handler = await Handler.initialize(gameBundle, encryptor, client, decryptionCache);
-      const gameContext = new GameContext(gameAccount);
+
+      const getCheckpointParams = new GetCheckpointParams({ settleVersion: gameAccount.settleVersion });
+      const checkpointOffChain = await connection.getCheckpoint(getCheckpointParams);
+
+      console.log('Get checkpoint onchain from game account:', gameAccount.checkpointOnChain);
+      console.log('Get checkpoint offchain from transactor:', checkpointOffChain);
+      let checkpoint;
+      if (checkpointOffChain !== undefined && gameAccount.checkpointOnChain !== undefined) {
+        checkpoint = Checkpoint.fromParts(checkpointOffChain, gameAccount.checkpointOnChain);
+      } else {
+        checkpoint = Checkpoint.default();
+      }
+
+      const gameContext = new GameContext(gameAccount, checkpoint);
       console.log('Game Context:', gameContext);
       const token = await transport.getToken(gameAccount.tokenAddr);
       if (token === undefined) {

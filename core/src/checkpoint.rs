@@ -1,7 +1,6 @@
 use std::{collections::HashMap, fmt::Display};
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::error::Result;
 use rs_merkle::{
     algorithms::Sha256, proof_serializers::ReverseHashesOrder, Hasher,
     MerkleTree,
@@ -12,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 /// Checkpoint represents the state snapshot of game.
 /// It is used as a submission to the blockchain.
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Checkpoint {
@@ -48,17 +47,6 @@ pub struct VersionedData {
     pub sha: Vec<u8>,
 }
 
-impl Default for Checkpoint {
-    fn default() -> Self {
-        Self {
-            root: Vec::new(),
-            access_version: 0,
-            data: HashMap::default(),
-            proofs: HashMap::default(),
-        }
-    }
-}
-
 impl Display for Checkpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = self
@@ -71,8 +59,8 @@ impl Display for Checkpoint {
 }
 
 impl Checkpoint {
-    pub fn new(id: usize, access_version: u64, root_version: u64, root_data: &[u8]) -> Self {
-        let sha = Sha256::hash(root_data);
+    pub fn new(id: usize, access_version: u64, root_version: u64, root_data: Vec<u8>) -> Self {
+        let sha = Sha256::hash(&root_data);
         let mut ret = Self {
             root: Vec::new(),
             access_version,
@@ -81,7 +69,7 @@ impl Checkpoint {
                 VersionedData {
                     id,
                     version: root_version,
-                    data: root_data.into(),
+                    data: root_data,
                     sha: sha.into(),
                 },
             )]),
@@ -119,15 +107,16 @@ impl Checkpoint {
         }
     }
 
+    pub fn get_data(&self, id: usize) -> Option<Vec<u8>> {
+        self.data.get(&id).map(|d| d.data.clone())
+    }
+
     pub fn data(&self, id: usize) -> Vec<u8> {
-        self.data
-            .get(&id)
-            .map(|d| d.data.clone())
-            .unwrap_or_default()
+        self.get_data(id).unwrap_or_default()
     }
 
     /// Set the data of the checkpoint of game.
-    pub fn set_data(&mut self, id: usize, data: Vec<u8>) -> Result<()> {
+    pub fn set_data(&mut self, id: usize, data: Vec<u8>) {
         let sha = Sha256::hash(&data);
         if let Some(old) = self.data.get_mut(&id) {
             old.data = data;
@@ -142,27 +131,10 @@ impl Checkpoint {
             });
         }
         self.update_root_and_proofs();
-        Ok(())
     }
 
     pub fn set_access_version(&mut self, access_version: u64) {
         self.access_version = access_version;
-    }
-
-    pub fn maybe_init_data(&mut self, id: usize, data: &[u8]) {
-        match self.data.entry(id) {
-            std::collections::hash_map::Entry::Occupied(_) => (),
-            std::collections::hash_map::Entry::Vacant(e) => {
-                let sha = Sha256::hash(data);
-                e.insert(VersionedData {
-                    id,
-                    version: 0, // The new checkpoint data should always start from zero
-                    data: data.into(),
-                    sha: sha.into(),
-                });
-            }
-        }
-        self.update_root_and_proofs();
     }
 
     pub fn get_version(&self, id: usize) -> u64 {

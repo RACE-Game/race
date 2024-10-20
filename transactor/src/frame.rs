@@ -40,7 +40,6 @@ pub enum EventFrame {
         access_version: u64,
         settle_version: u64,
         init_account: InitAccount,
-        checkpoint_state: Vec<u8>,
     },
     SendEvent {
         event: Event,

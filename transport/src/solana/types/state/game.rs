@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::error::Error;
 use race_core::{
-    checkpoint::{Checkpoint, CheckpointOnChain},
+    checkpoint::CheckpointOnChain,
     types::{EntryType, GameAccount, VoteType},
 };
 use solana_sdk::pubkey::Pubkey;
@@ -125,11 +125,13 @@ impl GameState {
         let players = players.into_iter().map(Into::into).collect();
         let servers = servers.into_iter().map(Into::into).collect();
         let checkpoint_onchain = if checkpoint.is_empty() {
-            Some(CheckpointOnChain::try_from_slice(&checkpoint).map_err(|_| Error::MalformedCheckpoint)?)
+            Some(
+                CheckpointOnChain::try_from_slice(&checkpoint)
+                    .map_err(|_| Error::MalformedCheckpoint)?,
+            )
         } else {
             None
         };
-        let checkpoint = Checkpoint::default();
 
         Ok(GameAccount {
             addr: addr.into(),
@@ -151,7 +153,6 @@ impl GameState {
             recipient_addr: recipient_addr.to_string(),
             entry_type,
             checkpoint_on_chain: checkpoint_onchain,
-            checkpoint,
         })
     }
 }

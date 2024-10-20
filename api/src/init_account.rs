@@ -12,6 +12,7 @@ pub struct InitAccount {
     pub entry_type: EntryType,
     pub players: Vec<GamePlayer>,
     pub data: Vec<u8>,
+    pub checkpoint: Option<Vec<u8>>,
 }
 
 impl InitAccount {
@@ -41,6 +42,7 @@ impl Default for InitAccount {
             entry_type: EntryType::Disabled,
             players: Vec::new(),
             data: Vec::new(),
+            checkpoint: None,
         }
     }
 }

@@ -122,8 +122,6 @@ export class SubGame {
   bundleAddr!: string;
   @field(struct(InitAccount))
   initAccount!: InitAccount;
-  @field('u8-array')
-  checkpointState!: Uint8Array;
   constructor(fields: Fields<SubGame>) {
     Object.assign(this, fields)
   }
@@ -218,11 +216,14 @@ export class Effect {
   @field(array(struct(GamePlayer)))
   validPlayers!: GamePlayer[];
 
+  @field('bool')
+  isInit!: boolean;
+
   constructor(fields: Fields<Effect>) {
     Object.assign(this, fields);
   }
 
-  static fromContext(context: GameContext) {
+  static fromContext(context: GameContext, isInit: boolean) {
     const revealed = new Map<Id, Map<number, string>>();
     for (const st of context.randomStates) {
       revealed.set(st.id, st.revealed);
@@ -279,7 +280,8 @@ export class Effect {
       transfers,
       launchSubGames,
       bridgeEvents,
-      validPlayers
+      validPlayers,
+      isInit
     });
   }
 }

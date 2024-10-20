@@ -85,7 +85,7 @@ impl WrappedHandler {
             .get_typed_function(&self.store, "init_state")
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
-        let effect = context.derive_effect();
+        let effect = context.derive_effect(true);
         let effect_bs =
             borsh::to_vec(&effect).map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let init_account_bs = borsh::to_vec(&init_account)
@@ -157,7 +157,7 @@ impl WrappedHandler {
             .get_typed_function(&self.store, "handle_event")
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
-        let effect = context.derive_effect();
+        let effect = context.derive_effect(false);
         let effect_bs =
             borsh::to_vec(&effect).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let event_bs =
@@ -233,17 +233,12 @@ impl WrappedHandler {
         &mut self,
         context: &mut GameContext,
         init_account: &InitAccount,
-        checkpoint_state: Vec<u8>,
     ) -> Result<EventEffects> {
         let mut new_context = context.clone();
         new_context.set_timestamp(0);
-        if checkpoint_state.is_empty() {
-            self.custom_init_state(&mut new_context, init_account)?;
-        } else {
-            new_context.set_handler_state_raw(checkpoint_state);
-        };
+        let event_effects = self.custom_init_state(&mut new_context, init_account)?;
         swap(context, &mut new_context);
-        Ok(EventEffects::default())
+        Ok(event_effects)
     }
 }
 

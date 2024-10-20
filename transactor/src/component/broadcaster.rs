@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use race_api::event::Event;
-use race_core::checkpoint::Checkpoint;
+use race_core::checkpoint::{Checkpoint, CheckpointOffChain};
 use race_core::types::{BroadcastFrame, BroadcastSync, EventHistory, TxState};
 use tokio::sync::{broadcast, Mutex};
 use tracing::{debug, error, info};
@@ -78,6 +78,21 @@ impl Broadcaster {
 
     pub fn get_broadcast_rx(&self) -> broadcast::Receiver<BroadcastFrame> {
         self.broadcast_tx.subscribe()
+    }
+
+    pub async fn get_checkpoint(&self, settle_version: u64) -> Option<CheckpointOffChain> {
+
+        let event_backup_groups = self.event_backup_groups.lock().await;
+        info!("Get checkpoint with settle_version = {}", settle_version);
+
+        for group in event_backup_groups.iter() {
+            if group.settle_version == settle_version {
+                info!("Found checkpoint");
+                return group.checkpoint.as_ref().map(|cp| cp.derive_offchain_part());
+            }
+        }
+        info!("Found checkpoint");
+        None
     }
 
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {

@@ -41,7 +41,6 @@ impl SubGameHandle {
 
         // Build an InitAccount
         let game_context = GameContext::try_new_with_sub_game_spec(&spec)?;
-        let checkpoint_state = game_context.checkpoint_state();
 
         let access_version = spec.access_version;
         let settle_version = spec.settle_version;
@@ -81,7 +80,6 @@ impl SubGameHandle {
                 init_account: spec.init_account,
                 access_version,
                 settle_version,
-                checkpoint_state,
             })
             .await;
 

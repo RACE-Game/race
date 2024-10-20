@@ -60,7 +60,6 @@ export interface IGameAccount {
   readonly entryType: EntryType;
   readonly recipientAddr: string;
   readonly checkpointOnChain: CheckpointOnChain | undefined;
-  checkpoint: Checkpoint;
 }
 
 export interface IServerAccount {
@@ -384,8 +383,6 @@ export class GameAccount implements IGameAccount {
   readonly recipientAddr!: string;
   @field(option(struct(CheckpointOnChain)))
   readonly checkpointOnChain: CheckpointOnChain | undefined;
-  @field(struct(Checkpoint))
-  checkpoint!: Checkpoint;
   constructor(fields: IGameAccount) {
     Object.assign(this, fields);
   }

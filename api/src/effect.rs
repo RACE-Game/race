@@ -47,7 +47,6 @@ pub struct SubGame {
     pub id: usize,
     pub bundle_addr: String,
     pub init_account: InitAccount,
-    pub checkpoint_state: Vec<u8>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
@@ -63,6 +62,7 @@ pub struct SubGameLeave {
 }
 
 impl SubGame {
+
     pub fn try_new<S: BorshSerialize, T: BorshSerialize>(
         id: usize,
         bundle_addr: String,
@@ -74,12 +74,12 @@ impl SubGame {
         Ok(Self {
             id,
             bundle_addr,
-            checkpoint_state: borsh::to_vec(&checkpoint_state)?,
             init_account: InitAccount {
                 max_players,
                 entry_type: crate::types::EntryType::Disabled,
                 players,
                 data: borsh::to_vec(&init_data)?,
+                checkpoint: Some(borsh::to_vec(&checkpoint_state)?),
             },
         })
     }
@@ -224,6 +224,7 @@ pub struct Effect {
     pub launch_sub_games: Vec<SubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
     pub valid_players: Vec<GamePlayer>,
+    pub is_init: bool,
 }
 
 impl Effect {
@@ -393,12 +394,6 @@ impl Effect {
             self.assert_player_id(p.id, "launch sub game")?;
         }
 
-        let checkpoint_state = if let Some(cp) = checkpoint {
-            borsh::to_vec(&cp)?
-        } else {
-            vec![]
-        };
-
         self.launch_sub_games.push(SubGame {
             id,
             bundle_addr,
@@ -407,8 +402,8 @@ impl Effect {
                 entry_type: crate::types::EntryType::Disabled,
                 players,
                 data: borsh::to_vec(&init_data)?,
+                checkpoint: checkpoint.map(|c| borsh::to_vec(&c)).transpose()?,
             },
-            checkpoint_state,
         });
         Ok(())
     }

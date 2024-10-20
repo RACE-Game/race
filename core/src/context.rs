@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::checkpoint::Checkpoint;
+use crate::checkpoint::{Checkpoint, CheckpointOffChain};
 use crate::types::{ClientMode, GameAccount, SettleWithAddr, SubGameSpec};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::decision::DecisionState;
@@ -146,6 +146,8 @@ pub struct GameContext {
     pub(crate) random_states: Vec<RandomState>,
     /// All runtime decision states, each stores the answer.
     pub(crate) decision_states: Vec<DecisionState>,
+    /// The checkpoint of current game
+    /// For master game, it contains all subgames' checkpoint
     pub(crate) checkpoint: Checkpoint,
     /// The sub games to launch
     pub(crate) sub_games: Vec<SubGame>,
@@ -167,7 +169,6 @@ impl GameContext {
             init_account,
             settle_version,
             access_version,
-            checkpoint_state,
             ..
         } = spec;
 
@@ -182,17 +183,14 @@ impl GameContext {
             init_data: init_account.data.clone(),
             entry_type: EntryType::Disabled,
             allow_exit: false,
-            checkpoint: Checkpoint::new(
-                *game_id,
-                *access_version,
-                *settle_version,
-                checkpoint_state,
-            ),
             ..Default::default()
         })
     }
 
-    pub fn try_new(game_account: &GameAccount) -> Result<Self> {
+    pub fn try_new(
+        game_account: &GameAccount,
+        checkpoint_off_chain: Option<CheckpointOffChain>,
+    ) -> Result<Self> {
         let transactor_addr = game_account
             .transactor_addr
             .as_ref()
@@ -216,7 +214,13 @@ impl GameContext {
         let mut players = vec![];
         game_account.players.iter().for_each(|p| {
             // Only include those players joined before last checkpoint
-            if p.access_version <= game_account.checkpoint.access_version {
+            if p.access_version
+                <= game_account
+                    .checkpoint_on_chain
+                    .as_ref()
+                    .map(|c| c.access_version)
+                    .unwrap_or_default()
+            {
                 players.push(GamePlayer::new(p.access_version, p.balance, p.position));
             }
 
@@ -226,6 +230,12 @@ impl GameContext {
                 ClientMode::Player,
             ))
         });
+
+        let checkpoint = match (checkpoint_off_chain, game_account.checkpoint_on_chain.as_ref()) {
+            (Some(off_chain), Some(on_chain)) => Checkpoint::new_from_parts(off_chain, on_chain.clone()),
+            (None, None) => Checkpoint::default(),
+            _ => return Err(Error::MissingCheckpoint),
+        };
 
         Ok(Self {
             game_addr: game_account.addr.clone(),
@@ -240,7 +250,7 @@ impl GameContext {
             random_states: vec![],
             decision_states: vec![],
             handler_state: "".into(),
-            checkpoint: game_account.checkpoint.clone(),
+            checkpoint,
             sub_games: vec![],
             init_data: game_account.data.clone(),
             max_players: game_account.max_players,
@@ -250,11 +260,14 @@ impl GameContext {
     }
 
     pub fn init_account(&self) -> Result<InitAccount> {
+        let checkpoint = self.checkpoint.get_data(self.game_id);
+
         Ok(InitAccount {
             max_players: self.max_players,
             entry_type: self.entry_type.clone(),
             players: self.players.clone(),
             data: self.init_data.clone(),
+            checkpoint,
         })
     }
 
@@ -297,17 +310,8 @@ impl GameContext {
         H::try_from_slice(&self.handler_state).unwrap()
     }
 
-    pub fn clone_checkpoint(&self) -> Checkpoint {
-        self.checkpoint.clone()
-    }
-
     pub fn checkpoint(&self) -> &Checkpoint {
         &self.checkpoint
-    }
-
-    // Get the checkpoint state for current game
-    pub fn checkpoint_state(&self) -> Vec<u8> {
-        self.checkpoint.data(self.game_id)
     }
 
     pub fn checkpoint_mut(&mut self) -> &mut Checkpoint {
@@ -709,7 +713,7 @@ impl GameContext {
         Ok(&rnd_st.revealed)
     }
 
-    pub fn derive_effect(&self) -> Effect {
+    pub fn derive_effect(&self, is_init: bool) -> Effect {
         let revealed = self
             .list_random_states()
             .iter()
@@ -747,6 +751,7 @@ impl GameContext {
             launch_sub_games: Vec::new(),
             bridge_events: Vec::new(),
             valid_players: self.players.clone(),
+            is_init,
         }
     }
 
@@ -770,6 +775,7 @@ impl GameContext {
             launch_sub_games,
             bridge_events,
             error,
+            is_init,
             ..
         } = effect;
 
@@ -821,10 +827,20 @@ impl GameContext {
 
             let mut settles1 = Vec::with_capacity(settles.len());
 
+            if is_init && self.checkpoint.is_empty() {
+                self.checkpoint = Checkpoint::new(
+                    self.game_id,
+                    self.access_version,
+                    self.settle_version,
+                    state.clone(),
+                );
+            }
+
             if is_checkpoint {
-                self.checkpoint.set_data(self.game_id, state)?;
-                self.checkpoint.set_access_version(self.access_version);
                 self.bump_settle_version()?;
+                self.checkpoint.set_data(self.game_id, state);
+                self.checkpoint.set_access_version(self.access_version);
+
                 for s in settles {
                     match s.op {
                         SettleOp::Eject => {
@@ -851,21 +867,24 @@ impl GameContext {
                 SettleOp::AssignSlot(_) => 3,
             });
 
-            // Fully reset current sub games.
+            // Append SubGame to context
             for sub_game in launch_sub_games.iter().cloned() {
-                self.checkpoint
-                    .maybe_init_data(sub_game.id, &sub_game.checkpoint_state);
+                self.checkpoint.set_data(
+                    sub_game.id,
+                    sub_game
+                        .init_account
+                        .checkpoint
+                        .as_ref()
+                        .ok_or(Error::MissingCheckpoint)?
+                        .to_vec(),
+                );
                 self.sub_games.push(sub_game);
             }
 
             return Ok(EventEffects {
                 settles: settles1,
                 transfers,
-                checkpoint: if is_checkpoint {
-                    Some(self.clone_checkpoint())
-                } else {
-                    None
-                },
+                checkpoint: is_checkpoint.then(|| self.checkpoint.clone()),
                 launch_sub_games,
                 bridge_events,
                 start_game,

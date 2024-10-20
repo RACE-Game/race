@@ -6,6 +6,7 @@ use crate::component::{
 };
 use crate::frame::{EventFrame, SignalFrame};
 use race_api::error::{Error, Result};
+use race_core::checkpoint::CheckpointOffChain;
 use race_core::context::GameContext;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount, GameMode};
@@ -24,6 +25,7 @@ pub struct ValidatorHandle {
 impl ValidatorHandle {
     pub async fn try_new(
         game_account: &GameAccount,
+        checkpoint_off_chain: Option<CheckpointOffChain>,
         server_account: &ServerAccount,
         bundle_account: &GameBundle,
         encryptor: Arc<Encryptor>,
@@ -35,9 +37,8 @@ impl ValidatorHandle {
             "Start game handle for {} with Validator mode",
             game_account.addr
         );
-        let game_context = GameContext::try_new(game_account)?;
+        let game_context = GameContext::try_new(game_account, checkpoint_off_chain)?;
         let init_account = game_context.init_account()?;
-        let checkpoint_state = game_context.checkpoint_state();
 
         let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
 
@@ -99,7 +100,6 @@ impl ValidatorHandle {
                 init_account,
                 access_version: game_account.access_version,
                 settle_version: game_account.settle_version,
-                checkpoint_state,
             })
             .await;
 

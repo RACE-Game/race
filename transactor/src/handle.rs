@@ -9,7 +9,6 @@ use crate::component::{
 };
 use crate::frame::SignalFrame;
 use race_api::error::{Error, Result};
-use race_core::checkpoint::Checkpoint;
 use race_core::storage::StorageT;
 use race_core::transport::TransportT;
 use race_core::types::{GetCheckpointParams, QueryMode, ServerAccount, SubGameSpec};
@@ -17,7 +16,7 @@ use race_encryptor::Encryptor;
 use subgame::SubGameHandle;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tracing::{error, info};
+use tracing::info;
 use transactor::TransactorHandle;
 use validator::ValidatorHandle;
 
@@ -48,7 +47,7 @@ impl Handle {
     ) -> Result<Self> {
         info!("Try create game handle for {}", addr);
         let mode = QueryMode::Finalized;
-        let mut game_account = transport
+        let game_account = transport
             .get_game_account(addr, mode)
             .await?
             .ok_or(Error::GameAccountNotFound)?;
@@ -59,24 +58,6 @@ impl Handle {
                 settle_version: game_account.settle_version,
             })
             .await?;
-
-        if let Some(checkpoint_offchain) = checkpoint_offchain {
-            if let Some(ref checkpoint_onchain) = game_account.checkpoint_on_chain {
-                // Both onchain and offchain parts are available
-                let checkpoint = Checkpoint::new_from_parts(
-                    checkpoint_offchain,
-                    checkpoint_onchain.clone(),
-                );
-                game_account.set_checkpoint(checkpoint);
-            } else {
-                return Err(Error::InvalidCheckpoint);
-            }
-        } else if game_account.checkpoint_on_chain.is_none() {
-            game_account.set_checkpoint(Checkpoint::default());
-        } else {
-            error!("Cannot start game handle, the checkpoint is missing in local db");
-            return Err(Error::MissingCheckpoint);
-        }
 
         if let Some(ref transactor_addr) = game_account.transactor_addr {
             info!("Current transactor: {}", transactor_addr);
@@ -91,6 +72,7 @@ impl Handle {
                 Ok(Self::Transactor(
                     TransactorHandle::try_new(
                         &game_account,
+                        checkpoint_offchain,
                         server_account,
                         &game_bundle,
                         encryptor.clone(),
@@ -105,6 +87,7 @@ impl Handle {
                 Ok(Self::Validator(
                     ValidatorHandle::try_new(
                         &game_account,
+                        checkpoint_offchain,
                         server_account,
                         &game_bundle,
                         encryptor.clone(),

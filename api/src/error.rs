@@ -361,6 +361,9 @@ pub enum HandleError {
     #[error("No enough servers")]
     NoEnoughServers,
 
+    #[error("Cannot initialize subgame without checkpoint")]
+    SubGameWithoutCheckpoint,
+
     #[error("Internal error: {message:?}")]
     InternalError { message: String },
 }

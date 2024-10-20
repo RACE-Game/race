@@ -7,10 +7,11 @@ use crate::component::{
 use crate::frame::{EventFrame, SignalFrame};
 use race_api::error::{Error, Result};
 use race_api::types::{PlayerJoin, ServerJoin};
+use race_core::checkpoint::CheckpointOffChain;
 use race_core::context::GameContext;
 use race_core::storage::StorageT;
 use race_core::transport::TransportT;
-use race_core::types::{ClientMode, GameAccount, GameBundle, ServerAccount, GameMode};
+use race_core::types::{ClientMode, GameAccount, GameBundle, GameMode, ServerAccount};
 use race_encryptor::Encryptor;
 use tokio::sync::mpsc;
 use tracing::info;
@@ -25,17 +26,23 @@ pub struct TransactorHandle {
 }
 
 fn create_init_sync(game_account: &GameAccount) -> Result<EventFrame> {
+    let checkpoint_access_version = game_account
+        .checkpoint_on_chain
+        .as_ref()
+        .map(|cp| cp.access_version)
+        .unwrap_or_default();
+
     let new_players: Vec<PlayerJoin> = game_account
         .players
         .iter()
-        .filter(|p| p.access_version > game_account.checkpoint.access_version)
+        .filter(|p| p.access_version > checkpoint_access_version)
         .cloned()
         .collect();
 
     let new_servers: Vec<ServerJoin> = game_account
         .servers
         .iter()
-        .filter(|s| s.access_version > game_account.checkpoint.access_version)
+        .filter(|s| s.access_version > checkpoint_access_version)
         .cloned()
         .collect();
 
@@ -57,6 +64,7 @@ fn create_init_sync(game_account: &GameAccount) -> Result<EventFrame> {
 impl TransactorHandle {
     pub async fn try_new(
         game_account: &GameAccount,
+        checkpoint_off_chain: Option<CheckpointOffChain>,
         server_account: &ServerAccount,
         bundle_account: &GameBundle,
         encryptor: Arc<Encryptor>,
@@ -70,25 +78,30 @@ impl TransactorHandle {
             game_account.addr
         );
 
-        let game_context = GameContext::try_new(game_account)?;
+        let game_context = GameContext::try_new(game_account, checkpoint_off_chain)?;
         let init_account = game_context.init_account()?;
-        let checkpoint_state = game_context.checkpoint_state();
 
         let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
 
         let event_bus = EventBus::new(game_account.addr.clone());
 
-        let (broadcaster, broadcaster_ctx) = Broadcaster::init(game_account.addr.clone(), 0, debug_mode);
+        let (broadcaster, broadcaster_ctx) =
+            Broadcaster::init(game_account.addr.clone(), 0, debug_mode);
         let mut broadcaster_handle = broadcaster.start(&game_account.addr, broadcaster_ctx);
 
         let (bridge, bridge_ctx) = EventBridgeParent::init(signal_tx);
         let mut bridge_handle = bridge.start(&game_account.addr, bridge_ctx);
 
-        let (event_loop, event_loop_ctx) =
-            EventLoop::init(handler, game_context, ClientMode::Transactor, GameMode::Main);
+        let (event_loop, event_loop_ctx) = EventLoop::init(
+            handler,
+            game_context,
+            ClientMode::Transactor,
+            GameMode::Main,
+        );
         let mut event_loop_handle = event_loop.start(&game_account.addr, event_loop_ctx);
 
-        let (submitter, submitter_ctx) = Submitter::init(game_account, transport.clone(), storage.clone());
+        let (submitter, submitter_ctx) =
+            Submitter::init(game_account, transport.clone(), storage.clone());
         let mut submitter_handle = submitter.start(&game_account.addr, submitter_ctx);
 
         let (synchronizer, synchronizer_ctx) =
@@ -121,7 +134,6 @@ impl TransactorHandle {
                 init_account,
                 access_version: game_account.access_version,
                 settle_version: game_account.settle_version,
-                checkpoint_state,
             })
             .await;
         let init_sync = create_init_sync(game_account)?;

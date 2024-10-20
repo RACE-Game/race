@@ -126,7 +126,7 @@ export class Handler implements IHandler {
     mem.grow(4);
     let buf = new Uint8Array(mem.buffer);
 
-    const effect = Effect.fromContext(context);
+    const effect = Effect.fromContext(context, true);
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
 
@@ -165,7 +165,7 @@ export class Handler implements IHandler {
     const mem = exports.memory as WebAssembly.Memory;
     let buf = new Uint8Array(mem.buffer);
 
-    const effect = Effect.fromContext(context);
+    const effect = Effect.fromContext(context, true);
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
 
