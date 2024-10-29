@@ -161,7 +161,7 @@ async fn subscribe_event(
             }
         };
 
-        let (receiver, histories) = match context.get_broadcast(&game_addr, settle_version).await {
+        let (receiver, frames) = match context.get_broadcast(&game_addr, settle_version).await {
             Ok(x) => x,
             Err(e) => {
                 warn!("Game not found: {}", game_addr);
@@ -172,21 +172,21 @@ async fn subscribe_event(
 
         drop(context);
         info!(
-            "Subscribe event stream, game: {:?}, settle version: {}, number of histories: {}",
+            "Subscribe event stream, game: {:?}, settle version: {}, number of historical frames: {}",
             game_addr,
             settle_version,
-            histories.len()
+            frames.len()
         );
 
         let mut sink = pending.accept().await?;
 
-        for hist in histories.into_iter() {
-            let v = borsh::to_vec(&hist).unwrap();
+        for frame in frames.into_iter() {
+            let v = borsh::to_vec(&frame).unwrap();
             let s = utils::base64_encode(&v);
             sink.send(SubscriptionMessage::from(&s))
                 .await
                 .map_err(|e| {
-                    error!("Error occurred when broadcasting event histories: {:?}", e);
+                    error!("Error occurred when broadcasting historical frame: {:?}", e);
                     e
                 })
                 .unwrap();

@@ -18,6 +18,8 @@ import { GamePlayer, InitAccount } from './init-account';
 import { Effect, EmitBridgeEvent, SubGame, Settle, Transfer, SettleAdd, SettleSub, SettleEject } from './effect';
 import { EntryType, GameAccount } from './accounts';
 import { Ciphertext, Digest, Id } from './types';
+import { clone } from './utils';
+import rfdc from 'rfdc';
 
 const OPERATION_TIMEOUT = 15_000n;
 
@@ -79,35 +81,11 @@ export class GameContext {
   players: GamePlayer[];
   entryType: EntryType;
 
-  constructor(context: GameContext);
-  constructor(gameAccount: GameAccount, checkpoint: Checkpoint);
-  constructor(init: GameAccount | GameContext, checkpoint?: Checkpoint) {
-    if (init instanceof GameContext) {
-      const context = init;
-      this.gameAddr = context.gameAddr;
-      this.gameId = context.gameId;
-      this.accessVersion = context.accessVersion;
-      this.settleVersion = context.settleVersion;
-      this.status = context.status;
-      this.nodes = context.nodes.map(n => Object.assign({}, n));
-      this.dispatch = context.dispatch;
-      this.handlerState = new Uint8Array(context.handlerState);
-      this.timestamp = context.timestamp;
-      this.allowExit = context.allowExit;
-      this.randomStates = context.randomStates;
-      this.decisionStates = context.decisionStates;
-      this.checkpoint = init.checkpoint;
-      this.subGames = context.subGames.map(sg => Object.assign({}, sg));
-      this.initData = context.initData;
-      this.maxPlayers = context.maxPlayers;
-      this.players = context.players.map(p => Object.assign({}, p))
-      this.entryType = context.entryType;
-    } else {                    // GameAccount
-      const gameAccount = init;
+  constructor(gameAccount: GameAccount, checkpoint: Checkpoint) {
       if (checkpoint === undefined) {
         throw new Error('Missing checkpoint');
       }
-      console.log('Build game context with checkpoint:', checkpoint);
+      console.log('Build game context with checkpoint:', clone(checkpoint));
       const checkpointAccessVersion = gameAccount.checkpointOnChain?.accessVersion || 0;
       const transactorAddr = gameAccount.transactorAddr;
       if (transactorAddr === undefined) {
@@ -164,10 +142,10 @@ export class GameContext {
       this.players = players;
       this.entryType = gameAccount.entryType;
     }
-  }
 
   subContext(subGame: SubGame): GameContext {
-    const c = new GameContext(this);
+    const c = rfdc({ proto: true })(this);
+    Object.setPrototypeOf(c, GameContext.prototype);
     c.accessVersion = c.accessVersion;
     c.settleVersion = c.settleVersion;
     c.gameAddr = c.gameAddr + subGame.gameId;
@@ -264,7 +242,6 @@ export class GameContext {
   }
 
   startGame() {
-    this.randomStates = [];
     this.dispatch = {
       event: this.genStartGameEvent(),
       timeout: 0n,
@@ -467,12 +444,15 @@ export class GameContext {
 
     let settles: Settle[] = [];
 
-    // Fully reset subGames
-    this.subGames = effect.launchSubGames;
-
     if (effect.handlerState !== undefined) {
       this.handlerState = effect.handlerState;
       if (effect.isCheckpoint) {
+        this.randomStates = [];
+        this.decisionStates = [];
+        this.bumpSettleVersion();
+        this.checkpoint.setData(this.gameId, effect.handlerState);
+        this.checkpoint.setAccessVersion(this.accessVersion);
+
         // Reset random states
         this.randomStates = [];
         this.decisionStates = [];
@@ -490,20 +470,10 @@ export class GameContext {
             this.removePlayer(s.id);
           }
         }
-
-        this.checkpoint.setData(this.gameId, effect.handlerState);
-        this.checkpoint.setAccessVersion(this.accessVersion);
-        this.status = 'idle';
       }
     }
 
-    this.subGames = effect.launchSubGames;
     for (const subGame of effect.launchSubGames) {
-      const checkpointState = subGame.initAccount.checkpoint;
-      if (checkpointState === undefined) {
-        throw new Error('No checkpoint found for SubGame');
-      }
-      this.checkpoint.setData(subGame.gameId, checkpointState);
       this.addSubGame(subGame);
     }
 

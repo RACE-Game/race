@@ -10,6 +10,7 @@ use race_core::{
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use tokio::sync::Mutex;
+use sha256::digest;
 
 pub struct LocalDbStorage {
     conn: Arc<Mutex<Connection>>,
@@ -20,9 +21,10 @@ impl StorageT for LocalDbStorage {
     async fn save_checkpoint(&self, params: SaveCheckpointParams) -> Result<()> {
         let conn = self.conn.lock().await;
         let checkpoint_bs = borsh::to_vec(&params.checkpoint).or(Err(Error::MalformedCheckpoint))?;
+        let sha = digest(&checkpoint_bs);
         conn.execute(
-            "INSERT OR REPLACE INTO game_checkpoints (game_addr, settle_version, checkpoint) VALUES (?1, ?2, ?3)",
-            params![params.game_addr, params.settle_version, checkpoint_bs],
+            "INSERT OR REPLACE INTO game_checkpoints (game_addr, settle_version, checkpoint, sha) VALUES (?1, ?2, ?3, ?4)",
+            params![params.game_addr, params.settle_version, checkpoint_bs, sha],
         )
         .map_err(|e| Error::StorageError(e.to_string()))?;
 
@@ -59,9 +61,10 @@ impl StorageT for LocalDbStorage {
 pub fn init_table(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS game_checkpoints (
-          game_addr TEXT,
+          game_addr TEXT NOT NULL,
           settle_version INTEGER NOT NULL,
-          checkpoint BLOB,
+          checkpoint BLOB NOT NULL,
+          sha TEXT NOT NULL,
           PRIMARY KEY(game_addr, settle_version)
         )",
         (),

@@ -781,8 +781,8 @@ impl GameContext {
 
         // Handle dispatching
         if start_game {
-            self.random_states.clear();
-            self.decision_states.clear();
+            // self.random_states.clear();
+            // self.decision_states.clear();
         } else if stop_game {
             self.shutdown_game();
         } else if let Some(t) = action_timeout {
@@ -837,6 +837,10 @@ impl GameContext {
             }
 
             if is_checkpoint {
+                // Clear the random states
+                self.random_states.clear();
+                self.decision_states.clear();
+
                 self.bump_settle_version()?;
                 self.checkpoint.set_data(self.game_id, state);
                 self.checkpoint.set_access_version(self.access_version);
@@ -869,15 +873,6 @@ impl GameContext {
 
             // Append SubGame to context
             for sub_game in launch_sub_games.iter().cloned() {
-                self.checkpoint.set_data(
-                    sub_game.id,
-                    sub_game
-                        .init_account
-                        .checkpoint
-                        .as_ref()
-                        .ok_or(Error::MissingCheckpoint)?
-                        .to_vec(),
-                );
                 self.sub_games.push(sub_game);
             }
 

@@ -27,6 +27,7 @@ import {
 } from './types';
 import { SubClient } from './sub-client';
 import { Checkpoint } from './checkpoint';
+import { clone } from './utils';
 
 const BUNDLE_CACHE_TTL = 3600 * 365;
 
@@ -148,7 +149,7 @@ export class AppClient extends BaseClient {
       }
 
       const gameContext = new GameContext(gameAccount, checkpoint);
-      console.log('Game Context:', gameContext);
+      console.log('Game Context:', clone(gameContext));
       const token = await transport.getToken(gameAccount.tokenAddr);
       if (token === undefined) {
         throw SdkError.tokenNotFound(gameAccount.tokenAddr);
@@ -190,10 +191,12 @@ export class AppClient extends BaseClient {
       const addr = `${this.__gameAddr}:${gameId.toString()}`;
 
       console.group(`SubClient initialization, id: ${gameId}`);
+      console.log('Parent Game Context:', clone(this.__gameContext));
 
       // Query the on-chain game account to get the latest checkpoint.
       const gameAccount = await this.__getGameAccount();
       const checkpointOnChain = gameAccount.checkpointOnChain;
+      const settleVersion = gameAccount.settleVersion;
 
       const subGame = this.__gameContext.findSubGame(gameId);
 
@@ -214,8 +217,17 @@ export class AppClient extends BaseClient {
       const client = new Client(playerAddr, this.__encryptor, connection);
       const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr);
       const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache);
+
+      // Reload the latest checkpoint.
+      const checkpointOffChain = await this.__connection.getCheckpoint(new GetCheckpointParams({ settleVersion }));
+      if (checkpointOffChain !== undefined && checkpointOnChain !== undefined) {
+        this.__gameContext.checkpoint = Checkpoint.fromParts(checkpointOffChain, checkpointOnChain);
+      } else {
+        this.__gameContext.checkpoint = Checkpoint.default();
+      }
+
       const gameContext = this.__gameContext.subContext(subGame);
-      console.log("SubGame's GameContext:", gameContext);
+      console.log("SubGame's GameContext:", clone(gameContext));
 
       return new SubClient({
         gameAddr: addr,

@@ -11,7 +11,7 @@ import { GameContextSnapshot } from './game-context-snapshot';
 import { ITransport } from './transport';
 import { IWallet } from './wallet';
 import { Handler } from './handler';
-import { IEncryptor, sha256 } from './encryptor';
+import { IEncryptor, sha256, sha256String } from './encryptor';
 import { GameAccount } from './accounts';
 import { PlayerConfirming } from './tx-state';
 import { Client } from './client';
@@ -21,6 +21,7 @@ import { ConnectionStateCallbackFunction, ErrorCallbackFunction, ErrorKind, Even
 import { BroadcastFrame, BroadcastFrameEventHistories, BroadcastFrameMessage, BroadcastFrameSync, BroadcastFrameEvent, BroadcastFrameTxState } from './broadcast-frames';
 import { IInitAccount, InitAccount } from './init-account';
 import { Checkpoint, CheckpointOnChain } from './checkpoint';
+import { clone } from './utils';
 
 const MAX_RETRIES = 3;
 
@@ -214,6 +215,7 @@ export class BaseClient {
   async __invokeEventCallback(event: GameEvent | undefined) {
     const snapshot = new GameContextSnapshot(this.__gameContext);
     const state = this.__gameContext.handlerState;
+    console.log('Dispatch event callback for ', event?.kind());
     this.__onEvent(snapshot, state, event);
   }
 
@@ -252,21 +254,21 @@ export class BaseClient {
     }
   }
 
-  // async __checkStateSha(stateSha: string, err: ErrorKind) {
-  //   const sha = await sha256(this.__gameContext.handlerState)
-  //   if (sha !== stateSha && stateSha !== '') {
-  //     const state = this.__gameContext.handlerState
-  //     this.__invokeErrorCallback(err, state);
-  //     throw new Error(`An error occurred in event loop: ${err}, game: ${this.__gameAddr}, local: ${sha}, remote: ${stateSha}`);
-  //   } else {
-  //     console.log('State SHA validation passed:', stateSha);
-  //   }
-  // }
+
+
+  async __checkStateSha(stateSha: string, err: ErrorKind) {
+    const sha = await sha256String(this.__gameContext.handlerState)
+    if (sha !== stateSha && stateSha !== '') {
+      console.warn(`An error occurred in event loop: ${err}, game: ${this.__gameAddr}, local: ${sha}, remote: ${stateSha}`);
+    } else {
+      console.log('State SHA validation passed:', stateSha);
+    }
+  }
 
   async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string) {
     console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + timestamp);
     console.log('Event: ', event);
-    console.log('Game Context before:', this.__gameContext);
+    console.log('Game Context before:', clone(this.__gameContext));
     let state: Uint8Array | undefined;
     let err: ErrorKind | undefined;
     let effects: EventEffects | undefined;
@@ -276,12 +278,12 @@ export class BaseClient {
         this.__gameContext.setTimestamp(timestamp);
         effects = await this.__handler.handleEvent(this.__gameContext, event);
         state = this.__gameContext.handlerState;
+
+        await this.__checkStateSha(stateSha, 'event-state-sha-mismatch');
       } catch (e: any) {
         console.error(this.__logPrefix, e);
         err = 'handle-event-error';
       }
-
-      // await this.__checkStateSha(stateSha, 'event-state-sha-mismatch');
 
       if (!err) {
         await this.__invokeEventCallback(event);
@@ -298,7 +300,7 @@ export class BaseClient {
       }
 
     } finally {
-      console.log('Game Context after:', this.__gameContext);
+      console.log('Game Context after:', clone(this.__gameContext));
       console.groupEnd()
     }
   }
@@ -353,22 +355,12 @@ export class BaseClient {
     } else if (frame instanceof BroadcastFrameEventHistories) {
       console.group(`${this.__logPrefix}Receive event histories`);
       try {
-        console.log('History events:', frame.histories);
-        console.log('Checkpoint offchain:', frame.checkpointOffChain);
-        if (frame.checkpointOffChain !== undefined) { // Non-empty checkpoint, we should use the state as our handler state
-          if (this.__latestCheckpointOnChain === undefined) {
-            throw new Error('Missing the on chain part of checkpoint');
-          }
-          const checkpoint = Checkpoint.fromParts(
-            frame.checkpointOffChain,
-            this.__latestCheckpointOnChain
-          );
-          console.log('Checkpoint created, use it as the handler state:', checkpoint);
-          this.__gameContext.handlerState = checkpoint.getData(this.__gameId);
-        } else { // Empty checkpoint, we should initialize handler state in wasm
-          console.log('Checkpoint is empty, initialize handler state');
-          await this.__handler.initState(this.__gameContext)
-        }
+        console.log('Frame:', frame);
+        console.log('Game context before:', clone(this.__gameContext));
+        await this.__handler.initState(this.__gameContext);
+        await this.__checkStateSha(frame.stateSha, 'checkpoint-state-sha-mismatch');
+        console.log('Game context after:', clone(this.__gameContext));
+
         this.__invokeEventCallback(new Init());
 
         for (const h of frame.histories) {

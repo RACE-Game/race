@@ -1,3 +1,4 @@
+use race_api::effect::SubGame;
 use sha256::digest;
 use std::time::{Duration, UNIX_EPOCH};
 
@@ -61,8 +62,8 @@ async fn handle_event(
 
     match handler.handle_event(game_context, &event) {
         Ok(effects) => {
-            let state = game_context.get_handler_state_raw();
-            let state_sha = digest(state);
+            let state = game_context.get_handler_state_raw().to_owned();
+            let state_sha = digest(&state);
             let timestamp = game_context.get_timestamp();
             // info!("{} Game state SHA: {}", env.log_prefix, state_sha);
 
@@ -98,9 +99,10 @@ async fn handle_event(
             // Send the settlement when there's one
             if let Some(checkpoint) = effects.checkpoint {
                 info!(
-                    "{} Create checkpoint, settle_version: {}",
+                    "{} Create checkpoint, settle_version: {}, state_sha: {}",
                     env.log_prefix,
                     game_context.settle_version(),
+                    state_sha
                 );
                 ports
                     .send(EventFrame::Checkpoint {
@@ -110,33 +112,29 @@ async fn handle_event(
                         checkpoint,
                         settles: effects.settles,
                         transfers: effects.transfers,
+                        state_sha: state_sha.clone(),
                     })
                     .await;
             }
 
             // Launch sub games
             if game_mode == GameMode::Main {
-                for launch_sub_game in effects.launch_sub_games {
-                    info!("{} Launch sub game: {}", env.log_prefix, launch_sub_game.id);
+                for sub_game in effects.launch_sub_games {
+                    info!("{} Launch sub game: {}", env.log_prefix, sub_game.id);
                     let cp = game_context.checkpoint_mut();
-                    let checkpoint_state = launch_sub_game
-                        .init_account
-                        .checkpoint
-                        .as_ref()
-                        .expect("Checkpoint is available for subgame")
-                        .clone();
-                    cp.set_data(launch_sub_game.id, checkpoint_state);
-                    let settle_version = cp.get_version(launch_sub_game.id);
+                    let SubGame {bundle_addr, id, mut init_account} = sub_game;
+                    // Use the existing checkpoint when possible.
+                    init_account.checkpoint = cp.get_data(id);
 
                     let ef = EventFrame::LaunchSubGame {
                         spec: Box::new(SubGameSpec {
                             game_addr: game_context.game_addr().to_owned(),
-                            game_id: launch_sub_game.id,
-                            bundle_addr: launch_sub_game.bundle_addr,
+                            game_id: id,
+                            bundle_addr,
                             nodes: game_context.get_nodes().into(),
                             access_version: game_context.access_version(),
                             settle_version,
-                            init_account: launch_sub_game.init_account,
+                            init_account,
                         }),
                     };
                     ports.send(ef).await;
@@ -146,7 +144,7 @@ async fn handle_event(
             // Emit bridge events
             if client_mode == ClientMode::Transactor {
                 for be in effects.bridge_events {
-                    info!("{} Send bridge event, dest: {}", env.log_prefix, be.dest);
+                    info!("{} Send bridge event, dest: {}, checkpoint sha: {}", env.log_prefix, be.dest, state_sha);
                     let ef = EventFrame::SendBridgeEvent {
                         from: game_context.game_id(),
                         dest: be.dest,
@@ -157,7 +155,7 @@ async fn handle_event(
                         },
                         access_version: game_context.access_version(),
                         settle_version: game_context.settle_version(),
-                        checkpoint: game_context.checkpoint().data(game_context.game_id()),
+                        checkpoint: state.clone(),
                     };
                     ports.send(ef).await;
                 }
@@ -252,10 +250,9 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     let state_sha = digest(game_context.get_handler_state_raw());
                     info!(
-                        "{} Initialize game state, SHA: {}",
-                        env.log_prefix, state_sha
+                        "{} Initialize game state, access_version: {}, settle_version: {}, SHA: {}",
+                        env.log_prefix, access_version, settle_version, state_sha
                     );
-                    // info!("{} Init Account: {:?}", env.log_prefix, init_account);
 
                     game_context.dispatch_safe(Event::Ready, 0);
                 }
@@ -272,7 +269,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.game_mode,
                             &env,
                         )
-                        .await
+                            .await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -329,7 +326,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.game_mode,
                             &env,
                         )
-                        .await
+                            .await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -349,7 +346,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.game_mode,
                             &env,
                         )
-                        .await
+                            .await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -366,9 +363,14 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     dest,
                     from,
                     checkpoint,
+                    settle_version,
                     ..
                 } => {
-                    if game_context.game_id() == 0 && dest == 0 && from != 0 {
+                    // In the case of parent, update the child game's
+                    // checkpoint value.
+
+                    if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
+                        info!("Update checkpoint for child game: {}", from);
                         game_context.checkpoint_mut().set_data(from, checkpoint)
                     }
 
@@ -381,7 +383,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         &env,
                     )
-                    .await
+                        .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
@@ -397,7 +399,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         &env,
                     )
-                    .await
+                        .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
@@ -417,7 +419,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         &env,
                     )
-                    .await
+                        .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;

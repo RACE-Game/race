@@ -73,6 +73,7 @@ pub enum BroadcastFrame {
         game_addr: String,
         checkpoint_off_chain: Option<CheckpointOffChain>,
         histories: Vec<EventHistory>,
+        state_sha: String,
     },
 }
 

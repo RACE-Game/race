@@ -108,8 +108,8 @@ export class Checkpoint {
     })
   }
 
-  getData(id: number): Uint8Array {
-    return this.data.get(id)?.data || Uint8Array.of();
+  getData(id: number): Uint8Array | undefined  {
+    return this.data.get(id)?.data;
   }
 
   getSha(id: number): Uint8Array | undefined {
@@ -132,7 +132,7 @@ export class Checkpoint {
       old.sha = sha;
     } else {
       this.data.set(id, new VersionedData({
-        id, sha, data, version: 0n
+        id, sha, data, version: 1n
       }))
     }
     this.updateRootAndProofs();

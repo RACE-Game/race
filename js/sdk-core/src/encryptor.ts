@@ -462,3 +462,10 @@ export async function sha256(data: Uint8Array): Promise<Uint8Array> {
   let hashBuffer = await subtle.digest('SHA-256', data)
   return new Uint8Array(hashBuffer);
 }
+
+
+export async function sha256String(data: Uint8Array): Promise<string> {
+  return Array.from(await sha256(data))
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+}

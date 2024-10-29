@@ -31,6 +31,7 @@ pub struct EventBackup {
 
 #[derive(Debug)]
 pub struct EventBackupGroup {
+    pub state_sha: String,
     pub sync: BroadcastSync,
     pub events: LinkedList<EventBackup>,
     pub settle_version: u64,
@@ -123,6 +124,7 @@ impl Broadcaster {
                     game_addr: self.id.clone(),
                     checkpoint_off_chain: group.checkpoint.as_ref().map(|c| c.derive_offchain_part()),
                     histories,
+                    state_sha: group.state_sha.clone(),
                 })
             }
         }
@@ -160,6 +162,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     access_version,
                     settle_version,
                     checkpoint,
+                    state_sha,
                     ..
                 } => {
                     info!(
@@ -170,6 +173,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
 
                     event_backup_groups.push_back(EventBackupGroup {
                         sync: BroadcastSync::new(access_version),
+                        state_sha,
                         events: LinkedList::new(),
                         access_version,
                         settle_version,
@@ -189,6 +193,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         access_version,
                         settle_version,
                         checkpoint: None,
+                        state_sha: "".into(),
                     });
 
                 }

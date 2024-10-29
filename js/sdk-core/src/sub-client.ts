@@ -10,6 +10,7 @@ import { GameInfo, ConnectionStateCallbackFunction, EventCallbackFunction, Messa
 import { IWallet } from './wallet';
 import { Init } from './events';
 import { CheckpointOnChain } from './checkpoint';
+import { clone } from './utils';
 
 export type SubClientCtorOpts = {
   gameAddr: string;
@@ -47,16 +48,11 @@ export class SubClient extends BaseClient {
     console.group(`${this.__logPrefix}Attach to game`);
     let sub;
     try {
-      console.log('Checkpoint:', this.__gameContext.checkpoint);
+      console.log('Checkpoint:', clone(this.__gameContext.checkpoint));
       await this.__attachGameWithRetry();
       sub = this.__connection.subscribeEvents();
-      console.log('Subscription:', sub);
       const settleVersion = this.__gameContext.checkpointVersion();
       await this.__connection.connect(new SubscribeEventParams({ settleVersion }));
-      // const initAccount = this.__gameContext.initAccount();
-      // await this.__handler.initState(this.__gameContext, initAccount);
-      // this.__checkStateSha(this.__gameContext.checkpointStateSha, 'checkpoint-state-sha-mismatch');
-      // this.__invokeEventCallback(new Init());
     } catch (e) {
       console.error('Attaching game failed', e);
       throw e;

@@ -42,6 +42,7 @@ export class InitAccount {
     this.entryType = fields.entryType;
     this.players = fields.players;
     this.data = fields.data;
+    this.checkpoint = fields.checkpoint;
   }
 
   serialize(): Uint8Array {

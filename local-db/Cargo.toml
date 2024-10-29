@@ -26,3 +26,4 @@ serde_json = { workspace = true }
 borsh = { workspace = true }
 async-trait = { workspace = true }
 rusqlite = { workspace = true, features = ["bundled"] }
+sha256 = { workspace = true }

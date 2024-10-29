@@ -57,6 +57,7 @@ pub enum EventFrame {
         access_version: u64,
         settle_version: u64,
         previous_settle_version: u64,
+        state_sha: String,
     },
     Broadcast {
         event: Event,

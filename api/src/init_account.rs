@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::{
-    error::HandleError,
+    error::{HandleError, HandleResult},
     types::{EntryType, GamePlayer},
 };
 
@@ -32,6 +32,14 @@ impl InitAccount {
             balance,
             id,
         })
+    }
+
+    /// Get deserialized checkpoint, return None if not available.
+    pub fn checkpoint<T: BorshDeserialize>(&self) -> HandleResult<Option<T>> {
+        self.checkpoint
+            .as_ref()
+            .map(|c| T::try_from_slice(c).map_err(|_| HandleError::MalformedCheckpointData))
+            .transpose()
     }
 }
 

@@ -1,3 +1,7 @@
+import rfdc from 'rfdc';
+
+export const clone = rfdc();
+
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = '';
   let bytes = new Uint8Array(buffer);

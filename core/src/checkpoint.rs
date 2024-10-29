@@ -93,10 +93,14 @@ impl Checkpoint {
     }
 
     pub fn update_root_and_proofs(&mut self) {
+        if !self.data.contains_key(&0) {
+            return;
+        }
         let merkle_tree = self.to_merkle_tree();
-        let root = merkle_tree
-            .root()
-            .expect("Expect to get root from merkle tree");
+        let Some(root) = merkle_tree.root()  else {
+            // Skip root update as this is not a master checkpoint
+            return;
+        };
         self.root = root.into();
         let mut i = 0;
         while self.data.contains_key(&i) {
@@ -125,7 +129,7 @@ impl Checkpoint {
         } else {
             self.data.insert(id, VersionedData {
                 id,
-                version: 0,
+                version: 1,     // The first checkpoint starts with version = 1
                 data,
                 sha: sha.into(),
             });

@@ -10,3 +10,5 @@ export * from './storage';
 export * from './sub-client';
 export * from './types';
 export * from './checkpoint';
+
+console.log('Race Protocol 24.04');

@@ -4,6 +4,8 @@ TICKET=100000000
 TABLE_SIZE=3
 START_CHIPS=10000
 
+echo "Delete test db"
+rm dev/test.db
 
 echo "Current timestamp is $START_TIME"
 echo "Ticket is $TICKET"

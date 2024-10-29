@@ -379,16 +379,13 @@ impl Effect {
     }
 
     /// Launch sub game
-    ///
-    /// Pass `None` to `checkpoint` to reuse the existing subgame checkpoint.
-    pub fn launch_sub_game<D: BorshSerialize, C: BorshSerialize>(
+    pub fn launch_sub_game<D: BorshSerialize>(
         &mut self,
         id: usize,
         bundle_addr: String,
         max_players: u16,
         players: Vec<GamePlayer>,
         init_data: D,
-        checkpoint: Option<C>,
     ) -> Result<()> {
         for p in players.iter() {
             self.assert_player_id(p.id, "launch sub game")?;
@@ -402,7 +399,9 @@ impl Effect {
                 entry_type: crate::types::EntryType::Disabled,
                 players,
                 data: borsh::to_vec(&init_data)?,
-                checkpoint: checkpoint.map(|c| borsh::to_vec(&c)).transpose()?,
+                // The checkpoint is always None
+                // It represents no checkpoint or we should use the existing one
+                checkpoint: None,
             },
         });
         Ok(())

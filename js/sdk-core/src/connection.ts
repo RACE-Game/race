@@ -96,6 +96,8 @@ export interface IConnection {
 
   getState(): Promise<Uint8Array>;
 
+  getCheckpoint(params: GetCheckpointParams): Promise<CheckpointOffChain | undefined>;
+
   submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined>;
 
   submitMessage(params: SubmitMessageParams): Promise<ConnectionState | undefined>;
@@ -109,6 +111,8 @@ export interface IConnection {
   subscribeEvents(): ConnectionSubscription;
 }
 
+type StreamMessageType = BroadcastFrame | ConnectionState | undefined;
+
 export class Connection implements IConnection {
   // The target to connect, in normal game the target is the address
   // of game.  In a sub game, the target is constructed as ADDR:ID.
@@ -121,9 +125,9 @@ export class Connection implements IConnection {
   closed: boolean;
 
   // For async message stream
-  streamResolve?: ((value: BroadcastFrame | ConnectionState | undefined) => void);
-  streamMessageQueue: BroadcastFrame[];
-  streamMessagePromise?: Promise<BroadcastFrame | ConnectionState | undefined>;
+  streamResolve?: ((value: StreamMessageType) => void);
+  streamMessageQueue: StreamMessageType[];
+  streamMessagePromise?: Promise<StreamMessageType>;
 
   // For keep alive
   lastPong: number;
@@ -262,7 +266,7 @@ export class Connection implements IConnection {
   async getCheckpoint(params: GetCheckpointParams): Promise<CheckpointOffChain | undefined> {
     const req = this.makeReqNoSig(this.target, 'checkpoint', params)
     const resp: { result: number[] | null } = await this.requestXhr(req);
-    if (resp.result === null) return undefined;
+    if (!resp.result) return undefined;
     return CheckpointOffChain.deserialize(Uint8Array.from(resp.result));
   }
 
@@ -345,6 +349,7 @@ export class Connection implements IConnection {
   }
 
   async makeReq<P>(target: string, method: Method, params: P): Promise<string> {
+    console.log(`Connection request, target: ${target}, method: ${method}, params:`, params)
     const paramsBytes = serialize(params);
     const sig = await this.encryptor.sign(paramsBytes, this.playerAddr);
     const sigBytes = serialize(sig);
@@ -357,6 +362,9 @@ export class Connection implements IConnection {
   }
 
   makeReqNoSig<P>(target: string, method: Method, params: P): string {
+    if (method !== 'ping') {
+      console.log(`Connection request[NoSig], target: ${target}, method: ${method}, params:`, params)
+    }
     const paramsBytes = serialize(params);
     return JSON.stringify({
       jsonrpc: '2.0',
@@ -388,7 +396,9 @@ export class Connection implements IConnection {
         },
       });
       if (resp.ok) {
-        return resp.json();
+        const ret = await resp.json();
+        console.debug('Response:', ret);
+        return ret;
       } else {
         throw Error('Transactor request failed:' + resp.json());
       }

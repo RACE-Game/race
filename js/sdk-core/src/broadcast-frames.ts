@@ -4,6 +4,14 @@ import { array, enums, field, option, struct, variant } from '@race-foundation/b
 import { EventHistory, GameEvent } from './events';
 import { CheckpointOffChain } from './checkpoint';
 
+export type BroadcastFrameKind =
+  | 'Invalid'
+  | 'Event'
+  | 'Message'
+  | 'TxState'
+  | 'Sync'
+  | 'EventHistories'
+
 export class Message {
   @field('string')
   sender!: string;
@@ -14,7 +22,11 @@ export class Message {
   }
 }
 
-export abstract class BroadcastFrame {}
+export abstract class BroadcastFrame {
+  kind(): BroadcastFrameKind {
+    return 'Invalid'
+  }
+}
 
 @variant(0)
 export class BroadcastFrameEvent extends BroadcastFrame {
@@ -31,6 +43,9 @@ export class BroadcastFrameEvent extends BroadcastFrame {
     Object.assign(this, fields);
     Object.setPrototypeOf(this, BroadcastFrameEvent.prototype);
   }
+  kind(): BroadcastFrameKind {
+    return 'Event'
+  }
 }
 
 @variant(1)
@@ -44,6 +59,9 @@ export class BroadcastFrameMessage extends BroadcastFrame {
     Object.assign(this, fields);
     Object.setPrototypeOf(this, BroadcastFrameMessage.prototype);
   }
+  kind(): BroadcastFrameKind {
+    return 'Message'
+  }
 }
 
 @variant(2)
@@ -54,6 +72,9 @@ export class BroadcastFrameTxState extends BroadcastFrame {
     super();
     Object.assign(this, fields);
     Object.setPrototypeOf(this, BroadcastFrameTxState.prototype);
+  }
+  kind(): BroadcastFrameKind {
+    return 'TxState'
   }
 }
 
@@ -72,6 +93,9 @@ export class BroadcastFrameSync extends BroadcastFrame {
     Object.assign(this, fields)
     Object.setPrototypeOf(this, BroadcastFrameSync.prototype);
   }
+  kind(): BroadcastFrameKind {
+    return 'Sync'
+  }
 }
 
 @variant(4)
@@ -82,9 +106,15 @@ export class BroadcastFrameEventHistories extends BroadcastFrame {
   checkpointOffChain: CheckpointOffChain | undefined;
   @field(array(struct(EventHistory)))
   histories!: EventHistory[];
+  @field('string')
+  stateSha!: string;
+
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
     Object.setPrototypeOf(this, BroadcastFrameEventHistories.prototype);
+  }
+  kind(): BroadcastFrameKind {
+    return 'EventHistories'
   }
 }
