@@ -4,8 +4,8 @@ TICKET=100000000
 TABLE_SIZE=3
 START_CHIPS=10000
 
-echo "Delete test db"
-rm dev/test.db
+echo "Delete test db files"
+rm dev/test.*.db
 
 echo "Current timestamp is $START_TIME"
 echo "Ticket is $TICKET"
@@ -47,4 +47,5 @@ EOF
 
 echo "$JSON"
 echo "$JSON" > /tmp/race-mtt-facade.json
+echo "Start facade server"
 just dev-facade -g /tmp/race-mtt-facade.json -b ../race-holdem/target/race_holdem_mtt_table.wasm

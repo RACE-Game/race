@@ -1,14 +1,14 @@
 // The layout to launch facade and 2 transactors in Zellij
 
 layout {
-  pane {
-    name "Facade"
-    focus true
-    cwd "../"
-    command "just"
-    args "dev-facade" "-g" "dev/game-specs/holdem-cash.json"
-    start_suspended true
-  }
+		pane {
+			name "Facade"
+			focus true
+			cwd "../"
+		  command "bash"
+			args "dev/scripts/facade-cash-game.sh"
+			start_suspended true
+		}
   pane split_direction="vertical" {
     pane {
       name "Transactor 1"

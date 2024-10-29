@@ -98,12 +98,15 @@ async fn handle_event(
 
             // Send the settlement when there's one
             if let Some(checkpoint) = effects.checkpoint {
+                let checkpoint_size = checkpoint.get_data(game_context.game_id()).map(|d| d.len());
                 info!(
-                    "{} Create checkpoint, settle_version: {}, state_sha: {}",
+                    "{} Create checkpoint, settle_version: {}, size: {:?}, state_sha: {}",
                     env.log_prefix,
                     game_context.settle_version(),
+                    checkpoint_size,
                     state_sha
                 );
+
                 ports
                     .send(EventFrame::Checkpoint {
                         access_version: game_context.access_version(),

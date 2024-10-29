@@ -137,12 +137,6 @@ impl RemoteConnection {
         })
     }
 
-    // async fn request(&self, game_addr: &str, method: &str) {
-    //     let mut rpc_client = self.rpc_client.lock().await;
-    //     let mut retries = 0;
-
-    // }
-
     fn make_request<P>(&self, game_addr: &str, params: &P) -> Result<ArrayParams>
     where
         P: BorshSerialize,
@@ -187,10 +181,12 @@ impl RemoteConnection {
                 Ok(ret) => return Ok(ret),
                 Err(RestartNeeded(e)) => {
                     // For reconnecting
-                    warn!("Try reconnect due to error: {:?}", e);
+                    warn!("Try reconnect due to error[{}]: {:?}", method, e);
                     *rpc_client = None;
                 }
-                Err(_) => (),
+                Err(e) => {
+                    warn!("Error in request[{}]: {:?}", method, e);
+                },
             }
 
             if retries < self.max_retries {

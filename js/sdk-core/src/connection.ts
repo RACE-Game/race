@@ -250,10 +250,10 @@ export class Connection implements IConnection {
   async attachGame(params: AttachGameParams): Promise<AttachResponse> {
     const req = this.makeReqNoSig(this.target, 'attach_game', params);
     const resp: any = await this.requestXhr(req);
-    if (resp.result == 'success') {
-      return 'success'
-    } else {
-      return 'game-not-loaded'
+    if (resp.error !== undefined) {
+      return 'game-not-loaded';
+    }  else {
+      return 'success';
     }
   }
 

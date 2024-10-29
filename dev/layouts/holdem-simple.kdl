@@ -2,13 +2,14 @@
 
 layout {
   pane split_direction="vertical" {
-    pane {
-      name "Facade"
-      focus true
-      cwd "../"
-      command "just"
-      args "dev-facade" "-g" "dev/game-specs/holdem-cash.json"
-    }
+		pane {
+			name "Facade"
+			focus true
+			cwd "../"
+		  command "bash"
+			args "dev/scripts/facade-cash-game.sh"
+			start_suspended true
+		}
     pane split_direction="horizontal" {
         pane {
             name "Transactor"

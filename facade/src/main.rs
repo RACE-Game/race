@@ -20,7 +20,7 @@ use std::fs::File;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -288,7 +288,7 @@ async fn get_registration_info(
             owner: None,
             games,
         })
-        .unwrap(),
+            .unwrap(),
     ))
 }
 

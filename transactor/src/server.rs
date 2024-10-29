@@ -64,7 +64,7 @@ fn parse_params<T: BorshDeserialize>(
 async fn attach_game(
     params: Params<'_>,
     context: Arc<ApplicationContext>,
-) -> Result<String, RpcError> {
+) -> Result<(), RpcError> {
     let (game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
 
     info!("Attach to game, signer: {}", signer);
@@ -78,7 +78,7 @@ async fn attach_game(
         .await
         .map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
 
-    Ok("success".to_string())
+    Ok(())
 }
 
 fn ping(_: Params<'_>, _: &ApplicationContext) -> Result<String, RpcError> {

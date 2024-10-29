@@ -7,7 +7,7 @@ layout {
       focus true
       cwd "../"
       command "bash"
-      args "dev/scripts/create-mtt-game.sh"
+      args "dev/scripts/facade-mtt-game.sh"
       start_suspended true
     }
     pane split_direction="horizontal" {

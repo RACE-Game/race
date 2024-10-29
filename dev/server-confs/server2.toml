@@ -10,3 +10,6 @@ disable_blacklist = true
 host = "http://localhost:12002"
 registration_address = "DEFAULT_REGISTRATION_ADDRESS"
 address = "Server 2"
+
+[storage]
+db_file_name = "dev/test.2.db"
