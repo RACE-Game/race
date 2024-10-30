@@ -1,9 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use race_api::types::{GamePlayer, PlayerJoin};
 use race_client::Client;
-use race_api::error::Result;
+use race_api::error::{Result, Error};
 use race_api::event::{CustomEvent, Event};
+use race_core::types::GameAccount;
 use race_core::{
     connection::ConnectionT,
     context::GameContext,
@@ -13,10 +15,22 @@ use race_core::{
 use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, Mutex};
 
-use crate::{transport_helpers::DummyTransport, account_helpers::test_game_addr};
+use crate::misc::test_game_addr;
+use crate::transport_helpers::DummyTransport;
 
 pub struct TestClient {
+    id: Option<u64>,
     client: Client,
+}
+
+pub(crate) trait AsGameContextRef {
+    fn as_game_context_ref(&self) -> &GameContext;
+}
+
+impl AsGameContextRef for GameContext {
+    fn as_game_context_ref(&self) -> &GameContext {
+        &self
+    }
 }
 
 pub struct DummyConnection {
@@ -69,6 +83,7 @@ impl TestClient {
         let encryptor = Arc::new(Encryptor::default());
         let connection = Arc::new(DummyConnection::default());
         Self {
+            id: None,
             client: Client::new(
                 addr,
                 test_game_addr(),
@@ -84,6 +99,45 @@ impl TestClient {
         Self::new(addr, ClientMode::Player)
     }
 
+    pub(crate) fn set_id(&mut self, id: u64) {
+        self.id = Some(id)
+    }
+
+    pub(crate) fn join(&mut self, game_context: &mut GameContext, game_account: &mut GameAccount, balance: u64) -> Result<GamePlayer> {
+        if self.client.mode != ClientMode::Player {
+            panic!("TestClient can only join with Player mode");
+        }
+
+        if game_account.players.len() >= game_account.max_players as _ {
+            return Err(Error::GameIsFull(game_account.max_players as _))
+        }
+
+        game_account.access_version += 1;
+        let id = game_account.access_version;
+
+        let mut position = 0;
+        for i in 0..game_account.max_players {
+            if game_account.players.iter().find(|p| p.position == i).is_none() {
+                position = i;
+                break;
+            }
+        }
+
+        game_account.players.push(PlayerJoin {
+            addr: self.client.addr.clone(),
+            position,
+            balance,
+            access_version: id,
+            verify_key: "".into(),
+        });
+        self.set_id(id);
+        game_context.add_node(self.client.addr.clone(), id, ClientMode::Player);
+
+        Ok(GamePlayer {
+            id, position, balance
+        })
+    }
+
     pub fn transactor<S: Into<String>>(addr: S) -> Self {
         Self::new(addr, ClientMode::Transactor)
     }
@@ -92,34 +146,38 @@ impl TestClient {
         Self::new(addr, ClientMode::Validator)
     }
 
-    pub fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<Vec<Event>> {
-        self.client.handle_updated_context(ctx)
+    pub(crate) fn handle_updated_context<T: AsGameContextRef>(&mut self, ctx: &T) -> Result<Vec<Event>> {
+        self.client.handle_updated_context(ctx.as_game_context_ref())
     }
 
-    pub fn get_mode(&self) -> ClientMode {
+    pub fn mode(&self) -> ClientMode {
         self.client.mode.clone()
     }
 
-    pub fn get_addr(&self) -> String {
+    pub fn addr(&self) -> String {
         self.client.addr.clone()
     }
 
-    pub fn decrypt(
-        &mut self,
-        ctx: &GameContext,
+    pub(crate) fn decrypt<T: AsGameContextRef>(
+        &self,
+        ctx: &T,
         random_id: usize,
     ) -> Result<HashMap<usize, String>> {
-        self.client.decrypt(ctx, random_id)
+        self.client.decrypt(ctx.as_game_context_ref(), random_id)
     }
 
     pub fn secret_state(&self) -> &SecretState {
         &self.client.secret_state
     }
 
+    pub fn id(&self) -> u64 {
+        self.id.expect(&format!("Client {} is not in game", self.client.addr))
+    }
+
     pub fn custom_event<E: CustomEvent>(&self, custom_event: E) -> Event {
         Event::Custom {
-            sender: self.client.addr.to_owned(),
-            raw: custom_event.try_to_vec().unwrap(),
+            sender: self.id(),
+            raw: borsh::to_vec(&custom_event).unwrap(),
         }
     }
 
@@ -135,7 +193,7 @@ mod tests {
     #[tokio::test]
     async fn test_dummy_connection() -> Result<()> {
         let conn = DummyConnection::default();
-        let event = Event::GameStart { access_version: 1 };
+        let event = Event::GameStart;
         conn.submit_event(
             "",
             SubmitEventParams {

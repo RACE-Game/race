@@ -1,85 +1,17 @@
-import { array, deserialize, field, serialize, struct } from '@race-foundation/borsh';
-import { GameAccount, GameBundle, PlayerJoin, ServerJoin } from './accounts';
-import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Sync } from './events';
-import { GameContext } from './game-context';
+import { deserialize, serialize } from '@race-foundation/borsh';
+import { GameBundle } from './accounts';
+import { AnswerDecision, GameEvent, GameStart, Leave, Mask, Lock, SecretsReady, ShareSecrets, Join, Bridge } from './events';
+import { EventEffects, GameContext } from './game-context';
 import { IEncryptor } from './encryptor';
 import { Effect } from './effect';
 import { Client } from './client';
 import { DecryptionCache } from './decryption-cache';
-
-/**
- * A subset of GameAccount, used in handler initialization.
- */
-export interface IInitAccount {
-  addr: string;
-  players: PlayerJoin[];
-  servers: ServerJoin[];
-  data: Uint8Array;
-  accessVersion: bigint;
-  settleVersion: bigint;
-  maxPlayers: number;
-  checkpoint: Uint8Array;
-}
-
-export class InitAccount {
-  @field('string')
-  readonly addr: string;
-  @field(array(struct(PlayerJoin)))
-  readonly players: PlayerJoin[];
-  @field(array(struct(ServerJoin)))
-  readonly servers: ServerJoin[];
-  @field('u8-array')
-  readonly data: Uint8Array;
-  @field('u64')
-  readonly accessVersion: bigint;
-  @field('u64')
-  readonly settleVersion: bigint;
-  @field('u16')
-  readonly maxPlayers: number;
-  @field('u8-array')
-  readonly checkpoint: Uint8Array;
-
-  constructor(fields: IInitAccount) {
-    this.addr = fields.addr;
-    this.accessVersion = fields.accessVersion;
-    this.settleVersion = fields.settleVersion;
-    this.data = fields.data;
-    this.players = fields.players;
-    this.servers = fields.servers;
-    this.maxPlayers = fields.maxPlayers;
-    this.checkpoint = fields.checkpoint;
-  }
-  static createFromGameAccount(
-    gameAccount: GameAccount,
-    transactorAccessVersion: bigint,
-    transactorSettleVersion: bigint
-  ): InitAccount {
-    let { addr, players, servers, data, checkpointAccessVersion, transactorAddr } = gameAccount;
-    players = players.filter(p => p.accessVersion <= checkpointAccessVersion);
-    servers = servers.filter(s => s.accessVersion <= checkpointAccessVersion || s.addr === transactorAddr);
-    return new InitAccount({
-      addr,
-      data,
-      players,
-      servers,
-      accessVersion: transactorAccessVersion,
-      settleVersion: transactorSettleVersion,
-      maxPlayers: gameAccount.maxPlayers,
-      checkpoint: gameAccount.checkpoint,
-    });
-  }
-  serialize(): Uint8Array {
-    return serialize(InitAccount);
-  }
-  static deserialize(data: Uint8Array) {
-    return deserialize(InitAccount, data);
-  }
-}
+import { InitAccount } from './init-account';
 
 export interface IHandler {
-  handleEvent(context: GameContext, event: GameEvent): Promise<void>;
+  handleEvent(context: GameContext, event: GameEvent): Promise<EventEffects>;
 
-  initState(context: GameContext, initAccount: InitAccount): Promise<void>;
+  initState(context: GameContext, initAccount: InitAccount): Promise<EventEffects>;
 }
 
 export class Handler implements IHandler {
@@ -115,27 +47,28 @@ export class Handler implements IHandler {
     return new Handler(initiatedSource.instance, encryptor, client, decryptionCache);
   }
 
-  async handleEvent(context: GameContext, event: GameEvent) {
+  async handleEvent(context: GameContext, event: GameEvent): Promise<EventEffects> {
     await this.generalPreHandleEvent(context, event, this.#encryptor);
-    await this.customHandleEvent(context, event);
-    await this.generalPostHandleEvent(context, event);
-    context.applyAndTakeSettles();
+    return await this.customHandleEvent(context, event);
   }
 
-  async initState(context: GameContext, initAccount: InitAccount) {
+  async initState(context: GameContext): Promise<EventEffects> {
+    const initAccount = context.initAccount();
+    console.log('InitState with:', initAccount);
+    context.setTimestamp(0n); // Use 0 timestamp for initState
     await this.generalPreInitState(context, initAccount);
-    await this.customInitState(context, initAccount);
-    await this.generalPostInitState(context, initAccount);
+    return await this.customInitState(context, initAccount);
   }
 
-  async generalPreInitState(_context: GameContext, _initAccount: InitAccount) { }
-
-  async generalPostInitState(_context: GameContext, _initAccount: InitAccount) { }
+  async generalPreInitState(context: GameContext, _initAccount: InitAccount) {
+    context.dispatch = undefined;
+  }
 
   async generalPreHandleEvent(context: GameContext, event: GameEvent, encryptor: IEncryptor) {
     if (event instanceof ShareSecrets) {
       const { sender, shares } = event;
-      context.addSharedSecrets(sender, shares);
+      const addr = context.idToAddr(sender);
+      context.addSharedSecrets(addr, shares);
       let randomIds: number[] = [];
       for (let randomState of context.randomStates) {
         if (randomState.status.kind === 'shared') {
@@ -143,43 +76,31 @@ export class Handler implements IHandler {
           randomState.status = { kind: 'ready' };
         }
       }
-
       if (randomIds.length > 0) {
         context.dispatchEventInstantly(new SecretsReady({ randomIds }));
       }
     } else if (event instanceof AnswerDecision) {
       const { decisionId, ciphertext, sender, digest } = event;
-      context.answerDecision(decisionId, sender, ciphertext, digest);
+      const addr = context.idToAddr(sender);
+      context.answerDecision(decisionId, addr, ciphertext, digest);
     } else if (event instanceof Mask) {
       const { sender, randomId, ciphertexts } = event;
-      context.randomizeAndMask(sender, randomId, ciphertexts);
+      const addr = context.idToAddr(sender);
+      context.randomizeAndMask(addr, randomId, ciphertexts);
     } else if (event instanceof Lock) {
       const { sender, randomId, ciphertextsAndDigests } = event;
-      context.lock(sender, randomId, ciphertextsAndDigests);
-    } else if (event instanceof Sync) {
-      const { accessVersion, newPlayers, newServers } = event;
-      if (accessVersion < context.accessVersion) {
-        throw new Error('Event ignored');
-      }
-      for (const p of newPlayers) {
-        context.addPlayer(p);
-      }
-      for (const s of newServers) {
-        context.addServer(s);
-      }
-      context.accessVersion = accessVersion;
+      const addr = context.idToAddr(sender);
+      context.lock(addr, randomId, ciphertextsAndDigests);
+    } else if (event instanceof Join) {
+      event.players.forEach(p => context.addPlayer(p));
     } else if (event instanceof Leave) {
-      const { playerAddr } = event;
-      const exist = context.players.find(p => p.addr === playerAddr);
-      if (exist === undefined) {
-        throw new Error('Invalid player address');
+      if (!context.allowExit) {
+        throw new Error('Leave is not allowed')
       }
     } else if (event instanceof GameStart) {
-      const { accessVersion } = event;
       context.status = 'running';
-      context.setNodeReady(accessVersion);
+      context.setNodeReady(context.accessVersion);
     } else if (event instanceof SecretsReady) {
-
       for (let randomId of event.randomIds) {
         let decryption = await this.#client.decrypt(context, randomId);
         this.#decryptionCache.add(randomId, decryption);
@@ -194,23 +115,20 @@ export class Handler implements IHandler {
         );
         context.addRevealedRandom(st.id, revealed);
       }
+    } else if (event instanceof Bridge) {
+      event.joinPlayers.forEach(p => context.addPlayer(p));
     }
   }
 
-  async generalPostHandleEvent(context: GameContext, event: GameEvent) {
-    if (context.checkpoint) {
-      context.randomStates = [];
-      context.decisionStates = [];
-    }
-  }
-
-  async customInitState(context: GameContext, initAccount: InitAccount) {
+  async customInitState(context: GameContext, initAccount: InitAccount): Promise<EventEffects> {
     const exports = this.#instance.exports;
     const mem = exports.memory as WebAssembly.Memory;
     mem.grow(4);
     let buf = new Uint8Array(mem.buffer);
 
-    const effect = Effect.fromContext(context);
+    const effect = Effect.fromContext(context, true);
+    console.log('Effect:', effect);
+
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
 
@@ -240,25 +158,23 @@ export class Handler implements IHandler {
       console.error(newEffect.error);
       throw newEffect.error;
     } else {
-      context.applyEffect(newEffect);
+      return await context.applyEffect(newEffect);
     }
   }
 
-  async customHandleEvent(context: GameContext, event: GameEvent) {
+  async customHandleEvent(context: GameContext, event: GameEvent): Promise<EventEffects> {
     const exports = this.#instance.exports;
     const mem = exports.memory as WebAssembly.Memory;
     let buf = new Uint8Array(mem.buffer);
 
-    const effect = Effect.fromContext(context);
-    // console.debug("Effect before ser: ", effect);
+    const effect = Effect.fromContext(context, false);
+
+    console.log('Effect:', effect);
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
 
     const eventBytes = serialize(event);
     const eventSize = eventBytes.length;
-
-    // console.debug("Event Bytes: [%s]", Array.of(eventBytes).toString());
-    // console.debug("Effect Bytes: [%s]", Array.of(effectBytes).toString());
 
     if (buf.length < 1 + eventSize + effectSize) {
       throw new Error(`WASM memory overflow, buffer length: ${buf.length}, required: ${1 + eventSize + effectSize}`);
@@ -294,7 +210,7 @@ export class Handler implements IHandler {
     if (newEffect.error !== undefined) {
       throw newEffect.error;
     } else {
-      context.applyEffect(newEffect);
+      return await context.applyEffect(newEffect);
     }
   }
 }

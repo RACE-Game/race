@@ -1,5 +1,6 @@
 //! Wrapped transport, which support retry
 
+use futures::Stream;
 use jsonrpsee::core::async_trait;
 use race_api::error::Result;
 use race_core::types::{
@@ -16,13 +17,15 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
+use std::pin::Pin;
 use std::time::Duration;
 use tracing::error;
 
-const RETRY_INTERVAL: u64 = 10;
+const DEFAULT_RETRY_INTERVAL: u64 = 10_000;
 
 pub struct WrappedTransport {
     pub(crate) inner: Box<dyn TransportT>,
+    retry_interval: u64,
 }
 
 impl WrappedTransport {
@@ -37,12 +40,16 @@ impl WrappedTransport {
             .try_with_config(config)?
             .build()
             .await?;
-        Ok(Self { inner: transport })
+        Ok(Self { inner: transport, retry_interval: DEFAULT_RETRY_INTERVAL })
     }
 }
 
 #[async_trait]
 impl TransportT for WrappedTransport {
+    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
+        self.inner.subscribe_game_account(addr).await
+    }
+
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
         self.inner.create_game_account(params).await
     }
@@ -93,46 +100,51 @@ impl TransportT for WrappedTransport {
 
     /// `settle_version` is used to identify the settle state,
     /// Until the `settle_version` is bumped, we keep retrying.
-    async fn settle_game(&self, params: SettleParams) -> Result<()> {
+    async fn settle_game(&self, params: SettleParams) -> Result<String> {
         let mut curr_settle_version: Option<u64> = None;
         loop {
             let game_account = self
                 .inner
                 .get_game_account(&params.addr, QueryMode::Finalized)
                 .await;
+            println!("Game Account: {:?}", game_account);  // --------------
             if let Ok(Some(game_account)) = game_account {
                 // We got an old state, which has a smaller `settle_version`
                 if game_account.settle_version < params.settle_version {
                     error!(
                         "Got invalid settle_version: {} != {}, will retry in {} secs",
-                        game_account.settle_version, params.settle_version, RETRY_INTERVAL
+                        game_account.settle_version, params.settle_version, self.retry_interval
                     );
-                    tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
+                    tokio::time::sleep(Duration::from_millis(self.retry_interval)).await;
                     continue;
                 }
-                // The `settle_version` had been bumped, indicates the transaction was succeed
-                // NOTE: The transaction can success with error result due to unstable network
+                // The `settle_version` had been bumped, which
+                // indicates the transaction was succeed
+
+                //NOTE: The transaction may success with error result
+                // due to unstable network
                 if curr_settle_version.is_some_and(|v| v < game_account.settle_version) {
-                    return Ok(());
+                    return Ok("".into());
                 }
                 curr_settle_version = Some(game_account.settle_version);
-                if let Err(e) = self.inner.settle_game(params.clone()).await {
-                    error!(
-                        "Error in settlement: {:?}, will retry in {} secs",
-                        e, RETRY_INTERVAL
-                    );
-                    tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
-                    continue;
-                } else {
-                    return Ok(());
+                match self.inner.settle_game(params.clone()).await {
+                    Ok(sig) => return Ok(sig),
+                    Err(e) => {
+                        error!(
+                            "Error in settlement: {:?}, will retry in {} secs",
+                            e, self.retry_interval
+                        );
+                        tokio::time::sleep(Duration::from_millis(self.retry_interval)).await;
+                        continue;
+                    }
                 }
             } else {
                 error!(
                     "Error in settlement due to unable to get game account {}, will retry in {} secs",
                     params.addr,
-                    RETRY_INTERVAL
+                    self.retry_interval
                 );
-                tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
+                tokio::time::sleep(Duration::from_millis(self.retry_interval)).await;
                 continue;
             }
         }
@@ -177,6 +189,7 @@ impl TransportT for WrappedTransport {
 
 #[cfg(test)]
 mod tests {
+    use race_core::checkpoint::CheckpointOnChain;
     use race_test::prelude::{test_game_addr, DummyTransport, TestGameAccountBuilder};
 
     use super::*;
@@ -188,19 +201,19 @@ mod tests {
         let mut ga1 = TestGameAccountBuilder::new().build();
         ga1.settle_version = 1;
         t.simulate_states(vec![ga0, ga1]);
-        let wt = WrappedTransport { inner: Box::new(t) };
+        let wt = WrappedTransport { inner: Box::new(t), retry_interval: 1 };
         let r = wt
             .settle_game(SettleParams {
                 addr: test_game_addr(),
                 settles: vec![],
                 transfers: vec![],
-                checkpoint: vec![],
+                checkpoint: CheckpointOnChain::default(),
                 settle_version: 1,
                 next_settle_version: 2,
             })
             .await;
 
-        assert_eq!(r, Ok(()));
+        assert_eq!(r, Ok("".to_string()));
         Ok(())
     }
 
@@ -212,19 +225,19 @@ mod tests {
         let mut ga1 = TestGameAccountBuilder::new().build();
         ga1.settle_version = 1;
         t.simulate_states(vec![ga0, ga1]);
-        let wt = WrappedTransport { inner: Box::new(t) };
+        let wt = WrappedTransport { inner: Box::new(t), retry_interval: 1 };
         let r = wt
             .settle_game(SettleParams {
                 addr: test_game_addr(),
-                settles: vec![],
                 transfers: vec![],
-                checkpoint: vec![],
-                settle_version: 1,
+                settles: vec![],
+                checkpoint: CheckpointOnChain::default(),
+                settle_version: 0,
                 next_settle_version: 2,
             })
             .await;
 
-        assert_eq!(r, Ok(()));
+        assert_eq!(r, Ok("".to_string()));
         Ok(())
     }
 }

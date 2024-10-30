@@ -73,12 +73,10 @@ dev-facade *ARGS:
 dev-reg-transactor conf:
     cargo run -p race-transactor -- -c {{conf}} reg
 
-dev-transactor conf:
+dev-run-transactor conf:
     cargo run -p race-transactor -- -c {{conf}} run
 
-facade-transactor num:
-    cargo run -p race-transactor -- -c examples/conf/server{{num}}.toml reg
-    cargo run -p race-transactor -- -c examples/conf/server{{num}}.toml run
+dev-transactor conf: (dev-reg-transactor conf) (dev-run-transactor conf)
 
 solana:
     (cd contracts/solana; cargo build-sbf)

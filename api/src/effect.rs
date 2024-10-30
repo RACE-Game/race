@@ -7,19 +7,21 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use crate::{
     engine::GameHandler,
     error::{Error, HandleError, Result},
+    event::BridgeEvent,
+    prelude::InitAccount,
     random::RandomSpec,
-    types::{DecisionId, RandomId, Settle, Transfer},
+    types::{DecisionId, GamePlayer, RandomId, Settle, Transfer},
 };
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Ask {
-    pub player_addr: String,
+    pub player_id: u64,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Assign {
     pub random_id: RandomId,
-    pub player_addr: String,
+    pub player_id: u64,
     pub indexes: Vec<usize>,
 }
 
@@ -36,8 +38,72 @@ pub struct Release {
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct ActionTimeout {
-    pub player_addr: String,
+    pub player_id: u64,
     pub timeout: u64,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+pub struct SubGame {
+    pub id: usize,
+    pub bundle_addr: String,
+    pub init_account: InitAccount,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+pub struct SubGameJoin {
+    pub id: usize,
+    pub players: Vec<GamePlayer>,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+pub struct SubGameLeave {
+    pub id: usize,
+    pub player_ids: Vec<u64>,
+}
+
+impl SubGame {
+
+    pub fn try_new<S: BorshSerialize, T: BorshSerialize>(
+        id: usize,
+        bundle_addr: String,
+        max_players: u16,
+        players: Vec<GamePlayer>,
+        init_data: S,
+        checkpoint_state: T,
+    ) -> Result<Self> {
+        Ok(Self {
+            id,
+            bundle_addr,
+            init_account: InitAccount {
+                max_players,
+                entry_type: crate::types::EntryType::Disabled,
+                players,
+                data: borsh::to_vec(&init_data)?,
+                checkpoint: Some(borsh::to_vec(&checkpoint_state)?),
+            },
+        })
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+pub struct EmitBridgeEvent {
+    pub dest: usize,
+    pub raw: Vec<u8>,
+    pub join_players: Vec<GamePlayer>,
+}
+
+impl EmitBridgeEvent {
+    pub fn try_new<E: BridgeEvent>(
+        dest: usize,
+        bridge_event: E,
+        join_players: Vec<GamePlayer>,
+    ) -> Result<Self> {
+        Ok(Self {
+            dest,
+            raw: borsh::to_vec(&bridge_event)?,
+            join_players,
+        })
+    }
 }
 
 /// An effect used in game handler provides reading and mutating to
@@ -69,7 +135,7 @@ pub struct ActionTimeout {
 /// ```
 /// # use race_api::effect::Effect;
 /// let mut effect = Effect::default();
-/// effect.assign(1 /* random_id */, "Alice", vec![0, 1, 2] /* indexes */);
+/// effect.assign(1 /* random_id */, 0 /* player_id */, vec![0, 1, 2] /* indexes */);
 /// ```
 /// To reveal some items to the public, use [`Effect::reveal`].
 /// It makes those items visible to everyone, including servers.
@@ -87,7 +153,7 @@ pub struct ActionTimeout {
 /// ```
 /// # use race_api::effect::Effect;
 /// let mut effect = Effect::default();
-/// let decision_id = effect.ask("Alice");
+/// let decision_id = effect.ask(0 /* player_id */);
 /// ```
 ///
 /// To reveal the answer, use [`Effect::reveal_answer`].
@@ -121,15 +187,16 @@ pub struct ActionTimeout {
 /// use race_api::types::Settle;
 /// let mut effect = Effect::default();
 /// // Increase assets
-/// effect.settle(Settle::add("Alice", 100));
+/// effect.settle(Settle::add(0 /* player_id */, 100 /* amount */));
 /// // Decrease assets
-/// effect.settle(Settle::sub("Bob", 200));
+/// effect.settle(Settle::sub(1 /* player_id */, 200 /* amount */));
 /// // Remove player from this game, its assets will be paid out
-/// effect.settle(Settle::eject("Charlie"));
+/// effect.settle(Settle::eject(2 /* player_id*/));
+/// // Make the checkpoint
+/// effect.checkpoint();
 /// ```
 
-#[cfg_attr(test, derive(PartialEq, Eq))]
-#[derive(Default, BorshSerialize, BorshDeserialize, Debug)]
+#[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Effect {
     pub action_timeout: Option<ActionTimeout>,
     pub wait_timeout: Option<u64>,
@@ -139,8 +206,7 @@ pub struct Effect {
     pub timestamp: u64,
     pub curr_random_id: RandomId,
     pub curr_decision_id: DecisionId,
-    pub players_count: u16,
-    pub servers_count: u16,
+    pub nodes_count: u16,
     pub asks: Vec<Ask>,
     pub assigns: Vec<Assign>,
     pub reveals: Vec<Reveal>,
@@ -149,23 +215,38 @@ pub struct Effect {
     pub revealed: HashMap<RandomId, HashMap<usize, String>>,
     pub answered: HashMap<DecisionId, String>,
     pub is_checkpoint: bool,
-    pub checkpoint: Option<Vec<u8>>,
     pub settles: Vec<Settle>,
     pub handler_state: Option<Vec<u8>>,
     pub error: Option<HandleError>,
     pub allow_exit: bool,
     pub transfers: Vec<Transfer>,
+    pub launch_sub_games: Vec<SubGame>,
+    pub bridge_events: Vec<EmitBridgeEvent>,
+    pub valid_players: Vec<GamePlayer>,
+    pub is_init: bool,
 }
 
 impl Effect {
-    /// Return the number of players, including both the pending and joined.
-    pub fn count_players(&self) -> usize {
-        self.players_count as usize
+    fn assert_player_id(&self, id: u64, reason: &str) -> Result<()> {
+        if self.valid_players.is_empty() {
+            // Skip check
+            return Ok(());
+        }
+
+        if self.valid_players.iter().any(|p| p.id == id) {
+            Ok(())
+        } else {
+            Err(Error::InvalidPlayerId(
+                id,
+                self.valid_players.iter().map(|p| p.id).collect(),
+                reason.to_string(),
+            ))
+        }
     }
 
-    /// Return the number of servers, including both the pending and joined.
-    pub fn count_servers(&self) -> usize {
-        self.servers_count as usize
+    /// Return the number of nodes, including both the pending and joined.
+    pub fn count_nodes(&self) -> usize {
+        self.nodes_count as usize
     }
 
     /// Initialize a random state with random spec, return random id.
@@ -177,17 +258,19 @@ impl Effect {
     }
 
     /// Assign some random items to a specific player.
-    pub fn assign<S: Into<String>>(
+    pub fn assign(
         &mut self,
         random_id: RandomId,
-        player_addr: S,
+        player_id: u64,
         indexes: Vec<usize>,
-    ) {
+    ) -> Result<()> {
+        self.assert_player_id(player_id, "assign random id")?;
         self.assigns.push(Assign {
             random_id,
-            player_addr: player_addr.into(),
+            player_id,
             indexes,
-        })
+        });
+        Ok(())
     }
 
     /// Reveal some random items to the public.
@@ -217,13 +300,12 @@ impl Effect {
     }
 
     /// Ask a player for a decision, return the new decision id.
-    pub fn ask<S: Into<String>>(&mut self, player_addr: S) -> DecisionId {
-        self.asks.push(Ask {
-            player_addr: player_addr.into(),
-        });
+    pub fn ask(&mut self, player_id: u64) -> Result<DecisionId> {
+        self.assert_player_id(player_id, "ask decision")?;
+        self.asks.push(Ask { player_id });
         let decision_id = self.curr_decision_id;
         self.curr_decision_id += 1;
-        decision_id
+        Ok(decision_id)
     }
 
     pub fn release(&mut self, decision_id: DecisionId) {
@@ -231,11 +313,10 @@ impl Effect {
     }
 
     /// Dispatch action timeout event for a player after certain milliseconds.
-    pub fn action_timeout<S: Into<String>>(&mut self, player_addr: S, timeout: u64) {
-        self.action_timeout = Some(ActionTimeout {
-            player_addr: player_addr.into(),
-            timeout,
-        });
+    pub fn action_timeout(&mut self, player_id: u64, timeout: u64) -> Result<()> {
+        self.assert_player_id(player_id, "set action timeout")?;
+        self.action_timeout = Some(ActionTimeout { player_id, timeout });
+        Ok(())
     }
 
     /// Return current timestamp.
@@ -244,6 +325,11 @@ impl Effect {
     /// timestamp from system API.
     pub fn timestamp(&self) -> u64 {
         self.timestamp
+    }
+
+    /// Cancel current dispatched event.
+    pub fn cancel_dispatch(&mut self) {
+        self.cancel_dispatch = true;
     }
 
     /// Dispatch waiting timeout event after certain milliseconds.
@@ -266,19 +352,58 @@ impl Effect {
         self.allow_exit = allow_exit
     }
 
-
+    /// Set current state as the checkpoint.
     pub fn checkpoint(&mut self) {
         self.is_checkpoint = true;
     }
 
+    pub fn is_checkpoint(&self) -> bool {
+        self.is_checkpoint
+    }
+
     /// Submit settlements.
-    pub fn settle(&mut self, settle: Settle) {
+    /// This will set current state as checkpoint automatically.
+    pub fn settle(&mut self, settle: Settle) -> Result<()> {
+        self.checkpoint();
+        self.assert_player_id(settle.id, "create settle")?;
         self.settles.push(settle);
+        Ok(())
     }
 
     /// Transfer the assets to a recipient slot
+    /// This will set current state as checkpoint automatically.
     pub fn transfer(&mut self, slot_id: u8, amount: u64) {
+        self.checkpoint();
         self.transfers.push(Transfer { slot_id, amount });
+    }
+
+    /// Launch sub game
+    pub fn launch_sub_game<D: BorshSerialize>(
+        &mut self,
+        id: usize,
+        bundle_addr: String,
+        max_players: u16,
+        players: Vec<GamePlayer>,
+        init_data: D,
+    ) -> Result<()> {
+        for p in players.iter() {
+            self.assert_player_id(p.id, "launch sub game")?;
+        }
+
+        self.launch_sub_games.push(SubGame {
+            id,
+            bundle_addr,
+            init_account: InitAccount {
+                max_players,
+                entry_type: crate::types::EntryType::Disabled,
+                players,
+                data: borsh::to_vec(&init_data)?,
+                // The checkpoint is always None
+                // It represents no checkpoint or we should use the existing one
+                checkpoint: None,
+            },
+        });
+        Ok(())
     }
 
     /// Get handler state.
@@ -295,30 +420,11 @@ impl Effect {
     ///
     /// This is an internal function, DO NOT use in game handler.
     pub fn __set_handler_state<S: BorshSerialize>(&mut self, handler_state: S) {
-        if let Ok(state) = handler_state.try_to_vec() {
+        if let Ok(state) = borsh::to_vec(&handler_state) {
             self.handler_state = Some(state);
         } else {
             self.error = Some(HandleError::SerializationError);
         }
-    }
-
-    /// Set checkpoint.
-    ///
-    /// This is an internal function, DO NOT use in game handler.
-    pub fn __set_checkpoint<S: BorshSerialize>(&mut self, checkpoint_state: S) {
-        if let Ok(state) = checkpoint_state.try_to_vec() {
-            self.checkpoint = Some(state);
-        } else {
-            self.error = Some(HandleError::SerializationError);
-        }
-    }
-
-    pub fn __set_checkpoint_raw(&mut self, raw: Vec<u8>) {
-        self.checkpoint = Some(raw);
-    }
-
-    pub fn __checkpoint(&mut self) -> Option<Vec<u8>> {
-        self.checkpoint.take()
     }
 
     /// Set error.
@@ -334,19 +440,31 @@ impl Effect {
     pub fn __take_error(&mut self) -> Option<HandleError> {
         self.error.take()
     }
+
+    /// Emit a bridge event.
+    pub fn bridge_event<E: BridgeEvent>(
+        &mut self,
+        dest: usize,
+        evt: E,
+        join_players: Vec<GamePlayer>,
+    ) -> Result<()> {
+        for p in join_players.iter() {
+            self.assert_player_id(p.id, "emit bridge event")?;
+        }
+        if self.bridge_events.iter().any(|x| x.dest == dest) {
+            return Err(Error::DuplicatedBridgeEventTarget);
+        }
+
+        self.bridge_events
+            .push(EmitBridgeEvent::try_new(dest, evt, join_players)?);
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-
-    #[test]
-    fn abc() {
-        let data = vec![0,0,0,0,0,195,133,107,4,139,1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,2,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,103,0,0,0,0,0,0,0,0,0,0,0,16,39,0,0,0,0,0,0,32,78,0,0,0,0,0,0,32,78,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,1,0,43,0,0,0,70,97,105,108,101,100,32,116,111,32,102,105,110,100,32,97,32,112,108,97,121,101,114,32,102,111,114,32,116,104,101,32,110,101,120,116,32,98,117,116,116,111,110,1,0,0,0,0];
-        let effect = Effect::try_from_slice(&data);
-        println!("{:?}", effect);
-    }
 
     #[test]
     fn test_serialization() -> anyhow::Result<()> {
@@ -361,8 +479,9 @@ mod tests {
         }
 
         let effect = Effect {
+            is_init: false,
             action_timeout: Some(ActionTimeout {
-                player_addr: "alice".into(),
+                player_id: 0,
                 timeout: 100,
             }),
             wait_timeout: Some(200),
@@ -372,13 +491,10 @@ mod tests {
             timestamp: 300_000,
             curr_random_id: 1,
             curr_decision_id: 1,
-            players_count: 4,
-            servers_count: 4,
-            asks: vec![Ask {
-                player_addr: "bob".into(),
-            }],
+            nodes_count: 4,
+            asks: vec![Ask { player_id: 1 }],
             assigns: vec![Assign {
-                player_addr: "bob".into(),
+                player_id: 1,
                 random_id: 5,
                 indexes: vec![0, 1, 2],
             }],
@@ -390,15 +506,17 @@ mod tests {
             init_random_states: vec![RandomSpec::shuffled_list(vec!["a".into(), "b".into()])],
             revealed,
             answered,
-            settles: vec![Settle::add("alice", 200), Settle::sub("bob", 200)],
+            settles: vec![Settle::add(0, 200), Settle::sub(1, 200)],
             handler_state: Some(vec![1, 2, 3, 4]),
             error: Some(HandleError::NoEnoughPlayers),
             allow_exit: true,
             transfers: vec![],
             is_checkpoint: false,
-            checkpoint: None,
+            launch_sub_games: vec![],
+            bridge_events: vec![],
+            valid_players: vec![],
         };
-        let bs = effect.try_to_vec()?;
+        let bs = borsh::to_vec(&effect)?;
 
         let parsed = Effect::try_from_slice(&bs)?;
 

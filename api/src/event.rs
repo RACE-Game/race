@@ -1,6 +1,6 @@
 use crate::{
     error::HandleError,
-    types::{Ciphertext, DecisionId, PlayerJoin, RandomId, SecretDigest, SecretShare, ServerJoin},
+    types::{Ciphertext, DecisionId, GamePlayer, RandomId, SecretDigest, SecretShare},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
@@ -27,7 +27,7 @@ pub enum Event {
     /// parts is the serialized data from a custom game event which
     /// satisfies [`CustomEvent`].
     Custom {
-        sender: String,
+        sender: u64,
         raw: Vec<u8>,
     },
 
@@ -38,18 +38,18 @@ pub enum Event {
     /// Transactor shares its secert to specific player.
     /// The `secret_data` is encrypted with the receiver's public key.
     ShareSecrets {
-        sender: String,
+        sender: u64,
         shares: Vec<SecretShare>,
     },
 
     OperationTimeout {
-        addrs: Vec<String>,
+        ids: Vec<u64>,
     },
 
     /// Randomize items.
     /// This event is sent by transactors.
     Mask {
-        sender: String,
+        sender: u64,
         random_id: RandomId,
         ciphertexts: Vec<Ciphertext>,
     },
@@ -57,7 +57,7 @@ pub enum Event {
     /// Lock items.
     /// This event is sent by transactors.
     Lock {
-        sender: String,
+        sender: u64,
         random_id: RandomId,
         ciphertexts_and_digests: Vec<(Ciphertext, SecretDigest)>,
     },
@@ -68,14 +68,9 @@ pub enum Event {
         random_id: RandomId,
     },
 
-    /// Sync with on-chain account.  New players/servers will be added frist to
-    /// game context and then to game handler (WASM).
-    /// This event is sent by transactor based on the diff of the account states.
-    Sync {
-        new_players: Vec<PlayerJoin>,
-        new_servers: Vec<ServerJoin>,
-        transactor_addr: String,
-        access_version: u64,
+    /// This event is sent when new players joined game.
+    Join {
+        players: Vec<GamePlayer>,
     },
 
     /// A server left the game.
@@ -83,28 +78,24 @@ pub enum Event {
     ///
     /// NOTE: This event must be handled idempotently.
     ServerLeave {
-        server_addr: String,
-        transactor_addr: String,
+        server_id: u64,
     },
 
     /// Client left game
     /// This event is sent by transactor based on client's connection status.
     Leave {
-        player_addr: String,
+        player_id: u64,
     },
 
     /// Transactor uses this event as the start for each game.
-    /// The `access_version` can be used to filter out which players are included.
-    GameStart {
-        access_version: u64,
-    },
+    GameStart,
 
     /// Timeout when waiting for start
     WaitingTimeout,
 
     /// Random drawer takes random items by indexes.
     DrawRandomItems {
-        sender: String,
+        sender: u64,
         random_id: usize,
         indexes: Vec<usize>,
     },
@@ -115,12 +106,12 @@ pub enum Event {
     /// Timeout when waiting for player's action
     /// Sent by transactor.
     ActionTimeout {
-        player_addr: String,
+        player_id: u64,
     },
 
     /// Answer the decision question with encrypted ciphertext
     AnswerDecision {
-        sender: String,
+        sender: u64,
         decision_id: DecisionId,
         ciphertext: Ciphertext,
         digest: SecretDigest,
@@ -133,12 +124,36 @@ pub enum Event {
 
     /// Shutdown
     Shutdown,
+
+    /// The custom event from bridge
+    Bridge {
+        dest: usize,
+        raw: Vec<u8>,
+        join_players: Vec<GamePlayer>,
+    },
 }
 
 impl std::fmt::Display for Event {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {:?}", sender, raw),
+            Event::Bridge {
+                dest,
+                raw,
+                join_players,
+            } => {
+                let players = join_players
+                    .iter()
+                    .map(|p| p.id.to_string())
+                    .collect::<Vec<String>>()
+                    .join(",");
+
+                write!(
+                    f,
+                    "Bridge to {}, inner: [{}...], join_players: [{}]",
+                    dest, raw[0], players
+                )
+            }
             Event::Ready => write!(f, "Ready"),
             Event::ShareSecrets { sender, shares } => {
                 let repr = shares
@@ -157,32 +172,18 @@ impl std::fmt::Display for Event {
             Event::RandomnessReady { random_id } => {
                 write!(f, "RandomnessReady, random_id: {}", random_id)
             }
-            Event::Sync {
-                new_players,
-                new_servers,
-                access_version,
-                ..
-            } => {
-                let players = new_players
+            Event::Join { players } => {
+                let players = players
                     .iter()
-                    .map(|p| p.addr.as_str())
-                    .collect::<Vec<&str>>()
+                    .map(|p| p.id.to_string())
+                    .collect::<Vec<String>>()
                     .join(",");
-                let servers = new_servers
-                    .iter()
-                    .map(|s| s.addr.as_str())
-                    .collect::<Vec<&str>>()
-                    .join(", ");
 
-                write!(
-                    f,
-                    "Sync, new_players: [{}], new_servers: [{}], access_version = {}",
-                    players, servers, access_version
-                )
+                write!(f, "Join, players: [{}]", players)
             }
-            Event::Leave { player_addr } => write!(f, "Leave from {}", player_addr),
-            Event::GameStart { access_version } => {
-                write!(f, "GameStart, access_version = {}", access_version)
+            Event::Leave { player_id } => write!(f, "Leave from {}", player_id),
+            Event::GameStart {} => {
+                write!(f, "GameStart")
             }
             Event::WaitingTimeout => write!(f, "WaitTimeout"),
             Event::DrawRandomItems {
@@ -195,23 +196,16 @@ impl std::fmt::Display for Event {
                 sender, random_id, indexes
             ),
             Event::DrawTimeout => write!(f, "DrawTimeout"),
-            Event::ActionTimeout { player_addr } => write!(f, "ActionTimeout for {}", player_addr),
+            Event::ActionTimeout { player_id } => write!(f, "ActionTimeout for {}", player_id),
             Event::SecretsReady { random_ids } => {
                 write!(f, "SecretsReady for {:?}", random_ids)
             }
-            Event::ServerLeave {
-                server_addr,
-                transactor_addr,
-            } => write!(
-                f,
-                "ServerLeave {}, current transactor: {}",
-                server_addr, transactor_addr
-            ),
+            Event::ServerLeave { server_id } => write!(f, "ServerLeave {}", server_id),
             Event::AnswerDecision { decision_id, .. } => {
                 write!(f, "AnswerDecision for {}", decision_id)
             }
-            Event::OperationTimeout { addrs } => {
-                write!(f, "OperationTimeout for {:?}", addrs)
+            Event::OperationTimeout { ids } => {
+                write!(f, "OperationTimeout for {:?}", ids)
             }
             Event::Shutdown => {
                 write!(f, "Shutdown")
@@ -221,10 +215,18 @@ impl std::fmt::Display for Event {
 }
 
 impl Event {
-    pub fn custom<S: Into<String>, E: CustomEvent>(sender: S, e: &E) -> Self {
+    pub fn custom<E: CustomEvent>(sender: u64, e: &E) -> Self {
         Self::Custom {
-            sender: sender.into(),
-            raw: e.try_to_vec().unwrap(),
+            sender,
+            raw: borsh::to_vec(&e).unwrap(),
+        }
+    }
+
+    pub fn bridge<E: BridgeEvent>(dest: usize, e: &E, join_players: Vec<GamePlayer>) -> Self {
+        Self::Bridge {
+            dest,
+            raw: borsh::to_vec(&e).unwrap(),
+            join_players,
         }
     }
 }
@@ -232,5 +234,11 @@ impl Event {
 pub trait CustomEvent: Sized + BorshSerialize + BorshDeserialize {
     fn try_parse(slice: &[u8]) -> Result<Self, HandleError> {
         Self::try_from_slice(slice).or(Err(HandleError::MalformedCustomEvent))
+    }
+}
+
+pub trait BridgeEvent: Sized + BorshSerialize + BorshDeserialize {
+    fn try_parse(slice: &[u8]) -> Result<Self, HandleError> {
+        Self::try_from_slice(slice).or(Err(HandleError::MalformedBridgeEvent))
     }
 }

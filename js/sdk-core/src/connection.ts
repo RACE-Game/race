@@ -1,12 +1,22 @@
 import { IEncryptor, PublicKeyRaws } from './encryptor';
-import { TxState } from './tx-state';
 import { GameEvent } from './events';
-import { deserialize, array, enums, field, option, serialize, struct, variant } from '@race-foundation/borsh';
+import { deserialize, enums, field, serialize, struct } from '@race-foundation/borsh';
 import { arrayBufferToBase64, base64ToUint8Array } from './utils';
+import { BroadcastFrame } from './broadcast-frames';
+import { CheckpointOffChain } from './checkpoint';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'reconnected' | 'closed';
 
-type Method = 'attach_game' | 'submit_event' | 'exit_game' | 'subscribe_event' | 'submit_message' | 'ping';
+export type AttachResponse = 'success' | 'game-not-loaded';
+
+type Method = 'attach_game'
+  | 'submit_event'
+  | 'exit_game'
+  | 'subscribe_event'
+  | 'submit_message'
+  | 'get_state'
+  | 'ping'
+  | 'checkpoint';
 
 interface IAttachGameParams {
   signer: string;
@@ -25,10 +35,13 @@ interface ISubmitMessageParams {
   content: string;
 }
 
-interface ICheckTxStateParams {
-  newPlayers: string[];
-  accessVersion: bigint;
+interface IGetCheckpointParams {
+  settleVersion: bigint;
 }
+
+export type ConnectionSubscriptionItem = BroadcastFrame | ConnectionState | undefined;
+
+export type ConnectionSubscription = AsyncGenerator<ConnectionSubscriptionItem>;
 
 export class AttachGameParams {
   @field('string')
@@ -70,56 +83,20 @@ export class SubmitMessageParams {
   }
 }
 
-export class Message {
-  @field('string')
-  sender!: string;
-  @field('string')
-  content!: string;
-  constructor(fields: any) {
-    Object.assign(this, fields);
-  }
-}
-
-export abstract class BroadcastFrame { }
-
-@variant(0)
-export class BroadcastFrameEvent extends BroadcastFrame {
-  @field('string')
-  gameAddr!: string;
-  @field(enums(GameEvent))
-  event!: GameEvent;
+export class GetCheckpointParams {
   @field('u64')
-  timestamp!: bigint;
-  constructor(fields: any) {
-    super();
-    Object.assign(this, fields);
-  }
-}
-
-@variant(1)
-export class BroadcastFrameMessage extends BroadcastFrame {
-  @field('string')
-  gameAddr!: string;
-  @field(struct(Message))
-  message!: Message;
-  constructor(fields: any) {
-    super();
-    Object.assign(this, fields);
-  }
-}
-
-@variant(2)
-export class BroadcastFrameTxState extends BroadcastFrame {
-  @field(enums(TxState))
-  txState!: TxState;
-  constructor(fields: any) {
-    super();
-    Object.assign(this, fields);
+  settleVersion: bigint;
+  constructor(fields: IGetCheckpointParams) {
+    this.settleVersion = fields.settleVersion;
   }
 }
 
 export interface IConnection {
-  attachGame(params: AttachGameParams): Promise<void>;
+  attachGame(params: AttachGameParams): Promise<AttachResponse>;
+
+  getState(): Promise<Uint8Array>;
+
+  getCheckpoint(params: GetCheckpointParams): Promise<CheckpointOffChain | undefined>;
 
   submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined>;
 
@@ -129,11 +106,17 @@ export interface IConnection {
 
   connect(params: SubscribeEventParams): Promise<void>;
 
-  subscribeEvents(): AsyncGenerator<BroadcastFrame | ConnectionState | undefined>;
+  disconnect(): void;
+
+  subscribeEvents(): ConnectionSubscription;
 }
 
+type StreamMessageType = BroadcastFrame | ConnectionState | undefined;
+
 export class Connection implements IConnection {
-  gameAddr: string;
+  // The target to connect, in normal game the target is the address
+  // of game.  In a sub game, the target is constructed as ADDR:ID.
+  target: string;
   playerAddr: string;
   endpoint: string;
   encryptor: IEncryptor;
@@ -142,9 +125,9 @@ export class Connection implements IConnection {
   closed: boolean;
 
   // For async message stream
-  streamResolve?: ((value: BroadcastFrame | ConnectionState | undefined) => void);
-  streamMessageQueue: BroadcastFrame[];
-  streamMessagePromise?: Promise<BroadcastFrame | ConnectionState | undefined>;
+  streamResolve?: ((value: StreamMessageType) => void);
+  streamMessageQueue: StreamMessageType[];
+  streamMessagePromise?: Promise<StreamMessageType>;
 
   // For keep alive
   lastPong: number;
@@ -152,8 +135,8 @@ export class Connection implements IConnection {
 
   isFirstOpen: boolean;
 
-  constructor(gameAddr: string, playerAddr: string, endpoint: string, encryptor: IEncryptor) {
-    this.gameAddr = gameAddr;
+  constructor(target: string, playerAddr: string, endpoint: string, encryptor: IEncryptor) {
+    this.target = target;
     this.playerAddr = playerAddr;
     this.endpoint = endpoint;
     this.encryptor = encryptor;
@@ -197,7 +180,7 @@ export class Connection implements IConnection {
   }
 
   async connect(params: SubscribeEventParams) {
-    console.log('Establishing server connection, settle version:', params.settleVersion);
+    console.log(`Establishing server connection, target: ${this.target}, settle version: ${params.settleVersion}`)
     this.socket = new WebSocket(this.endpoint);
 
     this.clearCheckTimer();
@@ -235,7 +218,7 @@ export class Connection implements IConnection {
           return;
         }
         if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
-          this.socket.send(this.makeReqNoSig(this.gameAddr, 'ping', {}));
+          this.socket.send(this.makeReqNoSig(this.target, 'ping', {}));
         }
       }, 3000);
 
@@ -260,18 +243,36 @@ export class Connection implements IConnection {
     };
 
     // Call JSONRPC subscribe_event
-    const req = this.makeReqNoSig(this.gameAddr, 'subscribe_event', params);
+    const req = this.makeReqNoSig(this.target, 'subscribe_event', params);
     await this.requestWs(req);
   }
 
-  async attachGame(params: AttachGameParams): Promise<void> {
-    const req = this.makeReqNoSig(this.gameAddr, 'attach_game', params);
-    await this.requestXhr(req);
+  async attachGame(params: AttachGameParams): Promise<AttachResponse> {
+    const req = this.makeReqNoSig(this.target, 'attach_game', params);
+    const resp: any = await this.requestXhr(req);
+    if (resp.error !== undefined) {
+      return 'game-not-loaded';
+    }  else {
+      return 'success';
+    }
+  }
+
+  async getState(): Promise<Uint8Array> {
+    const req = this.makeReqNoSig(this.target, 'get_state', {});
+    const resp: { result: string } = await this.requestXhr(req);
+    return Uint8Array.from(JSON.parse(resp.result));
+  }
+
+  async getCheckpoint(params: GetCheckpointParams): Promise<CheckpointOffChain | undefined> {
+    const req = this.makeReqNoSig(this.target, 'checkpoint', params)
+    const resp: { result: number[] | null } = await this.requestXhr(req);
+    if (!resp.result) return undefined;
+    return CheckpointOffChain.deserialize(Uint8Array.from(resp.result));
   }
 
   async submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined> {
     try {
-      const req = await this.makeReq(this.gameAddr, 'submit_event', params);
+      const req = await this.makeReq(this.target, 'submit_event', params);
       await this.requestXhr(req);
       return undefined;
     } catch (_: any) {
@@ -281,7 +282,7 @@ export class Connection implements IConnection {
 
   async submitMessage(params: SubmitMessageParams): Promise<ConnectionState | undefined> {
     try {
-      const req = await this.makeReq(this.gameAddr, 'submit_message', params);
+      const req = await this.makeReq(this.target, 'submit_message', params);
       await this.requestXhr(req);
       return undefined;
     } catch (_: any) {
@@ -289,55 +290,66 @@ export class Connection implements IConnection {
     }
   }
 
-  async exitGame(params: ExitGameParams): Promise<void> {
-    const req = await this.makeReq(this.gameAddr, 'exit_game', {});
-    await this.requestXhr(req);
-    if (!params.keepConnection) {
-      if (this.socket !== undefined) {
-        this.closed = true;
-        this.socket.close();
-        this.socket = undefined;
-      }
+  disconnect() {
+    if (this.socket !== undefined) {
+      this.closed = true;
+      this.socket.close();
+      this.socket = undefined;
     }
+  }
+
+  async exitGame(params: ExitGameParams): Promise<void> {
+    const req = await this.makeReq(this.target, 'exit_game', {});
+    await this.requestXhr(req);
+    if (!params.keepConnection) this.disconnect();
   }
 
   async *subscribeEvents(): AsyncGenerator<BroadcastFrame | ConnectionState | undefined> {
     await this.waitSocketReady();
     this.streamMessagePromise = new Promise(r => (this.streamResolve = r));
     while (true) {
-      if (this.streamMessageQueue.length > 0) {
-        yield this.streamMessageQueue.shift()!;
+      while (this.streamMessageQueue.length > 0) {
+        yield this.streamMessageQueue.shift();
+      }
+      if (this.streamResolve === undefined) {
+        this.streamMessagePromise = new Promise(r => (this.streamResolve = r));
+        yield this.streamMessagePromise;
       } else {
         yield this.streamMessagePromise;
-        this.streamMessagePromise = new Promise(r => (this.streamResolve = r));
       }
     }
   }
 
   parseEventMessage(raw: string): BroadcastFrame | ConnectionState | undefined {
-    let resp = JSON.parse(raw);
-    if (resp.result === 'pong') {
-      this.lastPong = new Date().getTime();
-      return undefined;
-    } else if (resp.method === 's_event') {
-      if (resp.params.error === undefined) {
-        let result: string = resp.params.result;
-        let data = base64ToUint8Array(result);
-        let frame = deserialize(BroadcastFrame, data);
-        return frame;
+    try {
+      let resp = JSON.parse(raw);
+      if (resp.result === 'pong') {
+        this.lastPong = new Date().getTime();
+        return undefined;
+      } else if (resp.method === 's_event') {
+        if (resp.params.error === undefined) {
+          let result: string = resp.params.result;
+          let data = base64ToUint8Array(result);
+          let frame = deserialize(BroadcastFrame, data);
+          return frame;
+        } else {
+          return 'disconnected'
+        }
       } else {
-        return 'disconnected'
+        return undefined;
       }
-    } else {
-      return undefined;
+    } catch (e) {
+      console.error(`Parse event message error: ${raw}`)
+      throw e
     }
   }
 
-  static initialize(gameAddr: string, playerAddr: string, endpoint: string, encryptor: IEncryptor): Connection {
-    return new Connection(gameAddr, playerAddr, endpoint, encryptor);
+  static initialize(target: string, playerAddr: string, endpoint: string, encryptor: IEncryptor): Connection {
+    return new Connection(target, playerAddr, endpoint, encryptor);
   }
 
-  async makeReq<P>(gameAddr: string, method: Method, params: P): Promise<string> {
+  async makeReq<P>(target: string, method: Method, params: P): Promise<string> {
+    console.log(`Connection request, target: ${target}, method: ${method}, params:`, params)
     const paramsBytes = serialize(params);
     const sig = await this.encryptor.sign(paramsBytes, this.playerAddr);
     const sigBytes = serialize(sig);
@@ -345,17 +357,20 @@ export class Connection implements IConnection {
       jsonrpc: '2.0',
       method,
       id: crypto.randomUUID(),
-      params: [gameAddr, arrayBufferToBase64(paramsBytes), arrayBufferToBase64(sigBytes)],
+      params: [target, arrayBufferToBase64(paramsBytes), arrayBufferToBase64(sigBytes)],
     });
   }
 
-  makeReqNoSig<P>(gameAddr: string, method: Method, params: P): string {
+  makeReqNoSig<P>(target: string, method: Method, params: P): string {
+    if (method !== 'ping') {
+      console.log(`Connection request[NoSig], target: ${target}, method: ${method}, params:`, params)
+    }
     const paramsBytes = serialize(params);
     return JSON.stringify({
       jsonrpc: '2.0',
       method,
       id: crypto.randomUUID(),
-      params: [gameAddr, arrayBufferToBase64(paramsBytes)],
+      params: [target, arrayBufferToBase64(paramsBytes)],
     });
   }
 
@@ -381,7 +396,9 @@ export class Connection implements IConnection {
         },
       });
       if (resp.ok) {
-        return resp.json();
+        const ret = await resp.json();
+        console.debug('Response:', ret);
+        return ret;
       } else {
         throw Error('Transactor request failed:' + resp.json());
       }

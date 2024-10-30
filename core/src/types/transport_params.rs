@@ -4,8 +4,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use race_api::types::{RecipientSlotOwner, RecipientSlotType, Settle};
-use super::{common::{EntryType, RecipientSlot, VoteType}, Transfer};
+use race_api::types::{RecipientSlotOwner, RecipientSlotType};
+use crate::checkpoint::CheckpointOnChain;
+
+use super::{common::{EntryType, RecipientSlot, VoteType}, Transfer, SettleWithAddr};
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -172,9 +174,9 @@ pub enum AssetChange {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct SettleParams {
     pub addr: String,
-    pub settles: Vec<Settle>,
+    pub settles: Vec<SettleWithAddr>,
     pub transfers: Vec<Transfer>,
-    pub checkpoint: Vec<u8>,
+    pub checkpoint: CheckpointOnChain,
     pub settle_version: u64,
     pub next_settle_version: u64,
 }

@@ -180,6 +180,9 @@ pub enum Error {
     #[error("Not supported in validator mode")]
     NotSupportedInValidatorMode,
 
+    #[error("Not supported in sub game mode")]
+    NotSupportedInSubGameMode,
+
     #[error("Invalid voter: {0}")]
     InvalidVoter(String),
 
@@ -260,6 +263,51 @@ pub enum Error {
 
     #[error("Settle version mismatch, given: {0}, expected: {1}")]
     SettleVersionMismatch(u64, u64),
+
+    #[error("Duplicated sub game id")]
+    DuplicatedSubGameId,
+
+    #[error("Cannot map id to address: {0}")]
+    CantMapIdToAddr(u64),
+
+    #[error("Cannot map address to id: {0}")]
+    CantMapAddrToId(String),
+
+    #[error("Cannot bump settle version")]
+    CantBumpSettleVersion,
+
+    #[error("Game uninitialized")]
+    GameUninitialized,
+
+    #[error("Invalid bridge event")]
+    InvalidBridgeEvent,
+
+    #[error("Invalid player id found when {2}, id: {0}, availables: {1:?}")]
+    InvalidPlayerId(u64, Vec<u64>, String),
+
+    #[error("Invalid sub game id")]
+    InvalidSubGameId,
+
+    #[error("Duplicated bridge event target")]
+    DuplicatedBridgeEventTarget,
+
+    #[error("Missing init data")]
+    MissingInitData,
+
+    #[error("Checkpoint state sha mismatch")]
+    CheckpointStateShaMismatch,
+
+    #[error("Malformed checkpoint")]
+    MalformedCheckpoint,
+
+    #[error("Add balance error, player: {0}, origin: {1}, amount: {2}")]
+    AddBalanceError(u64, u64, u64), // player_id, from_balance, to_balance
+
+    #[error("Sub balance error, player: {0}, origin: {1}, amount: {2}")]
+    SubBalanceError(u64, u64, u64), // player_id, from_balance, to_balance
+
+    #[error("Missing Checkpoint")]
+    MissingCheckpoint,
 }
 
 #[cfg(feature = "serde")]
@@ -286,6 +334,9 @@ pub enum HandleError {
     #[error("No enough players")]
     NoEnoughPlayers,
 
+    #[error("No enough servers")]
+    NoEnoughServers,
+
     #[error("Invalid player")]
     InvalidPlayer,
 
@@ -304,11 +355,14 @@ pub enum HandleError {
     #[error("Malformed custom event")]
     MalformedCustomEvent,
 
+    #[error("Malformed bridge event")]
+    MalformedBridgeEvent,
+
     #[error("Serialization error")]
     SerializationError,
 
-    #[error("No enough servers")]
-    NoEnoughServers,
+    #[error("Cannot initialize subgame without checkpoint")]
+    SubGameWithoutCheckpoint,
 
     #[error("Internal error: {message:?}")]
     InternalError { message: String },

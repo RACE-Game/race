@@ -6,15 +6,52 @@ use tracing::{error, warn};
 
 use crate::component::common::Attachable;
 use crate::frame::EventFrame;
+use crate::utils::addr_shorthand;
 
 /// An event bus that passes the events between different components.
 pub struct EventBus {
+    #[allow(unused)]
+    addr: String,
     tx: mpsc::Sender<EventFrame>,
-    attached_txs: Arc<Mutex<Vec<mpsc::Sender<EventFrame>>>>,
+    attached_txs: Arc<Mutex<Vec<(String, mpsc::Sender<EventFrame>)>>>,
     close_rx: watch::Receiver<bool>,
 }
 
 impl EventBus {
+    pub fn new(addr: String) -> Self {
+        let (close_tx, close_rx) = watch::channel(false);
+        let (tx, mut rx) = mpsc::channel::<EventFrame>(32);
+        let txs: Arc<Mutex<Vec<(String, mpsc::Sender<EventFrame>)>>> = Arc::new(Mutex::new(vec![]));
+        let attached_txs = txs.clone();
+        let addr_1 = addr_shorthand(&addr);
+
+        tokio::spawn(async move {
+            while let Some(msg) = rx.recv().await {
+                let txs = attached_txs.lock().await;
+                for (id, t) in txs.iter() {
+                    if t.send(msg.clone()).await.is_err() {
+                        warn!(
+                            "[{}] Failed to send message: {} to component: {}",
+                            addr_1,
+                            msg,
+                            id
+                        );
+                    }
+                }
+                if matches!(msg, EventFrame::Shutdown) {
+                    close_tx.send(true).unwrap();
+                    break;
+                }
+            }
+        });
+        Self {
+            addr,
+            tx,
+            attached_txs: txs,
+            close_rx,
+        }
+    }
+
     pub async fn attach<T>(&self, attachable: &mut T)
     where
         T: Attachable,
@@ -50,7 +87,7 @@ impl EventBus {
 
         if let Some(tx) = attachable.input() {
             let mut txs = self.attached_txs.lock().await;
-            txs.push(tx.clone());
+            txs.push((attachable.id().to_string(), tx.clone()));
         }
     }
 
@@ -64,30 +101,7 @@ impl EventBus {
 
 impl Default for EventBus {
     fn default() -> Self {
-        let (close_tx, close_rx) = watch::channel(false);
-        let (tx, mut rx) = mpsc::channel::<EventFrame>(32);
-        let txs: Arc<Mutex<Vec<mpsc::Sender<EventFrame>>>> = Arc::new(Mutex::new(vec![]));
-        let attached_txs = txs.clone();
-
-        tokio::spawn(async move {
-            while let Some(msg) = rx.recv().await {
-                let txs = attached_txs.lock().await;
-                for t in txs.iter() {
-                    if t.send(msg.clone()).await.is_err() {
-                        warn!("Failed to send message");
-                    }
-                }
-                if matches!(msg, EventFrame::Shutdown) {
-                    close_tx.send(true).unwrap();
-                    break;
-                }
-            }
-        });
-        Self {
-            tx,
-            attached_txs: txs,
-            close_rx,
-        }
+        Self::new("".to_string())
     }
 }
 
@@ -101,7 +115,7 @@ pub enum CloseReason {
 #[cfg(test)]
 mod tests {
 
-    use crate::component::common::{Component, ConsumerPorts, ProducerPorts};
+    use crate::component::{common::{Component, ConsumerPorts, ProducerPorts}, ComponentEnv};
 
     use super::*;
     use async_trait::async_trait;
@@ -115,11 +129,11 @@ mod tests {
 
     #[async_trait]
     impl Component<ProducerPorts, TestProducerCtx> for TestProducer {
-        fn name(&self) -> &str {
+        fn name() -> &'static str {
             "Test Producer"
         }
 
-        async fn run(ports: ProducerPorts, _ctx: TestProducerCtx) -> CloseReason {
+        async fn run(ports: ProducerPorts, _ctx: TestProducerCtx, _env: ComponentEnv) -> CloseReason {
             loop {
                 println!("Producer started");
                 let event = EventFrame::Sync {
@@ -158,11 +172,11 @@ mod tests {
 
     #[async_trait]
     impl Component<ConsumerPorts, TestConsumerCtx> for TestConsumer {
-        fn name(&self) -> &str {
+        fn name() -> &'static str {
             "Test Consumer"
         }
 
-        async fn run(mut ports: ConsumerPorts, ctx: TestConsumerCtx) -> CloseReason {
+        async fn run(mut ports: ConsumerPorts, ctx: TestConsumerCtx, _env: ComponentEnv) -> CloseReason {
             println!("Consumer started");
             loop {
                 match ports.recv().await {
@@ -193,8 +207,8 @@ mod tests {
         let (c, c_ctx) = TestConsumer::init();
         let eb = EventBus::default();
 
-        let mut p_handle = p.start(p_ctx);
-        let mut c_handle = c.start(c_ctx);
+        let mut p_handle = p.start("producer", p_ctx,);
+        let mut c_handle = c.start("consumer", c_ctx);
 
         eb.attach(&mut p_handle).await;
         eb.attach(&mut c_handle).await;

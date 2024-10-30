@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 #[game_handler]
 #[derive(BorshSerialize, BorshDeserialize)]
 struct SimpleSettle {
-    players: BTreeMap<String, u64>,
+    players: BTreeMap<u64, u64>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -24,11 +24,11 @@ impl SimpleSettle {
         if self.players.len() > 1 {
             let (ref winner, _) = self.players.pop_first().unwrap();
             let win: u64 = self.players.values().sum();
-            effect.settle(Settle::add(winner, win));
-            effect.settle(Settle::eject(winner));
+            effect.settle(Settle::add(*winner, win));
+            effect.settle(Settle::eject(*winner));
             for p in self.players.iter() {
-                effect.settle(Settle::sub(p.0, *p.1));
-                effect.settle(Settle::eject(p.0));
+                effect.settle(Settle::sub(*p.0, *p.1));
+                effect.settle(Settle::eject(*p.0));
             }
             self.players.clear();
         } else {
@@ -45,7 +45,7 @@ impl GameHandler for SimpleSettle {
         let players = init_account
             .players
             .into_iter()
-            .map(|p| (p.addr, p.balance))
+            .map(|p| (p.id, p.balance))
             .collect();
         let mut ins = Self { players };
         ins.maybe_settle(effect)?;
@@ -54,9 +54,9 @@ impl GameHandler for SimpleSettle {
 
     fn handle_event(&mut self, effect: &mut Effect, event: Event) -> Result<(), HandleError> {
         match event {
-            Event::Sync { new_players, .. } => {
-                for p in new_players {
-                    self.players.insert(p.addr, p.balance);
+            Event::Join { players, .. } => {
+                for p in players {
+                    self.players.insert(p.id, p.balance);
                 }
                 self.maybe_settle(effect)?;
                 Ok(())
@@ -65,7 +65,7 @@ impl GameHandler for SimpleSettle {
         }
     }
 
-    fn into_checkpoint(self) -> Result<Checkpoint, HandleError> {
+    fn checkpoint(self) -> Result<Checkpoint, HandleError> {
         Ok(Checkpoint {})
     }
 }
@@ -74,22 +74,23 @@ impl GameHandler for SimpleSettle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use race_test::prelude::sync_new_players;
 
     #[test]
     pub fn test_settle() {
         let mut effect = Effect::default();
-        let event = sync_new_players(&[
-            ("alice", 0, 100),
-            ("bob", 1, 100)
-        ], 1);
+        let event = Event::Join {
+            players: vec![
+                GamePlayer::new(0, 100, 0),
+                GamePlayer::new(1, 100, 1),
+            ]
+        };
         let mut handler = SimpleSettle::init_state(&mut effect, InitAccount::default()).unwrap();
         handler.handle_event(&mut effect, event).unwrap();
         assert_eq!(effect.settles, vec![
-            Settle::add("alice", 100),
-            Settle::eject("alice"),
-            Settle::sub("bob", 100),
-            Settle::eject("bob"),
+            Settle::add(0, 100),
+            Settle::eject(0),
+            Settle::sub(1, 100),
+            Settle::eject(1),
         ]);
     }
 }

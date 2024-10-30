@@ -20,17 +20,15 @@ use jsonrpsee::{
     rpc_params,
     ws_client::{WsClient, WsClientBuilder},
 };
+use race_api::error::{Error, Result};
+use race_core::types::{BroadcastFrame, SubscribeEventParams};
 use race_core::{
     connection::ConnectionT,
     encryptor::EncryptorT,
     types::{AttachGameParams, ExitGameParams, SubmitEventParams},
 };
-use race_api::error::{Error, Result};
-use race_core::{
-    types::{BroadcastFrame, SubscribeEventParams},
-};
 
-use crate::frame::EventFrame;
+use crate::{frame::EventFrame, utils::current_timestamp};
 use crate::utils::base64_decode;
 use crate::{component::common::Attachable, utils::base64_encode};
 
@@ -52,6 +50,7 @@ impl ConnectionT for LocalConnection {
         self.output_tx
             .send(EventFrame::SendEvent {
                 event: params.event,
+                timestamp: current_timestamp(),
             })
             .await
             .map_err(|e| Error::InternalError(e.to_string()))
@@ -74,6 +73,10 @@ impl LocalConnection {
 }
 
 impl Attachable for LocalConnection {
+    fn id(&self) -> &str {
+        "LocalConnection"
+    }
+
     fn input(&mut self) -> Option<mpsc::Sender<EventFrame>> {
         None
     }
@@ -135,21 +138,15 @@ impl RemoteConnection {
         })
     }
 
-    // async fn request(&self, game_addr: &str, method: &str) {
-    //     let mut rpc_client = self.rpc_client.lock().await;
-    //     let mut retries = 0;
-
-    // }
-
     fn make_request<P>(&self, game_addr: &str, params: &P) -> Result<ArrayParams>
     where
         P: BorshSerialize,
     {
-        let params_bytes = params.try_to_vec()?;
+        let params_bytes = borsh::to_vec(&params)?;
         let sig = self
             .encryptor
             .sign(&params_bytes, self.server_addr.clone())?;
-        let sig_bytes = sig.try_to_vec()?;
+        let sig_bytes = borsh::to_vec(&sig)?;
         let p = base64_encode(&params_bytes);
         let s = base64_encode(&sig_bytes);
         Ok(rpc_params![game_addr, p, s])
@@ -159,7 +156,7 @@ impl RemoteConnection {
     where
         P: BorshSerialize,
     {
-        let params_bytes = params.try_to_vec()?;
+        let params_bytes = borsh::to_vec(&params)?;
         let p = base64_encode(&params_bytes);
         Ok(rpc_params![game_addr, p])
     }
@@ -185,10 +182,12 @@ impl RemoteConnection {
                 Ok(ret) => return Ok(ret),
                 Err(RestartNeeded(e)) => {
                     // For reconnecting
-                    warn!("Try reconnect due to error: {:?}", e);
+                    warn!("Try reconnect due to error[{}]: {:?}", method, e);
                     *rpc_client = None;
                 }
-                Err(_) => (),
+                Err(e) => {
+                    warn!("Error in request[{}]: {:?}", method, e);
+                },
             }
 
             if retries < self.max_retries {

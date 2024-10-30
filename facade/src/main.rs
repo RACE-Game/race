@@ -2,7 +2,7 @@
 //! It is supposed to be used for testing and developing.
 
 use borsh::BorshSerialize;
-use clap::Parser;
+use clap::{arg, Command};
 use hyper::Method;
 use jsonrpsee::server::{AllowHosts, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
@@ -10,8 +10,8 @@ use jsonrpsee::{core::Error as RpcError, RpcModule};
 use race_api::error::Error;
 use race_core::types::{
     DepositParams, EntryType, GameAccount, GameBundle, GameRegistration, PlayerDeposit, PlayerJoin,
-    PlayerProfile, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin, SettleOp,
-    SettleParams, TokenAccount, Vote, VoteParams, VoteType,
+    PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin,
+    SettleOp, SettleParams, TokenAccount, Vote, VoteParams, VoteType,
 };
 use regex::Regex;
 use serde::Deserialize;
@@ -20,7 +20,7 @@ use std::fs::File;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -116,6 +116,7 @@ pub struct Context {
     servers: HashMap<String, ServerAccount>,
     games: HashMap<String, GameAccount>,
     bundles: HashMap<String, GameBundle>,
+    recipients: HashMap<String, RecipientAccount>,
 }
 
 #[derive(Clone, BorshSerialize)]
@@ -135,9 +136,15 @@ pub struct PlayerInfo {
 }
 
 impl Context {
-    pub fn load_games(&mut self, spec_paths: Vec<String>) {
-        for spec_path in spec_paths.into_iter() {
-            self.add_game(&spec_path);
+    pub fn load_games(&mut self, spec_paths: &[&str]) {
+        for spec_path in spec_paths.iter() {
+            self.add_game(spec_path);
+        }
+    }
+
+    pub fn load_bundles(&mut self, bundle_paths: &[&str]) {
+        for bundle_path in bundle_paths.iter() {
+            self.add_bundle(bundle_path)
         }
     }
 
@@ -177,6 +184,21 @@ impl Context {
         });
     }
 
+    fn add_bundle(&mut self, bundle_path: &str) {
+        let re = Regex::new(r"[^a-zA-Z0-9]").unwrap();
+        let bundle_addr = re.replace_all(&bundle_path, "").into_owned();
+        let mut f = File::open(bundle_path).expect(&format!("Bundle {} not found", &bundle_path));
+        let mut data = vec![];
+        f.read_to_end(&mut data).unwrap();
+        let bundle = GameBundle {
+            name: bundle_addr.clone(),
+            uri: "".into(),
+            data,
+        };
+        self.bundles.insert(bundle_addr.clone(), bundle);
+        println!("+ Bundle: {}", bundle_addr);
+    }
+
     fn add_game(&mut self, spec_path: &str) {
         let f = File::open(spec_path).expect("Spec file not found");
         let GameSpec {
@@ -191,6 +213,7 @@ impl Context {
         let re = Regex::new(r"[^a-zA-Z0-9]").unwrap();
         let bundle_addr = re.replace_all(&bundle, "").into_owned();
         let game_addr = re.replace_all(&spec_path, "").into_owned();
+        let recipient_addr = format!("{}_recipient", game_addr);
         let mut f = File::open(&bundle).expect(&format!("Bundle {} not found", &bundle));
         let mut data = vec![];
         f.read_to_end(&mut data).unwrap();
@@ -210,8 +233,13 @@ impl Context {
             entry_type,
             ..Default::default()
         };
+        let recipient = RecipientAccount {
+            addr: recipient_addr.clone(),
+            ..Default::default()
+        };
         self.bundles.insert(bundle_addr.clone(), bundle);
         self.games.insert(game_addr.clone(), game);
+        self.recipients.insert(recipient_addr.clone(), recipient);
         println!("! Load game from `{}`", spec_path);
         println!("+ Game: {}", game_addr);
         println!("+ Bundle: {}", bundle_addr);
@@ -229,7 +257,7 @@ async fn get_game_bundle(
     let addr: String = params.one()?;
     let context = context.lock().await;
     if let Some(bundle) = context.bundles.get(&addr) {
-        Ok(Some(bundle.to_owned().try_to_vec().unwrap()))
+        Ok(borsh::to_vec(&bundle).ok())
     } else {
         println!("? get_game_bundle, addr: {}, not found", addr);
         Ok(None)
@@ -253,15 +281,14 @@ async fn get_registration_info(
         })
         .collect();
     Ok(Some(
-        RegistrationAccount {
+        borsh::to_vec(&RegistrationAccount {
             addr,
             is_private: false,
             size: 100,
             owner: None,
             games,
-        }
-        .try_to_vec()
-        .unwrap(),
+        })
+            .unwrap(),
     ))
 }
 
@@ -299,6 +326,20 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                     return Err(custom_error(Error::PlayerAlreadyJoined(player_addr)));
                 } else {
                     game_account.access_version += 1;
+                    // Find available position
+                    let mut pos_list = vec![position];
+                    pos_list.extend(0..100);
+                    let position = pos_list
+                        .into_iter()
+                        .find(|p| {
+                            game_account
+                                .players
+                                .iter()
+                                .find(|player| player.position == *p)
+                                .is_none()
+                        })
+                        .unwrap();
+
                     let player_join = PlayerJoin {
                         addr: player_addr.clone(),
                         position,
@@ -322,6 +363,8 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
             EntryType::Ticket { slot_id, amount } => todo!(),
             #[allow(unused)]
             EntryType::Gating { collection } => todo!(),
+            #[allow(unused)]
+            EntryType::Disabled => todo!(),
         }
     } else {
         return Err(custom_error(Error::GameAccountNotFound));
@@ -370,7 +413,7 @@ async fn get_server_info(
     let addr: String = params.one()?;
     let context = context.lock().await;
     if let Some(server) = context.servers.get(&addr) {
-        Ok(Some(server.to_owned().try_to_vec().unwrap()))
+        Ok(Some(borsh::to_vec(&server).unwrap()))
     } else {
         println!("? get_server_info, addr: {}, not found", addr);
         Ok(None)
@@ -471,7 +514,7 @@ async fn get_profile(
     let addr: String = params.one()?;
     let context = context.lock().await;
     match context.players.get(&addr) {
-        Some(player_info) => Ok(Some(player_info.profile.clone().try_to_vec().unwrap())),
+        Some(player_info) => Ok(Some(borsh::to_vec(&player_info.profile).unwrap())),
         None => Ok(None),
     }
 }
@@ -596,6 +639,8 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
         .get_mut(&game_addr)
         .ok_or(custom_error(Error::GameAccountNotFound))?;
 
+    let new_access_version = account.access_version + 1;
+
     if account.transactor_addr.is_none() {
         is_transactor = true;
         account.transactor_addr = Some(server_addr.clone());
@@ -621,11 +666,11 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
                 DEFAULT_MAX_SERVERS as _,
             )));
         } else {
-            account.access_version += 1;
+            account.access_version = new_access_version;
             account.servers.push(ServerJoin::new(
                 server_addr.clone(),
                 server_account.endpoint.clone(),
-                account.access_version,
+                new_access_version,
                 verify_key,
             ));
         }
@@ -653,7 +698,7 @@ async fn get_balance(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcRes
     } else {
         println!("? get_balance, player_addr: {}, not found", player_addr);
     }
-    Ok(amount.try_to_vec().unwrap())
+    Ok(borsh::to_vec(&amount).unwrap())
 }
 
 async fn get_account_info(
@@ -663,7 +708,7 @@ async fn get_account_info(
     let addr: String = params.one()?;
     let context = context.lock().await;
     if let Some(account) = context.games.get(&addr) {
-        Ok(Some(account.to_owned().try_to_vec().unwrap()))
+        Ok(Some(borsh::to_vec(&account).unwrap()))
     } else {
         println!("? get_account_info, addr: {}, not found", addr);
         Ok(None)
@@ -673,7 +718,7 @@ async fn get_account_info(
 async fn list_tokens(_params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<Vec<u8>> {
     let context = context.lock().await;
     let tokens: Vec<&TokenAccount> = context.tokens.values().collect();
-    let bytes = tokens.try_to_vec()?;
+    let bytes = borsh::to_vec(&tokens)?;
     Ok(bytes)
 }
 
@@ -686,10 +731,22 @@ async fn get_player_info(
     let Some(player) = context.players.get(&addr) else {
         return Ok(None);
     };
-    Ok(Some(player.try_to_vec().unwrap()))
+    Ok(Some(borsh::to_vec(player).unwrap()))
 }
 
-async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
+async fn get_recipient(
+    params: Params<'_>,
+    context: Arc<Mutex<Context>>,
+) -> RpcResult<Option<Vec<u8>>> {
+    let addr: String = params.one()?;
+    let context = context.lock().await;
+    let Some(recipient) = context.recipients.get(&addr) else {
+        return Ok(None);
+    };
+    Ok(Some(borsh::to_vec(recipient).unwrap()))
+}
+
+async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {
     let SettleParams {
         addr,
         settles,
@@ -704,7 +761,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
     );
 
     // Simulate the finality time
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    // tokio::time::sleep(Duration::from_secs(10)).await;
     // ---
 
     let mut context = context.lock().await;
@@ -727,6 +784,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
         .retain(|d| d.settle_version < game.settle_version);
 
     if game.settle_version != settle_version {
+        println!("E The settle_versions mismach");
         return Err(custom_error(Error::InvalidSettle(format!(
             "Invalid settle version, current: {}, transaction: {}",
             game.settle_version, settle_version,
@@ -736,8 +794,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
     // Increase the `settle_version`
     game.settle_version = next_settle_version;
     println!("! Bump settle version to {}", game.settle_version);
-    game.checkpoint = checkpoint;
-    game.checkpoint_access_version = game.access_version;
+    game.checkpoint_on_chain = Some(checkpoint);
 
     // Handle settles
     for s in settles.into_iter() {
@@ -793,7 +850,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<(
 
     context.players = players;
     context.games = games;
-    Ok(())
+    Ok(format!("facade_settle_{}", settle_version))
 }
 
 async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
@@ -816,6 +873,8 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     module.register_async_method("get_game_bundle", get_game_bundle)?;
     module.register_async_method("get_registration_info", get_registration_info)?;
     module.register_async_method("get_balance", get_balance)?;
+    module.register_async_method("get_player_info", get_player_info)?;
+    module.register_async_method("get_recipient", get_recipient)?;
     module.register_async_method("register_server", register_server)?;
     module.register_async_method("create_profile", create_profile)?;
     module.register_async_method("get_profile", get_profile)?;
@@ -826,26 +885,30 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     module.register_async_method("settle", settle)?;
     module.register_async_method("vote", vote)?;
     module.register_async_method("list_tokens", list_tokens)?;
-    module.register_async_method("get_player_info", get_player_info)?;
 
     let handle = http_server.start(module)?;
     Ok(handle)
 }
 
-/// Command-line interface
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    // Game specs to load
-    specs: Vec<String>,
+fn cli() -> Command {
+    Command::new("facade")
+        .about("A mock server for local development with Race")
+        .arg(arg!(-g <game> ... "The path to a game spec json file"))
+        .arg(arg!(-b <bundle> ... "The path to a wasm bundle"))
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
+    println!("Start at {}", HTTP_HOST);
+    let matches = cli().get_matches();
     let mut context = Context::default();
-    context.load_games(args.specs);
     context.load_default_tokens();
+    if let Some(game_spec_paths) = matches.get_many::<String>("game") {
+        context.load_games(&game_spec_paths.map(String::as_str).collect::<Vec<&str>>());
+    }
+    if let Some(bundle_paths) = matches.get_many::<String>("bundle") {
+        context.load_bundles(&bundle_paths.map(String::as_str).collect::<Vec<&str>>());
+    }
     let server_handle = run_server(context).await?;
     server_handle.stopped().await;
     Ok(())

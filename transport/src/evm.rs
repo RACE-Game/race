@@ -1,5 +1,3 @@
-// use web3::{transports::Http, Web3};
-
 use race_core::{
     error::Result,
     transport::TransportT,

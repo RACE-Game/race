@@ -33,9 +33,9 @@ Work in progress, not ready to accept contributions yet.
 | Package                     | Version                                                                                                                              | Description                                    |
 |-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------|
 | @race-foundation/borsh      | [![NPM](https://img.shields.io/npm/v/@race-foundation/borsh?logo=npm)](https://www.npmjs.com/package/@race-foundation/borsh)         | A borsh implementation with decorators support |
-| @race-fonudation/sdk-core   | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-core)   | SDK for RACE Protocol                          |
-| @race-fonudation/sdk-solana | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-solana) | SDK integration for Solana blockchain          |
-| @race-fonudation/sdk-facade | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-facade) | SDK integration for local facade server        |
+| @race-foundation/sdk-core   | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-core)   | SDK for RACE Protocol                          |
+| @race-foundation/sdk-solana | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-solana) | SDK integration for Solana blockchain          |
+| @race-foundation/sdk-facade | [![NPM](https://img.shields.io/npm/v/@race-foundation/sdk-core?logo=npm)](https://www.npmjs.com/package/@race-foundation/sdk-facade) | SDK integration for local facade server        |
 
 ## Rust
 

@@ -1,3 +1,7 @@
+export function invalidCtor(path: string[]) {
+  throw new Error(`Borsh: Cannot deserialize, missing type annotation at: ${path.join(',')}`);
+}
+
 export function invalidByteArrayLength(path: string[], expected: number, actual: number) {
   throw new Error(`Borsh: Invalid byte array length at: ${path.join(',')}, expected: ${expected}, actual: ${actual}`);
 }

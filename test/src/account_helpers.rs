@@ -1,10 +1,6 @@
-use crate::client_helpers::TestClient;
+use crate::{client_helpers::TestClient, misc::{test_game_addr, test_game_title}};
 use borsh::BorshSerialize;
-use race_core::types::{ClientMode, EntryType, GameAccount, GameBundle, PlayerJoin, ServerJoin};
-
-pub fn test_game_addr() -> String {
-    "TEST".into()
-}
+use race_core::types::{ClientMode, EntryType, GameAccount, PlayerJoin, ServerJoin};
 
 pub struct TestGameAccountBuilder {
     account: GameAccount,
@@ -13,8 +9,8 @@ pub struct TestGameAccountBuilder {
 impl Default for TestGameAccountBuilder {
     fn default() -> Self {
         let account = GameAccount {
-            addr: "TEST".into(),
-            title: "Unnamed".into(),
+            addr: test_game_addr(),
+            title: test_game_title(),
             bundle_addr: "".into(),
             owner_addr: "".into(),
             settle_version: 0,
@@ -31,8 +27,7 @@ impl Default for TestGameAccountBuilder {
             recipient_addr: "".into(),
             entry_type: EntryType::default(),
             token_addr: "".into(),
-            checkpoint: vec![],
-            checkpoint_access_version: 0,
+            checkpoint_on_chain: None,
         };
         TestGameAccountBuilder { account }
     }
@@ -72,8 +67,8 @@ impl TestGameAccountBuilder {
         self
     }
 
-    pub fn set_transactor(mut self, server: &TestClient) -> Self {
-        if server.get_mode().ne(&ClientMode::Transactor) {
+    pub fn set_transactor(mut self, server: &mut TestClient) -> Self {
+        if server.mode().ne(&ClientMode::Transactor) {
             panic!("A test client in TRANSACTOR Mode is required");
         }
         if self.account.transactor_addr.is_some() {
@@ -83,49 +78,51 @@ impl TestGameAccountBuilder {
             .account
             .servers
             .iter()
-            .find(|s| s.addr.eq(&server.get_addr()))
+            .find(|s| s.addr.eq(&server.addr()))
             .is_some()
         {
             panic!("Server already added")
         }
-        self.account.transactor_addr = Some(server.get_addr());
+        self.account.transactor_addr = Some(server.addr());
         self.account.access_version += 1;
         self.account.servers.insert(
             0,
             ServerJoin {
-                addr: server.get_addr(),
+                addr: server.addr(),
                 endpoint: "".into(),
                 access_version: self.account.access_version,
                 verify_key: "".into(),
             },
         );
+        server.set_id(self.account.access_version);
         self
     }
 
-    pub fn add_validator(mut self, server: &TestClient) -> Self {
-        if server.get_mode().ne(&ClientMode::Validator) {
+    pub fn add_validator(mut self, server: &mut TestClient) -> Self {
+        if server.mode().ne(&ClientMode::Validator) {
             panic!("A test client in VALIDATOR Mode is required");
         }
         if self
             .account
             .servers
             .iter()
-            .find(|s| s.addr.eq(&server.get_addr()))
+            .find(|s| s.addr.eq(&server.addr()))
             .is_some()
         {
             panic!("Server already added")
         }
         self.account.access_version += 1;
         self.account.servers.push(ServerJoin {
-            addr: server.get_addr(),
+            addr: server.addr(),
             endpoint: "".into(),
             access_version: self.account.access_version,
             verify_key: "".into(),
         });
+        server.set_id(self.account.access_version);
         self
     }
 
-    pub fn add_player(self, player: &TestClient, deposit: u64) -> Self {
+    pub fn add_player(self, player: &mut TestClient, deposit: u64) -> Self {
         let mut position = None;
         for i in 0..self.account.max_players {
             if self
@@ -150,7 +147,7 @@ impl TestGameAccountBuilder {
 
     pub fn add_player_with_position(
         mut self,
-        player: &TestClient,
+        player: &mut TestClient,
         deposit: u64,
         position: u16,
     ) -> Self {
@@ -158,12 +155,12 @@ impl TestGameAccountBuilder {
             .account
             .players
             .iter()
-            .find(|p| p.addr.eq(&player.get_addr()))
+            .find(|p| p.addr.eq(&player.addr()))
             .is_some()
         {
             panic!("Player already added")
         }
-        if player.get_mode().ne(&ClientMode::Player) {
+        if player.mode().ne(&ClientMode::Player) {
             panic!("A test client in PLAYER mode is required");
         }
         self.account.access_version += 1;
@@ -176,17 +173,18 @@ impl TestGameAccountBuilder {
             panic!("Player position occupied");
         }
         self.account.players.push(PlayerJoin {
-            addr: player.get_addr(),
+            addr: player.addr(),
             position,
             access_version: self.account.access_version,
             balance: deposit,
             verify_key: "".into(),
         });
+        player.set_id(self.account.access_version);
         self
     }
 
     pub fn with_data<T: BorshSerialize>(self, account_data: T) -> Self {
-        let data = account_data.try_to_vec().expect("Serialize data failed");
+        let data = borsh::to_vec(&account_data).expect("Serialize data failed");
         self.with_data_vec(data)
     }
 
@@ -194,16 +192,5 @@ impl TestGameAccountBuilder {
         self.account.data_len = data.len() as _;
         self.account.data = data;
         self
-    }
-}
-
-pub fn create_game_bundle_from_path(path: &str) -> GameBundle {
-    let proj_root = project_root::get_project_root().expect("No project root found");
-    let bundle_path = proj_root.join(path);
-    let data = std::fs::read(bundle_path).expect("Can't read file");
-    GameBundle {
-        uri: "".to_string(),
-        name: "FILE BUNDLE".to_string(),
-        data,
     }
 }

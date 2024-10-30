@@ -1,30 +1,23 @@
 //! Parameters for interacting with transactor
 
 use crate::encryptor::NodePublicKeyRaw;
-use crate::types::PlayerJoin;
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::event::{Event, Message};
+use race_api::event::Event;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub enum TxState {
-    PlayerConfirming {
-        confirm_players: Vec<PlayerJoin>,
-        access_version: u64,
-    },
-
-    PlayerConfirmingFailed(u64),
+pub struct AttachGameParams {
+    pub signer: String,
+    pub key: NodePublicKeyRaw,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct AttachGameParams {
-    pub signer: String,
-    pub key: NodePublicKeyRaw,
+pub struct CheckpointParams {
+    pub settle_version: u64,
 }
 
 impl Display for AttachGameParams {
@@ -82,38 +75,5 @@ pub struct SubscribeEventParams {
 impl Display for SubscribeEventParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "SubscribeEventParams")
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum BroadcastFrame {
-    Event {
-        game_addr: String,
-        event: Event,
-        timestamp: u64,
-    },
-    Message {
-        game_addr: String,
-        message: Message,
-    },
-    TxState {
-        tx_state: TxState,
-    },
-}
-
-impl Display for BroadcastFrame {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BroadcastFrame::Event { event, .. } => {
-                write!(f, "BroadcastFrame::Event: {}", event)
-            }
-            BroadcastFrame::Message { message, .. } => {
-                write!(f, "BroadcastFrame::Message: {}", message.sender)
-            }
-            BroadcastFrame::TxState { tx_state } => {
-                write!(f, "BroadcastFrame::TxState: {:?}", tx_state)
-            }
-        }
     }
 }

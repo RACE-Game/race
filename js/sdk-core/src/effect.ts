@@ -3,6 +3,7 @@ import { HandleError } from './error';
 import { GameContext } from './game-context';
 import { enums, field, map, option, struct, variant, array } from '@race-foundation/borsh';
 import { Fields, Id } from './types';
+import { GamePlayer, InitAccount } from './init-account';
 
 export abstract class SettleOp {}
 
@@ -34,12 +35,12 @@ export class SettleEject extends SettleOp {
 }
 
 export class Settle {
-  @field('string')
-  addr: string;
+  @field('u64')
+  id: bigint;
   @field(enums(SettleOp))
   op: SettleOp;
-  constructor(fields: { addr: string; op: SettleOp }) {
-    this.addr = fields.addr;
+  constructor(fields: { id: bigint; op: SettleOp }) {
+    this.id = fields.id;
     this.op = fields.op;
   }
   sortKey(): number {
@@ -77,8 +78,8 @@ export class Ask {
 export class Assign {
   @field('usize')
   randomId!: number;
-  @field('string')
-  playerAddr!: string;
+  @field('u64')
+  playerId!: bigint;
   @field(array('usize'))
   indexes!: number[];
   constructor(fields: Fields<Assign>) {
@@ -105,12 +106,37 @@ export class Release {
 }
 
 export class ActionTimeout {
-  @field('string')
-  playerAddr!: string;
+  @field('u64')
+  playerId!: bigint;
   @field('u64')
   timeout!: bigint;
   constructor(fields: Fields<ActionTimeout>) {
     Object.assign(this, fields);
+  }
+}
+
+export class SubGame {
+  @field('usize')
+  gameId!: number;
+  @field('string')
+  bundleAddr!: string;
+  @field(struct(InitAccount))
+  initAccount!: InitAccount;
+  constructor(fields: Fields<SubGame>) {
+    Object.assign(this, fields)
+  }
+}
+
+export class EmitBridgeEvent {
+  @field('usize')
+  dest!: number;
+  @field('u8-array')
+  raw!: Uint8Array;
+  @field(array(struct(GamePlayer)))
+  joinPlayers!: GamePlayer[];
+
+  constructor(fields: Fields<EmitBridgeEvent>) {
+    Object.assign(this, fields)
   }
 }
 
@@ -140,10 +166,7 @@ export class Effect {
   currDecisionId!: number;
 
   @field('u16')
-  playersCount!: number;
-
-  @field('u16')
-  serversCount!: number;
+  nodesCount!: number;
 
   @field(array(struct(Ask)))
   asks!: Ask[];
@@ -169,9 +192,6 @@ export class Effect {
   @field('bool')
   isCheckpoint!: boolean;
 
-  @field(option('u8-array'))
-  checkpoint!: Uint8Array | undefined;
-
   @field(array(struct(Settle)))
   settles!: Settle[];
 
@@ -187,11 +207,23 @@ export class Effect {
   @field(array(struct(Transfer)))
   transfers!: Transfer[];
 
+  @field(array(struct(SubGame)))
+  launchSubGames!: SubGame[];
+
+  @field(array(struct(EmitBridgeEvent)))
+  bridgeEvents!: EmitBridgeEvent[];
+
+  @field(array(struct(GamePlayer)))
+  validPlayers!: GamePlayer[];
+
+  @field('bool')
+  isInit!: boolean;
+
   constructor(fields: Fields<Effect>) {
     Object.assign(this, fields);
   }
 
-  static fromContext(context: GameContext) {
+  static fromContext(context: GameContext, isInit: boolean) {
     const revealed = new Map<Id, Map<number, string>>();
     for (const st of context.randomStates) {
       revealed.set(st.id, st.revealed);
@@ -205,23 +237,24 @@ export class Effect {
     const startGame = false;
     const stopGame = false;
     const cancelDispatch = false;
-    const timestamp = context.timestamp;
+    const timestamp = isInit ? 0n : context.timestamp;
     const currRandomId = context.randomStates.length + 1;
     const currDecisionId = context.decisionStates.length + 1;
-    const playersCount = context.players.length;
-    const serversCount = context.servers.length;
+    const nodesCount = context.nodes.length;
     const asks: Ask[] = [];
     const assigns: Assign[] = [];
     const releases: Release[] = [];
     const reveals: Reveal[] = [];
     const initRandomStates: RandomSpec[] = [];
     const isCheckpoint = false;
-    const checkpoint = undefined;
     const settles: Settle[] = [];
     const handlerState = context.handlerState;
     const error = undefined;
     const allowExit = context.allowExit;
     const transfers: Transfer[] = [];
+    const launchSubGames: SubGame[] = [];
+    const bridgeEvents: EmitBridgeEvent[] = [];
+    const validPlayers = context.players;
     return new Effect({
       actionTimeout,
       waitTimeout,
@@ -231,8 +264,7 @@ export class Effect {
       timestamp,
       currRandomId,
       currDecisionId,
-      playersCount,
-      serversCount,
+      nodesCount,
       asks,
       assigns,
       releases,
@@ -241,12 +273,15 @@ export class Effect {
       revealed,
       answered,
       isCheckpoint,
-      checkpoint,
       settles,
       handlerState,
       error,
       allowExit,
       transfers,
+      launchSubGames,
+      bridgeEvents,
+      validPlayers,
+      isInit
     });
   }
 }

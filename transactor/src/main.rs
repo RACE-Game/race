@@ -13,6 +13,7 @@ use clap::{arg, Command};
 use context::ApplicationContext;
 use race_env::Config;
 use reg::{register_server, start_reg_task};
+use tracing_subscriber::{fmt, prelude::__tracing_subscriber_SubscriberExt, Layer, EnvFilter};
 
 fn cli() -> Command {
     Command::new("transactor")
@@ -24,13 +25,32 @@ fn cli() -> Command {
         .subcommand(Command::new("reg").about("Register server account"))
 }
 
+fn setup_logger() {
+    let logfile = tracing_appender::rolling::daily("logs", "transactor.log");
+    let file_layer = fmt::layer()
+        .with_writer(logfile)
+        .with_target(true)
+        .with_level(true)
+        .with_ansi(false)
+        .with_filter(EnvFilter::from_default_env());
+    let console_layer = fmt::layer()
+        .compact()
+        .with_writer(std::io::stdout)
+        .with_level(true)
+        .with_ansi(true)
+        .without_time()
+        .with_filter(EnvFilter::from_default_env());
+    let subscriber = tracing_subscriber::registry()
+        .with(console_layer)
+        .with(file_layer);
+
+    tracing::subscriber::set_global_default(subscriber).expect("Failed to configure logger");
+}
+
 #[tokio::main]
 pub async fn main() {
-    let log_format = tracing_subscriber::fmt::format()
-        .with_level(true)
-        .with_target(false)
-        .compact();
-    tracing_subscriber::fmt().event_format(log_format).init();
+
+    setup_logger();
 
     let matches = cli().get_matches();
     let config = Config::from_path(&matches.get_one::<String>("config").unwrap().into()).await;

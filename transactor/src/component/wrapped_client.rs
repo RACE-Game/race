@@ -15,9 +15,10 @@ use race_client::Client;
 use race_core::connection::ConnectionT;
 use race_core::encryptor::EncryptorT;
 use race_core::transport::TransportT;
-use race_core::types::{ClientMode, GameAccount, ServerAccount};
-use tracing::warn;
+use race_core::types::ClientMode;
+use tracing::{error, warn};
 
+use super::ComponentEnv;
 use super::event_bus::CloseReason;
 
 pub struct WrappedClient {}
@@ -33,24 +34,13 @@ pub struct ClientContext {
 
 impl WrappedClient {
     pub fn init(
-        server_account: &ServerAccount,
-        init_account: &GameAccount,
+        addr: String,
+        game_addr: String,
+        mode: ClientMode,
         transport: Arc<dyn TransportT>,
         encryptor: Arc<dyn EncryptorT>,
         connection: Arc<dyn ConnectionT>,
     ) -> (Self, ClientContext) {
-        // Detect our client mode by check if our address is the transactor address
-        let server_addr = server_account.addr.clone();
-        let mode = if server_addr.eq(init_account
-            .transactor_addr
-            .as_ref()
-            .expect("Game is not served"))
-        {
-            ClientMode::Transactor
-        } else {
-            ClientMode::Validator
-        };
-
         (
             Self {},
             ClientContext {
@@ -58,8 +48,8 @@ impl WrappedClient {
                 encryptor,
                 connection,
                 mode,
-                addr: server_addr,
-                game_addr: init_account.addr.to_owned(),
+                addr,
+                game_addr,
             },
         )
     }
@@ -67,11 +57,11 @@ impl WrappedClient {
 
 #[async_trait]
 impl Component<ConsumerPorts, ClientContext> for WrappedClient {
-    fn name(&self) -> &str {
+    fn name() -> &'static str {
         "Client"
     }
 
-    async fn run(mut ports: ConsumerPorts, ctx: ClientContext) -> CloseReason {
+    async fn run(mut ports: ConsumerPorts, ctx: ClientContext, env: ComponentEnv) -> CloseReason {
         let ClientContext {
             addr,
             game_addr,
@@ -84,7 +74,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
         let mut client = Client::new(addr, game_addr, mode, transport, encryptor, connection);
 
         if let Err(e) = client.attach_game().await {
-            warn!("Failed to attach to game due to error: {:?}", e);
+            warn!("{} Failed to attach to game due to error: {:?}", env.log_prefix, e);
         }
 
         let mut res = Ok(());
@@ -99,15 +89,19 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                                     break 'outer;
                                 }
                             }
-                            if context.is_checkpoint() {
-                                client.flush_secret_states();
-                            }
+                            // if context.is_checkpoint() {
+                            //     client.flush_secret_states();
+                            // }
                         }
                         Err(e) => {
+                            error!("{} Client error: {:?}", env.log_prefix, e);
                             res = Err(e);
                             break 'outer;
                         }
                     }
+                }
+                EventFrame::Checkpoint { .. } => {
+                    client.flush_secret_states();
                 }
                 EventFrame::Shutdown => break,
                 _ => (),
@@ -125,6 +119,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
 mod tests {
 
     use race_api::prelude::*;
+    use race_core::types::ServerAccount;
     use race_encryptor::Encryptor;
     use race_test::prelude::*;
 
@@ -137,38 +132,40 @@ mod tests {
         GameContext,
         PortsHandle,
         Arc<DummyConnection>,
+        TestClient,
     ) {
-        let alice = TestClient::player("alice");
-        let bob = TestClient::player("bob");
-        let transactor = TestClient::transactor("transactor");
+        let mut alice = TestClient::player("alice");
+        let mut bob = TestClient::player("bob");
+        let mut transactor = TestClient::transactor("transactor");
         let game_account = TestGameAccountBuilder::default()
-            .add_player(&alice, 100)
-            .add_player(&bob, 100)
-            .set_transactor(&transactor)
+            .add_player(&mut alice, 100)
+            .add_player(&mut bob, 100)
+            .set_transactor(&mut transactor)
             .build();
         let encryptor = Arc::new(Encryptor::default());
         let transactor_account = ServerAccount {
-            addr: transactor.get_addr(),
+            addr: transactor.addr(),
             endpoint: "".into(),
         };
         let connection = Arc::new(DummyConnection::default());
         let transport = Arc::new(DummyTransport::default());
         let (client, client_ctx) = WrappedClient::init(
-            &transactor_account,
-            &game_account,
+            transactor_account.addr.clone(),
+            game_account.addr.clone(),
+            ClientMode::Transactor,
             transport,
             encryptor,
             connection.clone(),
         );
-        let handle = client.start(client_ctx);
-        let mut context = GameContext::try_new(&game_account).unwrap();
+        let handle = client.start(&game_account.addr, client_ctx);
+        let mut context = GameContext::try_new(&game_account, None).unwrap();
         context.set_node_ready(game_account.access_version);
-        (client, context, handle, connection)
+        (client, context, handle, connection, transactor)
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_lock() {
-        let (mut _client, mut ctx, handle, connection) = setup();
+        let (mut _client, mut ctx, handle, connection, tx) = setup();
 
         // Mask the random_state
         let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
@@ -178,7 +175,9 @@ mod tests {
             .mask("transactor".to_string(), vec![vec![0], vec![0], vec![0]])
             .unwrap();
 
-        let event_frame = EventFrame::ContextUpdated { context: Box::new(ctx) };
+        let event_frame = EventFrame::ContextUpdated {
+            context: Box::new(ctx),
+        };
         handle.send_unchecked(event_frame).await;
 
         println!("before read event");
@@ -190,7 +189,7 @@ mod tests {
                 ciphertexts_and_digests,
             } => {
                 assert_eq!(rid, random_id);
-                assert_eq!(sender, "transactor".to_string());
+                assert_eq!(sender, tx.id());
                 assert_eq!(3, ciphertexts_and_digests.len());
             }
             _ => panic!("Invalid event type"),
@@ -199,14 +198,16 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_mask() {
-        let (mut _client, mut ctx, handle, connection) = setup();
+        let (mut _client, mut ctx, handle, connection, tx) = setup();
 
         let random = RandomSpec::shuffled_list(vec!["a".into(), "b".into(), "c".into()]);
         println!("context: {:?}", ctx);
         let rid = ctx.init_random_state(random).unwrap();
         println!("random inited");
 
-        let event_frame = EventFrame::ContextUpdated { context: Box::new(ctx) };
+        let event_frame = EventFrame::ContextUpdated {
+            context: Box::new(ctx),
+        };
         handle.send_unchecked(event_frame).await;
 
         println!("before read event");
@@ -219,7 +220,7 @@ mod tests {
                 ciphertexts,
             } => {
                 assert_eq!(rid, random_id);
-                assert_eq!(sender, "transactor".to_string());
+                assert_eq!(sender, tx.id());
                 assert_eq!(3, ciphertexts.len());
             }
             _ => panic!("Invalid event type"),

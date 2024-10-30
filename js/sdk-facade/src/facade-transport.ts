@@ -24,6 +24,7 @@ import {
   VoteParams,
   IStorage,
   TransactionResult,
+  ITokenWithBalance,
 } from '@race-foundation/sdk-core';
 import { deserialize } from '@race-foundation/borsh';
 
@@ -151,8 +152,22 @@ export class FacadeTransport implements ITransport {
     throw new Error('Method not implemented.');
   }
 
-  async listTokens(_storage?: IStorage): Promise<IToken[]> {
-    return Object.values(tokenMap);
+  async listTokens(tokenAddrs: string[], _storage?: IStorage): Promise<IToken[]> {
+    return Object.values(tokenMap).filter(t => tokenAddrs.includes(t.addr));
+  }
+
+  async listTokensWithBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<ITokenWithBalance[]> {
+    const balances = await this.fetchBalances(walletAddr, tokenAddrs);
+    const tokens = Object.values(tokenMap).filter(t => tokenAddrs.includes(t.addr))
+    let ret: ITokenWithBalance[] = [];
+    for (const token of tokens) {
+      const amount = balances.get(token.addr) || 0n;
+      const uiAmount = (Number(amount) / Math.pow(10, token.decimals)).toString()
+      ret.push({
+        amount, uiAmount, ...token
+      })
+    }
+    return ret;
   }
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<TransactionResult<void>> {
@@ -163,8 +178,12 @@ export class FacadeTransport implements ITransport {
   }
   async join(wallet: IWallet, params: JoinParams): Promise<TransactionResult<void>> {
     const playerAddr = wallet.walletAddr;
-    const ix: JoinInstruction = { playerAddr, ...params };
-    if (params.createProfile) {
+    const gameAccount = await this.getGameAccount(params.gameAddr);
+    if (gameAccount === undefined) {
+      throw new Error('Game not found')
+    }
+    const ix: JoinInstruction = { playerAddr, accessVersion: gameAccount.accessVersion, ...params };
+    if (params.createProfileIfNeeded) {
       await this.createPlayerProfile(wallet, { nick: wallet.walletAddr.substring(0, 6) });
     }
     await this.sendInstruction('join', ix);
@@ -279,6 +298,7 @@ export class FacadeTransport implements ITransport {
       throw new Error('Failed to fetch data at :' + params);
     }
     const { result } = await resp.json();
+    console.debug('Facade request:', { method, params, result });
     if (result !== null) {
       return Uint8Array.from(result);
     } else {

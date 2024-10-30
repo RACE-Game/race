@@ -3,19 +3,20 @@ use std::{net::SocketAddr, sync::Arc};
 use crate::context::ApplicationContext;
 use crate::utils;
 use borsh::BorshDeserialize;
-use borsh::BorshSerialize;
 use hyper::Method;
 use jsonrpsee::core::error::Error as RpcError;
-use jsonrpsee::core::error::SubscriptionClosed;
+use jsonrpsee::core::StringError;
 use jsonrpsee::server::AllowHosts;
 use jsonrpsee::types::error::CallError;
-use jsonrpsee::types::SubscriptionEmptyError;
-use jsonrpsee::SubscriptionSink;
+use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
+use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage, TrySendError};
 use race_api::event::Message;
+use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
-    AttachGameParams, ExitGameParams, Signature, SubmitEventParams, SubscribeEventParams,
+    AttachGameParams, CheckpointParams, ExitGameParams, Signature, SubmitEventParams,
+    SubscribeEventParams,
 };
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
@@ -60,15 +61,24 @@ fn parse_params<T: BorshDeserialize>(
 }
 
 /// Ask transactor to load game and provide client's public key for further encryption.
-async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
-    let (_game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
+async fn attach_game(
+    params: Params<'_>,
+    context: Arc<ApplicationContext>,
+) -> Result<(), RpcError> {
+    let (game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
 
     info!("Attach to game, signer: {}", signer);
+
+    if !context.game_manager.is_game_loaded(&game_addr).await {
+        return Err(RpcError::Custom("Game not loaded".to_string()));
+    }
 
     context
         .register_key(signer, key)
         .await
-        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
+
+    Ok(())
 }
 
 fn ping(_: Params<'_>, _: &ApplicationContext) -> Result<String, RpcError> {
@@ -82,6 +92,7 @@ async fn submit_message(
     let (game_addr, SubmitMessageParams { content }, sig) = parse_params(params, &context)?;
 
     let sender = sig.signer;
+    info!("Player message, {}: {}", sender, content);
     let message = Message { content, sender };
 
     context
@@ -104,6 +115,27 @@ async fn submit_event(
         .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
 
+async fn get_checkpoint(
+    params: Params<'_>,
+    context: Arc<ApplicationContext>,
+) -> Result<Option<Vec<u8>>, RpcError> {
+    let (game_addr, CheckpointParams { settle_version }) = parse_params_no_sig(params)?;
+
+    info!("Get checkpoint, game_addr: {}", game_addr);
+
+    let checkpoint: Option<CheckpointOffChain> = context
+        .game_manager
+        .get_checkpoint(&game_addr, settle_version)
+        .await
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
+
+    let bs = checkpoint
+        .map(|c| borsh::to_vec(&c).map_err(|e| RpcError::Call(CallError::Failed(e.into()))))
+        .transpose()?;
+
+    Ok(bs)
+}
+
 async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
     let (game_addr, ExitGameParams {}, sig) = parse_params(params, &context)?;
     info!("Exit game");
@@ -114,72 +146,81 @@ async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Resu
         .map_err(|e| RpcError::Call(CallError::Failed(e.into())))
 }
 
-fn subscribe_event(
+async fn subscribe_event(
     params: Params<'_>,
-    mut sink: SubscriptionSink,
+    pending: PendingSubscriptionSink,
     context: Arc<ApplicationContext>,
-) -> Result<(), SubscriptionEmptyError> {
+) -> Result<(), StringError> {
     {
-        let (game_addr, SubscribeEventParams { settle_version }) =
-            parse_params_no_sig(params).or(Err(SubscriptionEmptyError))?;
+        let (game_addr, SubscribeEventParams { settle_version }) = match parse_params_no_sig(params)
+        {
+            Ok(p) => p,
+            Err(e) => {
+                let _ = pending.reject(ErrorObjectOwned::from(e)).await;
+                return Ok(());
+            }
+        };
 
-        tokio::spawn(async move {
-            let (receiver, histories) =
-                match context.get_broadcast(&game_addr, settle_version).await {
-                    Ok(x) => x,
-                    Err(e) => {
-                        sink.close(SubscriptionClosed::Failed(
-                            CallError::Failed(e.into()).into(),
-                        ));
-                        return;
-                    }
-                };
+        let (receiver, frames) = match context.get_broadcast(&game_addr, settle_version).await {
+            Ok(x) => x,
+            Err(e) => {
+                warn!("Game not found: {}", game_addr);
+                let _ = pending.reject(CallError::Failed(e.into())).await;
+                return Ok(());
+            }
+        };
 
-            drop(context);
+        drop(context);
+        info!(
+            "Subscribe event stream, game: {:?}, settle version: {}, number of historical frames: {}",
+            game_addr,
+            settle_version,
+            frames.len()
+        );
 
-            info!(
-                "Subscribe event stream, game: {:?}, settle version: {}, number of histories: {}",
-                game_addr,
-                settle_version,
-                histories.len()
-            );
-            histories.into_iter().for_each(|x| {
-                // info!("Push history event: {}", x);
-                let v = x.try_to_vec().unwrap();
+        let mut sink = pending.accept().await?;
+
+        for frame in frames.into_iter() {
+            let v = borsh::to_vec(&frame).unwrap();
+            let s = utils::base64_encode(&v);
+            sink.send(SubscriptionMessage::from(&s))
+                .await
+                .map_err(|e| {
+                    error!("Error occurred when broadcasting historical frame: {:?}", e);
+                    e
+                })
+                .unwrap();
+        }
+
+        let rx = BroadcastStream::new(receiver);
+        let mut serialized_rx = rx.map(|f| match f {
+            Ok(x) => {
+                let v = borsh::to_vec(&x).unwrap();
                 let s = utils::base64_encode(&v);
-                sink.send(&s)
-                    .map_err(|e| {
-                        error!("Error occurred when broadcasting event histories: {:?}", e);
-                        e
-                    })
-                    .unwrap();
-            });
-
-            let rx = BroadcastStream::new(receiver);
-            let serialized_rx = rx.map(|f| match f {
-                Ok(x) => {
-                    let v = x.try_to_vec().unwrap();
-                    let s = utils::base64_encode(&v);
-                    // info!("Push new event: {}", x);
-                    Ok(s)
-                }
-                Err(e) => Err(e),
-            });
-
-            match sink.pipe_from_try_stream(serialized_rx).await {
-                SubscriptionClosed::Success => {
-                    info!("Subscription closed successfully");
-                    sink.close(SubscriptionClosed::Success);
-                }
-                SubscriptionClosed::RemotePeerAborted => {
-                    warn!("Remote peer aborted");
-                }
-                SubscriptionClosed::Failed(err) => {
-                    warn!("Subscription error: {:?}", err);
-                    sink.close(err);
-                }
-            };
+                Ok(s)
+            }
+            Err(e) => Err(e),
         });
+
+        loop {
+            tokio::select! {
+                _ = sink.closed() => break Err(anyhow::anyhow!("Subscription was closed")),
+                maybe_item = serialized_rx.next() => {
+                    let item = match maybe_item {
+                        Some(Ok(item)) => item,
+                        _ => break Err(anyhow::anyhow!("Event stream ended")),
+                    };
+                    let msg = SubscriptionMessage::from(&item);
+                    match sink.try_send(msg) {
+                        Ok(_) => (),
+                        Err(TrySendError::Closed(_)) => break Err(anyhow::anyhow!("Client disconnected, subscription closed")),
+                        Err(TrySendError::Full(_)) => {
+                            warn!("TrySendError::Full");
+                        }
+                    }
+                },
+            }
+        }?;
         Ok(())
     }
 }
@@ -206,6 +247,7 @@ pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
     let mut module = RpcModule::new(context);
 
     module.register_method("ping", ping)?;
+    module.register_async_method("checkpoint", get_checkpoint)?;
     module.register_async_method("attach_game", attach_game)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;

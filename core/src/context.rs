@@ -1,16 +1,18 @@
 use std::collections::HashMap;
 
-use crate::types::{GameAccount, SettleTransferCheckpoint};
+use crate::checkpoint::{Checkpoint, CheckpointOffChain};
+use crate::types::{ClientMode, GameAccount, SettleWithAddr, SubGameSpec};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::decision::DecisionState;
-use race_api::effect::{Ask, Assign, Effect, Release, Reveal};
+use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, Release, Reveal, SubGame};
 use race_api::engine::GameHandler;
 use race_api::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
+use race_api::prelude::InitAccount;
 use race_api::random::{RandomSpec, RandomState, RandomStatus};
 use race_api::types::{
-    Addr, Ciphertext, DecisionId, GameStatus, PlayerJoin, RandomId, SecretDigest, SecretShare,
-    ServerJoin, Settle, SettleOp, Transfer,
+    Ciphertext, DecisionId, EntryType, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare,
+    SettleOp, Transfer,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -38,77 +40,31 @@ impl std::fmt::Display for NodeStatus {
     }
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct Player {
+pub struct Node {
     pub addr: String,
-    pub position: usize,
+    pub id: u64,
+    pub mode: ClientMode,
     pub status: NodeStatus,
-    pub balance: u64,
 }
 
-impl From<PlayerJoin> for Player {
-    fn from(new_player: PlayerJoin) -> Self {
+impl Node {
+    pub fn new_pending<S: Into<String>>(addr: S, access_version: u64, mode: ClientMode) -> Self {
         Self {
-            addr: new_player.addr,
-            position: new_player.position as _,
-            status: NodeStatus::Ready,
-            balance: new_player.balance,
-        }
-    }
-}
-
-impl Player {
-    pub fn new_pending(addr: String, balance: u64, position: usize, access_version: u64) -> Self {
-        Self {
-            addr,
-            balance,
-            position,
+            addr: addr.into(),
+            id: access_version,
+            mode,
             status: NodeStatus::Pending(access_version),
         }
     }
 
-    pub fn new<S: Into<String>>(addr: S, balance: u64, position: usize) -> Self {
+    pub fn new<S: Into<String>>(addr: S, access_version: u64, mode: ClientMode) -> Self {
         Self {
             addr: addr.into(),
-            status: NodeStatus::Ready,
-            balance,
-            position,
-        }
-    }
-}
-
-#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
-pub struct Server {
-    pub addr: String,
-    pub status: NodeStatus,
-    pub endpoint: String,
-}
-
-impl From<ServerJoin> for Server {
-    fn from(new_server: ServerJoin) -> Self {
-        Self {
-            addr: new_server.addr,
-            status: NodeStatus::Ready,
-            endpoint: new_server.endpoint,
-        }
-    }
-}
-
-impl Server {
-    pub fn new_pending<S: Into<String>>(addr: S, endpoint: String, access_version: u64) -> Self {
-        Server {
-            addr: addr.into(),
-            endpoint,
-            status: NodeStatus::Pending(access_version),
-        }
-    }
-
-    pub fn new<S: Into<String>>(addr: S, endpoint: String) -> Self {
-        Server {
-            addr: addr.into(),
-            endpoint,
+            id: access_version,
+            mode,
             status: NodeStatus::Ready,
         }
     }
@@ -124,6 +80,23 @@ impl DispatchEvent {
     pub fn new(event: Event, timeout: u64) -> Self {
         Self { timeout, event }
     }
+}
+
+/// The effects of an event, indicates what actions should be taken
+/// after the event handling.
+///
+/// - checkpoint: to send a settlement.
+/// - launch_sub_games: to launch a list of sub games.
+/// - bridge_events: to send events to sub games.
+/// - start_game: to start game.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct EventEffects {
+    pub settles: Vec<SettleWithAddr>,
+    pub transfers: Vec<Transfer>,
+    pub checkpoint: Option<Checkpoint>,
+    pub launch_sub_games: Vec<SubGame>,
+    pub bridge_events: Vec<EmitBridgeEvent>,
+    pub start_game: bool,
 }
 
 /// The context for public data.
@@ -152,20 +125,18 @@ impl DispatchEvent {
 /// rejected.
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub struct GameContext {
-    pub(crate) game_addr: Addr,
+    pub(crate) game_addr: String,
+    /// The id of game, always be zero in master game.
+    pub(crate) game_id: usize,
     /// Version numbers for player/server access.  This number will be
     /// increased whenever a new player joins or a server gets attached.
     pub(crate) access_version: u64,
     /// Version number for transactor settlement.  This number will be
     /// increased whenever a transaction is sent.
     pub(crate) settle_version: u64,
-    /// Current transactor's address
-    pub(crate) transactor_addr: Addr,
     pub(crate) status: GameStatus,
-    /// List of players playing in this game
-    pub(crate) players: Vec<Player>,
-    /// List of validators serving this game
-    pub(crate) servers: Vec<Server>,
+    /// List of nodes serving this game
+    pub(crate) nodes: Vec<Node>,
     pub(crate) dispatch: Option<DispatchEvent>,
     pub(crate) handler_state: Vec<u8>,
     pub(crate) timestamp: u64,
@@ -175,53 +146,143 @@ pub struct GameContext {
     pub(crate) random_states: Vec<RandomState>,
     /// All runtime decision states, each stores the answer.
     pub(crate) decision_states: Vec<DecisionState>,
-    /// Settles, if is not None, will be handled by event loop.
-    pub(crate) settles: Option<Vec<Settle>>,
-    /// Transfers, if is not None, will be handled by event loop.
-    pub(crate) transfers: Option<Vec<Transfer>>,
-    /// The latest checkpoint state
-    pub(crate) checkpoint: Option<Vec<u8>>,
+    /// The checkpoint of current game
+    /// For master game, it contains all subgames' checkpoint
+    pub(crate) checkpoint: Checkpoint,
+    /// The sub games to launch
+    pub(crate) sub_games: Vec<SubGame>,
+    /// Init data from `InitAccount`.
+    pub(crate) init_data: Vec<u8>,
+    /// Maximum number of players.
+    pub(crate) max_players: u16,
+    /// Game Players
+    pub(crate) players: Vec<GamePlayer>,
+    pub(crate) entry_type: EntryType,
 }
 
 impl GameContext {
-    pub fn try_new(game_account: &GameAccount) -> Result<Self> {
+    pub fn try_new_with_sub_game_spec(spec: &SubGameSpec) -> Result<Self> {
+        let SubGameSpec {
+            game_addr,
+            nodes,
+            game_id,
+            init_account,
+            settle_version,
+            access_version,
+            ..
+        } = spec;
+
+        Ok(Self {
+            game_addr: format!("{}:{}", game_addr, game_id),
+            game_id: *game_id,
+            nodes: nodes.clone(),
+            settle_version: *settle_version,
+            access_version: *access_version,
+            max_players: init_account.max_players,
+            players: init_account.players.clone(),
+            init_data: init_account.data.clone(),
+            entry_type: EntryType::Disabled,
+            allow_exit: false,
+            ..Default::default()
+        })
+    }
+
+    pub fn try_new(
+        game_account: &GameAccount,
+        checkpoint_off_chain: Option<CheckpointOffChain>,
+    ) -> Result<Self> {
         let transactor_addr = game_account
             .transactor_addr
             .as_ref()
             .ok_or(Error::GameNotServed)?;
 
-        let players = game_account
-            .players
-            .iter()
-            .map(|p| {
-                Player::new_pending(p.addr.clone(), p.balance, p.position as _, p.access_version)
-            })
-            .collect();
-
-        let servers = game_account
+        let mut nodes: Vec<Node> = game_account
             .servers
             .iter()
-            .map(|s| Server::new_pending(s.addr.clone(), s.endpoint.clone(), s.access_version))
+            .map(|s| {
+                Node::new_pending(
+                    s.addr.clone(),
+                    s.access_version,
+                    if s.addr.eq(transactor_addr) {
+                        ClientMode::Transactor
+                    } else {
+                        ClientMode::Validator
+                    },
+                )
+            })
             .collect();
+        let mut players = vec![];
+
+        let access_version = game_account.checkpoint_on_chain.as_ref().map(|c| c.access_version).unwrap_or(game_account.access_version);
+
+        game_account.players.iter().for_each(|p| {
+            // Only include those players joined before last checkpoint
+            if p.access_version <= access_version
+            {
+                players.push(GamePlayer::new(p.access_version, p.balance, p.position));
+            }
+
+            nodes.push(Node::new_pending(
+                p.addr.clone(),
+                p.access_version,
+                ClientMode::Player,
+            ))
+        });
+
+        let checkpoint = match (checkpoint_off_chain, game_account.checkpoint_on_chain.as_ref()) {
+            (Some(off_chain), Some(on_chain)) => Checkpoint::new_from_parts(off_chain, on_chain.clone()),
+            (None, None) => Checkpoint::default(),
+            _ => return Err(Error::MissingCheckpoint),
+        };
 
         Ok(Self {
             game_addr: game_account.addr.clone(),
+            game_id: 0,
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
-            transactor_addr: transactor_addr.to_owned(),
-            status: GameStatus::Uninit,
-            players,
-            servers,
+            status: GameStatus::Idle,
+            nodes,
             dispatch: None,
             timestamp: 0,
             allow_exit: false,
             random_states: vec![],
             decision_states: vec![],
-            settles: None,
-            transfers: None,
             handler_state: "".into(),
-            checkpoint: None,
+            checkpoint,
+            sub_games: vec![],
+            init_data: game_account.data.clone(),
+            max_players: game_account.max_players,
+            players,
+            entry_type: game_account.entry_type.clone(),
         })
+    }
+
+    pub fn init_account(&self) -> Result<InitAccount> {
+        let checkpoint = self.checkpoint.get_data(self.game_id);
+
+        Ok(InitAccount {
+            max_players: self.max_players,
+            entry_type: self.entry_type.clone(),
+            players: self.players.clone(),
+            data: self.init_data.clone(),
+            checkpoint,
+        })
+    }
+
+    pub fn id_to_addr(&self, id: u64) -> Result<String> {
+        self.nodes
+            .iter()
+            .find(|n| n.id == id)
+            .ok_or(Error::CantMapIdToAddr(id))
+            .map(|n| n.addr.clone())
+    }
+
+    pub fn addr_to_id(&self, addr: &str) -> Result<u64> {
+        self.nodes
+            .iter()
+            .find(|n| n.addr.eq(addr))
+            .ok_or(Error::CantMapAddrToId(addr.to_string()))
+            .map(|n| n.id)
     }
 
     pub fn set_timestamp(&mut self, timestamp: u64) {
@@ -247,65 +308,55 @@ impl GameContext {
         H::try_from_slice(&self.handler_state).unwrap()
     }
 
-    pub fn get_checkpoint(&self) -> Option<Vec<u8>> {
-        self.checkpoint.clone()
+    pub fn checkpoint(&self) -> &Checkpoint {
+        &self.checkpoint
+    }
+
+    pub fn checkpoint_mut(&mut self) -> &mut Checkpoint {
+        &mut self.checkpoint
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
     where
         H: GameHandler,
     {
-        self.handler_state = handler.try_to_vec().unwrap()
+        self.handler_state = borsh::to_vec(&handler).unwrap()
     }
 
-    pub fn get_servers(&self) -> &Vec<Server> {
-        &self.servers
+    pub fn get_nodes(&self) -> &[Node] {
+        &self.nodes
     }
 
-    pub fn get_game_addr(&self) -> &str {
+    pub fn game_addr(&self) -> &str {
         &self.game_addr
     }
 
-    pub fn get_transactor_addr(&self) -> &str {
-        &self.transactor_addr
+    pub fn game_id(&self) -> usize {
+        self.game_id
     }
 
-    pub fn get_player_by_index(&self, index: usize) -> Option<&Player> {
-        self.players.get(index)
+    pub fn get_transactor_addr(&self) -> Result<&str> {
+        self.nodes
+            .iter()
+            .find(|n| n.mode == ClientMode::Transactor)
+            .as_ref()
+            .map(|n| n.addr.as_str())
+            .ok_or(Error::InvalidTransactorAddress)
     }
 
-    pub fn get_player_mut_by_index(&mut self, index: usize) -> Option<&mut Player> {
-        self.players.get_mut(index)
+    pub fn count_nodes(&self) -> u16 {
+        self.nodes.len() as u16
     }
 
-    pub fn get_player_by_address(&self, addr: &str) -> Option<&Player> {
-        self.players.iter().find(|p| p.addr.eq(addr))
+    pub fn get_node_by_address(&self, addr: &str) -> Option<&Node> {
+        self.nodes.iter().find(|n| n.addr.eq(addr))
     }
 
-    pub fn get_player_mut_by_address(&mut self, addr: &str) -> Option<&mut Player> {
-        self.players.iter_mut().find(|p| p.addr.eq(addr))
-    }
-
-    pub fn count_players(&self) -> u16 {
-        self.players.len() as u16
-    }
-
-    pub fn count_servers(&self) -> u16 {
-        self.servers.len() as u16
-    }
-
-    pub fn gen_start_game_event(&self) -> Event {
-        Event::GameStart {
-            access_version: self.access_version,
-        }
-    }
-
-    pub fn get_server_by_address(&self, addr: &str) -> Option<&Server> {
-        self.servers.iter().find(|s| s.addr.eq(addr))
-    }
-
-    pub fn get_transactor_server(&self) -> &Server {
-        self.get_server_by_address(&self.transactor_addr).unwrap()
+    pub fn get_transactor_node(&self) -> Result<&Node> {
+        self.nodes
+            .iter()
+            .find(|n| n.mode == ClientMode::Transactor)
+            .ok_or(Error::CantFindTransactor)
     }
 
     pub fn dispatch_event(&mut self, event: Event, timeout: u64) {
@@ -323,16 +374,11 @@ impl GameContext {
         ));
     }
 
-    pub fn action_timeout(&mut self, player_addr: String, timeout: u64) {
+    pub fn action_timeout(&mut self, player_id: u64, timeout: u64) {
         self.dispatch = Some(DispatchEvent::new(
-            Event::ActionTimeout { player_addr },
+            Event::ActionTimeout { player_id },
             self.timestamp + timeout,
         ));
-    }
-
-    pub fn start_game(&mut self) {
-        self.random_states.clear();
-        self.dispatch = Some(DispatchEvent::new(self.gen_start_game_event(), 0));
     }
 
     pub fn shutdown_game(&mut self) {
@@ -343,29 +389,19 @@ impl GameContext {
     where
         E: CustomEvent,
     {
-        let event = Event::custom(self.transactor_addr.to_owned(), e);
-        self.dispatch_event(event, timeout);
-    }
-
-    pub fn get_players(&self) -> &Vec<Player> {
-        &self.players
+        if let Ok(node) = self.get_transactor_node() {
+            let event = Event::custom(node.id, e);
+            self.dispatch_event(event, timeout);
+        }
     }
 
     pub fn get_timestamp(&self) -> u64 {
         self.timestamp
     }
 
-    pub fn is_checkpoint(&self) -> bool {
-        self.checkpoint.is_some()
-    }
-
     pub fn get_status(&self) -> GameStatus {
         self.status
     }
-
-    // pub(crate) fn set_players(&mut self, players: Vec<Player>) {
-    //     self.players = players;
-    // }
 
     pub fn list_random_states(&self) -> &Vec<RandomState> {
         &self.random_states
@@ -387,11 +423,11 @@ impl GameContext {
         self.dispatch = None;
     }
 
-    pub fn get_access_version(&self) -> u64 {
+    pub fn access_version(&self) -> u64 {
         self.access_version
     }
 
-    pub fn get_settle_version(&self) -> u64 {
+    pub fn settle_version(&self) -> u64 {
         self.settle_version
     }
 
@@ -434,14 +470,14 @@ impl GameContext {
     }
 
     /// Assign random item to a player
-    pub fn assign<S: Into<String>>(
+    pub fn assign(
         &mut self,
         random_id: RandomId,
-        player_addr: S,
+        player_addr: String,
         indexes: Vec<usize>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
-        rnd_st.assign(player_addr.into(), indexes)?;
+        rnd_st.assign(player_addr, indexes)?;
         Ok(())
     }
 
@@ -480,50 +516,19 @@ impl GameContext {
 
     /// Set player status by address.
     /// Using it in custom event handler is not allowed.
-    pub fn set_player_status(&mut self, addr: &str, status: NodeStatus) -> Result<()> {
-        if let Some(p) = self.players.iter_mut().find(|p| p.addr.eq(&addr)) {
-            p.status = status;
+    pub fn set_node_status(&mut self, addr: &str, status: NodeStatus) -> Result<()> {
+        if let Some(n) = self.nodes.iter_mut().find(|n| n.addr.eq(&addr)) {
+            n.status = status;
         } else {
             return Err(Error::InvalidPlayerAddress);
         }
         Ok(())
     }
 
-    /// Add player to the game.
-    pub fn add_player(&mut self, player: &PlayerJoin) -> Result<()> {
-        if let Some(p) = self
-            .players
-            .iter()
-            .find(|p| p.addr.eq(&player.addr) || p.position == player.position as usize)
-        {
-            if p.position == player.position as usize {
-                Err(Error::PositionOccupied(p.position))
-            } else {
-                Err(Error::PlayerAlreadyJoined(player.addr.clone()))
-            }
-        } else {
-            self.players.push(Player::new(
-                player.addr.clone(),
-                player.balance,
-                player.position as _,
-            ));
-            Ok(())
-        }
-    }
-
-    /// Add server to the game.
-    pub fn add_server(&mut self, server: &ServerJoin) -> Result<()> {
-        if self
-            .servers
-            .iter()
-            .any(|s| s.addr.eq(&server.addr))
-        {
-            Err(Error::ServerAlreadyJoined(server.addr.clone()))
-        } else {
-            self.servers
-                .push(Server::new(server.addr.clone(), server.endpoint.clone()));
-            Ok(())
-        }
+    pub fn add_node(&mut self, node_addr: String, access_version: u64, mode: ClientMode) {
+        self.nodes.retain(|n| n.addr.ne(&node_addr));
+        self.nodes
+            .push(Node::new_pending(node_addr, access_version, mode))
     }
 
     pub fn set_access_version(&mut self, access_version: u64) {
@@ -532,21 +537,6 @@ impl GameContext {
 
     pub fn set_allow_exit(&mut self, allow_exit: bool) {
         self.allow_exit = allow_exit;
-    }
-
-    /// Remove player from the game.
-    pub fn remove_player(&mut self, addr: &str) -> Result<()> {
-        let orig_len = self.players.len();
-        if self.allow_exit {
-            self.players.retain(|p| p.addr.ne(&addr));
-            if orig_len == self.players.len() {
-                Err(Error::PlayerNotInGame)
-            } else {
-                Ok(())
-            }
-        } else {
-            Err(Error::CantLeave)
-        }
     }
 
     /// Dispatch an event if there's none
@@ -568,11 +558,13 @@ impl GameContext {
     pub fn init_random_state(&mut self, spec: RandomSpec) -> Result<RandomId> {
         let random_id = self.random_states.len() + 1;
         let owners: Vec<String> = self
-            .servers
+            .nodes
             .iter()
-            .filter_map(|s| {
-                if s.status == NodeStatus::Ready {
-                    Some(s.addr.clone())
+            .filter_map(|n| {
+                if n.status == NodeStatus::Ready
+                    && matches!(n.mode, ClientMode::Transactor | ClientMode::Validator)
+                {
+                    Some(n.addr.clone())
                 } else {
                     None
                 }
@@ -587,7 +579,7 @@ impl GameContext {
         Ok(random_id)
     }
 
-    pub fn add_shared_secrets(&mut self, _addr: &str, shares: Vec<SecretShare>) -> Result<()> {
+    pub fn add_shared_secrets(&mut self, _addr: String, shares: Vec<SecretShare>) -> Result<()> {
         for share in shares.into_iter() {
             match share {
                 SecretShare::Random {
@@ -638,130 +630,46 @@ impl GameContext {
     pub fn dispatch_randomization_timeout(&mut self, random_id: RandomId) -> Result<()> {
         let no_dispatch = self.dispatch.is_none();
         let rnd_st = self.get_random_state_mut(random_id)?;
-        match &rnd_st.status {
+        match rnd_st.status.clone() {
             RandomStatus::Shared => {}
             RandomStatus::Ready => {
                 self.dispatch_event_instantly(Event::RandomnessReady { random_id });
             }
             RandomStatus::Locking(ref addr) => {
-                let addr = addr.to_owned();
+                let id = self.addr_to_id(addr)?;
                 if no_dispatch {
                     self.dispatch_event(
-                        Event::OperationTimeout { addrs: vec![addr] },
+                        Event::OperationTimeout { ids: vec![id] },
                         OPERATION_TIMEOUT,
                     );
                 }
             }
             RandomStatus::Masking(ref addr) => {
-                let addr = addr.to_owned();
+                let id = self.addr_to_id(addr)?;
                 if no_dispatch {
                     self.dispatch_event(
-                        Event::OperationTimeout { addrs: vec![addr] },
+                        Event::OperationTimeout { ids: vec![id] },
                         OPERATION_TIMEOUT,
                     );
                 }
             }
             RandomStatus::WaitingSecrets => {
                 if no_dispatch {
-                    let addrs = rnd_st.list_operating_addrs();
-                    self.dispatch_event(Event::OperationTimeout { addrs }, OPERATION_TIMEOUT);
+                    let ids = rnd_st
+                        .list_operating_addrs()
+                        .into_iter()
+                        .map(|addr| self.addr_to_id(&addr))
+                        .collect::<Result<Vec<u64>>>()?;
+                    self.dispatch_event(Event::OperationTimeout { ids }, OPERATION_TIMEOUT);
                 }
             }
         }
         Ok(())
     }
 
-    pub fn settle(&mut self, settles: Vec<Settle>) {
-        self.settles = Some(settles);
-    }
-
-    pub fn transfer(&mut self, transfers: Vec<Transfer>) {
-        self.transfers = Some(transfers);
-    }
-
-    pub fn get_settles(&self) -> &Option<Vec<Settle>> {
-        &self.settles
-    }
-
-    pub fn bump_settle_version(&mut self) {
+    pub fn bump_settle_version(&mut self) -> Result<()> {
         self.settle_version += 1;
-    }
-
-    pub fn take_settles_and_transfers(
-        &mut self,
-    ) -> Result<Option<SettleTransferCheckpoint>> {
-        if let Some(checkpoint) = self.get_checkpoint() {
-            let mut settles = None;
-            std::mem::swap(&mut settles, &mut self.settles);
-
-            if let Some(settles) = settles.as_mut() {
-                settles.sort_by_key(|s| match s.op {
-                    SettleOp::Add(_) => 0,
-                    SettleOp::Sub(_) => 1,
-                    SettleOp::Eject => 2,
-                    SettleOp::AssignSlot(_) => 3,
-                })
-            }
-
-            for s in settles.as_ref().unwrap().iter() {
-                match s.op {
-                    SettleOp::Eject => {
-                        self.players.retain(|p| p.addr.ne(&s.addr));
-                    }
-                    SettleOp::Add(amount) => {
-                        let p =
-                            self.get_player_mut_by_address(&s.addr)
-                                .ok_or(Error::InvalidSettle(format!(
-                                    "Invalid player address: {}",
-                                    s.addr
-                                )))?;
-                        p.balance =
-                            p.balance
-                                .checked_add(amount)
-                                .ok_or(Error::InvalidSettle(format!(
-                                    "Settle amount overflow (add): balance {}, change {}",
-                                    p.balance, amount,
-                                )))?;
-                    }
-                    SettleOp::Sub(amount) => {
-                        let p =
-                            self.get_player_mut_by_address(&s.addr)
-                                .ok_or(Error::InvalidSettle(format!(
-                                    "Invalid player address: {}",
-                                    s.addr
-                                )))?;
-                        p.balance =
-                            p.balance
-                                .checked_sub(amount)
-                                .ok_or(Error::InvalidSettle(format!(
-                                    "Settle amount overflow (sub): balance {}, change {}",
-                                    p.balance, amount,
-                                )))?;
-                    }
-                    SettleOp::AssignSlot(_) => {}
-                }
-            }
-
-            let mut transfers = None;
-            std::mem::swap(&mut transfers, &mut self.transfers);
-            self.bump_settle_version();
-
-            Ok(Some((
-                settles.unwrap_or(vec![]),
-                transfers.unwrap_or(vec![]),
-                checkpoint,
-            )))
-        } else {
-            Ok(None)
-        }
-    }
-
-    pub fn add_settle(&mut self, settle: Settle) {
-        if let Some(ref mut settles) = self.settles {
-            settles.push(settle);
-        } else {
-            self.settles = Some(vec![settle]);
-        }
+        Ok(())
     }
 
     pub fn add_revealed_random(
@@ -803,7 +711,7 @@ impl GameContext {
         Ok(&rnd_st.revealed)
     }
 
-    pub fn derive_effect(&self) -> Effect {
+    pub fn derive_effect(&self, is_init: bool) -> Effect {
         let revealed = self
             .list_random_states()
             .iter()
@@ -812,9 +720,7 @@ impl GameContext {
         let answered = self
             .list_decision_states()
             .iter()
-            .filter_map(|st| {
-                st.get_revealed().map(|a| (st.id, a.to_owned()))
-            })
+            .filter_map(|st| st.get_revealed().map(|a| (st.id, a.to_owned())))
             .collect();
 
         Effect {
@@ -826,8 +732,7 @@ impl GameContext {
             timestamp: self.timestamp,
             curr_random_id: self.list_random_states().len() + 1,
             curr_decision_id: self.list_decision_states().len() + 1,
-            players_count: self.count_players(),
-            servers_count: self.count_servers(),
+            nodes_count: self.count_nodes(),
             asks: Vec::new(),
             assigns: Vec::new(),
             reveals: Vec::new(),
@@ -836,16 +741,19 @@ impl GameContext {
             revealed,
             answered,
             is_checkpoint: false,
-            checkpoint: None,
             settles: Vec::new(),
             handler_state: Some(self.handler_state.clone()),
             error: None,
             allow_exit: self.allow_exit,
             transfers: Vec::new(),
+            launch_sub_games: Vec::new(),
+            bridge_events: Vec::new(),
+            valid_players: self.players.clone(),
+            is_init,
         }
     }
 
-    pub fn apply_effect(&mut self, effect: Effect) -> Result<()> {
+    pub fn apply_effect(&mut self, effect: Effect) -> Result<EventEffects> {
         let Effect {
             action_timeout,
             wait_timeout,
@@ -861,17 +769,22 @@ impl GameContext {
             transfers,
             handler_state,
             allow_exit,
-            checkpoint,
+            is_checkpoint,
+            launch_sub_games,
+            bridge_events,
+            error,
+            is_init,
             ..
         } = effect;
 
         // Handle dispatching
         if start_game {
-            self.start_game();
+            // self.random_states.clear();
+            // self.decision_states.clear();
         } else if stop_game {
             self.shutdown_game();
         } else if let Some(t) = action_timeout {
-            self.action_timeout(t.player_addr, t.timeout);
+            self.action_timeout(t.player_id, t.timeout);
         } else if let Some(t) = wait_timeout {
             self.wait_timeout(t);
         } else if cancel_dispatch {
@@ -883,10 +796,11 @@ impl GameContext {
         for Assign {
             random_id,
             indexes,
-            player_addr,
+            player_id,
         } in assigns.into_iter()
         {
-            self.assign(random_id, player_addr, indexes)?;
+            let addr = self.id_to_addr(player_id)?;
+            self.assign(random_id, addr, indexes)?;
         }
 
         for Reveal { random_id, indexes } in reveals.into_iter() {
@@ -897,41 +811,91 @@ impl GameContext {
             self.release(decision_id)?;
         }
 
-        for Ask { player_addr } in asks.into_iter() {
-            self.ask(player_addr);
+        for Ask { player_id } in asks.into_iter() {
+            let addr = self.id_to_addr(player_id)?;
+            self.ask(addr);
         }
 
         for spec in init_random_states.into_iter() {
             self.init_random_state(spec)?;
         }
 
-        if let Some(checkpoint_state) = checkpoint {
-            self.checkpoint = Some(checkpoint_state);
-            self.settle(settles);
-            self.transfer(transfers);
-        } else if (!settles.is_empty()) || (!transfers.is_empty()) {
-            return Err(Error::SettleWithoutCheckpoint);
-        }
-
         if let Some(state) = handler_state {
-            self.handler_state = state;
-        }
+            self.handler_state = state.clone();
 
-        Ok(())
+            let mut settles1 = Vec::with_capacity(settles.len());
+
+            if is_init && self.checkpoint.is_empty() {
+                self.checkpoint = Checkpoint::new(
+                    self.game_id,
+                    self.access_version,
+                    self.settle_version,
+                    state.clone(),
+                );
+            }
+
+            if is_checkpoint {
+                // Clear the random states
+                self.random_states.clear();
+                self.decision_states.clear();
+
+                self.bump_settle_version()?;
+                self.checkpoint.set_data(self.game_id, state);
+                self.checkpoint.set_access_version(self.access_version);
+
+                for s in settles {
+                    match s.op {
+                        SettleOp::Eject => {
+                            self.remove_player(s.id)?;
+                        }
+                        SettleOp::Add(amount) => {
+                            self.player_add_balance(s.id, amount)?;
+                        }
+                        SettleOp::Sub(amount) => {
+                            self.player_sub_balance(s.id, amount)?;
+                        }
+                        _ => {}
+                    }
+                    let addr = self.id_to_addr(s.id)?;
+                    settles1.push(SettleWithAddr { addr, op: s.op });
+                }
+                self.set_game_status(GameStatus::Idle);
+            }
+
+            settles1.sort_by_key(|s| match s.op {
+                SettleOp::Add(_) => 0,
+                SettleOp::Sub(_) => 1,
+                SettleOp::Eject => 2,
+                SettleOp::AssignSlot(_) => 3,
+            });
+
+            // Append SubGame to context
+            for sub_game in launch_sub_games.iter().cloned() {
+                self.sub_games.push(sub_game);
+            }
+
+            return Ok(EventEffects {
+                settles: settles1,
+                transfers,
+                checkpoint: is_checkpoint.then(|| self.checkpoint.clone()),
+                launch_sub_games,
+                bridge_events,
+                start_game,
+            });
+        } else if let Some(e) = error {
+            return Err(Error::HandleError(e));
+        } else {
+            return Err(Error::InternalError(
+                "Missing both state and error".to_string(),
+            ));
+        }
     }
 
     pub fn set_node_ready(&mut self, access_version: u64) {
-        for s in self.servers.iter_mut() {
-            if let NodeStatus::Pending(a) = s.status {
+        for n in self.nodes.iter_mut() {
+            if let NodeStatus::Pending(a) = n.status {
                 if a <= access_version {
-                    s.status = NodeStatus::Ready
-                }
-            }
-        }
-        for p in self.players.iter_mut() {
-            if let NodeStatus::Pending(a) = p.status {
-                if a <= access_version {
-                    p.status = NodeStatus::Ready
+                    n.status = NodeStatus::Ready
                 }
             }
         }
@@ -942,28 +906,68 @@ impl GameContext {
             return Err(Error::InvalidCheckpoint);
         }
 
-        self.players.retain(|p| match p.status {
-            NodeStatus::Pending(v) => v <= access_version,
-            NodeStatus::Confirming => true,
-            NodeStatus::Ready => true,
-            NodeStatus::Disconnected => true,
-        });
-
-        self.servers.retain(|s| match s.status {
-            NodeStatus::Pending(v) => v <= access_version || s.addr.eq(&self.transactor_addr),
-            NodeStatus::Confirming => true,
-            NodeStatus::Ready => true,
-            NodeStatus::Disconnected => true,
-        });
-
         self.access_version = access_version;
 
         Ok(())
     }
 
-    pub fn prepare_for_next_event(&mut self, timestamp: u64) {
-        self.set_timestamp(timestamp);
-        self.checkpoint = None;
+    pub fn init_data(&self) -> Vec<u8> {
+        self.init_data.clone()
+    }
+
+    pub fn max_players(&self) -> u16 {
+        self.max_players
+    }
+
+    pub fn players(&self) -> &[GamePlayer] {
+        &self.players
+    }
+
+    pub fn add_player(&mut self, player: GamePlayer) {
+        self.players.push(player)
+    }
+
+    pub fn player_sub_balance(&mut self, player_id: u64, amount: u64) -> Result<()> {
+        let p = self
+            .players
+            .iter_mut()
+            .find(|p| p.id == player_id)
+            .ok_or(Error::PlayerNotInGame)?;
+
+        p.balance = p
+            .balance
+            .checked_sub(amount)
+            .ok_or(Error::SubBalanceError(player_id, p.balance, amount))?;
+
+        Ok(())
+    }
+
+    pub fn player_add_balance(&mut self, player_id: u64, amount: u64) -> Result<()> {
+        let p = self
+            .players
+            .iter_mut()
+            .find(|p| p.id == player_id)
+            .ok_or(Error::PlayerNotInGame)?;
+
+        p.balance = p
+            .balance
+            .checked_add(amount)
+            .ok_or(Error::AddBalanceError(player_id, p.balance, amount))?;
+
+        Ok(())
+    }
+
+    pub fn remove_player(&mut self, player_id: u64) -> Result<()> {
+        if let Some(index) = self.players.iter().position(|p| p.id == player_id) {
+            self.players.remove(index);
+        } else {
+            return Err(Error::PlayerNotInGame);
+        }
+        Ok(())
+    }
+
+    pub fn entry_type(&self) -> EntryType {
+        self.entry_type.clone()
     }
 }
 
@@ -971,21 +975,23 @@ impl Default for GameContext {
     fn default() -> Self {
         Self {
             game_addr: "".into(),
+            game_id: 0,
             access_version: 0,
             settle_version: 0,
-            transactor_addr: "".into(),
-            status: GameStatus::Uninit,
-            players: Vec::new(),
-            servers: Vec::new(),
+            status: GameStatus::Idle,
+            nodes: Vec::new(),
             dispatch: None,
             handler_state: "".into(),
             timestamp: 0,
             allow_exit: false,
             random_states: Vec::new(),
             decision_states: Vec::new(),
-            settles: None,
-            transfers: None,
-            checkpoint: None,
+            checkpoint: Checkpoint::default(),
+            sub_games: Vec::new(),
+            init_data: Vec::new(),
+            max_players: 0,
+            players: Vec::new(),
+            entry_type: EntryType::Disabled,
         }
     }
 }

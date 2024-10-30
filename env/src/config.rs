@@ -32,11 +32,18 @@ pub struct TransactorConfig {
     pub address: String,
     pub reg_addresses: Vec<String>,
     pub disable_blacklist: Option<bool>,
+    pub debug_mode: Option<bool>,
+}
+
+#[derive(Deserialize)]
+pub struct StorageConfig {
+    pub db_file_name: String,
 }
 
 #[derive(Deserialize)]
 pub struct Config {
     pub transactor: Option<TransactorConfig>,
+    pub storage: Option<StorageConfig>,
     pub facade: Option<FacadeConfig>,
     pub solana: Option<SolanaConfig>,
     pub bnb: Option<BnbConfig>,

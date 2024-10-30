@@ -11,6 +11,7 @@ import {
   RegistrationWithGames,
   RecipientAccount,
   EntryType,
+  ITokenWithBalance,
 } from './accounts';
 import { IStorage } from './storage';
 
@@ -35,6 +36,8 @@ export type CreateGameAccountParams = {
   tokenAddr: string;
   maxPlayers: number;
   entryType: EntryType;
+  recipientAddr: string;
+  registrationAddr: string;
   data: Uint8Array;
 };
 
@@ -45,10 +48,9 @@ export type CloseGameAccountParams = {
 export type JoinParams = {
   gameAddr: string;
   amount: bigint;
-  accessVersion: bigint;
   position: number;
   verifyKey: string;
-  createProfile?: boolean;
+  createProfileIfNeeded?: boolean;
 };
 
 export type DepositParams = {
@@ -136,11 +138,11 @@ export interface ITransport {
 
   getNft(addr: string, storage?: IStorage): Promise<INft | undefined>;
 
-  listTokens(storage?: IStorage): Promise<IToken[]>;
+  listTokens(tokenAddrs: string[], storage?: IStorage): Promise<IToken[]>;
+
+  listTokensWithBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<ITokenWithBalance[]>;
 
   listNfts(walletAddr: string, storage?: IStorage): Promise<INft[]>;
-
-  fetchBalances(walletAddr: string, tokenAddrs: string[]): Promise<Map<string, bigint>>;
 
   recipientClaim(wallet: IWallet, params: RecipientClaimParams): Promise<TransactionResult<void>>;
 }

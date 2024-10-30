@@ -68,7 +68,6 @@ export interface IGameState {
   entryType: EntryType;
   recipientAddr: PublicKey;
   checkpoint: Uint8Array;
-  checkpointAccessVersion: bigint;
 }
 
 export interface IServerState {
@@ -79,9 +78,9 @@ export interface IServerState {
 }
 
 export interface IRecipientState {
-  readonly addr: PublicKey;
-  readonly capAddr: PublicKey | undefined;
-  readonly slots: IRecipientSlot[];
+  isInitialized: boolean;
+  capAddr: PublicKey | undefined;
+  slots: IRecipientSlot[];
 }
 
 const RECIPIENT_SLOT_TYPE = {
@@ -103,7 +102,6 @@ export interface IRecipientSlotShare {
   readonly owner: RecipientSlotOwner;
   readonly weights: number;
   readonly claimAmount: bigint;
-  readonly claimAmountCap: bigint;
 }
 
 export class PlayerState implements IPlayerState {
@@ -243,8 +241,6 @@ export class GameState implements IGameState {
   recipientAddr!: PublicKey;
   @field('u8-array')
   checkpoint!: Uint8Array;
-  @field('u64')
-  checkpointAccessVersion!: bigint;
 
   constructor(fields: IGameState) {
     Object.assign(this, fields);
@@ -259,6 +255,12 @@ export class GameState implements IGameState {
   }
 
   generalize(addr: PublicKey): RaceCore.GameAccount {
+
+    let checkpointOnChain = undefined;
+    if (this.checkpoint.length !== 0) {
+      checkpointOnChain = RaceCore.CheckpointOnChain.fromRaw(this.checkpoint);
+    }
+
     return new RaceCore.GameAccount({
       addr: addr.toBase58(),
       title: this.title,
@@ -278,8 +280,7 @@ export class GameState implements IGameState {
       unlockTime: this.unlockTime,
       entryType: this.entryType,
       recipientAddr: this.recipientAddr.toBase58(),
-      checkpoint: this.checkpoint,
-      checkpointAccessVersion: this.checkpointAccessVersion,
+      checkpointOnChain,
     });
   }
 }
@@ -399,8 +400,6 @@ export class RecipientSlotShare implements IRecipientSlotShare {
   weights!: number;
   @field('u64')
   claimAmount!: bigint;
-  @field('u64')
-  claimAmountCap!: bigint;
   constructor(fields: IRecipientSlotShare) {
     Object.assign(this, fields);
   }
@@ -415,7 +414,7 @@ export class RecipientSlotShare implements IRecipientSlotShare {
       throw new Error('Invalid slot owner');
     }
     return new RaceCore.RecipientSlotShare({
-      owner, weights: this.weights, claimAmount: this.claimAmount, claimAmountCap: this.claimAmountCap
+      owner, weights: this.weights, claimAmount: this.claimAmount
     })
   }
 }
@@ -435,19 +434,20 @@ export class RecipientSlot implements IRecipientSlot {
     Object.assign(this, fields);
   }
 
-  generalize(): RaceCore.RecipientSlot {
+  generalize(balance: bigint): RaceCore.RecipientSlot {
     return new RaceCore.RecipientSlot({
       id: this.id,
       slotType: this.slotType,
       tokenAddr: this.tokenAddr.toBase58(),
       shares: this.shares.map(s => s.generalize()),
+      balance,
     });
   }
 }
 
 export class RecipientState implements IRecipientState {
-  @field(publicKeyExt)
-  addr!: PublicKey;
+  @field('bool')
+  isInitialized!: boolean;
   @field(option(publicKeyExt))
   capAddr: PublicKey | undefined;
   @field(array(struct(RecipientSlot)))
@@ -465,11 +465,11 @@ export class RecipientState implements IRecipientState {
     return deserialize(this, data);
   }
 
-  generalize(): RaceCore.RecipientAccount {
+  generalize(addr: string, slots: RaceCore.RecipientSlot[]): RaceCore.RecipientAccount {
     return new RaceCore.RecipientAccount({
-      addr: this.addr.toBase58(),
+      addr,
       capAddr: this.capAddr?.toBase58(),
-      slots: this.slots.map(s => s.generalize()),
+      slots
     });
   }
 }

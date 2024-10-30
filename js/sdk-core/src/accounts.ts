@@ -1,4 +1,5 @@
 import { field, array, struct, option, enums, variant } from '@race-foundation/borsh';
+import { Checkpoint, CheckpointOnChain } from './checkpoint';
 
 export interface IPlayerJoin {
   readonly addr: string;
@@ -58,8 +59,7 @@ export interface IGameAccount {
   readonly data: Uint8Array;
   readonly entryType: EntryType;
   readonly recipientAddr: string;
-  readonly checkpoint: Uint8Array;
-  readonly checkpointAccessVersion: bigint;
+  readonly checkpointOnChain: CheckpointOnChain | undefined;
 }
 
 export interface IServerAccount {
@@ -106,7 +106,17 @@ export class Token implements IToken {
   }
 }
 
-export class TokenWithBalance implements IToken {
+export interface ITokenWithBalance extends IToken {
+  readonly addr: string;
+  readonly icon: string;
+  readonly name: string;
+  readonly symbol: string;
+  readonly decimals: number;
+  readonly amount: bigint;
+  readonly uiAmount: string;
+}
+
+export class TokenWithBalance implements ITokenWithBalance {
   readonly addr!: string;
   readonly icon!: string;
   readonly name!: string;
@@ -148,13 +158,13 @@ export interface IRecipientSlot {
   readonly slotType: RecipientSlotType;
   readonly tokenAddr: string;
   readonly shares: IRecipientSlotShare[];
+  readonly balance: bigint;
 }
 
 export interface IRecipientSlotShare {
   readonly owner: RecipientSlotOwner;
   readonly weights: number;
   readonly claimAmount: bigint;
-  readonly claimAmountCap: bigint;
 }
 
 export abstract class RecipientSlotOwner {}
@@ -183,13 +193,18 @@ export type EntryTypeKind =
   | 'Invalid'
   | 'Cash'
   | 'Ticket'
-  | 'Gating';
+  | 'Gating'
+  | 'Disabled';
 
 export interface IEntryTypeKind {
   kind(): EntryTypeKind;
 }
 
-export abstract class EntryType {}
+export abstract class EntryType implements IEntryTypeKind {
+  kind(): EntryTypeKind {
+    return 'Invalid';
+  }
+}
 
 @variant(0)
 export class EntryTypeCash extends EntryType implements IEntryTypeKind {
@@ -200,6 +215,7 @@ export class EntryTypeCash extends EntryType implements IEntryTypeKind {
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, EntryTypeCash.prototype);
   }
   kind(): EntryTypeKind {
     return 'Cash';
@@ -207,7 +223,7 @@ export class EntryTypeCash extends EntryType implements IEntryTypeKind {
 }
 
 @variant(1)
-export class EntryTypeTicket extends EntryType implements IEntryTypeKind{
+export class EntryTypeTicket extends EntryType implements IEntryTypeKind {
   @field('u8')
   slotId!: number;
   @field('u64')
@@ -215,6 +231,7 @@ export class EntryTypeTicket extends EntryType implements IEntryTypeKind{
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, EntryTypeTicket.prototype);
   }
   kind(): EntryTypeKind {
     return 'Ticket';
@@ -222,15 +239,27 @@ export class EntryTypeTicket extends EntryType implements IEntryTypeKind{
 }
 
 @variant(2)
-export class EntryTypeGating extends EntryType implements IEntryTypeKind{
+export class EntryTypeGating extends EntryType implements IEntryTypeKind {
   @field('string')
   collection!: string;
   constructor(fields: any) {
     super();
     Object.assign(this, fields);
+    Object.setPrototypeOf(this, EntryTypeGating.prototype);
   }
   kind(): EntryTypeKind {
     return 'Gating';
+  }
+}
+
+@variant(3)
+export class EntryTypeDisabled extends EntryType implements IEntryTypeKind {
+  constructor(_: any) {
+    super();
+    Object.setPrototypeOf(this, EntryTypeDisabled.prototype);
+  }
+  kind(): EntryTypeKind {
+    return 'Disabled';
   }
 }
 
@@ -352,10 +381,8 @@ export class GameAccount implements IGameAccount {
   readonly entryType!: EntryType;
   @field('string')
   readonly recipientAddr!: string;
-  @field('u8-array')
-  readonly checkpoint!: Uint8Array;
-  @field('u64')
-  readonly checkpointAccessVersion!: bigint;
+  @field(option(struct(CheckpointOnChain)))
+  readonly checkpointOnChain: CheckpointOnChain | undefined;
   constructor(fields: IGameAccount) {
     Object.assign(this, fields);
   }
@@ -437,8 +464,6 @@ export class RecipientSlotShare implements IRecipientSlotShare {
   weights!: number;
   @field('u64')
   claimAmount!: bigint;
-  @field('u64')
-  claimAmountCap!: bigint;
   constructor(fields: IRecipientSlotShare) {
     Object.assign(this, fields);
   }
@@ -453,6 +478,8 @@ export class RecipientSlot implements IRecipientSlot {
   tokenAddr!: string;
   @field(array(struct(RecipientSlotShare)))
   shares!: IRecipientSlotShare[];
+  @field('u64')
+  balance!: bigint;
   constructor(fields: IRecipientSlot) {
     Object.assign(this, fields);
   }

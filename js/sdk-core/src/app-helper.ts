@@ -1,12 +1,18 @@
-import { EntryTypeCash, GameAccount, INft, IToken, PlayerProfile, TokenWithBalance } from './accounts';
+import { EntryTypeCash, GameAccount, INft, IToken, ITokenWithBalance, PlayerProfile, RecipientAccount, TokenWithBalance } from './accounts';
 import { IStorage } from './storage';
 import { CreateGameAccountParams, ITransport, TransactionResult } from './transport';
+import { PlayerProfileWithPfp } from './types';
 import { IWallet } from './wallet';
 
 
 export type AppHelperInitOpts = {
   transport: ITransport,
   storage?: IStorage,
+};
+
+export type ClaimPreview = {
+  tokenAddr: string,
+  amount: bigint,
 };
 
 /**
@@ -118,8 +124,15 @@ export class AppHelper {
    * @param addr - The address of player profile account
    * @returns The player profile account or undefined when not found
    */
-  async getProfile(addr: string): Promise<PlayerProfile | undefined> {
-    return await this.#transport.getPlayerProfile(addr);
+  async getProfile(addr: string): Promise<PlayerProfileWithPfp | undefined> {
+    const profile = await this.#transport.getPlayerProfile(addr);
+    if (profile === undefined) return undefined;
+    if (profile.pfp !== undefined) {
+      const pfp = await this.#transport.getNft(profile.pfp, this.#storage);
+      return { nick: profile.nick, addr: profile.addr, pfp };
+    } else {
+      return { nick: profile.nick, addr: profile.addr, pfp: undefined };
+    }
   }
 
   /**
@@ -142,12 +155,21 @@ export class AppHelper {
   }
 
   /**
-   * List available tokens.
+   * List tokens.
    *
    * @return A list of token info.
    */
-  async listTokens(): Promise<IToken[]> {
-    return await this.#transport.listTokens(this.#storage);
+  async listTokens(tokenAddrs: string[]): Promise<IToken[]> {
+    return await this.#transport.listTokens(tokenAddrs, this.#storage);
+  }
+
+  /**
+   * List tokens with their balance.
+   *
+   * @return A list of token info.
+   */
+  async listTokensWithBalance(walletAddr: string, tokenAddrs: string[]): Promise<ITokenWithBalance[]> {
+    return await this.#transport.listTokensWithBalance(walletAddr, tokenAddrs, this.#storage);
   }
 
   /**
@@ -177,22 +199,61 @@ export class AppHelper {
   }
 
   /**
-   * Fetch tokens and balances
+   * Claim the fees collected by game.
    *
-   * @param walletAddr - The player's wallet address
-   *
-   * @return The list of tokens with `amount` and `uiAmount` added.
+   * @param wallet - The wallet adapter to sign the transaction
+   * @param gameAddr - The address of game account.
    */
-  async listTokensWithBalance(walletAddr: string): Promise<TokenWithBalance[]> {
-    const tokens = await this.listTokens();
-    const tokenAddrs = tokens.map(t => t.addr);
-    const balanceMap = await this.#transport.fetchBalances(walletAddr, tokenAddrs);
-    return tokens.map(t => {
-      let balance = balanceMap.get(t.addr);
-      if (balance === undefined) {
-        balance = 0n;
+  async claim(wallet: IWallet, gameAddr: string): Promise<TransactionResult<void>> {
+    const gameAccount = await this.#transport.getGameAccount(gameAddr);
+    if (gameAccount === undefined) throw new Error('Game account not found');
+    return await this.#transport.recipientClaim(wallet, { recipientAddr: gameAccount?.recipientAddr });
+  }
+
+  async getRecipient(recipientAddr: string): Promise<RecipientAccount | undefined> {
+    return await this.#transport.getRecipient(recipientAddr);
+  }
+
+  /**
+   * Preview the claim information.
+   *
+   * @param wallet - The wallet adapter to sign the transaction
+   * @param recipientAddr | recipientAccount - The address of a recipient account.
+   */
+  previewClaim(wallet: IWallet, recipientAddr: string): Promise<ClaimPreview[]>
+  previewClaim(wallet: IWallet, recipientAccount: RecipientAccount): Promise<ClaimPreview[]>
+  async previewClaim(wallet: IWallet, recipient: RecipientAccount | string): Promise<ClaimPreview[]> {
+    if (typeof recipient === 'string') {
+      const r = await this.#transport.getRecipient(recipient);
+      if (r === undefined) {
+        throw new Error('Recipient account not found');
       }
-      return new TokenWithBalance(t, balance);
-    });
+      recipient = r;
+    }
+
+    let ret: ClaimPreview[] = [];
+    for (const slot of recipient.slots) {
+      let weights = 0;
+      let totalWeights = 0;
+      let totalClaimed = 0n;
+      let claimed = 0n;
+      for (const share of slot.shares) {
+        totalClaimed += share.claimAmount;
+        totalWeights += share.weights;
+        if (share.owner === wallet.walletAddr) {
+          weights += share.weights;
+          claimed += share.claimAmount;
+        }
+      }
+      const totalAmount = totalClaimed + slot.balance;
+      const amountToClaim = BigInt(Number(totalAmount) * weights / totalWeights) - claimed;
+      if (amountToClaim > 0n) {
+        ret.push({
+          amount: amountToClaim,
+          tokenAddr: slot.tokenAddr
+        });
+      }
+    }
+    return ret;
   }
 }

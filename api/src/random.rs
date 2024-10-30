@@ -59,6 +59,9 @@ pub enum Error {
     #[error("No enough servers")]
     NoEnoughServer,
 
+    #[error("No server")]
+    NoServer,
+
     #[error("Invalid reveal operation")]
     InvalidRevealOperation,
 
@@ -343,7 +346,7 @@ impl RandomState {
         let status = if let Some(owner) = owners.first() {
             RandomStatus::Masking(owner.clone())
         } else {
-            return Err(Error::NoEnoughServer);
+            return Err(Error::NoServer);
         };
 
         Ok(Self {
@@ -719,7 +722,7 @@ mod tests {
     #[test]
     fn test_mask_serialize() {
         let mask = Mask::new("hello");
-        let encoded = mask.try_to_vec().unwrap();
+        let encoded = borsh::to_vec(&mask).unwrap();
         let decoded = Mask::try_from_slice(&encoded).unwrap();
         assert_eq!(mask, decoded);
     }

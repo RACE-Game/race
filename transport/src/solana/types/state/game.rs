@@ -1,5 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_core::types::{GameAccount, VoteType, EntryType};
+use race_api::error::Error;
+use race_core::{
+    checkpoint::CheckpointOnChain,
+    types::{EntryType, GameAccount, VoteType},
+};
 use solana_sdk::pubkey::Pubkey;
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -95,12 +99,10 @@ pub struct GameState {
     pub recipient_addr: Pubkey,
     // the checkpoint state
     pub checkpoint: Vec<u8>,
-    // the value of access version when checkpoint is set
-    pub checkpoint_access_version: u64,
 }
 
 impl GameState {
-    pub fn into_account<S: Into<String>>(self, addr: S) -> GameAccount {
+    pub fn into_account<S: Into<String>>(self, addr: S) -> Result<GameAccount, Error> {
         let GameState {
             title,
             bundle_addr,
@@ -117,14 +119,21 @@ impl GameState {
             entry_type,
             recipient_addr,
             checkpoint,
-            checkpoint_access_version,
             ..
         } = self;
 
         let players = players.into_iter().map(Into::into).collect();
         let servers = servers.into_iter().map(Into::into).collect();
+        let checkpoint_onchain = if checkpoint.is_empty() {
+            Some(
+                CheckpointOnChain::try_from_slice(&checkpoint)
+                    .map_err(|_| Error::MalformedCheckpoint)?,
+            )
+        } else {
+            None
+        };
 
-        GameAccount {
+        Ok(GameAccount {
             addr: addr.into(),
             title,
             settle_version,
@@ -143,8 +152,7 @@ impl GameState {
             unlock_time: None,
             recipient_addr: recipient_addr.to_string(),
             entry_type,
-            checkpoint,
-            checkpoint_access_version,
-        }
+            checkpoint_on_chain: checkpoint_onchain,
+        })
     }
 }
