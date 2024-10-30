@@ -14,24 +14,12 @@
         pkgs = import nixpkgs {
           inherit system overlays;
         };
-        code = pkgs.callPackage ./. { inherit nixpkgs system rust-overlay; };
-      in rec {
-        packages = {
-          race-transactor = code.race-transactor;
-          race-cli = code.race-cli;
-          all = pkgs.symlinkJoin {
-            name = "all";
-            paths = with code; [ race-transactor race-cli ];
-          };
-        };
-
-        default = packages.all;
-
+      in {
         devShell = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
             (rust-bin.stable."1.77.0".default.override {
               extensions = [ "rust-src" ];
-             targets = [ "wasm32-unknown-unknown" ];
+              targets = [ "wasm32-unknown-unknown" ];
             })
             cargo
             openssl
@@ -50,8 +38,4 @@
         };
       }
     );
-
-  nixConfig = {
-    bash-prompt-prefix = "[race]";
-  };
 }
