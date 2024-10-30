@@ -3,12 +3,19 @@ use std::mem::swap;
 use race_api::engine::GameHandler;
 use race_api::error::Result;
 use race_api::event::Event;
-use race_core::context::GameContext;
-use race_core::engine::{general_handle_event, general_init_state};
-use race_core::types::GameAccount;
+use race_core::context::{EventEffects, GameContext};
+use race_core::engine::general_handle_event;
 use race_encryptor::Encryptor;
 
 use crate::client_helpers::TestClient;
+
+
+// Some event has special handling in event loop.
+fn patch_handle_event_effects(context: &mut GameContext, event_effects: &EventEffects) {
+    if event_effects.start_game {
+        context.dispatch_safe(Event::GameStart, 0);
+    }
+}
 
 /// A wrapped handler for testing
 /// This handler includes the general event handling, which is necessary for integration test.
@@ -20,55 +27,58 @@ where
 }
 
 impl<H: GameHandler> TestHandler<H> {
-    pub fn init_state(context: &mut GameContext, game_account: &GameAccount) -> Result<Self> {
+    pub fn init_state(context: &mut GameContext) -> Result<(Self, EventEffects)> {
         let mut new_context = context.clone();
-        let init_account = game_account.derive_init_account();
-        general_init_state(&mut new_context, &init_account)?;
-        let mut effect = new_context.derive_effect();
+        let init_account = new_context.init_account()?;
+        let mut effect = new_context.derive_effect(true);
         let handler = H::init_state(&mut effect, init_account)?;
-        new_context.apply_effect(effect)?;
+        let event_effects = new_context.apply_effect(effect)?;
+        patch_handle_event_effects(&mut new_context, &event_effects);
         swap(context, &mut new_context);
-        Ok(Self { handler })
+        Ok((Self { handler }, event_effects))
     }
 
-    pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<()> {
+    pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<EventEffects> {
         let mut new_context = context.clone();
         let encryptor = Encryptor::default();
         general_handle_event(&mut new_context, event, &encryptor)?;
-        let mut effect = new_context.derive_effect();
+        let mut effect = new_context.derive_effect(false);
         self.handler.handle_event(&mut effect, event.to_owned())?;
+        let event_effects = new_context.apply_effect(effect)?;
+        patch_handle_event_effects(&mut new_context, &event_effects);
         swap(context, &mut new_context);
-        Ok(())
+        Ok(event_effects)
     }
 
     /// Find the event which is going to be disptached in the context, then process it.
     /// In real cases, the disptached event will be handled by an event loop.
     /// We use this function to simulate such cases, since we don't have an event loop in tests.
-    pub fn handle_dispatch_event(&mut self, context: &mut GameContext) -> Result<()> {
-        let event = context
+    pub fn handle_dispatch_event(&mut self, context: &mut GameContext) -> Result<EventEffects> {
+        let evt = context
             .get_dispatch()
             .as_ref()
             .expect("No dispatch event")
             .event
             .clone();
         context.cancel_dispatch();
-        self.handle_event(context, &event)?;
-        Ok(())
+        println!("* Dispatch event: {}", evt);
+        self.handle_event(context, &evt)
     }
 
     pub fn handle_dispatch_until_no_events(
         &mut self,
         context: &mut GameContext,
         clients: Vec<&mut TestClient>,
-    ) -> Result<()> {
-        let event = context
+    ) -> Result<EventEffects> {
+        let evt = context
             .get_dispatch()
             .as_ref()
             .expect("No dispatch event")
             .event
             .clone();
         context.cancel_dispatch();
-        self.handle_until_no_events(context, &event, clients)
+        println!("* Dispatch event: {}", evt);
+        self.handle_until_no_events(context, &evt, clients)
     }
 
     /// This fn keeps handling events of the following two types, until there is none:
@@ -79,18 +89,19 @@ impl<H: GameHandler> TestHandler<H> {
         context: &mut GameContext,
         event: &Event,
         mut clients: Vec<&mut TestClient>,
-    ) -> Result<()> {
+    ) -> Result<EventEffects> {
         // 1. Process the `event'(arg) --> context updated
         // 2. context may dispatch --> take care those with timeout == current timestamp
         // 3. iter clients to syn with updated context --> a couple of events
         // 4. handle these client/trans events
         let mut evts: Vec<Event> = vec![event.clone()]; // keep handling events in this vec
+        let mut event_effects = EventEffects::default();
 
         while !evts.is_empty() {
             let evt = &evts[0];
             println!("* Received event: {}", evt);
 
-            self.handle_event(context, evt)?;
+            event_effects = self.handle_event(context, evt)?;
             if evts.len() == 1 {
                 evts.clear();
             } else {
@@ -113,14 +124,14 @@ impl<H: GameHandler> TestHandler<H> {
                 println!("* Context dispatch: {:?}", dispatch);
             }
         }
-        Ok(())
+        Ok(event_effects)
     }
 
-    pub fn get_state(&self) -> &H {
+    pub fn state(&self) -> &H {
         &self.handler
     }
 
-    pub fn get_mut_state(&mut self) -> &mut H {
+    pub fn state_mut(&mut self) -> &mut H {
         &mut self.handler
     }
 }

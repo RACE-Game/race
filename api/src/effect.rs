@@ -135,7 +135,7 @@ impl EmitBridgeEvent {
 /// ```
 /// # use race_api::effect::Effect;
 /// let mut effect = Effect::default();
-/// effect.assign(1 /* random_id */, "Alice", vec![0, 1, 2] /* indexes */);
+/// effect.assign(1 /* random_id */, 0 /* player_id */, vec![0, 1, 2] /* indexes */);
 /// ```
 /// To reveal some items to the public, use [`Effect::reveal`].
 /// It makes those items visible to everyone, including servers.
@@ -153,7 +153,7 @@ impl EmitBridgeEvent {
 /// ```
 /// # use race_api::effect::Effect;
 /// let mut effect = Effect::default();
-/// let decision_id = effect.ask("Alice");
+/// let decision_id = effect.ask(0 /* player_id */);
 /// ```
 ///
 /// To reveal the answer, use [`Effect::reveal_answer`].
@@ -187,17 +187,16 @@ impl EmitBridgeEvent {
 /// use race_api::types::Settle;
 /// let mut effect = Effect::default();
 /// // Increase assets
-/// effect.settle(Settle::add("Alice", 100));
+/// effect.settle(Settle::add(0 /* player_id */, 100 /* amount */));
 /// // Decrease assets
-/// effect.settle(Settle::sub("Bob", 200));
+/// effect.settle(Settle::sub(1 /* player_id */, 200 /* amount */));
 /// // Remove player from this game, its assets will be paid out
-/// effect.settle(Settle::eject("Charlie"));
+/// effect.settle(Settle::eject(2 /* player_id*/));
 /// // Make the checkpoint
 /// effect.checkpoint();
 /// ```
 
-#[cfg_attr(test, derive(PartialEq, Eq))]
-#[derive(Default, BorshSerialize, BorshDeserialize, Debug)]
+#[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Effect {
     pub action_timeout: Option<ActionTimeout>,
     pub wait_timeout: Option<u64>,
@@ -480,6 +479,7 @@ mod tests {
         }
 
         let effect = Effect {
+            is_init: false,
             action_timeout: Some(ActionTimeout {
                 player_id: 0,
                 timeout: 100,
@@ -511,7 +511,7 @@ mod tests {
             error: Some(HandleError::NoEnoughPlayers),
             allow_exit: true,
             transfers: vec![],
-            checkpoint: None,
+            is_checkpoint: false,
             launch_sub_games: vec![],
             bridge_events: vec![],
             valid_players: vec![],

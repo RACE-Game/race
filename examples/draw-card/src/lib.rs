@@ -64,9 +64,6 @@ pub struct DrawCard {
     pub max_bet: u64,
 }
 
-#[derive(BorshSerialize, BorshDeserialize)]
-pub struct DrawCardCheckpoint {}
-
 impl DrawCard {
     fn set_winner(&mut self, effect: &mut Effect, winner_index: usize) -> Result<(), HandleError> {
         let players = array_mut_ref![self.players, 0, 2];
@@ -75,12 +72,12 @@ impl DrawCard {
         let player_1 = &mut player_1[0];
 
         if winner_index == 0 {
-            effect.settle(Settle::add(player_0.id, self.pot - player_0.bet));
-            effect.settle(Settle::sub(player_1.id, player_1.bet));
+            effect.settle(Settle::add(player_0.id, self.pot - player_0.bet))?;
+            effect.settle(Settle::sub(player_1.id, player_1.bet))?;
             player_0.balance += self.pot;
         } else {
-            effect.settle(Settle::add(player_1.id, self.pot - player_1.bet));
-            effect.settle(Settle::sub(player_0.id, player_0.bet));
+            effect.settle(Settle::add(player_1.id, self.pot - player_1.bet))?;
+            effect.settle(Settle::sub(player_0.id, player_0.bet))?;
             player_1.balance += self.pot;
         }
 
@@ -113,7 +110,7 @@ impl DrawCard {
                     self.bet = amount;
                     self.pot += amount;
                     self.stage = GameStage::Reacting;
-                    effect.action_timeout(player.id.clone(), ACTION_TIMEOUT);
+                    effect.action_timeout(player.id.clone(), ACTION_TIMEOUT)?;
                 } else {
                     return Err(HandleError::Custom("Can't bet".into()));
                 }
@@ -171,8 +168,6 @@ fn is_better_than(card_a: &str, card_b: &str) -> bool {
 }
 
 impl GameHandler for DrawCard {
-
-    type Checkpoint = DrawCardCheckpoint;
 
     fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
         let AccountData {
@@ -243,8 +238,8 @@ impl GameHandler for DrawCard {
             }
 
             Event::RandomnessReady { .. } => {
-                effect.assign(self.random_id, self.players[0].id, vec![0]);
-                effect.assign(self.random_id, self.players[1].id, vec![1]);
+                effect.assign(self.random_id, self.players[0].id, vec![0])?;
+                effect.assign(self.random_id, self.players[1].id, vec![1])?;
             }
 
             // Start game when there are two players.
@@ -268,7 +263,7 @@ impl GameHandler for DrawCard {
                         // Now it's the first player's turn to act.
                         // So we dispatch an action timeout event.
                         self.stage = GameStage::Betting;
-                        effect.action_timeout(self.players[0].id.clone(), ACTION_TIMEOUT);
+                        effect.action_timeout(self.players[0].id.clone(), ACTION_TIMEOUT)?;
                         effect.allow_exit(true);
                     }
                     GameStage::Revealing => {
@@ -295,7 +290,7 @@ impl GameHandler for DrawCard {
                 if let Some(player_idx) = self.players.iter().position(|p| p.id.eq(&player_id))
                 {
                     self.set_winner(effect, if player_idx == 0 { 1 } else { 0 })?;
-                    effect.settle(Settle::eject(player_id));
+                    effect.settle(Settle::eject(player_id))?;
                     effect.checkpoint();
                 } else {
                     return Err(HandleError::InvalidPlayer);
@@ -305,10 +300,6 @@ impl GameHandler for DrawCard {
         }
 
         Ok(())
-    }
-
-    fn into_checkpoint(self) -> HandleResult<DrawCardCheckpoint> {
-        Ok(DrawCardCheckpoint {})
     }
 }
 

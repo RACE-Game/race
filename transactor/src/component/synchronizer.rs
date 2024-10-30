@@ -74,14 +74,14 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
             Err(e) => {
                 warn!(
                     "{} Synchronizer failed to subscribe game account updates: {}",
-                    env.log_prefix, e.to_string()
+                    env.log_prefix,
+                    e.to_string()
                 );
                 return CloseReason::Fault(Error::GameAccountNotFound);
             }
         };
 
         while let Some(Some(game_account)) = sub.next().await {
-
             let GameAccount {
                 players,
                 servers,
@@ -269,7 +269,6 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use race_core::types::{ConfirmingPlayer, TxState};
     use race_test::prelude::*;
 
     #[tokio::test]
@@ -299,22 +298,27 @@ mod tests {
         let mut handle = synchronizer.start("synchronizer", ctx);
         let frame = handle.recv_unchecked().await.unwrap();
 
-        let test_confirm_players = vec![ConfirmingPlayer {
-            id: 1,
-            addr: "bob".to_string(),
+        let expected_new_players = vec![PlayerJoin {
+            addr: "bob".into(),
             position: 1,
             balance: 100,
+            access_version: 3,
+            verify_key: "".into(),
         }];
-
-        let test_tx_state = TxState::PlayerConfirming {
-            confirm_players: test_confirm_players,
+        let expected_new_servers = vec![ServerJoin {
+            addr: "bar".into(),
+            endpoint: "".into(),
             access_version: 4,
-        };
+            verify_key: "".into(),
+        }];
+        let expected_transactor_addr = "foo".to_string();
+        let expected_access_version = 4;
 
-        if let EventFrame::TxState { tx_state } = frame {
-            assert_eq!(tx_state, test_tx_state);
-        } else {
-            panic!("Invalid event frame");
+        if let EventFrame::Sync { new_players, new_servers, transactor_addr, access_version } = frame {
+            assert_eq!(new_players, expected_new_players);
+            assert_eq!(new_servers, expected_new_servers);
+            assert_eq!(access_version, expected_access_version);
+            assert_eq!(transactor_addr, expected_transactor_addr);
         }
     }
 }

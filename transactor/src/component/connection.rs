@@ -28,7 +28,7 @@ use race_core::{
     types::{AttachGameParams, ExitGameParams, SubmitEventParams},
 };
 
-use crate::frame::EventFrame;
+use crate::{frame::EventFrame, utils::current_timestamp};
 use crate::utils::base64_decode;
 use crate::{component::common::Attachable, utils::base64_encode};
 
@@ -50,6 +50,7 @@ impl ConnectionT for LocalConnection {
         self.output_tx
             .send(EventFrame::SendEvent {
                 event: params.event,
+                timestamp: current_timestamp(),
             })
             .await
             .map_err(|e| Error::InternalError(e.to_string()))

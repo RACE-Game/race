@@ -237,7 +237,7 @@ export class Effect {
     const startGame = false;
     const stopGame = false;
     const cancelDispatch = false;
-    const timestamp = context.timestamp;
+    const timestamp = isInit ? 0n : context.timestamp;
     const currRandomId = context.randomStates.length + 1;
     const currDecisionId = context.decisionStates.length + 1;
     const nodesCount = context.nodes.length;

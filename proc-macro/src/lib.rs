@@ -15,23 +15,14 @@ use syn::{parse_macro_input, ItemStruct};
 /// #[game_handler]
 /// struct S {}
 ///
-/// #[derive(BorshDeserialize, BorshSerialize)]
-/// struct Checkpoint {}
-///
 /// impl GameHandler for S {
-///
-///     type Checkpoint = Checkpoint;
 ///
 ///     fn init_state(context: &mut Effect, init_account: InitAccount) -> HandleResult<Self> {
 ///         Ok(Self {})
 ///     }
-
+///
 ///     fn handle_event(&mut self, context: &mut Effect, event: Event) -> HandleResult<()> {
 ///         Ok(())
-///     }
-///
-///     fn into_checkpoint(self) -> HandleResult<Checkpoint> {
-///         Ok(Checkpoint {})
 ///     }
 /// }
 /// ```

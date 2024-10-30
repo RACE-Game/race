@@ -289,8 +289,8 @@ mod tests {
     fn test_init_state() {
         let mut hdlr = make_wrapped_handler();
         let (game_account, _tx) = setup_game();
-        let init_account = game_account.derive_init_account();
-        let mut ctx = GameContext::try_new(&game_account).unwrap();
+        let mut ctx = GameContext::try_new(&game_account, None).unwrap();
+        let init_account = ctx.init_account().unwrap();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         assert_eq!(
             &vec![42u8, 0, 0, 0, 0, 0, 0, 0],
@@ -302,9 +302,9 @@ mod tests {
     fn test_handle_event() {
         let mut hdlr = make_wrapped_handler();
         let (game_account, _tx) = setup_game();
-        let mut ctx = GameContext::try_new(&game_account).unwrap();
+        let mut ctx = GameContext::try_new(&game_account, None).unwrap();
         let event = Event::GameStart;
-        let init_account = game_account.derive_init_account();
+        let init_account = ctx.init_account().unwrap();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
@@ -319,9 +319,9 @@ mod tests {
     fn test_handle_custom_event() {
         let mut hdlr = make_wrapped_handler();
         let (game_account, _tx) = setup_game();
-        let mut ctx = GameContext::try_new(&game_account).unwrap();
+        let mut ctx = GameContext::try_new(&game_account, None).unwrap();
         let event = Event::custom(0, &MinimalEvent::Increment(1));
-        let init_account = game_account.derive_init_account();
+        let init_account = ctx.init_account().unwrap();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();

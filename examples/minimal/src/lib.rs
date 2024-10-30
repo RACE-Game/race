@@ -19,11 +19,6 @@ struct Minimal {
     n: u64,
 }
 
-#[derive(BorshDeserialize, BorshSerialize)]
-pub struct MinimalCheckpoint {
-    n: u64
-}
-
 impl Minimal {
     fn handle_custom_event(&mut self, event: MinimalEvent) -> Result<(), HandleError> {
         match event {
@@ -34,9 +29,11 @@ impl Minimal {
 }
 
 impl GameHandler for Minimal {
-    type Checkpoint = MinimalCheckpoint;
 
     fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
+        if let Some(checkpoint) = init_account.checkpoint()? {
+            return Ok(checkpoint);
+        }
         let account_data: MinimalAccountData = init_account.data()?;
         Ok(Self {
             n: account_data.init_n,
@@ -51,9 +48,5 @@ impl GameHandler for Minimal {
             }
             _ => Ok(()),
         }
-    }
-
-    fn into_checkpoint(self) -> Result<MinimalCheckpoint, HandleError> {
-        Ok(MinimalCheckpoint { n: self.n })
     }
 }

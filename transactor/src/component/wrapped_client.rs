@@ -158,7 +158,7 @@ mod tests {
             connection.clone(),
         );
         let handle = client.start(&game_account.addr, client_ctx);
-        let mut context = GameContext::try_new(&game_account).unwrap();
+        let mut context = GameContext::try_new(&game_account, None).unwrap();
         context.set_node_ready(game_account.access_version);
         (client, context, handle, connection, transactor)
     }

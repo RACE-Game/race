@@ -1,10 +1,6 @@
-use crate::client_helpers::TestClient;
+use crate::{client_helpers::TestClient, misc::{test_game_addr, test_game_title}};
 use borsh::BorshSerialize;
-use race_core::{types::{ClientMode, EntryType, GameAccount, GameBundle, PlayerJoin, ServerJoin}, checkpoint::Checkpoint};
-
-pub fn test_game_addr() -> String {
-    "TEST".into()
-}
+use race_core::types::{ClientMode, EntryType, GameAccount, PlayerJoin, ServerJoin};
 
 pub struct TestGameAccountBuilder {
     account: GameAccount,
@@ -13,8 +9,8 @@ pub struct TestGameAccountBuilder {
 impl Default for TestGameAccountBuilder {
     fn default() -> Self {
         let account = GameAccount {
-            addr: "TEST".into(),
-            title: "Unnamed".into(),
+            addr: test_game_addr(),
+            title: test_game_title(),
             bundle_addr: "".into(),
             owner_addr: "".into(),
             settle_version: 0,
@@ -31,7 +27,7 @@ impl Default for TestGameAccountBuilder {
             recipient_addr: "".into(),
             entry_type: EntryType::default(),
             token_addr: "".into(),
-            checkpoint: Checkpoint::default(),
+            checkpoint_on_chain: None,
         };
         TestGameAccountBuilder { account }
     }
@@ -187,16 +183,6 @@ impl TestGameAccountBuilder {
         self
     }
 
-    pub fn with_checkpoint<T: BorshSerialize>(self, checkpoint: T) -> Self {
-        let checkpoint = borsh::to_vec(&checkpoint).expect("Serialize data failed");
-        self.with_checkpoint_vec(checkpoint)
-    }
-
-    pub fn with_checkpoint_vec(mut self, data: Vec<u8>) -> Self {
-        self.account.checkpoint = Checkpoint::new(0, 0, 0, &data);
-        self
-    }
-
     pub fn with_data<T: BorshSerialize>(self, account_data: T) -> Self {
         let data = borsh::to_vec(&account_data).expect("Serialize data failed");
         self.with_data_vec(data)
@@ -206,16 +192,5 @@ impl TestGameAccountBuilder {
         self.account.data_len = data.len() as _;
         self.account.data = data;
         self
-    }
-}
-
-pub fn create_game_bundle_from_path(path: &str) -> GameBundle {
-    let proj_root = project_root::get_project_root().expect("No project root found");
-    let bundle_path = proj_root.join(path);
-    let data = std::fs::read(bundle_path).expect("Can't read file");
-    GameBundle {
-        uri: "".to_string(),
-        name: "FILE BUNDLE".to_string(),
-        data,
     }
 }

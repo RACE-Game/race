@@ -133,7 +133,7 @@ mod tests {
             "Test Producer"
         }
 
-        async fn run(ports: ProducerPorts, _ctx: TestProducerCtx, env: ComponentEnv) -> CloseReason {
+        async fn run(ports: ProducerPorts, _ctx: TestProducerCtx, _env: ComponentEnv) -> CloseReason {
             loop {
                 println!("Producer started");
                 let event = EventFrame::Sync {
@@ -176,7 +176,7 @@ mod tests {
             "Test Consumer"
         }
 
-        async fn run(mut ports: ConsumerPorts, ctx: TestConsumerCtx, env: ComponentEnv) -> CloseReason {
+        async fn run(mut ports: ConsumerPorts, ctx: TestConsumerCtx, _env: ComponentEnv) -> CloseReason {
             println!("Consumer started");
             loop {
                 match ports.recv().await {

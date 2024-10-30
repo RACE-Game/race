@@ -14,6 +14,7 @@ use crate::blacklist::Blacklist;
 use crate::component::{CloseReason, EventBridgeParent, WrappedStorage, WrappedTransport};
 use crate::frame::{EventFrame, SignalFrame};
 use crate::handle::Handle;
+use crate::utils::current_timestamp;
 
 pub struct GameManager {
     games: Arc<Mutex<HashMap<String, Handle>>>,
@@ -127,7 +128,8 @@ impl GameManager {
     pub async fn send_event(&self, game_addr: &str, event: Event) -> Result<()> {
         let games = self.games.lock().await;
         if let Some(handle) = games.get(game_addr) {
-            let event_frame = EventFrame::SendEvent { event };
+            let timestamp = current_timestamp();
+            let event_frame = EventFrame::SendEvent { event, timestamp };
             handle.event_bus().send(event_frame).await;
             Ok(())
         } else {

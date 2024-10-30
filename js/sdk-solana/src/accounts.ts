@@ -280,7 +280,6 @@ export class GameState implements IGameState {
       unlockTime: this.unlockTime,
       entryType: this.entryType,
       recipientAddr: this.recipientAddr.toBase58(),
-      checkpoint: RaceCore.Checkpoint.default(),
       checkpointOnChain,
     });
   }

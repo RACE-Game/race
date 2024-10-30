@@ -15,11 +15,22 @@ use race_core::{
 use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, Mutex};
 
-use crate::{transport_helpers::DummyTransport, account_helpers::test_game_addr};
+use crate::misc::test_game_addr;
+use crate::transport_helpers::DummyTransport;
 
 pub struct TestClient {
     id: Option<u64>,
     client: Client,
+}
+
+pub(crate) trait AsGameContextRef {
+    fn as_game_context_ref(&self) -> &GameContext;
+}
+
+impl AsGameContextRef for GameContext {
+    fn as_game_context_ref(&self) -> &GameContext {
+        &self
+    }
 }
 
 pub struct DummyConnection {
@@ -88,11 +99,11 @@ impl TestClient {
         Self::new(addr, ClientMode::Player)
     }
 
-    pub fn set_id(&mut self, id: u64) {
+    pub(crate) fn set_id(&mut self, id: u64) {
         self.id = Some(id)
     }
 
-    pub fn join(&mut self, game_context: &mut GameContext, game_account: &mut GameAccount, balance: u64) -> Result<GamePlayer> {
+    pub(crate) fn join(&mut self, game_context: &mut GameContext, game_account: &mut GameAccount, balance: u64) -> Result<GamePlayer> {
         if self.client.mode != ClientMode::Player {
             panic!("TestClient can only join with Player mode");
         }
@@ -135,8 +146,8 @@ impl TestClient {
         Self::new(addr, ClientMode::Validator)
     }
 
-    pub fn handle_updated_context(&mut self, ctx: &GameContext) -> Result<Vec<Event>> {
-        self.client.handle_updated_context(ctx)
+    pub(crate) fn handle_updated_context<T: AsGameContextRef>(&mut self, ctx: &T) -> Result<Vec<Event>> {
+        self.client.handle_updated_context(ctx.as_game_context_ref())
     }
 
     pub fn mode(&self) -> ClientMode {
@@ -147,12 +158,12 @@ impl TestClient {
         self.client.addr.clone()
     }
 
-    pub fn decrypt(
-        &mut self,
-        ctx: &GameContext,
+    pub(crate) fn decrypt<T: AsGameContextRef>(
+        &self,
+        ctx: &T,
         random_id: usize,
     ) -> Result<HashMap<usize, String>> {
-        self.client.decrypt(ctx, random_id)
+        self.client.decrypt(ctx.as_game_context_ref(), random_id)
     }
 
     pub fn secret_state(&self) -> &SecretState {

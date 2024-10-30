@@ -2,13 +2,13 @@
 
 layout {
   pane split_direction="horizontal" {
-    pane split_direction="vertical" {
+		pane split_direction="vertical" {
       pane {
         name "Facade"
         focus true
         cwd "../"
         command "just"
-        args "dev-facade" "-g" "examples/draw-card/facade.json"
+        args "dev-facade" "-g" "examples/draw-card/facade.json" "-g" "examples/raffle"
         start_suspended true
       }
       pane {

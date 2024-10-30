@@ -334,6 +334,9 @@ pub enum HandleError {
     #[error("No enough players")]
     NoEnoughPlayers,
 
+    #[error("No enough servers")]
+    NoEnoughServers,
+
     #[error("Invalid player")]
     InvalidPlayer,
 
@@ -357,9 +360,6 @@ pub enum HandleError {
 
     #[error("Serialization error")]
     SerializationError,
-
-    #[error("No enough servers")]
-    NoEnoughServers,
 
     #[error("Cannot initialize subgame without checkpoint")]
     SubGameWithoutCheckpoint,

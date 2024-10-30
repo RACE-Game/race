@@ -195,11 +195,11 @@ mod tests {
     fn test_merkle_tree() -> anyhow::Result<()> {
         let mut c = Checkpoint::default();
         let d0 = vec![1];
-        c.maybe_init_data(0, &d0);
+        c.set_data(0, d0);
         let d1 = vec![2];
-        c.maybe_init_data(1, &d1);
+        c.set_data(0, d1);
         let d2 = vec![3];
-        c.maybe_init_data(2, &d2);
+        c.set_data(0, d2);
         println!("checkpoint: {:?}", c);
         let mt = c.to_merkle_tree();
         let root = mt.root().unwrap();
@@ -217,7 +217,7 @@ mod tests {
     fn test_set_data() -> anyhow::Result<()> {
         let mut c = Checkpoint::default();
         let d = vec![1];
-        c.set_data(0, d)?;
+        c.set_data(0, d);
         assert_eq!(c.version(), 1);
         assert_eq!(c.data.get(&0).map(|x| x.data.clone()), Some(vec![1]));
         Ok(())

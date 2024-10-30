@@ -254,6 +254,7 @@ async fn bundle_info(addr: &str, transport: Arc<dyn TransportT>) {
     }
 }
 
+#[allow(unused)]
 fn print_hex(data: Vec<u8>) {
     let mut row = vec![];
     for i in data {
@@ -306,8 +307,14 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
                 println!("Vote from {} to {} for {:?}", v.voter, v.votee, v.vote_type);
             }
             println!("Current transactor: {:?}", game_account.transactor_addr);
-            println!("Checkpoint:");
-            print_hex(game_account.checkpoint.serialize().unwrap());
+            if let Some(cp) = game_account.checkpoint_on_chain.as_ref() {
+                println!("Checkpoint");
+                println!("  Access Version: {}", cp.access_version);
+                let root: String = cp.root.iter().map(|b| format!("{:02x}", b)).collect();
+                println!("  Root: {}", root);
+            } else {
+                println!("Checkpoint: None");
+            }
         }
         None => {
             println!("Game account not found");

@@ -43,12 +43,14 @@ pub enum EventFrame {
     },
     SendEvent {
         event: Event,
+        timestamp: u64,
     },
     SendMessage {
         message: Message,
     },
     SendServerEvent {
         event: Event,
+        timestamp: u64,
     },
     Checkpoint {
         settles: Vec<SettleWithAddr>,
@@ -134,8 +136,8 @@ impl std::fmt::Display for EventFrame {
             ),
             EventFrame::PlayerDeposited { .. } => write!(f, "PlayerDeposited"),
             EventFrame::PlayerLeaving { .. } => write!(f, "PlayerLeaving"),
-            EventFrame::SendEvent { event } => write!(f, "SendEvent: {}", event),
-            EventFrame::SendServerEvent { event } => write!(f, "SendServerEvent: {}", event),
+            EventFrame::SendEvent { event, .. } => write!(f, "SendEvent: {}", event),
+            EventFrame::SendServerEvent { event, .. } => write!(f, "SendServerEvent: {}", event),
             EventFrame::Checkpoint { .. } => write!(f, "Checkpoint"),
             EventFrame::Broadcast { event, .. } => write!(f, "Broadcast: {}", event),
             EventFrame::SendMessage { message } => write!(f, "SendMessage: {}", message.sender),

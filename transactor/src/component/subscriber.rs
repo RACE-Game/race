@@ -109,9 +109,9 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
         while let Some(frame) = sub.next().await {
             match frame {
                 // Forward event to event bus
-                BroadcastFrame::Event { event, .. } => {
+                BroadcastFrame::Event { event, timestamp, .. } => {
                     info!("{} Receive event: {}", env.log_prefix, event);
-                    if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event }).await {
+                    if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event, timestamp }).await {
                         error!("Send server event error: {}", e);
                         break;
                     }
@@ -155,7 +155,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                         histories.len()
                     );
                     for hist in histories {
-                        if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event: hist.event.clone() }).await
+                        if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event: hist.event.clone(), timestamp: hist.timestamp }).await
                         {
                             error!("Send server event error: {}", e);
                             break;

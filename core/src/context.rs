@@ -89,7 +89,7 @@ impl DispatchEvent {
 /// - launch_sub_games: to launch a list of sub games.
 /// - bridge_events: to send events to sub games.
 /// - start_game: to start game.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct EventEffects {
     pub settles: Vec<SettleWithAddr>,
     pub transfers: Vec<Transfer>,
@@ -212,14 +212,12 @@ impl GameContext {
             })
             .collect();
         let mut players = vec![];
+
+        let access_version = game_account.checkpoint_on_chain.as_ref().map(|c| c.access_version).unwrap_or(game_account.access_version);
+
         game_account.players.iter().for_each(|p| {
             // Only include those players joined before last checkpoint
-            if p.access_version
-                <= game_account
-                    .checkpoint_on_chain
-                    .as_ref()
-                    .map(|c| c.access_version)
-                    .unwrap_or_default()
+            if p.access_version <= access_version
             {
                 players.push(GamePlayer::new(p.access_version, p.balance, p.position));
             }
@@ -911,10 +909,6 @@ impl GameContext {
         self.access_version = access_version;
 
         Ok(())
-    }
-
-    pub fn prepare_for_next_event(&mut self, timestamp: u64) {
-        self.set_timestamp(timestamp);
     }
 
     pub fn init_data(&self) -> Vec<u8> {

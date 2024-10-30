@@ -206,7 +206,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
 mod tests {
 
     use super::*;
-    use race_core::types::SettleWithAddr;
+    use race_core::{checkpoint::Checkpoint, types::SettleWithAddr};
     use race_local_db::LocalDbStorage;
     use race_test::prelude::*;
 
@@ -237,18 +237,21 @@ mod tests {
             SettleWithAddr::eject("charlie"),
         ];
 
-        // let event_frame = EventFrame::Settle {
-        //     settles: settles.clone(),
-        //     transfers: vec![],
-        //     checkpoint: vec![],
-        //     settle_version: 0,
-        // };
-        // let handle = submitter.start(ctx);
+        let event_frame = EventFrame::Checkpoint {
+            settles: settles.clone(),
+            transfers: vec![],
+            checkpoint: Checkpoint::default(),
+            settle_version: 1,
+            previous_settle_version: 0,
+            access_version: 1,
+            state_sha: "".into(),
+        };
+        let handle = submitter.start("TEST", ctx);
 
-        // handle.send_unchecked(event_frame).await;
-        // handle.send_unchecked(EventFrame::Shutdown).await;
-        // handle.wait().await;
+        handle.send_unchecked(event_frame).await;
+        handle.send_unchecked(EventFrame::Shutdown).await;
+        handle.wait().await;
 
-        // assert_eq!(*transport.get_settles(), settles);
+        assert_eq!(*transport.get_settles(), settles);
     }
 }

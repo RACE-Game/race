@@ -10,8 +10,8 @@ import {
   Vote,
 } from '../src/accounts';
 import { PublicKey } from '@solana/web3.js';
-import { ACCOUNT_DATA, REG_ACCOUNT_DATA } from './account_data';
-import { EntryType, EntryTypeCash } from '@race-foundation/sdk-core';
+import { REG_ACCOUNT_DATA } from './account_data';
+import { EntryTypeCash } from '@race-foundation/sdk-core';
 
 describe('Test account data serialization', () => {
   it('PlayerState', () => {
@@ -127,7 +127,6 @@ describe('Test account data serialization', () => {
       }),
       recipientAddr: PublicKey.unique(),
       checkpoint: Uint8Array.of(1, 2, 3, 4),
-      checkpointAccessVersion: BigInt(2),
     });
     let buf = state.serialize();
     let deserialized = GameState.deserialize(buf);

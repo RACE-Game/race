@@ -59,6 +59,9 @@ pub enum Error {
     #[error("No enough servers")]
     NoEnoughServer,
 
+    #[error("No server")]
+    NoServer,
+
     #[error("Invalid reveal operation")]
     InvalidRevealOperation,
 
@@ -343,7 +346,7 @@ impl RandomState {
         let status = if let Some(owner) = owners.first() {
             RandomStatus::Masking(owner.clone())
         } else {
-            return Err(Error::NoEnoughServer);
+            return Err(Error::NoServer);
         };
 
         Ok(Self {

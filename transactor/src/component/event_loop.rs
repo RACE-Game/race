@@ -1,6 +1,6 @@
 use race_api::effect::SubGame;
 use sha256::digest;
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use race_api::error::Error;
@@ -14,6 +14,7 @@ use crate::component::event_bus::CloseReason;
 use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
 use race_core::types::{ClientMode, GameAccount, GameMode, GamePlayer, SubGameSpec};
+use crate::utils::current_timestamp;
 
 use super::ComponentEnv;
 
@@ -48,15 +49,17 @@ async fn handle_event(
     ports: &PipelinePorts,
     client_mode: ClientMode,
     game_mode: GameMode,
+    timestamp: u64,
     env: &ComponentEnv,
 ) -> Option<CloseReason> {
     info!(
         "{} Handle event: {}, timestamp: {}",
         env.log_prefix,
         event,
-        game_context.get_timestamp()
+        timestamp
     );
 
+    game_context.set_timestamp(timestamp);
     let access_version = game_context.access_version();
     let settle_version = game_context.settle_version();
 
@@ -64,7 +67,6 @@ async fn handle_event(
         Ok(effects) => {
             let state = game_context.get_handler_state_raw().to_owned();
             let state_sha = digest(&state);
-            let timestamp = game_context.get_timestamp();
             // info!("{} Game state SHA: {}", env.log_prefix, state_sha);
 
             // Broacast the event to clients
@@ -194,7 +196,7 @@ async fn read_event(
         if dispatch.timeout <= timestamp {
             let event = dispatch.event.clone();
             game_context.cancel_dispatch();
-            return Some(EventFrame::SendServerEvent { event });
+            return Some(EventFrame::SendServerEvent { event, timestamp });
         }
         let to = tokio::time::sleep(Duration::from_millis(dispatch.timeout - timestamp));
         select! {
@@ -204,7 +206,7 @@ async fn read_event(
             _ = to => {
                 let event = dispatch.event.clone();
                 game_context.cancel_dispatch();
-                Some(EventFrame::SendServerEvent { event })
+                Some(EventFrame::SendServerEvent { event, timestamp })
             }
         }
     } else {
@@ -230,8 +232,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         while let Some(event_frame) =
             read_event(&mut ports, &mut game_context, ctx.client_mode).await
         {
-            game_context.prepare_for_next_event(current_timestamp());
-
             match event_frame {
                 EventFrame::InitState {
                     init_account,
@@ -261,6 +261,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
 
                 EventFrame::GameStart { .. } => {
+                    let timestamp = current_timestamp();
                     if ctx.client_mode == ClientMode::Transactor {
                         let event = Event::GameStart;
                         if let Some(close_reason) = handle_event(
@@ -270,6 +271,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             &ports,
                             ctx.client_mode,
                             ctx.game_mode,
+                            timestamp,
                             &env,
                         )
                             .await
@@ -286,6 +288,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     access_version,
                     transactor_addr,
                 } => {
+                    let timestamp = current_timestamp();
+
                     info!(
                         "{} handle Sync, access_version: {:?}",
                         env.log_prefix, access_version
@@ -327,6 +331,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             &ports,
                             ctx.client_mode,
                             ctx.game_mode,
+                            timestamp,
                             &env,
                         )
                             .await
@@ -338,6 +343,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
                 EventFrame::PlayerLeaving { player_addr } => {
                     info!("Current allow_exit = {}", game_context.is_allow_exit());
+                    let timestamp = current_timestamp();
                     if let Ok(player_id) = game_context.addr_to_id(&player_addr) {
                         let event = Event::Leave { player_id };
                         if let Some(close_reason) = handle_event(
@@ -347,6 +353,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             &ports,
                             ctx.client_mode,
                             ctx.game_mode,
+                            timestamp,
                             &env,
                         )
                             .await
@@ -372,6 +379,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     // In the case of parent, update the child game's
                     // checkpoint value.
 
+                    let timestamp = current_timestamp();
+
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("Update checkpoint for child game: {}", from);
                         game_context.checkpoint_mut().set_data(from, checkpoint)
@@ -384,6 +393,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         &ports,
                         ctx.client_mode,
                         ctx.game_mode,
+                        timestamp,
                         &env,
                     )
                         .await
@@ -392,7 +402,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         return close_reason;
                     }
                 }
-                EventFrame::SendEvent { event } => {
+                EventFrame::SendEvent { event, timestamp } => {
                     if let Some(close_reason) = handle_event(
                         &mut handler,
                         &mut game_context,
@@ -400,6 +410,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         &ports,
                         ctx.client_mode,
                         ctx.game_mode,
+                        timestamp,
                         &env,
                     )
                         .await
@@ -408,7 +419,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         return close_reason;
                     }
                 }
-                EventFrame::SendServerEvent { event } => {
+                EventFrame::SendServerEvent { event, timestamp } => {
                     // Handle the shutdown event from game logic
                     if matches!(event, Event::Shutdown) {
                         ports.send(EventFrame::Shutdown).await;
@@ -420,6 +431,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         &ports,
                         ctx.client_mode,
                         ctx.game_mode,
+                        timestamp,
                         &env,
                     )
                         .await
@@ -457,11 +469,4 @@ impl EventLoop {
             },
         )
     }
-}
-
-fn current_timestamp() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64
 }

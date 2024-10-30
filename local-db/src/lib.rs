@@ -109,7 +109,7 @@ mod tests {
         let settle_version = 10;
         // let storage = LocalDbStorage::try_new("trasnactor-db").unwrap();
         let storage = LocalDbStorage::try_new_mem().unwrap();
-        let checkpoint = Checkpoint::new(0, 1, 1, &state).derive_offchain_part();
+        let checkpoint = Checkpoint::new(0, 1, 1, state).derive_offchain_part();
         storage
             .save_checkpoint(SaveCheckpointParams {
                 game_addr: game_addr.clone(),
@@ -127,6 +127,6 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(checkpoint_from_db, checkpoint);
+        assert_eq!(checkpoint_from_db, Some(checkpoint));
     }
 }

@@ -193,6 +193,8 @@ impl TransportT for DummyTransport {
 #[cfg(test)]
 mod tests {
 
+    use race_core::checkpoint::CheckpointOnChain;
+
     use crate::prelude::{test_game_addr, TestClient, TestGameAccountBuilder};
 
     use super::*;
@@ -240,7 +242,7 @@ mod tests {
             addr: test_game_addr(),
             settles: settles.clone(),
             transfers: vec![],
-            checkpoint: vec![],
+            checkpoint: CheckpointOnChain::default(),
             settle_version: 0,
             next_settle_version: 1,
         };
@@ -262,7 +264,7 @@ mod tests {
             addr: test_game_addr(),
             settles: vec![],
             transfers: vec![],
-            checkpoint: vec![],
+            checkpoint: CheckpointOnChain::default(),
             settle_version: 0,
             next_settle_version: 1,
         };

@@ -21,10 +21,11 @@ use std::pin::Pin;
 use std::time::Duration;
 use tracing::error;
 
-const RETRY_INTERVAL: u64 = 10;
+const DEFAULT_RETRY_INTERVAL: u64 = 10_000;
 
 pub struct WrappedTransport {
     pub(crate) inner: Box<dyn TransportT>,
+    retry_interval: u64,
 }
 
 impl WrappedTransport {
@@ -39,7 +40,7 @@ impl WrappedTransport {
             .try_with_config(config)?
             .build()
             .await?;
-        Ok(Self { inner: transport })
+        Ok(Self { inner: transport, retry_interval: DEFAULT_RETRY_INTERVAL })
     }
 }
 
@@ -106,14 +107,15 @@ impl TransportT for WrappedTransport {
                 .inner
                 .get_game_account(&params.addr, QueryMode::Finalized)
                 .await;
+            println!("Game Account: {:?}", game_account);  // --------------
             if let Ok(Some(game_account)) = game_account {
                 // We got an old state, which has a smaller `settle_version`
                 if game_account.settle_version < params.settle_version {
                     error!(
                         "Got invalid settle_version: {} != {}, will retry in {} secs",
-                        game_account.settle_version, params.settle_version, RETRY_INTERVAL
+                        game_account.settle_version, params.settle_version, self.retry_interval
                     );
-                    tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
+                    tokio::time::sleep(Duration::from_millis(self.retry_interval)).await;
                     continue;
                 }
                 // The `settle_version` had been bumped, which
@@ -130,9 +132,9 @@ impl TransportT for WrappedTransport {
                     Err(e) => {
                         error!(
                             "Error in settlement: {:?}, will retry in {} secs",
-                            e, RETRY_INTERVAL
+                            e, self.retry_interval
                         );
-                        tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
+                        tokio::time::sleep(Duration::from_millis(self.retry_interval)).await;
                         continue;
                     }
                 }
@@ -140,9 +142,9 @@ impl TransportT for WrappedTransport {
                 error!(
                     "Error in settlement due to unable to get game account {}, will retry in {} secs",
                     params.addr,
-                    RETRY_INTERVAL
+                    self.retry_interval
                 );
-                tokio::time::sleep(Duration::from_secs(RETRY_INTERVAL)).await;
+                tokio::time::sleep(Duration::from_millis(self.retry_interval)).await;
                 continue;
             }
         }
@@ -187,6 +189,7 @@ impl TransportT for WrappedTransport {
 
 #[cfg(test)]
 mod tests {
+    use race_core::checkpoint::CheckpointOnChain;
     use race_test::prelude::{test_game_addr, DummyTransport, TestGameAccountBuilder};
 
     use super::*;
@@ -198,13 +201,13 @@ mod tests {
         let mut ga1 = TestGameAccountBuilder::new().build();
         ga1.settle_version = 1;
         t.simulate_states(vec![ga0, ga1]);
-        let wt = WrappedTransport { inner: Box::new(t) };
+        let wt = WrappedTransport { inner: Box::new(t), retry_interval: 1 };
         let r = wt
             .settle_game(SettleParams {
                 addr: test_game_addr(),
                 settles: vec![],
                 transfers: vec![],
-                checkpoint: vec![],
+                checkpoint: CheckpointOnChain::default(),
                 settle_version: 1,
                 next_settle_version: 2,
             })
@@ -222,14 +225,14 @@ mod tests {
         let mut ga1 = TestGameAccountBuilder::new().build();
         ga1.settle_version = 1;
         t.simulate_states(vec![ga0, ga1]);
-        let wt = WrappedTransport { inner: Box::new(t) };
+        let wt = WrappedTransport { inner: Box::new(t), retry_interval: 1 };
         let r = wt
             .settle_game(SettleParams {
                 addr: test_game_addr(),
-                settles: vec![],
                 transfers: vec![],
-                checkpoint: vec![],
-                settle_version: 1,
+                settles: vec![],
+                checkpoint: CheckpointOnChain::default(),
+                settle_version: 0,
                 next_settle_version: 2,
             })
             .await;
