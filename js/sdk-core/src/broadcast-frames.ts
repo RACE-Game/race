@@ -3,6 +3,7 @@ import { PlayerJoin, ServerJoin } from './accounts';
 import { array, enums, field, option, struct, variant } from '@race-foundation/borsh';
 import { EventHistory, GameEvent } from './events';
 import { CheckpointOffChain } from './checkpoint';
+import { Message } from './message';
 
 export type BroadcastFrameKind =
   | 'Invalid'
@@ -11,16 +12,6 @@ export type BroadcastFrameKind =
   | 'TxState'
   | 'Sync'
   | 'EventHistories'
-
-export class Message {
-  @field('string')
-  sender!: string;
-  @field('string')
-  content!: string;
-  constructor(fields: any) {
-    Object.assign(this, fields);
-  }
-}
 
 export abstract class BroadcastFrame {
   kind(): BroadcastFrameKind {

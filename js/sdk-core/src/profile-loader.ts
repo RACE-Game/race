@@ -10,10 +10,10 @@ export class ProfileLoader {
   loadingStatus: Map<string, LoadingStatus>;
   storage?: IStorage;
   shutdown: boolean;
-  onProfile: ProfileCallbackFunction;
+  onProfile?: ProfileCallbackFunction;
   addrToId: Map<string, bigint>;
 
-  constructor(transport: ITransport, storage: IStorage | undefined, onProfile: ProfileCallbackFunction) {
+  constructor(transport: ITransport, storage: IStorage | undefined, onProfile: ProfileCallbackFunction | undefined) {
     this.transport = transport;
     this.storage = storage;
     this.caches = new Map();
@@ -84,7 +84,7 @@ export class ProfileLoader {
     } else if (status === 'loaded') {
       console.debug(`Load profile: ${addr}, get the result from cache`);
       const p = this.caches.get(addr);
-      if (p !== undefined) {
+      if (p !== undefined && this.onProfile !== undefined) {
         this.onProfile(id, p);
       } else {
         console.error(`Unexpected profile cache not found, address: ${addr}`);

@@ -7,6 +7,19 @@ export let CHAIN_TO_REG_ADDR: Record<Chain, string> = {
   'solana-mainnet': 'GbnAz9VFaJ4C9jp5FCFcc9Wqzcta6vKyiDGqcz9qCQb9',
 };
 
+export const FAVORED_TOKEN_LIST: Record<Chain, string[]> = {
+  'solana-mainnet': [
+    'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+  ],
+  'solana-local': [],
+  'solana-devnet': [],
+  'facade': [
+    'FACADE_USDT',
+    'FACADE_USDC',
+  ],
+};
+
 export const CHAIN_TO_RPC: Record<Chain, string> = {
   'facade': 'http://localhost:12002',
   'solana-local': 'http://localhost:8899',
@@ -30,7 +43,7 @@ export let CHAIN_ADDR_GAME_MAPPING: Record<Chain, Record<string, string>> = {
   }
 };
 
-(async function() {
+(async function () {
   try {
     let resp = await fetch('http://localhost:8000/demo-app-data.json');
     if (resp.ok) {

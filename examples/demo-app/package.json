@@ -4,7 +4,6 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "wasm": "wasm-pack build ../../sdk --target web",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"

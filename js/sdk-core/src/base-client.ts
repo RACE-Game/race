@@ -99,8 +99,16 @@ export class BaseClient {
     return this.__wallet.walletAddr;
   }
 
+  /**
+   * Return the playerId of current player or undefined if current
+   * player is not in the game.
+   */
   get playerId(): bigint | undefined {
-    return this.__gameContext.addrToId(this.__wallet.walletAddr);
+    try {
+      return this.__gameContext.addrToId(this.__wallet.walletAddr);
+    } catch (e) {
+      return undefined;
+    }
   }
 
   get gameAddr(): string {
@@ -126,7 +134,7 @@ export class BaseClient {
   }
 
   /**
-   * Exit current game.
+   * Exit current game.  This will let current player to leave the game.
    */
   async exit(): Promise<void>;
   async exit(keepConnection: boolean): Promise<void>;
@@ -193,11 +201,11 @@ export class BaseClient {
   async __attachGameWithRetry() {
     for (let i = 0; i < 10; i++) {
       const resp = await this.__client.attachGame();
-      console.log('Attach response:', resp);
+      console.debug('Attach response:', resp);
       if (resp === 'success') {
         break;
       } else {
-        console.log(this.__logPrefix + 'Game is not ready, try again after 2 second.');
+        console.warn(this.__logPrefix + 'Game is not ready, try again after 2 second.');
         await new Promise(r => setTimeout(r, 2000));
       }
     }
@@ -215,7 +223,7 @@ export class BaseClient {
   async __invokeEventCallback(event: GameEvent | undefined) {
     const snapshot = new GameContextSnapshot(this.__gameContext);
     const state = this.__gameContext.handlerState;
-    console.log('Dispatch event callback for ', event?.kind());
+    console.debug('Dispatch event callback for ', event?.kind());
     this.__onEvent(snapshot, state, event);
   }
 
@@ -268,7 +276,7 @@ export class BaseClient {
   async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string) {
     console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + timestamp);
     console.log('Event: ', event);
-    console.log('Game Context before:', clone(this.__gameContext));
+    console.debug('Game Context before:', clone(this.__gameContext));
     let state: Uint8Array | undefined;
     let err: ErrorKind | undefined;
     let effects: EventEffects | undefined;
@@ -300,7 +308,7 @@ export class BaseClient {
       }
 
     } finally {
-      console.log('Game Context after:', clone(this.__gameContext));
+      console.debug('Game Context after:', clone(this.__gameContext));
       console.groupEnd()
     }
   }
@@ -356,10 +364,10 @@ export class BaseClient {
       console.group(`${this.__logPrefix}Receive event histories`);
       try {
         console.log('Frame:', frame);
-        console.log('Game context before:', clone(this.__gameContext));
+        console.debug('Game context before:', clone(this.__gameContext));
         await this.__handler.initState(this.__gameContext);
         await this.__checkStateSha(frame.stateSha, 'checkpoint-state-sha-mismatch');
-        console.log('Game context after:', clone(this.__gameContext));
+        console.debug('Game context after:', clone(this.__gameContext));
 
         this.__invokeEventCallback(new Init());
 

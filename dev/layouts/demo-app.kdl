@@ -8,7 +8,7 @@ layout {
         focus true
         cwd "../"
         command "just"
-        args "dev-facade" "-g" "examples/draw-card/facade.json" "-g" "examples/raffle"
+        args "dev-facade" "-g" "examples/draw-card/facade.json" "-g" "examples/raffle/facade.json"
         start_suspended true
       }
       pane {

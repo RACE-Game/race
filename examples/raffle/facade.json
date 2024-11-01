@@ -2,11 +2,11 @@
   "title": "Simple Raffle",
   "bundle": "target/race_example_raffle.wasm",
   "token": "FACADE_USDT",
-  "max_players": 6,
+  "maxPlayers": 6,
   "entryType": {
     "cash": {
-      "min_deposit": 100,
-      "max_deposit": 100
+      "minDeposit": 100,
+      "maxDeposit": 100
     }
   },
   "data": []

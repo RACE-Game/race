@@ -54,7 +54,7 @@ export class Handler implements IHandler {
 
   async initState(context: GameContext): Promise<EventEffects> {
     const initAccount = context.initAccount();
-    console.log('InitState with:', initAccount);
+    console.debug('InitState with:', initAccount);
     context.setTimestamp(0n); // Use 0 timestamp for initState
     await this.generalPreInitState(context, initAccount);
     return await this.customInitState(context, initAccount);
@@ -127,7 +127,7 @@ export class Handler implements IHandler {
     let buf = new Uint8Array(mem.buffer);
 
     const effect = Effect.fromContext(context, true);
-    console.log('Effect:', effect);
+    console.debug('Effect:', effect);
 
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
@@ -169,7 +169,7 @@ export class Handler implements IHandler {
 
     const effect = Effect.fromContext(context, false);
 
-    console.log('Effect:', effect);
+    console.debug('Effect:', effect);
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
 

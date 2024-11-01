@@ -109,6 +109,7 @@ impl GameHandler for Raffle {
                     }
                     effect.settle(Settle::eject(p.id))?;
                 }
+                effect.checkpoint();
                 self.last_winner = Some(winner);
                 self.cleanup();
             }

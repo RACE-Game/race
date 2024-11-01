@@ -35,7 +35,7 @@ export type AppClientInitOpts = {
   transport: ITransport;
   wallet: IWallet;
   gameAddr: string;
-  onProfile: ProfileCallbackFunction;
+  onProfile?: ProfileCallbackFunction;
   onEvent: EventCallbackFunction;
   onMessage?: MessageCallbackFunction;
   onTxState?: TxStateCallbackFunction;
@@ -279,16 +279,35 @@ export class AppClient extends BaseClient {
   /**
    * Get player profile by its wallet address.
    */
-  getProfile(id: bigint): Promise<PlayerProfileWithPfp | undefined>
-  getProfile(addr: string): Promise<PlayerProfileWithPfp | undefined>
-  async getProfile(idOrAddr: string | bigint): Promise<PlayerProfileWithPfp | undefined> {
+  getProfile(id: bigint): PlayerProfileWithPfp | undefined
+  getProfile(addr: string): PlayerProfileWithPfp | undefined
+  getProfile(idOrAddr: string | bigint): PlayerProfileWithPfp | undefined {
     let addr: string = ''
-    if (typeof idOrAddr === 'bigint') {
-      addr = this.__gameContext.idToAddr(idOrAddr);
-    } else {
-      addr = idOrAddr
+    try {
+      if (typeof idOrAddr === 'bigint') {
+        addr = this.__gameContext.idToAddr(idOrAddr);
+      } else {
+        addr = idOrAddr
+      }
+    } catch (e) {
+      return undefined;
     }
     return this.__profileLoader.getProfile(addr);
+  }
+
+  /**
+   * Return if current player is in game.
+   */
+  isInGame(): boolean {
+    try {
+      const playerId = this.addrToId(this.__wallet.walletAddr)
+      if (this.__gameContext.players.find(p => p.id === playerId) !== undefined) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
   }
 
   makeSubGameAddr(gameId: number): string {
