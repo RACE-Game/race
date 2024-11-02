@@ -1,4 +1,5 @@
 use race_api::effect::SubGame;
+use race_api::prelude::InitAccount;
 use sha256::digest;
 use std::time::Duration;
 
@@ -13,8 +14,8 @@ use crate::component::common::{Component, PipelinePorts};
 use crate::component::event_bus::CloseReason;
 use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
-use race_core::types::{ClientMode, GameAccount, GameMode, GamePlayer, SubGameSpec};
 use crate::utils::current_timestamp;
+use race_core::types::{ClientMode, GameAccount, GameMode, GamePlayer, SubGameSpec};
 
 use super::ComponentEnv;
 
@@ -42,6 +43,72 @@ pub trait WrappedGameHandler: Send {
 
 pub struct EventLoop {}
 
+async fn init_state(
+    init_account: InitAccount,
+    access_version: u64,
+    settle_version: u64,
+    handler: &mut WrappedHandler,
+    mut game_context: &mut GameContext,
+    ports: &PipelinePorts,
+    _client_mode: ClientMode,
+    game_mode: GameMode,
+    env: &ComponentEnv,
+) -> Option<CloseReason> {
+    if let Err(e) = game_context.set_versions(access_version, settle_version) {
+        error!("{} Failed to apply checkpoint: {:?}, context settle version: {}, init account settle version: {}", env.log_prefix, e,
+            game_context.settle_version(), settle_version);
+        ports.send(EventFrame::Shutdown).await;
+        return Some(CloseReason::Fault(e));
+    }
+
+    let effects = match handler.init_state(&mut game_context, &init_account) {
+        Ok(effects) => effects,
+        Err(e) => {
+            error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
+            error!("{} Init Account: {:?}", env.log_prefix, init_account);
+            ports.send(EventFrame::Shutdown).await;
+            return Some(CloseReason::Fault(e));
+        }
+    };
+
+    let state_sha = digest(game_context.get_handler_state_raw());
+    info!(
+        "{} Initialize game state, access_version: {}, settle_version: {}, SHA: {}",
+        env.log_prefix, access_version, settle_version, state_sha
+    );
+
+    game_context.dispatch_safe(Event::Ready, 0);
+
+    if game_mode == GameMode::Main {
+        for sub_game in effects.launch_sub_games {
+            info!("{} Launch sub game: {}", env.log_prefix, sub_game.id);
+            let cp = game_context.checkpoint_mut();
+            let SubGame {
+                bundle_addr,
+                id,
+                mut init_account,
+            } = sub_game;
+            // Use the existing checkpoint when possible.
+            init_account.checkpoint = cp.get_data(id);
+            let settle_version = cp.get_version(id);
+
+            let ef = EventFrame::LaunchSubGame {
+                spec: Box::new(SubGameSpec {
+                    game_addr: game_context.game_addr().to_owned(),
+                    game_id: id,
+                    bundle_addr,
+                    nodes: game_context.get_nodes().into(),
+                    access_version: game_context.access_version(),
+                    settle_version,
+                    init_account,
+                }),
+            };
+            ports.send(ef).await;
+        }
+    }
+    return None;
+}
+
 async fn handle_event(
     handler: &mut WrappedHandler,
     game_context: &mut GameContext,
@@ -54,9 +121,7 @@ async fn handle_event(
 ) -> Option<CloseReason> {
     info!(
         "{} Handle event: {}, timestamp: {}",
-        env.log_prefix,
-        event,
-        timestamp
+        env.log_prefix, event, timestamp
     );
 
     game_context.set_timestamp(timestamp);
@@ -127,7 +192,11 @@ async fn handle_event(
                 for sub_game in effects.launch_sub_games {
                     info!("{} Launch sub game: {}", env.log_prefix, sub_game.id);
                     let cp = game_context.checkpoint_mut();
-                    let SubGame {bundle_addr, id, mut init_account} = sub_game;
+                    let SubGame {
+                        bundle_addr,
+                        id,
+                        mut init_account,
+                    } = sub_game;
                     // Use the existing checkpoint when possible.
                     init_account.checkpoint = cp.get_data(id);
 
@@ -149,7 +218,10 @@ async fn handle_event(
             // Emit bridge events
             if client_mode == ClientMode::Transactor {
                 for be in effects.bridge_events {
-                    info!("{} Send bridge event, dest: {}, checkpoint sha: {}", env.log_prefix, be.dest, state_sha);
+                    info!(
+                        "{} Send bridge event, dest: {}, checkpoint sha: {}",
+                        env.log_prefix, be.dest, state_sha
+                    );
                     let ef = EventFrame::SendBridgeEvent {
                         from: game_context.game_id(),
                         dest: be.dest,
@@ -238,26 +310,22 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     access_version,
                     settle_version,
                 } => {
-                    if let Err(e) = game_context.apply_checkpoint(access_version, settle_version) {
-                        error!("{} Failed to apply checkpoint: {:?}, context settle version: {}, init account settle version: {}", env.log_prefix, e,
-                            game_context.settle_version(), settle_version);
+                    if let Some(close_reason) = init_state(
+                        init_account,
+                        access_version,
+                        settle_version,
+                        &mut handler,
+                        &mut game_context,
+                        &ports,
+                        ctx.client_mode,
+                        ctx.game_mode,
+                        &env,
+                    )
+                        .await
+                    {
                         ports.send(EventFrame::Shutdown).await;
-                        return CloseReason::Fault(e);
+                        return close_reason;
                     }
-
-                    if let Err(e) = handler.init_state(&mut game_context, &init_account) {
-                        error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
-                        ports.send(EventFrame::Shutdown).await;
-                        return CloseReason::Fault(e);
-                    }
-
-                    let state_sha = digest(game_context.get_handler_state_raw());
-                    info!(
-                        "{} Initialize game state, access_version: {}, settle_version: {}, SHA: {}",
-                        env.log_prefix, access_version, settle_version, state_sha
-                    );
-
-                    game_context.dispatch_safe(Event::Ready, 0);
                 }
 
                 EventFrame::GameStart { .. } => {

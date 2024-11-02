@@ -107,7 +107,6 @@ impl TransportT for WrappedTransport {
                 .inner
                 .get_game_account(&params.addr, QueryMode::Finalized)
                 .await;
-            println!("Game Account: {:?}", game_account);  // --------------
             if let Ok(Some(game_account)) = game_account {
                 // We got an old state, which has a smaller `settle_version`
                 if game_account.settle_version < params.settle_version {

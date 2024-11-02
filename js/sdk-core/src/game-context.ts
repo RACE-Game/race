@@ -146,8 +146,9 @@ export class GameContext {
   subContext(subGame: SubGame): GameContext {
     const c = rfdc({ proto: true })(this);
     Object.setPrototypeOf(c, GameContext.prototype);
-    c.accessVersion = c.accessVersion;
-    c.settleVersion = c.settleVersion;
+    // Use the versions from checkpoint.
+    c.accessVersion = this.checkpoint.accessVersion;
+    c.settleVersion = this.checkpoint.getVersion(subGame.gameId);
     c.gameAddr = c.gameAddr + subGame.gameId;
     c.gameId = subGame.gameId;
     c.dispatch = undefined;

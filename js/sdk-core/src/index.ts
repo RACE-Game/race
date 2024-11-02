@@ -12,4 +12,4 @@ export * from './types';
 export * from './checkpoint';
 export * from './message';
 
-console.log('Race Protocol 24.05');
+console.log('Race Protocol 24.06');

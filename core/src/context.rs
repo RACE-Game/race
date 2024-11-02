@@ -269,6 +269,10 @@ impl GameContext {
         })
     }
 
+    pub fn checkpoint_is_empty(&self) -> bool {
+        self.checkpoint.is_empty()
+    }
+
     pub fn id_to_addr(&self, id: u64) -> Result<String> {
         self.nodes
             .iter()
@@ -901,7 +905,7 @@ impl GameContext {
         }
     }
 
-    pub fn apply_checkpoint(&mut self, access_version: u64, settle_version: u64) -> Result<()> {
+    pub fn set_versions(&mut self, access_version: u64, settle_version: u64) -> Result<()> {
         if self.settle_version != settle_version {
             return Err(Error::InvalidCheckpoint);
         }

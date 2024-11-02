@@ -74,6 +74,7 @@ pub enum BroadcastFrame {
         checkpoint_off_chain: Option<CheckpointOffChain>,
         histories: Vec<EventHistory>,
         state_sha: String,
+        settle_version: u64,
     },
 }
 

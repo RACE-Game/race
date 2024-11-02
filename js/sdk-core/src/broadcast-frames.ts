@@ -99,6 +99,8 @@ export class BroadcastFrameEventHistories extends BroadcastFrame {
   histories!: EventHistory[];
   @field('string')
   stateSha!: string;
+  @field('u64')
+  settleVersion!: bigint;
 
   constructor(fields: any) {
     super();

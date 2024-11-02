@@ -48,7 +48,6 @@ export class SubClient extends BaseClient {
     console.group(`${this.__logPrefix}Attach to game`);
     let sub;
     try {
-      console.debug('Checkpoint:', clone(this.__gameContext.checkpoint));
       await this.__attachGameWithRetry();
       sub = this.__connection.subscribeEvents();
       const settleVersion = this.__gameContext.checkpointVersion();

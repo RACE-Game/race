@@ -25,7 +25,7 @@ DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
                           -u8 50 \
                           -u8 30 \
                           -u8 20 \
-                          -u8 0
+                          -u8 0 \
                           -s "raceholdemtargetraceholdemmtttablewasm")
 echo "DATA is $DATA"
 

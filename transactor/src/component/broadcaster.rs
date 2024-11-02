@@ -125,6 +125,7 @@ impl Broadcaster {
                     checkpoint_off_chain: group.checkpoint.as_ref().map(|c| c.derive_offchain_part()),
                     histories,
                     state_sha: group.state_sha.clone(),
+                    settle_version: group.settle_version,
                 })
             }
         }

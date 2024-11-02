@@ -79,6 +79,8 @@ impl TransactorHandle {
         );
 
         let game_context = GameContext::try_new(game_account, checkpoint_off_chain)?;
+
+        info!("Use checkpoint: {}", !game_context.checkpoint_is_empty());
         let init_account = game_context.init_account()?;
 
         let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;

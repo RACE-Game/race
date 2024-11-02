@@ -77,7 +77,6 @@ export class Checkpoint {
   }
 
   static fromParts(offchainPart: CheckpointOffChain, onchainPart: CheckpointOnChain): Checkpoint {
-    console.debug('Build checkpoint, offchain:', offchainPart, 'onchain:', onchainPart);
     let checkpoint = Checkpoint.default();
     checkpoint.proofs = offchainPart.proofs;
     checkpoint.data = offchainPart.data;
