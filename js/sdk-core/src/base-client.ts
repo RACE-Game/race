@@ -201,7 +201,6 @@ export class BaseClient {
   async __attachGameWithRetry() {
     for (let i = 0; i < 10; i++) {
       const resp = await this.__client.attachGame();
-      console.debug('Attach response:', resp);
       if (resp === 'success') {
         break;
       } else {
@@ -223,7 +222,6 @@ export class BaseClient {
   async __invokeEventCallback(event: GameEvent | undefined) {
     const snapshot = new GameContextSnapshot(this.__gameContext);
     const state = this.__gameContext.handlerState;
-    console.debug('Dispatch event callback for ', event?.kind());
     this.__onEvent(snapshot, state, event);
   }
 
@@ -275,8 +273,8 @@ export class BaseClient {
 
   async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string) {
     console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + timestamp);
-    console.log('Event: ', event);
-    console.debug('Game Context before:', clone(this.__gameContext));
+    // console.log('Event: ', event);
+    // console.debug('Game Context before:', clone(this.__gameContext));
     let state: Uint8Array | undefined;
     let err: ErrorKind | undefined;
     let effects: EventEffects | undefined;
@@ -308,29 +306,27 @@ export class BaseClient {
       }
 
     } finally {
-      console.debug('Game Context after:', clone(this.__gameContext));
+      // console.debug('Game Context after:', clone(this.__gameContext));
       console.groupEnd()
     }
   }
 
   async __handleBroadcastFrame(frame: BroadcastFrame) {
     if (frame instanceof BroadcastFrameMessage) {
-      console.group(`${this.__logPrefix}Receive message broadcast`);
+      console.group(`${this.__logPrefix}Receive message broadcast`, frame);
       try {
         if (this.__onMessage !== undefined) {
           const { message } = frame;
-          console.log('Message:', message);
           this.__onMessage(message);
         }
       } finally {
         console.groupEnd();
       }
     } else if (frame instanceof BroadcastFrameTxState) {
-      console.group(`${this.__logPrefix}Receive transaction state broadcast`);
+      console.group(`${this.__logPrefix}Receive transaction state broadcast`, frame);
       try {
         if (this.__onTxState !== undefined) {
           const { txState } = frame;
-          console.log('TxState:', txState);
           if (txState instanceof PlayerConfirming) {
             txState.confirmPlayers.forEach(p => {
               this.__onLoadProfile(p.id, p.addr);
@@ -342,9 +338,8 @@ export class BaseClient {
         console.groupEnd();
       }
     } else if (frame instanceof BroadcastFrameSync) {
-      console.group(`${this.__logPrefix}Receive sync broadcast`);
+      console.group(`${this.__logPrefix}Receive sync broadcast`, frame);
       try {
-        console.log('Sync:', frame);
         for (const node of frame.newServers) {
           this.__gameContext.addNode(node.addr, node.accessVersion,
             node.addr === frame.transactor_addr ? 'transactor' : 'validator');
@@ -361,13 +356,10 @@ export class BaseClient {
       const { event, timestamp, stateSha } = frame;
       await this.__handleEvent(event, timestamp, stateSha);
     } else if (frame instanceof BroadcastFrameEventHistories) {
-      console.group(`${this.__logPrefix}Receive event histories`);
+      console.group(`${this.__logPrefix}Receive event histories`, frame);
       try {
-        console.log('Frame:', frame);
-        console.debug('Game context before:', clone(this.__gameContext));
         await this.__handler.initState(this.__gameContext);
         await this.__checkStateSha(frame.stateSha, 'checkpoint-state-sha-mismatch');
-        console.debug('Game context after:', clone(this.__gameContext));
 
         this.__invokeEventCallback(new Init());
 

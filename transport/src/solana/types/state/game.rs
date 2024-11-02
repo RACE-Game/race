@@ -124,7 +124,7 @@ impl GameState {
 
         let players = players.into_iter().map(Into::into).collect();
         let servers = servers.into_iter().map(Into::into).collect();
-        let checkpoint_onchain = if checkpoint.is_empty() {
+        let checkpoint_onchain = if !checkpoint.is_empty() {
             Some(
                 CheckpointOnChain::try_from_slice(&checkpoint)
                     .map_err(|_| Error::MalformedCheckpoint)?,

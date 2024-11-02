@@ -54,7 +54,6 @@ export class Handler implements IHandler {
 
   async initState(context: GameContext): Promise<EventEffects> {
     const initAccount = context.initAccount();
-    console.debug('InitState with:', initAccount);
     context.setTimestamp(0n); // Use 0 timestamp for initState
     await this.generalPreInitState(context, initAccount);
     return await this.customInitState(context, initAccount);
@@ -127,7 +126,6 @@ export class Handler implements IHandler {
     let buf = new Uint8Array(mem.buffer);
 
     const effect = Effect.fromContext(context, true);
-    console.debug('Effect:', effect);
 
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
@@ -169,7 +167,6 @@ export class Handler implements IHandler {
 
     const effect = Effect.fromContext(context, false);
 
-    console.debug('Effect:', effect);
     const effectBytes = serialize(effect);
     const effectSize = effectBytes.length;
 
@@ -201,9 +198,8 @@ export class Handler implements IHandler {
     let newEffect: Effect;
     try {
       newEffect = deserialize(Effect, newEffectBytes);
-      console.debug('Return effect: ', newEffect);
     } catch (err: any) {
-      console.debug('Failed to deserialize effect, raw: [%s]', Array.from(newEffectBytes).toString());
+      console.error('Failed to deserialize effect, raw: [%s]', Array.from(newEffectBytes).toString());
       throw err;
     }
 

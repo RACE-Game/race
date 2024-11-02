@@ -169,13 +169,11 @@ function DrawCard() {
   const onEvent = async (_context: GameContextSnapshot, stateData: Uint8Array, event: GameEvent | undefined) => {
     console.log(stateData);
     const state = deserialize(State, stateData);
-    console.log("State:", state);
     if (event !== undefined) {
       addLog(event);
       if (event instanceof SecretsReady && client.current && state) {
         try {
           revealedCards = await client.current.getRevealed(state.randomId);
-          console.log("revealed_cards: ", revealedCards);
           setRevealedCards(revealedCards);
         } catch (e) {
           console.error(e);

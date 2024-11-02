@@ -397,7 +397,6 @@ export class Connection implements IConnection {
       });
       if (resp.ok) {
         const ret = await resp.json();
-        console.debug('Response:', ret);
         return ret;
       } else {
         throw Error('Transactor request failed:' + resp.json());

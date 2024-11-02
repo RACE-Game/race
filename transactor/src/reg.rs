@@ -1,7 +1,7 @@
 //! Register current transactor into on-chain transactor list
 //! Find available games and serve them.
 
-use std::{time::Duration, collections::HashMap};
+use std::{collections::HashMap, time::Duration};
 
 use race_api::error::{Error, Result};
 use race_core::{
@@ -56,6 +56,13 @@ pub async fn start_reg_task(context: &ApplicationContext) {
     tokio::spawn(async move {
         let mut not_found_counts = HashMap::<String, usize>::new();
 
+        let server_addr = if let Ok(Some(server_account)) = transport.get_server_account(&server_addr).await {
+            server_account.addr
+        } else {
+            error!("Server account for [{}] not found, please run `reg` command first.", server_addr);
+            return;
+        };
+
         loop {
             // We search for accounts every 10 seconds
             for addr in reg_addresses.iter() {
@@ -64,59 +71,50 @@ pub async fn start_reg_task(context: &ApplicationContext) {
                         let mode = race_core::types::QueryMode::Finalized;
                         if blacklist.lock().await.contains_addr(&game_reg.addr) {
                             continue;
-                        } else if let Ok(Some(game_account)) =
-                            transport.get_game_account(&game_reg.addr, mode).await
-                        {
-                            // We will keep registering until we become the transactor.
-                            if !game_account
-                                .servers
-                                .iter()
-                                .any(|s| s.addr.eq(&server_addr))
-                            {
-                                let server_account =
-                                    transport.get_server_account(&server_addr).await.unwrap();
-                                if server_account.is_none() {
-                                    error!(
-                                        "Server account not found, please run `task` command first"
-                                    );
-                                    return;
-                                }
-                                info!("Serve game at {:?}", game_account.addr);
-                                if let Err(e) = transport
-                                    .serve(ServeParams {
+                        }
+                        match transport.get_game_account(&game_reg.addr, mode).await {
+                            Ok(Some(game_account)) => {
+                                // Check if we are registered
+                                if !game_account.servers.iter().any(|s| s.addr.eq(&server_addr)) {
+                                    // Register to game
+                                    let register_result = transport.serve(ServeParams {
                                         game_addr: game_account.addr.clone(),
                                         verify_key: key.ec.clone(),
+                                    }).await;
+
+                                    if let Err(e) = register_result {
+                                        error!("Failed to register to game account at [{}] due to {:?}", game_reg.addr, e);
+                                    }
+
+                                }
+
+                                let signal_result = signal_tx
+                                    .send(SignalFrame::StartGame {
+                                        game_addr: game_account.addr.clone(),
                                     })
-                                    .await
-                                {
-                                    error!("Error serve game: {:?}", e)
+                                    .await;
+
+                                if let Err(e) = signal_result {
+                                    error!("Failed to send StartGame for [{}] signal due to {:?}", game_reg.addr, e);
                                 }
                             }
-
-                            let r = signal_tx
-                                .send(SignalFrame::StartGame {
-                                    game_addr: game_account.addr.clone(),
-                                })
-                                .await;
-                            if let Err(e) = r {
-                                error!(
-                                    "Failed to send signal to start game {}: {:?}",
-                                    game_account.addr, e
-                                );
-                            }
-                        } else {
-                            // Game account not fonud, skip
-                            warn!("Game account not found: {:?}", &game_reg.addr);
-                            match not_found_counts.entry(game_reg.addr.to_string()) {
-                                std::collections::hash_map::Entry::Occupied(mut cnt) => {
-                                    *cnt.get_mut() += 1;
-                                    if *cnt.get() == 2 {
-                                        blacklist.lock().await.add_addr(&game_reg.addr);
+                            Ok(None) => {
+                                warn!("Game account not found: {:?}", &game_reg.addr);
+                                match not_found_counts.entry(game_reg.addr.to_string()) {
+                                    std::collections::hash_map::Entry::Occupied(mut cnt) => {
+                                        *cnt.get_mut() += 1;
+                                        if *cnt.get() == 2 {
+                                            blacklist.lock().await.add_addr(&game_reg.addr);
+                                        }
+                                    }
+                                    std::collections::hash_map::Entry::Vacant(cnt) => {
+                                        cnt.insert(0);
                                     }
                                 }
-                                std::collections::hash_map::Entry::Vacant(cnt) => {
-                                    cnt.insert(0);
-                                }
+
+                            }
+                            Err(e) => {
+                                error!("Failed to fetch game account due to {:?}", e);
                             }
                         }
                     }
