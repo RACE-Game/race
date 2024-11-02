@@ -4,24 +4,28 @@ import { BinaryWriter } from '../src/writer';
 
 function write(typ: string, value: string, writer: BinaryWriter) {
   switch (typ) {
-  case '-s':
-    writer.writeString(value);
-    return;
-  case '-u8':
-    writer.writeU8(Number(value));
-    return;
-  case '-u16':
-    writer.writeU16(Number(value));
-    return;
-  case '-u32':
-    writer.writeU32(Number(value));
-    return;
-  case '-u64':
-    writer.writeU64(BigInt(value));
-    return;
-  case '-b':
-    writer.writeBool(Boolean(value));
-    return;
+    case '-s':
+      writer.writeString(value);
+      return;
+    case '-u8':
+      writer.writeU8(Number(value));
+      return;
+    case '-u16':
+      writer.writeU16(Number(value));
+      return;
+    case '-u32':
+      writer.writeU32(Number(value));
+      return;
+    case '-u64':
+      writer.writeU64(BigInt(value));
+      return;
+    case '-b':
+      if (value === 'True' || value === 'true') {
+        writer.writeBool(true)
+      } else {
+        writer.writeBool(false)
+      }
+      return;
   }
   throw new Error(`Unknown type argument ${typ}`);
 }
