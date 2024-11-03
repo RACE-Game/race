@@ -31,6 +31,7 @@ solana-rpc-client.workspace = true
 solana-rpc-client-api.workspace = true
 solana-pubsub-client.workspace = true
 solana-sdk.workspace = true
+solana-transaction-status.workspace = true
 spl-token.workspace = true
 spl-associated-token-account.workspace = true
 reqwest = { workspace = true, features = [ "json"] }

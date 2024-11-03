@@ -236,6 +236,11 @@ export function createGameAccount(opts: CreateGameOptions): TransactionInstructi
         isSigner: false,
         isWritable: false,
       },
+      {
+        pubkey: SystemProgram.programId,
+        isSigner: false,
+        isWritable: false,
+      }
     ],
     programId: PROGRAM_ID,
     data,
@@ -350,6 +355,11 @@ export function join(opts: JoinOptions): TransactionInstruction {
       },
       {
         pubkey: TOKEN_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: SystemProgram.programId,
         isSigner: false,
         isWritable: false,
       },

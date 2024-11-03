@@ -14,6 +14,7 @@ use race_storage::{
     metadata::{make_metadata, MetadataT},
 };
 use race_transport::TransportBuilder;
+use race_api::error::Result;
 use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
 use std::{
@@ -136,6 +137,7 @@ fn cli() -> Command {
                 .about("Unregister game account")
                 .arg(arg!(<REG> "The address of registration account"))
                 .arg(arg!(<GAME> "The address of game account"))
+                .arg(arg!(--close "Close game after unregistration"))
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -210,7 +212,7 @@ async fn publish(
         creator_addr,
         bundle_addr.clone(),
     )
-    .expect("Creating metadata failed");
+        .expect("Creating metadata failed");
     let json_meta = metadata.json_vec().expect("Jsonify metadata failed");
     let meta_addr = arweave
         .upload_file(json_meta, Some("application/json"))
@@ -478,17 +480,18 @@ async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
     println!("Game account: {}", addr);
 }
 
-async fn close_game(game_addr: String, transport: Arc<dyn TransportT>) {
+async fn close_game(game_addr: String, transport: Arc<dyn TransportT>) -> Result<()> {
     let r = transport
         .close_game_account(CloseGameAccountParams {
             addr: game_addr.to_owned(),
         })
         .await;
-    if let Err(e) = r {
+    if let Err(ref e) = r {
         println!("Failed to close game due to: {}", e.to_string());
     } else {
         println!("Game closed");
     }
+    r
 }
 
 async fn reg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) {
@@ -518,7 +521,8 @@ async fn close_all_games(reg_addr: String, transport: Arc<dyn TransportT>) {
     match reg {
         Some(reg) => {
             for g in reg.games {
-                unreg_game(reg_addr.clone(), g.addr, transport.clone()).await;
+                unreg_game(reg_addr.clone(), g.addr.clone(), transport.clone()).await.unwrap();
+                close_game(g.addr, transport.clone()).await.unwrap();
             }
         }
         None => {
@@ -527,24 +531,25 @@ async fn close_all_games(reg_addr: String, transport: Arc<dyn TransportT>) {
     }
 }
 
-async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) {
-    println!(
-        "Unregister and close game {} from registration {}",
-        game_addr, reg_addr
-    );
-    let r = transport
-        .unregister_game(UnregisterGameParams {
-            game_addr: game_addr.to_owned(),
-            reg_addr: reg_addr.to_owned(),
-        })
-        .await;
-    if let Err(e) = r {
-        println!("Failed to unregister game due to: {}", e.to_string());
-    } else {
-        println!("Game unregistered");
-    }
-    close_game(game_addr, transport).await;
-}
+async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn TransportT>) -> Result<()>
+ {
+     println!(
+         "Unregister and close game {} from registration {}",
+         game_addr, reg_addr
+     );
+     let r = transport
+         .unregister_game(UnregisterGameParams {
+             game_addr: game_addr.to_owned(),
+             reg_addr: reg_addr.to_owned(),
+         })
+         .await;
+     if let Err(ref e) = r {
+         println!("Failed to unregister game due to: {}", e.to_string());
+     } else {
+         println!("Game unregistered");
+     }
+     r
+ }
 
 #[tokio::main]
 async fn main() {
@@ -588,7 +593,7 @@ async fn main() {
                     .to_owned(),
                 transport,
             )
-            .await;
+                .await;
         }
         Some(("mint-nft", sub_matches)) => {
             let name = sub_matches.get_one::<String>("NAME").expect("required");
@@ -603,7 +608,7 @@ async fn main() {
                 arweave_url.to_owned(),
                 transport,
             )
-            .await;
+                .await;
         }
         Some(("bundle-info", sub_matches)) => {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
@@ -639,10 +644,15 @@ async fn main() {
             reg_game(reg_addr.clone(), game_addr.clone(), transport).await;
         }
         Some(("unreg-game", sub_matches)) => {
+            let close = sub_matches.get_flag("close");
             let reg_addr = sub_matches.get_one::<String>("REG").expect("required");
             let game_addr = sub_matches.get_one::<String>("GAME").expect("required");
+
             let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
-            unreg_game(reg_addr.clone(), game_addr.clone(), transport).await;
+            unreg_game(reg_addr.clone(), game_addr.clone(), transport.clone()).await.unwrap();
+            if close {
+                close_game(game_addr.clone(), transport).await.unwrap();
+            }
         }
         Some(("close-all-games", sub_matches)) => {
             let reg_addr = sub_matches.get_one::<String>("REG").expect("required");
@@ -652,7 +662,7 @@ async fn main() {
         Some(("close-game", sub_matches)) => {
             let game_addr = sub_matches.get_one::<String>("GAME").expect("required");
             let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
-            close_game(game_addr.clone(), transport).await;
+            close_game(game_addr.clone(), transport).await.unwrap();
         }
         Some(("reg-info", sub_matches)) => {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");

@@ -5,7 +5,8 @@ mod types;
 use async_stream::stream;
 use constants::*;
 use futures::{Stream, StreamExt};
-use tracing::{error, info};
+use solana_transaction_status::UiTransactionEncoding;
+use tracing::{error, info, warn};
 use types::*;
 
 use crate::error::{TransportError, TransportResult};
@@ -126,7 +127,7 @@ impl TransportT for SolanaTransport {
             &token_mint_pubkey,
             &payer_pubkey,
         )
-        .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+            .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
 
         let create_game_ix = Instruction::new_with_borsh(
             self.program_id,
@@ -141,6 +142,7 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new_readonly(spl_token::id(), false),
                 AccountMeta::new_readonly(bundle_pubkey, false),
                 AccountMeta::new_readonly(recipient_pubkey, false),
+                AccountMeta::new_readonly(system_program::id(), false),
             ],
         );
 
@@ -300,7 +302,7 @@ impl TransportT for SolanaTransport {
             &mint_pubkey,
             &payer_pubkey,
         )
-        .map_err(|_| TransportError::InitInstructionFailed)?;
+            .map_err(|_| TransportError::InitInstructionFailed)?;
         ixs.push(init_temp_account_ix);
 
         if is_wsol {
@@ -320,7 +322,7 @@ impl TransportT for SolanaTransport {
                 &[&payer_pubkey],
                 params.amount,
             )
-            .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+                .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
             ixs.push(spl_transfer_ix);
         }
 
@@ -338,7 +340,8 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new(stake_account_pubkey, false),
                 AccountMeta::new(pda, false),
                 AccountMeta::new_readonly(spl_token::id(), false),
-            ],
+                AccountMeta::new_readonly(system_program::id(), false),
+        ],
         );
         ixs.push(join_game_ix);
 
@@ -372,6 +375,7 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new(game_account_pubkey, false),
                 AccountMeta::new_readonly(server_account_pubkey, false),
+                AccountMeta::new_readonly(system_program::id(), false),
             ],
         );
 
@@ -487,7 +491,7 @@ impl TransportT for SolanaTransport {
             Some(&payer_pubkey),
             0,
         )
-        .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
+            .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
 
         let (metadata_pda, _bump_seed) = Pubkey::find_program_address(
             &[
@@ -649,12 +653,12 @@ impl TransportT for SolanaTransport {
         }
 
         info!("Solana transport settle game: {}\n  - Settle Version: {} -> {}\n  - Settles: {:?}\n  - Transfers: {:?}\n  - Checkpoint: {:?}",
-              addr,
-              settle_version,
-              next_settle_version,
-              ix_settles,
-              transfers,
-              checkpoint
+            addr,
+            settle_version,
+            next_settle_version,
+            ix_settles,
+            transfers,
+            checkpoint
         );
 
         let params = RaceInstruction::Settle {
@@ -689,12 +693,13 @@ impl TransportT for SolanaTransport {
         let payer_pubkey = payer.pubkey();
         let registry_account = Keypair::new();
         let registry_account_pubkey = registry_account.pubkey();
-        let lamports = self.get_min_lamports(REGISTRY_ACCOUNT_LEN)?;
+        let lamports = self.get_min_lamports(REGISTRY_INITIAL_ACCOUNT_LEN)?;
+        info!("Needs {} lamports to make account rent-exempt.", lamports);
         let create_account_ix = system_instruction::create_account(
             &payer_pubkey,
             &registry_account_pubkey,
             lamports,
-            REGISTRY_ACCOUNT_LEN as u64,
+            REGISTRY_INITIAL_ACCOUNT_LEN as u64,
             &self.program_id,
         );
         let create_registry_ix = Instruction::new_with_borsh(
@@ -786,7 +791,7 @@ impl TransportT for SolanaTransport {
                 &token_mint_pubkey,
                 &payer_pubkey,
             )
-            .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+                .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
 
             init_token_accounts_ixs.push(create_stake_account_ix);
             init_token_accounts_ixs.push(init_stake_account_ix);
@@ -860,6 +865,7 @@ impl TransportT for SolanaTransport {
             AccountMeta::new_readonly(payer_pubkey, true),
             AccountMeta::new(reg_account_pubkey, false),
             AccountMeta::new_readonly(game_account_pubkey, false),
+            AccountMeta::new_readonly(system_program::id(), false),
         ];
 
         let register_game_ix = Instruction::new_with_borsh(
@@ -936,18 +942,18 @@ impl TransportT for SolanaTransport {
             };
 
             let Ok((mut stream, unsub)) = client
-                .account_subscribe(
-                    &game_account_pubkey,
-                    Some(RpcAccountInfoConfig {
-                        encoding: Some(UiAccountEncoding::Base64),
-                        data_slice: None,
-                        commitment: Some(CommitmentConfig::finalized()),
-                        min_context_slot: None,
-                    }),
-                ).await else {
-                    error!("Failed on calling account_subscribe");
-                    return;
-                };
+            .account_subscribe(
+                &game_account_pubkey,
+                Some(RpcAccountInfoConfig {
+                    encoding: Some(UiAccountEncoding::Base64),
+                    data_slice: None,
+                    commitment: Some(CommitmentConfig::finalized()),
+                    min_context_slot: None,
+                }),
+            ).await else {
+                error!("Failed on calling account_subscribe");
+                return;
+            };
 
             while let Some(rpc_response) = stream.next().await {
                 let ui_account = rpc_response.value;
@@ -1206,7 +1212,7 @@ impl SolanaTransport {
                 fee = f.prioritization_fee;
             }
         }
-        println!("Estimate fee: {}", fee);
+        info!("Estimate fee: {} in lamports", fee);
         // XXX: We add a fixed amount to recommended fee
         Ok(fee + 50)
     }
@@ -1214,7 +1220,7 @@ impl SolanaTransport {
     fn get_min_lamports(&self, account_len: usize) -> TransportResult<u64> {
         self.client
             .get_minimum_balance_for_rent_exemption(account_len)
-            .map_err(|_| TransportError::NoEnoughLamports)
+            .map_err(|_| TransportError::FailedToGetMinimumLamports)
     }
 
     fn get_blockhash(&self) -> TransportResult<Hash> {
@@ -1232,6 +1238,23 @@ impl SolanaTransport {
             ..RpcSendTransactionConfig::default()
         };
 
+        let simulation_result = self.client.simulate_transaction(&tx);
+        match simulation_result {
+            Ok(rst) => {
+                if let Some(e) = rst.value.err {
+                    if let Some(logs) = rst.value.logs {
+                        for log in logs {
+                            warn!("{}", log);
+                        }
+                    }
+                    error!("Simulation failed due to error: {:?}", e);
+                }
+            }
+            Err(e) => {
+                error!("Simulation error: {:?}", e);
+            }
+        }
+
         let sig = self
             .client
             .send_transaction_with_config(&tx, config)
@@ -1248,6 +1271,23 @@ impl SolanaTransport {
             .poll_for_signature_confirmation(&sig, confirm_num)
             .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
 
+
+        match self.client.get_transaction(&sig, UiTransactionEncoding::Json) {
+            Ok(tx) => {
+                if let Some(meta) = tx.transaction.meta {
+                    meta.log_messages.map(|log_messages| {
+                        for log_message in log_messages {
+                            info!("{}", log_message);
+                        }
+                    });
+                }
+            }
+            Err(e) => {
+                if let Some(e) = e.get_transaction_error() {
+                    error!("Error: {:?}", e);
+                }
+            }
+        }
         Ok(sig)
     }
 

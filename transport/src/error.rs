@@ -74,6 +74,9 @@ pub enum TransportError {
     #[error("Lamports not enough for rent exemption")]
     NoEnoughLamports,
 
+    #[error("Failed to get minimum lamports for rent-exempt")]
+    FailedToGetMinimumLamports,
+
     #[error("Failed to create an adress")]
     AddressCreationFailed,
 
