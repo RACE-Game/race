@@ -1,11 +1,11 @@
-import { field } from '@race-foundation/borsh';
+import { field } from '@race-foundation/borsh'
 
 export class Message {
   @field('string')
-  sender!: string;
+  sender!: string
   @field('string')
-  content!: string;
+  content!: string
   constructor(fields: any) {
-    Object.assign(this, fields);
+    Object.assign(this, fields)
   }
 }

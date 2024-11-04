@@ -1,16 +1,16 @@
-import { IEncryptor } from './encryptor';
-import { Id } from './types';
+import { IEncryptor } from './encryptor'
+import { Id } from './types'
 
 export class SecretState {
-  #encryptor: IEncryptor;
+  #encryptor: IEncryptor
   constructor(encryptor: IEncryptor) {
-    this.#encryptor = encryptor;
+    this.#encryptor = encryptor
   }
 
   clear() {}
 
   isRandomLoaded(id: Id): boolean {
-    return true;
+    return true
   }
 
   genRandomStates(id: Id, size: number): any {}

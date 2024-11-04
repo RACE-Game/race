@@ -1,8 +1,8 @@
-import { field, array, enums, option, variant, struct } from '@race-foundation/borsh';
-import { Fields, Id } from './types';
-import { GamePlayer } from './init-account';
+import { field, array, enums, option, variant, struct } from '@race-foundation/borsh'
+import { Fields, Id } from './types'
+import { GamePlayer } from './init-account'
 
-type EventFields<T> = Omit<Fields<T>, 'kind'>;
+type EventFields<T> = Omit<Fields<T>, 'kind'>
 
 export type EventKind =
   | 'Invalid' // an invalid value
@@ -28,18 +28,18 @@ export type EventKind =
   // Client-only events
   | 'Init'
   | 'Checkpoint'
-  | 'EndOfHistory';
+  | 'EndOfHistory'
 
 export interface ICustomEvent {
-  serialize(): Uint8Array;
+  serialize(): Uint8Array
 }
 
 export interface IBridgeEvent {
-  serialize(): Uint8Array;
+  serialize(): Uint8Array
 }
 
 interface IEventKind {
-  kind(): EventKind;
+  kind(): EventKind
 }
 
 export abstract class SecretShare {}
@@ -47,18 +47,18 @@ export abstract class SecretShare {}
 @variant(0)
 export class Random extends SecretShare {
   @field('string')
-  fromAddr!: string;
+  fromAddr!: string
   @field(option('string'))
-  toAddr!: string | undefined;
+  toAddr!: string | undefined
   @field('usize')
-  randomId!: Id;
+  randomId!: Id
   @field('usize')
-  index!: number;
+  index!: number
   @field('u8-array')
-  secret!: Uint8Array;
+  secret!: Uint8Array
   constructor(fields: EventFields<Random>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, Random.prototype)
   }
 }
@@ -66,50 +66,50 @@ export class Random extends SecretShare {
 @variant(1)
 export class Answer extends SecretShare {
   @field('string')
-  fromAddr!: string;
+  fromAddr!: string
   @field('usize')
-  decisionId!: Id;
+  decisionId!: Id
   @field('u8-array')
-  secret!: Uint8Array;
+  secret!: Uint8Array
   constructor(fields: EventFields<Answer>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, Answer.prototype)
   }
 }
 
 export abstract class GameEvent implements IEventKind {
   kind(): EventKind {
-    return 'Invalid';
+    return 'Invalid'
   }
 }
 
 export class EventHistory {
   @field(enums(GameEvent))
-  event!: GameEvent;
+  event!: GameEvent
   @field('u64')
-  timestamp!: bigint;
+  timestamp!: bigint
   @field('string')
-  stateSha!: string;
+  stateSha!: string
   constructor(fields: EventFields<Answer>) {
-    Object.assign(this, fields);
-    Object.setPrototypeOf(this, EventHistory.prototype);
+    Object.assign(this, fields)
+    Object.setPrototypeOf(this, EventHistory.prototype)
   }
 }
 
 @variant(0)
 export class Custom extends GameEvent implements IEventKind {
   @field('u64')
-  sender!: bigint;
+  sender!: bigint
   @field('u8-array')
-  raw!: Uint8Array;
+  raw!: Uint8Array
   constructor(fields: EventFields<Custom>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, Custom.prototype)
   }
   kind(): EventKind {
-    return 'Custom';
+    return 'Custom'
   }
 }
 
@@ -117,280 +117,280 @@ export function makeCustomEvent(sender: bigint, customEvent: ICustomEvent): Cust
   return new Custom({
     sender,
     raw: customEvent.serialize(),
-  });
+  })
 }
 
 @variant(1)
 export class Ready extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
-    super();
+    super()
     Object.setPrototypeOf(this, Ready.prototype)
   }
   kind(): EventKind {
-    return 'Ready';
+    return 'Ready'
   }
 }
 
 @variant(2)
 export class ShareSecrets extends GameEvent implements IEventKind {
   @field('u64')
-  sender!: bigint;
+  sender!: bigint
   @field(array(enums(SecretShare)))
-  shares!: SecretShare[];
+  shares!: SecretShare[]
   constructor(fields: EventFields<ShareSecrets>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, ShareSecrets.prototype)
   }
   kind(): EventKind {
-    return 'ShareSecrets';
+    return 'ShareSecrets'
   }
 }
 
 @variant(3)
 export class OperationTimeout extends GameEvent implements IEventKind {
   @field(array('u64'))
-  ids!: bigint[];
+  ids!: bigint[]
   constructor(fields: EventFields<OperationTimeout>) {
-    super();
+    super()
     Object.setPrototypeOf(this, OperationTimeout.prototype)
-    Object.assign(this, fields);
+    Object.assign(this, fields)
   }
   kind(): EventKind {
-    return 'OperationTimeout';
+    return 'OperationTimeout'
   }
 }
 
 @variant(4)
 export class Mask extends GameEvent implements IEventKind {
   @field('u64')
-  sender!: bigint;
+  sender!: bigint
   @field('usize')
-  randomId!: Id;
+  randomId!: Id
   @field(array('u8-array'))
-  ciphertexts!: Uint8Array[];
+  ciphertexts!: Uint8Array[]
   constructor(fields: EventFields<Mask>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, Mask.prototype)
   }
   kind(): EventKind {
-    return 'Mask';
+    return 'Mask'
   }
 }
 
 export class CiphertextAndDigest {
   @field('u8-array')
-  ciphertext!: Uint8Array;
+  ciphertext!: Uint8Array
   @field('u8-array')
-  digest!: Uint8Array;
+  digest!: Uint8Array
   constructor(fields: EventFields<CiphertextAndDigest>) {
-    Object.assign(this, fields);
+    Object.assign(this, fields)
   }
 }
 
 @variant(5)
 export class Lock extends GameEvent implements IEventKind {
   @field('u64')
-  sender!: bigint;
+  sender!: bigint
   @field('usize')
-  randomId!: Id;
+  randomId!: Id
   @field(array(struct(CiphertextAndDigest)))
-  ciphertextsAndDigests!: CiphertextAndDigest[];
+  ciphertextsAndDigests!: CiphertextAndDigest[]
   constructor(fields: EventFields<Lock>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, Lock.prototype)
   }
   kind(): EventKind {
-    return 'Lock';
+    return 'Lock'
   }
 }
 
 @variant(6)
 export class RandomnessReady extends GameEvent implements IEventKind {
   @field('usize')
-  randomId!: Id;
+  randomId!: Id
   constructor(fields: EventFields<RandomnessReady>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, RandomnessReady.prototype)
   }
   kind(): EventKind {
-    return 'RandomnessReady';
+    return 'RandomnessReady'
   }
 }
 
 @variant(7)
 export class Join extends GameEvent implements IEventKind {
   @field(array(struct(GamePlayer)))
-  players!: GamePlayer[];
+  players!: GamePlayer[]
   constructor(fields: EventFields<Join>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, Join.prototype)
   }
   kind(): EventKind {
-    return 'Join';
+    return 'Join'
   }
 }
 
 @variant(8)
 export class ServerLeave extends GameEvent implements IEventKind {
   @field('u64')
-  serverId!: bigint;
+  serverId!: bigint
   constructor(fields: EventFields<ServerLeave>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, ServerLeave.prototype)
   }
   kind(): EventKind {
-    return 'ServerLeave';
+    return 'ServerLeave'
   }
 }
 
 @variant(9)
 export class Leave extends GameEvent implements IEventKind {
   @field('u64')
-  playerId!: bigint;
+  playerId!: bigint
   constructor(fields: EventFields<Leave>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, Leave.prototype)
   }
   kind(): EventKind {
-    return 'Leave';
+    return 'Leave'
   }
 }
 
 @variant(10)
 export class GameStart extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
-    super();
+    super()
     Object.setPrototypeOf(this, GameStart.prototype)
   }
   kind(): EventKind {
-    return 'GameStart';
+    return 'GameStart'
   }
 }
 
 @variant(11)
 export class WaitingTimeout extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
-    super();
+    super()
     Object.setPrototypeOf(this, WaitingTimeout.prototype)
   }
   kind(): EventKind {
-    return 'WaitingTimeout';
+    return 'WaitingTimeout'
   }
 }
 
 @variant(12)
 export class DrawRandomItems extends GameEvent implements IEventKind {
   @field('u64')
-  sender!: bigint;
+  sender!: bigint
   @field('usize')
-  randomId!: Id;
+  randomId!: Id
   @field(array('usize'))
-  indexes!: number[];
+  indexes!: number[]
   constructor(fields: EventFields<DrawRandomItems>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, DrawRandomItems.prototype)
   }
   kind(): EventKind {
-    return 'DrawRandomItems';
+    return 'DrawRandomItems'
   }
 }
 
 @variant(13)
 export class DrawTimeout extends GameEvent implements IEventKind {
   constructor(_: {}) {
-    super();
+    super()
     Object.setPrototypeOf(this, DrawTimeout.prototype)
   }
   kind(): EventKind {
-    return 'DrawTimeout';
+    return 'DrawTimeout'
   }
 }
 
 @variant(14)
 export class ActionTimeout extends GameEvent implements IEventKind {
   @field('u64')
-  playerId!: bigint;
+  playerId!: bigint
   constructor(fields: EventFields<ActionTimeout>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, ActionTimeout.prototype)
   }
   kind(): EventKind {
-    return 'ActionTimeout';
+    return 'ActionTimeout'
   }
 }
 
 @variant(15)
 export class AnswerDecision extends GameEvent implements IEventKind {
   @field('u64')
-  sender!: bigint;
+  sender!: bigint
   @field('usize')
-  decisionId!: Id;
+  decisionId!: Id
   @field('u8-array')
-  ciphertext!: Uint8Array;
+  ciphertext!: Uint8Array
   @field('u8-array')
-  digest!: Uint8Array;
+  digest!: Uint8Array
   constructor(fields: EventFields<AnswerDecision>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, AnswerDecision.prototype)
   }
   kind(): EventKind {
-    return 'AnswerDecision';
+    return 'AnswerDecision'
   }
 }
 
 @variant(16)
 export class SecretsReady extends GameEvent implements IEventKind {
   @field(array('usize'))
-  randomIds!: number[];
+  randomIds!: number[]
 
   constructor(fields: EventFields<SecretsReady>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, SecretsReady.prototype)
   }
   kind(): EventKind {
-    return 'SecretsReady';
+    return 'SecretsReady'
   }
 }
 
 @variant(17)
 export class Shutdown extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
-    super();
+    super()
     Object.setPrototypeOf(this, Shutdown.prototype)
   }
   kind(): EventKind {
-    return 'Shutdown';
+    return 'Shutdown'
   }
 }
 
 @variant(18)
 export class Bridge extends GameEvent implements IEventKind {
   @field('usize')
-  dest!: number;
+  dest!: number
   @field('u8-array')
-  raw!: Uint8Array;
+  raw!: Uint8Array
   @field(array(struct(GamePlayer)))
-  joinPlayers!: GamePlayer[];
+  joinPlayers!: GamePlayer[]
 
   constructor(fields: EventFields<Bridge>) {
-    super();
-    Object.assign(this, fields);
+    super()
+    Object.assign(this, fields)
     Object.setPrototypeOf(this, Bridge.prototype)
   }
 
   kind(): EventKind {
-    return 'Bridge';
+    return 'Bridge'
   }
 }
 
@@ -398,7 +398,7 @@ export class Bridge extends GameEvent implements IEventKind {
 
 export class Init extends GameEvent implements IEventKind {
   constructor() {
-    super();
+    super()
   }
   kind(): EventKind {
     return 'Init'
@@ -407,7 +407,7 @@ export class Init extends GameEvent implements IEventKind {
 
 export class CheckpointReady extends GameEvent implements IEventKind {
   constructor() {
-    super();
+    super()
   }
   kind(): EventKind {
     return 'Checkpoint'
@@ -416,7 +416,7 @@ export class CheckpointReady extends GameEvent implements IEventKind {
 
 export class EndOfHistory extends GameEvent implements IEventKind {
   constructor() {
-    super();
+    super()
   }
   kind(): EventKind {
     return 'EndOfHistory'

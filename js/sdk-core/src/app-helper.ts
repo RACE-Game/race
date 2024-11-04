@@ -1,37 +1,54 @@
-import { EntryTypeCash, GameAccount, INft, IToken, ITokenWithBalance, PlayerProfile, RecipientAccount, TokenWithBalance } from './accounts';
-import { IStorage } from './storage';
-import { CreateGameAccountParams, ITransport, TransactionResult } from './transport';
-import { PlayerProfileWithPfp } from './types';
-import { IWallet } from './wallet';
-
+import {
+  EntryTypeCash,
+  GameAccount,
+  INft,
+  IPlayerProfile,
+  IToken,
+  ITokenWithBalance,
+  RecipientAccount,
+} from './accounts'
+import { NFT_CACHE_TTL, TOKEN_CACHE_TTL } from './common'
+import { ResponseHandle, ResponseStream } from './response'
+import { getTtlCache, IStorage, makeNftCacheKey, makeTokenCacheKey, setTtlCache } from './storage'
+import {
+  CreateGameAccountParams,
+  CreateGameError,
+  CreateGameResponse,
+  CreatePlayerProfileError,
+  CreatePlayerProfileResponse,
+  ITransport,
+  RecipientClaimError,
+  RecipientClaimResponse,
+  RegisterGameError,
+  RegisterGameResponse,
+} from './transport'
+import { PlayerProfileWithPfp } from './types'
+import { IWallet } from './wallet'
 
 export type AppHelperInitOpts = {
-  transport: ITransport,
-  storage?: IStorage,
-};
+  transport: ITransport
+  storage?: IStorage
+}
 
 export type ClaimPreview = {
-  tokenAddr: string,
-  amount: bigint,
-};
+  tokenAddr: string
+  amount: bigint
+}
 
 /**
  * The helper for common interaction.
- *
- * @public
- * @beta
  */
 export class AppHelper {
-  #transport: ITransport;
-  #storage?: IStorage;
+  #transport: ITransport
+  #storage?: IStorage
 
   constructor(transport: ITransport)
   constructor(opts: AppHelperInitOpts)
   constructor(transportOrOpts: ITransport | AppHelperInitOpts) {
     if ('transport' in transportOrOpts) {
-      const { transport, storage } = transportOrOpts;
-      this.#transport = transport;
-      this.#storage = storage;
+      const { transport, storage } = transportOrOpts
+      this.#transport = transport
+      this.#storage = storage
     } else {
       this.#transport = transportOrOpts
     }
@@ -44,7 +61,7 @@ export class AppHelper {
    * @returns An object of GameAccount or undefined when not found
    */
   async getGame(addr: string): Promise<GameAccount | undefined> {
-    return await this.#transport.getGameAccount(addr);
+    return await this.#transport.getGameAccount(addr)
   }
 
   /**
@@ -54,34 +71,31 @@ export class AppHelper {
    * @param params - Parameters for game creation
    * @returns The address of created game
    */
-  async createGame(wallet: IWallet, params: CreateGameAccountParams): Promise<TransactionResult<string>> {
+  createGame(wallet: IWallet, params: CreateGameAccountParams): ResponseStream<CreateGameResponse, CreateGameError> {
     if (params.title.length == 0 || params.title.length > 16) {
-      throw new Error('Invalid title');
+      throw new Error('Invalid title')
     }
 
     if (params.entryType instanceof EntryTypeCash) {
-      const entryType = params.entryType;
+      const entryType = params.entryType
       if (entryType.minDeposit <= 0) {
-        throw new Error('Invalid minDeposit');
+        throw new Error('Invalid minDeposit')
       }
       if (entryType.maxDeposit < entryType.minDeposit) {
-        throw new Error('Invalid maxDeposit');
+        throw new Error('Invalid maxDeposit')
       }
     } else {
-      throw new Error('Unsupported entry type');
+      throw new Error('Unsupported entry type')
     }
 
     if (params.maxPlayers < 1 || params.maxPlayers > 512) {
-      throw new Error('Invalid maxPlayers');
+      throw new Error('Invalid maxPlayers')
     }
 
-    let res = await this.#transport.createGameAccount(wallet, params);
-    if (res.result === 'ok') {
-      console.debug('Game account created at %s', res.value);
-    } else {
-      console.error('Failed to create game account');
-    }
-    return res;
+    let response = new ResponseHandle<CreateGameResponse, CreateGameError>()
+    this.#transport.createGameAccount(wallet, params, response)
+
+    return response.stream()
   }
 
   /**
@@ -91,31 +105,41 @@ export class AppHelper {
    * @param gameAddr - The address of game account.
    * @param regAddr - The address of registration account.
    */
-  async registerGame(wallet: IWallet, gameAddr: string, regAddr: string): Promise<TransactionResult<void>> {
-    return await this.#transport.registerGame(wallet, {
-      gameAddr,
-      regAddr,
-    });
+  registerGame(
+    wallet: IWallet,
+    gameAddr: string,
+    regAddr: string
+  ): ResponseStream<RegisterGameResponse, RegisterGameError> {
+    const response = new ResponseHandle<RegisterGameResponse, RegisterGameError>()
+    this.#transport.registerGame(
+      wallet,
+      {
+        gameAddr,
+        regAddr,
+      },
+      response
+    )
+
+    return response.stream()
   }
 
   /**
-   * Create a player profile.
-   *
-   * @param wallet - The wallet adapter to sign the transaction
-   * @param nick - The nick name
-   * @param pfp - The address of avatar NFT
+   * Initiates the creation of a player profile using the provided wallet, nickname, and optional profile picture.
+   * @param {IWallet} wallet - The wallet associated with the player.
+   * @param {string} nick - The nickname for the player.
+   * @param {string | undefined} pfp - The profile picture for the player, if any.
+   * @returns {ResponseStream<CreatePlayerProfileResponse, CreatePlayerProfileError>} - A stream of responses indicating the success or failure of the operation.
    */
-  async createProfile(wallet: IWallet, nick: string, pfp: string | undefined): Promise<TransactionResult<void>> {
-    const res = await this.#transport.createPlayerProfile(wallet, {
-      nick,
-      pfp,
-    });
-    if (res.result === 'ok') {
-      console.debug('Created player profile');
-    } else {
-      console.error('Failed to create player profile');
-    }
-    return res;
+  createProfile(
+    wallet: IWallet,
+    nick: string,
+    pfp?: string,
+  ): ResponseStream<CreatePlayerProfileResponse, CreatePlayerProfileError> {
+    const response = new ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>()
+
+    this.#transport.createPlayerProfile(wallet, { nick, pfp }, response)
+
+    return response.stream()
   }
 
   /**
@@ -125,13 +149,13 @@ export class AppHelper {
    * @returns The player profile account or undefined when not found
    */
   async getProfile(addr: string): Promise<PlayerProfileWithPfp | undefined> {
-    const profile = await this.#transport.getPlayerProfile(addr);
-    if (profile === undefined) return undefined;
+    const profile = await this.#transport.getPlayerProfile(addr)
+    if (profile === undefined) return undefined
     if (profile.pfp !== undefined) {
-      const pfp = await this.#transport.getNft(profile.pfp, this.#storage);
-      return { nick: profile.nick, addr: profile.addr, pfp };
+      const pfp = await this.getNft(profile.pfp)
+      return { nick: profile.nick, addr: profile.addr, pfp }
     } else {
-      return { nick: profile.nick, addr: profile.addr, pfp: undefined };
+      return { nick: profile.nick, addr: profile.addr, pfp: undefined }
     }
   }
 
@@ -142,16 +166,16 @@ export class AppHelper {
    * @return A list of games
    */
   async listGames(registrationAddrs: string[]): Promise<GameAccount[]> {
-    let games: GameAccount[] = [];
+    let games: GameAccount[] = []
     for (const addr of registrationAddrs) {
-      const reg = await this.#transport.getRegistrationWithGames(addr);
+      const reg = await this.#transport.getRegistrationWithGames(addr)
       if (reg !== undefined) {
         for (const game of reg.games) {
-          games.push(game);
+          games.push(game)
         }
       }
     }
-    return games;
+    return games
   }
 
   /**
@@ -160,7 +184,29 @@ export class AppHelper {
    * @return A list of token info.
    */
   async listTokens(tokenAddrs: string[]): Promise<IToken[]> {
-    return await this.#transport.listTokens(tokenAddrs, this.#storage);
+    if (this.#storage === undefined) {
+      return await this.#transport.listTokens(tokenAddrs)
+    } else {
+      let res: IToken[] = []
+      let queryAddrs: string[] = []
+      for (const addr of tokenAddrs) {
+        const cacheKey = makeTokenCacheKey(this.#transport.chain, addr)
+        const token = getTtlCache<IToken>(this.#storage, cacheKey)
+        if (token !== undefined) {
+          console.log('Get token info from cache: %s', addr)
+          res.push(token)
+        } else {
+          queryAddrs.push(addr)
+        }
+      }
+      const queryRst = await this.#transport.listTokens(queryAddrs)
+      for (const token of queryRst) {
+        console.log('Get token info from transport: %s', token.addr)
+        res.push(token)
+        setTtlCache(this.#storage, makeTokenCacheKey(this.#transport.chain, token.addr), token, TOKEN_CACHE_TTL)
+      }
+      return res
+    }
   }
 
   /**
@@ -169,7 +215,7 @@ export class AppHelper {
    * @return A list of token info.
    */
   async listTokensWithBalance(walletAddr: string, tokenAddrs: string[]): Promise<ITokenWithBalance[]> {
-    return await this.#transport.listTokensWithBalance(walletAddr, tokenAddrs, this.#storage);
+    return await this.#transport.listTokensWithBalance(walletAddr, tokenAddrs)
   }
 
   /**
@@ -181,11 +227,11 @@ export class AppHelper {
    * @return A list of nfts.
    */
   async listNfts(walletAddr: string, collection: string | undefined = undefined): Promise<INft[]> {
-    const nfts = await this.#transport.listNfts(walletAddr, this.#storage);
+    const nfts = await this.#transport.listNfts(walletAddr)
     if (collection === undefined) {
-      return nfts;
+      return nfts
     } else {
-      return nfts.filter(nft => nft.collection === collection);
+      return nfts.filter(nft => nft.collection === collection)
     }
   }
 
@@ -195,7 +241,21 @@ export class AppHelper {
    * @param addr - The address of NFT
    */
   async getNft(addr: string): Promise<INft | undefined> {
-    return await this.#transport.getNft(addr, this.#storage)
+    if (this.#storage === undefined) {
+      return await this.#transport.getNft(addr)
+    } else {
+      const cacheKey = makeNftCacheKey(this.#transport.chain, addr)
+      const cached = getTtlCache<INft>(this.#storage, cacheKey)
+      if (cached !== undefined) {
+        return cached
+      } else {
+        const nft = await this.#transport.getNft(addr)
+        if (nft !== undefined) {
+          setTtlCache(this.#storage, cacheKey, nft, NFT_CACHE_TTL)
+        }
+        return nft
+      }
+    }
   }
 
   /**
@@ -204,14 +264,14 @@ export class AppHelper {
    * @param wallet - The wallet adapter to sign the transaction
    * @param gameAddr - The address of game account.
    */
-  async claim(wallet: IWallet, gameAddr: string): Promise<TransactionResult<void>> {
-    const gameAccount = await this.#transport.getGameAccount(gameAddr);
-    if (gameAccount === undefined) throw new Error('Game account not found');
-    return await this.#transport.recipientClaim(wallet, { recipientAddr: gameAccount?.recipientAddr });
+  claim(wallet: IWallet, recipientAddr: string): ResponseStream<RecipientClaimResponse, RecipientClaimError> {
+    const response = new ResponseHandle<RecipientClaimResponse, RecipientClaimError>()
+    this.#transport.recipientClaim(wallet, { recipientAddr }, response)
+    return response.stream()
   }
 
   async getRecipient(recipientAddr: string): Promise<RecipientAccount | undefined> {
-    return await this.#transport.getRecipient(recipientAddr);
+    return await this.#transport.getRecipient(recipientAddr)
   }
 
   /**
@@ -224,36 +284,36 @@ export class AppHelper {
   previewClaim(wallet: IWallet, recipientAccount: RecipientAccount): Promise<ClaimPreview[]>
   async previewClaim(wallet: IWallet, recipient: RecipientAccount | string): Promise<ClaimPreview[]> {
     if (typeof recipient === 'string') {
-      const r = await this.#transport.getRecipient(recipient);
+      const r = await this.#transport.getRecipient(recipient)
       if (r === undefined) {
-        throw new Error('Recipient account not found');
+        throw new Error('Recipient account not found')
       }
-      recipient = r;
+      recipient = r
     }
 
-    let ret: ClaimPreview[] = [];
+    let ret: ClaimPreview[] = []
     for (const slot of recipient.slots) {
-      let weights = 0;
-      let totalWeights = 0;
-      let totalClaimed = 0n;
-      let claimed = 0n;
+      let weights = 0
+      let totalWeights = 0
+      let totalClaimed = 0n
+      let claimed = 0n
       for (const share of slot.shares) {
-        totalClaimed += share.claimAmount;
-        totalWeights += share.weights;
+        totalClaimed += share.claimAmount
+        totalWeights += share.weights
         if (share.owner === wallet.walletAddr) {
-          weights += share.weights;
-          claimed += share.claimAmount;
+          weights += share.weights
+          claimed += share.claimAmount
         }
       }
-      const totalAmount = totalClaimed + slot.balance;
-      const amountToClaim = BigInt(Number(totalAmount) * weights / totalWeights) - claimed;
+      const totalAmount = totalClaimed + slot.balance
+      const amountToClaim = BigInt((Number(totalAmount) * weights) / totalWeights) - claimed
       if (amountToClaim > 0n) {
         ret.push({
           amount: amountToClaim,
-          tokenAddr: slot.tokenAddr
-        });
+          tokenAddr: slot.tokenAddr,
+        })
       }
     }
-    return ret;
+    return ret
   }
 }

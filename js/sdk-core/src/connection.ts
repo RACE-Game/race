@@ -1,57 +1,58 @@
-import { IEncryptor, PublicKeyRaws } from './encryptor';
-import { GameEvent } from './events';
-import { deserialize, enums, field, serialize, struct } from '@race-foundation/borsh';
-import { arrayBufferToBase64, base64ToUint8Array } from './utils';
-import { BroadcastFrame } from './broadcast-frames';
-import { CheckpointOffChain } from './checkpoint';
+import { IEncryptor, PublicKeyRaws } from './encryptor'
+import { GameEvent } from './events'
+import { deserialize, enums, field, serialize, struct } from '@race-foundation/borsh'
+import { arrayBufferToBase64, base64ToUint8Array } from './utils'
+import { BroadcastFrame } from './broadcast-frames'
+import { CheckpointOffChain } from './checkpoint'
 
-export type ConnectionState = 'disconnected' | 'connected' | 'reconnected' | 'closed';
+export type ConnectionState = 'disconnected' | 'connected' | 'reconnected' | 'closed'
 
-export type AttachResponse = 'success' | 'game-not-loaded';
+export type AttachResponse = 'success' | 'game-not-loaded'
 
-type Method = 'attach_game'
+type Method =
+  | 'attach_game'
   | 'submit_event'
   | 'exit_game'
   | 'subscribe_event'
   | 'submit_message'
   | 'get_state'
   | 'ping'
-  | 'checkpoint';
+  | 'checkpoint'
 
 interface IAttachGameParams {
-  signer: string;
-  key: PublicKeyRaws;
+  signer: string
+  key: PublicKeyRaws
 }
 
 interface ISubscribeEventParams {
-  settleVersion: bigint;
+  settleVersion: bigint
 }
 
 interface ISubmitEventParams {
-  event: GameEvent;
+  event: GameEvent
 }
 
 interface ISubmitMessageParams {
-  content: string;
+  content: string
 }
 
 interface IGetCheckpointParams {
-  settleVersion: bigint;
+  settleVersion: bigint
 }
 
-export type ConnectionSubscriptionItem = BroadcastFrame | ConnectionState | undefined;
+export type ConnectionSubscriptionItem = BroadcastFrame | ConnectionState | undefined
 
-export type ConnectionSubscription = AsyncGenerator<ConnectionSubscriptionItem>;
+export type ConnectionSubscription = AsyncGenerator<ConnectionSubscriptionItem>
 
 export class AttachGameParams {
   @field('string')
-  signer: string;
+  signer: string
   @field(struct(PublicKeyRaws))
-  key: PublicKeyRaws;
+  key: PublicKeyRaws
 
   constructor(fields: IAttachGameParams) {
-    this.key = fields.key;
-    this.signer = fields.signer;
+    this.key = fields.key
+    this.signer = fields.signer
   }
 }
 
@@ -61,282 +62,282 @@ export class ExitGameParams {
 
 export class SubscribeEventParams {
   @field('u64')
-  settleVersion: bigint;
+  settleVersion: bigint
   constructor(fields: ISubscribeEventParams) {
-    this.settleVersion = fields.settleVersion;
+    this.settleVersion = fields.settleVersion
   }
 }
 
 export class SubmitEventParams {
   @field(enums(GameEvent))
-  event: GameEvent;
+  event: GameEvent
   constructor(fields: ISubmitEventParams) {
-    this.event = fields.event;
+    this.event = fields.event
   }
 }
 
 export class SubmitMessageParams {
   @field('string')
-  content: string;
+  content: string
   constructor(fields: ISubmitMessageParams) {
-    this.content = fields.content;
+    this.content = fields.content
   }
 }
 
 export class GetCheckpointParams {
   @field('u64')
-  settleVersion: bigint;
+  settleVersion: bigint
   constructor(fields: IGetCheckpointParams) {
-    this.settleVersion = fields.settleVersion;
+    this.settleVersion = fields.settleVersion
   }
 }
 
 export interface IConnection {
-  attachGame(params: AttachGameParams): Promise<AttachResponse>;
+  attachGame(params: AttachGameParams): Promise<AttachResponse>
 
-  getState(): Promise<Uint8Array>;
+  getState(): Promise<Uint8Array>
 
-  getCheckpoint(params: GetCheckpointParams): Promise<CheckpointOffChain | undefined>;
+  getCheckpoint(params: GetCheckpointParams): Promise<CheckpointOffChain | undefined>
 
-  submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined>;
+  submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined>
 
-  submitMessage(params: SubmitMessageParams): Promise<ConnectionState | undefined>;
+  submitMessage(params: SubmitMessageParams): Promise<ConnectionState | undefined>
 
-  exitGame(params: ExitGameParams): Promise<void>;
+  exitGame(params: ExitGameParams): Promise<void>
 
-  connect(params: SubscribeEventParams): Promise<void>;
+  connect(params: SubscribeEventParams): Promise<void>
 
-  disconnect(): void;
+  disconnect(): void
 
-  subscribeEvents(): ConnectionSubscription;
+  subscribeEvents(): ConnectionSubscription
 }
 
-type StreamMessageType = BroadcastFrame | ConnectionState | undefined;
+type StreamMessageType = BroadcastFrame | ConnectionState | undefined
 
 export class Connection implements IConnection {
   // The target to connect, in normal game the target is the address
   // of game.  In a sub game, the target is constructed as ADDR:ID.
-  target: string;
-  playerAddr: string;
-  endpoint: string;
-  encryptor: IEncryptor;
-  socket?: WebSocket;
+  target: string
+  playerAddr: string
+  endpoint: string
+  encryptor: IEncryptor
+  socket?: WebSocket
   // If the connection is closed
-  closed: boolean;
+  closed: boolean
 
   // For async message stream
-  streamResolve?: ((value: StreamMessageType) => void);
-  streamMessageQueue: StreamMessageType[];
-  streamMessagePromise?: Promise<StreamMessageType>;
+  streamResolve?: (value: StreamMessageType) => void
+  streamMessageQueue: StreamMessageType[]
+  streamMessagePromise?: Promise<StreamMessageType>
 
   // For keep alive
-  lastPong: number;
-  checkTimer?: any;
+  lastPong: number
+  checkTimer?: any
 
-  isFirstOpen: boolean;
+  isFirstOpen: boolean
 
   constructor(target: string, playerAddr: string, endpoint: string, encryptor: IEncryptor) {
-    this.target = target;
-    this.playerAddr = playerAddr;
-    this.endpoint = endpoint;
-    this.encryptor = encryptor;
-    this.socket = undefined;
-    this.closed = false;
-    this.streamResolve = undefined;
-    this.streamMessageQueue = [];
-    this.streamMessagePromise = undefined;
-    this.lastPong = new Date().getTime();
-    this.isFirstOpen = true;
+    this.target = target
+    this.playerAddr = playerAddr
+    this.endpoint = endpoint
+    this.encryptor = encryptor
+    this.socket = undefined
+    this.closed = false
+    this.streamResolve = undefined
+    this.streamMessageQueue = []
+    this.streamMessagePromise = undefined
+    this.lastPong = new Date().getTime()
+    this.isFirstOpen = true
   }
 
   onDisconnected() {
-    console.warn('Clean up the connection with transactor');
+    console.warn('Clean up the connection with transactor')
 
-    this.clearCheckTimer();
+    this.clearCheckTimer()
 
     if (this.socket === undefined) {
-      return;
+      return
     } else {
-      this.socket.close();
-      this.socket = undefined;
+      this.socket.close()
+      this.socket = undefined
     }
 
     if (this.streamMessageQueue.find(x => x === 'disconnected') === undefined) {
       if (this.streamResolve !== undefined) {
         let r = this.streamResolve
-        this.streamResolve = undefined;
-        r('disconnected');
+        this.streamResolve = undefined
+        r('disconnected')
       } else {
-        this.streamMessageQueue.push('disconnected');
+        this.streamMessageQueue.push('disconnected')
       }
     }
   }
 
   clearCheckTimer() {
     if (this.checkTimer !== undefined) {
-      clearInterval(this.checkTimer);
-      this.checkTimer = undefined;
+      clearInterval(this.checkTimer)
+      this.checkTimer = undefined
     }
   }
 
   async connect(params: SubscribeEventParams) {
     console.log(`Establishing server connection, target: ${this.target}, settle version: ${params.settleVersion}`)
-    this.socket = new WebSocket(this.endpoint);
+    this.socket = new WebSocket(this.endpoint)
 
-    this.clearCheckTimer();
+    this.clearCheckTimer()
 
     this.socket.onmessage = msg => {
-      const frame = this.parseEventMessage(msg.data);
+      const frame = this.parseEventMessage(msg.data)
       if (frame !== undefined) {
         if (this.streamResolve !== undefined) {
-          let r = this.streamResolve;
-          this.streamResolve = undefined;
-          r(frame);
+          let r = this.streamResolve
+          this.streamResolve = undefined
+          r(frame)
         } else {
-          this.streamMessageQueue.push(frame);
+          this.streamMessageQueue.push(frame)
         }
       }
-    };
+    }
 
     this.socket.onopen = () => {
-      console.log('Websocket connected');
-      let frame: ConnectionState;
+      console.log('Websocket connected')
+      let frame: ConnectionState
       if (this.isFirstOpen) {
         frame = 'connected'
-        this.isFirstOpen = false;
+        this.isFirstOpen = false
       } else {
         frame = 'reconnected'
       }
 
       // Start times for alive checking
-      this.lastPong = new Date().getTime();
+      this.lastPong = new Date().getTime()
       this.checkTimer = setInterval(() => {
-        const t = new Date().getTime();
+        const t = new Date().getTime()
         if (this.lastPong + 6000 < t) {
-          console.log("Websocket keep alive check failed, no reply for %s ms", t - this.lastPong);
-          this.onDisconnected();
-          return;
+          console.log('Websocket keep alive check failed, no reply for %s ms', t - this.lastPong)
+          this.onDisconnected()
+          return
         }
         if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
-          this.socket.send(this.makeReqNoSig(this.target, 'ping', {}));
+          this.socket.send(this.makeReqNoSig(this.target, 'ping', {}))
         }
-      }, 3000);
+      }, 3000)
 
       if (this.streamResolve !== undefined) {
-        let r = this.streamResolve;
-        this.streamResolve = undefined;
-        r(frame);
+        let r = this.streamResolve
+        this.streamResolve = undefined
+        r(frame)
       } else {
-        this.streamMessageQueue.push(frame);
+        this.streamMessageQueue.push(frame)
       }
     }
 
     this.socket.onclose = () => {
-      console.log('Websocket closed');
-      this.closed = true;
-      this.onDisconnected();
+      console.log('Websocket closed')
+      this.closed = true
+      this.onDisconnected()
     }
 
-    this.socket.onerror = (e) => {
-      console.error(e);
-      this.onDisconnected();
-    };
+    this.socket.onerror = e => {
+      console.error(e)
+      this.onDisconnected()
+    }
 
     // Call JSONRPC subscribe_event
-    const req = this.makeReqNoSig(this.target, 'subscribe_event', params);
-    await this.requestWs(req);
+    const req = this.makeReqNoSig(this.target, 'subscribe_event', params)
+    await this.requestWs(req)
   }
 
   async attachGame(params: AttachGameParams): Promise<AttachResponse> {
-    const req = this.makeReqNoSig(this.target, 'attach_game', params);
-    const resp: any = await this.requestXhr(req);
+    const req = this.makeReqNoSig(this.target, 'attach_game', params)
+    const resp: any = await this.requestXhr(req)
     if (resp.error !== undefined) {
-      return 'game-not-loaded';
-    }  else {
-      return 'success';
+      return 'game-not-loaded'
+    } else {
+      return 'success'
     }
   }
 
   async getState(): Promise<Uint8Array> {
-    const req = this.makeReqNoSig(this.target, 'get_state', {});
-    const resp: { result: string } = await this.requestXhr(req);
-    return Uint8Array.from(JSON.parse(resp.result));
+    const req = this.makeReqNoSig(this.target, 'get_state', {})
+    const resp: { result: string } = await this.requestXhr(req)
+    return Uint8Array.from(JSON.parse(resp.result))
   }
 
   async getCheckpoint(params: GetCheckpointParams): Promise<CheckpointOffChain | undefined> {
     const req = this.makeReqNoSig(this.target, 'checkpoint', params)
-    const resp: { result: number[] | null } = await this.requestXhr(req);
-    if (!resp.result) return undefined;
-    return CheckpointOffChain.deserialize(Uint8Array.from(resp.result));
+    const resp: { result: number[] | null } = await this.requestXhr(req)
+    if (!resp.result) return undefined
+    return CheckpointOffChain.deserialize(Uint8Array.from(resp.result))
   }
 
   async submitEvent(params: SubmitEventParams): Promise<ConnectionState | undefined> {
     try {
-      const req = await this.makeReq(this.target, 'submit_event', params);
-      await this.requestXhr(req);
-      return undefined;
+      const req = await this.makeReq(this.target, 'submit_event', params)
+      await this.requestXhr(req)
+      return undefined
     } catch (_: any) {
-      return 'disconnected';
+      return 'disconnected'
     }
   }
 
   async submitMessage(params: SubmitMessageParams): Promise<ConnectionState | undefined> {
     try {
-      const req = await this.makeReq(this.target, 'submit_message', params);
-      await this.requestXhr(req);
-      return undefined;
+      const req = await this.makeReq(this.target, 'submit_message', params)
+      await this.requestXhr(req)
+      return undefined
     } catch (_: any) {
-      return 'disconnected';
+      return 'disconnected'
     }
   }
 
   disconnect() {
     if (this.socket !== undefined) {
-      this.closed = true;
-      this.socket.close();
-      this.socket = undefined;
+      this.closed = true
+      this.socket.close()
+      this.socket = undefined
     }
   }
 
   async exitGame(params: ExitGameParams): Promise<void> {
-    const req = await this.makeReq(this.target, 'exit_game', {});
-    await this.requestXhr(req);
-    if (!params.keepConnection) this.disconnect();
+    const req = await this.makeReq(this.target, 'exit_game', {})
+    await this.requestXhr(req)
+    if (!params.keepConnection) this.disconnect()
   }
 
   async *subscribeEvents(): AsyncGenerator<BroadcastFrame | ConnectionState | undefined> {
-    await this.waitSocketReady();
-    this.streamMessagePromise = new Promise(r => (this.streamResolve = r));
+    await this.waitSocketReady()
+    this.streamMessagePromise = new Promise(r => (this.streamResolve = r))
     while (true) {
       while (this.streamMessageQueue.length > 0) {
-        yield this.streamMessageQueue.shift();
+        yield this.streamMessageQueue.shift()
       }
       if (this.streamResolve === undefined) {
-        this.streamMessagePromise = new Promise(r => (this.streamResolve = r));
-        yield this.streamMessagePromise;
+        this.streamMessagePromise = new Promise(r => (this.streamResolve = r))
+        yield this.streamMessagePromise
       } else {
-        yield this.streamMessagePromise;
+        yield this.streamMessagePromise
       }
     }
   }
 
   parseEventMessage(raw: string): BroadcastFrame | ConnectionState | undefined {
     try {
-      let resp = JSON.parse(raw);
+      let resp = JSON.parse(raw)
       if (resp.result === 'pong') {
-        this.lastPong = new Date().getTime();
-        return undefined;
+        this.lastPong = new Date().getTime()
+        return undefined
       } else if (resp.method === 's_event') {
         if (resp.params.error === undefined) {
-          let result: string = resp.params.result;
-          let data = base64ToUint8Array(result);
-          let frame = deserialize(BroadcastFrame, data);
-          return frame;
+          let result: string = resp.params.result
+          let data = base64ToUint8Array(result)
+          let frame = deserialize(BroadcastFrame, data)
+          return frame
         } else {
           return 'disconnected'
         }
       } else {
-        return undefined;
+        return undefined
       }
     } catch (e) {
       console.error(`Parse event message error: ${raw}`)
@@ -345,44 +346,44 @@ export class Connection implements IConnection {
   }
 
   static initialize(target: string, playerAddr: string, endpoint: string, encryptor: IEncryptor): Connection {
-    return new Connection(target, playerAddr, endpoint, encryptor);
+    return new Connection(target, playerAddr, endpoint, encryptor)
   }
 
   async makeReq<P>(target: string, method: Method, params: P): Promise<string> {
     console.log(`Connection request, target: ${target}, method: ${method}, params:`, params)
-    const paramsBytes = serialize(params);
-    const sig = await this.encryptor.sign(paramsBytes, this.playerAddr);
-    const sigBytes = serialize(sig);
+    const paramsBytes = serialize(params)
+    const sig = await this.encryptor.sign(paramsBytes, this.playerAddr)
+    const sigBytes = serialize(sig)
     return JSON.stringify({
       jsonrpc: '2.0',
       method,
       id: crypto.randomUUID(),
       params: [target, arrayBufferToBase64(paramsBytes), arrayBufferToBase64(sigBytes)],
-    });
+    })
   }
 
   makeReqNoSig<P>(target: string, method: Method, params: P): string {
     if (method !== 'ping') {
       console.log(`Connection request[NoSig], target: ${target}, method: ${method}, params:`, params)
     }
-    const paramsBytes = serialize(params);
+    const paramsBytes = serialize(params)
     return JSON.stringify({
       jsonrpc: '2.0',
       method,
       id: crypto.randomUUID(),
       params: [target, arrayBufferToBase64(paramsBytes)],
-    });
+    })
   }
 
   async requestWs(req: string): Promise<void> {
     try {
-      await this.waitSocketReady();
+      await this.waitSocketReady()
       if (this.socket !== undefined) {
-        this.socket.send(req);
+        this.socket.send(req)
       }
     } catch (err) {
-      console.error('Failed to connect to current transactor: ' + this.endpoint);
-      throw err;
+      console.error('Failed to connect to current transactor: ' + this.endpoint)
+      throw err
     }
   }
 
@@ -394,34 +395,34 @@ export class Connection implements IConnection {
         headers: {
           'Content-Type': 'application/json',
         },
-      });
+      })
       if (resp.ok) {
-        const ret = await resp.json();
-        return ret;
+        const ret = await resp.json()
+        return ret
       } else {
-        throw Error('Transactor request failed:' + resp.json());
+        throw Error('Transactor request failed:' + resp.json())
       }
     } catch (err) {
-      console.error('Failed to connect to current transactor: ' + this.endpoint);
-      throw err;
+      console.error('Failed to connect to current transactor: ' + this.endpoint)
+      throw err
     }
   }
 
   waitSocketReady() {
     return new Promise((resolve, reject) => {
-      let maxAttempts = 10;
-      let intervalTime = 200;
-      let currAttempt = 0;
+      let maxAttempts = 10
+      let intervalTime = 200
+      let currAttempt = 0
       const interval = setInterval(() => {
         if (currAttempt > maxAttempts) {
-          clearInterval(interval);
-          reject();
+          clearInterval(interval)
+          reject()
         } else if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
-          clearInterval(interval);
-          resolve(undefined);
+          clearInterval(interval)
+          resolve(undefined)
         }
-        currAttempt++;
-      }, intervalTime);
-    });
+        currAttempt++
+      }, intervalTime)
+    })
   }
 }

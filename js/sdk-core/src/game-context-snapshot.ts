@@ -1,29 +1,29 @@
-import { GameContext, GameStatus, INode, NodeStatus } from './game-context';
+import { GameContext, GameStatus, INode, NodeStatus } from './game-context'
 
 export class NodeSnapshot {
-  readonly addr: string;
-  readonly status: NodeStatus;
+  readonly addr: string
+  readonly status: NodeStatus
 
   constructor(o: INode) {
-    this.addr = o.addr;
-    this.status = o.status;
+    this.addr = o.addr
+    this.status = o.status
   }
 }
 
 export class GameContextSnapshot {
-  readonly gameAddr: string;
-  readonly accessVersion: bigint;
-  readonly settleVersion: bigint;
-  readonly status: GameStatus;
-  readonly allowExit: boolean;
-  readonly nodes: NodeSnapshot[];
+  readonly gameAddr: string
+  readonly accessVersion: bigint
+  readonly settleVersion: bigint
+  readonly status: GameStatus
+  readonly allowExit: boolean
+  readonly nodes: NodeSnapshot[]
 
   constructor(context: GameContext) {
-    this.gameAddr = context.gameAddr;
-    this.accessVersion = context.accessVersion;
-    this.settleVersion = context.settleVersion;
-    this.status = context.status;
-    this.allowExit = context.allowExit;
-    this.nodes = context.nodes.map((n: INode) => new NodeSnapshot(n));
+    this.gameAddr = context.gameAddr
+    this.accessVersion = context.accessVersion
+    this.settleVersion = context.settleVersion
+    this.status = context.status
+    this.allowExit = context.allowExit
+    this.nodes = context.nodes.map((n: INode) => new NodeSnapshot(n))
   }
 }

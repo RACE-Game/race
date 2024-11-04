@@ -1,17 +1,11 @@
-import { TxState } from './tx-state';
-import { PlayerJoin, ServerJoin } from './accounts';
-import { array, enums, field, option, struct, variant } from '@race-foundation/borsh';
-import { EventHistory, GameEvent } from './events';
-import { CheckpointOffChain } from './checkpoint';
-import { Message } from './message';
+import { TxState } from './tx-state'
+import { PlayerJoin, ServerJoin } from './accounts'
+import { array, enums, field, option, struct, variant } from '@race-foundation/borsh'
+import { EventHistory, GameEvent } from './events'
+import { CheckpointOffChain } from './checkpoint'
+import { Message } from './message'
 
-export type BroadcastFrameKind =
-  | 'Invalid'
-  | 'Event'
-  | 'Message'
-  | 'TxState'
-  | 'Sync'
-  | 'EventHistories'
+export type BroadcastFrameKind = 'Invalid' | 'Event' | 'Message' | 'TxState' | 'Sync' | 'EventHistories'
 
 export abstract class BroadcastFrame {
   kind(): BroadcastFrameKind {
@@ -22,17 +16,17 @@ export abstract class BroadcastFrame {
 @variant(0)
 export class BroadcastFrameEvent extends BroadcastFrame {
   @field('string')
-  target!: string;
+  target!: string
   @field(enums(GameEvent))
-  event!: GameEvent;
+  event!: GameEvent
   @field('u64')
-  timestamp!: bigint;
+  timestamp!: bigint
   @field('string')
-  stateSha!: string;
+  stateSha!: string
   constructor(fields: any) {
-    super();
-    Object.assign(this, fields);
-    Object.setPrototypeOf(this, BroadcastFrameEvent.prototype);
+    super()
+    Object.assign(this, fields)
+    Object.setPrototypeOf(this, BroadcastFrameEvent.prototype)
   }
   kind(): BroadcastFrameKind {
     return 'Event'
@@ -42,13 +36,13 @@ export class BroadcastFrameEvent extends BroadcastFrame {
 @variant(1)
 export class BroadcastFrameMessage extends BroadcastFrame {
   @field('string')
-  target!: string;
+  target!: string
   @field(struct(Message))
-  message!: Message;
+  message!: Message
   constructor(fields: any) {
-    super();
-    Object.assign(this, fields);
-    Object.setPrototypeOf(this, BroadcastFrameMessage.prototype);
+    super()
+    Object.assign(this, fields)
+    Object.setPrototypeOf(this, BroadcastFrameMessage.prototype)
   }
   kind(): BroadcastFrameKind {
     return 'Message'
@@ -58,11 +52,11 @@ export class BroadcastFrameMessage extends BroadcastFrame {
 @variant(2)
 export class BroadcastFrameTxState extends BroadcastFrame {
   @field(enums(TxState))
-  txState!: TxState;
+  txState!: TxState
   constructor(fields: any) {
-    super();
-    Object.assign(this, fields);
-    Object.setPrototypeOf(this, BroadcastFrameTxState.prototype);
+    super()
+    Object.assign(this, fields)
+    Object.setPrototypeOf(this, BroadcastFrameTxState.prototype)
   }
   kind(): BroadcastFrameKind {
     return 'TxState'
@@ -72,17 +66,17 @@ export class BroadcastFrameTxState extends BroadcastFrame {
 @variant(3)
 export class BroadcastFrameSync extends BroadcastFrame {
   @field(array(struct(PlayerJoin)))
-  newPlayers!: PlayerJoin[];
+  newPlayers!: PlayerJoin[]
   @field(array(struct(ServerJoin)))
-  newServers!: ServerJoin[];
+  newServers!: ServerJoin[]
   @field('string')
-  transactor_addr!: string;
+  transactor_addr!: string
   @field('u64')
-  accessVersion!: bigint;
+  accessVersion!: bigint
   constructor(fields: any) {
-    super();
+    super()
     Object.assign(this, fields)
-    Object.setPrototypeOf(this, BroadcastFrameSync.prototype);
+    Object.setPrototypeOf(this, BroadcastFrameSync.prototype)
   }
   kind(): BroadcastFrameKind {
     return 'Sync'
@@ -92,20 +86,20 @@ export class BroadcastFrameSync extends BroadcastFrame {
 @variant(4)
 export class BroadcastFrameEventHistories extends BroadcastFrame {
   @field('string')
-  gameAddr!: string;
+  gameAddr!: string
   @field(option(struct(CheckpointOffChain)))
-  checkpointOffChain: CheckpointOffChain | undefined;
+  checkpointOffChain: CheckpointOffChain | undefined
   @field(array(struct(EventHistory)))
-  histories!: EventHistory[];
+  histories!: EventHistory[]
   @field('string')
-  stateSha!: string;
+  stateSha!: string
   @field('u64')
-  settleVersion!: bigint;
+  settleVersion!: bigint
 
   constructor(fields: any) {
-    super();
-    Object.assign(this, fields);
-    Object.setPrototypeOf(this, BroadcastFrameEventHistories.prototype);
+    super()
+    Object.assign(this, fields)
+    Object.setPrototypeOf(this, BroadcastFrameEventHistories.prototype)
   }
   kind(): BroadcastFrameKind {
     return 'EventHistories'

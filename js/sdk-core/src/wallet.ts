@@ -1,7 +1,14 @@
-import { TransactionResult } from "./transport";
+import { Result } from "./types"
+
+type Signature = string
+type TxError = any
+
+export type SendTransactionResult = Result<Signature, TxError>
 
 export interface IWallet {
-  isConnected: boolean;
-  walletAddr: string;
-  sendTransaction(tx: any, conn: any, config?: any): Promise<TransactionResult<void>>;
+  isConnected: boolean
+
+  walletAddr: string
+
+  wallet: any
 }

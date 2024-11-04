@@ -1,11 +1,11 @@
-import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { publicKeyExt } from './utils';
-import { PROGRAM_ID, METAPLEX_PROGRAM_ID, PLAYER_PROFILE_SEED } from './constants';
-import { enums, field, serialize } from '@race-foundation/borsh';
-import { Buffer } from 'buffer';
-import { EntryType } from '@race-foundation/sdk-core';
-import { RecipientSlotOwnerAssigned, RecipientState } from './accounts';
+import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } from '@solana/web3.js'
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token'
+import { publicKeyExt } from './utils'
+import { PROGRAM_ID, METAPLEX_PROGRAM_ID, PLAYER_PROFILE_SEED } from './constants'
+import { enums, field, serialize } from '@race-foundation/borsh'
+import { Buffer } from 'buffer'
+import { EntryType } from '@race-foundation/sdk-core'
+import { RecipientSlotOwnerAssigned, RecipientState } from './accounts'
 
 // Instruction types
 
@@ -31,85 +31,85 @@ export enum Instruction {
 
 abstract class Serialize {
   serialize(): Buffer {
-    return Buffer.from(serialize(this));
+    return Buffer.from(serialize(this))
   }
 }
 
 export class CreatePlayerProfileData extends Serialize {
   @field('u8')
-  instruction = Instruction.CreatePlayerProfile;
+  instruction = Instruction.CreatePlayerProfile
   @field('string')
-  nick: string;
+  nick: string
 
   constructor(nick: string) {
-    super();
-    this.nick = nick;
+    super()
+    this.nick = nick
   }
 }
 
 export class CloseGameAccountData extends Serialize {
   @field('u8')
-  instruction = Instruction.CloseGameAccount;
+  instruction = Instruction.CloseGameAccount
 
   constructor() {
-    super();
+    super()
   }
 }
 
 export class CreateGameAccountData extends Serialize {
   @field('u8')
-  instruction = Instruction.CreateGameAccount;
+  instruction = Instruction.CreateGameAccount
   @field('string')
-  title: string = '';
+  title: string = ''
   @field('u16')
-  maxPlayers: number = 0;
+  maxPlayers: number = 0
   @field(enums(EntryType))
   entryType!: EntryType
   @field('u8-array')
-  data: Uint8Array = Uint8Array.from([]);
+  data: Uint8Array = Uint8Array.from([])
 
   constructor(params: Partial<CreateGameAccountData>) {
-    super();
-    Object.assign(this, params);
+    super()
+    Object.assign(this, params)
   }
 }
 
 export class JoinGameData extends Serialize {
   @field('u8')
-  instruction = Instruction.JoinGame;
+  instruction = Instruction.JoinGame
   @field('u64')
-  amount: bigint;
+  amount: bigint
   @field('u64')
-  accessVersion: bigint;
+  accessVersion: bigint
   @field('u16')
-  position: number;
+  position: number
   @field('string')
-  verifyKey: string;
+  verifyKey: string
 
   constructor(amount: bigint, accessVersion: bigint, position: number, verifyKey: string) {
-    super();
-    this.amount = amount;
-    this.accessVersion = accessVersion;
-    this.position = position;
-    this.verifyKey = verifyKey;
+    super()
+    this.amount = amount
+    this.accessVersion = accessVersion
+    this.position = position
+    this.verifyKey = verifyKey
   }
 }
 
 export class PublishGameData extends Serialize {
   @field('u8')
-  instruction = Instruction.PublishGame;
+  instruction = Instruction.PublishGame
   @field('string')
-  uri: string;
+  uri: string
   @field('string')
-  name: string;
+  name: string
   @field('string')
-  symbol: string;
+  symbol: string
 
   constructor(uri: string, name: string, symbol: string) {
-    super();
-    this.uri = uri;
-    this.name = name;
-    this.symbol = symbol;
+    super()
+    this.uri = uri
+    this.name = name
+    this.symbol = symbol
   }
 }
 
@@ -121,7 +121,7 @@ export function createPlayerProfile(
   nick: string,
   pfpKey?: PublicKey
 ): TransactionInstruction {
-  const data = new CreatePlayerProfileData(nick).serialize();
+  const data = new CreatePlayerProfileData(nick).serialize()
 
   return new TransactionInstruction({
     keys: [
@@ -143,30 +143,30 @@ export function createPlayerProfile(
     ],
     programId: PROGRAM_ID,
     data: Buffer.from(data),
-  });
+  })
 }
 
 export type CreateGameOptions = {
-  ownerKey: PublicKey;
-  gameAccountKey: PublicKey;
-  stakeAccountKey: PublicKey;
-  recipientAccountKey: PublicKey;
-  mint: PublicKey;
-  gameBundleKey: PublicKey;
-  title: string;
-  maxPlayers: number;
-  entryType: EntryType;
-  data: Uint8Array,
-};
+  ownerKey: PublicKey
+  gameAccountKey: PublicKey
+  stakeAccountKey: PublicKey
+  recipientAccountKey: PublicKey
+  mint: PublicKey
+  gameBundleKey: PublicKey
+  title: string
+  maxPlayers: number
+  entryType: EntryType
+  data: Uint8Array
+}
 
 export type RegisterGameOptions = {
-  ownerKey: PublicKey;
-  gameAccountKey: PublicKey;
-  registrationAccountKey: PublicKey;
+  ownerKey: PublicKey
+  gameAccountKey: PublicKey
+  registrationAccountKey: PublicKey
 }
 
 export function registerGame(opts: RegisterGameOptions): TransactionInstruction {
-  const data = Buffer.from(Uint8Array.of(Instruction.RegisterGame));
+  const data = Buffer.from(Uint8Array.of(Instruction.RegisterGame))
   return new TransactionInstruction({
     keys: [
       {
@@ -183,11 +183,11 @@ export function registerGame(opts: RegisterGameOptions): TransactionInstruction 
         pubkey: opts.gameAccountKey,
         isSigner: false,
         isWritable: false,
-      }
+      },
     ],
     programId: PROGRAM_ID,
     data,
-  });
+  })
 }
 
 export function createGameAccount(opts: CreateGameOptions): TransactionInstruction {
@@ -197,8 +197,8 @@ export function createGameAccount(opts: CreateGameOptions): TransactionInstructi
     maxPlayers: opts.maxPlayers,
     data: opts.data,
   })
-  console.log('CreateGameAccountParams:', params);
-  const data = params.serialize();
+  console.log('CreateGameAccountParams:', params)
+  const data = params.serialize()
   return new TransactionInstruction({
     keys: [
       {
@@ -240,24 +240,24 @@ export function createGameAccount(opts: CreateGameOptions): TransactionInstructi
         pubkey: SystemProgram.programId,
         isSigner: false,
         isWritable: false,
-      }
+      },
     ],
     programId: PROGRAM_ID,
     data,
-  });
+  })
 }
 
 export type CloseGameAccountOptions = {
-  ownerKey: PublicKey;
-  gameAccountKey: PublicKey;
-  regAccountKey: PublicKey;
-  gameStakeKey: PublicKey;
-};
+  ownerKey: PublicKey
+  gameAccountKey: PublicKey
+  regAccountKey: PublicKey
+  gameStakeKey: PublicKey
+}
 
 export function closeGameAccount(opts: CloseGameAccountOptions): TransactionInstruction {
-  const { ownerKey, gameAccountKey, regAccountKey, gameStakeKey } = opts;
-  const data = new CloseGameAccountData().serialize();
-  let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID);
+  const { ownerKey, gameAccountKey, regAccountKey, gameStakeKey } = opts
+  const data = new CloseGameAccountData().serialize()
+  let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID)
   return new TransactionInstruction({
     keys: [
       {
@@ -293,28 +293,38 @@ export function closeGameAccount(opts: CloseGameAccountOptions): TransactionInst
     ],
     programId: PROGRAM_ID,
     data,
-  });
+  })
 }
 
 export type JoinOptions = {
-  playerKey: PublicKey;
-  profileKey: PublicKey;
-  paymentKey: PublicKey;
-  gameAccountKey: PublicKey;
-  mint: PublicKey;
-  stakeAccountKey: PublicKey;
-  amount: bigint;
-  accessVersion: bigint;
-  position: number;
-  verifyKey: string;
-};
+  playerKey: PublicKey
+  profileKey: PublicKey
+  paymentKey: PublicKey
+  gameAccountKey: PublicKey
+  mint: PublicKey
+  stakeAccountKey: PublicKey
+  amount: bigint
+  accessVersion: bigint
+  position: number
+  verifyKey: string
+}
 
 export function join(opts: JoinOptions): TransactionInstruction {
-  const { playerKey, profileKey, paymentKey, gameAccountKey, mint, stakeAccountKey, amount, accessVersion, position, verifyKey } =
-    opts;
+  const {
+    playerKey,
+    profileKey,
+    paymentKey,
+    gameAccountKey,
+    mint,
+    stakeAccountKey,
+    amount,
+    accessVersion,
+    position,
+    verifyKey,
+  } = opts
 
-  let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID);
-  const data = new JoinGameData(amount, accessVersion, position, verifyKey).serialize();
+  let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID)
+  const data = new JoinGameData(amount, accessVersion, position, verifyKey).serialize()
 
   return new TransactionInstruction({
     keys: [
@@ -366,33 +376,33 @@ export function join(opts: JoinOptions): TransactionInstruction {
     ],
     programId: PROGRAM_ID,
     data,
-  });
+  })
 }
 
 export type PublishGameOptions = {
-  ownerKey: PublicKey;
-  mint: PublicKey;
-  tokenAccountKey: PublicKey;
-  uri: string;
-  name: string;
-  symbol: string;
-};
+  ownerKey: PublicKey
+  mint: PublicKey
+  tokenAccountKey: PublicKey
+  uri: string
+  name: string
+  symbol: string
+}
 
 export function publishGame(opts: PublishGameOptions): TransactionInstruction {
-  const { ownerKey, mint, uri, name, symbol } = opts;
+  const { ownerKey, mint, uri, name, symbol } = opts
 
   let [metadataPda] = PublicKey.findProgramAddressSync(
     [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mint.toBuffer()],
     METAPLEX_PROGRAM_ID
-  );
+  )
 
   let [editonPda] = PublicKey.findProgramAddressSync(
     [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mint.toBuffer(), Buffer.from('edition', 'utf8')],
     METAPLEX_PROGRAM_ID
-  );
-  let ata = getAssociatedTokenAddressSync(mint, ownerKey);
+  )
+  let ata = getAssociatedTokenAddressSync(mint, ownerKey)
 
-  let data = new PublishGameData(uri, name, symbol).serialize();
+  let data = new PublishGameData(uri, name, symbol).serialize()
 
   return new TransactionInstruction({
     keys: [
@@ -444,18 +454,17 @@ export function publishGame(opts: PublishGameOptions): TransactionInstruction {
     ],
     programId: PROGRAM_ID,
     data,
-  });
+  })
 }
 
-
 export type ClaimOpts = {
-  payerKey: PublicKey,
-  recipientKey: PublicKey,
-  recipientState: RecipientState,
-};
+  payerKey: PublicKey
+  recipientKey: PublicKey
+  recipientState: RecipientState
+}
 
 export function claim(opts: ClaimOpts): TransactionInstruction {
-  const [pda, _] = PublicKey.findProgramAddressSync([opts.recipientKey.toBuffer()], PROGRAM_ID);
+  const [pda, _] = PublicKey.findProgramAddressSync([opts.recipientKey.toBuffer()], PROGRAM_ID)
 
   let keys = [
     {
@@ -483,7 +492,7 @@ export function claim(opts: ClaimOpts): TransactionInstruction {
       isSigner: false,
       isWritable: false,
     },
-  ];
+  ]
 
   for (const slot of opts.recipientState.slots) {
     for (const slotShare of slot.shares) {
@@ -492,8 +501,8 @@ export function claim(opts: ClaimOpts): TransactionInstruction {
           pubkey: slot.stakeAddr,
           isSigner: false,
           isWritable: false,
-        });
-        const ata = getAssociatedTokenAddressSync(slotShare.owner.addr, slot.tokenAddr);
+        })
+        const ata = getAssociatedTokenAddressSync(slotShare.owner.addr, slot.tokenAddr)
         keys.push({
           pubkey: ata,
           isSigner: false,
@@ -504,12 +513,12 @@ export function claim(opts: ClaimOpts): TransactionInstruction {
   }
 
   if (keys.length === 5) {
-    throw new Error('No slot to claim');
+    throw new Error('No slot to claim')
   }
 
   return new TransactionInstruction({
     keys,
     programId: PROGRAM_ID,
     data: Buffer.from(Uint8Array.of(Instruction.RecipientClaim)),
-  });
+  })
 }

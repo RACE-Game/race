@@ -1,6 +1,6 @@
-import { PublicKey } from '@solana/web3.js';
-import { publicKeyExt } from './utils';
-import { deserialize, field, array, struct, option } from '@race-foundation/borsh';
+import { PublicKey } from '@solana/web3.js'
+import { publicKeyExt } from './utils'
+import { deserialize, field, array, struct, option } from '@race-foundation/borsh'
 
 /**
  * A port of Metaplex's Metadata layout.
@@ -9,35 +9,35 @@ import { deserialize, field, array, struct, option } from '@race-foundation/bors
  * polyfill, And we only use a small set of its features.
  */
 export interface IMetadata {
-  key: number;
-  updateAuthority: PublicKey;
-  mint: PublicKey;
-  data: Data;
-  primarySaleHappened: boolean;
-  isMutable: boolean;
-  editionNonce: number | undefined;
-  tokenStandard: TokenStandard | undefined;
-  collection: ICollection | undefined;
-  uses: IUses | undefined;
+  key: number
+  updateAuthority: PublicKey
+  mint: PublicKey
+  data: Data
+  primarySaleHappened: boolean
+  isMutable: boolean
+  editionNonce: number | undefined
+  tokenStandard: TokenStandard | undefined
+  collection: ICollection | undefined
+  uses: IUses | undefined
 }
 
 export interface ICollection {
-  verified: boolean;
-  key: PublicKey;
+  verified: boolean
+  key: PublicKey
 }
 
 export const USE_METHOD = {
   Burn: 0,
   Multiple: 1,
   Single: 2,
-} as const;
+} as const
 
-type UseMethod = (typeof USE_METHOD)[keyof typeof USE_METHOD];
+type UseMethod = (typeof USE_METHOD)[keyof typeof USE_METHOD]
 
 export interface IUses {
-  useMethod: UseMethod;
-  remaining: bigint;
-  total: bigint;
+  useMethod: UseMethod
+  remaining: bigint
+  total: bigint
 }
 
 export const TOKEN_STANDARD = {
@@ -46,102 +46,102 @@ export const TOKEN_STANDARD = {
   Fungible: 2,
   NonFungibleEdition: 3,
   ProgrammableNonFungible: 4,
-} as const;
+} as const
 
-export type TokenStandard = (typeof TOKEN_STANDARD)[keyof typeof TOKEN_STANDARD];
+export type TokenStandard = (typeof TOKEN_STANDARD)[keyof typeof TOKEN_STANDARD]
 
 export interface ICreator {
-  address: PublicKey;
-  verified: boolean;
-  share: number;
+  address: PublicKey
+  verified: boolean
+  share: number
 }
 
 export interface IData {
-  name: string;
-  symbol: string;
-  uri: string;
-  sellerFeeBasisPoints: number;
-  creators: ICreator[] | undefined;
+  name: string
+  symbol: string
+  uri: string
+  sellerFeeBasisPoints: number
+  creators: ICreator[] | undefined
 }
 
 export class Creator implements ICreator {
   @field(publicKeyExt)
-  address!: PublicKey;
+  address!: PublicKey
   @field('bool')
-  verified!: boolean;
+  verified!: boolean
   @field('u8')
-  share!: number;
+  share!: number
   constructor(fields: ICreator) {
-    Object.assign(this, fields);
+    Object.assign(this, fields)
   }
 }
 
 export class Data implements IData {
   @field('string')
-  name!: string;
+  name!: string
   @field('string')
-  symbol!: string;
+  symbol!: string
   @field('string')
-  uri!: string;
+  uri!: string
   @field('u16')
-  sellerFeeBasisPoints!: number;
+  sellerFeeBasisPoints!: number
   @field(option(array(struct(Creator))))
-  creators: ICreator[] | undefined;
+  creators: ICreator[] | undefined
   constructor(fields: IData) {
-    Object.assign(this, fields);
+    Object.assign(this, fields)
   }
 }
 
 export class Collection implements ICollection {
   @field('bool')
-  verified!: boolean;
+  verified!: boolean
   @field(publicKeyExt)
-  key!: PublicKey;
+  key!: PublicKey
 
   constructor(fields: IData) {
-    Object.assign(this, fields);
+    Object.assign(this, fields)
   }
 }
 
 export class Uses implements IUses {
   @field('u8')
-  useMethod!: UseMethod;
+  useMethod!: UseMethod
   @field('u64')
-  remaining!: bigint;
+  remaining!: bigint
   @field('u64')
-  total!: bigint;
+  total!: bigint
 
   constructor(fields: IData) {
-    Object.assign(this, fields);
+    Object.assign(this, fields)
   }
 }
 
 export class Metadata implements IMetadata {
   @field('u8')
-  key!: number;
+  key!: number
   @field(publicKeyExt)
-  updateAuthority!: PublicKey;
+  updateAuthority!: PublicKey
   @field(publicKeyExt)
-  mint!: PublicKey;
+  mint!: PublicKey
   @field(struct(Data))
-  data!: Data;
+  data!: Data
   @field('bool')
-  primarySaleHappened!: boolean;
+  primarySaleHappened!: boolean
   @field('bool')
-  isMutable!: boolean;
+  isMutable!: boolean
   @field(option('u8'))
-  editionNonce!: number | undefined;
+  editionNonce!: number | undefined
   @field(option('u8'))
-  tokenStandard!: TokenStandard | undefined;
+  tokenStandard!: TokenStandard | undefined
   @field(option(struct(Collection)))
-  collection!: Collection | undefined;
+  collection!: Collection | undefined
   @field(option(struct(Uses)))
-  uses!: Uses | undefined;
+  uses!: Uses | undefined
 
   constructor(fields: IMetadata) {
-    Object.assign(this, fields);
+    Object.assign(this, fields)
   }
   static deserialize(data: Buffer): Metadata {
-    return deserialize(Metadata, new Uint8Array(data.buffer));
+    return deserialize(Metadata, new Uint8Array(data.buffer))
   }
 }

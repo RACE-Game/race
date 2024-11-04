@@ -1,28 +1,28 @@
-import { IWallet, TransactionResult } from '@race-foundation/sdk-core';
-import { makeid } from './utils';
+import { IWallet, SendTransactionResult } from '@race-foundation/sdk-core'
+import { makeid } from './utils'
 
 export class FacadeWallet implements IWallet {
-  #addr: string;
+  #addr: string
 
-  constructor();
-  constructor(addr: string);
+  constructor()
+  constructor(addr: string)
   constructor(addr?: string) {
     if (addr === undefined) {
-      this.#addr = makeid(16);
+      this.#addr = makeid(16)
     } else {
-      this.#addr = addr;
+      this.#addr = addr
     }
   }
 
   get isConnected() {
-    return true;
+    return true
   }
 
   get walletAddr() {
-    return this.#addr;
+    return this.#addr
   }
 
-  sendTransaction(_tx: any, _conn: any): Promise<TransactionResult<void>> {
-    throw new Error('Method not implemented.');
+  get wallet() {
+    return undefined
   }
 }
