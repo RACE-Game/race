@@ -6,10 +6,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use race_api::event::Event;
-use race_core::checkpoint::{Checkpoint, CheckpointOffChain};
+use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::{BroadcastFrame, BroadcastSync, EventHistory, TxState};
 use tokio::sync::{broadcast, Mutex};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::component::common::{Component, ConsumerPorts};
 use crate::frame::EventFrame;
@@ -36,15 +36,13 @@ pub struct EventBackupGroup {
     pub events: LinkedList<EventBackup>,
     pub settle_version: u64,
     pub access_version: u64,
-    pub checkpoint: Option<Checkpoint>,
+    pub checkpoint_off_chain: Option<CheckpointOffChain>,
 }
 
 pub struct BroadcasterContext {
     id: String,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
-    #[allow(unused)]
-    debug_mode: bool,
 }
 
 /// A component that pushes event to clients.
@@ -57,7 +55,7 @@ pub struct Broadcaster {
 }
 
 impl Broadcaster {
-    pub fn init(id: String, game_id: usize, debug_mode: bool) -> (Self, BroadcasterContext) {
+    pub fn init(id: String, game_id: usize,) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);
@@ -70,7 +68,6 @@ impl Broadcaster {
             },
             BroadcasterContext {
                 id,
-                debug_mode,
                 event_backup_groups,
                 broadcast_tx,
             },
@@ -82,17 +79,16 @@ impl Broadcaster {
     }
 
     pub async fn get_checkpoint(&self, settle_version: u64) -> Option<CheckpointOffChain> {
-
         let event_backup_groups = self.event_backup_groups.lock().await;
         info!("Get checkpoint with settle_version = {}", settle_version);
 
         for group in event_backup_groups.iter() {
             if group.settle_version == settle_version {
-                info!("Found checkpoint");
-                return group.checkpoint.as_ref().map(|cp| cp.derive_offchain_part());
+                return group.checkpoint_off_chain.clone();
             }
         }
-        info!("Found checkpoint");
+
+        warn!("Missing the checkpoint for settle_version = {}, the client won't be able to join this game.", settle_version);
         None
     }
 
@@ -122,7 +118,7 @@ impl Broadcaster {
                 }
                 frames.push(BroadcastFrame::EventHistories {
                     game_addr: self.id.clone(),
-                    checkpoint_off_chain: group.checkpoint.as_ref().map(|c| c.derive_offchain_part()),
+                    checkpoint_off_chain: group.checkpoint_off_chain.clone(),
                     histories,
                     state_sha: group.state_sha.clone(),
                     settle_version: group.settle_version,
@@ -178,10 +174,15 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         events: LinkedList::new(),
                         access_version,
                         settle_version,
-                        checkpoint: Some(checkpoint),
+                        checkpoint_off_chain: Some(checkpoint.derive_offchain_part()),
                     });
                 }
-                EventFrame::InitState { access_version, settle_version, .. } => {
+                EventFrame::InitState {
+                    access_version,
+                    settle_version,
+                    checkpoint,
+                    ..
+                } => {
                     info!(
                         "{} Create new history group (via InitState) with access_version = {}, settle_version = {}",
                         env.log_prefix, access_version, settle_version
@@ -193,10 +194,9 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         events: LinkedList::new(),
                         access_version,
                         settle_version,
-                        checkpoint: None,
+                        checkpoint_off_chain: Some(checkpoint.derive_offchain_part()),
                         state_sha: "".into(),
                     });
-
                 }
                 EventFrame::TxState { tx_state } => match tx_state {
                     TxState::SettleSucceed { .. } => {
@@ -361,7 +361,7 @@ mod tests {
                     access_version: 10,
                     verify_key: "alice".into(),
                 }
-                    .into()],
+                .into()],
                 access_version: 10,
             };
             let event_frame = EventFrame::TxState {

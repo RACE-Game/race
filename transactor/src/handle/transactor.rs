@@ -71,24 +71,25 @@ impl TransactorHandle {
         transport: Arc<dyn TransportT + Send + Sync>,
         storage: Arc<dyn StorageT + Send + Sync>,
         signal_tx: mpsc::Sender<SignalFrame>,
-        debug_mode: bool,
+        _debug_mode: bool,
     ) -> Result<Self> {
         info!(
             "Start game handle for {} with Transactor mode",
             game_account.addr
         );
 
-        let game_context = GameContext::try_new(game_account, checkpoint_off_chain)?;
+        let game_context = GameContext::try_new(game_account, checkpoint_off_chain.clone())?;
+        let checkpoint = game_context.checkpoint().clone();
 
         info!("Use checkpoint: {}", !game_context.checkpoint_is_empty());
         let init_account = game_context.init_account()?;
+        let init_sync = create_init_sync(game_account)?;
 
         let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
 
         let event_bus = EventBus::new(game_account.addr.clone());
 
-        let (broadcaster, broadcaster_ctx) =
-            Broadcaster::init(game_account.addr.clone(), 0, debug_mode);
+        let (broadcaster, broadcaster_ctx) = Broadcaster::init(game_account.addr.clone(), 0);
         let mut broadcaster_handle = broadcaster.start(&game_account.addr, broadcaster_ctx);
 
         let (bridge, bridge_ctx) = EventBridgeParent::init(signal_tx);
@@ -129,16 +130,14 @@ impl TransactorHandle {
         event_bus.attach(&mut client_handle).await;
 
         // Dispatch init state
-        // let init_account = game_account.derive_checkpoint_init_account();
-        info!("InitAccount: {:?}", init_account);
         event_bus
             .send(EventFrame::InitState {
                 init_account,
                 access_version: game_account.access_version,
                 settle_version: game_account.settle_version,
+                checkpoint,
             })
             .await;
-        let init_sync = create_init_sync(game_account)?;
         info!("Dispatch init sync: {:?}", init_sync);
         event_bus.send(init_sync).await;
 

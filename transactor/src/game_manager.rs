@@ -1,6 +1,6 @@
 use race_api::error::{Error, Result};
 use race_api::event::{Event, Message};
-use race_core::checkpoint::CheckpointOffChain;
+use race_core::checkpoint::{Checkpoint, CheckpointOffChain};
 use race_core::types::{BroadcastFrame, ServerAccount, SubGameSpec};
 use race_encryptor::Encryptor;
 use std::collections::hash_map::Entry;
@@ -62,6 +62,7 @@ impl GameManager {
     pub async fn launch_sub_game(
         &self,
         spec: SubGameSpec,
+        checkpoint: Checkpoint,
         bridge_parent: EventBridgeParent,
         server_account: &ServerAccount,
         transport: Arc<WrappedTransport>,
@@ -70,7 +71,7 @@ impl GameManager {
     ) {
         let game_addr = spec.game_addr.clone();
         let game_id = spec.game_id;
-        match Handle::try_new_sub_game_handle(spec, bridge_parent, server_account, encryptor, transport, debug_mode).await {
+        match Handle::try_new_sub_game_handle(spec, checkpoint, bridge_parent, server_account, encryptor, transport, debug_mode).await {
             Ok(mut handle) => {
                 let mut games = self.games.lock().await;
                 let addr = format!("{}:{}", game_addr, game_id);

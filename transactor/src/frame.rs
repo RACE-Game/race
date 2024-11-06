@@ -11,7 +11,7 @@ use race_core::{
 #[derive(Debug, Clone)]
 pub enum SignalFrame {
     StartGame { game_addr: String },
-    LaunchSubGame { spec: SubGameSpec },
+    LaunchSubGame { spec: SubGameSpec, checkpoint: Checkpoint },
 }
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
@@ -40,6 +40,7 @@ pub enum EventFrame {
         access_version: u64,
         settle_version: u64,
         init_account: InitAccount,
+        checkpoint: Checkpoint,
     },
     SendEvent {
         event: Event,
@@ -87,7 +88,7 @@ pub enum EventFrame {
         event: Event,
         access_version: u64,
         settle_version: u64,
-        checkpoint: Vec<u8>,
+        checkpoint_state: Vec<u8>,
     },
     /// Similar to `SendBridgeEvent`, but for receiver's event bus.
     RecvBridgeEvent {
@@ -96,10 +97,11 @@ pub enum EventFrame {
         event: Event,
         access_version: u64,
         settle_version: u64,
-        checkpoint: Vec<u8>,
+        checkpoint_state: Vec<u8>,
     },
     LaunchSubGame {
         spec: Box<SubGameSpec>,
+        checkpoint: Checkpoint,
     },
 }
 
@@ -152,7 +154,7 @@ impl std::fmt::Display for EventFrame {
             EventFrame::RecvBridgeEvent { dest, event, settle_version, .. } => {
                 write!(f, "RecvBridgeEvent: dest {}, settle_version: {}, event: {}", dest, settle_version, event)
             }
-            EventFrame::LaunchSubGame { spec } => {
+            EventFrame::LaunchSubGame { spec, .. } => {
                 write!(f, "LaunchSubGame: {:?}", spec)
             }
         }

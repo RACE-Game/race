@@ -13,6 +13,7 @@ use clap::{arg, Command};
 use context::ApplicationContext;
 use race_env::Config;
 use reg::{register_server, start_reg_task};
+use tracing::info;
 use tracing_subscriber::{fmt, prelude::__tracing_subscriber_SubscriberExt, Layer, EnvFilter};
 
 fn cli() -> Command {
@@ -56,6 +57,7 @@ pub async fn main() {
     let config = Config::from_path(&matches.get_one::<String>("config").unwrap().into()).await;
     match matches.subcommand() {
         Some(("run", _)) => {
+            info!("Starting transactor.");
             let context = ApplicationContext::try_new(config)
                 .await
                 .expect("Failed to initalize");
@@ -63,6 +65,7 @@ pub async fn main() {
             run_server(context).await.expect("Unexpected error occured");
         }
         Some(("reg", _)) => {
+            info!("Register server profile for current account.");
             register_server(&config)
                 .await
                 .expect("Unexpected error occured");

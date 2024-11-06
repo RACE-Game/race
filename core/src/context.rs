@@ -161,7 +161,7 @@ pub struct GameContext {
 }
 
 impl GameContext {
-    pub fn try_new_with_sub_game_spec(spec: &SubGameSpec) -> Result<Self> {
+    pub fn try_new_with_sub_game_spec(spec: &SubGameSpec, checkpoint: Checkpoint) -> Result<Self> {
         let SubGameSpec {
             game_addr,
             nodes,
@@ -183,6 +183,7 @@ impl GameContext {
             init_data: init_account.data.clone(),
             entry_type: EntryType::Disabled,
             allow_exit: false,
+            checkpoint,
             ..Default::default()
         })
     }

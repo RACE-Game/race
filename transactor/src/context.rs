@@ -90,7 +90,7 @@ impl ApplicationContext {
                                 )
                                 .await;
                         }
-                        SignalFrame::LaunchSubGame { spec } => {
+                        SignalFrame::LaunchSubGame { spec, checkpoint } => {
                             let bridge_parent = game_manager_1
                                 .get_event_parent(&spec.game_addr)
                                 .await
@@ -101,6 +101,7 @@ impl ApplicationContext {
                             game_manager_1
                                 .launch_sub_game(
                                     spec,
+                                    checkpoint,
                                     bridge_parent,
                                     &account_1,
                                     transport_1.clone(),

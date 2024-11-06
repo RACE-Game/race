@@ -4,7 +4,7 @@
 //! status. For confirming query we have 5 seconds as interval, for
 //! finalized query, we use 2 seconds as interval.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use race_api::error::Error;
@@ -32,7 +32,7 @@ pub struct GameSynchronizerContext {
     mode: QueryMode,
 }
 
-// const MAX_RETRIES: u8 = 10;
+const MAX_RETRIES: u8 = 10;
 
 /// A component that reads the on-chain states and feeds the system.
 /// To construct a synchronizer, a chain adapter is required.
@@ -81,51 +81,64 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
             }
         };
 
-        while let Some(Some(game_account)) = sub.next().await {
-            let GameAccount {
-                players,
-                servers,
-                access_version,
-                transactor_addr,
-                ..
-            } = game_account;
+        let mut retry = 0;
+        loop {
 
-            // Drop duplicated updates
-            if access_version <= prev_access_version {
-                continue;
-            }
-
-            info!(
-                "{} Synchronizer found new game state, access_version = {}, settle_version = {}",
-                env.log_prefix, game_account.access_version, game_account.settle_version,
-            );
-
-            let new_players: Vec<PlayerJoin> = players
-                .into_iter()
-                .filter(|p| p.access_version > prev_access_version)
-                .collect();
-
-            let new_servers: Vec<ServerJoin> = servers
-                .into_iter()
-                .filter(|s| s.access_version > prev_access_version)
-                .collect();
-
-            if !new_players.is_empty() || !new_servers.is_empty() {
-                let frame = EventFrame::Sync {
-                    new_players,
-                    new_servers,
-                    // TODO: Handle transactor addr change
-                    transactor_addr: transactor_addr.unwrap().clone(),
+            if let Some(Some(game_account)) = sub.next().await {
+                let GameAccount {
+                    players,
+                    servers,
                     access_version,
-                };
+                    transactor_addr,
+                    ..
+                } = game_account;
 
-                // When other channels are closed
-                if ports.try_send(frame).await.is_err() {
-                    return CloseReason::Complete;
+                // Drop duplicated updates
+                if access_version <= prev_access_version {
+                    continue;
                 }
-            }
 
-            prev_access_version = access_version;
+                info!(
+                    "{} Synchronizer found new game state, access_version = {}, settle_version = {}",
+                    env.log_prefix, game_account.access_version, game_account.settle_version,
+                );
+
+                let new_players: Vec<PlayerJoin> = players
+                    .into_iter()
+                    .filter(|p| p.access_version > prev_access_version)
+                    .collect();
+
+                let new_servers: Vec<ServerJoin> = servers
+                    .into_iter()
+                    .filter(|s| s.access_version > prev_access_version)
+                    .collect();
+
+                if !new_players.is_empty() || !new_servers.is_empty() {
+                    let frame = EventFrame::Sync {
+                        new_players,
+                        new_servers,
+                        // TODO: Handle transactor addr change
+                        transactor_addr: transactor_addr.unwrap().clone(),
+                        access_version,
+                    };
+
+                    // When other channels are closed
+                    if ports.try_send(frame).await.is_err() {
+                        return CloseReason::Complete;
+                    }
+                }
+
+                prev_access_version = access_version;
+            } else {
+                if retry == MAX_RETRIES {
+                    break;
+                }
+                retry += 1;
+                let interval = u64::pow(2, retry as _);
+                warn!("{} Game account not found, will retry after {} seconds", env.log_prefix, interval);
+                // We use a increated retry interval
+                tokio::time::sleep(Duration::from_secs(interval)).await;
+            }
         }
 
         return CloseReason::Complete;

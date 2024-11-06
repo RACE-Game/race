@@ -9,6 +9,7 @@ use crate::component::{
 };
 use crate::frame::SignalFrame;
 use race_api::error::{Error, Result};
+use race_core::checkpoint::Checkpoint;
 use race_core::storage::StorageT;
 use race_core::transport::TransportT;
 use race_core::types::{GetCheckpointParams, QueryMode, ServerAccount, SubGameSpec};
@@ -105,6 +106,7 @@ impl Handle {
 
     pub async fn try_new_sub_game_handle(
         spec: SubGameSpec,
+        checkpoint: Checkpoint,
         bridge_parent: EventBridgeParent,
         server_account: &ServerAccount,
         encryptor: Arc<Encryptor>,
@@ -113,6 +115,7 @@ impl Handle {
     ) -> Result<Self> {
         let handle = SubGameHandle::try_new(
             spec,
+            checkpoint,
             bridge_parent,
             server_account,
             encryptor,

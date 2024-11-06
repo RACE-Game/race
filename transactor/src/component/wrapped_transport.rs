@@ -130,7 +130,7 @@ impl TransportT for WrappedTransport {
                     Ok(sig) => return Ok(sig),
                     Err(e) => {
                         error!(
-                            "Error in settlement: {:?}, will retry in {} secs",
+                            "Error in settlement: {:?}, will retry in {} milliseconds",
                             e, self.retry_interval
                         );
                         tokio::time::sleep(Duration::from_millis(self.retry_interval)).await;

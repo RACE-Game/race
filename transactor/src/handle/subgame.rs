@@ -6,6 +6,7 @@ use crate::component::{
 };
 use crate::frame::EventFrame;
 use race_api::error::{Error, Result};
+use race_core::checkpoint::Checkpoint;
 use race_core::context::GameContext;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameMode, ServerAccount, SubGameSpec};
@@ -23,11 +24,12 @@ pub struct SubGameHandle {
 impl SubGameHandle {
     pub async fn try_new(
         spec: SubGameSpec,
+        checkpoint: Checkpoint,
         bridge_parent: EventBridgeParent,
         server_account: &ServerAccount,
         encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
-        debug_mode: bool,
+        _debug_mode: bool,
     ) -> Result<Self> {
         let game_addr = spec.game_addr.clone();
         let game_id = spec.game_id.clone();
@@ -40,14 +42,15 @@ impl SubGameHandle {
             .ok_or(Error::GameBundleNotFound)?;
 
         // Build an InitAccount
-        let game_context = GameContext::try_new_with_sub_game_spec(&spec)?;
+        let game_context = GameContext::try_new_with_sub_game_spec(&spec, checkpoint)?;
+        let checkpoint = game_context.checkpoint().clone();
 
         let access_version = spec.access_version;
         let settle_version = spec.settle_version;
 
         let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 
-        let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone(), game_id, debug_mode);
+        let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone(), game_id);
         let mut broadcaster_handle = broadcaster.start(&addr, broadcaster_ctx);
 
         let (bridge, bridge_ctx) = bridge_parent.derive_child(game_id.clone());
@@ -80,6 +83,7 @@ impl SubGameHandle {
                 init_account: spec.init_account,
                 access_version,
                 settle_version,
+                checkpoint,
             })
             .await;
 

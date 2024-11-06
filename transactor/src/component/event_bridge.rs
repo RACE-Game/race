@@ -107,7 +107,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         event,
                         access_version,
                         settle_version,
-                        checkpoint,
+                        checkpoint_state,
                     } => {
                         info!("{} Receives event: {}", env.log_prefix, event);
                         ports
@@ -117,7 +117,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                                 event,
                                 access_version,
                                 settle_version,
-                                checkpoint,
+                                checkpoint_state,
                             })
                             .await;
                     }
@@ -125,8 +125,8 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                 }
             } else {
                 match event_frame {
-                    EventFrame::LaunchSubGame { spec } => {
-                        let f = SignalFrame::LaunchSubGame { spec: *spec };
+                    EventFrame::LaunchSubGame { spec, checkpoint } => {
+                        let f = SignalFrame::LaunchSubGame { spec: *spec, checkpoint };
                         if let Err(e) = ctx.signal_tx.send(f).await {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }
@@ -220,7 +220,7 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         event,
                         access_version,
                         settle_version,
-                        checkpoint,
+                        checkpoint_state,
                     } if dest == ctx.game_id => {
                         info!("{} Receives event: {}", env.log_prefix, event);
                         ports
@@ -230,7 +230,7 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                                 event,
                                 access_version,
                                 settle_version,
-                                checkpoint,
+                                checkpoint_state,
                             })
                             .await;
                     }
