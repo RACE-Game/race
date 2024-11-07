@@ -219,7 +219,7 @@ export class Connection implements IConnection {
           return
         }
         if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
-          this.socket.send(this.makeReqNoSig(this.target, 'ping', {}))
+          this.socket.send(makeReqNoSig(this.target, 'ping', {}))
         }
       }, 3000)
 
@@ -244,12 +244,12 @@ export class Connection implements IConnection {
     }
 
     // Call JSONRPC subscribe_event
-    const req = this.makeReqNoSig(this.target, 'subscribe_event', params)
+    const req = makeReqNoSig(this.target, 'subscribe_event', params)
     await this.requestWs(req)
   }
 
   async attachGame(params: AttachGameParams): Promise<AttachResponse> {
-    const req = this.makeReqNoSig(this.target, 'attach_game', params)
+    const req = makeReqNoSig(this.target, 'attach_game', params)
     const resp: any = await this.requestXhr(req)
     if (resp.error !== undefined) {
       return 'game-not-loaded'
@@ -259,13 +259,13 @@ export class Connection implements IConnection {
   }
 
   async getState(): Promise<Uint8Array> {
-    const req = this.makeReqNoSig(this.target, 'get_state', {})
+    const req = makeReqNoSig(this.target, 'get_state', {})
     const resp: { result: string } = await this.requestXhr(req)
     return Uint8Array.from(JSON.parse(resp.result))
   }
 
   async getCheckpoint(params: GetCheckpointParams): Promise<CheckpointOffChain | undefined> {
-    const req = this.makeReqNoSig(this.target, 'checkpoint', params)
+    const req = makeReqNoSig(this.target, 'checkpoint', params)
     const resp: { result: number[] | null } = await this.requestXhr(req)
     if (!resp.result) return undefined
     return CheckpointOffChain.deserialize(Uint8Array.from(resp.result))
@@ -362,19 +362,6 @@ export class Connection implements IConnection {
     })
   }
 
-  makeReqNoSig<P>(target: string, method: Method, params: P): string {
-    if (method !== 'ping') {
-      console.log(`Connection request[NoSig], target: ${target}, method: ${method}, params:`, params)
-    }
-    const paramsBytes = serialize(params)
-    return JSON.stringify({
-      jsonrpc: '2.0',
-      method,
-      id: crypto.randomUUID(),
-      params: [target, arrayBufferToBase64(paramsBytes)],
-    })
-  }
-
   async requestWs(req: string): Promise<void> {
     try {
       await this.waitSocketReady()
@@ -424,5 +411,42 @@ export class Connection implements IConnection {
         currAttempt++
       }, intervalTime)
     })
+  }
+}
+
+
+function makeReqNoSig<P>(target: string, method: Method, params: P): string {
+  if (method !== 'ping') {
+    console.log(`Connection request[NoSig], target: ${target}, method: ${method}, params:`, params)
+  }
+  const paramsBytes = serialize(params)
+  return JSON.stringify({
+    jsonrpc: '2.0',
+    method,
+    id: crypto.randomUUID(),
+    params: [target, arrayBufferToBase64(paramsBytes)],
+  })
+}
+
+export async function getCheckpoint(transactorEndpoint: string, addr: string, params: GetCheckpointParams): Promise<CheckpointOffChain | undefined> {
+  const req = makeReqNoSig(addr, 'checkpoint', params)
+  try {
+    const resp = await fetch(transactorEndpoint.replace(/^ws/, 'http'), {
+      method: 'POST',
+      body: req,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    if (resp.ok) {
+      const ret = await resp.json()
+      if (!ret.result) return undefined
+      return CheckpointOffChain.deserialize(Uint8Array.from(ret.result))
+    } else {
+      throw Error('Transactor request failed:' + resp.json())
+    }
+  } catch (err) {
+    console.error('Failed to connect to current transactor')
+    throw err
   }
 }

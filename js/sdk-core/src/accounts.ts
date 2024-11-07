@@ -1,5 +1,5 @@
 import { field, array, struct, option, enums, variant } from '@race-foundation/borsh'
-import { Checkpoint, CheckpointOnChain } from './checkpoint'
+import { CheckpointOnChain } from './checkpoint'
 
 export interface IPlayerJoin {
   readonly addr: string

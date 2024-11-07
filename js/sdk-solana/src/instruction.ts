@@ -184,6 +184,11 @@ export function registerGame(opts: RegisterGameOptions): TransactionInstruction 
         isSigner: false,
         isWritable: false,
       },
+      {
+        pubkey: SystemProgram.programId,
+        isSigner: false,
+        isWritable: false,
+      }
     ],
     programId: PROGRAM_ID,
     data,

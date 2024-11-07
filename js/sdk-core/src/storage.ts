@@ -48,3 +48,7 @@ export function makeTokenCacheKey(chain: Chain, tokenAddr: string): string {
 export function makeNftCacheKey(chain: Chain, nftAddr: string): string {
   return `NFT__${chain}_${nftAddr}`
 }
+
+export function makeGameAccountCacheKey(chain: Chain, gameAccountAddr: string): string {
+  return `GAME_ACCOUNT_${chain}_${gameAccountAddr}`
+}
