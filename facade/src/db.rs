@@ -875,8 +875,8 @@ pub fn prepare_all_tables(conn: &Connection) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use rusqlite::{Connection, Result, params};
-    use race_core::types::{GameAccount, GameBundle, PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount, ServerAccount, TokenAccount};
+    use rusqlite::{Connection, Result};
+    use race_core::types::{GameAccount, PlayerProfile, RecipientAccount, RecipientSlot, TokenAccount};
 
     #[test]
     // Test creating and reading a player_info

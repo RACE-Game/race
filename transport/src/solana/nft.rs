@@ -11,12 +11,15 @@ pub struct PropertyFiles {
 #[derive(Deserialize, Debug)]
 pub struct GameBundleProperties {
     pub files: Vec<PropertyFiles>,
+    #[allow(unused)]
     pub category: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct GameBundleNftMetadata {
+    #[allow(unused)]
     pub name: String,
+    #[allow(unused)]
     pub symbol: String,
     pub properties: GameBundleProperties,
 }

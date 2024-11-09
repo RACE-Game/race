@@ -319,7 +319,7 @@ mod tests {
             .add_player(&mut bob, 100)
             .build();
 
-        let (broadcaster, ctx) = Broadcaster::init(game_account.addr.clone(), 0, true);
+        let (broadcaster, ctx) = Broadcaster::init(game_account.addr.clone(), 0);
         let handle = broadcaster.start("", ctx);
         let mut rx = broadcaster.get_broadcast_rx();
 

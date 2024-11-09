@@ -24,6 +24,7 @@ race-client = { workspace = true }
 race-env = { workspace = true }
 race-local-db = { workspace = true }
 tracing-appender = { workspace = true }
+time = { workspace = true }
 uuid = { workspace = true, features = ["v4", "fast-rng"] }
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true, features = ["sync"] }

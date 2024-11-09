@@ -110,6 +110,7 @@ impl TransportT for DummyTransport {
             let data = base64.encode(buf);
             // FIXME: complete fields
             Ok(Some(GameBundle {
+                addr: "".into(),
                 uri: "".into(),
                 name: "".into(),
                 data: vec![],
