@@ -34,6 +34,16 @@ export class SettleEject extends SettleOp {
   }
 }
 
+@variant(3)
+export class SettleAssignSlot extends SettleOp {
+  @field('string')
+  identifier!: string
+  constructor(fields: Fields<SettleAdd>) {
+    super()
+    Object.assign(this, fields)
+  }
+}
+
 export class Settle {
   @field('u64')
   id: bigint

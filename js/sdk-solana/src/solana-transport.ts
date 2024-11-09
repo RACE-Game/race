@@ -475,7 +475,7 @@ export class SolanaTransport implements ITransport {
     let files: any[] = json['properties']['files']
     let wasm_file = files.find(f => f['type'] == 'application/wasm')
 
-    return new GameBundle({ uri: wasm_file['uri'], name: trimString(name), data: new Uint8Array(0) })
+    return new GameBundle({ addr, uri: wasm_file['uri'], name: trimString(name), data: new Uint8Array(0) })
   }
 
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {

@@ -223,10 +223,11 @@ pub struct RegistrationAccount {
     pub games: Vec<GameRegistration>,
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize, Clone)]
+#[derive(Debug, BorshSerialize, BorshDeserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GameBundle {
+    pub addr: String,
     pub uri: String,
     pub name: String,
     pub data: Vec<u8>,

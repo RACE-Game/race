@@ -99,6 +99,10 @@ export type CreateRegistrationParams = {
   size: number
 }
 
+export type CreateRecipientParams = {
+
+}
+
 export type RegisterGameParams = {
   gameAddr: string
   regAddr: string

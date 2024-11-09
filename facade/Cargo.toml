@@ -33,4 +33,5 @@ uuid = { workspace = true, features = ["v4", "fast-rng"] }
 tokio = { workspace = true, features = ["full"] }
 getrandom.workspace = true
 clap = { workspace = true, features = ["derive"] }
+rusqlite = { workspace = true, features = ["bundled"] }
 regex.workspace = true

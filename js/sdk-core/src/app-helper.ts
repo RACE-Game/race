@@ -152,22 +152,36 @@ export class AppHelper {
     return response.stream()
   }
 
-
+  /**
+   * Retrieves the checkpoint state for a given address.
+   *
+   * This function attempts to fetch the checkpoint state of a specific game account
+   * based on the provided account address. It checks if storage is set up and if the game
+   * cache contains a valid transactor endpoint to retrieve the data from.
+   *
+   * @param addr - The address of the game account for which the checkpoint state is requested.
+   * @returns A promise that resolves to a `Uint8Array` containing the checkpoint state if available, or `undefined`.
+   * @throws Will throw an error if the game is not loaded or if storage is not set.
+   */
   async getCheckpointState(addr: string): Promise<Uint8Array | undefined> {
-    if (this.#storage !== undefined)  {
-      const cacheKey = makeGameAccountCacheKey(this.#transport.chain, addr)
-      const gameCache = getTtlCache<GameAccountCache>(this.#storage, cacheKey)
+    if (this.#storage !== undefined) {
+      const cacheKey = makeGameAccountCacheKey(this.#transport.chain, addr);
+      const gameCache = getTtlCache<GameAccountCache>(this.#storage, cacheKey);
       if (gameCache !== undefined) {
         if (gameCache.transactorEndpoint === undefined) {
-          return undefined      // The game is not served
+          return undefined; // The game is not served
         }
-        const checkpointOffChain = await getCheckpoint(gameCache.transactorEndpoint, gameCache.addr, { settleVersion: gameCache.settleVersion })
-        return checkpointOffChain?.data.get(0)?.data
+        const checkpointOffChain = await getCheckpoint(
+          gameCache.transactorEndpoint,
+          gameCache.addr,
+          { settleVersion: BigInt(gameCache.settleVersion) }
+        );
+        return checkpointOffChain?.data.get(0)?.data;
       } else {
-        throw new Error('Game not loaded, try listGames or getGame first')
+        throw new Error('Game not loaded, try listGames or getGame first');
       }
     } else {
-      throw new Error('Storage is required')
+      throw new Error('Storage is required');
     }
   }
 

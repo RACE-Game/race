@@ -36,9 +36,9 @@ JSON=$(cat <<EOF
   "token": "FACADE_USDC",
   "maxPlayers": 10,
   "entryType": {
-    "cash": {
-      "minDeposit": 100000000,
-      "maxDeposit": 100000000
+    "ticket": {
+      "slotId": 1,
+      "amount": 100000000
     }
   },
   "data": $DATA

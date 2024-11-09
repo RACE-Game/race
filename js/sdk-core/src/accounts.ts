@@ -68,6 +68,7 @@ export interface IServerAccount {
 }
 
 export interface IGameBundle {
+  readonly addr: string
   readonly uri: string
   readonly name: string
   readonly data: Uint8Array
@@ -384,6 +385,8 @@ export class GameAccount implements IGameAccount {
 }
 
 export class GameBundle implements IGameBundle {
+  @field('string')
+  readonly addr!: string
   @field('string')
   readonly uri!: string
   @field('string')

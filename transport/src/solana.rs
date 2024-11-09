@@ -1026,6 +1026,7 @@ impl TransportT for SolanaTransport {
             .map_err(|e| TransportError::NetworkError(e.to_string()))?;
 
         Ok(Some(GameBundle {
+            addr: addr.to_string(),
             uri,
             name: metadata_data.name.trim_end_matches('\0').to_string(),
             data,

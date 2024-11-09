@@ -134,9 +134,8 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                     break;
                 }
                 retry += 1;
-                let interval = u64::pow(2, retry as _);
+                let interval = u64::pow(2, retry as _).min(20);
                 warn!("{} Game account not found, will retry after {} seconds", env.log_prefix, interval);
-                // We use a increated retry interval
                 tokio::time::sleep(Duration::from_secs(interval)).await;
             }
         }
