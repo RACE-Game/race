@@ -870,8 +870,6 @@ pub fn prepare_all_tables(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;

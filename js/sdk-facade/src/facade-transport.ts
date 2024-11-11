@@ -30,6 +30,9 @@ import {
   JoinError,
   CreatePlayerProfileResponse,
   JoinResponse,
+  CreateRecipientParams,
+  CreateRecipientResponse,
+  CreateRecipientError,
 } from '@race-foundation/sdk-core'
 import { deserialize } from '@race-foundation/borsh'
 import { Chain } from '@race-foundation/sdk-core/lib/types/common'
@@ -187,6 +190,10 @@ export class FacadeTransport implements ITransport {
     response.succeed({ signature, profile: { addr: playerAddr, nick: params.nick, pfp: params.pfp }})
   }
 
+  async createRecipient(_wallet: IWallet, _params: CreateRecipientParams, _response: ResponseHandle<CreateRecipientResponse, CreateRecipientError>): Promise<void> {
+    throw new Error('Method not implemented.')
+  }
+
   async join(wallet: IWallet, params: JoinParams, response: ResponseHandle<JoinResponse, JoinError>): Promise<void> {
     const playerAddr = wallet.walletAddr
     const gameAccount = await this.getGameAccount(params.gameAddr)
@@ -243,6 +250,10 @@ export class FacadeTransport implements ITransport {
       ...regAccount,
       games,
     })
+  }
+
+  async getTokenDecimals(addr: string): Promise<number | undefined> {
+    return tokenMap[addr]?.decimals
   }
 
   async getToken(addr: string): Promise<IToken | undefined> {

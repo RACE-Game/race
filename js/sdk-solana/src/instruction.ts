@@ -2,10 +2,10 @@ import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } 
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token'
 import { publicKeyExt } from './utils'
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID, PLAYER_PROFILE_SEED } from './constants'
-import { enums, field, serialize } from '@race-foundation/borsh'
+import { array, enums, extend, ExtendOptions, field, IExtendWriter, serialize, struct } from '@race-foundation/borsh'
 import { Buffer } from 'buffer'
-import { EntryType } from '@race-foundation/sdk-core'
-import { RecipientSlotOwnerAssigned, RecipientState } from './accounts'
+import { EntryType, RecipientSlotInit } from '@race-foundation/sdk-core'
+import { RecipientSlot, RecipientSlotOwner, RecipientSlotOwnerAssigned, RecipientState } from './accounts'
 
 // Instruction types
 
@@ -110,6 +110,52 @@ export class PublishGameData extends Serialize {
     this.uri = uri
     this.name = name
     this.symbol = symbol
+  }
+}
+
+export class SlotShareInit {
+  @field(enums(RecipientSlotOwner))
+  owner!: RecipientSlotOwner
+
+  @field('u16')
+  weights!: number
+
+  constructor(fields: any) {
+    Object.assign(this, fields)
+  }
+}
+
+export class SlotInit {
+  @field('u8')
+  id!: number
+
+  @field('u8')
+  slotType!: 0 | 1
+
+  @field(publicKeyExt)
+  tokenAddr!: PublicKey
+
+  @field(publicKeyExt)
+  stakeAddr!: PublicKey
+
+  @field(array(struct(SlotShareInit)))
+  initShares!: SlotShareInit[]
+
+  constructor(fields: any) {
+    Object.assign(this, fields)
+  }
+}
+
+export class CreateRecipientData extends Serialize {
+  @field('u8')
+  instruction = Instruction.CreateRecipient
+
+  @field(array(struct(SlotInit)))
+  slots: SlotInit[]
+
+  constructor(slots: SlotInit[]) {
+    super()
+    this.slots = slots
   }
 }
 
@@ -459,6 +505,48 @@ export function publishGame(opts: PublishGameOptions): TransactionInstruction {
     ],
     programId: PROGRAM_ID,
     data,
+  })
+}
+
+export type CreateRecipientOpts = {
+  payerKey: PublicKey
+  capKey: PublicKey
+  recipientKey: PublicKey
+  slots: SlotInit[]
+}
+
+export function createRecipient(opts: CreateRecipientOpts): TransactionInstruction {
+  const { payerKey, capKey, recipientKey, slots } = opts
+
+  let keys = [
+    {
+      pubkey: payerKey,
+        isSigner: true,
+        isWritable: false,
+    },
+    {
+        pubkey: capKey,
+        isSigner: false,
+        isWritable: false,
+    },
+    {
+        pubkey: recipientKey,
+        isSigner: false,
+        isWritable: false,
+    },
+    {
+      pubkey: TOKEN_PROGRAM_ID,
+      isSigner: false,
+      isWritable: false,
+    },
+  ]
+
+  slots.forEach(slot => keys.push({ pubkey: slot.stakeAddr, isSigner: false, isWritable: false }))
+
+  const data = new CreateRecipientData(slots).serialize()
+
+  return new TransactionInstruction({
+    keys, programId: PROGRAM_ID, data
   })
 }
 

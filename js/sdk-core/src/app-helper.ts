@@ -24,8 +24,7 @@ import {
 } from './transport'
 import { PlayerProfileWithPfp } from './types'
 import { IWallet } from './wallet'
-import { Connection, getCheckpoint } from './connection'
-import { CheckpointOffChain } from './checkpoint'
+import { getCheckpoint } from './connection'
 
 export type AppHelperInitOpts = {
   transport: ITransport

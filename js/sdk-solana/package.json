@@ -44,6 +44,7 @@
     "@race-foundation/borsh": "*",
     "@race-foundation/sdk-core": "*",
     "@solana/spl-token": "^0.3.7",
+    "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/web3.js": "^1.75.0"
   },
   "testDependencies": {

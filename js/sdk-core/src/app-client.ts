@@ -167,9 +167,21 @@ export class AppClient extends BaseClient {
 
       const gameContext = new GameContext(gameAccount, checkpoint)
       console.log('Game Context:', clone(gameContext))
-      const token = await transport.getToken(gameAccount.tokenAddr)
+
+      let token: IToken | undefined = await transport.getToken(gameAccount.tokenAddr)
       if (token === undefined) {
-        throw SdkError.tokenNotFound(gameAccount.tokenAddr)
+        const decimals = await transport.getTokenDecimals(gameAccount.tokenAddr)
+        if (decimals === undefined) {
+          throw SdkError.tokenNotFound(gameAccount.tokenAddr)
+        } else {
+          token = {
+            addr: gameAccount.tokenAddr,
+            decimals: decimals,
+            icon: '',
+            name: 'Unknown',
+            symbol: 'Unknown',
+          }
+        }
       }
       const info = makeGameInfo(gameAccount, token)
       const profileLoader = new ProfileLoader(transport, storage, onProfile)

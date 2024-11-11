@@ -107,6 +107,10 @@ export class ResponseHandle<T = void, E = void> {
     this.status = status.status
   }
 
+  preparing() {
+    this.update({ status: 'preparing' })
+  }
+
   waitingWallet() {
     this.update({ status: 'waiting-wallet' })
   }

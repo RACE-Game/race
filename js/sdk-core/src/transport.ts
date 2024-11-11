@@ -18,23 +18,41 @@ import { IStorage } from './storage'
 import { ResponseHandle } from './response'
 import { Chain } from './common'
 
+export type RecipientSlotOwnerInit =
+  | { addr: string }
+  | { identifier: string }
+
+export type RecipientSlotShareInit = {
+  owner: RecipientSlotOwnerInit
+  weights: number
+}
+
+export type RecipientSlotInit = {
+  id: number
+  slotType: 'nft' | 'token'
+  tokenAddr: string
+  initShares: RecipientSlotShareInit[]
+}
+
 export type CreateGameAccountParams = {
   title: string
   bundleAddr: string
   tokenAddr: string
   maxPlayers: number
   entryType: EntryType
-  recipientAddr: string
   registrationAddr: string
   data: Uint8Array
-}
+} & ({ recipientAddr: string } | { recipientParams: CreateRecipientParams })
 
 export type CreateGameResponse = {
   gameAddr: string
   signature: string
 }
 
-export type CreateGameError = 'invalid-title' | 'invalid-depsoit-range'
+export type CreateGameError =
+  | 'invalid-title'
+  | 'invalid-depsoit-range'
+  | CreateRecipientError
 
 export type CloseGameAccountParams = {
   gameAddr: string
@@ -100,8 +118,18 @@ export type CreateRegistrationParams = {
 }
 
 export type CreateRecipientParams = {
-
+  capAddr?: string
+  slots: RecipientSlotInit[]
 }
+
+export type CreateRecipientResponse = {
+  recipientAddr: string
+  signature: string
+}
+
+export type CreateRecipientError =
+  | 'duplicated-id'
+  | 'invalid-size'
 
 export type RegisterGameParams = {
   gameAddr: string
@@ -154,6 +182,12 @@ export interface ITransport {
     resp: ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>
   ): Promise<void>
 
+  createRecipient(
+    wallet: IWallet,
+    params: CreateRecipientParams,
+    resp: ResponseHandle<CreateRecipientResponse, CreateRecipientError>
+  ): Promise<void>
+
   // publishGame(wallet: IWallet, params: PublishGameParams): Promise<TransactionResult<string>>
 
   // createRegistration(wallet: IWallet, params: CreateRegistrationParams): Promise<TransactionResult<string>>
@@ -179,6 +213,8 @@ export interface ITransport {
   getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined>
 
   getRecipient(addr: string): Promise<RecipientAccount | undefined>
+
+  getTokenDecimals(addr: string): Promise<number | undefined>
 
   getToken(addr: string): Promise<IToken | undefined>
 

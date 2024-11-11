@@ -1,5 +1,5 @@
-import { Connection, TransactionInstruction, TransactionSignature } from '@solana/web3.js'
-import { IWallet, SendTransactionResult } from '@race-foundation/sdk-core'
+import { IWallet } from '@race-foundation/sdk-core'
+import { SignerWalletAdapter } from '@solana/wallet-adapter-base'
 
 export class SolanaWalletAdapter implements IWallet {
   #wallet: any
@@ -16,7 +16,7 @@ export class SolanaWalletAdapter implements IWallet {
     this.#wallet = wallet
   }
 
-  get wallet(): any {
+  get wallet(): SignerWalletAdapter {
     return this.#wallet;
   }
 }
