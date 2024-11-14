@@ -1,14 +1,14 @@
-import {
-  EntryTypeCash,
-  GameAccount,
-  INft,
-  IToken,
-  ITokenWithBalance,
-  RecipientAccount,
-} from './accounts'
+import { EntryTypeCash, GameAccount, INft, IToken, ITokenWithBalance, RecipientAccount } from './accounts'
 import { GAME_ACCOUNT_CACHE_TTL, NFT_CACHE_TTL, TOKEN_CACHE_TTL } from './common'
 import { ResponseHandle, ResponseStream } from './response'
-import { getTtlCache, IStorage, makeGameAccountCacheKey, makeNftCacheKey, makeTokenCacheKey, setTtlCache } from './storage'
+import {
+  getTtlCache,
+  IStorage,
+  makeGameAccountCacheKey,
+  makeNftCacheKey,
+  makeTokenCacheKey,
+  setTtlCache,
+} from './storage'
 import { GameAccountCache, makeGameAccountCache } from './account-cache'
 import {
   CreateGameAccountParams,
@@ -142,7 +142,7 @@ export class AppHelper {
   createProfile(
     wallet: IWallet,
     nick: string,
-    pfp?: string,
+    pfp?: string
   ): ResponseStream<CreatePlayerProfileResponse, CreatePlayerProfileError> {
     const response = new ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>()
 
@@ -164,23 +164,21 @@ export class AppHelper {
    */
   async getCheckpointState(addr: string): Promise<Uint8Array | undefined> {
     if (this.#storage !== undefined) {
-      const cacheKey = makeGameAccountCacheKey(this.#transport.chain, addr);
-      const gameCache = getTtlCache<GameAccountCache>(this.#storage, cacheKey);
+      const cacheKey = makeGameAccountCacheKey(this.#transport.chain, addr)
+      const gameCache = getTtlCache<GameAccountCache>(this.#storage, cacheKey)
       if (gameCache !== undefined) {
         if (gameCache.transactorEndpoint === undefined) {
-          return undefined; // The game is not served
+          return undefined // The game is not served
         }
-        const checkpointOffChain = await getCheckpoint(
-          gameCache.transactorEndpoint,
-          gameCache.addr,
-          { settleVersion: BigInt(gameCache.settleVersion) }
-        );
-        return checkpointOffChain?.data.get(0)?.data;
+        const checkpointOffChain = await getCheckpoint(gameCache.transactorEndpoint, gameCache.addr, {
+          settleVersion: BigInt(gameCache.settleVersion),
+        })
+        return checkpointOffChain?.data.get(0)?.data
       } else {
-        throw new Error('Game not loaded, try listGames or getGame first');
+        throw new Error('Game not loaded, try listGames or getGame first')
       }
     } else {
-      throw new Error('Storage is required');
+      throw new Error('Storage is required')
     }
   }
 
@@ -241,7 +239,7 @@ export class AppHelper {
         const cacheKey = makeTokenCacheKey(this.#transport.chain, addr)
         const token = getTtlCache<IToken>(this.#storage, cacheKey)
         if (token !== undefined) {
-          console.log('Get token info from cache: %s', addr)
+          console.debug('Get token info from cache: %s', addr)
           res.push(token)
         } else {
           queryAddrs.push(addr)
@@ -249,7 +247,7 @@ export class AppHelper {
       }
       const queryRst = await this.#transport.listTokens(queryAddrs)
       for (const token of queryRst) {
-        console.log('Get token info from transport: %s', token.addr)
+        console.debug('Get token info from transport: %s', token.addr)
         res.push(token)
         setTtlCache(this.#storage, makeTokenCacheKey(this.#transport.chain, token.addr), token, TOKEN_CACHE_TTL)
       }

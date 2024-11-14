@@ -1,6 +1,6 @@
 use crate::{
     error::HandleError,
-    types::{Ciphertext, DecisionId, GamePlayer, RandomId, SecretDigest, SecretShare},
+    types::{Ciphertext, DecisionId, GameDeposit, GamePlayer, RandomId, SecretDigest, SecretShare},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
@@ -71,6 +71,11 @@ pub enum Event {
     /// This event is sent when new players joined game.
     Join {
         players: Vec<GamePlayer>,
+    },
+
+    /// This event is sent when in-game players deposit tokens.
+    Deposit {
+        deposits: Vec<GameDeposit>,
     },
 
     /// A server left the game.
@@ -144,7 +149,7 @@ impl std::fmt::Display for Event {
             } => {
                 let players = join_players
                     .iter()
-                    .map(|p| p.id.to_string())
+                    .map(|p| p.id().to_string())
                     .collect::<Vec<String>>()
                     .join(",");
 
@@ -175,11 +180,20 @@ impl std::fmt::Display for Event {
             Event::Join { players } => {
                 let players = players
                     .iter()
-                    .map(|p| p.id.to_string())
+                    .map(|p| p.id().to_string())
                     .collect::<Vec<String>>()
                     .join(",");
 
                 write!(f, "Join, players: [{}]", players)
+            }
+            Event::Deposit { deposits } => {
+                let deposits = deposits
+                    .iter()
+                    .map(|p| p.id().to_string())
+                    .collect::<Vec<String>>()
+                    .join(",");
+
+                write!(f, "Deposit, deposits: [{}]", deposits)
             }
             Event::Leave { player_id } => write!(f, "Leave from {}", player_id),
             Event::GameStart {} => {

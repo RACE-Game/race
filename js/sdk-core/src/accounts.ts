@@ -1,10 +1,16 @@
 import { field, array, struct, option, enums, variant } from '@race-foundation/borsh'
 import { CheckpointOnChain } from './checkpoint'
 
+export enum EntryLock {
+  Open = 0,
+  JoinOnly = 1,
+  DepositOnly = 2,
+  Closed = 3,
+}
+
 export interface IPlayerJoin {
   readonly addr: string
   readonly position: number
-  readonly balance: bigint
   readonly accessVersion: bigint
   readonly verifyKey: string
 }
@@ -60,6 +66,7 @@ export interface IGameAccount {
   readonly entryType: EntryType
   readonly recipientAddr: string
   readonly checkpointOnChain: CheckpointOnChain | undefined
+  readonly entryLock: EntryLock
 }
 
 export interface IServerAccount {
@@ -220,8 +227,6 @@ export class EntryTypeCash extends EntryType implements IEntryTypeKind {
 
 @variant(1)
 export class EntryTypeTicket extends EntryType implements IEntryTypeKind {
-  @field('u8')
-  slotId!: number
   @field('u64')
   amount!: bigint
   constructor(fields: any) {
@@ -291,8 +296,6 @@ export class PlayerJoin implements IPlayerJoin {
   readonly addr!: string
   @field('u16')
   readonly position!: number
-  @field('u64')
-  readonly balance!: bigint
   @field('u64')
   readonly accessVersion!: bigint
   @field('string')
@@ -379,6 +382,8 @@ export class GameAccount implements IGameAccount {
   readonly recipientAddr!: string
   @field(option(struct(CheckpointOnChain)))
   readonly checkpointOnChain: CheckpointOnChain | undefined
+  @field('u8')
+  readonly entryLock!: EntryLock
   constructor(fields: IGameAccount) {
     Object.assign(this, fields)
   }

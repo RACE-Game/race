@@ -4,7 +4,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use race_api::error::Error;
 use race_core::storage::StorageT;
-use race_core::types::{GameAccount, SaveCheckpointParams, SettleParams, TxState};
+use race_core::types::{GameAccount, SaveCheckpointParams, SettleParams, SettleResult, TxState};
 use tokio::select;
 use tokio::sync::mpsc;
 use tracing::{error, info};
@@ -26,10 +26,16 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         settles,
         transfers,
         checkpoint,
+        entry_lock,
         ..
     } = next;
     prev.settles.extend(settles);
     prev.transfers.extend(transfers);
+    let entry_lock = if entry_lock.is_none() {
+        prev.entry_lock
+    } else {
+        entry_lock
+    };
     SettleParams {
         addr,
         settles: prev.settles,
@@ -39,6 +45,7 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         // Use the old settle_version
         settle_version: prev.settle_version,
         next_settle_version: prev.next_settle_version + 1,
+        entry_lock,
     }
 }
 
@@ -117,7 +124,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     let settle_version = params.settle_version;
                     let res = ctx.transport.settle_game(params).await;
                     match res {
-                        Ok(signature) => {
+                        Ok(SettleResult{ signature, game_account }) => {
                             let tx_state = TxState::SettleSucceed {
                                 signature: if signature.is_empty() {
                                     None
@@ -127,6 +134,24 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                                 settle_version,
                             };
                             p.send(EventFrame::TxState { tx_state }).await;
+
+                            let mut new_deposits = vec![];
+                            let GameAccount{ transactor_addr, deposits, access_version, .. } = game_account;
+                            for d in deposits {
+                                if d.settle_version == game_account.settle_version {
+                                    new_deposits.push(d);
+                                }
+                            }
+                            if !new_deposits.is_empty() {
+                                let sync = EventFrame::Sync{
+                                    new_players: vec![],
+                                    new_servers: vec![],
+                                    new_deposits,
+                                    transactor_addr: transactor_addr.unwrap_or_default(),
+                                    access_version,
+                                };
+                                p.send(sync).await;
+                            }
                         }
                         Err(e) => {
                             return CloseReason::Fault(e);
@@ -147,6 +172,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     checkpoint,
                     settle_version,
                     previous_settle_version,
+                    entry_lock,
                     ..
                 } => {
                     let checkpoint_onchain = checkpoint.derive_onchain_part();
@@ -175,6 +201,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                             checkpoint: checkpoint_onchain,
                             settle_version: previous_settle_version,
                             next_settle_version: settle_version,
+                            entry_lock,
                         })
                         .await;
                     if let Err(e) = res {

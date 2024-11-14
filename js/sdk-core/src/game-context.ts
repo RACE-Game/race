@@ -14,12 +14,13 @@ import {
   Shutdown,
   WaitingTimeout,
 } from './events'
-import { GamePlayer, InitAccount } from './init-account'
-import { Effect, EmitBridgeEvent, SubGame, Settle, Transfer, SettleAdd, SettleSub, SettleEject } from './effect'
-import { EntryType, GameAccount } from './accounts'
-import { Ciphertext, Digest, Id } from './types'
+import { InitAccount } from './init-account'
+import { Effect, EmitBridgeEvent, SubGame, Settle, Transfer } from './effect'
+import { EntryType, EntryTypeDisabled, GameAccount } from './accounts'
+import { Ciphertext, Digest, Fields, Id } from './types'
 import { clone } from './utils'
 import rfdc from 'rfdc'
+import { sha256String } from './encryptor'
 
 const OPERATION_TIMEOUT = 15_000n
 
@@ -61,6 +62,14 @@ export type EventEffects = {
   startGame: boolean
 }
 
+export class ContextPlayer {
+  id!: bigint
+  position!: number
+  constructor(fields: Fields<ContextPlayer>) {
+    Object.assign(this, fields)
+  }
+}
+
 export class GameContext {
   gameAddr: string
   gameId: number
@@ -71,21 +80,21 @@ export class GameContext {
   dispatch: DispatchEvent | undefined
   handlerState: Uint8Array
   timestamp: bigint
-  allowExit: boolean
   randomStates: RandomState[]
   decisionStates: DecisionState[]
   checkpoint: Checkpoint
   subGames: SubGame[]
   initData: Uint8Array
   maxPlayers: number
-  players: GamePlayer[]
+  players: ContextPlayer[]
   entryType: EntryType
+  stateSha: string
 
   constructor(gameAccount: GameAccount, checkpoint: Checkpoint) {
     if (checkpoint === undefined) {
       throw new Error('Missing checkpoint')
     }
-    console.log('Build game context with checkpoint:', clone(checkpoint))
+    console.info('Build game context with checkpoint:', clone(checkpoint))
     const checkpointAccessVersion = gameAccount.checkpointOnChain?.accessVersion || 0
     const transactorAddr = gameAccount.transactorAddr
     if (transactorAddr === undefined) {
@@ -125,8 +134,7 @@ export class GameContext {
       .filter(p => p.accessVersion <= checkpointAccessVersion)
       .map(
         p =>
-          new GamePlayer({
-            balance: p.balance,
+          new ContextPlayer({
             id: p.accessVersion,
             position: p.position,
           })
@@ -140,7 +148,6 @@ export class GameContext {
     this.dispatch = undefined
     this.nodes = nodes
     this.timestamp = 0n
-    this.allowExit = false
     this.randomStates = []
     this.decisionStates = []
     this.handlerState = Uint8Array.of()
@@ -150,6 +157,7 @@ export class GameContext {
     this.maxPlayers = gameAccount.maxPlayers
     this.players = players
     this.entryType = gameAccount.entryType
+    this.stateSha = ''
   }
 
   subContext(subGame: SubGame): GameContext {
@@ -162,7 +170,6 @@ export class GameContext {
     c.gameId = subGame.gameId
     c.dispatch = undefined
     c.timestamp = 0n
-    c.allowExit = false
     c.randomStates = []
     c.decisionStates = []
     c.handlerState = Uint8Array.of()
@@ -170,8 +177,8 @@ export class GameContext {
     c.subGames = []
     c.initData = subGame.initAccount.data
     c.maxPlayers = subGame.initAccount.maxPlayers
-    c.entryType = subGame.initAccount.entryType
-    c.players = subGame.initAccount.players.map(p => new GamePlayer(p))
+    c.entryType = new EntryTypeDisabled({})
+    c.players = []
     return c
   }
 
@@ -183,8 +190,6 @@ export class GameContext {
     const checkpoint = this.checkpoint.getData(this.gameId)
     return new InitAccount({
       maxPlayers: this.maxPlayers,
-      players: this.players.map(p => new GamePlayer(p)),
-      entryType: this.entryType,
       data: this.initData,
       checkpoint,
     })
@@ -338,10 +343,6 @@ export class GameContext {
     this.accessVersion = accessVersion
   }
 
-  setAllowExit(allowExit: boolean) {
-    this.allowExit = allowExit
-  }
-
   initRandomState(spec: RandomSpec): Id {
     const randomId = this.randomStates.length + 1
     const owners = this.nodes.filter(n => n.status.kind === 'ready' && n.mode !== 'player').map(n => n.addr)
@@ -437,7 +438,6 @@ export class GameContext {
     } else if (effect.cancelDispatch) {
       this.dispatch = undefined
     }
-    this.setAllowExit(effect.allowExit)
     for (const assign of effect.assigns) {
       const addr = this.idToAddr(assign.playerId)
       this.assign(assign.randomId, addr, assign.indexes)
@@ -455,7 +455,7 @@ export class GameContext {
     let settles: Settle[] = []
 
     if (effect.handlerState !== undefined) {
-      this.handlerState = effect.handlerState
+      await this.setHandlerState(effect.handlerState)
       if (effect.isCheckpoint) {
         this.randomStates = []
         this.decisionStates = []
@@ -470,16 +470,6 @@ export class GameContext {
         // Sort settles and track player states
         settles.push(...effect.settles)
         settles = effect.settles
-        settles = settles.sort((s1, s2) => s1.compare(s2))
-        for (let s of settles) {
-          if (s.op instanceof SettleAdd) {
-            this.playerAddBalance(s.id, s.op.amount)
-          } else if (s.op instanceof SettleSub) {
-            this.playerSubBalance(s.id, s.op.amount)
-          } else if (s.op instanceof SettleEject) {
-            this.removePlayer(s.id)
-          }
-        }
       }
     }
 
@@ -509,7 +499,7 @@ export class GameContext {
   }
 
   applyCheckpoint(accessVersion: bigint, settleVersion: bigint) {
-    console.log(`Apply checkpoint, accessVersion: ${accessVersion}`)
+    console.info(`Apply checkpoint, accessVersion: ${accessVersion}`)
     if (this.settleVersion !== settleVersion) {
       throw new Error(
         `Invalid checkpoint, local settle version: ${this.settleVersion}, remote settle version: ${settleVersion}`
@@ -535,7 +525,12 @@ export class GameContext {
     }
   }
 
-  addPlayer(player: GamePlayer) {
+  async setHandlerState(state: Uint8Array) {
+    this.stateSha = await sha256String(state)
+    this.handlerState = state
+  }
+
+  addPlayer(player: ContextPlayer) {
     this.players.push(player)
   }
 
@@ -543,19 +538,7 @@ export class GameContext {
     this.players = this.players.filter(p => p.id !== playerId)
   }
 
-  playerAddBalance(playerId: bigint, amount: bigint) {
-    let p = this.players.find(p => p.id === playerId)
-    if (p === undefined) {
-      throw new Error(`Player not in game: ${playerId}`)
-    }
-    p.balance = p.balance + amount
-  }
-
-  playerSubBalance(playerId: bigint, amount: bigint) {
-    let p = this.players.find(p => p.id === playerId)
-    if (p === undefined) {
-      throw new Error(`Player not in game: ${playerId}`)
-    }
-    p.balance = p.balance - amount
+  getStateSha(): string {
+    return this.stateSha
   }
 }

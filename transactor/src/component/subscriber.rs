@@ -121,6 +121,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                     let BroadcastSync {
                         new_players,
                         new_servers,
+                        new_deposits,
                         access_version,
                         transactor_addr,
                     } = sync;
@@ -132,6 +133,7 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
                         .try_send(EventFrame::Sync {
                             new_players,
                             new_servers,
+                            new_deposits,
                             transactor_addr,
                             access_version,
                         })

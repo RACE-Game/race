@@ -1,4 +1,4 @@
-import { Result } from "./types"
+import { Result } from './types'
 
 type Signature = string
 type TxError = any

@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use async_stream::stream;
 use futures::Stream;
 use base64::prelude::Engine;
-use race_core::types::{CreateRecipientParams, AssignRecipientParams, RecipientAccount, RecipientClaimParams, SettleWithAddr};
+use race_core::types::{AssignRecipientParams, CreateRecipientParams, RecipientAccount, RecipientClaimParams, SettleResult};
 use race_api::error::{Error, Result};
 #[allow(unused_imports)]
 use race_core::{
@@ -14,21 +14,21 @@ use race_core::{
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
-        PlayerProfile, PublishGameParams, QueryMode, RegisterGameParams, RegisterServerParams,
+        PlayerProfile, PublishGameParams, RegisterGameParams, RegisterServerParams,
         RegistrationAccount, ServeParams, ServerAccount, Settle, SettleParams,
         UnregisterGameParams, VoteParams,
     },
 };
 
 pub struct DummyTransport {
-    settles: Arc<Mutex<Vec<SettleWithAddr>>>,
+    settles: Arc<Mutex<Vec<Settle>>>,
     states: Arc<Mutex<Vec<GameAccount>>>,
     fail_next_settle: Arc<Mutex<bool>>,
 }
 
 impl DummyTransport {
     #[allow(dead_code)]
-    pub fn get_settles(&self) -> impl Deref<Target = Vec<SettleWithAddr>> + '_ {
+    pub fn get_settles(&self) -> impl Deref<Target = Vec<Settle>> + '_ {
         self.settles.lock().unwrap()
     }
 
@@ -90,7 +90,7 @@ impl TransportT for DummyTransport {
         Ok(())
     }
 
-    async fn get_game_account(&self, _addr: &str, mode: QueryMode) -> Result<Option<GameAccount>> {
+    async fn get_game_account(&self, _addr: &str) -> Result<Option<GameAccount>> {
         let mut states = self.states.lock().unwrap();
         if states.is_empty() {
             Ok(None)
@@ -132,7 +132,7 @@ impl TransportT for DummyTransport {
         Ok("".into())
     }
 
-    async fn settle_game(&self, mut params: SettleParams) -> Result<String> {
+    async fn settle_game(&self, mut params: SettleParams) -> Result<SettleResult> {
         let mut fail_next_settle = self.fail_next_settle.lock().unwrap();
         if *fail_next_settle {
             *fail_next_settle = false;
@@ -140,7 +140,10 @@ impl TransportT for DummyTransport {
         } else if params.addr.eq("TEST") {
             let mut settles = self.settles.lock().unwrap();
             settles.append(&mut params.settles);
-            Ok("".into())
+            Ok(SettleResult{
+                signature: "".into(),
+                game_account: GameAccount::default(),
+            })
         } else {
             Err(Error::GameAccountNotFound)
         }

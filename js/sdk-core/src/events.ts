@@ -1,8 +1,5 @@
 import { field, array, enums, option, variant, struct } from '@race-foundation/borsh'
 import { Fields, Id } from './types'
-import { GamePlayer } from './init-account'
-
-type EventFields<T> = Omit<Fields<T>, 'kind'>
 
 export type EventKind =
   | 'Invalid' // an invalid value
@@ -14,6 +11,7 @@ export type EventKind =
   | 'Lock'
   | 'RandomnessReady'
   | 'Join'
+  | 'Deposit'
   | 'ServerLeave'
   | 'Leave'
   | 'GameStart'
@@ -42,6 +40,26 @@ interface IEventKind {
   kind(): EventKind
 }
 
+export class GamePlayer {
+  @field('u64')
+  id!: bigint
+  @field('u16')
+  position!: number
+  constructor(fields: Fields<GamePlayer>) {
+    Object.assign(this, fields)
+  }
+}
+
+export class GameDeposit {
+  @field('u64')
+  id!: bigint
+  @field('u64')
+  amount!: bigint
+  constructor(fields: Fields<GameDeposit>) {
+    Object.assign(this, fields)
+  }
+}
+
 export abstract class SecretShare {}
 
 @variant(0)
@@ -56,7 +74,7 @@ export class Random extends SecretShare {
   index!: number
   @field('u8-array')
   secret!: Uint8Array
-  constructor(fields: EventFields<Random>) {
+  constructor(fields: Fields<Random>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, Random.prototype)
@@ -71,7 +89,7 @@ export class Answer extends SecretShare {
   decisionId!: Id
   @field('u8-array')
   secret!: Uint8Array
-  constructor(fields: EventFields<Answer>) {
+  constructor(fields: Fields<Answer>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, Answer.prototype)
@@ -91,7 +109,7 @@ export class EventHistory {
   timestamp!: bigint
   @field('string')
   stateSha!: string
-  constructor(fields: EventFields<Answer>) {
+  constructor(fields: Fields<Answer>) {
     Object.assign(this, fields)
     Object.setPrototypeOf(this, EventHistory.prototype)
   }
@@ -103,7 +121,7 @@ export class Custom extends GameEvent implements IEventKind {
   sender!: bigint
   @field('u8-array')
   raw!: Uint8Array
-  constructor(fields: EventFields<Custom>) {
+  constructor(fields: Fields<Custom>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, Custom.prototype)
@@ -137,7 +155,7 @@ export class ShareSecrets extends GameEvent implements IEventKind {
   sender!: bigint
   @field(array(enums(SecretShare)))
   shares!: SecretShare[]
-  constructor(fields: EventFields<ShareSecrets>) {
+  constructor(fields: Fields<ShareSecrets>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, ShareSecrets.prototype)
@@ -151,7 +169,7 @@ export class ShareSecrets extends GameEvent implements IEventKind {
 export class OperationTimeout extends GameEvent implements IEventKind {
   @field(array('u64'))
   ids!: bigint[]
-  constructor(fields: EventFields<OperationTimeout>) {
+  constructor(fields: Fields<OperationTimeout>) {
     super()
     Object.setPrototypeOf(this, OperationTimeout.prototype)
     Object.assign(this, fields)
@@ -169,7 +187,7 @@ export class Mask extends GameEvent implements IEventKind {
   randomId!: Id
   @field(array('u8-array'))
   ciphertexts!: Uint8Array[]
-  constructor(fields: EventFields<Mask>) {
+  constructor(fields: Fields<Mask>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, Mask.prototype)
@@ -184,7 +202,7 @@ export class CiphertextAndDigest {
   ciphertext!: Uint8Array
   @field('u8-array')
   digest!: Uint8Array
-  constructor(fields: EventFields<CiphertextAndDigest>) {
+  constructor(fields: Fields<CiphertextAndDigest>) {
     Object.assign(this, fields)
   }
 }
@@ -197,7 +215,7 @@ export class Lock extends GameEvent implements IEventKind {
   randomId!: Id
   @field(array(struct(CiphertextAndDigest)))
   ciphertextsAndDigests!: CiphertextAndDigest[]
-  constructor(fields: EventFields<Lock>) {
+  constructor(fields: Fields<Lock>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, Lock.prototype)
@@ -211,7 +229,7 @@ export class Lock extends GameEvent implements IEventKind {
 export class RandomnessReady extends GameEvent implements IEventKind {
   @field('usize')
   randomId!: Id
-  constructor(fields: EventFields<RandomnessReady>) {
+  constructor(fields: Fields<RandomnessReady>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, RandomnessReady.prototype)
@@ -225,7 +243,7 @@ export class RandomnessReady extends GameEvent implements IEventKind {
 export class Join extends GameEvent implements IEventKind {
   @field(array(struct(GamePlayer)))
   players!: GamePlayer[]
-  constructor(fields: EventFields<Join>) {
+  constructor(fields: Fields<Join>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, Join.prototype)
@@ -236,10 +254,24 @@ export class Join extends GameEvent implements IEventKind {
 }
 
 @variant(8)
+export class Deposit extends GameEvent implements IEventKind {
+  @field(array(struct(GameDeposit)))
+  deposits!: GameDeposit[]
+  constructor(fields: Fields<Deposit>) {
+    super()
+    Object.assign(this, fields)
+    Object.setPrototypeOf(this, Deposit.prototype)
+  }
+  kind(): EventKind {
+    return 'Deposit'
+  }
+}
+
+@variant(9)
 export class ServerLeave extends GameEvent implements IEventKind {
   @field('u64')
   serverId!: bigint
-  constructor(fields: EventFields<ServerLeave>) {
+  constructor(fields: Fields<ServerLeave>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, ServerLeave.prototype)
@@ -249,11 +281,11 @@ export class ServerLeave extends GameEvent implements IEventKind {
   }
 }
 
-@variant(9)
+@variant(10)
 export class Leave extends GameEvent implements IEventKind {
   @field('u64')
   playerId!: bigint
-  constructor(fields: EventFields<Leave>) {
+  constructor(fields: Fields<Leave>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, Leave.prototype)
@@ -263,7 +295,7 @@ export class Leave extends GameEvent implements IEventKind {
   }
 }
 
-@variant(10)
+@variant(11)
 export class GameStart extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super()
@@ -274,7 +306,7 @@ export class GameStart extends GameEvent implements IEventKind {
   }
 }
 
-@variant(11)
+@variant(12)
 export class WaitingTimeout extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super()
@@ -285,7 +317,7 @@ export class WaitingTimeout extends GameEvent implements IEventKind {
   }
 }
 
-@variant(12)
+@variant(13)
 export class DrawRandomItems extends GameEvent implements IEventKind {
   @field('u64')
   sender!: bigint
@@ -293,7 +325,7 @@ export class DrawRandomItems extends GameEvent implements IEventKind {
   randomId!: Id
   @field(array('usize'))
   indexes!: number[]
-  constructor(fields: EventFields<DrawRandomItems>) {
+  constructor(fields: Fields<DrawRandomItems>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, DrawRandomItems.prototype)
@@ -303,7 +335,7 @@ export class DrawRandomItems extends GameEvent implements IEventKind {
   }
 }
 
-@variant(13)
+@variant(14)
 export class DrawTimeout extends GameEvent implements IEventKind {
   constructor(_: {}) {
     super()
@@ -314,11 +346,11 @@ export class DrawTimeout extends GameEvent implements IEventKind {
   }
 }
 
-@variant(14)
+@variant(15)
 export class ActionTimeout extends GameEvent implements IEventKind {
   @field('u64')
   playerId!: bigint
-  constructor(fields: EventFields<ActionTimeout>) {
+  constructor(fields: Fields<ActionTimeout>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, ActionTimeout.prototype)
@@ -328,7 +360,7 @@ export class ActionTimeout extends GameEvent implements IEventKind {
   }
 }
 
-@variant(15)
+@variant(16)
 export class AnswerDecision extends GameEvent implements IEventKind {
   @field('u64')
   sender!: bigint
@@ -338,7 +370,7 @@ export class AnswerDecision extends GameEvent implements IEventKind {
   ciphertext!: Uint8Array
   @field('u8-array')
   digest!: Uint8Array
-  constructor(fields: EventFields<AnswerDecision>) {
+  constructor(fields: Fields<AnswerDecision>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, AnswerDecision.prototype)
@@ -348,12 +380,12 @@ export class AnswerDecision extends GameEvent implements IEventKind {
   }
 }
 
-@variant(16)
+@variant(17)
 export class SecretsReady extends GameEvent implements IEventKind {
   @field(array('usize'))
   randomIds!: number[]
 
-  constructor(fields: EventFields<SecretsReady>) {
+  constructor(fields: Fields<SecretsReady>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, SecretsReady.prototype)
@@ -363,7 +395,7 @@ export class SecretsReady extends GameEvent implements IEventKind {
   }
 }
 
-@variant(17)
+@variant(18)
 export class Shutdown extends GameEvent implements IEventKind {
   constructor(_: any = {}) {
     super()
@@ -374,7 +406,7 @@ export class Shutdown extends GameEvent implements IEventKind {
   }
 }
 
-@variant(18)
+@variant(19)
 export class Bridge extends GameEvent implements IEventKind {
   @field('usize')
   dest!: number
@@ -383,7 +415,7 @@ export class Bridge extends GameEvent implements IEventKind {
   @field(array(struct(GamePlayer)))
   joinPlayers!: GamePlayer[]
 
-  constructor(fields: EventFields<Bridge>) {
+  constructor(fields: Fields<Bridge>) {
     super()
     Object.assign(this, fields)
     Object.setPrototypeOf(this, Bridge.prototype)

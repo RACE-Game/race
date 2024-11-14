@@ -81,10 +81,7 @@ describe('Test utilities', () => {
   it('ECDSA sign/verify', async () => {
     const message = Uint8Array.of(1, 2, 3, 4, 5, 6);
     const keypair = await generateEcKeypair();
-    // const keyStrs = await exportEc(keypair);
-    // console.log(keyStrs);
     const signature = await signEc(keypair.privateKey, message);
-    // const signature0 = await signEc(keypair.privateKey, message);
     const result = await verifyEc(keypair.publicKey, signature, message);
     assert.isTrue(result);
   });

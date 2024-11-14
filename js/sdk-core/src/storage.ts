@@ -1,4 +1,4 @@
-import { Chain } from "./common"
+import { Chain } from './common'
 
 export interface IStorage {
   getItem(key: string): string | null

@@ -53,38 +53,3 @@ pub struct SubGameSpec {
     pub settle_version: u64,
     pub init_account: InitAccount,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct SettleWithAddr {
-    pub addr: String,
-    pub op: SettleOp,
-}
-
-impl SettleWithAddr {
-    pub fn add<S: Into<String>>(addr: S, amount: u64) -> Self {
-        Self {
-            addr: addr.into(),
-            op: SettleOp::Add(amount),
-        }
-    }
-    pub fn sub<S: Into<String>>(addr: S, amount: u64) -> Self {
-        Self {
-            addr: addr.into(),
-            op: SettleOp::Sub(amount),
-        }
-    }
-    pub fn eject<S: Into<String>>(addr: S) -> Self {
-        Self {
-            addr: addr.into(),
-            op: SettleOp::Eject,
-        }
-    }
-    pub fn assign<S: Into<String>>(addr: S, identifier: String) -> Self {
-        Self {
-            addr: addr.into(),
-            op: SettleOp::AssignSlot(identifier),
-        }
-    }
-}

@@ -234,7 +234,6 @@ impl GameHandler for DrawCard {
                 self.stage = GameStage::Dealing;
                 self.random_id = effect.init_random_state(rnd_spec);
                 self.players.rotate_right(1);
-                effect.allow_exit(false);
             }
 
             Event::RandomnessReady { .. } => {
@@ -264,7 +263,6 @@ impl GameHandler for DrawCard {
                         // So we dispatch an action timeout event.
                         self.stage = GameStage::Betting;
                         effect.action_timeout(self.players[0].id.clone(), ACTION_TIMEOUT)?;
-                        effect.allow_exit(true);
                     }
                     GameStage::Revealing => {
                         // Reveal and compare the hands to decide who is the winner

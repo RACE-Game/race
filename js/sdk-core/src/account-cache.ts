@@ -25,6 +25,6 @@ export function makeGameAccountCache(gameAccount: GameAccount): GameAccountCache
     tokenAddr: gameAccount.tokenAddr,
     ownerAddr: gameAccount.ownerAddr,
     transactorAddr: gameAccount.transactorAddr,
-    transactorEndpoint: gameAccount.servers[0]?.endpoint
+    transactorEndpoint: gameAccount.servers[0]?.endpoint,
   }
 }

@@ -4,10 +4,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use race_api::types::{RecipientSlotOwner, RecipientSlotType};
 use crate::checkpoint::CheckpointOnChain;
+use race_api::types::{Settle, Transfer};
+use crate::types::{EntryType, VoteType, RecipientSlotOwner, RecipientSlotType, RecipientSlot};
 
-use super::{common::{EntryType, RecipientSlot, VoteType}, Transfer, SettleWithAddr};
+use super::{EntryLock, GameAccount};
 
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -169,16 +170,26 @@ pub enum AssetChange {
     NoChange,
 }
 
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct SettleResult {
+    pub signature: String,
+    pub game_account: GameAccount,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct SettleParams {
     pub addr: String,
-    pub settles: Vec<SettleWithAddr>,
+    pub settles: Vec<Settle>,
     pub transfers: Vec<Transfer>,
     pub checkpoint: CheckpointOnChain,
     pub settle_version: u64,
     pub next_settle_version: u64,
+    pub entry_lock: Option<EntryLock>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,13 +230,4 @@ pub struct PublishGameParams {
     pub uri: String,
     pub name: String,
     pub symbol: String,
-}
-
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub enum QueryMode {
-    Confirming,
-    #[default]
-    Finalized,
 }

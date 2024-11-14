@@ -68,11 +68,10 @@ pub async fn start_reg_task(context: &ApplicationContext) {
             for addr in reg_addresses.iter() {
                 if let Ok(Some(reg)) = transport.get_registration(addr).await {
                     for game_reg in reg.games.into_iter() {
-                        let mode = race_core::types::QueryMode::Finalized;
                         if blacklist.lock().await.contains_addr(&game_reg.addr) {
                             continue;
                         }
-                        match transport.get_game_account(&game_reg.addr, mode).await {
+                        match transport.get_game_account(&game_reg.addr).await {
                             Ok(Some(game_account)) => {
                                 // Check if we are registered
                                 if !game_account.servers.iter().any(|s| s.addr.eq(&server_addr)) {

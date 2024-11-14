@@ -12,11 +12,11 @@ use jsonrpsee::server::{AllowHosts, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error as RpcError, RpcModule};
 use race_api::error::Error;
-use race_api::types::RecipientSlotShare;
+use race_core::types::RecipientSlotShare;
 use race_core::types::{
     DepositParams, EntryType, GameAccount, GameRegistration, PlayerDeposit, PlayerJoin,
     PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin,
-    SettleOp, SettleParams, TokenAccount, Vote, VoteParams, VoteType,
+    SettleParams, TokenAccount, Vote, VoteParams, VoteType,
 };
 use race_core::types::RecipientSlotInit;
 use serde::Deserialize;
@@ -218,11 +218,16 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                     let player_join = PlayerJoin {
                         addr: player_addr.clone(),
                         position,
-                        balance: amount,
                         access_version: game_account.access_version,
                         verify_key,
                     };
+                    let player_deposit = PlayerDeposit {
+                        addr: player_addr.clone(),
+                        amount,
+                        settle_version: game_account.settle_version,
+                    };
                     game_account.players.push(player_join);
+                    game_account.deposits.push(player_deposit);
                     println!(
                         "! Join game: player: {}, game: {}, amount: {}, access version: {} -> {}",
                         player_addr,
@@ -233,7 +238,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                     );
                 }
             }
-            EntryType::Ticket { slot_id, amount: ticket_amount } => {
+            EntryType::Ticket { amount: ticket_amount } => {
                 if *ticket_amount != amount {
                     return Err(custom_error(Error::InvalidAmount));
                 } else {
@@ -242,16 +247,14 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                     let player_join = PlayerJoin {
                         addr: player_addr.clone(),
                         position,
-                        balance: 0,
                         access_version: game_account.access_version,
                         verify_key,
                     };
                     game_account.players.push(player_join);
                     println!(
-                        "! Join game: player: {}, game: {}, slot_id: {}, amount: {},  access version: {} -> {}",
+                        "! Join game: player: {}, game: {}, amount: {},  access version: {} -> {}",
                         player_addr,
                         game_addr,
-                        slot_id,
                         amount,
                         game_account.access_version - 1,
                         game_account.access_version
@@ -473,21 +476,9 @@ async fn vote(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
             vote_type,
         });
 
-        // When there's enough votes, we can cancel the game, and eject all players and servers.
-        // The server account should be slashed.
+        // When there's enough votes, we can cancel the game
         if game_account.votes.len() >= DEFAULT_VOTES_THRESHOLD {
-            for p in game_account.players.iter() {
-                let Some(mut player) = context.get_player_info(&p.addr)? else {
-                    return Err(custom_error(Error::PlayerNotInGame))?;
-                };
-                player
-                    .balances
-                    .entry(game_account.token_addr.to_owned())
-                    .and_modify(|b| *b += p.balance);
-                context.update_player_info(&player)?;
-            }
-            game_account.players.clear();
-            game_account.servers.clear();
+            println!("! Enough votes on game {}!", game_account.addr);
             game_account.transactor_addr = None;
             let unlock_time = std::time::SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -662,6 +653,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         checkpoint,
         settle_version,
         next_settle_version,
+        entry_lock,
     } = params.one()?;
     println!(
         "! Handle settlements {}, settles: {:?}, transfers: {:?} ",
@@ -691,6 +683,11 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         ))));
     }
 
+    // Set entry_lock
+    if let Some(entry_lock) = entry_lock {
+        game.entry_lock = entry_lock;
+    }
+
     // Increase the `settle_version`
     game.settle_version = next_settle_version;
     println!("! Bump settle version to {}", game.settle_version);
@@ -698,63 +695,20 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
 
     // Handle settles
     for s in settles.into_iter() {
-        match s.op {
-            SettleOp::Eject => {
-                // Remove player
-                if let Some(index) = game.players.iter().position(|p| p.addr.eq(&s.addr)) {
-                    let p = game.players.remove(index);
-                    let mut player = context.get_player_info(&s.addr)?
-                        .ok_or(custom_error(Error::InvalidSettle(format!(
-                            "Invalid player address: {}",
-                            p.addr
-                        ))))?;
-                    player
-                        .balances
-                        .entry(game.token_addr.to_owned())
-                        .and_modify(|b| *b += p.balance);
-                    context.update_player_info(&player)?;
-                } else {
-                    return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
-                }
-            }
-            SettleOp::Add(amount) => {
-                let p =
-                    game.players
-                        .iter_mut()
-                        .find(|p| p.addr.eq(&s.addr))
-                        .ok_or(custom_error(Error::InvalidSettle(
-                            "Invalid player address".into(),
-                        )))?;
-                p.balance = p
-                    .balance
-                    .checked_add(amount)
-                    .ok_or(custom_error(Error::InvalidSettle("Math overflow".into())))?;
-            }
-            SettleOp::Sub(amount) => {
-                let p =
-                    game.players
-                        .iter_mut()
-                        .find(|p| p.addr.eq(&s.addr))
-                        .ok_or(custom_error(Error::InvalidSettle(
-                            "Invalid player address".into(),
-                        )))?;
-                p.balance = p
-                    .balance
-                    .checked_sub(amount)
-                    .ok_or(custom_error(Error::InvalidSettle("Math overflow".into())))?;
-            }
-            SettleOp::AssignSlot(sid) => {
-                let p =
-                    game.players
-                        .iter_mut()
-                        .find(|p| p.addr.eq(&s.addr))
-                        .ok_or(custom_error(Error::InvalidSettle(
-                            "Invalid player address".into(),
-                        )))?;
-
-
-                println!("! Assign slot {} to player {}", sid, p.addr);
-            }
+        if let Some(index) = game.players.iter().position(|p| p.access_version.eq(&s.player_id)) {
+            let p = game.players.remove(index);
+            let mut player = context.get_player_info(&p.addr)?
+                .ok_or(custom_error(Error::InvalidSettle(format!(
+                    "Invalid player address: {}",
+                    p.addr
+                ))))?;
+            player
+                .balances
+                .entry(game.token_addr.to_owned())
+                .and_modify(|b| *b += s.amount);
+            context.update_player_info(&player)?;
+        } else {
+            return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
         }
     }
 

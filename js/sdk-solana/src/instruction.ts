@@ -38,6 +38,7 @@ abstract class Serialize {
 export class CreatePlayerProfileData extends Serialize {
   @field('u8')
   instruction = Instruction.CreatePlayerProfile
+
   @field('string')
   nick: string
 
@@ -248,7 +249,7 @@ export function createGameAccount(opts: CreateGameOptions): TransactionInstructi
     maxPlayers: opts.maxPlayers,
     data: opts.data,
   })
-  console.log('CreateGameAccountParams:', params)
+  console.debug('Build CreateGameAccount instruction with:', params)
   const data = params.serialize()
   return new TransactionInstruction({
     keys: [

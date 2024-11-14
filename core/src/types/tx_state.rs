@@ -10,7 +10,6 @@ pub struct ConfirmingPlayer {
     pub id: u64,
     pub addr: String,
     pub position: u16,
-    pub balance: u64,
 }
 
 impl From<PlayerJoin> for ConfirmingPlayer {
@@ -19,7 +18,6 @@ impl From<PlayerJoin> for ConfirmingPlayer {
             id: value.access_version,
             addr: value.addr,
             position: value.position,
-            balance: value.balance,
         }
     }
 }

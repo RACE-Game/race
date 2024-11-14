@@ -18,9 +18,7 @@ import { IStorage } from './storage'
 import { ResponseHandle } from './response'
 import { Chain } from './common'
 
-export type RecipientSlotOwnerInit =
-  | { addr: string }
-  | { identifier: string }
+export type RecipientSlotOwnerInit = { addr: string } | { identifier: string }
 
 export type RecipientSlotShareInit = {
   owner: RecipientSlotOwnerInit
@@ -49,10 +47,7 @@ export type CreateGameResponse = {
   signature: string
 }
 
-export type CreateGameError =
-  | 'invalid-title'
-  | 'invalid-depsoit-range'
-  | CreateRecipientError
+export type CreateGameError = 'invalid-title' | 'invalid-depsoit-range' | CreateRecipientError
 
 export type CloseGameAccountParams = {
   gameAddr: string
@@ -127,9 +122,7 @@ export type CreateRecipientResponse = {
   signature: string
 }
 
-export type CreateRecipientError =
-  | 'duplicated-id'
-  | 'invalid-size'
+export type CreateRecipientError = 'duplicated-id' | 'invalid-size'
 
 export type RegisterGameParams = {
   gameAddr: string

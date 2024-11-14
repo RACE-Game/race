@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::error::Error;
 use race_core::{
     checkpoint::CheckpointOnChain,
-    types::{EntryType, GameAccount, VoteType},
+    types::{EntryLock, EntryType, GameAccount, VoteType},
 };
 use solana_sdk::pubkey::Pubkey;
 
@@ -10,7 +10,6 @@ use solana_sdk::pubkey::Pubkey;
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone, Debug)]
 pub struct PlayerJoin {
     pub addr: Pubkey,
-    pub balance: u64,
     pub position: u16,
     pub access_version: u64,
     pub verify_key: String,
@@ -21,9 +20,26 @@ impl From<PlayerJoin> for race_core::types::PlayerJoin {
         Self {
             addr: value.addr.to_string(),
             position: value.position,
-            balance: value.balance,
             access_version: value.access_version,
             verify_key: value.verify_key,
+        }
+    }
+}
+
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Default, BorshDeserialize, BorshSerialize, Clone, Debug)]
+pub struct PlayerDeposit {
+    pub addr: Pubkey,
+    pub amount: u64,
+    pub settle_version: u64,
+}
+
+impl From<PlayerDeposit> for race_core::types::PlayerDeposit {
+    fn from(value: PlayerDeposit) -> Self {
+        Self {
+            addr: value.addr.to_string(),
+            amount: value.amount,
+            settle_version: value.settle_version,
         }
     }
 }
@@ -83,6 +99,8 @@ pub struct GameState {
     pub max_players: u16,
     // game players
     pub players: Vec<PlayerJoin>,
+    // player deposits
+    pub deposits: Vec<PlayerDeposit>,
     // game servers (max: 10)
     pub servers: Vec<ServerJoin>,
     // length of game-specific data
@@ -99,6 +117,8 @@ pub struct GameState {
     pub recipient_addr: Pubkey,
     // the checkpoint state
     pub checkpoint: Vec<u8>,
+    // the lock for entry
+    pub entry_lock: EntryLock,
 }
 
 impl GameState {
@@ -119,6 +139,7 @@ impl GameState {
             entry_type,
             recipient_addr,
             checkpoint,
+            entry_lock,
             ..
         } = self;
 
@@ -153,6 +174,7 @@ impl GameState {
             recipient_addr: recipient_addr.to_string(),
             entry_type,
             checkpoint_on_chain: checkpoint_onchain,
+            entry_lock
         })
     }
 }

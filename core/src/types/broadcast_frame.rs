@@ -1,13 +1,10 @@
 use crate::checkpoint::CheckpointOffChain;
-use crate::types::PlayerJoin;
+use crate::types::{PlayerJoin, ServerJoin, PlayerDeposit, TxState};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::event::{Event, Message};
-use race_api::types::ServerJoin;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-
-use super::TxState;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -15,6 +12,7 @@ use super::TxState;
 pub struct BroadcastSync {
     pub new_players: Vec<PlayerJoin>,
     pub new_servers: Vec<ServerJoin>,
+    pub new_deposits: Vec<PlayerDeposit>,
     pub transactor_addr: String,
     pub access_version: u64,
 }

@@ -1,7 +1,7 @@
 use crate::{context::GameContext, encryptor::EncryptorT, types::GameStatus};
+use crate::random::RandomStatus;
 use race_api::error::Error;
 use race_api::event::Event;
-use race_api::random::RandomStatus;
 
 /// A general function for system events handling.
 pub fn general_handle_event(
@@ -64,17 +64,14 @@ pub fn general_handle_event(
 
         Event::Join { players } => {
             for p in players {
-                context.add_player(p.to_owned());
+                context.add_player(p.to_owned())
             }
+
             Ok(())
         }
 
         Event::Leave { .. } => {
-            if !context.allow_exit {
-                Err(Error::CantLeave)
-            } else {
-                Ok(())
-            }
+            Ok(())
         }
 
         Event::GameStart => {

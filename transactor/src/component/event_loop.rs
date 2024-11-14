@@ -1,13 +1,9 @@
-use race_api::effect::SubGame;
-use race_api::prelude::InitAccount;
-use sha256::digest;
-use std::time::Duration;
+use race_api::types::GameDeposit;
 
 use async_trait::async_trait;
 use race_api::error::Error;
 use race_api::event::Event;
 use race_core::context::GameContext;
-use tokio::select;
 use tracing::{error, info, warn};
 
 use crate::component::common::{Component, PipelinePorts};
@@ -15,18 +11,12 @@ use crate::component::event_bus::CloseReason;
 use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
 use crate::utils::current_timestamp;
-use race_core::types::{ClientMode, GameAccount, GameMode, GamePlayer, SubGameSpec};
+use race_core::types::{ClientMode, GameAccount, GameMode, GamePlayer};
 
 use super::ComponentEnv;
 
-fn log_execution_context(ctx: &GameContext, evt: &Event) {
-    info!("Execution context");
-    info!("===== State =====");
-    info!("{:?}", ctx.get_handler_state_raw());
-    info!("===== Event =====");
-    info!("{:?}", evt);
-    info!("=================");
-}
+mod misc;
+mod event_handler;
 
 pub struct EventLoopContext {
     handler: WrappedHandler,
@@ -42,252 +32,6 @@ pub trait WrappedGameHandler: Send {
 }
 
 pub struct EventLoop {}
-
-async fn init_state(
-    init_account: InitAccount,
-    access_version: u64,
-    settle_version: u64,
-    handler: &mut WrappedHandler,
-    mut game_context: &mut GameContext,
-    ports: &PipelinePorts,
-    _client_mode: ClientMode,
-    game_mode: GameMode,
-    env: &ComponentEnv,
-) -> Option<CloseReason> {
-    if let Err(e) = game_context.set_versions(access_version, settle_version) {
-        error!("{} Failed to apply checkpoint: {:?}, context settle version: {}, init account settle version: {}", env.log_prefix, e,
-            game_context.settle_version(), settle_version);
-        ports.send(EventFrame::Shutdown).await;
-        return Some(CloseReason::Fault(e));
-    }
-
-    let effects = match handler.init_state(&mut game_context, &init_account) {
-        Ok(effects) => effects,
-        Err(e) => {
-            error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
-            error!("{} Init Account: {:?}", env.log_prefix, init_account);
-            ports.send(EventFrame::Shutdown).await;
-            return Some(CloseReason::Fault(e));
-        }
-    };
-
-    let state_sha = digest(game_context.get_handler_state_raw());
-    info!(
-        "{} Initialize game state, access_version: {}, settle_version: {}, SHA: {}",
-        env.log_prefix, access_version, settle_version, state_sha
-    );
-
-    game_context.dispatch_safe(Event::Ready, 0);
-
-    if game_mode == GameMode::Main {
-        for sub_game in effects.launch_sub_games {
-            info!("{} Launch sub game: {}", env.log_prefix, sub_game.id);
-            let cp = game_context.checkpoint_mut();
-            let SubGame {
-                bundle_addr,
-                id,
-                mut init_account,
-            } = sub_game;
-            // Use the existing checkpoint when possible.
-            let checkpoint = cp.clone();
-            init_account.checkpoint = cp.get_data(id);
-            let settle_version = cp.get_version(id);
-
-            let ef = EventFrame::LaunchSubGame {
-                spec: Box::new(SubGameSpec {
-                    game_addr: game_context.game_addr().to_owned(),
-                    game_id: id,
-                    bundle_addr,
-                    nodes: game_context.get_nodes().into(),
-                    access_version: game_context.access_version(),
-                    settle_version,
-                    init_account,
-                }),
-                checkpoint,
-            };
-            ports.send(ef).await;
-        }
-    }
-    return None;
-}
-
-async fn handle_event(
-    handler: &mut WrappedHandler,
-    game_context: &mut GameContext,
-    event: Event,
-    ports: &PipelinePorts,
-    client_mode: ClientMode,
-    game_mode: GameMode,
-    timestamp: u64,
-    env: &ComponentEnv,
-) -> Option<CloseReason> {
-    info!(
-        "{} Handle event: {}, timestamp: {}",
-        env.log_prefix, event, timestamp
-    );
-
-    game_context.set_timestamp(timestamp);
-    let access_version = game_context.access_version();
-    let settle_version = game_context.settle_version();
-
-    match handler.handle_event(game_context, &event) {
-        Ok(effects) => {
-            let state = game_context.get_handler_state_raw().to_owned();
-            let state_sha = digest(&state);
-            // info!("{} Game state SHA: {}", env.log_prefix, state_sha);
-
-            // Broacast the event to clients
-            if client_mode == ClientMode::Transactor {
-                ports
-                    .send(EventFrame::Broadcast {
-                        event,
-                        access_version,
-                        settle_version,
-                        timestamp,
-                        state_sha: state_sha.clone(),
-                    })
-                    .await;
-            }
-
-            // Update the local client
-            ports
-                .send(EventFrame::ContextUpdated {
-                    context: Box::new(game_context.clone()),
-                })
-                .await;
-
-            // Start game
-            if client_mode == ClientMode::Transactor && effects.start_game {
-                ports
-                    .send(EventFrame::GameStart {
-                        access_version: game_context.access_version(),
-                    })
-                    .await;
-            }
-
-            // Send the settlement when there's one
-            if let Some(checkpoint) = effects.checkpoint {
-                let checkpoint_size = checkpoint.get_data(game_context.game_id()).map(|d| d.len());
-                info!(
-                    "{} Create checkpoint, settle_version: {}, size: {:?}, state_sha: {}",
-                    env.log_prefix,
-                    game_context.settle_version(),
-                    checkpoint_size,
-                    state_sha
-                );
-
-                ports
-                    .send(EventFrame::Checkpoint {
-                        access_version: game_context.access_version(),
-                        settle_version: game_context.settle_version(),
-                        previous_settle_version: settle_version,
-                        checkpoint,
-                        settles: effects.settles,
-                        transfers: effects.transfers,
-                        state_sha: state_sha.clone(),
-                    })
-                    .await;
-            }
-
-            // Launch sub games
-            if game_mode == GameMode::Main {
-                for sub_game in effects.launch_sub_games {
-                    info!("{} Launch sub game: {}", env.log_prefix, sub_game.id);
-                    let checkpoint = game_context.checkpoint().clone();
-                    let SubGame {
-                        bundle_addr,
-                        id,
-                        mut init_account,
-                    } = sub_game;
-                    // Use the existing checkpoint when possible.
-                    init_account.checkpoint = checkpoint.get_data(id);
-
-                    let ef = EventFrame::LaunchSubGame {
-                        spec: Box::new(SubGameSpec {
-                            game_addr: game_context.game_addr().to_owned(),
-                            game_id: id,
-                            bundle_addr,
-                            nodes: game_context.get_nodes().into(),
-                            access_version: game_context.access_version(),
-                            settle_version,
-                            init_account,
-                        }),
-                        checkpoint,
-                    };
-                    ports.send(ef).await;
-                }
-            }
-
-            // Emit bridge events
-            if client_mode == ClientMode::Transactor {
-                for be in effects.bridge_events {
-                    info!(
-                        "{} Send bridge event, dest: {}, checkpoint sha: {}",
-                        env.log_prefix, be.dest, state_sha
-                    );
-                    let ef = EventFrame::SendBridgeEvent {
-                        from: game_context.game_id(),
-                        dest: be.dest,
-                        event: Event::Bridge {
-                            dest: be.dest,
-                            raw: be.raw,
-                            join_players: be.join_players,
-                        },
-                        access_version: game_context.access_version(),
-                        settle_version: game_context.settle_version(),
-                        checkpoint_state: state.clone(),
-                    };
-                    ports.send(ef).await;
-                }
-            }
-        }
-        Err(e) => {
-            warn!("{} Handle event error: {}", env.log_prefix, e.to_string());
-            log_execution_context(game_context, &event);
-            match e {
-                Error::WasmExecutionError(_) | Error::WasmMemoryOverflow => {
-                    return Some(CloseReason::Fault(e))
-                }
-                _ => (),
-            }
-        }
-    }
-    None
-}
-
-/// Take the event from clients or the pending dispatched event.
-/// Transactor will retrieve events from both dispatching event and
-/// ports, while Validator will retrieve events from only ports.
-async fn read_event(
-    ports: &mut PipelinePorts,
-    game_context: &mut GameContext,
-    mode: ClientMode,
-) -> Option<EventFrame> {
-    let timestamp = current_timestamp();
-    if mode != ClientMode::Transactor {
-        ports.recv().await
-    } else if let Some(dispatch) = game_context.get_dispatch() {
-        // If already passed
-        if dispatch.timeout <= timestamp {
-            let event = dispatch.event.clone();
-            game_context.cancel_dispatch();
-            return Some(EventFrame::SendServerEvent { event, timestamp });
-        }
-        let to = tokio::time::sleep(Duration::from_millis(dispatch.timeout - timestamp));
-        select! {
-            ef = ports.recv() => {
-                ef
-            }
-            _ = to => {
-                let event = dispatch.event.clone();
-                game_context.cancel_dispatch();
-                Some(EventFrame::SendServerEvent { event, timestamp })
-            }
-        }
-    } else {
-        ports.recv().await
-    }
-}
 
 #[async_trait]
 impl Component<PipelinePorts, EventLoopContext> for EventLoop {
@@ -305,7 +49,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
         // Read games from event bus
         while let Some(event_frame) =
-            read_event(&mut ports, &mut game_context, ctx.client_mode).await
+            misc::read_event(&mut ports, &mut game_context, ctx.client_mode).await
         {
             match event_frame {
                 EventFrame::InitState {
@@ -314,7 +58,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     settle_version,
                     ..
                 } => {
-                    if let Some(close_reason) = init_state(
+                    if let Some(close_reason) = event_handler::init_state(
                         init_account,
                         access_version,
                         settle_version,
@@ -325,7 +69,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         &env,
                     )
-                    .await
+                        .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
@@ -336,7 +80,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     let timestamp = current_timestamp();
                     if ctx.client_mode == ClientMode::Transactor {
                         let event = Event::GameStart;
-                        if let Some(close_reason) = handle_event(
+                        if let Some(close_reason) = event_handler::handle_event(
                             &mut handler,
                             &mut game_context,
                             event,
@@ -346,7 +90,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             timestamp,
                             &env,
                         )
-                        .await
+                            .await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -357,6 +101,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 EventFrame::Sync {
                     new_players,
                     new_servers,
+                    new_deposits,
                     access_version,
                     transactor_addr,
                 } => {
@@ -382,43 +127,69 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         );
                     }
 
-                    let mut new_players_1: Vec<GamePlayer> = Vec::with_capacity(new_players.len());
-                    for p in new_players.iter() {
-                        new_players_1.push(p.clone().into());
-                        game_context.add_node(p.addr.clone(), p.access_version, ClientMode::Player);
+                    let mut players: Vec<GamePlayer> = Vec::with_capacity(new_players.len());
+                    let mut deposits: Vec<GameDeposit> = Vec::with_capacity(new_deposits.len());
+
+                    for player in new_players.iter() {
+                        players.push(GamePlayer::new(player.access_version, player.position));
+                        game_context.add_node(player.addr.clone(), player.access_version, ClientMode::Player);
+                    }
+
+                    for deposit in new_deposits.iter() {
+                        if let Ok(id) = game_context.addr_to_id(&deposit.addr) {
+                            deposits.push(GameDeposit::new(id, deposit.amount));
+                        } else {
+                            error!("A deposit cannot be resolved, addr: {}", deposit.addr);
+                        }
                     }
 
                     // We only generate join event in Transactor & Main mode.
-                    if ctx.client_mode == ClientMode::Transactor
-                        && ctx.game_mode == GameMode::Main
-                        && !new_players.is_empty()
-                    {
-                        let event = Event::Join {
-                            players: new_players_1,
-                        };
-                        if let Some(close_reason) = handle_event(
-                            &mut handler,
-                            &mut game_context,
-                            event,
-                            &ports,
-                            ctx.client_mode,
-                            ctx.game_mode,
-                            timestamp,
-                            &env,
-                        )
-                        .await
-                        {
-                            ports.send(EventFrame::Shutdown).await;
-                            return close_reason;
+                    if ctx.client_mode == ClientMode::Transactor && ctx.game_mode == GameMode::Main {
+                        // Send new players
+                        if !players.is_empty() {
+                            let event = Event::Join {
+                                players
+                            };
+                            if let Some(close_reason) = event_handler::handle_event(
+                                &mut handler,
+                                &mut game_context,
+                                event,
+                                &ports,
+                                ctx.client_mode,
+                                ctx.game_mode,
+                                timestamp,
+                                &env,
+                            ).await {
+                                ports.send(EventFrame::Shutdown).await;
+                                return close_reason;
+                            }
+                        }
+                        // Send new deposits
+                        if !deposits.is_empty() {
+                            let event = Event::Deposit {
+                                deposits
+                            };
+                            if let Some(close_reason) = event_handler::handle_event(
+                                &mut handler,
+                                &mut game_context,
+                                event,
+                                &ports,
+                                ctx.client_mode,
+                                ctx.game_mode,
+                                timestamp,
+                                &env,
+                            ).await {
+                                ports.send(EventFrame::Shutdown).await;
+                                return close_reason;
+                            }
                         }
                     }
                 }
                 EventFrame::PlayerLeaving { player_addr } => {
-                    info!("Current allow_exit = {}", game_context.is_allow_exit());
                     let timestamp = current_timestamp();
                     if let Ok(player_id) = game_context.addr_to_id(&player_addr) {
                         let event = Event::Leave { player_id };
-                        if let Some(close_reason) = handle_event(
+                        if let Some(close_reason) = event_handler::handle_event(
                             &mut handler,
                             &mut game_context,
                             event,
@@ -428,7 +199,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             timestamp,
                             &env,
                         )
-                        .await
+                            .await
                         {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
@@ -458,7 +229,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         game_context.checkpoint_mut().set_data(from, checkpoint_state)
                     }
 
-                    if let Some(close_reason) = handle_event(
+                    if let Some(close_reason) = event_handler::handle_event(
                         &mut handler,
                         &mut game_context,
                         event,
@@ -468,14 +239,14 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         timestamp,
                         &env,
                     )
-                    .await
+                        .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
                     }
                 }
                 EventFrame::SendEvent { event, timestamp } => {
-                    if let Some(close_reason) = handle_event(
+                    if let Some(close_reason) = event_handler::handle_event(
                         &mut handler,
                         &mut game_context,
                         event,
@@ -485,7 +256,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         timestamp,
                         &env,
                     )
-                    .await
+                        .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;
@@ -496,7 +267,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if matches!(event, Event::Shutdown) {
                         ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Complete;
-                    } else if let Some(close_reason) = handle_event(
+                    } else if let Some(close_reason) = event_handler::handle_event(
                         &mut handler,
                         &mut game_context,
                         event,
@@ -506,7 +277,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         timestamp,
                         &env,
                     )
-                    .await
+                        .await
                     {
                         ports.send(EventFrame::Shutdown).await;
                         return close_reason;

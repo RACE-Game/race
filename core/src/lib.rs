@@ -7,3 +7,4 @@ pub mod secret;
 pub mod connection;
 pub mod transport;
 pub mod storage;
+pub mod random;

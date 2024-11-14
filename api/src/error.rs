@@ -366,6 +366,9 @@ pub enum HandleError {
 
     #[error("Internal error: {message:?}")]
     InternalError { message: String },
+
+    #[error("Invalid deposit")]
+    InvalidDeposit,
 }
 
 impl From<crate::error::Error> for HandleError {

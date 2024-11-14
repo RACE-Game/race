@@ -2,7 +2,7 @@ import { PublicKey } from '@solana/web3.js'
 import * as _ from 'borsh'
 import { publicKeyExt } from './utils'
 import * as RaceCore from '@race-foundation/sdk-core'
-import { VoteType, EntryType } from '@race-foundation/sdk-core'
+import { VoteType, EntryType, EntryLock } from '@race-foundation/sdk-core'
 import { deserialize, serialize, field, option, array, struct, enums, variant } from '@race-foundation/borsh'
 
 export interface IPlayerState {
@@ -13,10 +13,15 @@ export interface IPlayerState {
 
 export interface IPlayerJoin {
   key: PublicKey
-  balance: bigint
   position: number
   accessVersion: bigint
   verifyKey: string
+}
+
+export interface IPlayerDeposit {
+  key: PublicKey
+  amount: bigint
+  settleVersion: bigint
 }
 
 export interface IServerJoin {
@@ -60,6 +65,7 @@ export interface IGameState {
   settleVersion: bigint
   maxPlayers: number
   players: IPlayerJoin[]
+  deposits: IPlayerDeposit[]
   servers: IServerJoin[]
   dataLen: number
   data: Uint8Array
@@ -68,6 +74,7 @@ export interface IGameState {
   entryType: EntryType
   recipientAddr: PublicKey
   checkpoint: Uint8Array
+  entryLock: EntryLock
 }
 
 export interface IServerState {
@@ -177,8 +184,6 @@ export class ServerJoin implements IServerJoin {
 export class PlayerJoin implements IPlayerJoin {
   @field(publicKeyExt)
   key!: PublicKey
-  @field('u64')
-  balance!: bigint
   @field('u16')
   position!: number
   @field('u64')
@@ -193,9 +198,27 @@ export class PlayerJoin implements IPlayerJoin {
     return new RaceCore.PlayerJoin({
       addr: this.key.toBase58(),
       position: this.position,
-      balance: this.balance,
       accessVersion: this.accessVersion,
       verifyKey: this.verifyKey,
+    })
+  }
+}
+
+export class PlayerDeposit implements IPlayerDeposit {
+  @field(publicKeyExt)
+  key!: PublicKey
+  @field('u64')
+  amount!: bigint
+  @field('u64')
+  settleVersion!: bigint
+  constructor(fields: IPlayerJoin) {
+    Object.assign(this, fields)
+  }
+  generalize(): RaceCore.PlayerDeposit {
+    return new RaceCore.PlayerDeposit({
+      addr: this.key.toBase58(),
+      amount: this.amount,
+      settleVersion: this.settleVersion,
     })
   }
 }
@@ -225,6 +248,8 @@ export class GameState implements IGameState {
   maxPlayers!: number
   @field(array(struct(PlayerJoin)))
   players!: PlayerJoin[]
+  @field(array(struct(PlayerDeposit)))
+  deposits!: PlayerDeposit[]
   @field(array(struct(ServerJoin)))
   servers!: ServerJoin[]
   @field('u32')
@@ -241,6 +266,8 @@ export class GameState implements IGameState {
   recipientAddr!: PublicKey
   @field('u8-array')
   checkpoint!: Uint8Array
+  @field('u8')
+  entryLock!: 0 | 1 | 2 | 3
 
   constructor(fields: IGameState) {
     Object.assign(this, fields)
@@ -266,12 +293,12 @@ export class GameState implements IGameState {
       bundleAddr: this.bundleKey.toBase58(),
       ownerAddr: this.ownerKey.toBase58(),
       tokenAddr: this.tokenKey.toBase58(),
-      deposits: [],
       transactorAddr: this.transactorKey?.toBase58(),
       accessVersion: this.accessVersion,
       settleVersion: this.settleVersion,
       maxPlayers: this.maxPlayers,
       players: this.players.map(p => p.generalize()),
+      deposits: this.deposits.map(d => d.generalize()),
       servers: this.servers.map(s => s.generalize()),
       dataLen: this.dataLen,
       data: this.data,
@@ -280,6 +307,7 @@ export class GameState implements IGameState {
       entryType: this.entryType,
       recipientAddr: this.recipientAddr.toBase58(),
       checkpointOnChain,
+      entryLock: this.entryLock
     })
   }
 }

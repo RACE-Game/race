@@ -9,7 +9,7 @@ export type Id = number
 export type Ciphertext = Uint8Array
 export type Secret = Uint8Array
 export type Digest = Uint8Array
-export type Fields<T> = Pick<T, keyof T>
+export type Fields<T> = {[K in keyof T as T[K] extends Function ? never: K]: T[K]}
 
 export type GameInfo = {
   gameAddr: string
@@ -57,4 +57,4 @@ export type LoadProfileCallbackFunction = (id: bigint, addr: string) => void
 
 export type ErrorCallbackFunction = (error: ErrorKind, arg: any) => void
 
-export type Result<T, E> = { ok: T } | { err: E}
+export type Result<T, E> = { ok: T } | { err: E }

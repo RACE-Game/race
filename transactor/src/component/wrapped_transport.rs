@@ -4,9 +4,7 @@ use futures::Stream;
 use jsonrpsee::core::async_trait;
 use race_api::error::Result;
 use race_core::types::{
-    AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams,
-    CreateRegistrationParams, DepositParams, PublishGameParams, QueryMode, RecipientAccount,
-    RecipientClaimParams, RegisterGameParams, ServeParams, UnregisterGameParams, VoteParams,
+    AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, ServeParams, SettleResult, UnregisterGameParams, VoteParams
 };
 use race_core::{
     transport::TransportT,
@@ -74,8 +72,8 @@ impl TransportT for WrappedTransport {
         self.inner.vote(params).await
     }
 
-    async fn get_game_account(&self, addr: &str, mode: QueryMode) -> Result<Option<GameAccount>> {
-        self.inner.get_game_account(addr, mode).await
+    async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
+        self.inner.get_game_account(addr).await
     }
 
     async fn deposit(&self, params: DepositParams) -> Result<()> {
@@ -100,12 +98,12 @@ impl TransportT for WrappedTransport {
 
     /// `settle_version` is used to identify the settle state,
     /// Until the `settle_version` is bumped, we keep retrying.
-    async fn settle_game(&self, params: SettleParams) -> Result<String> {
+    async fn settle_game(&self, params: SettleParams) -> Result<SettleResult> {
         let mut curr_settle_version: Option<u64> = None;
         loop {
             let game_account = self
                 .inner
-                .get_game_account(&params.addr, QueryMode::Finalized)
+                .get_game_account(&params.addr)
                 .await;
             if let Ok(Some(game_account)) = game_account {
                 // We got an old state, which has a smaller `settle_version`
@@ -123,11 +121,14 @@ impl TransportT for WrappedTransport {
                 //NOTE: The transaction may success with error result
                 // due to unstable network
                 if curr_settle_version.is_some_and(|v| v < game_account.settle_version) {
-                    return Ok("".into());
+                    return Ok(SettleResult {
+                        signature: "".into(),
+                        game_account,
+                    });
                 }
                 curr_settle_version = Some(game_account.settle_version);
                 match self.inner.settle_game(params.clone()).await {
-                    Ok(sig) => return Ok(sig),
+                    Ok(rst) => return Ok(rst),
                     Err(e) => {
                         error!(
                             "Error in settlement: {:?}, will retry in {} milliseconds",

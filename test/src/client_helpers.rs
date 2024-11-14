@@ -1,11 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use race_api::types::{GamePlayer, PlayerJoin};
-use race_client::Client;
-use race_api::error::{Result, Error};
+use race_api::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
-use race_core::types::GameAccount;
+use race_api::types::GamePlayer;
+use race_client::Client;
+use race_core::types::{GameAccount, PlayerJoin};
 use race_core::{
     connection::ConnectionT,
     context::GameContext,
@@ -103,13 +103,18 @@ impl TestClient {
         self.id = Some(id)
     }
 
-    pub(crate) fn join(&mut self, game_context: &mut GameContext, game_account: &mut GameAccount, balance: u64) -> Result<GamePlayer> {
+    pub(crate) fn join(
+        &mut self,
+        game_context: &mut GameContext,
+        game_account: &mut GameAccount,
+        balance: u64,
+    ) -> Result<GamePlayer> {
         if self.client.mode != ClientMode::Player {
             panic!("TestClient can only join with Player mode");
         }
 
         if game_account.players.len() >= game_account.max_players as _ {
-            return Err(Error::GameIsFull(game_account.max_players as _))
+            return Err(Error::GameIsFull(game_account.max_players as _));
         }
 
         game_account.access_version += 1;
@@ -117,7 +122,12 @@ impl TestClient {
 
         let mut position = 0;
         for i in 0..game_account.max_players {
-            if game_account.players.iter().find(|p| p.position == i).is_none() {
+            if game_account
+                .players
+                .iter()
+                .find(|p| p.position == i)
+                .is_none()
+            {
                 position = i;
                 break;
             }
@@ -126,16 +136,18 @@ impl TestClient {
         game_account.players.push(PlayerJoin {
             addr: self.client.addr.clone(),
             position,
-            balance,
             access_version: id,
             verify_key: "".into(),
+        });
+        game_account.deposits.push(race_core::types::PlayerDeposit {
+            addr: self.client.addr.clone(),
+            amount: balance,
+            settle_version: game_account.settle_version,
         });
         self.set_id(id);
         game_context.add_node(self.client.addr.clone(), id, ClientMode::Player);
 
-        Ok(GamePlayer {
-            id, position, balance
-        })
+        Ok(GamePlayer::new(id, position))
     }
 
     pub fn transactor<S: Into<String>>(addr: S) -> Self {
@@ -146,8 +158,12 @@ impl TestClient {
         Self::new(addr, ClientMode::Validator)
     }
 
-    pub(crate) fn handle_updated_context<T: AsGameContextRef>(&mut self, ctx: &T) -> Result<Vec<Event>> {
-        self.client.handle_updated_context(ctx.as_game_context_ref())
+    pub(crate) fn handle_updated_context<T: AsGameContextRef>(
+        &mut self,
+        ctx: &T,
+    ) -> Result<Vec<Event>> {
+        self.client
+            .handle_updated_context(ctx.as_game_context_ref())
     }
 
     pub fn mode(&self) -> ClientMode {
@@ -171,7 +187,8 @@ impl TestClient {
     }
 
     pub fn id(&self) -> u64 {
-        self.id.expect(&format!("Client {} is not in game", self.client.addr))
+        self.id
+            .expect(&format!("Client {} is not in game", self.client.addr))
     }
 
     pub fn custom_event<E: CustomEvent>(&self, custom_event: E) -> Event {

@@ -70,7 +70,7 @@ export class Handler implements IHandler {
 
   async initState(context: GameContext): Promise<EventEffects> {
     const initAccount = context.initAccount()
-    console.log('Init Account:', initAccount)
+    console.info('Initialize game state with:', initAccount)
     context.setTimestamp(0n) // Use 0 timestamp for initState
     await this.generalPreInitState(context, initAccount)
     return await this.customInitState(context, initAccount)
@@ -110,9 +110,6 @@ export class Handler implements IHandler {
     } else if (event instanceof Join) {
       event.players.forEach(p => context.addPlayer(p))
     } else if (event instanceof Leave) {
-      if (!context.allowExit) {
-        throw new Error('Leave is not allowed')
-      }
     } else if (event instanceof GameStart) {
       context.status = 'running'
       context.setNodeReady(context.accessVersion)

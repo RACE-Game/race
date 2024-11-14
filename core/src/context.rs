@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-
 use crate::checkpoint::{Checkpoint, CheckpointOffChain};
-use crate::types::{ClientMode, GameAccount, SettleWithAddr, SubGameSpec};
+use crate::random::{RandomState, RandomStatus};
+use crate::types::{ClientMode, EntryType, GameAccount, SubGameSpec};
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::decision::DecisionState;
 use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, Release, Reveal, SubGame};
@@ -9,15 +8,22 @@ use race_api::engine::GameHandler;
 use race_api::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
-use race_api::random::{RandomSpec, RandomState, RandomStatus};
+use race_api::random::RandomSpec;
 use race_api::types::{
-    Ciphertext, DecisionId, EntryType, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare,
-    SettleOp, Transfer,
+    Ciphertext, DecisionId, EntryLock, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare, Settle, Transfer
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use sha256::digest;
+use std::collections::HashMap;
 
 const OPERATION_TIMEOUT: u64 = 15_000;
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub struct ContextVersions {
+    pub access_version: u64,
+    pub settle_version: u64,
+}
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -82,6 +88,27 @@ impl DispatchEvent {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct ContextPlayer {
+    pub id: u64,
+    pub position: u16,
+}
+
+impl From<GamePlayer> for ContextPlayer {
+    fn from(value: GamePlayer) -> Self {
+        Self {
+            id: value.id(),
+            position: value.position(),
+        }
+    }
+}
+
+impl ContextPlayer {
+    pub fn new(id: u64, position: u16) -> Self {
+        Self { id, position }
+    }
+}
+
 /// The effects of an event, indicates what actions should be taken
 /// after the event handling.
 ///
@@ -91,12 +118,13 @@ impl DispatchEvent {
 /// - start_game: to start game.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct EventEffects {
-    pub settles: Vec<SettleWithAddr>,
+    pub settles: Vec<Settle>,
     pub transfers: Vec<Transfer>,
     pub checkpoint: Option<Checkpoint>,
     pub launch_sub_games: Vec<SubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
     pub start_game: bool,
+    pub entry_lock: Option<EntryLock>,
 }
 
 /// The context for public data.
@@ -107,9 +135,13 @@ pub struct EventEffects {
 ///
 /// # Access Version and Settle Version
 ///
-/// Version numbers used in synchronization with on-chain data.  Every
-/// time a settlement is made, the `settle_version` will increase by
-/// 1.
+/// The access version is used to identify the timepoint when a player
+/// joined.  If a player has an id that is less equal than current
+/// access version in checkpoint, it must be joined before the
+/// checkpoint was made. Otherwise, this is a new joined player.
+///
+/// The settle version is used to identify the transaction version. Every time
+/// A transaction is prepared, the settle version will increase by 1.
 ///
 /// # Handler State
 ///
@@ -120,10 +152,8 @@ pub struct EventEffects {
 ///
 /// Players are not always allowed to leave a game.  When leaving,
 /// the player will be ejected from the game account, and assets will
-/// be paid out.  The property `allow_exit` decides whether leaving is
-/// allowed at the moment.  If it's disabled, leaving event will be
-/// rejected.
-#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
+/// be paid out.
+#[derive(Clone, Debug)]
 pub struct GameContext {
     pub(crate) game_addr: String,
     /// The id of game, always be zero in master game.
@@ -140,8 +170,6 @@ pub struct GameContext {
     pub(crate) dispatch: Option<DispatchEvent>,
     pub(crate) handler_state: Vec<u8>,
     pub(crate) timestamp: u64,
-    /// Whether a player can leave or not
-    pub(crate) allow_exit: bool,
     /// All runtime random states, each stores the ciphers and assignments.
     pub(crate) random_states: Vec<RandomState>,
     /// All runtime decision states, each stores the answer.
@@ -155,9 +183,11 @@ pub struct GameContext {
     pub(crate) init_data: Vec<u8>,
     /// Maximum number of players.
     pub(crate) max_players: u16,
-    /// Game Players
-    pub(crate) players: Vec<GamePlayer>,
+    /// Joined players
+    pub(crate) players: Vec<ContextPlayer>,
     pub(crate) entry_type: EntryType,
+    /// The SHA256 of current handler state
+    pub(crate) state_sha: String,
 }
 
 impl GameContext {
@@ -179,10 +209,8 @@ impl GameContext {
             settle_version: *settle_version,
             access_version: *access_version,
             max_players: init_account.max_players,
-            players: init_account.players.clone(),
             init_data: init_account.data.clone(),
             entry_type: EntryType::Disabled,
-            allow_exit: false,
             checkpoint,
             ..Default::default()
         })
@@ -214,13 +242,19 @@ impl GameContext {
             .collect();
         let mut players = vec![];
 
-        let access_version = game_account.checkpoint_on_chain.as_ref().map(|c| c.access_version).unwrap_or(game_account.access_version);
+        let access_version = game_account
+            .checkpoint_on_chain
+            .as_ref()
+            .map(|c| c.access_version)
+            .unwrap_or(game_account.access_version);
 
         game_account.players.iter().for_each(|p| {
             // Only include those players joined before last checkpoint
-            if p.access_version <= access_version
-            {
-                players.push(GamePlayer::new(p.access_version, p.balance, p.position));
+            if p.access_version <= access_version {
+                players.push(ContextPlayer::new(
+                    p.access_version,
+                    p.position,
+                ));
             }
 
             nodes.push(Node::new_pending(
@@ -230,8 +264,13 @@ impl GameContext {
             ))
         });
 
-        let checkpoint = match (checkpoint_off_chain, game_account.checkpoint_on_chain.as_ref()) {
-            (Some(off_chain), Some(on_chain)) => Checkpoint::new_from_parts(off_chain, on_chain.clone()),
+        let checkpoint = match (
+            checkpoint_off_chain,
+            game_account.checkpoint_on_chain.as_ref(),
+        ) {
+            (Some(off_chain), Some(on_chain)) => {
+                Checkpoint::new_from_parts(off_chain, on_chain.clone())
+            }
             (None, None) => Checkpoint::default(),
             _ => return Err(Error::MissingCheckpoint),
         };
@@ -245,7 +284,6 @@ impl GameContext {
             nodes,
             dispatch: None,
             timestamp: 0,
-            allow_exit: false,
             random_states: vec![],
             decision_states: vec![],
             handler_state: "".into(),
@@ -255,6 +293,7 @@ impl GameContext {
             max_players: game_account.max_players,
             players,
             entry_type: game_account.entry_type.clone(),
+            state_sha: "".into(),
         })
     }
 
@@ -263,8 +302,6 @@ impl GameContext {
 
         Ok(InitAccount {
             max_players: self.max_players,
-            entry_type: self.entry_type.clone(),
-            players: self.players.clone(),
             data: self.init_data.clone(),
             checkpoint,
         })
@@ -294,16 +331,13 @@ impl GameContext {
         self.timestamp = timestamp;
     }
 
-    pub fn is_allow_exit(&self) -> bool {
-        self.allow_exit
-    }
-
     pub fn get_handler_state_raw(&self) -> &Vec<u8> {
         &self.handler_state
     }
 
     pub fn set_handler_state_raw(&mut self, state: Vec<u8>) {
         self.handler_state = state;
+        self.state_sha = digest(&self.handler_state);
     }
 
     pub fn get_handler_state<H>(&self) -> H
@@ -325,7 +359,7 @@ impl GameContext {
     where
         H: GameHandler,
     {
-        self.handler_state = borsh::to_vec(&handler).unwrap()
+        self.set_handler_state_raw(borsh::to_vec(&handler).unwrap())
     }
 
     pub fn get_nodes(&self) -> &[Node] {
@@ -540,10 +574,6 @@ impl GameContext {
         self.access_version = access_version;
     }
 
-    pub fn set_allow_exit(&mut self, allow_exit: bool) {
-        self.allow_exit = allow_exit;
-    }
-
     /// Dispatch an event if there's none
     pub fn dispatch_safe(&mut self, event: Event, timeout: u64) {
         if self.dispatch.is_none() {
@@ -749,12 +779,12 @@ impl GameContext {
             settles: Vec::new(),
             handler_state: Some(self.handler_state.clone()),
             error: None,
-            allow_exit: self.allow_exit,
             transfers: Vec::new(),
             launch_sub_games: Vec::new(),
             bridge_events: Vec::new(),
-            valid_players: self.players.clone(),
+            valid_players: self.players.iter().map(|p| p.id).collect(),
             is_init,
+            entry_lock: None,
         }
     }
 
@@ -773,7 +803,6 @@ impl GameContext {
             settles,
             transfers,
             handler_state,
-            allow_exit,
             is_checkpoint,
             launch_sub_games,
             bridge_events,
@@ -795,8 +824,6 @@ impl GameContext {
         } else if cancel_dispatch {
             self.cancel_dispatch();
         }
-
-        self.set_allow_exit(allow_exit);
 
         for Assign {
             random_id,
@@ -826,9 +853,7 @@ impl GameContext {
         }
 
         if let Some(state) = handler_state {
-            self.handler_state = state.clone();
-
-            let mut settles1 = Vec::with_capacity(settles.len());
+            self.set_handler_state_raw(state.clone());
 
             if is_init && self.checkpoint.is_empty() {
                 self.checkpoint = Checkpoint::new(
@@ -847,32 +872,8 @@ impl GameContext {
                 self.bump_settle_version()?;
                 self.checkpoint.set_data(self.game_id, state);
                 self.checkpoint.set_access_version(self.access_version);
-
-                for s in settles {
-                    match s.op {
-                        SettleOp::Eject => {
-                            self.remove_player(s.id)?;
-                        }
-                        SettleOp::Add(amount) => {
-                            self.player_add_balance(s.id, amount)?;
-                        }
-                        SettleOp::Sub(amount) => {
-                            self.player_sub_balance(s.id, amount)?;
-                        }
-                        _ => {}
-                    }
-                    let addr = self.id_to_addr(s.id)?;
-                    settles1.push(SettleWithAddr { addr, op: s.op });
-                }
                 self.set_game_status(GameStatus::Idle);
             }
-
-            settles1.sort_by_key(|s| match s.op {
-                SettleOp::Add(_) => 0,
-                SettleOp::Sub(_) => 1,
-                SettleOp::Eject => 2,
-                SettleOp::AssignSlot(_) => 3,
-            });
 
             // Append SubGame to context
             for sub_game in launch_sub_games.iter().cloned() {
@@ -880,12 +881,13 @@ impl GameContext {
             }
 
             return Ok(EventEffects {
-                settles: settles1,
+                settles,
                 transfers,
                 checkpoint: is_checkpoint.then(|| self.checkpoint.clone()),
                 launch_sub_games,
                 bridge_events,
                 start_game,
+                entry_lock: effect.entry_lock,
             });
         } else if let Some(e) = error {
             return Err(Error::HandleError(e));
@@ -924,42 +926,12 @@ impl GameContext {
         self.max_players
     }
 
-    pub fn players(&self) -> &[GamePlayer] {
+    pub fn players(&self) -> &[ContextPlayer] {
         &self.players
     }
 
-    pub fn add_player(&mut self, player: GamePlayer) {
-        self.players.push(player)
-    }
-
-    pub fn player_sub_balance(&mut self, player_id: u64, amount: u64) -> Result<()> {
-        let p = self
-            .players
-            .iter_mut()
-            .find(|p| p.id == player_id)
-            .ok_or(Error::PlayerNotInGame)?;
-
-        p.balance = p
-            .balance
-            .checked_sub(amount)
-            .ok_or(Error::SubBalanceError(player_id, p.balance, amount))?;
-
-        Ok(())
-    }
-
-    pub fn player_add_balance(&mut self, player_id: u64, amount: u64) -> Result<()> {
-        let p = self
-            .players
-            .iter_mut()
-            .find(|p| p.id == player_id)
-            .ok_or(Error::PlayerNotInGame)?;
-
-        p.balance = p
-            .balance
-            .checked_add(amount)
-            .ok_or(Error::AddBalanceError(player_id, p.balance, amount))?;
-
-        Ok(())
+    pub fn add_player<T: Into<ContextPlayer>>(&mut self, player: T) {
+        self.players.push(player.into())
     }
 
     pub fn remove_player(&mut self, player_id: u64) -> Result<()> {
@@ -973,6 +945,17 @@ impl GameContext {
 
     pub fn entry_type(&self) -> EntryType {
         self.entry_type.clone()
+    }
+
+    pub fn state_sha(&self) -> String {
+        self.state_sha.to_string()
+    }
+
+    pub fn versions(&self) -> ContextVersions {
+        ContextVersions {
+            access_version: self.access_version,
+            settle_version: self.settle_version,
+        }
     }
 }
 
@@ -988,7 +971,6 @@ impl Default for GameContext {
             dispatch: None,
             handler_state: "".into(),
             timestamp: 0,
-            allow_exit: false,
             random_states: Vec::new(),
             decision_states: Vec::new(),
             checkpoint: Checkpoint::default(),
@@ -997,6 +979,7 @@ impl Default for GameContext {
             max_players: 0,
             players: Vec::new(),
             entry_type: EntryType::Disabled,
+            state_sha: "".into(),
         }
     }
 }

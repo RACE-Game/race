@@ -283,14 +283,12 @@ export class BaseClient {
         `An error occurred in event loop: ${err}, game: ${this.__gameAddr}, local: ${sha}, remote: ${stateSha}`
       )
     } else {
-      console.log('State SHA validation passed:', stateSha)
+      console.info('State SHA validation passed:', stateSha)
     }
   }
 
   async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string) {
     console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + timestamp)
-    // console.log('Event: ', event);
-    // console.debug('Game Context before:', clone(this.__gameContext));
     let state: Uint8Array | undefined
     let err: ErrorKind | undefined
     let effects: EventEffects | undefined
@@ -298,6 +296,7 @@ export class BaseClient {
     try {
       // For log group
       try {
+        console.info('Event:', event)
         this.__gameContext.setTimestamp(timestamp)
         effects = await this.__handler.handleEvent(this.__gameContext, event)
         state = this.__gameContext.handlerState
@@ -405,7 +404,7 @@ export class BaseClient {
       if (this.__onConnectionState !== undefined) {
         this.__onConnectionState('disconnected')
       }
-      console.log('Disconnected, try reset state and context')
+      console.warn('Disconnected, try reset state and context')
       await this.__startSubscribe()
     } else if (state === 'connected') {
       if (this.__onConnectionState !== undefined) {

@@ -23,7 +23,7 @@ import {
 } from '../src/events';
 import { assert } from 'chai';
 import { deserialize, serialize, field } from '@race-foundation/borsh';
-import { GamePlayer } from '../src/init-account';
+import { ContextPlayer } from '../src/init-account';
 
 class TestCustom implements ICustomEvent {
   @field('u32')
@@ -119,7 +119,7 @@ describe('Serialization', () => {
   it('Join', () => {
     let e = new Join({
       players: [
-        new GamePlayer({
+        new ContextPlayer({
           id: 1n,
           position: 1,
           balance: 100n,

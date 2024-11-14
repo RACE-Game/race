@@ -1,11 +1,8 @@
-use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::{
-    init_account::InitAccount,
-    event::{Event, Message}
+    event::{Event, Message}, init_account::InitAccount, types::{EntryLock, Settle}
 };
 use race_core::{
-    context::GameContext,
-    types::{PlayerJoin, ServerJoin, SettleWithAddr, SubGameSpec, Transfer, TxState, VoteType}, checkpoint::Checkpoint,
+    checkpoint::Checkpoint, context::GameContext, types::{PlayerDeposit, PlayerJoin, ServerJoin, SubGameSpec, Transfer, TxState, VoteType}
 };
 
 #[derive(Debug, Clone)]
@@ -14,8 +11,9 @@ pub enum SignalFrame {
     LaunchSubGame { spec: SubGameSpec, checkpoint: Checkpoint },
 }
 
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone)]
 pub enum EventFrame {
+    #[allow(unused)]
     Empty,
     GameStart {
         access_version: u64,
@@ -23,15 +21,12 @@ pub enum EventFrame {
     Sync {
         new_players: Vec<PlayerJoin>,
         new_servers: Vec<ServerJoin>,
+        new_deposits: Vec<PlayerDeposit>,
         transactor_addr: String,
         access_version: u64,
     },
     TxState {
         tx_state: TxState,
-    },
-    PlayerDeposited {
-        player_addr: String,
-        amount: u64,
     },
     PlayerLeaving {
         player_addr: String,
@@ -54,13 +49,14 @@ pub enum EventFrame {
         timestamp: u64,
     },
     Checkpoint {
-        settles: Vec<SettleWithAddr>,
+        settles: Vec<Settle>,
         transfers: Vec<Transfer>,
         checkpoint: Checkpoint,
         access_version: u64,
         settle_version: u64,
         previous_settle_version: u64,
         state_sha: String,
+        entry_lock: Option<EntryLock>,
     },
     Broadcast {
         event: Event,
@@ -136,7 +132,6 @@ impl std::fmt::Display for EventFrame {
                 // access_version,
                 // confirm_success,
             ),
-            EventFrame::PlayerDeposited { .. } => write!(f, "PlayerDeposited"),
             EventFrame::PlayerLeaving { .. } => write!(f, "PlayerLeaving"),
             EventFrame::SendEvent { event, .. } => write!(f, "SendEvent: {}", event),
             EventFrame::SendServerEvent { event, .. } => write!(f, "SendServerEvent: {}", event),

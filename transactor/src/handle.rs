@@ -12,7 +12,7 @@ use race_api::error::{Error, Result};
 use race_core::checkpoint::Checkpoint;
 use race_core::storage::StorageT;
 use race_core::transport::TransportT;
-use race_core::types::{GetCheckpointParams, QueryMode, ServerAccount, SubGameSpec};
+use race_core::types::{GetCheckpointParams, ServerAccount, SubGameSpec};
 use race_encryptor::Encryptor;
 use subgame::SubGameHandle;
 use tokio::sync::mpsc;
@@ -47,9 +47,8 @@ impl Handle {
         debug_mode: bool,
     ) -> Result<Self> {
         info!("Try create game handle for {}", addr);
-        let mode = QueryMode::Finalized;
         let game_account = transport
-            .get_game_account(addr, mode)
+            .get_game_account(addr)
             .await?
             .ok_or(Error::GameAccountNotFound)?;
 

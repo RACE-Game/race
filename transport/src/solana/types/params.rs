@@ -1,9 +1,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use race_api::types::EntryLock;
 use race_core::types::{
     AssignRecipientParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, EntryType, JoinParams, PublishGameParams,
     RecipientSlotShareInit, RecipientSlotType,
-    RegisterServerParams, ServeParams, SettleOp, Transfer, VoteParams,
+    RegisterServerParams, ServeParams, Transfer, VoteParams,
     VoteType,
 };
 use super::common::RecipientSlotOwner;
@@ -134,8 +135,8 @@ pub enum AssetChange {
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct IxSettle {
-    pub position: u16,
-    pub op: SettleOp,
+    pub access_version: u64,
+    pub amount: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -145,6 +146,7 @@ pub struct IxSettleParams {
     pub checkpoint: Vec<u8>,
     pub settle_version: u64,
     pub next_settle_version: u64,
+    pub entry_lock: Option<EntryLock>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]

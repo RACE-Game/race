@@ -16,12 +16,7 @@ use race_api::error::{Error, Result};
 use race_core::{
     transport::TransportT,
     types::{
-        AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams,
-        CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
-        GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams,
-        QueryMode, RecipientAccount, RecipientClaimParams, RegisterGameParams,
-        RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount, SettleOp,
-        SettleParams, Transfer, UnregisterGameParams, VoteParams,
+        AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams
     },
 };
 
@@ -66,15 +61,6 @@ fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
     let keypair = solana_sdk::signature::read_keypair_file(path)
         .map_err(|e| TransportError::InvalidKeyfile(e.to_string()))?;
     Ok(keypair)
-}
-
-fn player_addr_to_postition(game_state: &GameState, addr: &Pubkey) -> Result<u16> {
-    Ok(game_state
-        .players
-        .iter()
-        .find(|p| p.addr.eq(addr))
-        .ok_or(TransportError::InvalidSettleAddress(addr.to_string()))?
-        .position)
 }
 
 pub struct SolanaTransport {
@@ -171,10 +157,9 @@ impl TransportT for SolanaTransport {
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
-        let mode = QueryMode::Confirming;
         let game_account_pubkey = Self::parse_pubkey(&params.addr)?;
         let game_state = self
-            .internal_get_game_state(&game_account_pubkey, mode)
+            .internal_get_game_state(&game_account_pubkey)
             .await?;
         let stake_account_pubkey = game_state.stake_account;
 
@@ -266,9 +251,8 @@ impl TransportT for SolanaTransport {
                 .map_err(|_| TransportError::AddressCreationFailed)?;
 
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
-        let mode = QueryMode::Confirming;
         let game_state = self
-            .internal_get_game_state(&game_account_pubkey, mode)
+            .internal_get_game_state(&game_account_pubkey)
             .await?;
 
         let mint_pubkey = game_state.token_mint;
@@ -341,7 +325,7 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new(pda, false),
                 AccountMeta::new_readonly(spl_token::id(), false),
                 AccountMeta::new_readonly(system_program::id(), false),
-        ],
+            ],
         );
         ixs.push(join_game_ix);
 
@@ -562,22 +546,22 @@ impl TransportT for SolanaTransport {
         Ok(mint_pubkey.to_string())
     }
 
-    async fn settle_game(&self, params: SettleParams) -> Result<String> {
+    async fn settle_game(&self, params: SettleParams) -> Result<SettleResult> {
         let SettleParams {
             addr,
-            mut settles,
+            settles,
             transfers,
             checkpoint,
             settle_version,
             next_settle_version,
+            entry_lock,
         } = params;
 
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
         let game_account_pubkey = Self::parse_pubkey(&addr)?;
-        let mode = QueryMode::Finalized;
         let game_state = self
-            .internal_get_game_state(&game_account_pubkey, mode)
+            .internal_get_game_state(&game_account_pubkey)
             .await?;
 
         if game_state.settle_version != params.settle_version {
@@ -595,15 +579,6 @@ impl TransportT for SolanaTransport {
             .internal_get_recipient_state(&recipient_account_pubkey)
             .await?;
 
-        // The settles are required to be in correct order: add < sub < eject.
-        // And the sum of settles must be zero.
-        settles.sort_by_key(|s| match s.op {
-            SettleOp::Eject => 2,
-            SettleOp::Add(_) => 0,
-            SettleOp::Sub(_) => 1,
-            SettleOp::AssignSlot(_) => 3,
-        });
-
         let mut accounts = vec![
             AccountMeta::new_readonly(payer_pubkey, true),
             AccountMeta::new(Pubkey::from_str(&addr).unwrap(), false),
@@ -619,30 +594,18 @@ impl TransportT for SolanaTransport {
             vec![Pubkey::from_str(&addr).unwrap(), game_state.stake_account];
 
         for settle in settles.iter() {
-            match &settle.op {
-                &SettleOp::Eject => {
-                    let addr = parse_pubkey(&settle.addr)?;
-                    let ata = get_associated_token_address(&addr, &game_state.token_mint);
-                    accounts.push(AccountMeta::new(ata, false));
-                    calc_cu_prize_addrs.push(ata);
-                    let position = player_addr_to_postition(&game_state, &addr)?;
-                    ix_settles.push(IxSettle {
-                        position,
-                        op: settle.op.clone(),
-                    });
-                }
-                &SettleOp::Add(_) | &SettleOp::Sub(_) => {
-                    let addr = parse_pubkey(&settle.addr)?;
-                    let position = player_addr_to_postition(&game_state, &addr)?;
-                    ix_settles.push(IxSettle {
-                        position,
-                        op: settle.op.clone(),
-                    });
-                }
-                &SettleOp::AssignSlot(_) => {
-                    unimplemented!()
-                }
-            }
+            let Some(player) = game_state.players.iter().find(|p| p.access_version == settle.player_id) else {
+                return Err(Error::InvalidSettle(format!("Player id {} in settle is invalid", settle.player_id)));
+            };
+
+            let ata = get_associated_token_address(&player.addr, &game_state.token_mint);
+
+            calc_cu_prize_addrs.push(ata);
+
+            ix_settles.push(IxSettle {
+                access_version: settle.player_id,
+                amount: settle.amount,
+            });
         }
 
         for Transfer { slot_id, .. } in transfers.iter() {
@@ -668,6 +631,7 @@ impl TransportT for SolanaTransport {
                 checkpoint: borsh::to_vec(&checkpoint)?,
                 settle_version,
                 next_settle_version,
+                entry_lock,
             },
         };
 
@@ -685,7 +649,13 @@ impl TransportT for SolanaTransport {
         let blockhash = self.get_blockhash()?;
         tx.sign(&[payer], blockhash);
         let sig = self.send_transaction(tx)?;
-        Ok(sig.to_string())
+
+        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
+
+        Ok(SettleResult {
+            signature: sig.to_string(),
+            game_account: game_state.into_account(addr)?,
+        })
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
@@ -985,10 +955,10 @@ impl TransportT for SolanaTransport {
         }))
     }
 
-    async fn get_game_account(&self, addr: &str, mode: QueryMode) -> Result<Option<GameAccount>> {
+    async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
         let game_account_pubkey = Self::parse_pubkey(addr)?;
         let game_state = self
-            .internal_get_game_state(&game_account_pubkey, mode)
+            .internal_get_game_state(&game_account_pubkey)
             .await?;
         Ok(Some(game_state.into_account(addr)?))
     }
@@ -1298,15 +1268,10 @@ impl SolanaTransport {
     async fn internal_get_game_state(
         &self,
         game_account_pubkey: &Pubkey,
-        mode: QueryMode,
     ) -> TransportResult<GameState> {
-        let commitment = match mode {
-            QueryMode::Confirming => CommitmentConfig::confirmed(),
-            QueryMode::Finalized => CommitmentConfig::finalized(),
-        };
         let game_account = self
             .client
-            .get_account_with_commitment(game_account_pubkey, commitment)
+            .get_account_with_commitment(game_account_pubkey, CommitmentConfig::finalized())
             .map_err(|e| TransportError::AccountNotFound(e.to_string()))?
             .value
             .ok_or(TransportError::AccountNotFound("".to_string()))?;
@@ -1486,9 +1451,8 @@ mod tests {
     async fn test_game_create_get_close() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let addr = create_game(&transport).await?;
-        let mode = QueryMode::Confirming;
         let game_account = transport
-            .get_game_account(&addr, mode)
+            .get_game_account(&addr, CommitmentConfig::Finalized)
             .await?
             .expect("Failed to query");
         assert_eq!(game_account.access_version, 0);
@@ -1499,7 +1463,7 @@ mod tests {
             .close_game_account(CloseGameAccountParams { addr: addr.clone() })
             .await
             .expect("Failed to close");
-        assert_eq!(None, transport.get_game_account(&addr, mode).await?);
+        assert_eq!(None, transport.get_game_account(&addr, CommitmentConfig::Finalized).await?);
         Ok(())
     }
 
@@ -1578,7 +1542,6 @@ mod tests {
     async fn test_serve_game() -> anyhow::Result<()> {
         let transport = get_transport()?;
         let game_addr = create_game(&transport).await?;
-        let mode = QueryMode::Confirming;
         let _server_addr = transport
             .serve(ServeParams {
                 game_addr: game_addr.clone(),
@@ -1586,7 +1549,7 @@ mod tests {
             })
             .await?;
         let game = transport
-            .get_game_account(&game_addr, mode)
+            .get_game_account(&game_addr)
             .await?
             .expect("Failed to get game");
         assert_eq!(game.servers.len(), 1);
@@ -1614,9 +1577,8 @@ mod tests {
             })
             .await?;
 
-        let mode = QueryMode::Confirming;
         let game = transport
-            .get_game_account(&game_addr, mode)
+            .get_game_account(&game_addr)
             .await?
             .expect("Failed to get game");
         assert_eq!(game.players.len(), 1);

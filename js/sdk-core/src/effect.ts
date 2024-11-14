@@ -1,69 +1,20 @@
 import { RandomSpec } from './random-state'
 import { HandleError } from './error'
 import { GameContext } from './game-context'
-import { enums, field, map, option, struct, variant, array } from '@race-foundation/borsh'
+import { enums, field, map, option, struct, array } from '@race-foundation/borsh'
 import { Fields, Id } from './types'
-import { GamePlayer, InitAccount } from './init-account'
-
-export abstract class SettleOp {}
-
-@variant(0)
-export class SettleAdd extends SettleOp {
-  @field('u64')
-  amount!: bigint
-  constructor(fields: Fields<SettleAdd>) {
-    super()
-    Object.assign(this, fields)
-  }
-}
-
-@variant(1)
-export class SettleSub extends SettleOp {
-  @field('u64')
-  amount!: bigint
-  constructor(fields: Fields<SettleAdd>) {
-    super()
-    Object.assign(this, fields)
-  }
-}
-
-@variant(2)
-export class SettleEject extends SettleOp {
-  constructor(_: any) {
-    super()
-  }
-}
-
-@variant(3)
-export class SettleAssignSlot extends SettleOp {
-  @field('string')
-  identifier!: string
-  constructor(fields: Fields<SettleAdd>) {
-    super()
-    Object.assign(this, fields)
-  }
-}
+import { InitAccount } from './init-account'
+import { ContextPlayer } from './game-context'
+import { EntryLock } from './accounts'
 
 export class Settle {
   @field('u64')
   id: bigint
-  @field(enums(SettleOp))
-  op: SettleOp
-  constructor(fields: { id: bigint; op: SettleOp }) {
+  @field('u64')
+  amount: bigint
+  constructor(fields: Fields<Settle>) {
     this.id = fields.id
-    this.op = fields.op
-  }
-  sortKey(): number {
-    if (this.op instanceof SettleAdd) {
-      return 0
-    } else if (this.op instanceof SettleSub) {
-      return 1
-    } else {
-      return 2
-    }
-  }
-  compare(s: Settle): number {
-    return this.sortKey() - s.sortKey()
+    this.amount = fields.amount
   }
 }
 
@@ -142,8 +93,8 @@ export class EmitBridgeEvent {
   dest!: number
   @field('u8-array')
   raw!: Uint8Array
-  @field(array(struct(GamePlayer)))
-  joinPlayers!: GamePlayer[]
+  @field(array(struct(ContextPlayer)))
+  joinPlayers!: ContextPlayer[]
 
   constructor(fields: Fields<EmitBridgeEvent>) {
     Object.assign(this, fields)
@@ -153,81 +104,56 @@ export class EmitBridgeEvent {
 export class Effect {
   @field(option(struct(ActionTimeout)))
   actionTimeout: ActionTimeout | undefined
-
   @field(option('u64'))
   waitTimeout: bigint | undefined
-
   @field('bool')
   startGame!: boolean
-
   @field('bool')
   stopGame!: boolean
-
   @field('bool')
   cancelDispatch!: boolean
-
   @field('u64')
   timestamp!: bigint
-
   @field('usize')
   currRandomId!: number
-
   @field('usize')
   currDecisionId!: number
-
   @field('u16')
   nodesCount!: number
-
   @field(array(struct(Ask)))
   asks!: Ask[]
-
   @field(array(struct(Assign)))
   assigns!: Assign[]
-
   @field(array(struct(Reveal)))
   reveals!: Reveal[]
-
   @field(array(struct(Release)))
   releases!: Release[]
-
   @field(array(enums(RandomSpec)))
   initRandomStates!: RandomSpec[]
-
   @field(map('usize', map('usize', 'string')))
   revealed!: Map<number, Map<number, string>>
-
   @field(map('usize', 'string'))
   answered!: Map<number, string>
-
   @field('bool')
   isCheckpoint!: boolean
-
   @field(array(struct(Settle)))
   settles!: Settle[]
-
   @field(option('u8-array'))
   handlerState!: Uint8Array | undefined
-
   @field(option(enums(HandleError)))
   error: HandleError | undefined
-
-  @field('bool')
-  allowExit!: boolean
-
   @field(array(struct(Transfer)))
   transfers!: Transfer[]
-
   @field(array(struct(SubGame)))
   launchSubGames!: SubGame[]
-
   @field(array(struct(EmitBridgeEvent)))
   bridgeEvents!: EmitBridgeEvent[]
-
-  @field(array(struct(GamePlayer)))
-  validPlayers!: GamePlayer[]
-
+  @field(array('u64'))
+  validPlayers!: bigint[]
   @field('bool')
   isInit!: boolean
+  @field(option('u8'))
+  entryLock!: EntryLock | undefined
 
   constructor(fields: Fields<Effect>) {
     Object.assign(this, fields)
@@ -260,11 +186,11 @@ export class Effect {
     const settles: Settle[] = []
     const handlerState = context.handlerState
     const error = undefined
-    const allowExit = context.allowExit
     const transfers: Transfer[] = []
     const launchSubGames: SubGame[] = []
     const bridgeEvents: EmitBridgeEvent[] = []
-    const validPlayers = context.players
+    const validPlayers = context.players.map(p => p.id)
+    const entryLock = undefined
     return new Effect({
       actionTimeout,
       waitTimeout,
@@ -286,12 +212,12 @@ export class Effect {
       settles,
       handlerState,
       error,
-      allowExit,
       transfers,
       launchSubGames,
       bridgeEvents,
       validPlayers,
       isInit,
+      entryLock,
     })
   }
 }

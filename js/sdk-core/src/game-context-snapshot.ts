@@ -15,7 +15,6 @@ export class GameContextSnapshot {
   readonly accessVersion: bigint
   readonly settleVersion: bigint
   readonly status: GameStatus
-  readonly allowExit: boolean
   readonly nodes: NodeSnapshot[]
 
   constructor(context: GameContext) {
@@ -23,7 +22,6 @@ export class GameContextSnapshot {
     this.accessVersion = context.accessVersion
     this.settleVersion = context.settleVersion
     this.status = context.status
-    this.allowExit = context.allowExit
     this.nodes = context.nodes.map((n: INode) => new NodeSnapshot(n))
   }
 }

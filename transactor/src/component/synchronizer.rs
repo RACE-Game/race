@@ -13,7 +13,7 @@ use tokio_stream::StreamExt;
 use crate::frame::EventFrame;
 use race_core::{
     transport::TransportT,
-    types::{GameAccount, PlayerJoin, QueryMode, ServerJoin},
+    types::{GameAccount, PlayerDeposit, PlayerJoin, ServerJoin},
 };
 use tracing::{info, warn};
 
@@ -28,8 +28,6 @@ pub struct GameSynchronizerContext {
     transport: Arc<dyn TransportT>,
     access_version: u64,
     game_addr: String,
-    #[allow(unused)]
-    mode: QueryMode,
 }
 
 const MAX_RETRIES: u8 = 10;
@@ -49,7 +47,6 @@ impl GameSynchronizer {
                 transport,
                 access_version: game_account.access_version,
                 game_addr: game_account.addr.clone(),
-                mode: QueryMode::Confirming,
             },
         )
     }
@@ -88,7 +85,9 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                 let GameAccount {
                     players,
                     servers,
+                    deposits,
                     access_version,
+                    settle_version,
                     transactor_addr,
                     ..
                 } = game_account;
@@ -113,10 +112,21 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
                     .filter(|s| s.access_version > prev_access_version)
                     .collect();
 
+                let mut new_deposits: Vec<PlayerDeposit> = vec![];
+
+                for p in new_players.iter(){
+                    for d in deposits.iter() {
+                        if d.settle_version == settle_version && d.addr == p.addr {
+                            new_deposits.push(PlayerDeposit::new(p.addr.clone(), d.amount, d.settle_version));
+                        }
+                    }
+                }
+
                 if !new_players.is_empty() || !new_servers.is_empty() {
                     let frame = EventFrame::Sync {
                         new_players,
                         new_servers,
+                        new_deposits,
                         // TODO: Handle transactor addr change
                         transactor_addr: transactor_addr.unwrap().clone(),
                         access_version,

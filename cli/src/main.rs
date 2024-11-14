@@ -4,7 +4,7 @@ use race_core::{
     transport::TransportT,
     types::{
         CloseGameAccountParams, CreateGameAccountParams, CreateRecipientParams,
-        CreateRegistrationParams, EntryType, PublishGameParams, QueryMode, RecipientClaimParams,
+        CreateRegistrationParams, EntryType, PublishGameParams, RecipientClaimParams,
         RecipientSlotInit, RegisterGameParams, ServerAccount, UnregisterGameParams,
     },
 };
@@ -272,9 +272,8 @@ fn print_hex(data: Vec<u8>) {
 }
 
 async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
-    let mode = QueryMode::default();
     match transport
-        .get_game_account(addr, mode)
+        .get_game_account(addr)
         .await
         .expect("Network error")
     {
@@ -292,8 +291,8 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             println!("Players:");
             for p in game_account.players.iter() {
                 println!(
-                    "Player[{}] position: {}, amount: {}, @{}",
-                    p.addr, p.position, p.balance, p.access_version
+                    "Player[{}] position: {}, @{}",
+                    p.addr, p.position, p.access_version
                 );
             }
             println!("Deposits:");

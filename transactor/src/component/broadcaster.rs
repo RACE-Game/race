@@ -264,12 +264,14 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                 EventFrame::Sync {
                     new_servers,
                     new_players,
+                    new_deposits,
                     access_version,
                     transactor_addr,
                 } => {
                     let sync = BroadcastSync {
                         new_players,
                         new_servers,
+                        new_deposits,
                         access_version,
                         transactor_addr,
                     };

@@ -96,7 +96,7 @@ export class ResponseHandle<T = void, E = void> {
 
   update(status: Response<T, E>) {
     if (this.isDone()) {
-      return;
+      return
     }
     if (this.resolve !== undefined) {
       this.resolve(status)

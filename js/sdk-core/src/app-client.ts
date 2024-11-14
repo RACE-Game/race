@@ -116,10 +116,10 @@ export class AppClient extends BaseClient {
     console.group(`Initialize AppClient, gameAddr = ${gameAddr}`)
     try {
       const playerAddr = wallet.walletAddr
-      console.log(`PlayerAddr = ${playerAddr}`)
+      console.info(`Player address: ${playerAddr}`)
       const encryptor = await Encryptor.create(playerAddr, storage)
       const gameAccount = await transport.getGameAccount(gameAddr)
-      console.log('Game Account:', gameAccount)
+      console.info('Game Account:', gameAccount)
       if (gameAccount === undefined) {
         throw SdkError.gameAccountNotFound(gameAddr)
       }
@@ -132,14 +132,14 @@ export class AppClient extends BaseClient {
       if (transactorAddr === undefined) {
         throw SdkError.gameNotServed(gameAddr)
       }
-      console.log('Transactor address:', transactorAddr)
+      console.info(`Transactor address: ${transactorAddr}`)
       const transactorAccount = await transport.getServerAccount(transactorAddr)
       if (transactorAccount === undefined) {
         throw SdkError.transactorAccountNotFound(transactorAddr)
       }
       const decryptionCache = new DecryptionCache()
       const endpoint = transactorAccount.endpoint
-      console.log('Transactor endpoint:', endpoint)
+      console.info(`Transactor endpoint: ${endpoint}`)
       const connection = Connection.initialize(gameAddr, playerAddr, endpoint, encryptor)
       const client = new Client(playerAddr, encryptor, connection)
       const handler = await Handler.initialize(gameBundle, encryptor, client, decryptionCache)
@@ -156,8 +156,8 @@ export class AppClient extends BaseClient {
         }
       }
 
-      console.log('Get checkpoint onchain from game account:', gameAccount.checkpointOnChain)
-      console.log('Get checkpoint offchain from transactor:', checkpointOffChain)
+      console.info('The onchain part of checkpoint:', gameAccount.checkpointOnChain)
+      console.info('The offchain part of checkpoint:', checkpointOffChain)
       let checkpoint
       if (checkpointOffChain !== undefined && gameAccount.checkpointOnChain !== undefined) {
         checkpoint = Checkpoint.fromParts(checkpointOffChain, gameAccount.checkpointOnChain)
@@ -166,7 +166,7 @@ export class AppClient extends BaseClient {
       }
 
       const gameContext = new GameContext(gameAccount, checkpoint)
-      console.log('Game Context:', clone(gameContext))
+      console.info('Game Context:', clone(gameContext))
 
       let token: IToken | undefined = await transport.getToken(gameAccount.tokenAddr)
       if (token === undefined) {
@@ -220,7 +220,7 @@ export class AppClient extends BaseClient {
       const addr = `${this.__gameAddr}:${gameId.toString()}`
 
       console.group(`SubClient initialization, id: ${gameId}`)
-      console.log('Parent Game Context:', clone(this.__gameContext))
+      console.info('Parent Game Context:', clone(this.__gameContext))
 
       // Query the on-chain game account to get the latest checkpoint.
       const gameAccount = await this.__getGameAccount()
@@ -233,7 +233,7 @@ export class AppClient extends BaseClient {
         console.warn('Game context:', this.__gameContext)
         throw SdkError.invalidSubId(gameId)
       } else {
-        console.log('Sub Game:', subGame)
+        console.info('Sub Game:', subGame)
       }
 
       const bundleAddr = subGame.bundleAddr
@@ -256,7 +256,7 @@ export class AppClient extends BaseClient {
       }
 
       const gameContext = this.__gameContext.subContext(subGame)
-      console.log("SubGame's GameContext:", clone(gameContext))
+      console.info("SubGame's GameContext:", clone(gameContext))
 
       return new SubClient({
         gameAddr: addr,
@@ -386,14 +386,14 @@ export async function getGameBundle(
   let gameBundle: GameBundle | undefined
   if (storage !== undefined) {
     gameBundle = getTtlCache(storage, bundleCacheKey)
-    console.log('Use game bundle from cache:', gameBundle)
+    console.debug('Use game bundle from cache:', gameBundle)
     if (gameBundle !== undefined) {
       Object.assign(gameBundle, { data: Uint8Array.of() })
     }
   }
   if (gameBundle === undefined) {
     gameBundle = await transport.getGameBundle(bundleAddr)
-    console.log('Game bundle:', gameBundle)
+    console.debug('Game bundle:', gameBundle)
     if (gameBundle !== undefined && storage !== undefined && gameBundle.data.length === 0) {
       setTtlCache(storage, bundleCacheKey, gameBundle, BUNDLE_CACHE_TTL)
     }

@@ -84,7 +84,6 @@ impl GameHandler for Counter {
     fn init_state(context: &mut GameContext, init_account: GameAccount) -> Result<Self> {
         let data = init_account.data;
         let account_data = CounterAccountData::try_from_slice(&data)?;
-        context.set_allow_exit(true);
         Ok(Self {
             value: account_data.init_value,
             poker_random_id: 0,

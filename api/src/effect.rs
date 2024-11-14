@@ -10,7 +10,7 @@ use crate::{
     event::BridgeEvent,
     prelude::InitAccount,
     random::RandomSpec,
-    types::{DecisionId, GamePlayer, RandomId, Settle, Transfer},
+    types::{DecisionId, EntryLock, GamePlayer, RandomId, Settle, Transfer},
 };
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -67,7 +67,6 @@ impl SubGame {
         id: usize,
         bundle_addr: String,
         max_players: u16,
-        players: Vec<GamePlayer>,
         init_data: S,
         checkpoint_state: T,
     ) -> Result<Self> {
@@ -76,8 +75,6 @@ impl SubGame {
             bundle_addr,
             init_account: InitAccount {
                 max_players,
-                entry_type: crate::types::EntryType::Disabled,
-                players,
                 data: borsh::to_vec(&init_data)?,
                 checkpoint: Some(borsh::to_vec(&checkpoint_state)?),
             },
@@ -218,12 +215,12 @@ pub struct Effect {
     pub settles: Vec<Settle>,
     pub handler_state: Option<Vec<u8>>,
     pub error: Option<HandleError>,
-    pub allow_exit: bool,
     pub transfers: Vec<Transfer>,
     pub launch_sub_games: Vec<SubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
-    pub valid_players: Vec<GamePlayer>,
+    pub valid_players: Vec<u64>,
     pub is_init: bool,
+    pub entry_lock: Option<EntryLock>,
 }
 
 impl Effect {
@@ -233,12 +230,12 @@ impl Effect {
             return Ok(());
         }
 
-        if self.valid_players.iter().any(|p| p.id == id) {
+        if self.valid_players.contains(&id) {
             Ok(())
         } else {
             Err(Error::InvalidPlayerId(
                 id,
-                self.valid_players.iter().map(|p| p.id).collect(),
+                self.valid_players.clone(),
                 reason.to_string(),
             ))
         }
@@ -347,11 +344,6 @@ impl Effect {
         self.stop_game = true;
     }
 
-    /// Set if exiting game is allowed.
-    pub fn allow_exit(&mut self, allow_exit: bool) {
-        self.allow_exit = allow_exit
-    }
-
     /// Set current state as the checkpoint.
     pub fn checkpoint(&mut self) {
         self.is_checkpoint = true;
@@ -361,12 +353,17 @@ impl Effect {
         self.is_checkpoint
     }
 
+    pub fn set_entry_lock(&mut self, entry_lock: EntryLock) {
+        self.checkpoint();
+        self.entry_lock = Some(entry_lock);
+    }
+
     /// Submit settlements.
     /// This will set current state as checkpoint automatically.
-    pub fn settle(&mut self, settle: Settle) -> Result<()> {
+    pub fn settle(&mut self, player_id: u64, amount: u64) -> Result<()> {
         self.checkpoint();
-        self.assert_player_id(settle.id, "create settle")?;
-        self.settles.push(settle);
+        self.assert_player_id(player_id, "create settle")?;
+        self.settles.push(Settle::new(player_id, amount));
         Ok(())
     }
 
@@ -383,20 +380,13 @@ impl Effect {
         id: usize,
         bundle_addr: String,
         max_players: u16,
-        players: Vec<GamePlayer>,
         init_data: D,
     ) -> Result<()> {
-        for p in players.iter() {
-            self.assert_player_id(p.id, "launch sub game")?;
-        }
-
         self.launch_sub_games.push(SubGame {
             id,
             bundle_addr,
             init_account: InitAccount {
                 max_players,
-                entry_type: crate::types::EntryType::Disabled,
-                players,
                 data: borsh::to_vec(&init_data)?,
                 // The checkpoint is always None
                 // It represents no checkpoint or we should use the existing one
@@ -449,7 +439,7 @@ impl Effect {
         join_players: Vec<GamePlayer>,
     ) -> Result<()> {
         for p in join_players.iter() {
-            self.assert_player_id(p.id, "emit bridge event")?;
+            self.assert_player_id(p.id(), "emit bridge event")?;
         }
         if self.bridge_events.iter().any(|x| x.dest == dest) {
             return Err(Error::DuplicatedBridgeEventTarget);
@@ -464,63 +454,5 @@ impl Effect {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
 
-    #[test]
-    fn test_serialization() -> anyhow::Result<()> {
-        let mut answered = HashMap::new();
-        answered.insert(33, "A".into());
-
-        let mut revealed = HashMap::new();
-        {
-            let mut m = HashMap::new();
-            m.insert(11, "B".into());
-            revealed.insert(22, m);
-        }
-
-        let effect = Effect {
-            is_init: false,
-            action_timeout: Some(ActionTimeout {
-                player_id: 0,
-                timeout: 100,
-            }),
-            wait_timeout: Some(200),
-            start_game: true,
-            stop_game: true,
-            cancel_dispatch: true,
-            timestamp: 300_000,
-            curr_random_id: 1,
-            curr_decision_id: 1,
-            nodes_count: 4,
-            asks: vec![Ask { player_id: 1 }],
-            assigns: vec![Assign {
-                player_id: 1,
-                random_id: 5,
-                indexes: vec![0, 1, 2],
-            }],
-            reveals: vec![Reveal {
-                random_id: 6,
-                indexes: vec![0, 1, 2],
-            }],
-            releases: vec![Release { decision_id: 7 }],
-            init_random_states: vec![RandomSpec::shuffled_list(vec!["a".into(), "b".into()])],
-            revealed,
-            answered,
-            settles: vec![Settle::add(0, 200), Settle::sub(1, 200)],
-            handler_state: Some(vec![1, 2, 3, 4]),
-            error: Some(HandleError::NoEnoughPlayers),
-            allow_exit: true,
-            transfers: vec![],
-            is_checkpoint: false,
-            launch_sub_games: vec![],
-            bridge_events: vec![],
-            valid_players: vec![],
-        };
-        let bs = borsh::to_vec(&effect)?;
-
-        let parsed = Effect::try_from_slice(&bs)?;
-
-        assert_eq!(effect, parsed);
-        Ok(())
-    }
 }

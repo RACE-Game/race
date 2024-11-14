@@ -8,9 +8,9 @@ use race_api::engine::GameHandler;
 use race_api::error::Result;
 use race_api::event::Event;
 use race_api::prelude::InitAccount;
-use race_api::random::RandomState;
 use race_core::checkpoint::{CheckpointOffChain, CheckpointOnChain, VersionedData};
-use race_core::types::{ClientMode, EntryType, GameAccount, PlayerJoin, ServerJoin};
+use race_core::random::RandomState;
+use race_core::types::{ClientMode, EntryLock, EntryType, GameAccount, PlayerDeposit, PlayerJoin, ServerJoin};
 use race_core::context::{DispatchEvent, EventEffects, GameContext};
 
 pub struct TestContext<H>
@@ -114,6 +114,7 @@ impl Default for TestContextBuilder {
             entry_type: EntryType::default(),
             token_addr: "".into(),
             checkpoint_on_chain: None,
+            entry_lock: EntryLock::Open,
         };
         TestContextBuilder { account }
     }
@@ -278,8 +279,12 @@ impl TestContextBuilder {
             addr: player.addr(),
             position,
             access_version: self.account.access_version,
-            balance: deposit,
             verify_key: "".into(),
+        });
+        self.account.deposits.push(PlayerDeposit {
+            addr: player.addr(),
+            amount: deposit,
+            settle_version: self.account.settle_version,
         });
         player.set_id(self.account.access_version);
         self

@@ -15,12 +15,7 @@ use race_api::error::{Error, Result};
 use race_core::transport::TransportT;
 
 use race_core::types::{
-    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams,
-    CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
-    GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, QueryMode,
-    RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
-    RegistrationAccount, ServeParams, ServerAccount, SettleParams, UnregisterGameParams,
-    VoteParams,
+    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
 };
 use serde::Serialize;
 
@@ -117,8 +112,7 @@ impl TransportT for FacadeTransport {
     }
 
     async fn vote(&self, params: VoteParams) -> Result<()> {
-        let mode = QueryMode::Finalized;
-        if let Some(game_account) = self.get_game_account(&params.game_addr, mode).await? {
+        if let Some(game_account) = self.get_game_account(&params.game_addr).await? {
             if game_account
                 .votes
                 .iter()
@@ -158,11 +152,7 @@ impl TransportT for FacadeTransport {
         }))
     }
 
-    async fn get_game_account(&self, addr: &str, mode: QueryMode) -> Result<Option<GameAccount>> {
-        match mode {
-            QueryMode::Confirming => {}
-            QueryMode::Finalized => {}
-        }
+    async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
         self.fetch("get_account_info", addr).await
     }
 
@@ -194,11 +184,18 @@ impl TransportT for FacadeTransport {
         unimplemented!()
     }
 
-    async fn settle_game(&self, params: SettleParams) -> Result<String> {
-        self.client
+    async fn settle_game(&self, params: SettleParams) -> Result<SettleResult> {
+        let signature = self.client
             .request("settle", rpc_params![params])
             .await
-            .map_err(|e| Error::RpcError(e.to_string()))
+            .map_err(|e| Error::RpcError(e.to_string()))?;
+
+        let game_account = self.get_game_account(&self.addr).await.unwrap().unwrap();
+
+        return Ok(SettleResult {
+            signature,
+            game_account,
+        })
     }
 
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {

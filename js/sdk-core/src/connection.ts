@@ -181,7 +181,7 @@ export class Connection implements IConnection {
   }
 
   async connect(params: SubscribeEventParams) {
-    console.log(`Establishing server connection, target: ${this.target}, settle version: ${params.settleVersion}`)
+    console.info(`Establishing server connection, target: ${this.target}, settle version: ${params.settleVersion}`)
     this.socket = new WebSocket(this.endpoint)
 
     this.clearCheckTimer()
@@ -200,7 +200,7 @@ export class Connection implements IConnection {
     }
 
     this.socket.onopen = () => {
-      console.log('Websocket connected')
+      console.info('Websocket connected')
       let frame: ConnectionState
       if (this.isFirstOpen) {
         frame = 'connected'
@@ -214,7 +214,7 @@ export class Connection implements IConnection {
       this.checkTimer = setInterval(() => {
         const t = new Date().getTime()
         if (this.lastPong + 6000 < t) {
-          console.log('Websocket keep alive check failed, no reply for %s ms', t - this.lastPong)
+          console.info('Websocket keep alive check failed, no reply for %s ms', t - this.lastPong)
           this.onDisconnected()
           return
         }
@@ -233,7 +233,7 @@ export class Connection implements IConnection {
     }
 
     this.socket.onclose = () => {
-      console.log('Websocket closed')
+      console.info('Websocket closed')
       this.closed = true
       this.onDisconnected()
     }
@@ -350,7 +350,7 @@ export class Connection implements IConnection {
   }
 
   async makeReq<P>(target: string, method: Method, params: P): Promise<string> {
-    console.log(`Connection request, target: ${target}, method: ${method}, params:`, params)
+    console.debug(`Connection request, target: ${target}, method: ${method}, params:`, params)
     const paramsBytes = serialize(params)
     const sig = await this.encryptor.sign(paramsBytes, this.playerAddr)
     const sigBytes = serialize(sig)
@@ -414,10 +414,9 @@ export class Connection implements IConnection {
   }
 }
 
-
 function makeReqNoSig<P>(target: string, method: Method, params: P): string {
   if (method !== 'ping') {
-    console.log(`Connection request[NoSig], target: ${target}, method: ${method}, params:`, params)
+    console.debug(`Connection request[NoSig], target: ${target}, method: ${method}, params:`, params)
   }
   const paramsBytes = serialize(params)
   return JSON.stringify({
@@ -428,7 +427,11 @@ function makeReqNoSig<P>(target: string, method: Method, params: P): string {
   })
 }
 
-export async function getCheckpoint(transactorEndpoint: string, addr: string, params: GetCheckpointParams): Promise<CheckpointOffChain | undefined> {
+export async function getCheckpoint(
+  transactorEndpoint: string,
+  addr: string,
+  params: GetCheckpointParams
+): Promise<CheckpointOffChain | undefined> {
   const req = makeReqNoSig(addr, 'checkpoint', params)
   try {
     const resp = await fetch(transactorEndpoint.replace(/^ws/, 'http'), {

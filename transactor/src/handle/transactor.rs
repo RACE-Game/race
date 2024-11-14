@@ -6,7 +6,7 @@ use crate::component::{
 };
 use crate::frame::{EventFrame, SignalFrame};
 use race_api::error::{Error, Result};
-use race_api::types::{PlayerJoin, ServerJoin};
+use race_core::types::{PlayerJoin, ServerJoin};
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::context::GameContext;
 use race_core::storage::StorageT;
@@ -55,6 +55,7 @@ fn create_init_sync(game_account: &GameAccount) -> Result<EventFrame> {
         access_version: game_account.access_version,
         new_players,
         new_servers,
+        new_deposits: vec![],
         transactor_addr,
     };
 

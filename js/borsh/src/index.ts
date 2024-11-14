@@ -17,7 +17,13 @@ import {
 } from './types';
 import { BinaryWriter } from './writer';
 import { BinaryReader } from './reader';
-import { invalidByteArrayLength, extendedWriterNotFound, extendedReaderNotFound, invalidEnumField, invalidCtor } from './errors';
+import {
+  invalidByteArrayLength,
+  extendedWriterNotFound,
+  extendedReaderNotFound,
+  invalidEnumField,
+  invalidCtor,
+} from './errors';
 
 class DeserializeError extends Error {
   cause: Error;
@@ -25,11 +31,11 @@ class DeserializeError extends Error {
   obj: any | undefined;
 
   constructor(path: string[], cause: Error, obj: any) {
-    super('Deserialize failed')
+    super('Deserialize failed');
     this.cause = cause;
     this.path = path;
     this.obj = obj;
-    Object.setPrototypeOf(this, DeserializeError.prototype)
+    Object.setPrototypeOf(this, DeserializeError.prototype);
   }
 }
 
@@ -40,12 +46,12 @@ class SerializeError extends Error {
   value: any;
 
   constructor(path: string[], cause: Error, fieldType: FieldType, value: any) {
-    super('Serialize failed')
+    super('Serialize failed');
     this.cause = cause;
     this.path = path;
     this.fieldType = fieldType;
     this.value = value;
-    Object.setPrototypeOf(this, SerializeError.prototype)
+    Object.setPrototypeOf(this, SerializeError.prototype);
   }
 }
 
@@ -148,7 +154,7 @@ function serializeValue(path: string[], value: any, fieldType: FieldType, writer
     if (err instanceof SerializeError) {
       throw err;
     } else {
-      throw new SerializeError(path, err, fieldType, value)
+      throw new SerializeError(path, err, fieldType, value);
     }
   }
 }
@@ -223,9 +229,9 @@ function deserializeValue(path: string[], fieldType: FieldType, reader: BinaryRe
     }
   } catch (err: any) {
     if (err instanceof DeserializeError) {
-      throw err
+      throw err;
     } else {
-      throw new DeserializeError(path, err, undefined)
+      throw new DeserializeError(path, err, undefined);
     }
   }
 }
@@ -300,7 +306,8 @@ function deserializeStruct<T>(path: string[], ctor: Ctor<T>, reader: BinaryReade
 
 export function field(fieldType: FieldType) {
   return function (target: any, key: PropertyKey) {
-    if (target?.constructor?.prototype === undefined) throw new Error(`Invalid field argument for key: ${key.toString()}`)
+    if (target?.constructor?.prototype === undefined)
+      throw new Error(`Invalid field argument for key: ${key.toString()}`);
     addSchemaField(target.constructor.prototype, key, fieldType);
   };
 }
@@ -345,7 +352,16 @@ export function serialize(obj: any): Uint8Array {
     }
   } catch (e) {
     if (e instanceof SerializeError) {
-      console.error('Serialize failed, path:', e.path, ', fieldType:', e.fieldType, ', value:', e.value, ', cause:', e.cause);
+      console.error(
+        'Serialize failed, path:',
+        e.path,
+        ', fieldType:',
+        e.fieldType,
+        ', value:',
+        e.value,
+        ', cause:',
+        e.cause
+      );
     }
     throw e;
   }
@@ -364,7 +380,16 @@ export function deserialize<T>(classType: Ctor<T> | EnumClass<T>, data: Uint8Arr
     }
   } catch (e) {
     if (e instanceof DeserializeError) {
-      console.error('Deserialize failed, path:', e.path, ', current object:', e.obj, ', cause:', e.cause, ', data:', data);
+      console.error(
+        'Deserialize failed, path:',
+        e.path,
+        ', current object:',
+        e.obj,
+        ', cause:',
+        e.cause,
+        ', data:',
+        data
+      );
     }
     throw e;
   }
