@@ -1,24 +1,32 @@
-import { EntryType, INft, IToken } from './accounts'
+import { EntryType, Nft, Token } from './accounts'
 import { Message } from './message'
 import { ConnectionState } from './connection'
 import { GameEvent } from './events'
 import { GameContextSnapshot } from './game-context-snapshot'
 import { TxState } from './tx-state'
 
-export type Id = number
 export type Ciphertext = Uint8Array
+
 export type Secret = Uint8Array
+
 export type Digest = Uint8Array
+
 export type Fields<T> = {[K in keyof T as T[K] extends Function ? never: K]: T[K]}
+
+export type Result<T, E> = { ok: T } | { err: E }
+
+export type IKind<T> = { kind: T }
+
+export type Indices<T extends readonly any[]> = Exclude<Partial<T>['length'], T['length']>
+
+export type UnionFromValues<T> = T extends readonly string[] ? T[number] : never
 
 export type GameInfo = {
   gameAddr: string
   title: string
   maxPlayers: number
-  minDeposit?: bigint
-  maxDeposit?: bigint
   entryType: EntryType
-  token: IToken
+  token: Token
   tokenAddr: string
   bundleAddr: string
   data: Uint8Array
@@ -26,7 +34,7 @@ export type GameInfo = {
 }
 
 export type PlayerProfileWithPfp = {
-  pfp: INft | undefined
+  pfp: Nft | undefined
   addr: string
   nick: string
 }
@@ -56,5 +64,3 @@ export type ProfileCallbackFunction = (id: bigint | undefined, profile: PlayerPr
 export type LoadProfileCallbackFunction = (id: bigint, addr: string) => void
 
 export type ErrorCallbackFunction = (error: ErrorKind, arg: any) => void
-
-export type Result<T, E> = { ok: T } | { err: E }

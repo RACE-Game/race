@@ -16,8 +16,8 @@ import {
 } from './events'
 import { InitAccount } from './init-account'
 import { Effect, EmitBridgeEvent, SubGame, Settle, Transfer } from './effect'
-import { EntryType, EntryTypeDisabled, GameAccount } from './accounts'
-import { Ciphertext, Digest, Fields, Id } from './types'
+import { EntryType, GameAccount } from './accounts'
+import { Ciphertext, Digest, Fields } from './types'
 import { clone } from './utils'
 import rfdc from 'rfdc'
 import { sha256String } from './encryptor'
@@ -90,7 +90,7 @@ export class GameContext {
   entryType: EntryType
   stateSha: string
 
-  constructor(gameAccount: GameAccount, checkpoint: Checkpoint) {
+  constructor(gameAccount: GameAccount, checkpoint: Checkpoint, handlerState: Uint8Array, stateSha: string) {
     if (checkpoint === undefined) {
       throw new Error('Missing checkpoint')
     }
@@ -150,14 +150,14 @@ export class GameContext {
     this.timestamp = 0n
     this.randomStates = []
     this.decisionStates = []
-    this.handlerState = Uint8Array.of()
+    this.handlerState = handlerState
     this.checkpoint = checkpoint
     this.subGames = []
     this.initData = gameAccount.data
     this.maxPlayers = gameAccount.maxPlayers
     this.players = players
     this.entryType = gameAccount.entryType
-    this.stateSha = ''
+    this.stateSha = stateSha
   }
 
   subContext(subGame: SubGame): GameContext {
@@ -177,7 +177,7 @@ export class GameContext {
     c.subGames = []
     c.initData = subGame.initAccount.data
     c.maxPlayers = subGame.initAccount.maxPlayers
-    c.entryType = new EntryTypeDisabled({})
+    c.entryType = { kind: 'disabled' }
     c.players = []
     return c
   }
@@ -187,11 +187,9 @@ export class GameContext {
   }
 
   initAccount(): InitAccount {
-    const checkpoint = this.checkpoint.getData(this.gameId)
     return new InitAccount({
       maxPlayers: this.maxPlayers,
       data: this.initData,
-      checkpoint,
     })
   }
 
@@ -270,7 +268,7 @@ export class GameContext {
     }
   }
 
-  getRandomState(randomId: Id): RandomState {
+  getRandomState(randomId: number): RandomState {
     if (randomId <= 0) {
       throw new Error('Invalid random id: ' + randomId)
     }
@@ -281,7 +279,7 @@ export class GameContext {
     return st
   }
 
-  getDecisionState(decisionId: Id): DecisionState {
+  getDecisionState(decisionId: number): DecisionState {
     if (decisionId <= 0) {
       throw new Error('Invalid decision id: ' + decisionId)
     }
@@ -292,17 +290,17 @@ export class GameContext {
     return st
   }
 
-  assign(randomId: Id, playerAddr: string, indexes: number[]) {
+  assign(randomId: number, playerAddr: string, indexes: number[]) {
     const st = this.getRandomState(randomId)
     st.assign(playerAddr, indexes)
   }
 
-  reveal(randomId: Id, indexes: number[]) {
+  reveal(randomId: number, indexes: number[]) {
     const st = this.getRandomState(randomId)
     st.reveal(indexes)
   }
 
-  isRandomReady(randomId: Id): boolean {
+  isRandomReady(randomId: number): boolean {
     const k = this.getRandomState(randomId).status.kind
     return k === 'ready' || k === 'waiting-secrets'
   }
@@ -343,7 +341,7 @@ export class GameContext {
     this.accessVersion = accessVersion
   }
 
-  initRandomState(spec: RandomSpec): Id {
+  initRandomState(spec: RandomSpec): number {
     const randomId = this.randomStates.length + 1
     const owners = this.nodes.filter(n => n.status.kind === 'ready' && n.mode !== 'player').map(n => n.addr)
     const randomState = new RandomState(randomId, spec, owners)
@@ -363,19 +361,19 @@ export class GameContext {
     }
   }
 
-  randomizeAndMask(addr: string, randomId: Id, ciphertexts: Ciphertext[]) {
+  randomizeAndMask(addr: string, randomId: number, ciphertexts: Ciphertext[]) {
     let st = this.getRandomState(randomId)
     st.mask(addr, ciphertexts)
     this.dispatchRandomizationTimeout(randomId)
   }
 
-  lock(addr: string, randomId: Id, ciphertextsAndTests: CiphertextAndDigest[]) {
+  lock(addr: string, randomId: number, ciphertextsAndTests: CiphertextAndDigest[]) {
     let st = this.getRandomState(randomId)
     st.lock(addr, ciphertextsAndTests)
     this.dispatchRandomizationTimeout(randomId)
   }
 
-  dispatchRandomizationTimeout(randomId: Id) {
+  dispatchRandomizationTimeout(randomId: number) {
     const noDispatch = this.dispatch === undefined
     let st = this.getRandomState(randomId)
     const statusKind = st.status.kind
@@ -399,29 +397,29 @@ export class GameContext {
     this.settleVersion += 1n
   }
 
-  addRevealedRandom(randomId: Id, revealed: Map<number, string>) {
+  addRevealedRandom(randomId: number, revealed: Map<number, string>) {
     const st = this.getRandomState(randomId)
     st.addRevealed(revealed)
   }
 
-  addRevealedAnswer(decisionId: Id, revealed: string) {
+  addRevealedAnswer(decisionId: number, revealed: string) {
     const st = this.getDecisionState(decisionId)
     st.addReleased(revealed)
   }
 
-  ask(owner: string): Id {
+  ask(owner: string): number {
     const id = this.decisionStates.length + 1
     const st = new DecisionState(id, owner)
     this.decisionStates.push(st)
     return id
   }
 
-  answerDecision(id: Id, owner: string, ciphertext: Ciphertext, digest: Digest) {
+  answerDecision(id: number, owner: string, ciphertext: Ciphertext, digest: Digest) {
     const st = this.getDecisionState(id)
     st.setAnswer(owner, ciphertext, digest)
   }
 
-  getRevealed(randomId: Id): Map<number, string> {
+  getRevealed(randomId: number): Map<number, string> {
     let st = this.getRandomState(randomId)
     return st.revealed
   }

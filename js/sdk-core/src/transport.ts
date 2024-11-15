@@ -3,16 +3,15 @@ import {
   GameAccount,
   GameBundle,
   ServerAccount,
-  PlayerProfile,
   VoteType,
   RegistrationAccount,
-  INft,
-  IToken,
+  Nft,
+  Token,
   RegistrationWithGames,
   RecipientAccount,
   EntryType,
-  ITokenWithBalance,
-  IPlayerProfile,
+  TokenWithBalance,
+  PlayerProfile,
 } from './accounts'
 import { IStorage } from './storage'
 import { ResponseHandle } from './response'
@@ -76,11 +75,16 @@ export type JoinResponse = {
 }
 
 export type DepositParams = {
-  playerAddr: string
   gameAddr: string
   amount: bigint
   settleVersion: bigint
 }
+
+export type DepositResponse = {
+  signature: string
+}
+
+export type DepositError = 'invalid-deposit' | 'game-not-served' | 'game-not-found'
 
 export type VoteParams = {
   gameAddr: string
@@ -95,7 +99,7 @@ export type CreatePlayerProfileParams = {
 }
 
 export type CreatePlayerProfileResponse = {
-  profile: IPlayerProfile
+  profile: PlayerProfile
   signature: string
 }
 
@@ -165,7 +169,7 @@ export interface ITransport {
 
   join(wallet: IWallet, params: JoinParams, resp: ResponseHandle<JoinResponse, JoinError>): Promise<void>
 
-  // deposit(wallet: IWallet, params: DepositParams): Promise<TransactionResult<void>>
+  deposit(wallet: IWallet, params: DepositParams, resp: ResponseHandle<DepositResponse, DepositError>): Promise<void>
 
   // vote(wallet: IWallet, params: VoteParams): Promise<TransactionResult<void>>
 
@@ -209,15 +213,15 @@ export interface ITransport {
 
   getTokenDecimals(addr: string): Promise<number | undefined>
 
-  getToken(addr: string): Promise<IToken | undefined>
+  getToken(addr: string): Promise<Token | undefined>
 
-  getNft(addr: string): Promise<INft | undefined>
+  getNft(addr: string): Promise<Nft | undefined>
 
-  listTokens(tokenAddrs: string[]): Promise<IToken[]>
+  listTokens(tokenAddrs: string[]): Promise<Token[]>
 
-  listTokensWithBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<ITokenWithBalance[]>
+  listTokensWithBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<TokenWithBalance[]>
 
-  listNfts(walletAddr: string): Promise<INft[]>
+  listNfts(walletAddr: string): Promise<Nft[]>
 
   recipientClaim(
     wallet: IWallet,

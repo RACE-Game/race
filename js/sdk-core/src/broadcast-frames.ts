@@ -1,9 +1,37 @@
 import { TxState } from './tx-state'
-import { PlayerJoin, ServerJoin } from './accounts'
 import { array, enums, field, option, struct, variant } from '@race-foundation/borsh'
 import { EventHistory, GameEvent } from './events'
 import { CheckpointOffChain } from './checkpoint'
 import { Message } from './message'
+import { Fields } from './types'
+
+export class BroadcastPlayerJoin {
+  @field('string')
+  readonly addr!: string
+  @field('u16')
+  readonly position!: number
+  @field('u64')
+  readonly accessVersion!: bigint
+  @field('string')
+  readonly verifyKey!: string
+  constructor(fields: Fields<BroadcastPlayerJoin>) {
+    Object.assign(this, fields)
+  }
+}
+
+export class BroadcastServerJoin {
+  @field('string')
+  readonly addr!: string
+  @field('string')
+  readonly endpoint!: string
+  @field('u64')
+  readonly accessVersion!: bigint
+  @field('string')
+  readonly verifyKey!: string
+  constructor(fields: Fields<BroadcastServerJoin>) {
+    Object.assign(this, fields)
+  }
+}
 
 export type BroadcastFrameKind = 'Invalid' | 'Event' | 'Message' | 'TxState' | 'Sync' | 'EventHistories'
 
@@ -65,10 +93,10 @@ export class BroadcastFrameTxState extends BroadcastFrame {
 
 @variant(3)
 export class BroadcastFrameSync extends BroadcastFrame {
-  @field(array(struct(PlayerJoin)))
-  newPlayers!: PlayerJoin[]
-  @field(array(struct(ServerJoin)))
-  newServers!: ServerJoin[]
+  @field(array(struct(BroadcastPlayerJoin)))
+  newPlayers!: BroadcastPlayerJoin[]
+  @field(array(struct(BroadcastServerJoin)))
+  newServers!: BroadcastServerJoin[]
   @field('string')
   transactor_addr!: string
   @field('u64')

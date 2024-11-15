@@ -1,4 +1,4 @@
-import { INft } from './accounts'
+import { Nft } from './accounts'
 import { NFT_CACHE_TTL } from './common'
 import { getTtlCache, IStorage, makeNftCacheKey, setTtlCache } from './storage'
 import { ITransport } from './transport'
@@ -28,11 +28,12 @@ export class ProfileLoader {
   async __loadProfile(playerAddr: string): Promise<PlayerProfileWithPfp | undefined> {
     const profile = await this.transport.getPlayerProfile(playerAddr)
     if (profile === undefined) {
+      console.warn(`Player profile missing ${playerAddr}`)
       return undefined
     } else {
       let p
       if (profile.pfp !== undefined) {
-        let pfp: INft | undefined
+        let pfp: Nft | undefined
         if (this.storage === undefined) {
           pfp = await this.transport.getNft(profile.pfp)
         } else {
@@ -43,9 +44,6 @@ export class ProfileLoader {
             if (pfp !== undefined) {
               setTtlCache(this.storage, cacheKey, pfp, NFT_CACHE_TTL)
             }
-          }
-          if (pfp === undefined) {
-            return undefined
           }
         }
         p = { pfp, addr: profile.addr, nick: profile.nick }

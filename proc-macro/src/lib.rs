@@ -17,11 +17,11 @@ use syn::{parse_macro_input, ItemStruct};
 ///
 /// impl GameHandler for S {
 ///
-///     fn init_state(context: &mut Effect, init_account: InitAccount) -> HandleResult<Self> {
+///     fn init_state(init_account: InitAccount) -> HandleResult<Self> {
 ///         Ok(Self {})
 ///     }
 ///
-///     fn handle_event(&mut self, context: &mut Effect, event: Event) -> HandleResult<()> {
+///     fn handle_event(&mut self, effect: &mut Effect, event: Event) -> HandleResult<()> {
 ///         Ok(())
 ///     }
 /// }
@@ -91,7 +91,7 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
             } else {
                 return 2
             };
-            match #s_idt::init_state(&mut effect, init_account) {
+            match #s_idt::init_state(init_account) {
                 Ok(handler) => effect.__set_handler_state(&handler),
                 Err(e) => effect.__set_error(e),
             }

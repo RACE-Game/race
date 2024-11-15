@@ -264,21 +264,26 @@ impl GameContext {
             ))
         });
 
-        let checkpoint = match (
+        let (checkpoint, handler_state, state_sha) = match (
             checkpoint_off_chain,
             game_account.checkpoint_on_chain.as_ref(),
         ) {
             (Some(off_chain), Some(on_chain)) => {
-                Checkpoint::new_from_parts(off_chain, on_chain.clone())
+                let checkpoint = Checkpoint::new_from_parts(off_chain, on_chain.clone());
+                let Some(ref handler_state) = checkpoint.get_data(0) else {
+                    return Err(Error::MalformedCheckpoint);
+                };
+                let state_sha = digest(handler_state);
+                (checkpoint, handler_state.to_owned(), state_sha)
             }
-            (None, None) => Checkpoint::default(),
+            (None, None) => (Checkpoint::default(), vec![], "".into()),
             _ => return Err(Error::MissingCheckpoint),
         };
 
         Ok(Self {
             game_addr: game_account.addr.clone(),
             game_id: 0,
-            access_version: game_account.access_version,
+            access_version: checkpoint.access_version,
             settle_version: game_account.settle_version,
             status: GameStatus::Idle,
             nodes,
@@ -286,24 +291,21 @@ impl GameContext {
             timestamp: 0,
             random_states: vec![],
             decision_states: vec![],
-            handler_state: "".into(),
+            handler_state,
             checkpoint,
             sub_games: vec![],
             init_data: game_account.data.clone(),
             max_players: game_account.max_players,
             players,
             entry_type: game_account.entry_type.clone(),
-            state_sha: "".into(),
+            state_sha,
         })
     }
 
     pub fn init_account(&self) -> Result<InitAccount> {
-        let checkpoint = self.checkpoint.get_data(self.game_id);
-
         Ok(InitAccount {
             max_players: self.max_players,
             data: self.init_data.clone(),
-            checkpoint,
         })
     }
 
@@ -513,16 +515,16 @@ impl GameContext {
         &mut self,
         random_id: RandomId,
         player_addr: String,
-        indexes: Vec<usize>,
+        indices: Vec<usize>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
-        rnd_st.assign(player_addr, indexes)?;
+        rnd_st.assign(player_addr, indices)?;
         Ok(())
     }
 
-    pub fn reveal(&mut self, random_id: RandomId, indexes: Vec<usize>) -> Result<()> {
+    pub fn reveal(&mut self, random_id: RandomId, indices: Vec<usize>) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
-        rnd_st.reveal(indexes)?;
+        rnd_st.reveal(indices)?;
         Ok(())
     }
 
@@ -827,16 +829,16 @@ impl GameContext {
 
         for Assign {
             random_id,
-            indexes,
+            indices,
             player_id,
         } in assigns.into_iter()
         {
             let addr = self.id_to_addr(player_id)?;
-            self.assign(random_id, addr, indexes)?;
+            self.assign(random_id, addr, indices)?;
         }
 
-        for Reveal { random_id, indexes } in reveals.into_iter() {
-            self.reveal(random_id, indexes)?;
+        for Reveal { random_id, indices } in reveals.into_iter() {
+            self.reveal(random_id, indices)?;
         }
 
         for Release { decision_id } in releases.into_iter() {
@@ -855,16 +857,7 @@ impl GameContext {
         if let Some(state) = handler_state {
             self.set_handler_state_raw(state.clone());
 
-            if is_init && self.checkpoint.is_empty() {
-                self.checkpoint = Checkpoint::new(
-                    self.game_id,
-                    self.access_version,
-                    self.settle_version,
-                    state.clone(),
-                );
-            }
-
-            if is_checkpoint {
+            if is_checkpoint || is_init {
                 // Clear the random states
                 self.random_states.clear();
                 self.decision_states.clear();
@@ -883,7 +876,7 @@ impl GameContext {
             return Ok(EventEffects {
                 settles,
                 transfers,
-                checkpoint: is_checkpoint.then(|| self.checkpoint.clone()),
+                checkpoint: (is_checkpoint || is_init).then(|| self.checkpoint.clone()),
                 launch_sub_games,
                 bridge_events,
                 start_game,
@@ -906,16 +899,6 @@ impl GameContext {
                 }
             }
         }
-    }
-
-    pub fn set_versions(&mut self, access_version: u64, settle_version: u64) -> Result<()> {
-        if self.settle_version != settle_version {
-            return Err(Error::InvalidCheckpoint);
-        }
-
-        self.access_version = access_version;
-
-        Ok(())
     }
 
     pub fn init_data(&self) -> Vec<u8> {

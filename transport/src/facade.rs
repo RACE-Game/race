@@ -185,12 +185,13 @@ impl TransportT for FacadeTransport {
     }
 
     async fn settle_game(&self, params: SettleParams) -> Result<SettleResult> {
+        let game_addr = params.addr.clone();
         let signature = self.client
             .request("settle", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))?;
 
-        let game_account = self.get_game_account(&self.addr).await.unwrap().unwrap();
+        let game_account = self.get_game_account(&game_addr).await.unwrap().unwrap();
 
         return Ok(SettleResult {
             signature,

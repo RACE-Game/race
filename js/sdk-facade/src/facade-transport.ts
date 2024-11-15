@@ -1,29 +1,14 @@
 import { makeid } from './utils'
 import {
-  CloseGameAccountParams,
-  CreateGameAccountParams,
-  CreatePlayerProfileParams,
-  CreateRegistrationParams,
-  DepositParams,
   GameAccount,
   GameBundle,
-  INft,
-  IToken,
-  ITransport,
-  IWallet,
-  JoinParams,
+  Nft,
   PlayerProfile,
-  PublishGameParams,
-  RecipientAccount,
-  RecipientClaimParams,
-  RegisterGameParams,
   RegistrationAccount,
-  RegistrationWithGames,
   ServerAccount,
-  UnregisterGameParams,
-  VoteParams,
-  ITokenWithBalance,
-  ResponseHandle,
+} from './accounts'
+import * as RaceCore from '@race-foundation/sdk-core'
+import { ResponseHandle,
   CreateGameError,
   CreateGameResponse,
   CreatePlayerProfileError,
@@ -33,6 +18,22 @@ import {
   CreateRecipientParams,
   CreateRecipientResponse,
   CreateRecipientError,
+  DepositResponse,
+  DepositError,
+  UnregisterGameParams,
+  VoteParams,  RecipientClaimParams,
+  RegisterGameParams,
+  PublishGameParams,
+  ITransport,
+  IWallet,
+  JoinParams,
+  CloseGameAccountParams,
+  CreateGameAccountParams,
+  CreatePlayerProfileParams,
+  CreateRegistrationParams,
+  DepositParams,
+  Token,
+  TokenWithBalance,
 } from '@race-foundation/sdk-core'
 import { deserialize } from '@race-foundation/borsh'
 import { Chain } from '@race-foundation/sdk-core/lib/types/common'
@@ -43,6 +44,12 @@ interface JoinInstruction {
   position: number
   amount: bigint
   accessVersion: bigint
+}
+
+interface DepositInstruction {
+  playerAddr: string
+  gameAddr: string
+  settleVersion: bigint
 }
 
 interface CreatePlayerProfileInstruction {
@@ -66,7 +73,7 @@ interface CreateGameAccountInstruction {
   data: number[]
 }
 
-const nftMap: Record<string, INft> = {
+const nftMap: Record<string, Nft> = {
   nft01: {
     addr: 'nft01',
     image: 'https://arweave.net/plLA2nFm_TyHDA76v9GAkaH-nUnymuA4cIvRj64BTLs',
@@ -85,7 +92,7 @@ const nftMap: Record<string, INft> = {
   },
 }
 
-const tokenMap: Record<string, IToken> = {
+const tokenMap: Record<string, Token> = {
   FACADE_NATIVE: {
     name: 'Native Token',
     symbol: 'NATIVE',
@@ -138,9 +145,21 @@ export class FacadeTransport implements ITransport {
   closeGameAccount(_wallet: IWallet, _params: CloseGameAccountParams): Promise<void> {
     throw new Error('Method not implemented.')
   }
-  deposit(_wallet: IWallet, _params: DepositParams): Promise<void> {
-    throw new Error('Method not implemented.')
+
+  async deposit(wallet: IWallet, params: DepositParams, response: ResponseHandle<DepositResponse, DepositError>): Promise<void> {
+    const playerAddr = wallet.walletAddr
+    const gameAccount = await this.getGameAccount(params.gameAddr)
+    if (gameAccount === undefined) {
+      return response.failed('game-not-found')
+    }
+    if (params.settleVersion !== gameAccount.settleVersion) {
+      return response.failed('invalid-deposit')
+    }
+    const ix: DepositInstruction = { playerAddr, ...params }
+    const signature = await this.sendInstruction('deposit', ix)
+    response.succeed({ signature })
   }
+
   vote(_wallet: IWallet, _params: VoteParams): Promise<void> {
     throw new Error('Method not implemented.')
   }
@@ -160,17 +179,17 @@ export class FacadeTransport implements ITransport {
     throw new Error('Method not implemented.')
   }
 
-  async listTokens(tokenAddrs: string[]): Promise<IToken[]> {
+  async listTokens(tokenAddrs: string[]): Promise<Token[]> {
     return Object.values(tokenMap).filter(t => tokenAddrs.includes(t.addr))
   }
 
   async listTokensWithBalance(
     walletAddr: string,
     tokenAddrs: string[],
-  ): Promise<ITokenWithBalance[]> {
+  ): Promise<TokenWithBalance[]> {
     const balances = await this.fetchBalances(walletAddr, tokenAddrs)
     const tokens = Object.values(tokenMap).filter(t => tokenAddrs.includes(t.addr))
-    let ret: ITokenWithBalance[] = []
+    let ret: TokenWithBalance[] = []
     for (const token of tokens) {
       const amount = balances.get(token.addr) || 0n
       const uiAmount = (Number(amount) / Math.pow(10, token.decimals)).toString()
@@ -208,10 +227,10 @@ export class FacadeTransport implements ITransport {
     const signature = await this.sendInstruction('join', ix)
     response.succeed({ signature })
   }
-  async getGameAccount(addr: string): Promise<GameAccount | undefined> {
+  async getGameAccount(addr: string): Promise<RaceCore.GameAccount | undefined> {
     const data: Uint8Array | undefined = await this.fetchState('get_account_info', [addr])
     if (data === undefined) return undefined
-    return deserialize(GameAccount, data)
+    return deserialize(GameAccount, data).generalize()
   }
   async getGameBundle(addr: string): Promise<GameBundle | undefined> {
     const data: Uint8Array | undefined = await this.fetchState('get_game_bundle', [addr])
@@ -234,29 +253,35 @@ export class FacadeTransport implements ITransport {
     return deserialize(RegistrationAccount, data)
   }
 
-  async getRecipient(_addr: string): Promise<RecipientAccount | undefined> {
+  async getRecipient(_addr: string): Promise<RaceCore.RecipientAccount | undefined> {
     return undefined
   }
 
-  async getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {
+  async getRegistrationWithGames(addr: string): Promise<RaceCore.RegistrationWithGames | undefined> {
     const data: Uint8Array | undefined = await this.fetchState('get_registration_info', [addr])
     if (data === undefined) return undefined
     const regAccount = deserialize(RegistrationAccount, data)
     const promises = regAccount.games.map(async g => {
       return await this.getGameAccount(g.addr)
     })
-    const games = await Promise.all(promises)
-    return new RegistrationWithGames({
+    let games: RaceCore.GameAccount[] = []
+    let fetchedGames = await Promise.all(promises)
+    for (let g of fetchedGames) {
+      if (g !== undefined) {
+        games.push(g)
+      }
+    }
+    return {
       ...regAccount,
       games,
-    })
+    }
   }
 
   async getTokenDecimals(addr: string): Promise<number | undefined> {
     return tokenMap[addr]?.decimals
   }
 
-  async getToken(addr: string): Promise<IToken | undefined> {
+  async getToken(addr: string): Promise<Token | undefined> {
     return tokenMap[addr]
   }
 
@@ -273,11 +298,11 @@ export class FacadeTransport implements ITransport {
     return ret
   }
 
-  async getNft(addr: string): Promise<INft | undefined> {
+  async getNft(addr: string): Promise<Nft | undefined> {
     return nftMap[addr]
   }
 
-  async listNfts(_walletAddr: string): Promise<INft[]> {
+  async listNfts(_walletAddr: string): Promise<Nft[]> {
     return Object.values(nftMap)
   }
 

@@ -1,7 +1,6 @@
 use race_api::types::GameDeposit;
 
 use async_trait::async_trait;
-use race_api::error::Error;
 use race_api::event::Event;
 use race_core::context::GameContext;
 use tracing::{error, info, warn};
@@ -11,7 +10,7 @@ use crate::component::event_bus::CloseReason;
 use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
 use crate::utils::current_timestamp;
-use race_core::types::{ClientMode, GameAccount, GameMode, GamePlayer};
+use race_core::types::{ClientMode, GameMode, GamePlayer};
 
 use super::ComponentEnv;
 
@@ -23,12 +22,6 @@ pub struct EventLoopContext {
     game_context: GameContext,
     client_mode: ClientMode,
     game_mode: GameMode,
-}
-
-pub trait WrappedGameHandler: Send {
-    fn init(&mut self, init_state: GameAccount) -> Result<(), Error>;
-
-    fn handle_event(&mut self, event: EventFrame) -> Result<Vec<EventFrame>, Error>;
 }
 
 pub struct EventLoop {}
@@ -58,21 +51,21 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     settle_version,
                     ..
                 } => {
-                    if let Some(close_reason) = event_handler::init_state(
-                        init_account,
-                        access_version,
-                        settle_version,
-                        &mut handler,
-                        &mut game_context,
-                        &ports,
-                        ctx.client_mode,
-                        ctx.game_mode,
-                        &env,
-                    )
-                        .await
-                    {
-                        ports.send(EventFrame::Shutdown).await;
-                        return close_reason;
+                    if game_context.checkpoint_is_empty() {
+                        if let Some(close_reason) = event_handler::init_state(
+                            init_account,
+                            access_version,
+                            settle_version,
+                            &mut handler,
+                            &mut game_context,
+                            &ports,
+                            ctx.client_mode,
+                            ctx.game_mode,
+                            &env,
+                        ).await {
+                            ports.send(EventFrame::Shutdown).await;
+                            return close_reason;
+                        }
                     }
                 }
 

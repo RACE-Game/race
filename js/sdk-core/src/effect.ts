@@ -2,7 +2,7 @@ import { RandomSpec } from './random-state'
 import { HandleError } from './error'
 import { GameContext } from './game-context'
 import { enums, field, map, option, struct, array } from '@race-foundation/borsh'
-import { Fields, Id } from './types'
+import { Fields } from './types'
 import { InitAccount } from './init-account'
 import { ContextPlayer } from './game-context'
 import { EntryLock } from './accounts'
@@ -160,11 +160,11 @@ export class Effect {
   }
 
   static fromContext(context: GameContext, isInit: boolean) {
-    const revealed = new Map<Id, Map<number, string>>()
+    const revealed = new Map<number, Map<number, string>>()
     for (const st of context.randomStates) {
       revealed.set(st.id, st.revealed)
     }
-    const answered = new Map<Id, string>()
+    const answered = new Map<number, string>()
     for (const st of context.decisionStates) {
       answered.set(st.id, st.value!)
     }

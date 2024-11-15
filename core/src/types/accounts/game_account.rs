@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use race_api::{prelude::InitAccount, types::EntryLock};
-use crate::checkpoint::{Checkpoint, CheckpointOnChain};
+use crate::checkpoint::CheckpointOnChain;
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -219,27 +219,17 @@ pub struct GameAccount {
 }
 
 impl GameAccount {
-    pub fn derive_init_account(&self, checkpoint: &Checkpoint) -> InitAccount {
+    pub fn derive_init_account(&self) -> InitAccount {
         InitAccount {
             max_players: self.max_players,
             data: self.data.clone(),
-            checkpoint: checkpoint.get_data(0),
         }
     }
 
-    pub fn derive_init_account_with_empty_checkpoint(&self) -> InitAccount {
+    pub fn derive_checkpoint_init_account(&self) -> InitAccount {
         InitAccount {
             max_players: self.max_players,
             data: self.data.clone(),
-            checkpoint: None,
-        }
-    }
-
-    pub fn derive_checkpoint_init_account(&self, checkpoint: &Checkpoint) -> InitAccount {
-        InitAccount {
-            max_players: self.max_players,
-            data: self.data.clone(),
-            checkpoint: checkpoint.get_data(0),
         }
     }
 }

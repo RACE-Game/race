@@ -8,7 +8,8 @@
 //! the same hands).  If player B folds, player A wins the pot.
 //! Players switch positions in each round.
 
-use arrayref::{array_mut_ref, mut_array_refs};
+use std::collections::BTreeMap;
+
 use race_api::prelude::*;
 use race_proc_macro::game_handler;
 
@@ -55,7 +56,8 @@ pub struct Player {
 pub struct DrawCard {
     pub last_winner: Option<String>,
     pub random_id: RandomId,
-    pub players: Vec<Player>,
+    pub player_map: BTreeMap<u64, Player>,
+    pub action_order: Vec<u64>, // player ids in action order
     pub stage: GameStage,
     pub pot: u64,
     pub bet: u64,
@@ -65,26 +67,6 @@ pub struct DrawCard {
 }
 
 impl DrawCard {
-    fn set_winner(&mut self, effect: &mut Effect, winner_index: usize) -> Result<(), HandleError> {
-        let players = array_mut_ref![self.players, 0, 2];
-        let (player_0, player_1) = mut_array_refs![players, 1, 1];
-        let player_0 = &mut player_0[0];
-        let player_1 = &mut player_1[0];
-
-        if winner_index == 0 {
-            effect.settle(Settle::add(player_0.id, self.pot - player_0.bet))?;
-            effect.settle(Settle::sub(player_1.id, player_1.bet))?;
-            player_0.balance += self.pot;
-        } else {
-            effect.settle(Settle::add(player_1.id, self.pot - player_1.bet))?;
-            effect.settle(Settle::sub(player_0.id, player_0.bet))?;
-            player_1.balance += self.pot;
-        }
-
-        effect.checkpoint();
-        effect.wait_timeout(NEXT_GAME_TIMEOUT);
-        Ok(())
-    }
 
     fn custom_handle_event(
         &mut self,
@@ -96,9 +78,9 @@ impl DrawCard {
             GameEvent::Bet(amount) => {
                 if self.stage == GameStage::Betting {
                     let player = self
-                        .players
-                        .get_mut(0)
-                        .ok_or(HandleError::Custom("Player not found".into()))?;
+                        .player_map
+                        .get_mut(&self.action_order[0])
+                        .ok_or(HandleError::InvalidPlayer)?;
                     if sender != player.id {
                         return Err(HandleError::InvalidPlayer);
                     }
@@ -118,9 +100,9 @@ impl DrawCard {
             GameEvent::Call => {
                 if self.stage == GameStage::Reacting {
                     let player = self
-                        .players
-                        .get_mut(1)
-                        .ok_or(HandleError::Custom("Player not found".into()))?;
+                        .player_map
+                        .get_mut(&self.action_order[1])
+                        .ok_or(HandleError::InvalidPlayer)?;
                     if sender.ne(&player.id) {
                         return Err(HandleError::InvalidPlayer);
                     }
@@ -169,25 +151,16 @@ fn is_better_than(card_a: &str, card_b: &str) -> bool {
 
 impl GameHandler for DrawCard {
 
-    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
+    fn init_state(init_account: InitAccount) -> Result<Self, HandleError> {
         let AccountData {
             blind_bet,
             min_bet,
             max_bet,
         } = init_account.data()?;
-        let players: Vec<Player> = init_account
-            .players
-            .into_iter()
-            .map(|p| Player {
-                id: p.id,
-                balance: p.balance,
-                bet: 0,
-            })
-            .collect();
         Ok(Self {
             last_winner: None,
             random_id: 0,
-            players,
+            players: vec![],
             bet: 0,
             pot: 0,
             stage: GameStage::Dealing,
@@ -245,8 +218,8 @@ impl GameHandler for DrawCard {
             Event::Join { players } => {
                 for p in players.into_iter() {
                     self.players.push(Player {
-                        id: p.id,
-                        balance: p.balance,
+                        id: p.id(),
+                        balance: 0,
                         bet: 0,
                     });
                 }
@@ -287,8 +260,9 @@ impl GameHandler for DrawCard {
             Event::Leave { player_id } => {
                 if let Some(player_idx) = self.players.iter().position(|p| p.id.eq(&player_id))
                 {
-                    self.set_winner(effect, if player_idx == 0 { 1 } else { 0 })?;
-                    effect.settle(Settle::eject(player_id))?;
+                    let player = self.players.remove(player_idx);
+                    effect.settle(player.id, player.balance)?;
+                    effect.wait_timeout(NEXT_GAME_TIMEOUT);
                     effect.checkpoint();
                 } else {
                     return Err(HandleError::InvalidPlayer);

@@ -1,5 +1,5 @@
 import { field, array, enums, option, variant, struct } from '@race-foundation/borsh'
-import { Fields, Id } from './types'
+import { Fields } from './types'
 
 export type EventKind =
   | 'Invalid' // an invalid value
@@ -69,7 +69,7 @@ export class Random extends SecretShare {
   @field(option('string'))
   toAddr!: string | undefined
   @field('usize')
-  randomId!: Id
+  randomId!: number
   @field('usize')
   index!: number
   @field('u8-array')
@@ -86,7 +86,7 @@ export class Answer extends SecretShare {
   @field('string')
   fromAddr!: string
   @field('usize')
-  decisionId!: Id
+  decisionId!: number
   @field('u8-array')
   secret!: Uint8Array
   constructor(fields: Fields<Answer>) {
@@ -184,7 +184,7 @@ export class Mask extends GameEvent implements IEventKind {
   @field('u64')
   sender!: bigint
   @field('usize')
-  randomId!: Id
+  randomId!: number
   @field(array('u8-array'))
   ciphertexts!: Uint8Array[]
   constructor(fields: Fields<Mask>) {
@@ -212,7 +212,7 @@ export class Lock extends GameEvent implements IEventKind {
   @field('u64')
   sender!: bigint
   @field('usize')
-  randomId!: Id
+  randomId!: number
   @field(array(struct(CiphertextAndDigest)))
   ciphertextsAndDigests!: CiphertextAndDigest[]
   constructor(fields: Fields<Lock>) {
@@ -228,7 +228,7 @@ export class Lock extends GameEvent implements IEventKind {
 @variant(6)
 export class RandomnessReady extends GameEvent implements IEventKind {
   @field('usize')
-  randomId!: Id
+  randomId!: number
   constructor(fields: Fields<RandomnessReady>) {
     super()
     Object.assign(this, fields)
@@ -322,7 +322,7 @@ export class DrawRandomItems extends GameEvent implements IEventKind {
   @field('u64')
   sender!: bigint
   @field('usize')
-  randomId!: Id
+  randomId!: number
   @field(array('usize'))
   indexes!: number[]
   constructor(fields: Fields<DrawRandomItems>) {
@@ -365,7 +365,7 @@ export class AnswerDecision extends GameEvent implements IEventKind {
   @field('u64')
   sender!: bigint
   @field('usize')
-  decisionId!: Id
+  decisionId!: number
   @field('u8-array')
   ciphertext!: Uint8Array
   @field('u8-array')

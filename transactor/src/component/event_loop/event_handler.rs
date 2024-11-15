@@ -121,11 +121,10 @@ async fn launch_sub_game(
         let SubGame {
             bundle_addr,
             id,
-            mut init_account,
+            init_account,
         } = sub_game;
         // Use the existing checkpoint when possible.
         let checkpoint = cp.clone();
-        init_account.checkpoint = cp.get_data(id);
         let settle_version = cp.get_version(id);
 
         let ef = EventFrame::LaunchSubGame {
@@ -155,12 +154,8 @@ pub async fn init_state(
     game_mode: GameMode,
     env: &ComponentEnv,
 ) -> Option<CloseReason> {
-    if let Err(e) = game_context.set_versions(access_version, settle_version) {
-        error!("{} Failed to apply checkpoint: {:?}, context settle version: {}, init account settle version: {}", env.log_prefix, e,
-            game_context.settle_version(), settle_version);
-        ports.send(EventFrame::Shutdown).await;
-        return Some(CloseReason::Fault(e));
-    }
+
+    let original_versions = game_context.versions();
 
     let effects = match handler.init_state(&mut game_context, &init_account) {
         Ok(effects) => effects,
@@ -172,16 +167,21 @@ pub async fn init_state(
         }
     };
 
-    let state_sha = digest(game_context.get_handler_state_raw());
+    let EventEffects { checkpoint, launch_sub_games, .. } = effects;
+
     info!(
         "{} Initialize game state, access_version: {}, settle_version: {}, SHA: {}",
-        env.log_prefix, access_version, settle_version, state_sha
+        env.log_prefix, access_version, settle_version, game_context.state_sha()
     );
+
+    if let Some(checkpoint) = checkpoint {
+        send_settlement(checkpoint, vec![], vec![], None, original_versions, &game_context, ports, env).await;
+    }
 
     game_context.dispatch_safe(Event::Ready, 0);
 
     if game_mode == GameMode::Main {
-        launch_sub_game(effects.launch_sub_games, game_context, ports, env).await;
+        launch_sub_game(launch_sub_games, game_context, ports, env).await;
     }
     return None;
 }

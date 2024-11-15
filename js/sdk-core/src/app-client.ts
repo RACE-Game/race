@@ -3,14 +3,14 @@ import { GameContext } from './game-context'
 import { ITransport, JoinError, JoinResponse } from './transport'
 import { IWallet } from './wallet'
 import { Handler } from './handler'
-import { Encryptor, IEncryptor } from './encryptor'
+import { Encryptor, IEncryptor, sha256String } from './encryptor'
 import { SdkError } from './error'
 import { Client } from './client'
 import { IStorage, getTtlCache, makeBundleCacheKey, setTtlCache } from './storage'
 import { DecryptionCache } from './decryption-cache'
 import { ProfileLoader } from './profile-loader'
 import { BaseClient } from './base-client'
-import { EntryTypeCash, GameAccount, GameBundle, IToken } from './accounts'
+import { GameAccount, GameBundle, Token } from './accounts'
 import {
   ConnectionStateCallbackFunction,
   EventCallbackFunction,
@@ -129,7 +129,7 @@ export class AppClient extends BaseClient {
       const gameBundle = await getGameBundle(transport, storage, bundleCacheKey, gameAccount.bundleAddr)
 
       const transactorAddr = gameAccount.transactorAddr
-      if (transactorAddr === undefined) {
+      if (transactorAddr === undefined || gameAccount.checkpointOnChain === undefined) {
         throw SdkError.gameNotServed(gameAddr)
       }
       console.info(`Transactor address: ${transactorAddr}`)
@@ -162,13 +162,18 @@ export class AppClient extends BaseClient {
       if (checkpointOffChain !== undefined && gameAccount.checkpointOnChain !== undefined) {
         checkpoint = Checkpoint.fromParts(checkpointOffChain, gameAccount.checkpointOnChain)
       } else {
-        checkpoint = Checkpoint.default()
+        throw new Error('Game not served')
       }
+      const handlerState = checkpoint.getData(0)
+      if (handlerState === undefined) {
+        throw new Error('Malformed checkpoint')
+      }
+      const stateSha = await sha256String(handlerState)
 
-      const gameContext = new GameContext(gameAccount, checkpoint)
+      const gameContext = new GameContext(gameAccount, checkpoint, handlerState, stateSha)
       console.info('Game Context:', clone(gameContext))
 
-      let token: IToken | undefined = await transport.getToken(gameAccount.tokenAddr)
+      let token: Token | undefined = await transport.getToken(gameAccount.tokenAddr)
       if (token === undefined) {
         const decimals = await transport.getTokenDecimals(gameAccount.tokenAddr)
         if (decimals === undefined) {
@@ -404,7 +409,7 @@ export async function getGameBundle(
   return gameBundle
 }
 
-export function makeGameInfo(gameAccount: GameAccount, token: IToken): GameInfo {
+export function makeGameInfo(gameAccount: GameAccount, token: Token): GameInfo {
   const info: GameInfo = {
     gameAddr: gameAccount.addr,
     title: gameAccount.title,
@@ -415,11 +420,6 @@ export function makeGameInfo(gameAccount: GameAccount, token: IToken): GameInfo 
     data: gameAccount.data,
     dataLen: gameAccount.dataLen,
     token,
-  }
-
-  if (gameAccount.entryType instanceof EntryTypeCash) {
-    info.minDeposit = gameAccount.entryType.minDeposit
-    info.maxDeposit = gameAccount.entryType.maxDeposit
   }
 
   return info

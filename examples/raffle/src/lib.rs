@@ -13,14 +13,12 @@ const DRAW_TIMEOUT: u64 = 30_000;
 #[derive(BorshSerialize, BorshDeserialize)]
 struct Player {
     pub id: u64,
-    pub balance: u64,
 }
 
 impl From<GamePlayer> for Player {
     fn from(value: GamePlayer) -> Self {
         Self {
-            id: value.id,
-            balance: value.balance,
+            id: value.id(),
         }
     }
 }
@@ -32,6 +30,7 @@ struct Raffle {
     players: Vec<Player>,
     random_id: RandomId,
     draw_time: u64,
+    prize_pool: u64,
 }
 
 impl Raffle {
@@ -46,13 +45,13 @@ impl GameHandler for Raffle {
 
     /// Initialize handler state with on-chain game account data.
     fn init_state(_effect: &mut Effect, init_account: InitAccount) -> HandleResult<Self> {
-        let players = init_account.players.into_iter().map(Into::into).collect();
         let draw_time = 0;
         Ok(Self {
             last_winner: None,
-            players,
+            players: vec![],
             random_id: 0,
             draw_time,
+            prize_pool: 0,
         })
     }
 
@@ -74,6 +73,12 @@ impl GameHandler for Raffle {
                 if self.players.len() >= 1 && self.draw_time == 0 {
                     self.draw_time = effect.timestamp() + DRAW_TIMEOUT;
                     effect.wait_timeout(DRAW_TIMEOUT);
+                }
+            }
+
+            Event::Deposit { deposits } => {
+                for d in deposits {
+                    self.prize_pool += d.balance();
                 }
             }
 
@@ -104,10 +109,9 @@ impl GameHandler for Raffle {
 
                 for p in self.players.iter() {
                     if p.id != winner {
-                        effect.settle(Settle::add(winner, p.balance))?;
-                        effect.settle(Settle::sub(p.id, p.balance))?;
+                        effect.settle(p.id, 0)?;
                     }
-                    effect.settle(Settle::eject(p.id))?;
+                    effect.settle(p.id, self.prize_pool)?;
                 }
                 effect.checkpoint();
                 self.last_winner = Some(winner);

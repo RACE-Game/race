@@ -351,7 +351,7 @@ impl Client {
     }
 
     /// Decrypt the ciphertexts with shared secrets.
-    /// Return a mapping from mapping from indexes to decrypted value.
+    /// Return a mapping from mapping from indices to decrypted value.
     pub fn decrypt(
         &self,
         ctx: &GameContext,

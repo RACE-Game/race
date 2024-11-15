@@ -333,7 +333,9 @@ async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rp
         endpoint,
     };
     let context = context.lock().await;
-    context.add_server(&server)?;
+    if context.get_server_account(&server_addr)?.is_none() {
+        context.add_server(&server)?;
+    }
     Ok(())
 }
 
@@ -405,10 +407,12 @@ async fn get_profile(
 ) -> RpcResult<Option<Vec<u8>>> {
     let addr: String = params.one()?;
     let context = context.lock().await;
-    match context.get_player_info(&addr)? {
+    let ret = match context.get_player_info(&addr)? {
         Some(player_info) => Ok(Some(borsh::to_vec(&player_info.profile).unwrap())),
         None => Ok(None),
-    }
+    };
+    println!("? Player profile: {:?}", ret);
+    ret
 }
 
 async fn vote(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {

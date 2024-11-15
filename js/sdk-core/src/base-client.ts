@@ -344,6 +344,7 @@ export class BaseClient {
           const { txState } = frame
           if (txState instanceof PlayerConfirming) {
             txState.confirmPlayers.forEach(p => {
+              console.info('Load profile for:', p.addr)
               this.__onLoadProfile(p.id, p.addr)
             })
           }
@@ -364,6 +365,7 @@ export class BaseClient {
         }
         for (const node of frame.newPlayers) {
           this.__gameContext.addNode(node.addr, node.accessVersion, 'player')
+          console.info('Load profile for:', node.addr)
           this.__onLoadProfile(node.accessVersion, node.addr)
         }
         this.__gameContext.setAccessVersion(frame.accessVersion)
@@ -376,7 +378,6 @@ export class BaseClient {
     } else if (frame instanceof BroadcastFrameEventHistories) {
       console.group(`${this.__logPrefix}Receive event histories`, frame)
       try {
-        await this.__handler.initState(this.__gameContext)
         await this.__checkStateSha(frame.stateSha, 'checkpoint-state-sha-mismatch')
 
         this.__invokeEventCallback(new Init())

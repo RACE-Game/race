@@ -98,11 +98,11 @@ pub enum Event {
     /// Timeout when waiting for start
     WaitingTimeout,
 
-    /// Random drawer takes random items by indexes.
+    /// Random drawer takes random items by indices.
     DrawRandomItems {
         sender: u64,
         random_id: usize,
-        indexes: Vec<usize>,
+        indices: Vec<usize>,
     },
 
     /// Timeout for drawing random items
@@ -203,11 +203,11 @@ impl std::fmt::Display for Event {
             Event::DrawRandomItems {
                 sender,
                 random_id,
-                indexes,
+                indices,
             } => write!(
                 f,
-                "DrawRandomItems from {} for random {} with indexes {:?}",
-                sender, random_id, indexes
+                "DrawRandomItems from {} for random {} with indices {:?}",
+                sender, random_id, indices
             ),
             Event::DrawTimeout => write!(f, "DrawTimeout"),
             Event::ActionTimeout { player_id } => write!(f, "ActionTimeout for {}", player_id),

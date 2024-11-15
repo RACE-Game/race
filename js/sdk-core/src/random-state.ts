@@ -1,11 +1,11 @@
 import { field, map, variant, array } from '@race-foundation/borsh'
-import { Ciphertext, Digest, Fields, Id, Secret } from './types'
+import { Ciphertext, Digest, Fields, Secret } from './types'
 import { CiphertextAndDigest } from './events'
 
 export interface SecretIdent {
   fromAddr: string
   toAddr: string | undefined
-  randomId: Id
+  randomId: number
   index: number
 }
 
@@ -125,7 +125,7 @@ export type RandomStatus =
     }
 
 export class RandomState {
-  id: Id
+  id: number
   size: number
   owners: string[]
   options: string[]
@@ -135,7 +135,7 @@ export class RandomState {
   secretShares: Share[]
   revealed: Map<number, string>
 
-  constructor(id: Id, spec: RandomSpec, owners: string[]) {
+  constructor(id: number, spec: RandomSpec, owners: string[]) {
     if (owners.length === 0) {
       throw new Error('No enough servers')
     }

@@ -22,13 +22,13 @@ pub struct Ask {
 pub struct Assign {
     pub random_id: RandomId,
     pub player_id: u64,
-    pub indexes: Vec<usize>,
+    pub indices: Vec<usize>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Reveal {
     pub random_id: RandomId,
-    pub indexes: Vec<usize>,
+    pub indices: Vec<usize>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -68,7 +68,6 @@ impl SubGame {
         bundle_addr: String,
         max_players: u16,
         init_data: S,
-        checkpoint_state: T,
     ) -> Result<Self> {
         Ok(Self {
             id,
@@ -76,7 +75,6 @@ impl SubGame {
             init_account: InitAccount {
                 max_players,
                 data: borsh::to_vec(&init_data)?,
-                checkpoint: Some(borsh::to_vec(&checkpoint_state)?),
             },
         })
     }
@@ -132,7 +130,7 @@ impl EmitBridgeEvent {
 /// ```
 /// # use race_api::effect::Effect;
 /// let mut effect = Effect::default();
-/// effect.assign(1 /* random_id */, 0 /* player_id */, vec![0, 1, 2] /* indexes */);
+/// effect.assign(1 /* random_id */, 0 /* player_id */, vec![0, 1, 2] /* indices */);
 /// ```
 /// To reveal some items to the public, use [`Effect::reveal`].
 /// It makes those items visible to everyone, including servers.
@@ -140,7 +138,7 @@ impl EmitBridgeEvent {
 /// ```
 /// # use race_api::effect::Effect;
 /// let mut effect = Effect::default();
-/// effect.reveal(1 /* random_id */, vec![0, 1, 2] /* indexes */);
+/// effect.reveal(1 /* random_id */, vec![0, 1, 2] /* indices */);
 /// ```
 ///
 /// # Decisions
@@ -183,13 +181,7 @@ impl EmitBridgeEvent {
 /// # use race_api::effect::Effect;
 /// use race_api::types::Settle;
 /// let mut effect = Effect::default();
-/// // Increase assets
-/// effect.settle(Settle::add(0 /* player_id */, 100 /* amount */));
-/// // Decrease assets
-/// effect.settle(Settle::sub(1 /* player_id */, 200 /* amount */));
-/// // Remove player from this game, its assets will be paid out
-/// effect.settle(Settle::eject(2 /* player_id*/));
-/// // Make the checkpoint
+/// effect.settle(0 /* player_id */, 100 /* amount */);
 /// effect.checkpoint();
 /// ```
 
@@ -259,20 +251,20 @@ impl Effect {
         &mut self,
         random_id: RandomId,
         player_id: u64,
-        indexes: Vec<usize>,
+        indices: Vec<usize>,
     ) -> Result<()> {
         self.assert_player_id(player_id, "assign random id")?;
         self.assigns.push(Assign {
             random_id,
             player_id,
-            indexes,
+            indices,
         });
         Ok(())
     }
 
     /// Reveal some random items to the public.
-    pub fn reveal(&mut self, random_id: RandomId, indexes: Vec<usize>) {
-        self.reveals.push(Reveal { random_id, indexes })
+    pub fn reveal(&mut self, random_id: RandomId, indices: Vec<usize>) {
+        self.reveals.push(Reveal { random_id, indices })
     }
 
     /// Return the revealed random items by id.
@@ -388,9 +380,6 @@ impl Effect {
             init_account: InitAccount {
                 max_players,
                 data: borsh::to_vec(&init_data)?,
-                // The checkpoint is always None
-                // It represents no checkpoint or we should use the existing one
-                checkpoint: None,
             },
         });
         Ok(())

@@ -1,4 +1,4 @@
-import { EntryTypeCash, GameAccount, INft, IToken, ITokenWithBalance, RecipientAccount } from './accounts'
+import { GameAccount, Nft, Token, TokenWithBalance, RecipientAccount } from './accounts'
 import { GAME_ACCOUNT_CACHE_TTL, NFT_CACHE_TTL, TOKEN_CACHE_TTL } from './common'
 import { ResponseHandle, ResponseStream } from './response'
 import {
@@ -85,13 +85,18 @@ export class AppHelper {
       throw new Error('Invalid title')
     }
 
-    if (params.entryType instanceof EntryTypeCash) {
+    if (params.entryType.kind === 'cash') {
       const entryType = params.entryType
       if (entryType.minDeposit <= 0) {
         throw new Error('Invalid minDeposit')
       }
       if (entryType.maxDeposit < entryType.minDeposit) {
         throw new Error('Invalid maxDeposit')
+      }
+    } else if (params.entryType.kind === 'ticket') {
+      const entryType = params.entryType
+      if (entryType.amount <= 0) {
+        throw new Error('Invalid ticket price')
       }
     } else {
       throw new Error('Unsupported entry type')
@@ -229,15 +234,15 @@ export class AppHelper {
    *
    * @return A list of token info.
    */
-  async listTokens(tokenAddrs: string[]): Promise<IToken[]> {
+  async listTokens(tokenAddrs: string[]): Promise<Token[]> {
     if (this.#storage === undefined) {
       return await this.#transport.listTokens(tokenAddrs)
     } else {
-      let res: IToken[] = []
+      let res: Token[] = []
       let queryAddrs: string[] = []
       for (const addr of tokenAddrs) {
         const cacheKey = makeTokenCacheKey(this.#transport.chain, addr)
-        const token = getTtlCache<IToken>(this.#storage, cacheKey)
+        const token = getTtlCache<Token>(this.#storage, cacheKey)
         if (token !== undefined) {
           console.debug('Get token info from cache: %s', addr)
           res.push(token)
@@ -260,7 +265,7 @@ export class AppHelper {
    *
    * @return A list of token info.
    */
-  async listTokensWithBalance(walletAddr: string, tokenAddrs: string[]): Promise<ITokenWithBalance[]> {
+  async listTokensWithBalance(walletAddr: string, tokenAddrs: string[]): Promise<TokenWithBalance[]> {
     return await this.#transport.listTokensWithBalance(walletAddr, tokenAddrs)
   }
 
@@ -272,7 +277,7 @@ export class AppHelper {
    *
    * @return A list of nfts.
    */
-  async listNfts(walletAddr: string, collection: string | undefined = undefined): Promise<INft[]> {
+  async listNfts(walletAddr: string, collection: string | undefined = undefined): Promise<Nft[]> {
     const nfts = await this.#transport.listNfts(walletAddr)
     if (collection === undefined) {
       return nfts
@@ -286,12 +291,12 @@ export class AppHelper {
    *
    * @param addr - The address of NFT
    */
-  async getNft(addr: string): Promise<INft | undefined> {
+  async getNft(addr: string): Promise<Nft | undefined> {
     if (this.#storage === undefined) {
       return await this.#transport.getNft(addr)
     } else {
       const cacheKey = makeNftCacheKey(this.#transport.chain, addr)
-      const cached = getTtlCache<INft>(this.#storage, cacheKey)
+      const cached = getTtlCache<Nft>(this.#storage, cacheKey)
       if (cached !== undefined) {
         return cached
       } else {
@@ -346,7 +351,8 @@ export class AppHelper {
       for (const share of slot.shares) {
         totalClaimed += share.claimAmount
         totalWeights += share.weights
-        if (share.owner === wallet.walletAddr) {
+
+        if (share.owner.kind === 'assigned' && share.owner.addr === wallet.walletAddr) {
           weights += share.weights
           claimed += share.claimAmount
         }

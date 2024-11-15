@@ -40,16 +40,13 @@ import {
   PlayerProfile,
   ServerAccount,
   RegistrationAccount,
-  IToken,
-  INft,
+  Token,
+  Nft,
   RegistrationWithGames,
   RecipientAccount,
   RecipientSlot,
   RecipientClaimParams,
-  EntryTypeCash,
-  ITokenWithBalance,
   TokenWithBalance,
-  Token,
   ResponseHandle,
   CreateGameResponse,
   CreateGameError,
@@ -64,13 +61,14 @@ import {
   CreateRecipientResponse,
   CreateRecipientError,
   CreateRecipientParams,
-  EntryTypeTicket,
+  DepositResponse,
+  DepositError,
 } from '@race-foundation/sdk-core'
 import * as instruction from './instruction'
 
 import { GAME_ACCOUNT_LEN, NAME_LEN, PROFILE_ACCOUNT_LEN, PLAYER_PROFILE_SEED, SERVER_PROFILE_SEED, RECIPIENT_ACCOUNT_LEN } from './constants'
 
-import { GameState, PlayerState, RecipientSlotOwnerAssigned, RecipientSlotOwnerUnassigned, RecipientState, RegistryState, ServerState } from './accounts'
+import { EntryTypeCash, EntryTypeTicket, GameState, PlayerState, RecipientSlotOwnerAssigned, RecipientSlotOwnerUnassigned, RecipientState, RegistryState, ServerState } from './accounts'
 
 import { join } from './instruction'
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants'
@@ -328,7 +326,7 @@ export class SolanaTransport implements ITransport {
     }
   }
 
-  async deposit(_wallet: IWallet, _params: DepositParams, _response: ResponseHandle): Promise<void> {
+  async deposit(wallet: IWallet, params: DepositParams, response: ResponseHandle<DepositResponse, DepositError>): Promise<void> {
     throw new Error('unimplemented')
   }
 
@@ -608,7 +606,7 @@ export class SolanaTransport implements ITransport {
     let files: any[] = json['properties']['files']
     let wasm_file = files.find(f => f['type'] == 'application/wasm')
 
-    return new GameBundle({ addr, uri: wasm_file['uri'], name: trimString(name), data: new Uint8Array(0) })
+    return { addr, uri: wasm_file['uri'], name: trimString(name), data: new Uint8Array(0) }
   }
 
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
@@ -652,19 +650,17 @@ export class SolanaTransport implements ITransport {
     if (regAccount === undefined) return undefined
     const keys = regAccount.games.map(g => new PublicKey(g.addr))
     const gameStates = await this._getMultiGameStates(keys)
-    let games: Array<GameAccount | undefined> = []
+    let games: Array<GameAccount> = []
     for (let i = 0; i < gameStates.length; i++) {
       const gs = gameStates[i]
-      if (gs === undefined) {
-        games.push(undefined)
-      } else {
+      if (gs !== undefined) {
         games.push(gs.generalize(keys[i]))
       }
     }
-    return new RegistrationWithGames({
+    return {
       ...regAccount,
       games,
-    })
+    }
   }
 
   async getRecipient(addr: string): Promise<RecipientAccount | undefined> {
@@ -708,7 +704,7 @@ export class SolanaTransport implements ITransport {
     return mint.decimals
   }
 
-  async getToken(addr: string): Promise<IToken | undefined> {
+  async getToken(addr: string): Promise<Token | undefined> {
     const mintKey = new PublicKey(addr)
     try {
       const mint = await getMint(this.#conn, mintKey, 'finalized')
@@ -778,7 +774,7 @@ export class SolanaTransport implements ITransport {
     return [name, symbol, icon]
   }
 
-  async listTokens(tokenAddrs: string[]): Promise<IToken[]> {
+  async listTokens(tokenAddrs: string[]): Promise<Token[]> {
     if (tokenAddrs.length > 30) {
       throw new Error('Too many token addresses in a row')
     }
@@ -817,7 +813,7 @@ export class SolanaTransport implements ITransport {
       }
 
       if (decimals !== undefined && name !== undefined && symbol !== undefined && icon !== undefined) {
-        const token = new Token({ addr, name, symbol, icon, decimals })
+        const token = { addr, name, symbol, icon, decimals }
         console.debug('Found token:', token)
         results.push(token)
       }
@@ -832,7 +828,7 @@ export class SolanaTransport implements ITransport {
   async listTokensWithBalance(
     walletAddr: string,
     tokenAddrs: string[],
-  ): Promise<ITokenWithBalance[]> {
+  ): Promise<TokenWithBalance[]> {
     if (tokenAddrs.length > 30) {
       throw new Error('Too many token addresses in a row')
     }
@@ -889,7 +885,7 @@ export class SolanaTransport implements ITransport {
     return results
   }
 
-  async getNft(addr: string | PublicKey): Promise<INft | undefined> {
+  async getNft(addr: string | PublicKey): Promise<Nft | undefined> {
     let mintKey: PublicKey
 
     if (addr instanceof PublicKey) {
@@ -938,7 +934,7 @@ export class SolanaTransport implements ITransport {
     }
   }
 
-  async listNfts(walletAddr: string): Promise<INft[]> {
+  async listNfts(walletAddr: string): Promise<Nft[]> {
     let nfts = []
     const ownerKey = new PublicKey(walletAddr)
     const parsedTokenAccounts = await this.#conn.getParsedTokenAccountsByOwner(ownerKey, {

@@ -1596,7 +1596,7 @@ mod tests {
             })
             .await?;
         let game = transport
-            .get_game_account(&game_addr, mode)
+            .get_game_account(&game_addr)
             .await?
             .expect("Failed to get game");
         assert_eq!(game.players.len(), 2);

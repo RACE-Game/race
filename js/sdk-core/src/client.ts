@@ -2,26 +2,25 @@ import { AttachGameParams, AttachResponse, IConnection, SubmitEventParams } from
 import { IEncryptor } from './encryptor'
 import { SecretState } from './secret-state'
 import { GameContext } from './game-context'
-import { Id } from './types'
 
 type OpIdent =
   | {
       kind: 'random-secret'
-      randomId: Id
+      randomId: number
       toAddr: string | undefined
       index: number
     }
   | {
       kind: 'answer-secret'
-      decisionId: Id
+      decisionId: number
     }
   | {
       kind: 'lock'
-      randomId: Id
+      randomId: number
     }
   | {
       kind: 'mask'
-      randomId: Id
+      randomId: number
     }
 
 export class Client {
@@ -80,7 +79,7 @@ export class Client {
     this.__opHist.splice(0)
   }
 
-  async decrypt(ctx: GameContext, randomId: Id): Promise<Map<number, string>> {
+  async decrypt(ctx: GameContext, randomId: number): Promise<Map<number, string>> {
     let randomState = ctx.getRandomState(randomId)
     let options = randomState.options
     let revealed = await this.__encryptor.decryptWithSecrets(

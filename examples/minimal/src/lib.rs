@@ -30,10 +30,7 @@ impl Minimal {
 
 impl GameHandler for Minimal {
 
-    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> Result<Self, HandleError> {
-        if let Some(checkpoint) = init_account.checkpoint()? {
-            return Ok(checkpoint);
-        }
+    fn init_state(init_account: InitAccount) -> Result<Self, HandleError> {
         let account_data: MinimalAccountData = init_account.data()?;
         Ok(Self {
             n: account_data.init_n,

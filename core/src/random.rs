@@ -334,7 +334,7 @@ impl RandomState {
         }
     }
 
-    pub fn assign<S>(&mut self, addr: S, indexes: Vec<usize>) -> Result<()>
+    pub fn assign<S>(&mut self, addr: S, indices: Vec<usize>) -> Result<()>
     where
         S: ToOwned<Owned = String>,
     {
@@ -345,7 +345,7 @@ impl RandomState {
             return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
 
-        if indexes
+        if indices
             .iter()
             .filter_map(|i| self.get_ciphertext(*i))
             .any(|c| matches!(c.owner, CipherOwner::Assigned(_) | CipherOwner::Revealed))
@@ -353,7 +353,7 @@ impl RandomState {
             return Err(Error::CiphertextAlreadyAssigned);
         }
 
-        for i in indexes.into_iter() {
+        for i in indices.into_iter() {
             if let Some(c) = self.get_ciphertext_mut(i) {
                 c.owner = CipherOwner::Assigned(addr.to_owned());
             }
@@ -386,7 +386,7 @@ impl RandomState {
             self.secret_shares.push(share);
         }
     }
-    pub fn reveal(&mut self, indexes: Vec<usize>) -> Result<()> {
+    pub fn reveal(&mut self, indices: Vec<usize>) -> Result<()> {
         if !matches!(
             self.status,
             RandomStatus::Shared | RandomStatus::Ready | RandomStatus::WaitingSecrets
@@ -394,7 +394,7 @@ impl RandomState {
             return Err(Error::InvalidRandomStatus(self.status.clone()));
         }
 
-        for i in indexes.into_iter() {
+        for i in indices.into_iter() {
             if let Some(c) = self.get_ciphertext_mut(i) {
                 if c.owner != CipherOwner::Revealed {
                     c.owner = CipherOwner::Revealed;

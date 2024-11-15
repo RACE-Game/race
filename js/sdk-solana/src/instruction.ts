@@ -1,13 +1,15 @@
 import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } from '@solana/web3.js'
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token'
 import { publicKeyExt } from './utils'
-import { PROGRAM_ID, METAPLEX_PROGRAM_ID, PLAYER_PROFILE_SEED } from './constants'
-import { array, enums, extend, ExtendOptions, field, IExtendWriter, serialize, struct } from '@race-foundation/borsh'
+import { PROGRAM_ID, METAPLEX_PROGRAM_ID} from './constants'
+import { array, enums, field, serialize, struct } from '@race-foundation/borsh'
 import { Buffer } from 'buffer'
-import { EntryType, RecipientSlotInit } from '@race-foundation/sdk-core'
-import { RecipientSlot, RecipientSlotOwner, RecipientSlotOwnerAssigned, RecipientState } from './accounts'
+import { EntryType, Fields } from '@race-foundation/sdk-core'
+import { AEntryType, RecipientSlotOwner, RecipientSlotOwnerAssigned, RecipientState } from './accounts'
 
 // Instruction types
+
+type IxParams<T> = Omit<Fields<T>, 'instruction'>
 
 export enum Instruction {
   CreateGameAccount = 0,
@@ -64,12 +66,12 @@ export class CreateGameAccountData extends Serialize {
   title: string = ''
   @field('u16')
   maxPlayers: number = 0
-  @field(enums(EntryType))
-  entryType!: EntryType
+  @field(enums(AEntryType))
+  entryType!: AEntryType
   @field('u8-array')
   data: Uint8Array = Uint8Array.from([])
 
-  constructor(params: Partial<CreateGameAccountData>) {
+  constructor(params: IxParams<CreateGameAccountData>) {
     super()
     Object.assign(this, params)
   }
@@ -87,12 +89,12 @@ export class JoinGameData extends Serialize {
   @field('string')
   verifyKey: string
 
-  constructor(amount: bigint, accessVersion: bigint, position: number, verifyKey: string) {
+  constructor(params: IxParams<JoinGameData>) {
     super()
-    this.amount = amount
-    this.accessVersion = accessVersion
-    this.position = position
-    this.verifyKey = verifyKey
+    this.amount = params.amount
+    this.accessVersion = params.accessVersion
+    this.position = params.position
+    this.verifyKey = params.verifyKey
   }
 }
 
@@ -106,11 +108,11 @@ export class PublishGameData extends Serialize {
   @field('string')
   symbol: string
 
-  constructor(uri: string, name: string, symbol: string) {
+  constructor(params: IxParams<PublishGameData>) {
     super()
-    this.uri = uri
-    this.name = name
-    this.symbol = symbol
+    this.uri = params.uri
+    this.name = params.name
+    this.symbol = params.symbol
   }
 }
 
@@ -142,7 +144,7 @@ export class SlotInit {
   @field(array(struct(SlotShareInit)))
   initShares!: SlotShareInit[]
 
-  constructor(fields: any) {
+  constructor(fields: Fields<SlotInit>) {
     Object.assign(this, fields)
   }
 }
@@ -154,9 +156,9 @@ export class CreateRecipientData extends Serialize {
   @field(array(struct(SlotInit)))
   slots: SlotInit[]
 
-  constructor(slots: SlotInit[]) {
+  constructor(params: IxParams<CreateRecipientData>) {
     super()
-    this.slots = slots
+    this.slots = params.slots
   }
 }
 
@@ -245,7 +247,7 @@ export function registerGame(opts: RegisterGameOptions): TransactionInstruction 
 export function createGameAccount(opts: CreateGameOptions): TransactionInstruction {
   const params = new CreateGameAccountData({
     title: opts.title,
-    entryType: opts.entryType,
+    entryType: AEntryType.from(opts.entryType),
     maxPlayers: opts.maxPlayers,
     data: opts.data,
   })
@@ -376,7 +378,7 @@ export function join(opts: JoinOptions): TransactionInstruction {
   } = opts
 
   let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID)
-  const data = new JoinGameData(amount, accessVersion, position, verifyKey).serialize()
+  const data = new JoinGameData({amount, accessVersion, position, verifyKey}).serialize()
 
   return new TransactionInstruction({
     keys: [
@@ -454,7 +456,7 @@ export function publishGame(opts: PublishGameOptions): TransactionInstruction {
   )
   let ata = getAssociatedTokenAddressSync(mint, ownerKey)
 
-  let data = new PublishGameData(uri, name, symbol).serialize()
+  let data = new PublishGameData({ uri, name, symbol }).serialize()
 
   return new TransactionInstruction({
     keys: [
@@ -522,18 +524,18 @@ export function createRecipient(opts: CreateRecipientOpts): TransactionInstructi
   let keys = [
     {
       pubkey: payerKey,
-        isSigner: true,
-        isWritable: false,
+      isSigner: true,
+      isWritable: false,
     },
     {
-        pubkey: capKey,
-        isSigner: false,
-        isWritable: false,
+      pubkey: capKey,
+      isSigner: false,
+      isWritable: false,
     },
     {
-        pubkey: recipientKey,
-        isSigner: false,
-        isWritable: false,
+      pubkey: recipientKey,
+      isSigner: false,
+      isWritable: false,
     },
     {
       pubkey: TOKEN_PROGRAM_ID,
@@ -544,7 +546,7 @@ export function createRecipient(opts: CreateRecipientOpts): TransactionInstructi
 
   slots.forEach(slot => keys.push({ pubkey: slot.stakeAddr, isSigner: false, isWritable: false }))
 
-  const data = new CreateRecipientData(slots).serialize()
+  const data = new CreateRecipientData({ slots }).serialize()
 
   return new TransactionInstruction({
     keys, programId: PROGRAM_ID, data

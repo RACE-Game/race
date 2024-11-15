@@ -5,6 +5,21 @@ export interface IStorage {
   setItem(key: string, value: any): void
 }
 
+export class TemporaryStorage {
+  data: Map<string, string>
+  constructor() {
+    this.data = new Map()
+  }
+  getItem(key: string): string | null {
+    const x = this.data.get(key)
+    if (x === undefined) return null
+    return x
+  }
+  setItem(key: string, value: string) {
+    this.data.set(key, value)
+  }
+}
+
 export type TtlCache<T> = {
   expire: number
   value: T

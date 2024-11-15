@@ -231,17 +231,17 @@ mod tests {
         transport.simulate_states(states);
 
         let addr = test_game_addr();
-        assert_eq!(Some(ga_0), transport.get_game_account(&addr, QueryMode::Finalized).await?);
-        assert_eq!(Some(ga_1), transport.get_game_account(&addr, QueryMode::Finalized).await?);
-        assert_eq!(Some(ga_2), transport.get_game_account(&addr, QueryMode::Finalized).await?);
-        assert_eq!(None, transport.get_game_account(&addr, QueryMode::Finalized).await?);
+        assert_eq!(Some(ga_0), transport.get_game_account(&addr).await?);
+        assert_eq!(Some(ga_1), transport.get_game_account(&addr).await?);
+        assert_eq!(Some(ga_2), transport.get_game_account(&addr).await?);
+        assert_eq!(None, transport.get_game_account(&addr).await?);
         Ok(())
     }
 
     #[tokio::test]
     async fn test_settle() {
         let transport = DummyTransport::default();
-        let settles = vec![SettleWithAddr::add("Alice", 100), SettleWithAddr::add("Bob", 100)];
+        let settles = vec![Settle::new(0, 100), Settle::new(1, 100)];
         let params = SettleParams {
             addr: test_game_addr(),
             settles: settles.clone(),
@@ -249,6 +249,7 @@ mod tests {
             checkpoint: CheckpointOnChain::default(),
             settle_version: 0,
             next_settle_version: 1,
+            entry_lock: None,
         };
         transport.settle_game(params.clone()).await.unwrap();
         transport.settle_game(params.clone()).await.unwrap();
@@ -271,6 +272,7 @@ mod tests {
             checkpoint: CheckpointOnChain::default(),
             settle_version: 0,
             next_settle_version: 1,
+            entry_lock: None,
         };
         assert_eq!(transport.settle_game(params).await.is_err(), true);
     }
