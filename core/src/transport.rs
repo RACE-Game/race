@@ -5,7 +5,7 @@ use crate::types::{
 };
 use async_trait::async_trait;
 use futures::Stream;
-use race_api::error::Result;
+use crate::error::Result;
 
 #[async_trait]
 pub trait TransportT: Send + Sync {

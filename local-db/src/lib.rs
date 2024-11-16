@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
-use race_api::error::{Error, Result};
 use race_core::{
+    error::{Error, Result},
     checkpoint::CheckpointOffChain,
     storage::StorageT,
     types::{GetCheckpointParams, SaveCheckpointParams},

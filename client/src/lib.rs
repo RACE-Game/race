@@ -3,10 +3,10 @@ use std::{
     sync::Arc,
 };
 
-use race_api::error::{Error, Result};
 use race_api::event::Event;
-use race_core::random::{RandomState, RandomStatus};
 use race_api::types::SecretShare;
+use race_core::error::{Error, Result};
+use race_core::random::{RandomState, RandomStatus};
 
 use race_core::{
     connection::ConnectionT,

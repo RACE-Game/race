@@ -129,7 +129,6 @@ export class Handler implements IHandler {
         context.addRevealedRandom(st.id, revealed)
       }
     } else if (event instanceof Bridge) {
-      event.joinPlayers.forEach(p => context.addPlayer(p))
     }
   }
 

@@ -70,7 +70,7 @@ pub enum Error {
     Unreachable(String),
 }
 
-impl From<Error> for race_api::error::Error {
+impl From<Error> for crate::error::Error {
     fn from(e: Error) -> Self {
         Self::RandomizationError(e.to_string())
     }

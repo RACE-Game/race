@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use race_api::error::Error;
+use race_core::error::Error;
 use race_core::storage::StorageT;
 use race_core::types::{GameAccount, SaveCheckpointParams, SettleParams, SettleResult, TxState};
 use tokio::select;

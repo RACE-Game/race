@@ -17,6 +17,7 @@ publish = true
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 race-api = { workspace = true }
+race-core = { workspace = true }
 race-transport = { workspace = true }
 race-env = { workspace = true }
 tokio = { workspace = true, features = ["full"] }

@@ -46,14 +46,12 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         {
             match event_frame {
                 EventFrame::InitState {
-                    init_account,
                     access_version,
                     settle_version,
                     ..
                 } => {
-                    if game_context.checkpoint_is_empty() {
+                    if game_context.get_handler_state_raw().is_empty() {
                         if let Some(close_reason) = event_handler::init_state(
-                            init_account,
                             access_version,
                             settle_version,
                             &mut handler,
@@ -237,7 +235,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("Update checkpoint for child game: {}", from);
-                        game_context.checkpoint_mut().set_data(from, checkpoint_state)
+                        if let Err(e) = game_context.checkpoint_mut().set_data(from, checkpoint_state) {
+                            error!("{} Failed to set checkpoint data: {:?}", env.log_prefix, e);
+                            ports.send(EventFrame::Shutdown).await;
+                        }
                     }
 
                     if let Some(close_reason) = event_handler::handle_event(

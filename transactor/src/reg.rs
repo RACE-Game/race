@@ -3,7 +3,7 @@
 
 use std::{collections::HashMap, time::Duration};
 
-use race_api::error::{Error, Result};
+use race_core::error::{Error, Result};
 use race_core::{
     transport::TransportT,
     types::{RegisterServerParams, ServeParams},

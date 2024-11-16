@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use race_api::error::{Error, Result};
+use crate::error::{Error, Result};
 
 use crate::{
     encryptor::EncryptorT,

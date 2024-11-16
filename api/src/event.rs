@@ -134,7 +134,6 @@ pub enum Event {
     Bridge {
         dest: usize,
         raw: Vec<u8>,
-        join_players: Vec<GamePlayer>,
     },
 }
 
@@ -145,18 +144,11 @@ impl std::fmt::Display for Event {
             Event::Bridge {
                 dest,
                 raw,
-                join_players,
             } => {
-                let players = join_players
-                    .iter()
-                    .map(|p| p.id().to_string())
-                    .collect::<Vec<String>>()
-                    .join(",");
-
                 write!(
                     f,
-                    "Bridge to {}, inner: [{}...], join_players: [{}]",
-                    dest, raw[0], players
+                    "Bridge to {}, inner: [{}...]",
+                    dest, raw[0]
                 )
             }
             Event::Ready => write!(f, "Ready"),
@@ -236,11 +228,10 @@ impl Event {
         }
     }
 
-    pub fn bridge<E: BridgeEvent>(dest: usize, e: &E, join_players: Vec<GamePlayer>) -> Self {
+    pub fn bridge<E: BridgeEvent>(dest: usize, e: &E) -> Self {
         Self::Bridge {
             dest,
             raw: borsh::to_vec(&e).unwrap(),
-            join_players,
         }
     }
 }

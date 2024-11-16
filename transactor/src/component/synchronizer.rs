@@ -7,7 +7,7 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use race_api::error::Error;
+use race_core::error::Error;
 use tokio_stream::StreamExt;
 
 use crate::frame::EventFrame;

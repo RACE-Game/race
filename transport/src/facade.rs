@@ -10,8 +10,7 @@ use jsonrpsee::rpc_params;
 
 use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBuilder};
 
-use race_api::error::{Error, Result};
-
+use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 
 use race_core::types::{

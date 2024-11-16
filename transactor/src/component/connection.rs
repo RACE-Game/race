@@ -20,7 +20,7 @@ use jsonrpsee::{
     rpc_params,
     ws_client::{WsClient, WsClientBuilder},
 };
-use race_api::error::{Error, Result};
+use race_core::error::{Error, Result};
 use race_core::types::{BroadcastFrame, SubscribeEventParams};
 use race_core::{
     connection::ConnectionT,

@@ -5,11 +5,10 @@ use crate::component::{
     LocalConnection, PortsHandle, WrappedClient, WrappedHandler,
 };
 use crate::frame::EventFrame;
-use race_api::error::{Error, Result};
-use race_core::checkpoint::Checkpoint;
-use race_core::context::GameContext;
+use race_core::error::{Error, Result};
+use race_core::context::{GameContext, SubGameInit};
 use race_core::transport::TransportT;
-use race_core::types::{ClientMode, GameMode, ServerAccount, SubGameSpec};
+use race_core::types::{ClientMode, GameMode, ServerAccount};
 use race_encryptor::Encryptor;
 
 #[allow(dead_code)]
@@ -23,30 +22,28 @@ pub struct SubGameHandle {
 
 impl SubGameHandle {
     pub async fn try_new(
-        spec: SubGameSpec,
-        checkpoint: Checkpoint,
+        sub_game_init: SubGameInit,
         bridge_parent: EventBridgeParent,
         server_account: &ServerAccount,
         encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
         _debug_mode: bool,
     ) -> Result<Self> {
-        let game_addr = spec.game_addr.clone();
-        let game_id = spec.game_id.clone();
+        let game_addr = sub_game_init.spec.game_addr.clone();
+        let game_id = sub_game_init.spec.game_id.clone();
         let addr = format!("{}:{}", game_addr, game_id);
         let event_bus = EventBus::new(addr.to_string());
 
         let bundle_account = transport
-            .get_game_bundle(&spec.bundle_addr)
+            .get_game_bundle(&sub_game_init.spec.bundle_addr)
             .await?
             .ok_or(Error::GameBundleNotFound)?;
 
         // Build an InitAccount
-        let game_context = GameContext::try_new_with_sub_game_spec(&spec, checkpoint)?;
+        let game_context = GameContext::try_new_with_sub_game_spec(sub_game_init)?;
+        let access_version = game_context.access_version();
+        let settle_version = game_context.settle_version();
         let checkpoint = game_context.checkpoint().clone();
-
-        let access_version = spec.access_version;
-        let settle_version = spec.settle_version;
 
         let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 
@@ -63,7 +60,6 @@ impl SubGameHandle {
         let mut connection = LocalConnection::new(encryptor.clone());
 
         event_bus.attach(&mut connection).await;
-
         let (client, client_ctx) = WrappedClient::init(
             server_account.addr.clone(),
             addr.clone(),
@@ -78,14 +74,13 @@ impl SubGameHandle {
         event_bus.attach(&mut bridge_handle).await;
         event_bus.attach(&mut broadcaster_handle).await;
         event_bus.attach(&mut event_loop_handle).await;
-        event_bus
-            .send(EventFrame::InitState {
-                init_account: spec.init_account,
-                access_version,
-                settle_version,
-                checkpoint,
-            })
-            .await;
+
+        let init_state = EventFrame::InitState {
+            access_version,
+            settle_version,
+            checkpoint,
+        };
+        event_bus.send(init_state).await;
 
         Ok(Self {
             addr: format!("{}:{}", game_addr, game_id),

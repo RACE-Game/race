@@ -3233,6 +3233,7 @@ dependencies = [
  "openssl",
  "prettytable-rs",
  "race-api",
+ "race-core",
  "race-env",
  "race-transport",
  "reqwest",

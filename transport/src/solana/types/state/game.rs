@@ -1,5 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::error::Error;
+use race_core::error::Error;
 use race_core::{
     checkpoint::CheckpointOnChain,
     types::{EntryLock, EntryType, GameAccount, VoteType},

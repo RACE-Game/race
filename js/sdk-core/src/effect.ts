@@ -93,8 +93,6 @@ export class EmitBridgeEvent {
   dest!: number
   @field('u8-array')
   raw!: Uint8Array
-  @field(array(struct(ContextPlayer)))
-  joinPlayers!: ContextPlayer[]
 
   constructor(fields: Fields<EmitBridgeEvent>) {
     Object.assign(this, fields)

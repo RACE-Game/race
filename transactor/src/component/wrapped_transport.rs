@@ -2,7 +2,7 @@
 
 use futures::Stream;
 use jsonrpsee::core::async_trait;
-use race_api::error::Result;
+use race_core::error::Result;
 use race_core::types::{
     AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, ServeParams, SettleResult, UnregisterGameParams, VoteParams
 };

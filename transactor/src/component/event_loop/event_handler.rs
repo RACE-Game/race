@@ -1,13 +1,11 @@
 use super::misc::log_execution_context;
 use race_api::{
     effect::{EmitBridgeEvent, SubGame},
-    error::Error,
     event::Event,
-    prelude::InitAccount,
     types::{EntryLock, Settle, Transfer},
 };
 use race_core::{
-    checkpoint::Checkpoint, context::{ContextVersions, EventEffects, GameContext}, types::{ClientMode, GameMode, SubGameSpec}
+    checkpoint::Checkpoint, context::{EventEffects, GameContext, SubGameInit, SubGameInitSource, Versions}, error::Error, types::{ClientMode, GameMode, GameSpec}
 };
 
 use crate::{
@@ -18,7 +16,7 @@ use tracing::{error, info, warn};
 
 async fn broadcast_event(
     event: Event,
-    original_versions: ContextVersions,
+    original_versions: Versions,
     game_context: &GameContext,
     ports: &PipelinePorts,
 ) {
@@ -66,7 +64,6 @@ async fn send_bridge_event(
             event: Event::Bridge {
                 dest: be.dest,
                 raw: be.raw,
-                join_players: be.join_players,
             },
             access_version: game_context.access_version(),
             settle_version: game_context.settle_version(),
@@ -81,7 +78,7 @@ async fn send_settlement(
     transfers: Vec<Transfer>,
     settles: Vec<Settle>,
     entry_lock: Option<EntryLock>,
-    original_versions: ContextVersions,
+    original_versions: Versions,
     game_context: &GameContext,
     ports: &PipelinePorts,
     env: &ComponentEnv,
@@ -116,43 +113,43 @@ async fn launch_sub_game(
 ) {
     for sub_game in sub_games {
         info!("{} Launch sub game: {}", env.log_prefix, sub_game.id);
-        let cp = game_context.checkpoint_mut();
         let SubGame {
             bundle_addr,
             id,
             init_account,
         } = sub_game;
         // Use the existing checkpoint when possible.
-        let checkpoint = cp.clone();
-        let settle_version = cp.get_version(id);
-
         let ef = EventFrame::LaunchSubGame {
-            spec: Box::new(SubGameSpec {
-                game_addr: game_context.game_addr().to_owned(),
-                game_id: id,
-                bundle_addr,
+            sub_game_init: Box::new(SubGameInit {
+                spec: GameSpec {
+                    game_addr: game_context.game_addr().to_owned(),
+                    game_id: id,
+                    bundle_addr,
+                    max_players: init_account.max_players,
+                },
                 nodes: game_context.get_nodes().into(),
-                access_version: game_context.access_version(),
-                settle_version,
-                init_account,
-            }),
-            checkpoint,
+                source: SubGameInitSource::FromInitAccount(init_account),
+            })
         };
         ports.send(ef).await;
     }
 }
 
 pub async fn init_state(
-    init_account: InitAccount,
     access_version: u64,
     settle_version: u64,
     handler: &mut WrappedHandler,
     mut game_context: &mut GameContext,
     ports: &PipelinePorts,
-    _client_mode: ClientMode,
+    client_mode: ClientMode,
     game_mode: GameMode,
     env: &ComponentEnv,
 ) -> Option<CloseReason> {
+
+    let init_account = match game_context.init_account() {
+        Ok(init_account) => init_account,
+        Err(e) => return Some(CloseReason::Fault(e)),
+    };
 
     let original_versions = game_context.versions();
 
@@ -177,7 +174,11 @@ pub async fn init_state(
         send_settlement(checkpoint, vec![], vec![], None, original_versions, &game_context, ports, env).await;
     }
 
-    game_context.dispatch_safe(Event::Ready, 0);
+    // Dispatch the initial Ready event if running in Transactor mode.
+    // The whole game lifetime has only one Ready event.
+    if client_mode == ClientMode::Transactor {
+        game_context.dispatch_safe(Event::Ready, 0);
+    }
 
     if game_mode == GameMode::Main {
         launch_sub_game(launch_sub_games, game_context, ports, env).await;

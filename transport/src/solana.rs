@@ -12,8 +12,8 @@ use types::*;
 use crate::error::{TransportError, TransportResult};
 use async_trait::async_trait;
 use borsh::BorshDeserialize;
-use race_api::error::{Error, Result};
 use race_core::{
+    error::{Error, Result},
     transport::TransportT,
     types::{
         AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams
@@ -835,7 +835,7 @@ impl TransportT for SolanaTransport {
 
         if reg_state.games.len() == reg_state.size as usize {
             // FIXME: Use TransportError
-            return Err(race_api::error::Error::Custom(
+            return Err(race_core::error::Error::Custom(
                 "Registry already full".to_string(),
             ));
         }

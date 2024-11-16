@@ -1,7 +1,7 @@
 use race_core::{checkpoint::CheckpointOffChain, storage::StorageT, types::{GetCheckpointParams, SaveCheckpointParams}};
 use race_env::Config;
 use jsonrpsee::core::async_trait;
-use race_api::error::Result;
+use race_core::error::Result;
 use race_local_db::LocalDbStorage;
 
 pub struct WrappedStorage {

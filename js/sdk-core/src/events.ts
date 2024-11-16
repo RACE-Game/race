@@ -412,8 +412,6 @@ export class Bridge extends GameEvent implements IEventKind {
   dest!: number
   @field('u8-array')
   raw!: Uint8Array
-  @field(array(struct(GamePlayer)))
-  joinPlayers!: GamePlayer[]
 
   constructor(fields: Fields<Bridge>) {
     super()

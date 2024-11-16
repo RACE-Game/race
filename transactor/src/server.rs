@@ -227,7 +227,7 @@ async fn subscribe_event(
 
 pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
     let cors = CorsLayer::new()
-        .allow_methods([Method::POST])
+        .allow_methods([Method::POST, Method::OPTIONS])
         .allow_origin(Any)
         .allow_headers([hyper::header::CONTENT_TYPE]);
 

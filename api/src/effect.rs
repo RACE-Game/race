@@ -6,7 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 use crate::{
     engine::GameHandler,
-    error::{Error, HandleError, Result},
+    error::{HandleError, HandleResult},
     event::BridgeEvent,
     prelude::InitAccount,
     random::RandomSpec,
@@ -62,13 +62,12 @@ pub struct SubGameLeave {
 }
 
 impl SubGame {
-
     pub fn try_new<S: BorshSerialize, T: BorshSerialize>(
         id: usize,
         bundle_addr: String,
         max_players: u16,
         init_data: S,
-    ) -> Result<Self> {
+    ) -> HandleResult<Self> {
         Ok(Self {
             id,
             bundle_addr,
@@ -84,19 +83,16 @@ impl SubGame {
 pub struct EmitBridgeEvent {
     pub dest: usize,
     pub raw: Vec<u8>,
-    pub join_players: Vec<GamePlayer>,
 }
 
 impl EmitBridgeEvent {
     pub fn try_new<E: BridgeEvent>(
         dest: usize,
         bridge_event: E,
-        join_players: Vec<GamePlayer>,
-    ) -> Result<Self> {
+    ) -> HandleResult<Self> {
         Ok(Self {
             dest,
             raw: borsh::to_vec(&bridge_event)?,
-            join_players,
         })
     }
 }
@@ -216,23 +212,6 @@ pub struct Effect {
 }
 
 impl Effect {
-    fn assert_player_id(&self, id: u64, reason: &str) -> Result<()> {
-        if self.valid_players.is_empty() {
-            // Skip check
-            return Ok(());
-        }
-
-        if self.valid_players.contains(&id) {
-            Ok(())
-        } else {
-            Err(Error::InvalidPlayerId(
-                id,
-                self.valid_players.clone(),
-                reason.to_string(),
-            ))
-        }
-    }
-
     /// Return the number of nodes, including both the pending and joined.
     pub fn count_nodes(&self) -> usize {
         self.nodes_count as usize
@@ -252,8 +231,7 @@ impl Effect {
         random_id: RandomId,
         player_id: u64,
         indices: Vec<usize>,
-    ) -> Result<()> {
-        self.assert_player_id(player_id, "assign random id")?;
+    ) -> HandleResult<()> {
         self.assigns.push(Assign {
             random_id,
             player_id,
@@ -270,27 +248,26 @@ impl Effect {
     /// Return the revealed random items by id.
     ///
     /// Return [`Error::RandomnessNotRevealed`] when invalid random id is given.
-    pub fn get_revealed(&self, random_id: RandomId) -> Result<&HashMap<usize, String>> {
+    pub fn get_revealed(&self, random_id: RandomId) -> HandleResult<&HashMap<usize, String>> {
         self.revealed
             .get(&random_id)
-            .ok_or(Error::RandomnessNotRevealed)
+            .ok_or(HandleError::RandomnessNotRevealed)
     }
 
     /// Return the answer of a decision by id.
     ///
     /// Return [`Error::AnswerNotAvailable`] when invalid decision id
     /// is given or the answer is not ready.
-    pub fn get_answer(&self, decision_id: DecisionId) -> Result<&str> {
+    pub fn get_answer(&self, decision_id: DecisionId) -> HandleResult<&str> {
         if let Some(a) = self.answered.get(&decision_id) {
             Ok(a.as_ref())
         } else {
-            Err(Error::AnswerNotAvailable)
+            Err(HandleError::AnswerNotAvailable)
         }
     }
 
     /// Ask a player for a decision, return the new decision id.
-    pub fn ask(&mut self, player_id: u64) -> Result<DecisionId> {
-        self.assert_player_id(player_id, "ask decision")?;
+    pub fn ask(&mut self, player_id: u64) -> HandleResult<DecisionId> {
         self.asks.push(Ask { player_id });
         let decision_id = self.curr_decision_id;
         self.curr_decision_id += 1;
@@ -302,8 +279,7 @@ impl Effect {
     }
 
     /// Dispatch action timeout event for a player after certain milliseconds.
-    pub fn action_timeout(&mut self, player_id: u64, timeout: u64) -> Result<()> {
-        self.assert_player_id(player_id, "set action timeout")?;
+    pub fn action_timeout(&mut self, player_id: u64, timeout: u64) -> HandleResult<()> {
         self.action_timeout = Some(ActionTimeout { player_id, timeout });
         Ok(())
     }
@@ -352,9 +328,8 @@ impl Effect {
 
     /// Submit settlements.
     /// This will set current state as checkpoint automatically.
-    pub fn settle(&mut self, player_id: u64, amount: u64) -> Result<()> {
+    pub fn settle(&mut self, player_id: u64, amount: u64) -> HandleResult<()> {
         self.checkpoint();
-        self.assert_player_id(player_id, "create settle")?;
         self.settles.push(Settle::new(player_id, amount));
         Ok(())
     }
@@ -373,7 +348,7 @@ impl Effect {
         bundle_addr: String,
         max_players: u16,
         init_data: D,
-    ) -> Result<()> {
+    ) -> HandleResult<()> {
         self.launch_sub_games.push(SubGame {
             id,
             bundle_addr,
@@ -425,17 +400,13 @@ impl Effect {
         &mut self,
         dest: usize,
         evt: E,
-        join_players: Vec<GamePlayer>,
-    ) -> Result<()> {
-        for p in join_players.iter() {
-            self.assert_player_id(p.id(), "emit bridge event")?;
-        }
+    ) -> HandleResult<()> {
         if self.bridge_events.iter().any(|x| x.dest == dest) {
-            return Err(Error::DuplicatedBridgeEventTarget);
+            return Err(HandleError::DuplicatedBridgeEventTarget);
         }
 
         self.bridge_events
-            .push(EmitBridgeEvent::try_new(dest, evt, join_players)?);
+            .push(EmitBridgeEvent::try_new(dest, evt)?);
         Ok(())
     }
 }

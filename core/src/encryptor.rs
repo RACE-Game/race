@@ -2,7 +2,6 @@ use thiserror::Error;
 use borsh::{BorshSerialize, BorshDeserialize};
 use std::collections::HashMap;
 use crate::types::{SecretKey, SecretDigest, Signature, Ciphertext};
-use race_api;
 #[cfg(feature = "serde")]
 use serde::{Serialize, Deserialize};
 
@@ -78,9 +77,9 @@ pub enum EncryptorError {
     InvalidSignatureLength(usize),
 }
 
-impl From<EncryptorError> for race_api::error::Error {
+impl From<EncryptorError> for crate::error::Error {
     fn from(e: EncryptorError) -> Self {
-        race_api::error::Error::CryptoError(e.to_string())
+        crate::error::Error::CryptoError(e.to_string())
     }
 }
 

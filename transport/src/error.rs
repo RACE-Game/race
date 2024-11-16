@@ -158,7 +158,7 @@ pub enum TransportError {
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;
 
-impl From<TransportError> for race_api::error::Error {
+impl From<TransportError> for race_core::error::Error {
     fn from(value: TransportError) -> Self {
         Self::TransportError(value.to_string())
     }

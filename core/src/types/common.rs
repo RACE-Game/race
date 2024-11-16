@@ -1,10 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::prelude::InitAccount;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 pub use race_api::types::*;
-
-use crate::context::Node;
 
 pub type SettleTransferCheckpoint = (Vec<Settle>, Vec<Transfer>, Vec<u8>);
 
@@ -43,13 +40,11 @@ impl std::fmt::Display for Signature {
     }
 }
 
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
-pub struct SubGameSpec {
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct GameSpec {
     pub game_addr: String,
     pub game_id: usize,
     pub bundle_addr: String,
-    pub nodes: Vec<Node>,
-    pub access_version: u64,
-    pub settle_version: u64,
-    pub init_account: InitAccount,
+    pub max_players: u16,
 }

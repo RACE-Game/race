@@ -2,8 +2,8 @@ use crate::blacklist::Blacklist;
 use crate::component::{WrappedStorage, WrappedTransport};
 use crate::frame::SignalFrame;
 use crate::game_manager::GameManager;
-use race_api::error::{Error, Result};
 use race_api::event::{Event, Message};
+use race_core::error::{Error, Result};
 use race_core::encryptor::{EncryptorT, NodePublicKeyRaw};
 use race_core::transport::TransportT;
 use race_core::types::{BroadcastFrame, ServerAccount, Signature};
@@ -90,18 +90,17 @@ impl ApplicationContext {
                                 )
                                 .await;
                         }
-                        SignalFrame::LaunchSubGame { spec, checkpoint } => {
+                        SignalFrame::LaunchSubGame { sub_game_init } => {
                             let bridge_parent = game_manager_1
-                                .get_event_parent(&spec.game_addr)
+                                .get_event_parent(&sub_game_init.spec.game_addr)
                                 .await
                                 .expect(
-                                    format!("Bridge parent not found: {}", spec.game_addr).as_str(),
+                                    format!("Bridge parent not found: {}", sub_game_init.spec.game_addr).as_str(),
                                 );
 
                             game_manager_1
                                 .launch_sub_game(
-                                    spec,
-                                    checkpoint,
+                                    sub_game_init,
                                     bridge_parent,
                                     &account_1,
                                     transport_1.clone(),

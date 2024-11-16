@@ -1,14 +1,14 @@
 use race_api::{
-    event::{Event, Message}, init_account::InitAccount, types::{EntryLock, Settle}
+    event::{Event, Message}, types::{EntryLock, Settle}
 };
 use race_core::{
-    checkpoint::Checkpoint, context::{GameContext, Node}, types::{PlayerDeposit, PlayerJoin, ServerJoin, SubGameSpec, Transfer, TxState, VoteType}
+    checkpoint::Checkpoint, context::{GameContext, SubGameInit}, types::{PlayerDeposit, PlayerJoin, ServerJoin, Transfer, TxState, VoteType}
 };
 
 #[derive(Debug, Clone)]
 pub enum SignalFrame {
     StartGame { game_addr: String },
-    LaunchSubGame { spec: SubGameSpec, checkpoint: Checkpoint },
+    LaunchSubGame { sub_game_init: SubGameInit },
 }
 
 #[derive(Debug, Clone)]
@@ -34,7 +34,6 @@ pub enum EventFrame {
     InitState {
         access_version: u64,
         settle_version: u64,
-        init_account: InitAccount,
         checkpoint: Checkpoint,
     },
     SendEvent {
@@ -95,8 +94,14 @@ pub enum EventFrame {
         settle_version: u64,
         checkpoint_state: Vec<u8>,
     },
+
+    /// Launch a subgame.
     LaunchSubGame {
-        spec: Box<SubGameSpec>,
+        sub_game_init: Box<SubGameInit>,
+    },
+
+    /// Resume a subgame from its checkpoint.
+    ResumeSubGame {
         checkpoint: Checkpoint,
     },
 
@@ -156,11 +161,14 @@ impl std::fmt::Display for EventFrame {
             EventFrame::RecvBridgeEvent { dest, event, settle_version, .. } => {
                 write!(f, "RecvBridgeEvent: dest {}, settle_version: {}, event: {}", dest, settle_version, event)
             }
-            EventFrame::LaunchSubGame { spec, .. } => {
-                write!(f, "LaunchSubGame: {:?}", spec)
+            EventFrame::LaunchSubGame { sub_game_init } => {
+                write!(f, "LaunchSubGame: {}#{}", sub_game_init.spec.game_addr, sub_game_init.spec.game_id)
             }
-            EventFrame::SubSync { new_players, new_servers } => {
+            EventFrame::SubSync { new_players, new_servers, .. } => {
                 write!(f, "SyncNodes: new_players: {}, new_servers: {}", new_players.len(), new_servers.len())
+            },
+            EventFrame::ResumeSubGame { .. } => {
+                write!(f, "ResumeSubGame")
             }
         }
     }

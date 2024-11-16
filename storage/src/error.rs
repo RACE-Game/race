@@ -19,8 +19,8 @@ pub enum StorageError {
     SerializationError(String),
 }
 
-impl From<StorageError> for race_api::error::Error {
+impl From<StorageError> for race_core::error::Error {
     fn from(value: StorageError) -> Self {
-        race_api::error::Error::StorageError(value.to_string())
+        race_core::error::Error::StorageError(value.to_string())
     }
 }

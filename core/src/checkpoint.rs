@@ -5,9 +5,12 @@ use rs_merkle::{
     algorithms::Sha256, proof_serializers::ReverseHashesOrder, Hasher,
     MerkleTree,
 };
+use crate::{context::Versions, error::Error};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+use crate::types::GameSpec;
 
 /// Checkpoint represents the state snapshot of game.
 /// It is used as a submission to the blockchain.
@@ -42,9 +45,10 @@ pub struct CheckpointOffChain {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct VersionedData {
     pub id: usize,
-    pub version: u64,
+    pub versions: Versions,
     pub data: Vec<u8>,
     pub sha: Vec<u8>,
+    pub game_spec: GameSpec,
 }
 
 impl Display for Checkpoint {
@@ -52,23 +56,24 @@ impl Display for Checkpoint {
         let s = self
             .data
             .iter()
-            .map(|(id, vd)| format!("{}#{}", id, vd.version))
+            .map(|(id, vd)| format!("{}#{:?}", id, vd.versions))
             .collect::<Vec<String>>();
         write!(f, "{}", s.join(","))
     }
 }
 
 impl Checkpoint {
-    pub fn new(id: usize, access_version: u64, root_version: u64, root_data: Vec<u8>) -> Self {
+    pub fn new(id: usize, game_spec: GameSpec, versions: Versions, root_data: Vec<u8>) -> Self {
         let sha = Sha256::hash(&root_data);
         let mut ret = Self {
             root: Vec::new(),
-            access_version,
+            access_version: versions.access_version,
             data: HashMap::from([(
                 id,
                 VersionedData {
                     id,
-                    version: root_version,
+                    game_spec,
+                    versions,
                     data: root_data,
                     sha: sha.into(),
                 },
@@ -115,45 +120,63 @@ impl Checkpoint {
         self.data.get(&id).map(|d| d.data.clone())
     }
 
+    pub fn get_versioned_data(&self, id: usize) -> Option<&VersionedData> {
+        self.data.get(&id)
+    }
+
     pub fn data(&self, id: usize) -> Vec<u8> {
         self.get_data(id).unwrap_or_default()
     }
 
+    pub fn init_data(&mut self, id: usize, game_spec: GameSpec, data: Vec<u8>) -> Result<(), Error> {
+        match self.data.entry(id) {
+            std::collections::hash_map::Entry::Occupied(_) => {
+                return Err(Error::CheckpointAlreadyExists);
+            }
+            std::collections::hash_map::Entry::Vacant(v) => {
+                let sha = Sha256::hash(&data);
+
+                let versioned_data = VersionedData {
+                    id,
+                    data,
+                    sha: sha.into(),
+                    game_spec,
+                    ..Default::default()
+                };
+                v.insert(versioned_data);
+                self.update_root_and_proofs();
+                Ok(())
+            }
+        }
+    }
+
     /// Set the data of the checkpoint of game.
-    pub fn set_data(&mut self, id: usize, data: Vec<u8>) {
+    pub fn set_data(&mut self, id: usize, data: Vec<u8>) -> Result<Versions, Error> {
         let sha = Sha256::hash(&data);
         if let Some(old) = self.data.get_mut(&id) {
             old.data = data;
-            old.version += 1;
+            old.versions.settle_version += 1;
             old.sha = sha.into();
+            let versions = old.versions.clone();
+            self.update_root_and_proofs();
+            Ok(versions)
         } else {
-            self.data.insert(id, VersionedData {
-                id,
-                version: 1,     // The first checkpoint starts with version = 1
-                data,
-                sha: sha.into(),
-            });
+            Err(Error::MissingCheckpoint)
         }
-        self.update_root_and_proofs();
     }
 
     pub fn set_access_version(&mut self, access_version: u64) {
         self.access_version = access_version;
     }
 
-    pub fn get_version(&self, id: usize) -> u64 {
-        self.data.get(&id).map(|d| d.version).unwrap_or(0)
+    pub fn get_versions(&self, id: usize) -> Option<Versions> {
+        self.data.get(&id).map(|d| d.versions)
     }
 
     pub fn get_sha(&self, id: usize) -> Option<[u8; 32]> {
         self.data
             .get(&id)
             .map(|d| d.sha.clone().try_into().unwrap())
-    }
-
-    /// Get version from game with id zero.
-    pub fn version(&self) -> u64 {
-        self.data.get(&0).map(|d| d.version).unwrap_or(0)
     }
 
     pub fn to_merkle_tree(&self) -> MerkleTree<Sha256> {

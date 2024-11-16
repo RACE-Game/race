@@ -5,7 +5,7 @@ use crate::component::{
     Voter, WrappedClient, WrappedHandler, WrappedTransport,
 };
 use crate::frame::{EventFrame, SignalFrame};
-use race_api::error::{Error, Result};
+use race_core::error::{Error, Result};
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::context::GameContext;
 use race_core::transport::TransportT;
@@ -38,7 +38,6 @@ impl ValidatorHandle {
             game_account.addr
         );
         let game_context = GameContext::try_new(game_account, checkpoint_off_chain)?;
-        let init_account = game_context.init_account()?;
         let checkpoint = game_context.checkpoint().clone();
 
         let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
@@ -95,7 +94,6 @@ impl ValidatorHandle {
         // Dispatch init state
         event_bus
             .send(EventFrame::InitState {
-                init_account,
                 access_version: game_account.access_version,
                 settle_version: game_account.settle_version,
                 checkpoint,

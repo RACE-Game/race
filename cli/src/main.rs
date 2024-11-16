@@ -14,7 +14,7 @@ use race_storage::{
     metadata::{make_metadata, MetadataT},
 };
 use race_transport::TransportBuilder;
-use race_api::error::Result;
+use race_core::error::Result;
 use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
 use std::{

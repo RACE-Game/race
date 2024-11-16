@@ -125,8 +125,8 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                 }
             } else {
                 match event_frame {
-                    EventFrame::LaunchSubGame { spec, checkpoint } => {
-                        let f = SignalFrame::LaunchSubGame { spec: *spec, checkpoint };
+                    EventFrame::LaunchSubGame { sub_game_init } => {
+                        let f = SignalFrame::LaunchSubGame { sub_game_init: *sub_game_init };
                         if let Err(e) = ctx.signal_tx.send(f).await {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }
@@ -146,12 +146,12 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }
                     }
-                    EventFrame::Sync { new_players, new_servers, .. } => {
+                    EventFrame::Sync { new_players, new_servers, transactor_addr, .. } => {
                         if !ctx.tx.is_empty() {
-                            info!("{} Sends event: {}", env.log_prefix, event_frame);
                             let sub_sync = EventFrame::SubSync {
-                                new_players, new_servers
+                                new_players, new_servers, transactor_addr
                             };
+                            info!("{} Sends event: {}", env.log_prefix, sub_sync);
                             if let Err(e) = ctx.tx.send(sub_sync) {
                                 error!("{} Failed to send: {}", env.log_prefix, e);
                             }

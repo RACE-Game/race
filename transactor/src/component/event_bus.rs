@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use race_api::error::Error;
+use race_core::error::Error;
 use tokio::sync::{mpsc, watch, Mutex};
 use tracing::{error, warn};
 

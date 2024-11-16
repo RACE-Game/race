@@ -8,11 +8,11 @@ use crate::component::{
     Broadcaster, CloseReason, EventBridgeParent, EventBus, WrappedStorage, WrappedTransport,
 };
 use crate::frame::SignalFrame;
-use race_api::error::{Error, Result};
-use race_core::checkpoint::Checkpoint;
+use race_core::context::SubGameInit;
+use race_core::error::{Error, Result};
 use race_core::storage::StorageT;
 use race_core::transport::TransportT;
-use race_core::types::{GetCheckpointParams, ServerAccount, SubGameSpec};
+use race_core::types::{GetCheckpointParams, ServerAccount};
 use race_encryptor::Encryptor;
 use subgame::SubGameHandle;
 use tokio::sync::mpsc;
@@ -104,8 +104,7 @@ impl Handle {
     }
 
     pub async fn try_new_sub_game_handle(
-        spec: SubGameSpec,
-        checkpoint: Checkpoint,
+        sub_game_init: SubGameInit,
         bridge_parent: EventBridgeParent,
         server_account: &ServerAccount,
         encryptor: Arc<Encryptor>,
@@ -113,8 +112,7 @@ impl Handle {
         debug_mode: bool,
     ) -> Result<Self> {
         let handle = SubGameHandle::try_new(
-            spec,
-            checkpoint,
+            sub_game_init,
             bridge_parent,
             server_account,
             encryptor,

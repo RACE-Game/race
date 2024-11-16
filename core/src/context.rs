@@ -1,11 +1,11 @@
 use crate::checkpoint::{Checkpoint, CheckpointOffChain};
 use crate::random::{RandomState, RandomStatus};
-use crate::types::{ClientMode, EntryType, GameAccount, SubGameSpec};
+use crate::types::{ClientMode, EntryType, GameAccount, GameSpec};
+use crate::decision::DecisionState;
+use crate::error::{Error, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::decision::DecisionState;
 use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, Release, Reveal, SubGame};
 use race_api::engine::GameHandler;
-use race_api::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
 use race_api::random::RandomSpec;
@@ -19,10 +19,23 @@ use std::collections::HashMap;
 
 const OPERATION_TIMEOUT: u64 = 15_000;
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub struct ContextVersions {
+#[derive(Clone, Debug, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Versions {
     pub access_version: u64,
     pub settle_version: u64,
+}
+
+impl Versions {
+    pub fn new(access_version: u64, settle_version: u64) -> Self {
+        Self { access_version, settle_version }
+    }
+}
+
+impl std::fmt::Display for Versions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[s{}][a{}]", self.settle_version, self.access_version)
+    }
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone)]
@@ -109,6 +122,21 @@ impl ContextPlayer {
     }
 }
 
+
+#[derive(Debug, Clone)]
+pub enum SubGameInitSource {
+    FromCheckpoint(Checkpoint),
+    FromInitAccount(InitAccount),
+}
+
+#[derive(Debug, Clone)]
+pub struct SubGameInit {
+    pub spec: GameSpec,
+    pub nodes: Vec<Node>,
+    pub source: SubGameInitSource,
+}
+
+
 /// The effects of an event, indicates what actions should be taken
 /// after the event handling.
 ///
@@ -155,15 +183,11 @@ pub struct EventEffects {
 /// be paid out.
 #[derive(Clone, Debug)]
 pub struct GameContext {
-    pub(crate) game_addr: String,
-    /// The id of game, always be zero in master game.
-    pub(crate) game_id: usize,
-    /// Version numbers for player/server access.  This number will be
-    /// increased whenever a new player joins or a server gets attached.
-    pub(crate) access_version: u64,
-    /// Version number for transactor settlement.  This number will be
-    /// increased whenever a transaction is sent.
-    pub(crate) settle_version: u64,
+    /// The game specification
+    pub(crate) spec: GameSpec,
+    /// Contains `settle_version` and `access_version`
+    pub(crate) versions: Versions,
+    /// The game status indicating whether the game is running or not. WIP use this variables
     pub(crate) status: GameStatus,
     /// List of nodes serving this game
     pub(crate) nodes: Vec<Node>,
@@ -181,36 +205,40 @@ pub struct GameContext {
     pub(crate) sub_games: Vec<SubGame>,
     /// Init data from `InitAccount`.
     pub(crate) init_data: Vec<u8>,
-    /// Maximum number of players.
-    pub(crate) max_players: u16,
-    /// Joined players
-    pub(crate) players: Vec<ContextPlayer>,
     pub(crate) entry_type: EntryType,
     /// The SHA256 of current handler state
     pub(crate) state_sha: String,
 }
 
 impl GameContext {
-    pub fn try_new_with_sub_game_spec(spec: &SubGameSpec, checkpoint: Checkpoint) -> Result<Self> {
-        let SubGameSpec {
-            game_addr,
-            nodes,
+    pub fn try_new_with_sub_game_spec(init: SubGameInit) -> Result<Self> {
+        let SubGameInit { spec, nodes, source } = init;
+
+        let GameSpec {
             game_id,
-            init_account,
-            settle_version,
-            access_version,
             ..
         } = spec;
 
+        let (handler_state, versions, init_data, checkpoint) = match source {
+            SubGameInitSource::FromCheckpoint(checkpoint) => {
+                if let Some(versioned_data) = checkpoint.get_versioned_data(game_id) {
+                    (versioned_data.data.clone(), versioned_data.versions, vec![], checkpoint)
+                } else {
+                    return Err(Error::MissingCheckpoint)
+                }
+            }
+            SubGameInitSource::FromInitAccount(init_account) => {
+                (vec![], Default::default(), init_account.data, Default::default())
+            }
+        };
+
         Ok(Self {
-            game_addr: format!("{}:{}", game_addr, game_id),
-            game_id: *game_id,
+            spec,
             nodes: nodes.clone(),
-            settle_version: *settle_version,
-            access_version: *access_version,
-            max_players: init_account.max_players,
-            init_data: init_account.data.clone(),
+            versions,
+            init_data,
             entry_type: EntryType::Disabled,
+            handler_state,
             checkpoint,
             ..Default::default()
         })
@@ -280,11 +308,16 @@ impl GameContext {
             _ => return Err(Error::MissingCheckpoint),
         };
 
-        Ok(Self {
+        let spec = GameSpec {
             game_addr: game_account.addr.clone(),
             game_id: 0,
-            access_version: checkpoint.access_version,
-            settle_version: game_account.settle_version,
+            bundle_addr: game_account.bundle_addr.clone(),
+            max_players: game_account.max_players,
+        };
+
+        Ok(Self {
+            spec,
+            versions: Versions::new(checkpoint.access_version, game_account.settle_version),
             status: GameStatus::Idle,
             nodes,
             dispatch: None,
@@ -295,8 +328,6 @@ impl GameContext {
             checkpoint,
             sub_games: vec![],
             init_data: game_account.data.clone(),
-            max_players: game_account.max_players,
-            players,
             entry_type: game_account.entry_type.clone(),
             state_sha,
         })
@@ -304,7 +335,7 @@ impl GameContext {
 
     pub fn init_account(&self) -> Result<InitAccount> {
         Ok(InitAccount {
-            max_players: self.max_players,
+            max_players: self.spec.max_players,
             data: self.init_data.clone(),
         })
     }
@@ -369,11 +400,11 @@ impl GameContext {
     }
 
     pub fn game_addr(&self) -> &str {
-        &self.game_addr
+        &self.spec.game_addr
     }
 
     pub fn game_id(&self) -> usize {
-        self.game_id
+        self.spec.game_id
     }
 
     pub fn get_transactor_addr(&self) -> Result<&str> {
@@ -465,11 +496,11 @@ impl GameContext {
     }
 
     pub fn access_version(&self) -> u64 {
-        self.access_version
+        self.versions.access_version
     }
 
     pub fn settle_version(&self) -> u64 {
-        self.settle_version
+        self.versions.settle_version
     }
 
     /// Get the random state by its id.
@@ -573,7 +604,7 @@ impl GameContext {
     }
 
     pub fn set_access_version(&mut self, access_version: u64) {
-        self.access_version = access_version;
+        self.versions.access_version = access_version;
     }
 
     /// Dispatch an event if there's none
@@ -705,7 +736,7 @@ impl GameContext {
     }
 
     pub fn bump_settle_version(&mut self) -> Result<()> {
-        self.settle_version += 1;
+        self.versions.settle_version += 1;
         Ok(())
     }
 
@@ -784,8 +815,8 @@ impl GameContext {
             transfers: Vec::new(),
             launch_sub_games: Vec::new(),
             bridge_events: Vec::new(),
-            valid_players: self.players.iter().map(|p| p.id).collect(),
             is_init,
+            valid_players: vec![],
             entry_lock: None,
         }
     }
@@ -857,14 +888,17 @@ impl GameContext {
         if let Some(state) = handler_state {
             self.set_handler_state_raw(state.clone());
 
-            if is_checkpoint || is_init {
-                // Clear the random states
+            if is_checkpoint {
                 self.random_states.clear();
                 self.decision_states.clear();
-
                 self.bump_settle_version()?;
-                self.checkpoint.set_data(self.game_id, state);
-                self.checkpoint.set_access_version(self.access_version);
+                self.checkpoint.set_data(self.spec.game_id, state)?;
+                self.checkpoint.set_access_version(self.versions.access_version);
+                self.set_game_status(GameStatus::Idle);
+            } else if is_init {
+                self.bump_settle_version()?;
+                self.checkpoint.init_data(self.spec.game_id, self.spec.clone(), state)?;
+                self.checkpoint.set_access_version(self.versions.access_version);
                 self.set_game_status(GameStatus::Idle);
             }
 
@@ -906,24 +940,7 @@ impl GameContext {
     }
 
     pub fn max_players(&self) -> u16 {
-        self.max_players
-    }
-
-    pub fn players(&self) -> &[ContextPlayer] {
-        &self.players
-    }
-
-    pub fn add_player<T: Into<ContextPlayer>>(&mut self, player: T) {
-        self.players.push(player.into())
-    }
-
-    pub fn remove_player(&mut self, player_id: u64) -> Result<()> {
-        if let Some(index) = self.players.iter().position(|p| p.id == player_id) {
-            self.players.remove(index);
-        } else {
-            return Err(Error::PlayerNotInGame);
-        }
-        Ok(())
+        self.spec.max_players
     }
 
     pub fn entry_type(&self) -> EntryType {
@@ -934,21 +951,16 @@ impl GameContext {
         self.state_sha.to_string()
     }
 
-    pub fn versions(&self) -> ContextVersions {
-        ContextVersions {
-            access_version: self.access_version,
-            settle_version: self.settle_version,
-        }
+    pub fn versions(&self) -> Versions {
+        self.versions
     }
 }
 
 impl Default for GameContext {
     fn default() -> Self {
         Self {
-            game_addr: "".into(),
-            game_id: 0,
-            access_version: 0,
-            settle_version: 0,
+            spec: Default::default(),
+            versions: Default::default(),
             status: GameStatus::Idle,
             nodes: Vec::new(),
             dispatch: None,
@@ -959,8 +971,6 @@ impl Default for GameContext {
             checkpoint: Checkpoint::default(),
             sub_games: Vec::new(),
             init_data: Vec::new(),
-            max_players: 0,
-            players: Vec::new(),
             entry_type: EntryType::Disabled,
             state_sha: "".into(),
         }

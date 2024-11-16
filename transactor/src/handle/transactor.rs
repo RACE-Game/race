@@ -5,7 +5,7 @@ use crate::component::{
     LocalConnection, PortsHandle, Submitter, WrappedClient, WrappedHandler,
 };
 use crate::frame::{EventFrame, SignalFrame};
-use race_api::error::{Error, Result};
+use race_core::error::{Error, Result};
 use race_core::types::{PlayerJoin, ServerJoin};
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::context::GameContext;
@@ -83,8 +83,7 @@ impl TransactorHandle {
         let checkpoint = game_context.checkpoint().clone();
 
         info!("Use checkpoint: {}", !game_context.checkpoint_is_empty());
-        let init_account = game_context.init_account()?;
-        let init_sync = create_init_sync(game_account)?;
+        let init_sync = create_init_sync(&game_account)?;
 
         let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
 
@@ -133,13 +132,11 @@ impl TransactorHandle {
         // Dispatch init state
         event_bus
             .send(EventFrame::InitState {
-                init_account,
                 access_version: game_account.access_version,
                 settle_version: game_account.settle_version,
                 checkpoint,
             })
             .await;
-        info!("Dispatch init sync: {:?}", init_sync);
         event_bus.send(init_sync).await;
 
         let mut synchronizer_handle = synchronizer.start(&game_account.addr, synchronizer_ctx);
