@@ -189,6 +189,11 @@ export function createPlayerProfile(
         isSigner: false,
         isWritable: false,
       },
+      {
+        pubkey: SystemProgram.programId,
+        isSigner: false,
+        isWritable: false,
+      }
     ],
     programId: PROGRAM_ID,
     data: Buffer.from(data),

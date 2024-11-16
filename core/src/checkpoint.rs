@@ -157,7 +157,6 @@ impl Checkpoint {
     }
 
     pub fn to_merkle_tree(&self) -> MerkleTree<Sha256> {
-        println!("Build merkle tree, current checkpoint size: {}", self.data.len());
         let mut leaves: Vec<[u8; 32]> = vec![];
         let mut i = 0;
         while let Some(vd) = self.data.get(&i) {

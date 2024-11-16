@@ -9,7 +9,6 @@ use race_api::{
 use race_core::{
     checkpoint::Checkpoint, context::{ContextVersions, EventEffects, GameContext}, types::{ClientMode, GameMode, SubGameSpec}
 };
-use sha256::digest;
 
 use crate::{
     component::{common::PipelinePorts, CloseReason, ComponentEnv, WrappedHandler},

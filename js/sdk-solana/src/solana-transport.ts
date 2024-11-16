@@ -385,8 +385,19 @@ export class SolanaTransport implements ITransport {
     console.info('Player profile public key: ', profileKey.toBase58())
 
     if (!(await this.#conn.getAccountInfo(profileKey))) {
-      const { ixs: createProfileIxs } = await this._prepareCreateAccount(payerKey, PROFILE_ACCOUNT_LEN, PROGRAM_ID)
-      ixs.push(...createProfileIxs)
+      const lamports = await this.#conn.getMinimumBalanceForRentExemption(PROFILE_ACCOUNT_LEN)
+      const ix = SystemProgram.createAccountWithSeed({
+        fromPubkey: payerKey,
+        basePubkey: payerKey,
+        newAccountPubkey: profileKey,
+        lamports: lamports,
+        space: PROFILE_ACCOUNT_LEN,
+        seed: PLAYER_PROFILE_SEED,
+        programId: PROGRAM_ID,
+      })
+      console.info('Transaction Instruction[CreateAccount]:', ix)
+
+      ixs.push(ix)
     }
 
     const pfpKey = !pfp ? PublicKey.default : new PublicKey(pfp)

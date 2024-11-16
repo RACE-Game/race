@@ -139,6 +139,7 @@ mod tests {
                 let event = EventFrame::Sync {
                     new_players: vec![],
                     new_servers: vec![],
+                    new_deposits: vec![],
                     transactor_addr: "".into(),
                     access_version: 1,
                 };

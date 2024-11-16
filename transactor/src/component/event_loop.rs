@@ -91,6 +91,24 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
 
+                EventFrame::SubSync {
+                    new_players,
+                    new_servers,
+                    transactor_addr,
+                } => {
+                    for server in new_servers.iter() {
+                        let mode = if server.addr.eq(&transactor_addr) {
+                            ClientMode::Transactor
+                        } else {
+                            ClientMode::Validator
+                        };
+                        game_context.add_node(server.addr.clone(), server.access_version, mode);
+                    }
+                    for player in new_players.iter() {
+                        game_context.add_node(player.addr.clone(), player.access_version, ClientMode::Player);
+                    }
+                }
+
                 EventFrame::Sync {
                     new_players,
                     new_servers,

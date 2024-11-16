@@ -205,15 +205,25 @@ impl TransportT for SolanaTransport {
                 .map_err(|_| TransportError::AddressCreationFailed)?;
         let lamports = self.get_min_lamports(SERVER_ACCOUNT_LEN)?;
 
-        let get_server_account_ix = create_account_with_seed(
-            &payer_pubkey,
-            &server_account_pubkey,
-            &payer_pubkey,
-            SERVER_PROFILE_SEED,
-            lamports,
-            SERVER_ACCOUNT_LEN as u64,
-            &self.program_id,
-        );
+        let mut ixs = vec![];
+
+        let fee = self.get_recent_prioritization_fees(&[server_account_pubkey])?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
+        ixs.push(set_cu_prize_ix);
+
+        if self.client.get_account_data(&server_account_pubkey).is_err() {
+            let create_server_account_ix = create_account_with_seed(
+                &payer_pubkey,
+                &server_account_pubkey,
+                &payer_pubkey,
+                SERVER_PROFILE_SEED,
+                lamports,
+                SERVER_ACCOUNT_LEN as u64,
+                &self.program_id,
+            );
+            ixs.push(create_server_account_ix);
+        }
 
         let init_or_update_ix = Instruction::new_with_borsh(
             self.program_id,
@@ -226,11 +236,10 @@ impl TransportT for SolanaTransport {
             ],
         );
 
-        let fee = self.get_recent_prioritization_fees(&[server_account_pubkey])?;
-        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+        ixs.push(init_or_update_ix);
 
         let message = Message::new(
-            &[set_cu_prize_ix, get_server_account_ix, init_or_update_ix],
+            &ixs,
             Some(&payer_pubkey),
         );
 

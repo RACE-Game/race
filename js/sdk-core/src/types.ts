@@ -15,7 +15,7 @@ export type Fields<T> = {[K in keyof T as T[K] extends Function ? never: K]: T[K
 
 export type Result<T, E> = { ok: T } | { err: E }
 
-export type IKind<T> = { kind: T }
+export type IKind<T> = { kind: T}
 
 export type Indices<T extends readonly any[]> = Exclude<Partial<T>['length'], T['length']>
 

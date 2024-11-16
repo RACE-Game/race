@@ -2,7 +2,7 @@ use race_api::{
     event::{Event, Message}, init_account::InitAccount, types::{EntryLock, Settle}
 };
 use race_core::{
-    checkpoint::Checkpoint, context::GameContext, types::{PlayerDeposit, PlayerJoin, ServerJoin, SubGameSpec, Transfer, TxState, VoteType}
+    checkpoint::Checkpoint, context::{GameContext, Node}, types::{PlayerDeposit, PlayerJoin, ServerJoin, SubGameSpec, Transfer, TxState, VoteType}
 };
 
 #[derive(Debug, Clone)]
@@ -99,6 +99,13 @@ pub enum EventFrame {
         spec: Box<SubGameSpec>,
         checkpoint: Checkpoint,
     },
+
+    /// Sync frame for subgames broadcasted from master game.
+    SubSync {
+        new_players: Vec<PlayerJoin>,
+        new_servers: Vec<ServerJoin>,
+        transactor_addr: String,
+    },
 }
 
 impl std::fmt::Display for EventFrame {
@@ -151,6 +158,9 @@ impl std::fmt::Display for EventFrame {
             }
             EventFrame::LaunchSubGame { spec, .. } => {
                 write!(f, "LaunchSubGame: {:?}", spec)
+            }
+            EventFrame::SubSync { new_players, new_servers } => {
+                write!(f, "SyncNodes: new_players: {}, new_servers: {}", new_players.len(), new_servers.len())
             }
         }
     }

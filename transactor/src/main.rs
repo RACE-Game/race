@@ -26,8 +26,9 @@ fn cli() -> Command {
         .subcommand(Command::new("reg").about("Register server account"))
 }
 
-fn setup_logger() {
-    let logfile = tracing_appender::rolling::daily("logs", "transactor.log");
+fn setup_logger(config: &Config) {
+    let logdir = config.transactor.as_ref().and_then(|c| c.log_dir.as_ref()).map(String::as_str).unwrap_or("logs");
+    let logfile = tracing_appender::rolling::daily(&logdir, "transactor.log");
     let file_layer = fmt::layer()
         .with_writer(logfile)
         .with_target(true)
@@ -51,10 +52,11 @@ fn setup_logger() {
 #[tokio::main]
 pub async fn main() {
 
-    setup_logger();
-
     let matches = cli().get_matches();
     let config = Config::from_path(&matches.get_one::<String>("config").unwrap().into()).await;
+
+    setup_logger(&config);
+
     match matches.subcommand() {
         Some(("run", _)) => {
             info!("Starting transactor.");

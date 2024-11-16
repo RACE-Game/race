@@ -146,12 +146,20 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }
                     }
-                    EventFrame::Sync { .. } => {
+                    EventFrame::Sync { new_players, new_servers, .. } => {
                         if !ctx.tx.is_empty() {
                             info!("{} Sends event: {}", env.log_prefix, event_frame);
-                            if let Err(e) = ctx.tx.send(event_frame) {
+                            let sub_sync = EventFrame::SubSync {
+                                new_players, new_servers
+                            };
+                            if let Err(e) = ctx.tx.send(sub_sync) {
                                 error!("{} Failed to send: {}", env.log_prefix, e);
                             }
+                        }
+                    }
+                    EventFrame::SubSync { .. } => {
+                        if let Err(e) = ctx.tx.send(event_frame) {
+                            error!("{} Failed to send: {}", env.log_prefix, e);
                         }
                     }
                     _ => continue,
@@ -211,7 +219,11 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         break;
                     }
                     EventFrame::Sync { .. } => {
-                        info!("{} Receives event: {}", env.log_prefix, event_frame);
+                        info!("{} Receives {}", env.log_prefix, event_frame);
+                        ports.send(event_frame).await;
+                    }
+                    EventFrame::SubSync { .. } => {
+                        info!("{} Receives {}", env.log_prefix, event_frame);
                         ports.send(event_frame).await;
                     }
                     EventFrame::SendBridgeEvent {
@@ -222,7 +234,7 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         settle_version,
                         checkpoint_state,
                     } if dest == ctx.game_id => {
-                        info!("{} Receives event: {}", env.log_prefix, event);
+                        info!("{} Receives {}", env.log_prefix, event);
                         ports
                             .send(EventFrame::RecvBridgeEvent {
                                 from,
