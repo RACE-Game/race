@@ -18,7 +18,7 @@ export class GameContextSnapshot {
   readonly nodes: NodeSnapshot[]
 
   constructor(context: GameContext) {
-    this.gameAddr = context.gameAddr
+    this.gameAddr = context.spec.gameAddr
     this.accessVersion = context.accessVersion
     this.settleVersion = context.settleVersion
     this.status = context.status

@@ -1,12 +1,11 @@
 import { RandomState, RandomSpec } from './random-state'
 import { DecisionState } from './decision-state'
-import { Checkpoint } from './checkpoint'
+import { Checkpoint, GameSpec, Versions } from './checkpoint'
 import {
   ActionTimeout,
   Answer,
   CiphertextAndDigest,
   GameEvent,
-  GameStart,
   OperationTimeout,
   Random,
   RandomnessReady,
@@ -53,7 +52,7 @@ export interface IdAddrPair {
   addr: string
 }
 
-export type EventEffects = {
+export interface EventEffects {
   settles: Settle[]
   transfers: Transfer[]
   checkpoint: Uint8Array | undefined
@@ -71,10 +70,8 @@ export class ContextPlayer {
 }
 
 export class GameContext {
-  gameAddr: string
-  gameId: number
-  accessVersion: bigint
-  settleVersion: bigint
+  spec: GameSpec
+  versions: Versions
   status: GameStatus
   nodes: INode[]
   dispatch: DispatchEvent | undefined
@@ -85,7 +82,6 @@ export class GameContext {
   checkpoint: Checkpoint
   subGames: SubGame[]
   initData: Uint8Array
-  maxPlayers: number
   players: ContextPlayer[]
   entryType: EntryType
   stateSha: string
@@ -140,10 +136,20 @@ export class GameContext {
           })
       )
 
-    this.gameAddr = gameAccount.addr
-    this.gameId = 0
-    this.accessVersion = gameAccount.accessVersion
-    this.settleVersion = gameAccount.settleVersion
+    const spec = new GameSpec({
+      gameAddr: gameAccount.addr,
+      gameId: 0,
+      bundleAddr: gameAccount.bundleAddr,
+      maxPlayers: gameAccount.maxPlayers
+    })
+
+    const versions = new Versions({
+      accessVersion: gameAccount.accessVersion,
+      settleVersion: gameAccount.settleVersion,
+    })
+
+    this.spec = spec
+    this.versions = versions
     this.status = 'idle'
     this.dispatch = undefined
     this.nodes = nodes
@@ -154,20 +160,37 @@ export class GameContext {
     this.checkpoint = checkpoint
     this.subGames = []
     this.initData = gameAccount.data
-    this.maxPlayers = gameAccount.maxPlayers
     this.players = players
     this.entryType = gameAccount.entryType
     this.stateSha = stateSha
   }
 
-  subContext(subGame: SubGame): GameContext {
+  subContext(subGame: SubGame, source: Checkpoint | InitAccount): GameContext {
     const c = rfdc({ proto: true })(this)
     Object.setPrototypeOf(c, GameContext.prototype)
-    // Use the versions from checkpoint.
-    c.accessVersion = this.checkpoint.accessVersion
-    c.settleVersion = this.checkpoint.getVersion(subGame.gameId)
-    c.gameAddr = c.gameAddr + subGame.gameId
-    c.gameId = subGame.gameId
+    // Use init_account or checkpoint
+    let versions: Versions
+    let initData: Uint8Array
+    let spec = new GameSpec({
+      gameAddr: this.spec.gameAddr,
+      gameId: subGame.gameId,
+      bundleAddr: subGame.bundleAddr,
+      maxPlayers: subGame.initAccount.maxPlayers,
+    })
+    if (source instanceof InitAccount) {
+      versions = Versions.default()
+      initData = source.data
+    } else {
+      const v = source.getVersionedData(spec.gameId)?.versions
+      if (v === undefined){
+        throw new Error('Missing checkpoint')
+      }
+      versions = v
+      initData = Uint8Array.of()
+    }
+    c.versions = versions
+    c.nodes = this.nodes
+    c.spec = spec
     c.dispatch = undefined
     c.timestamp = 0n
     c.randomStates = []
@@ -175,20 +198,19 @@ export class GameContext {
     c.handlerState = Uint8Array.of()
     c.checkpoint = this.checkpoint.clone()
     c.subGames = []
-    c.initData = subGame.initAccount.data
-    c.maxPlayers = subGame.initAccount.maxPlayers
+    c.initData = initData
     c.entryType = { kind: 'disabled' }
     c.players = []
     return c
   }
 
-  checkpointVersion(): bigint {
-    return this.checkpoint.getVersion(this.gameId)
+  checkpointVersion(): bigint | undefined {
+    return this.checkpoint.getVersionedData(this.spec.gameId)?.versions.settleVersion
   }
 
   initAccount(): InitAccount {
     return new InitAccount({
-      maxPlayers: this.maxPlayers,
+      maxPlayers: this.spec.maxPlayers,
       data: this.initData,
     })
   }
@@ -247,17 +269,6 @@ export class GameContext {
     this.dispatch = {
       event: new ActionTimeout({ playerId }),
       timeout: this.timestamp + timeout,
-    }
-  }
-
-  genStartGameEvent(): GameEvent {
-    return new GameStart({ accessVersion: this.accessVersion })
-  }
-
-  startGame() {
-    this.dispatch = {
-      event: this.genStartGameEvent(),
-      timeout: 0n,
     }
   }
 
@@ -338,7 +349,7 @@ export class GameContext {
   }
 
   setAccessVersion(accessVersion: bigint) {
-    this.accessVersion = accessVersion
+    this.versions.accessVersion = accessVersion
   }
 
   initRandomState(spec: RandomSpec): number {
@@ -394,7 +405,7 @@ export class GameContext {
   }
 
   bumpSettleVersion() {
-    this.settleVersion += 1n
+    this.versions.settleVersion += 1n
   }
 
   addRevealedRandom(randomId: number, revealed: Map<number, string>) {
@@ -426,7 +437,6 @@ export class GameContext {
 
   async applyEffect(effect: Effect): Promise<EventEffects> {
     if (effect.startGame) {
-      this.startGame()
     } else if (effect.stopGame) {
       this.shutdownGame()
     } else if (effect.actionTimeout !== undefined) {
@@ -458,8 +468,7 @@ export class GameContext {
         this.randomStates = []
         this.decisionStates = []
         this.bumpSettleVersion()
-        this.checkpoint.setData(this.gameId, effect.handlerState)
-        this.checkpoint.setAccessVersion(this.accessVersion)
+        this.checkpoint.setData(this.spec.gameId, effect.handlerState)
 
         // Reset random states
         this.randomStates = []
@@ -468,6 +477,9 @@ export class GameContext {
         // Sort settles and track player states
         settles.push(...effect.settles)
         settles = effect.settles
+      } else if (effect.isInit) {
+        this.bumpSettleVersion()
+        this.checkpoint.initData(this.spec.gameId, effect.handlerState, this.spec)
       }
     }
 
@@ -494,16 +506,6 @@ export class GameContext {
         }
       }
     }
-  }
-
-  applyCheckpoint(accessVersion: bigint, settleVersion: bigint) {
-    console.info(`Apply checkpoint, accessVersion: ${accessVersion}`)
-    if (this.settleVersion !== settleVersion) {
-      throw new Error(
-        `Invalid checkpoint, local settle version: ${this.settleVersion}, remote settle version: ${settleVersion}`
-      )
-    }
-    this.accessVersion = accessVersion
   }
 
   setTimestamp(timestamp: bigint) {
@@ -538,5 +540,13 @@ export class GameContext {
 
   getStateSha(): string {
     return this.stateSha
+  }
+
+  get accessVersion(): bigint {
+    return this.versions.accessVersion
+  }
+
+  get settleVersion(): bigint {
+    return this.versions.settleVersion
   }
 }

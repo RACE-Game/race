@@ -212,7 +212,7 @@ export class SolanaTransport implements ITransport {
   }
 
   async join(wallet: IWallet, params: JoinParams, response: ResponseHandle<JoinResponse, JoinError>): Promise<void> {
-    let ixs = []
+    let ixs = [ComputeBudgetProgram.requestHeapFrame({bytes: 1024 * 128})];
 
     const tempAccountLen = AccountLayout.span
 
@@ -236,6 +236,7 @@ export class SolanaTransport implements ITransport {
     if (gameState === undefined) return response.failed('game-not-found')
 
     const accessVersion = gameState.accessVersion
+    const settleVersion = gameState.settleVersion
 
     const mintKey = gameState.tokenKey
     const isWsol = mintKey.equals(NATIVE_MINT)
@@ -303,12 +304,15 @@ export class SolanaTransport implements ITransport {
       paymentKey: tempAccount.publicKey,
       gameAccountKey,
       mint: mintKey,
-      stakeAccountKey: stakeAccountKey,
+      stakeAccountKey,
+      recipientAccountKey: gameState.recipientAddr,
       amount,
       accessVersion,
+      settleVersion,
       position,
       verifyKey,
     })
+    console.info('Transaction Instruction[Join]:', joinGameIx)
     ixs.push(joinGameIx)
 
     const tx = await makeTransaction(this.#conn, playerKey, ixs)

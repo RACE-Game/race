@@ -84,6 +84,8 @@ export class JoinGameData extends Serialize {
   amount: bigint
   @field('u64')
   accessVersion: bigint
+  @field('u64')
+  settleVersion: bigint
   @field('u16')
   position: number
   @field('string')
@@ -93,6 +95,7 @@ export class JoinGameData extends Serialize {
     super()
     this.amount = params.amount
     this.accessVersion = params.accessVersion
+    this.settleVersion = params.settleVersion
     this.position = params.position
     this.verifyKey = params.verifyKey
   }
@@ -362,8 +365,10 @@ export type JoinOptions = {
   gameAccountKey: PublicKey
   mint: PublicKey
   stakeAccountKey: PublicKey
+  recipientAccountKey: PublicKey
   amount: bigint
   accessVersion: bigint
+  settleVersion: bigint
   position: number
   verifyKey: string
 }
@@ -376,14 +381,16 @@ export function join(opts: JoinOptions): TransactionInstruction {
     gameAccountKey,
     mint,
     stakeAccountKey,
+    recipientAccountKey,
     amount,
     accessVersion,
+    settleVersion,
     position,
     verifyKey,
   } = opts
 
   let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID)
-  const data = new JoinGameData({amount, accessVersion, position, verifyKey}).serialize()
+  const data = new JoinGameData({amount, accessVersion, settleVersion, position, verifyKey}).serialize()
 
   return new TransactionInstruction({
     keys: [
@@ -416,6 +423,11 @@ export function join(opts: JoinOptions): TransactionInstruction {
         pubkey: stakeAccountKey,
         isSigner: false,
         isWritable: true,
+      },
+      {
+        pubkey: recipientAccountKey,
+        isSigner: false,
+        isWritable: false,
       },
       {
         pubkey: pda,

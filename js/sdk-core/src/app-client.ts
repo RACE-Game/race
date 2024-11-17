@@ -260,7 +260,7 @@ export class AppClient extends BaseClient {
         this.__gameContext.checkpoint = Checkpoint.default()
       }
 
-      const gameContext = this.__gameContext.subContext(subGame)
+      const gameContext = this.__gameContext.subContext(subGame, this.__gameContext.checkpoint);
       console.info("SubGame's GameContext:", clone(gameContext))
 
       return new SubClient({

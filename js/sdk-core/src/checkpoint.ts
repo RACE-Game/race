@@ -1,5 +1,22 @@
 import { deserialize, field, map, struct } from '@race-foundation/borsh'
 import { sha256 } from './encryptor'
+import { Fields } from './types'
+
+export class Versions {
+  @field('u64')
+  accessVersion!: bigint
+
+  @field('u64')
+  settleVersion!: bigint
+
+  static default(): Versions {
+    return new Versions({  accessVersion: 0n, settleVersion: 0n })
+  }
+
+  constructor(fields: Fields<Versions>) {
+    Object.assign(this, fields)
+  }
+}
 
 export class CheckpointOnChain {
   @field('u8-array')
@@ -20,18 +37,39 @@ export class CheckpointOnChain {
   }
 }
 
+export class GameSpec {
+  @field('string')
+  readonly gameAddr!: string
+
+  @field('usize')
+  readonly gameId!: number
+
+  @field('string')
+  readonly bundleAddr!: string
+
+  @field('u16')
+  readonly maxPlayers!: number
+
+  constructor(fields: Fields<GameSpec>) {
+    Object.assign(this, fields)
+  }
+}
+
 export class VersionedData {
   @field('usize')
   id!: number
 
-  @field('u64')
-  version!: bigint
+  @field(struct(Versions))
+  versions!: Versions
 
   @field('u8-array')
   data!: Uint8Array
 
   @field('u8-array')
   sha!: Uint8Array
+
+  @field(struct(GameSpec))
+  spec!: GameSpec
 
   constructor(fields: any) {
     Object.assign(this, fields)
@@ -121,11 +159,20 @@ export class Checkpoint {
     return this.data.get(id)?.sha
   }
 
-  setVersion(id: number, version: bigint) {
-    const data = this.data.get(id)
-    if (data !== undefined) {
-      data.version = version
+  setAccessVersion(accessVersion: bigint) {
+    this.accessVersion = accessVersion
+  }
+
+  async initData(id: number, data: Uint8Array, spec: GameSpec) {
+    if (this.data.has(id)) {
+      throw new Error(`Checkpoint ${id} already exists`)
     }
+    const sha = await sha256(data)
+    const versionedData = new VersionedData({
+      id, data, spec, sha, versions: Versions.default()
+    })
+    this.data.set(id, versionedData)
+    this.updateRootAndProofs()
   }
 
   async setData(id: number, data: Uint8Array) {
@@ -133,36 +180,17 @@ export class Checkpoint {
     const old = this.data.get(id)
     if (old !== undefined) {
       old.data = data
-      old.version += 1n
+      old.versions.settleVersion += 1n;
       old.sha = sha
     } else {
-      this.data.set(
-        id,
-        new VersionedData({
-          id,
-          sha,
-          data,
-          version: 1n,
-        })
-      )
+      throw new Error(`Checkpoint ${id} is missing`)
     }
     this.updateRootAndProofs()
   }
 
+  getVersionedData(id: number): VersionedData | undefined {
+    return this.data.get(id)
+  }
+
   updateRootAndProofs() {}
-
-  setAccessVersion(accessVersion: bigint) {
-    this.accessVersion = accessVersion
-  }
-
-  __setVersion(id: number, version: bigint) {
-    let vd = this.data.get(id)
-    if (vd !== undefined) {
-      vd.version = version
-    }
-  }
-
-  getVersion(id: number): bigint {
-    return this.data.get(id)?.version || 0n
-  }
 }

@@ -11,7 +11,7 @@ import { GameContextSnapshot } from './game-context-snapshot'
 import { ITransport } from './transport'
 import { IWallet } from './wallet'
 import { Handler } from './handler'
-import { IEncryptor, sha256, sha256String } from './encryptor'
+import { IEncryptor, sha256String } from './encryptor'
 import { GameAccount } from './accounts'
 import { PlayerConfirming } from './tx-state'
 import { Client } from './client'
@@ -395,7 +395,7 @@ export class BaseClient {
   async __startSubscribe(): Promise<void> {
     await this.__connection.connect(
       new SubscribeEventParams({
-        settleVersion: this.__gameContext.settleVersion,
+        settleVersion: this.__gameContext.versions.settleVersion,
       })
     )
   }

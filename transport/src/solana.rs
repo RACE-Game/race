@@ -609,6 +609,7 @@ impl TransportT for SolanaTransport {
 
             let ata = get_associated_token_address(&player.addr, &game_state.token_mint);
 
+            accounts.push(AccountMeta::new(ata, false));
             calc_cu_prize_addrs.push(ata);
 
             ix_settles.push(IxSettle {

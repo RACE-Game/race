@@ -57,7 +57,7 @@ export class SubClient extends BaseClient {
     try {
       await this.__attachGameWithRetry()
       sub = this.__connection.subscribeEvents()
-      const settleVersion = this.__gameContext.checkpointVersion()
+      const settleVersion = this.__gameContext.checkpointVersion() || 0n
       await this.__connection.connect(new SubscribeEventParams({ settleVersion }))
     } catch (e) {
       console.error('Attaching game failed', e)
