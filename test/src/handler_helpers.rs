@@ -1,7 +1,7 @@
 use std::mem::swap;
 
 use race_api::engine::GameHandler;
-use race_api::error::Result;
+use race_core::error::Result;
 use race_api::event::Event;
 use race_core::context::{EventEffects, GameContext};
 use race_core::engine::general_handle_event;

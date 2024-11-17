@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use race_api::error::{Error, Result};
+use race_core::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
 use race_api::types::GamePlayer;
 use race_client::Client;

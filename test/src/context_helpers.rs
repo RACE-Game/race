@@ -5,13 +5,13 @@ use crate::misc::{test_game_addr, test_game_title};
 use crate::prelude::{AsGameContextRef, TestHandler};
 use borsh::BorshSerialize;
 use race_api::engine::GameHandler;
-use race_api::error::Result;
 use race_api::event::Event;
 use race_api::prelude::InitAccount;
+use race_core::error::Result;
 use race_core::checkpoint::{CheckpointOffChain, CheckpointOnChain, VersionedData};
 use race_core::random::RandomState;
-use race_core::types::{ClientMode, EntryLock, EntryType, GameAccount, PlayerDeposit, PlayerJoin, ServerJoin};
-use race_core::context::{DispatchEvent, EventEffects, GameContext};
+use race_core::types::{ClientMode, EntryLock, EntryType, GameAccount, GameSpec, PlayerDeposit, PlayerJoin, ServerJoin};
+use race_core::context::{DispatchEvent, EventEffects, GameContext, Versions};
 
 pub struct TestContext<H>
 where
@@ -149,14 +149,21 @@ impl TestContextBuilder {
 
         checkpoint_on_chain.access_version = self.account.access_version;
         self.account.checkpoint_on_chain = Some(checkpoint_on_chain);
+        let spec = GameSpec {
+            game_addr: self.account.addr.clone(),
+            game_id: 0,
+            bundle_addr: self.account.bundle_addr.clone(),
+            max_players: self.account.max_players,
+        };
 
         checkpoint_off_chain.data.insert(
             0,
             VersionedData {
                 id: 0,
-                version: 1,
+                versions: Versions::new(0, 1),
                 data: borsh::to_vec(checkpoint).expect("Failed to serialize checkpoint"),
                 sha: vec![],
+                game_spec: spec,
             },
         );
 

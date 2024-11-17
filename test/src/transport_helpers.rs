@@ -7,7 +7,7 @@ use async_stream::stream;
 use futures::Stream;
 use base64::prelude::Engine;
 use race_core::types::{AssignRecipientParams, CreateRecipientParams, RecipientAccount, RecipientClaimParams, SettleResult};
-use race_api::error::{Error, Result};
+use race_core::error::{Error, Result};
 #[allow(unused_imports)]
 use race_core::{
     transport::TransportT,
