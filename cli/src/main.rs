@@ -282,8 +282,7 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             println!("Title: {}", game_account.title);
             println!("Game bundle: {}", game_account.bundle_addr);
             println!("Token address: {}", game_account.token_addr);
-            println!("Access version: {}", game_account.access_version);
-            println!("Settle version: {}", game_account.settle_version);
+            println!("Versions: #S{}, #A{}", game_account.settle_version, game_account.access_version);
             println!("Data size: {}", game_account.data.len());
             println!("Max players: {}", game_account.max_players);
             println!("Entry type: {:?}", game_account.entry_type);
@@ -291,17 +290,17 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             println!("Players:");
             for p in game_account.players.iter() {
                 println!(
-                    "Player[{}] position: {}, @{}",
+                    "Player[{}] position: {}, #A{}",
                     p.addr, p.position, p.access_version
                 );
             }
             println!("Deposits:");
             for d in game_account.deposits.iter() {
-                println!("Deposit: from[{}], amount: {}", d.addr, d.amount);
+                println!("Deposit: from[{}], amount: {}, #S{}", d.addr, d.amount, d.settle_version);
             }
             println!("Servers:");
             for s in game_account.servers.iter() {
-                println!("Server[{}]: {} @{}", s.endpoint, s.addr, s.access_version);
+                println!("Server[{}]: {}, #A{}", s.endpoint, s.addr, s.access_version);
             }
             println!("Votes:");
             for v in game_account.votes.iter() {
