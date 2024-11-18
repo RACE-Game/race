@@ -33,6 +33,18 @@ export class BroadcastServerJoin {
   }
 }
 
+export class BroadcastPlayerDeposit {
+  @field('string')
+  readonly addr!: string
+  @field('u64')
+  readonly amount!: bigint
+  @field('u64')
+  readonly settleVersion!: bigint
+  constructor(fields: Fields<BroadcastPlayerDeposit>) {
+    Object.assign(this, fields)
+  }
+}
+
 export type BroadcastFrameKind = 'Invalid' | 'Event' | 'Message' | 'TxState' | 'Sync' | 'EventHistories'
 
 export abstract class BroadcastFrame {
@@ -97,6 +109,8 @@ export class BroadcastFrameSync extends BroadcastFrame {
   newPlayers!: BroadcastPlayerJoin[]
   @field(array(struct(BroadcastServerJoin)))
   newServers!: BroadcastServerJoin[]
+  @field(array(struct(BroadcastPlayerDeposit)))
+  newDeposits!: BroadcastPlayerDeposit[]
   @field('string')
   transactor_addr!: string
   @field('u64')

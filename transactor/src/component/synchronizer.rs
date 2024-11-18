@@ -116,10 +116,24 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
 
                 for p in new_players.iter(){
                     for d in deposits.iter() {
+                        println!("d.settle_version: {}, d.deposit addr: {}, settle_version: {}, p.addr: {}",
+                            d.settle_version, settle_version, d.addr, p.addr);
                         if d.settle_version == settle_version && d.addr == p.addr {
                             new_deposits.push(PlayerDeposit::new(p.addr.clone(), d.amount, d.settle_version));
                         }
                     }
+                }
+
+                if !new_players.is_empty() {
+                    info!("{} New players: {:?}", env.log_prefix, new_players);
+                }
+
+                if !new_deposits.is_empty() {
+                    info!("{} New deposits: {:?}", env.log_prefix, new_deposits);
+                }
+
+                if !new_servers.is_empty() {
+                    info!("{} New servers: {:?}", env.log_prefix, new_servers);
                 }
 
                 if !new_players.is_empty() || !new_servers.is_empty() {

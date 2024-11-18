@@ -101,6 +101,7 @@ pub enum EventFrame {
     },
 
     /// Resume a subgame from its checkpoint.
+    #[allow(unused)]
     ResumeSubGame {
         checkpoint: Checkpoint,
     },

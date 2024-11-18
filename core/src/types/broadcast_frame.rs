@@ -28,6 +28,7 @@ impl BroadcastSync {
     pub fn merge(&mut self, other: &Self) {
         self.new_players.append(&mut other.new_players.clone());
         self.new_servers.append(&mut other.new_servers.clone());
+        self.new_deposits.append(&mut other.new_deposits.clone());
         self.access_version = u64::max(self.access_version, other.access_version);
         self.transactor_addr = other.transactor_addr.clone();
     }

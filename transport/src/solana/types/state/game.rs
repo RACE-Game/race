@@ -140,11 +140,13 @@ impl GameState {
             recipient_addr,
             checkpoint,
             entry_lock,
+            deposits,
             ..
         } = self;
 
         let players = players.into_iter().map(Into::into).collect();
         let servers = servers.into_iter().map(Into::into).collect();
+        let deposits = deposits.into_iter().map(Into::into).collect();
         let checkpoint_onchain = if !checkpoint.is_empty() {
             Some(
                 CheckpointOnChain::try_from_slice(&checkpoint)
@@ -168,7 +170,7 @@ impl GameState {
             max_players,
             data_len,
             data,
-            deposits: Vec::new(),
+            deposits,
             votes: Vec::new(),
             unlock_time: None,
             recipient_addr: recipient_addr.to_string(),
