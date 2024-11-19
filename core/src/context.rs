@@ -1,4 +1,4 @@
-use crate::checkpoint::{Checkpoint, CheckpointOffChain};
+use crate::checkpoint::{Checkpoint, CheckpointOffChain, VersionedData};
 use crate::random::{RandomState, RandomStatus};
 use crate::types::{ClientMode, EntryType, GameAccount, GameSpec};
 use crate::decision::DecisionState;
@@ -125,7 +125,7 @@ impl ContextPlayer {
 
 #[derive(Debug, Clone)]
 pub enum SubGameInitSource {
-    FromCheckpoint(Checkpoint),
+    FromCheckpoint(VersionedData),
     FromInitAccount(InitAccount),
 }
 
@@ -214,18 +214,13 @@ impl GameContext {
     pub fn try_new_with_sub_game_spec(init: SubGameInit) -> Result<Self> {
         let SubGameInit { spec, nodes, source } = init;
 
-        let GameSpec {
-            game_id,
-            ..
-        } = spec;
-
         let (handler_state, versions, init_data, checkpoint) = match source {
-            SubGameInitSource::FromCheckpoint(checkpoint) => {
-                if let Some(versioned_data) = checkpoint.get_versioned_data(game_id) {
-                    (versioned_data.data.clone(), versioned_data.versions, vec![], checkpoint)
-                } else {
-                    return Err(Error::MissingCheckpoint)
-                }
+            SubGameInitSource::FromCheckpoint(versioned_data) => {
+                let mut checkpoint = Checkpoint::default();
+                let versions = versioned_data.versions;
+                let data = versioned_data.data.clone();
+                checkpoint.init_versioned_data(versioned_data)?;
+                (data, versions, vec![], checkpoint)
             }
             SubGameInitSource::FromInitAccount(init_account) => {
                 (vec![], Default::default(), init_account.data, Default::default())

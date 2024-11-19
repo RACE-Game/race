@@ -29,13 +29,16 @@ impl EventBus {
             while let Some(msg) = rx.recv().await {
                 let txs = attached_txs.lock().await;
                 for (id, t) in txs.iter() {
-                    if t.send(msg.clone()).await.is_err() {
-                        warn!(
-                            "[{}] Failed to send message: {} to component: {}",
-                            addr_1,
-                            msg,
-                            id
-                        );
+                    if !t.is_closed() {
+                        if let Err(e) = t.send(msg.clone()).await {
+                            warn!(
+                                "[{}] Failed to send message: {} to component: {} due to error: {}",
+                                addr_1,
+                                msg,
+                                id,
+                                e
+                            );
+                        }
                     }
                 }
                 if matches!(msg, EventFrame::Shutdown) {
@@ -92,7 +95,6 @@ impl EventBus {
     }
 
     pub async fn send(&self, event: EventFrame) {
-        // info!("Event bus receive event frame: {:?}", event);
         if let Err(e) = self.tx.send(event).await {
             error!("An error occurred when sending event, {}", e.to_string());
         }

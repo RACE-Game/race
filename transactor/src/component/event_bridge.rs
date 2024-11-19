@@ -121,6 +121,10 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                             })
                             .await;
                     }
+
+                    EventFrame::SubGameReady { .. } => {
+                        ports.send(event_frame).await;
+                    }
                     _ => (),
                 }
             } else {
@@ -132,6 +136,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         }
                     }
                     EventFrame::Shutdown => {
+                        info!("{} Stopped", env.log_prefix);
                         if !ctx.tx.is_empty() {
                             info!("{} Sends Shutdown", env.log_prefix);
                             if let Err(e) = ctx.tx.send(event_frame) {
@@ -214,7 +219,7 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
             if from_bridge {
                 match event_frame {
                     EventFrame::Shutdown => {
-                        info!("{} Receives Shutdown, quit", env.log_prefix);
+                        info!("{} Stopped", env.log_prefix);
                         ports.send(event_frame).await;
                         break;
                     }
@@ -251,6 +256,13 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
             } else {
                 match event_frame {
                     EventFrame::Shutdown => break,
+
+                    EventFrame::SubGameReady { .. } => {
+                        if let Err(e) = ctx.tx.send(event_frame).await {
+                            error!("{} Failed to send: {}", env.log_prefix, e);
+                        }
+                    }
+
                     EventFrame::SendBridgeEvent { dest, .. } if dest != ctx.game_id => {
                         info!("{} Sends event: {}", env.log_prefix, event_frame);
                         if let Err(e) = ctx.tx.send(event_frame).await {

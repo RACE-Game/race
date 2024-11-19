@@ -1,7 +1,8 @@
 //! Register current transactor into on-chain transactor list
 //! Find available games and serve them.
 
-use std::{collections::HashMap, time::Duration};
+use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 
 use race_core::error::{Error, Result};
 use race_core::{
@@ -10,6 +11,8 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
+use tokio::select;
+use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
 use crate::{context::ApplicationContext, frame::SignalFrame};
@@ -37,9 +40,10 @@ pub async fn register_server(config: &Config) -> Result<()> {
 
 /// Start the registration task.
 /// This task will scan the games in registration account, find unserved games and join.
-pub async fn start_reg_task(context: &ApplicationContext) {
+pub async fn start_reg_task(context: &ApplicationContext) -> JoinHandle<()> {
     let key = context.export_public_key();
     let blacklist = context.blacklist();
+    let mut shutdown_rx = context.get_shutdown_receiver();
 
     let (reg_addresses, transport, server_addr, signal_tx) = {
         (
@@ -52,7 +56,6 @@ pub async fn start_reg_task(context: &ApplicationContext) {
     info!("Server address: {}", server_addr);
     info!("Registraion addresses: {:?}", reg_addresses);
 
-
     tokio::spawn(async move {
         let mut not_found_counts = HashMap::<String, usize>::new();
 
@@ -63,12 +66,17 @@ pub async fn start_reg_task(context: &ApplicationContext) {
             return;
         };
 
+        let mut loaded_game_addrs: HashSet<String> = Default::default();
+
         loop {
             // We search for accounts every 10 seconds
             for addr in reg_addresses.iter() {
                 if let Ok(Some(reg)) = transport.get_registration(addr).await {
                     for game_reg in reg.games.into_iter() {
                         if blacklist.lock().await.contains_addr(&game_reg.addr) {
+                            continue;
+                        }
+                        if loaded_game_addrs.contains(&game_reg.addr) {
                             continue;
                         }
                         match transport.get_game_account(&game_reg.addr).await {
@@ -87,6 +95,7 @@ pub async fn start_reg_task(context: &ApplicationContext) {
 
                                 }
 
+                                loaded_game_addrs.insert(game_account.addr.clone());
                                 let signal_result = signal_tx
                                     .send(SignalFrame::StartGame {
                                         game_addr: game_account.addr.clone(),
@@ -121,7 +130,14 @@ pub async fn start_reg_task(context: &ApplicationContext) {
                     warn!("Failed to load registration at {}", addr);
                 }
             }
-            tokio::time::sleep(Duration::from_secs(10)).await;
+
+            select! {
+                _ = shutdown_rx.changed() => {
+                    warn!("Stop discovering games");
+                    break;
+                },
+                _ = tokio::time::sleep(Duration::from_secs(10)) => { continue; }
+            };
         }
-    });
+    })
 }

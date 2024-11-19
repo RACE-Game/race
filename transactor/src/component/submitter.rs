@@ -213,6 +213,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     }
                 }
                 EventFrame::Shutdown => {
+                    info!("{} Stopped", env.log_prefix);
                     drop(queue_tx);
                     break;
                 }

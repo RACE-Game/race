@@ -129,6 +129,7 @@ pub struct ProducerPorts {
 }
 
 impl ProducerPorts {
+    #[allow(dead_code)]
     pub async fn try_send(&self, frame: EventFrame) -> Result<(), SendError<EventFrame>> {
         self.tx.send(frame).await
     }

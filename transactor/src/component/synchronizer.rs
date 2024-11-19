@@ -8,6 +8,7 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use race_core::error::Error;
+use tokio::select;
 use tokio_stream::StreamExt;
 
 use crate::frame::EventFrame;
@@ -18,11 +19,11 @@ use race_core::{
 use tracing::{info, warn};
 
 use crate::component::{
-    common::{Component, ProducerPorts},
+    common::Component,
     event_bus::CloseReason,
 };
 
-use super::ComponentEnv;
+use super::{common::PipelinePorts, ComponentEnv};
 
 pub struct GameSynchronizerContext {
     transport: Arc<dyn TransportT>,
@@ -54,13 +55,13 @@ impl GameSynchronizer {
 
 #[allow(unused_assignments)]
 #[async_trait]
-impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
+impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
     fn name() -> &'static str {
         "Game Synchronizer"
     }
 
     async fn run(
-        ports: ProducerPorts,
+        mut ports: PipelinePorts,
         ctx: GameSynchronizerContext,
         env: ComponentEnv,
     ) -> CloseReason {
@@ -80,87 +81,99 @@ impl Component<ProducerPorts, GameSynchronizerContext> for GameSynchronizer {
 
         let mut retry = 0;
         loop {
-
-            if let Some(Some(game_account)) = sub.next().await {
-                let GameAccount {
-                    players,
-                    servers,
-                    deposits,
-                    access_version,
-                    settle_version,
-                    transactor_addr,
-                    ..
-                } = game_account;
-
-                // Drop duplicated updates
-                if access_version <= prev_access_version {
-                    continue;
-                }
-
-                info!(
-                    "{} Synchronizer found new game state, access_version = {}, settle_version = {}",
-                    env.log_prefix, game_account.access_version, game_account.settle_version,
-                );
-
-                let new_players: Vec<PlayerJoin> = players
-                    .into_iter()
-                    .filter(|p| p.access_version > prev_access_version)
-                    .collect();
-
-                let new_servers: Vec<ServerJoin> = servers
-                    .into_iter()
-                    .filter(|s| s.access_version > prev_access_version)
-                    .collect();
-
-                let mut new_deposits: Vec<PlayerDeposit> = vec![];
-
-                for p in new_players.iter(){
-                    for d in deposits.iter() {
-                        println!("d.settle_version: {}, d.deposit addr: {}, settle_version: {}, p.addr: {}",
-                            d.settle_version, settle_version, d.addr, p.addr);
-                        if d.settle_version == settle_version && d.addr == p.addr {
-                            new_deposits.push(PlayerDeposit::new(p.addr.clone(), d.amount, d.settle_version));
+            select! {
+                event_frame = ports.recv() => {
+                    match event_frame {
+                        Some(EventFrame::Shutdown) => {
+                            break;
                         }
+                        _ => ()
                     }
                 }
 
-                if !new_players.is_empty() {
-                    info!("{} New players: {:?}", env.log_prefix, new_players);
-                }
+                sub_item = sub.next() => {
+                    if let Some(Some(game_account)) = sub_item {
+                        let GameAccount {
+                            players,
+                            servers,
+                            deposits,
+                            access_version,
+                            settle_version,
+                            transactor_addr,
+                            ..
+                        } = game_account;
 
-                if !new_deposits.is_empty() {
-                    info!("{} New deposits: {:?}", env.log_prefix, new_deposits);
-                }
+                        // Drop duplicated updates
+                        if access_version <= prev_access_version {
+                            continue;
+                        }
 
-                if !new_servers.is_empty() {
-                    info!("{} New servers: {:?}", env.log_prefix, new_servers);
-                }
+                        info!(
+                            "{} Synchronizer found new game state, access_version = {}, settle_version = {}",
+                            env.log_prefix, game_account.access_version, game_account.settle_version,
+                        );
 
-                if !new_players.is_empty() || !new_servers.is_empty() {
-                    let frame = EventFrame::Sync {
-                        new_players,
-                        new_servers,
-                        new_deposits,
-                        // TODO: Handle transactor addr change
-                        transactor_addr: transactor_addr.unwrap().clone(),
-                        access_version,
-                    };
+                        let new_players: Vec<PlayerJoin> = players
+                        .into_iter()
+                        .filter(|p| p.access_version > prev_access_version)
+                        .collect();
 
-                    // When other channels are closed
-                    if ports.try_send(frame).await.is_err() {
-                        return CloseReason::Complete;
+                        let new_servers: Vec<ServerJoin> = servers
+                        .into_iter()
+                        .filter(|s| s.access_version > prev_access_version)
+                        .collect();
+
+                        let mut new_deposits: Vec<PlayerDeposit> = vec![];
+
+                        for p in new_players.iter(){
+                            for d in deposits.iter() {
+                                println!("d.settle_version: {}, d.deposit addr: {}, settle_version: {}, p.addr: {}",
+                                    d.settle_version, settle_version, d.addr, p.addr);
+                                if d.settle_version == settle_version && d.addr == p.addr {
+                                    new_deposits.push(PlayerDeposit::new(p.addr.clone(), d.amount, d.settle_version));
+                                }
+                            }
+                        }
+
+                        if !new_players.is_empty() {
+                            info!("{} New players: {:?}", env.log_prefix, new_players);
+                        }
+
+                        if !new_deposits.is_empty() {
+                            info!("{} New deposits: {:?}", env.log_prefix, new_deposits);
+                        }
+
+                        if !new_servers.is_empty() {
+                            info!("{} New servers: {:?}", env.log_prefix, new_servers);
+                        }
+
+                        if !new_players.is_empty() || !new_servers.is_empty() {
+                            let frame = EventFrame::Sync {
+                                new_players,
+                                new_servers,
+                                new_deposits,
+                                // TODO: Handle transactor addr change
+                                transactor_addr: transactor_addr.unwrap().clone(),
+                                access_version,
+                            };
+
+                            // When other channels are closed
+                            if ports.try_send(frame).await.is_err() {
+                                return CloseReason::Complete;
+                            }
+                        }
+
+                        prev_access_version = access_version;
+                    } else {
+                        if retry == MAX_RETRIES {
+                            break;
+                        }
+                        retry += 1;
+                        let interval = u64::pow(2, retry as _).min(20);
+                        warn!("{} Game account not found, will retry after {} seconds", env.log_prefix, interval);
+                        tokio::time::sleep(Duration::from_secs(interval)).await;
                     }
                 }
-
-                prev_access_version = access_version;
-            } else {
-                if retry == MAX_RETRIES {
-                    break;
-                }
-                retry += 1;
-                let interval = u64::pow(2, retry as _).min(20);
-                warn!("{} Game account not found, will retry after {} seconds", env.log_prefix, interval);
-                tokio::time::sleep(Duration::from_secs(interval)).await;
             }
         }
 

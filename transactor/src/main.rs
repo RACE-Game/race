@@ -7,12 +7,16 @@ mod handle;
 mod reg;
 mod blacklist;
 mod server;
+mod keyboard;
 
+use tracing::error;
 use crate::server::run_server;
 use clap::{arg, Command};
 use context::ApplicationContext;
+use keyboard::setup_keyboard_handler;
 use race_env::Config;
 use reg::{register_server, start_reg_task};
+use tokio::try_join;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::__tracing_subscriber_SubscriberExt, Layer, EnvFilter};
 
@@ -60,11 +64,16 @@ pub async fn main() {
     match matches.subcommand() {
         Some(("run", _)) => {
             info!("Starting transactor.");
-            let context = ApplicationContext::try_new(config)
+            let (mut context, signal_loop) = ApplicationContext::try_new_and_start_signal_loop(config)
                 .await
                 .expect("Failed to initalize");
-            start_reg_task(&context).await;
-            run_server(context).await.expect("Unexpected error occured");
+            let keyboard_listener = setup_keyboard_handler(&mut context);
+            let reg_task = start_reg_task(&context).await;
+            let server_handle = run_server(context).await.expect("Unexpected error occured");
+            if let Err(e) = try_join!(signal_loop, keyboard_listener, reg_task, server_handle) {
+                error!("Error: {:?}", e);
+            }
+            info!("Transactor stopped");
         }
         Some(("reg", _)) => {
             info!("Register server profile for current account.");

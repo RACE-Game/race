@@ -18,35 +18,35 @@ publish = true
 [dependencies]
 race-api = { workspace = true, features = ["serde"] }
 race-core = { workspace = true, features = ["serde"] }
-race-transport = { workspace = true }
-race-encryptor = { workspace = true }
-race-client = { workspace = true }
-race-env = { workspace = true }
-race-local-db = { workspace = true }
-tracing-appender = { workspace = true }
-time = { workspace = true }
+race-transport.workspace = true
+race-encryptor.workspace = true
+race-client.workspace = true
+race-env.workspace = true
+race-local-db.workspace = true
+tracing-appender.workspace = true
+time.workspace = true
 uuid = { workspace = true, features = ["v4", "fast-rng"] }
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true, features = ["sync"] }
 jsonrpsee = { workspace = true, features = ["full"] }
 tower-http = { workspace = true, features = ["full"] }
-anyhow = { workspace = true }
+anyhow.workspace = true
 tower = { workspace = true, features = ["full"] }
-hyper = { workspace = true }
-tracing = { workspace = true }
+hyper.workspace = true
+tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-borsh = { workspace = true }
-serde_json = { workspace = true }
-serde = { workspace = true }
-thiserror = { workspace = true }
-wasmer = { workspace = true }
+borsh.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+wasmer.workspace = true
 clap = { workspace = true, features = ["derive"] }
-arrayref = { workspace = true }
-async-stream = { workspace = true }
-async-trait = { workspace = true }
-futures = { workspace = true }
-base64 = { workspace = true }
-sha256 = { workspace = true }
+arrayref.workspace = true
+async-stream.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+base64.workspace = true
+sha256.workspace = true
 
 [dev-dependencies]
 race-test = { path = "../test" }

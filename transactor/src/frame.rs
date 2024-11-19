@@ -2,13 +2,14 @@ use race_api::{
     event::{Event, Message}, types::{EntryLock, Settle}
 };
 use race_core::{
-    checkpoint::Checkpoint, context::{GameContext, SubGameInit}, types::{PlayerDeposit, PlayerJoin, ServerJoin, Transfer, TxState, VoteType}
+    checkpoint::{Checkpoint, VersionedData}, context::{GameContext, SubGameInit}, types::{PlayerDeposit, PlayerJoin, ServerJoin, Transfer, TxState, VoteType}
 };
 
 #[derive(Debug, Clone)]
 pub enum SignalFrame {
     StartGame { game_addr: String },
     LaunchSubGame { sub_game_init: SubGameInit },
+    Shutdown,
 }
 
 #[derive(Debug, Clone)]
@@ -83,7 +84,7 @@ pub enum EventFrame {
         event: Event,
         access_version: u64,
         settle_version: u64,
-        checkpoint_state: Vec<u8>,
+        checkpoint_state: VersionedData,
     },
     /// Similar to `SendBridgeEvent`, but for receiver's event bus.
     RecvBridgeEvent {
@@ -92,7 +93,7 @@ pub enum EventFrame {
         event: Event,
         access_version: u64,
         settle_version: u64,
-        checkpoint_state: Vec<u8>,
+        checkpoint_state: VersionedData,
     },
 
     /// Launch a subgame.
@@ -112,6 +113,12 @@ pub enum EventFrame {
         new_servers: Vec<ServerJoin>,
         transactor_addr: String,
     },
+
+    /// Subgames send this frame after they made their first checkpoint.
+    SubGameReady {
+        game_id: usize,
+        checkpoint_state: VersionedData,
+    }
 }
 
 impl std::fmt::Display for EventFrame {
@@ -170,6 +177,9 @@ impl std::fmt::Display for EventFrame {
             },
             EventFrame::ResumeSubGame { .. } => {
                 write!(f, "ResumeSubGame")
+            },
+            EventFrame::SubGameReady { game_id, .. } => {
+                write!(f, "SubGameReady, game_id: {}", game_id)
             }
         }
     }

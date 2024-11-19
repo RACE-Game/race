@@ -225,7 +225,8 @@ async fn subscribe_event(
     }
 }
 
-pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
+pub async fn run_server(context: ApplicationContext) -> anyhow::Result<tokio::task::JoinHandle<()>> {
+
     let cors = CorsLayer::new()
         .allow_methods([Method::POST, Method::OPTIONS])
         .allow_origin(Any)
@@ -244,6 +245,9 @@ pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
         .max_request_body_size(100_1000)
         .build(host.parse::<SocketAddr>()?)
         .await?;
+
+    let mut shutdown_rx = context.get_shutdown_receiver();
+
     let mut module = RpcModule::new(context);
 
     module.register_method("ping", ping)?;
@@ -260,8 +264,14 @@ pub async fn run_server(context: ApplicationContext) -> anyhow::Result<()> {
     )?;
     let handle = server.start(module)?;
     info!("Server started at {:?}", host);
-    handle.stopped().await;
-    Ok(())
+
+    Ok(tokio::spawn(async move {
+        shutdown_rx.changed().await.expect("Server listens to shutdown signal");
+        info!("Stop jsonrpc server");
+        handle.stop().expect("Stop jsonrpc server");
+        handle.stopped().await;
+        info!("Jsonrpc server stopped");
+    }))
 }
 
 #[cfg(test)]

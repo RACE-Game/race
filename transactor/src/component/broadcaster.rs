@@ -296,6 +296,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     }
                 }
                 EventFrame::Shutdown => {
+                    warn!("{} Stopped", env.log_prefix);
                     break;
                 }
                 _ => (),

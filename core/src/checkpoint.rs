@@ -128,6 +128,19 @@ impl Checkpoint {
         self.get_data(id).unwrap_or_default()
     }
 
+    pub fn init_versioned_data(&mut self, versioned_data: VersionedData) -> Result<(), Error> {
+        match self.data.entry(versioned_data.id) {
+            std::collections::hash_map::Entry::Occupied(_) => {
+                return Err(Error::CheckpointAlreadyExists);
+            }
+            std::collections::hash_map::Entry::Vacant(v) => {
+                v.insert(versioned_data);
+                self.update_root_and_proofs();
+                Ok(())
+            }
+        }
+    }
+
     pub fn init_data(&mut self, id: usize, game_spec: GameSpec, data: Vec<u8>) -> Result<(), Error> {
         match self.data.entry(id) {
             std::collections::hash_map::Entry::Occupied(_) => {
@@ -163,6 +176,19 @@ impl Checkpoint {
         } else {
             Err(Error::MissingCheckpoint)
         }
+    }
+
+    pub fn update_versioned_data(&mut self, versioned_data: VersionedData) -> Result<(), Error> {
+        if let Some(old) = self.data.get_mut(&versioned_data.id) {
+            *old = versioned_data;
+            Ok(())
+        } else {
+            Err(Error::MissingCheckpoint)
+        }
+    }
+
+    pub fn list_versioned_data(&self) -> Vec<&VersionedData> {
+        self.data.values().collect()
     }
 
     pub fn set_access_version(&mut self, access_version: u64) {

@@ -310,6 +310,9 @@ pub enum Error {
 
     #[error("Checkpoint already exists")]
     CheckpointAlreadyExists,
+
+    #[error("Checkpoint not found after initialization")]
+    CheckpointNotFoundAfterInit,
 }
 
 #[cfg(feature = "serde")]

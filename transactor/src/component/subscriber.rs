@@ -9,13 +9,15 @@ use race_core::types::BroadcastFrame;
 use race_core::types::BroadcastSync;
 use race_core::types::VoteType;
 use race_core::types::{GameAccount, ServerAccount};
+use tokio::select;
 use tracing::error;
 use tracing::info;
 use tracing::warn;
 
 use crate::frame::EventFrame;
 
-use super::common::{Component, ProducerPorts};
+use super::common::PipelinePorts;
+use super::common::Component;
 use super::ComponentEnv;
 use super::{event_bus::CloseReason, RemoteConnection};
 
@@ -53,12 +55,12 @@ impl Subscriber {
 }
 
 #[async_trait]
-impl Component<ProducerPorts, SubscriberContext> for Subscriber {
+impl Component<PipelinePorts, SubscriberContext> for Subscriber {
     fn name() -> &'static str {
         "Subscriber"
     }
 
-    async fn run(ports: ProducerPorts, ctx: SubscriberContext, env: ComponentEnv) -> CloseReason {
+    async fn run(mut ports: PipelinePorts, ctx: SubscriberContext, env: ComponentEnv) -> CloseReason {
         let SubscriberContext {
             game_addr,
             server_addr: _,
@@ -106,63 +108,83 @@ impl Component<ProducerPorts, SubscriberContext> for Subscriber {
         info!("{} Subscription established", env.log_prefix);
         pin_mut!(sub);
 
-        while let Some(frame) = sub.next().await {
-            match frame {
-                // Forward event to event bus
-                BroadcastFrame::Event { event, timestamp, .. } => {
-                    info!("{} Receive event: {}", env.log_prefix, event);
-                    if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event, timestamp }).await {
-                        error!("Send server event error: {}", e);
-                        break;
+
+        loop {
+            select! {
+                event_frame = ports.recv() => {
+                    match event_frame {
+                        Some(EventFrame::Shutdown) => {
+                            info!("{} Stopped", env.log_prefix);
+                            return CloseReason::Complete;
+                        }
+                        _ => ()
                     }
                 }
 
-                BroadcastFrame::Sync { sync } => {
-                    let BroadcastSync {
-                        new_players,
-                        new_servers,
-                        new_deposits,
-                        access_version,
-                        transactor_addr,
-                    } = sync;
-                    info!(
-                        "{} Receive Sync broadcast, new_players: {:?}, new_servers: {:?}",
-                        env.log_prefix, new_players, new_servers
-                    );
-                    if let Err(e) = ports
-                        .try_send(EventFrame::Sync {
-                            new_players,
-                            new_servers,
-                            new_deposits,
-                            transactor_addr,
-                            access_version,
-                        })
-                        .await
-                    {
-                        error!("{} Send update node error: {}", env.log_prefix, e);
+                frame = sub.next() => {
+                    let Some(frame) = frame else {
                         break;
-                    }
-                }
+                    };
 
-                BroadcastFrame::Message { .. } => {
-                    // Dropped
-                }
-                BroadcastFrame::TxState { .. } => {
-                    // Dropped
-                }
-                BroadcastFrame::EventHistories { histories, .. } => {
-                    info!(
-                        "{} Receive event histories: {}",
-                        env.log_prefix,
-                        histories.len()
-                    );
-                    for hist in histories {
-                        if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event: hist.event.clone(), timestamp: hist.timestamp }).await
-                        {
-                            error!("Send server event error: {}", e);
-                            break;
+                    match frame {
+                        // Forward event to event bus
+                        BroadcastFrame::Event { event, timestamp, .. } => {
+                            info!("{} Receive event: {}", env.log_prefix, event);
+                            if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event, timestamp }).await {
+                                error!("Send server event error: {}", e);
+                                break;
+                            }
+                        }
+
+                        BroadcastFrame::Sync { sync } => {
+                            let BroadcastSync {
+                                new_players,
+                                new_servers,
+                                new_deposits,
+                                access_version,
+                                transactor_addr,
+                            } = sync;
+                            info!(
+                                "{} Receive Sync broadcast, new_players: {:?}, new_servers: {:?}",
+                                env.log_prefix, new_players, new_servers
+                            );
+                            if let Err(e) = ports
+                            .try_send(EventFrame::Sync {
+                                new_players,
+                                new_servers,
+                                new_deposits,
+                                transactor_addr,
+                                access_version,
+                            })
+                            .await
+                            {
+                                error!("{} Send update node error: {}", env.log_prefix, e);
+                                break;
+                            }
+                        }
+
+                        BroadcastFrame::Message { .. } => {
+                            // Dropped
+                        }
+                        BroadcastFrame::TxState { .. } => {
+                            // Dropped
+                        }
+                        BroadcastFrame::EventHistories { histories, .. } => {
+                            info!(
+                                "{} Receive event histories: {}",
+                                env.log_prefix,
+                                histories.len()
+                            );
+                            for hist in histories {
+                                if let Err(e) = ports.try_send(EventFrame::SendServerEvent { event: hist.event.clone(), timestamp: hist.timestamp }).await
+                                {
+                                    error!("Send server event error: {}", e);
+                                    break;
+                                }
+                            }
                         }
                     }
+
                 }
             }
         }

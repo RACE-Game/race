@@ -1,5 +1,5 @@
 use crate::blacklist::Blacklist;
-use crate::component::{WrappedStorage, WrappedTransport};
+use crate::component::{CloseReason, WrappedStorage, WrappedTransport};
 use crate::frame::SignalFrame;
 use crate::game_manager::GameManager;
 use race_api::event::{Event, Message};
@@ -10,9 +10,10 @@ use race_core::types::{BroadcastFrame, ServerAccount, Signature};
 use race_encryptor::Encryptor;
 use race_env::{Config, TransactorConfig};
 use race_transport::ChainType;
+use tokio::task::JoinHandle;
 use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc, Mutex};
-use tracing::info;
+use tokio::sync::{broadcast, mpsc, watch, Mutex};
+use tracing::{error, info};
 
 /// Transactor runtime context
 pub struct ApplicationContext {
@@ -20,15 +21,19 @@ pub struct ApplicationContext {
     pub chain: ChainType,
     pub account: ServerAccount,
     pub transport: Arc<WrappedTransport>,
+    pub storage: Arc<WrappedStorage>,
     pub encryptor: Arc<Encryptor>,
     pub game_manager: Arc<GameManager>,
     pub signal_tx: mpsc::Sender<SignalFrame>,
     pub blacklist: Arc<Mutex<Blacklist>>,
+    pub shutdown_rx: watch::Receiver<bool>,
 }
 
 impl ApplicationContext {
-    pub async fn try_new(config: Config) -> Result<Self> {
+    pub async fn try_new_and_start_signal_loop(config: Config) -> Result<(Self, JoinHandle<()>)> {
         info!("Initialize application context");
+
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
         let transport = Arc::new(WrappedTransport::try_new(&config).await?);
 
@@ -47,26 +52,49 @@ impl ApplicationContext {
             .await?
             .ok_or(Error::ServerAccountMissing)?;
 
-        let debug_mode = transactor_config.debug_mode.unwrap_or(false);
-
         let game_manager = Arc::new(GameManager::default());
 
-        let (signal_tx, mut signal_rx) = mpsc::channel(3);
+        let (signal_tx, signal_rx) = mpsc::channel(3);
 
         let blacklist = Arc::new(Mutex::new(Blacklist::new(
             transactor_config.disable_blacklist.ne(&(Some(true))),
         )));
 
-        let game_manager_0 = game_manager.clone();
-        let transport_0 = transport.clone();
-        let storage_0 = storage.clone();
-        let encryptor_0 = encryptor.clone();
-        let account_0 = account.clone();
-        let blacklist_0 = blacklist.clone();
-        let signal_tx_0 = signal_tx.clone();
+        let ctx = Self {
+            config: transactor_config,
+            chain,
+            account,
+            transport,
+            storage,
+            encryptor,
+            game_manager,
+            signal_tx,
+            blacklist,
+            shutdown_rx,
+        };
+
+        let join_handle = ctx.start_signal_loop(signal_rx, shutdown_tx);
+
+        Ok((ctx, join_handle))
+    }
+
+    pub fn start_signal_loop(&self, mut signal_rx: mpsc::Receiver<SignalFrame>, shutdown_tx: watch::Sender<bool>) -> JoinHandle<()> {
+        info!("Starting signal loop");
+
+        let game_manager_0 = self.game_manager.clone();
+        let transport_0 = self.transport.clone();
+        let storage_0 = self.storage.clone();
+        let encryptor_0 = self.encryptor.clone();
+        let account_0 = self.account.clone();
+        let blacklist_0 = self.blacklist.clone();
+        let signal_tx_0 = self.signal_tx.clone();
+        let debug_mode = self.config.debug_mode.unwrap_or_default();
 
         tokio::spawn(async move {
+            let mut join_handles: Vec<JoinHandle<CloseReason>> = vec![];
+
             while let Some(signal) = signal_rx.recv().await {
+
                 let game_manager_1 = game_manager_0.clone();
                 let transport_1 = transport_0.clone();
                 let storage_1 = storage_0.clone();
@@ -74,55 +102,62 @@ impl ApplicationContext {
                 let account_1 = account_0.clone();
                 let blacklist_1 = blacklist_0.clone();
                 let signal_tx_1 = signal_tx_0.clone();
-                tokio::spawn(async move {
-                    match signal {
-                        SignalFrame::StartGame { game_addr } => {
-                            game_manager_1
-                                .load_game(
-                                    game_addr,
-                                    transport_1.clone(),
-                                    storage_1.clone(),
-                                    encryptor_1.clone(),
-                                    &account_1,
-                                    blacklist_1.clone(),
-                                    signal_tx_1.clone(),
-                                    debug_mode,
-                                )
-                                .await;
-                        }
-                        SignalFrame::LaunchSubGame { sub_game_init } => {
-                            let bridge_parent = game_manager_1
-                                .get_event_parent(&sub_game_init.spec.game_addr)
-                                .await
-                                .expect(
-                                    format!("Bridge parent not found: {}", sub_game_init.spec.game_addr).as_str(),
-                                );
 
-                            game_manager_1
-                                .launch_sub_game(
-                                    sub_game_init,
-                                    bridge_parent,
-                                    &account_1,
-                                    transport_1.clone(),
-                                    encryptor_1.clone(),
-                                    debug_mode,
-                                )
-                                .await;
-                        }
+                match signal {
+                    SignalFrame::StartGame { game_addr } => {
+                        if let Some(join_handle) = game_manager_1
+                            .load_game(
+                                game_addr,
+                                transport_1.clone(),
+                                storage_1.clone(),
+                                encryptor_1.clone(),
+                                &account_1,
+                                blacklist_1.clone(),
+                                signal_tx_1.clone(),
+                                debug_mode,
+                            )
+                            .await {
+                                join_handles.push(join_handle);
+                            }
                     }
-                });
-            }
-        });
+                    SignalFrame::LaunchSubGame { sub_game_init } => {
+                        let bridge_parent = game_manager_1
+                            .get_event_parent(&sub_game_init.spec.game_addr)
+                            .await
+                            .expect(
+                                format!("Bridge parent not found: {}", sub_game_init.spec.game_addr).as_str(),
+                            );
 
-        Ok(Self {
-            config: transactor_config,
-            chain,
-            account,
-            transport,
-            encryptor,
-            game_manager,
-            signal_tx,
-            blacklist,
+                        if let Some(join_handle) = game_manager_1
+                            .launch_sub_game(
+                                sub_game_init,
+                                bridge_parent,
+                                &account_1,
+                                transport_1.clone(),
+                                encryptor_1.clone(),
+                                debug_mode,
+                            )
+                            .await {
+                                join_handles.push(join_handle);
+                            }
+                    }
+
+                    SignalFrame::Shutdown => {
+                        game_manager_1.shutdown().await;
+                        shutdown_tx.send(true).expect("Set shutdown flag");
+                        break;
+                    }
+                }
+            }
+
+            info!("Waiting game handles to finish...");
+
+            for join_handle in join_handles {
+                if let Err(e) = join_handle.await {
+                    error!("Error in waiting game handles: {}", e);
+                }
+            }
+            info!("All game handles stopped");
         })
     }
 
@@ -172,6 +207,10 @@ impl ApplicationContext {
 
     pub fn get_signal_sender(&self) -> mpsc::Sender<SignalFrame> {
         self.signal_tx.clone()
+    }
+
+    pub fn get_shutdown_receiver(&self) -> watch::Receiver<bool> {
+        self.shutdown_rx.clone()
     }
 
     pub fn blacklist(&self) -> Arc<Mutex<Blacklist>> {

@@ -147,6 +147,10 @@ impl Handle {
         }
     }
 
+    pub fn is_subgame(&self) -> bool {
+        matches!(self, Handle::SubGame(_))
+    }
+
     pub fn wait(&mut self) -> JoinHandle<CloseReason> {
         let handles = match self {
             Handle::Transactor(ref mut x) => &mut x.handles,

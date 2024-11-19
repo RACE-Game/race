@@ -29,37 +29,8 @@ impl Default for GameManager {
     }
 }
 
-fn wait_and_unload(
-    game_addr: String,
-    join_handle: JoinHandle<CloseReason>,
-    games: Arc<Mutex<HashMap<String, Handle>>>,
-    blacklist: Option<Arc<Mutex<Blacklist>>>,
-) {
-    // Wait and unload
-    tokio::spawn(async move {
-        match join_handle.await {
-            Ok(CloseReason::Complete) => {
-                let mut games = games.lock().await;
-                games.remove(&game_addr);
-                info!("Clean game handle: {}", game_addr);
-            }
-            Ok(CloseReason::Fault(_)) => {
-                let mut games = games.lock().await;
-                games.remove(&game_addr);
-                if let Some(blacklist) = blacklist {
-                    blacklist.lock().await.add_addr(&game_addr);
-                    info!("Game stopped with error, clean game handle: {}", game_addr);
-                }
-            }
-            Err(e) => {
-                error!("Unexpected error when waiting game to stop: {}", e);
-            }
-        }
-    });
-}
-
 impl GameManager {
-    /// Load a sub game
+    /// Load a child game
     pub async fn launch_sub_game(
         &self,
         sub_game_init: SubGameInit,
@@ -68,24 +39,25 @@ impl GameManager {
         transport: Arc<WrappedTransport>,
         encryptor: Arc<Encryptor>,
         debug_mode: bool,
-    ) {
+    ) -> Option<JoinHandle<CloseReason>> {
         let game_addr = sub_game_init.spec.game_addr.clone();
         let game_id = sub_game_init.spec.game_id;
         match Handle::try_new_sub_game_handle(sub_game_init, bridge_parent, server_account, encryptor, transport, debug_mode).await {
             Ok(mut handle) => {
                 let mut games = self.games.lock().await;
                 let addr = format!("{}:{}", game_addr, game_id);
-                info!("Launch sub game {}", addr);
+                info!("Launch child game {}", addr);
                 let join_handle = handle.wait();
                 games.insert(addr.clone(), handle);
-                wait_and_unload(addr, join_handle, self.games.clone(), None);
+                Some(join_handle)
             }
             Err(e) => {
                 warn!(
-                    "Error loading sub game with id {}: {}",
+                    "Error loading child game with id {}: {}",
                     game_id,
                     e.to_string()
                 );
+                None
             }
         }
     }
@@ -101,7 +73,7 @@ impl GameManager {
         blacklist: Arc<Mutex<Blacklist>>,
         signal_tx: mpsc::Sender<SignalFrame>,
         debug_mode: bool,
-    ) {
+    ) -> Option<JoinHandle<CloseReason>> {
         let mut games = self.games.lock().await;
         if let Entry::Vacant(e) = games.entry(game_addr.clone()) {
             match Handle::try_new(transport, storage, encryptor, server_account, e.key(), signal_tx, debug_mode).await {
@@ -109,15 +81,18 @@ impl GameManager {
                     info!("Game handle created: {}", e.key());
                     let join_handle = handle.wait();
                     e.insert(handle);
-                    // TODO: A better handle for errors in initialization
-                    wait_and_unload(game_addr, join_handle, self.games.clone(), Some(blacklist));
+                    Some(join_handle)
                 }
                 Err(err) => {
                     warn!("Error loading game: {}", err.to_string());
                     warn!("Failed to load game: {}", e.key());
                     blacklist.lock().await.add_addr(&game_addr);
+                    None
                 }
             }
+        } else {
+            error!("Game already loaded: {}", game_addr);
+            None
         }
     }
 
@@ -199,5 +174,18 @@ impl GameManager {
         let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
         let bridge_parent = handle.event_parent_owned()?;
         Ok(bridge_parent)
+    }
+
+    /// Shutdown all games, and drop their handles.
+    pub async fn shutdown(&self) {
+        let mut games = self.games.lock().await;
+        for (addr, game) in games.iter() {
+            if !game.is_subgame() {
+                info!("Shutdown game {}", addr);
+                game.event_bus().send(EventFrame::Shutdown).await;
+            }
+        }
+
+        games.clear();
     }
 }

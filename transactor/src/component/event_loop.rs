@@ -64,6 +64,13 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ports.send(EventFrame::Shutdown).await;
                             return close_reason;
                         }
+                    } else {
+                        if let Some(close_reason) = event_handler::resume_from_checkpoint(
+                            &mut game_context, &ports, ctx.client_mode, ctx.game_mode, &env
+                        ).await {
+                            ports.send(EventFrame::Shutdown).await;
+                            return close_reason;
+                        }
                     }
                 }
 
@@ -220,6 +227,17 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         );
                     }
                 }
+
+                EventFrame::SubGameReady { checkpoint_state, game_id } => {
+                    if ctx.game_mode == GameMode::Main {
+                        info!("Update checkpoint for sub game: {}", game_id);
+                        if let Err(e) = game_context.checkpoint_mut().init_versioned_data(checkpoint_state) {
+                            error!("{} Failed to set checkpoint data: {:?}", env.log_prefix, e);
+                            ports.send(EventFrame::Shutdown).await;
+                        }
+                    }
+                }
+
                 EventFrame::RecvBridgeEvent {
                     event,
                     dest,
@@ -234,8 +252,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     let timestamp = current_timestamp();
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
-                        info!("Update checkpoint for child game: {}", from);
-                        if let Err(e) = game_context.checkpoint_mut().set_data(from, checkpoint_state) {
+                        info!("Update checkpoint for sub game: {}", from);
+                        if let Err(e) = game_context.checkpoint_mut().update_versioned_data(checkpoint_state) {
                             error!("{} Failed to set checkpoint data: {:?}", env.log_prefix, e);
                             ports.send(EventFrame::Shutdown).await;
                         }
@@ -296,7 +314,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
                 EventFrame::Shutdown => {
-                    warn!("{} Shutdown event loop", env.log_prefix);
+                    warn!("{} Stopped", env.log_prefix);
                     return CloseReason::Complete;
                 }
                 _ => (),
