@@ -41,18 +41,40 @@ export class SuiTransport implements ITransport {
         const createGameAccount = async () => {
             const transaction = new Transaction();
             // 假设游戏账户创建合约地址和函数名称
-            const gameModuleAddress = '0xff7344c8a64996b7283a3d711080491e4bb414187f6b1aa08c54e84d277cd35a';
+          const gameModuleAddress = '0x195ff9c5fe7c49a1695ce2cab6bf72e109208203b129f60fa880327a22d5e48d';
+          const PROFILE_TABLE_ID = '0xcf7ae3a5c7e16ec9cc964d998ebadcaf623c61a6c945c3069498c71484ebfc1f';
+
+          // For debugging only
+          try {
+            const object = await suiClient.getObject({
+              id: PROFILE_TABLE_ID,
+              // Optionally include additional data
+              options: { showContent: true }
+            });
+            console.log('Profile table:', object);
+          } catch(error) {
+            console.error('Error while accessing profile table:', error);
+          }
+
             const createGameAccountFunction = 'create_profile';
             // 在交易块中调用创建游戏账户的 Move 函数
-            const serializedOption = bcs.string().serialize('yuumi'); 
+            const serializedOption = bcs.string().serialize('yuumi');
             console.log('==>', serializedOption, bcs.option(bcs.string()).serialize(address).toBytes())
             transaction.moveCall({
                 target: `${gameModuleAddress}::profile::${createGameAccountFunction}`,
-                arguments: [serializedOption, bcs.option(bcs.string()).serialize(address)], 
+                // arguments: [serializedOption, bcs.option(bcs.string()).serialize(undefined)],
+              arguments: [
+                transaction.pure.string('yuumi'),
+                transaction.pure.option('address', null),
+                transaction.object(PROFILE_TABLE_ID),
+              ],
             });
-            transaction.setGasBudget(1000001);
-            // 打印交易块的内容，方便调试
-            console.log('transaction:', transaction);
+
+          transaction.setGasBudget(5_000_001);
+          // 打印交易块的内容，方便调试
+          console.log('transaction:', transaction);
+
+
             try {
                 // 使用密钥对来签署交易
                 // 发送交易并等待结果
