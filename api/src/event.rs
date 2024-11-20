@@ -255,3 +255,19 @@ pub trait BridgeEvent: Sized + BorshSerialize + BorshDeserialize {
         Self::try_from_slice(slice).or(Err(HandleError::MalformedBridgeEvent))
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use crate::effect::Effect;
+
+    use super::*;
+
+    #[test]
+    fn a() {
+        let v = vec![0,0,0,0,0,66,21,114,73,147,1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+        let e = Effect::try_from_slice(&v);
+
+        println!("{:?}", e);
+    }
+}

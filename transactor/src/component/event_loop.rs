@@ -61,14 +61,12 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.game_mode,
                             &env,
                         ).await {
-                            ports.send(EventFrame::Shutdown).await;
-                            return close_reason;
+                            return close_reason
                         }
                     } else {
                         if let Some(close_reason) = event_handler::resume_from_checkpoint(
                             &mut game_context, &ports, ctx.client_mode, ctx.game_mode, &env
                         ).await {
-                            ports.send(EventFrame::Shutdown).await;
                             return close_reason;
                         }
                     }
@@ -87,12 +85,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.game_mode,
                             timestamp,
                             &env,
-                        )
-                            .await
-                        {
-                            ports.send(EventFrame::Shutdown).await;
+                        ).await {
                             return close_reason;
                         }
+
                     }
                 }
 
@@ -176,7 +172,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                                 timestamp,
                                 &env,
                             ).await {
-                                ports.send(EventFrame::Shutdown).await;
                                 return close_reason;
                             }
                         }
@@ -195,7 +190,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                                 timestamp,
                                 &env,
                             ).await {
-                                ports.send(EventFrame::Shutdown).await;
                                 return close_reason;
                             }
                         }
@@ -214,10 +208,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.game_mode,
                             timestamp,
                             &env,
-                        )
-                            .await
-                        {
-                            ports.send(EventFrame::Shutdown).await;
+                        ).await {
                             return close_reason;
                         }
                     } else {
@@ -232,9 +223,23 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if ctx.game_mode == GameMode::Main {
                         info!("Update checkpoint for sub game: {}", game_id);
                         if let Err(e) = game_context.checkpoint_mut().init_versioned_data(checkpoint_state) {
-                            error!("{} Failed to set checkpoint data: {:?}", env.log_prefix, e);
+                            error!("{} Failed to init checkpoint data: {:?}", env.log_prefix, e);
                             ports.send(EventFrame::Shutdown).await;
                         }
+                    }
+                    let timestamp = current_timestamp();
+                    let event = Event::SubGameReady { game_id };
+                    if let Some(close_reason) = event_handler::handle_event(
+                        &mut handler,
+                        &mut game_context,
+                        event,
+                        &ports,
+                        ctx.client_mode,
+                        ctx.game_mode,
+                        timestamp,
+                        &env,
+                    ).await {
+                        return close_reason;
                     }
                 }
 
@@ -268,10 +273,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         timestamp,
                         &env,
-                    )
-                        .await
-                    {
-                        ports.send(EventFrame::Shutdown).await;
+                    ).await {
                         return close_reason;
                     }
                 }
@@ -285,19 +287,17 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         timestamp,
                         &env,
-                    )
-                        .await
-                    {
-                        ports.send(EventFrame::Shutdown).await;
+                    ).await {
                         return close_reason;
                     }
                 }
                 EventFrame::SendServerEvent { event, timestamp } => {
                     // Handle the shutdown event from game logic
                     if matches!(event, Event::Shutdown) {
-                        ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Complete;
-                    } else if let Some(close_reason) = event_handler::handle_event(
+                    }
+
+                    if let Some(close_reason) = event_handler::handle_event(
                         &mut handler,
                         &mut game_context,
                         event,
@@ -306,10 +306,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         timestamp,
                         &env,
-                    )
-                        .await
-                    {
-                        ports.send(EventFrame::Shutdown).await;
+                    ).await {
                         return close_reason;
                     }
                 }
@@ -322,10 +319,12 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         }
 
         return CloseReason::Complete;
+
     }
 }
 
 impl EventLoop {
+
     pub fn init(
         handler: WrappedHandler,
         game_context: GameContext,

@@ -34,6 +34,7 @@ pub struct TransactorConfig {
     pub disable_blacklist: Option<bool>,
     pub debug_mode: Option<bool>,
     pub log_dir: Option<String>,
+    pub bundle_dir: Option<String>,
 }
 
 #[derive(Deserialize)]

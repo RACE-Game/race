@@ -7,7 +7,7 @@ use tracing::{info, warn};
 
 use crate::{frame::EventFrame, utils::addr_shorthand};
 
-use super::{event_bus::CloseReason};
+use super::event_bus::CloseReason;
 
 /// An interface for a component that can be attached to the event bus.
 pub trait Attachable {
@@ -37,7 +37,11 @@ pub struct PortsHandle {
 }
 
 impl PortsHandle {
-    fn from_inner<S: Into<String>>(id: S, value: PortsHandleInner, join_handle: JoinHandle<CloseReason>) -> Self {
+    fn from_inner<S: Into<String>>(
+        id: S,
+        value: PortsHandleInner,
+        join_handle: JoinHandle<CloseReason>,
+    ) -> Self {
         Self {
             id: id.into(),
             input_tx: value.input_tx,
@@ -49,7 +53,13 @@ impl PortsHandle {
 
 impl PortsHandle {
     pub async fn wait(self) -> CloseReason {
-        self.join_handle.await.unwrap()
+        match self.join_handle.await {
+            Ok(close_reason) => close_reason,
+            Err(e) => CloseReason::Fault(race_core::error::Error::InternalError(format!(
+                "Error in waiting close reason: {:?}",
+                e
+            ))),
+        }
     }
 
     #[allow(dead_code)]
@@ -182,7 +192,7 @@ impl PipelinePorts {
 
     pub fn clone_as_producer(&self) -> ProducerPorts {
         ProducerPorts {
-            tx: self.tx.clone()
+            tx: self.tx.clone(),
         }
     }
 
@@ -223,7 +233,9 @@ pub struct ComponentEnv {
 impl ComponentEnv {
     pub fn new(addr: &str, component_name: &str) -> Self {
         let addr_short = addr_shorthand(addr);
-        Self { log_prefix: format!("[{}|{}]", addr_short, component_name)}
+        Self {
+            log_prefix: format!("[{}|{}]", addr_short, component_name),
+        }
     }
 }
 

@@ -120,18 +120,11 @@ impl ApplicationContext {
                                 join_handles.push(join_handle);
                             }
                     }
-                    SignalFrame::LaunchSubGame { sub_game_init } => {
-                        let bridge_parent = game_manager_1
-                            .get_event_parent(&sub_game_init.spec.game_addr)
-                            .await
-                            .expect(
-                                format!("Bridge parent not found: {}", sub_game_init.spec.game_addr).as_str(),
-                            );
-
+                    SignalFrame::LaunchSubGame { sub_game_init, bridge_to_parent } => {
                         if let Some(join_handle) = game_manager_1
                             .launch_sub_game(
                                 sub_game_init,
-                                bridge_parent,
+                                bridge_to_parent,
                                 &account_1,
                                 transport_1.clone(),
                                 encryptor_1.clone(),

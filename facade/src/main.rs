@@ -728,7 +728,7 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     let middleware = ServiceBuilder::new().layer(cors);
 
     let http_server = ServerBuilder::default()
-        .max_response_body_size(64_000_000)
+        .max_response_body_size(1_000_000_000)
         .set_host_filtering(AllowHosts::Any)
         .set_middleware(middleware)
         .build(HTTP_HOST.parse::<SocketAddr>()?)

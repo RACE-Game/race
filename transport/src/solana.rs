@@ -916,9 +916,12 @@ impl TransportT for SolanaTransport {
 
         Ok(Box::pin(stream! {
 
-            let Ok(client) = PubsubClient::new(&ws_rpc).await else {
-                error!("Failed to create PubsubClient");
-                return;
+            let client = match PubsubClient::new(&ws_rpc).await {
+                Ok(client) => client,
+                Err(e) => {
+                    error!("Failed to create PubsubClient due to {:?}", e);
+                    return;
+                }
             };
 
             let Ok((mut stream, unsub)) = client

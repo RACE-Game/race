@@ -148,6 +148,19 @@ export class GameContext {
       settleVersion: gameAccount.settleVersion,
     })
 
+    let subGames = []
+
+    for (const versionedData of checkpoint.data.values()) {
+      subGames.push(new SubGame({
+        gameId: versionedData.id,
+        bundleAddr: versionedData.spec.bundleAddr,
+        initAccount: new InitAccount({
+          maxPlayers: versionedData.spec.maxPlayers,
+          data: Uint8Array.of(),
+        })
+      }))
+    }
+
     this.spec = spec
     this.versions = versions
     this.status = 'idle'
@@ -158,7 +171,7 @@ export class GameContext {
     this.decisionStates = []
     this.handlerState = handlerState
     this.checkpoint = checkpoint
-    this.subGames = []
+    this.subGames = subGames
     this.initData = gameAccount.data
     this.players = players
     this.entryType = gameAccount.entryType
@@ -171,6 +184,7 @@ export class GameContext {
     // Use init_account or checkpoint
     let versions: Versions
     let initData: Uint8Array
+    let handlerState: Uint8Array
     let spec = new GameSpec({
       gameAddr: this.spec.gameAddr,
       gameId: subGame.gameId,
@@ -180,13 +194,15 @@ export class GameContext {
     if (source instanceof InitAccount) {
       versions = Versions.default()
       initData = source.data
+      handlerState = Uint8Array.of()
     } else {
-      const v = source.getVersionedData(spec.gameId)?.versions
-      if (v === undefined){
+      const vd = source.getVersionedData(spec.gameId)
+      if (vd === undefined){
         throw new Error('Missing checkpoint')
       }
-      versions = v
+      versions = vd.versions
       initData = Uint8Array.of()
+      handlerState = vd.data
     }
     c.versions = versions
     c.nodes = this.nodes
@@ -195,7 +211,7 @@ export class GameContext {
     c.timestamp = 0n
     c.randomStates = []
     c.decisionStates = []
-    c.handlerState = Uint8Array.of()
+    c.handlerState = handlerState;
     c.checkpoint = this.checkpoint.clone()
     c.subGames = []
     c.initData = initData

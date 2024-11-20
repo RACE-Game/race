@@ -23,6 +23,7 @@ export type EventKind =
   | 'SecretsReady'
   | 'Shutdown'
   | 'Bridge'
+  | 'SubGameReady'
   // Client-only events
   | 'Init'
   | 'Checkpoint'
@@ -421,6 +422,22 @@ export class Bridge extends GameEvent implements IEventKind {
 
   kind(): EventKind {
     return 'Bridge'
+  }
+}
+
+@variant(20)
+export class SubGameReady extends GameEvent implements IEventKind {
+  @field('usize')
+  gameId!: number
+
+  constructor(fields: Fields<SubGameReady>) {
+    super()
+    Object.assign(this, fields)
+    Object.setPrototypeOf(this, SubGameReady.prototype)
+  }
+
+  kind(): EventKind {
+    return 'SubGameReady'
   }
 }
 

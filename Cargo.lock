@@ -3124,6 +3124,7 @@ dependencies = [
  "serde_json",
  "sha256",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

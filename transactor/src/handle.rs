@@ -5,7 +5,7 @@ mod validator;
 use std::sync::Arc;
 
 use crate::component::{
-    Broadcaster, CloseReason, EventBridgeParent, EventBus, WrappedStorage, WrappedTransport,
+    BridgeToParent, Broadcaster, CloseReason, EventBus, WrappedStorage, WrappedTransport
 };
 use crate::frame::SignalFrame;
 use race_core::context::SubGameInit;
@@ -105,7 +105,7 @@ impl Handle {
 
     pub async fn try_new_sub_game_handle(
         sub_game_init: SubGameInit,
-        bridge_parent: EventBridgeParent,
+        bridge_to_parent: BridgeToParent,
         server_account: &ServerAccount,
         encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
@@ -113,7 +113,7 @@ impl Handle {
     ) -> Result<Self> {
         let handle = SubGameHandle::try_new(
             sub_game_init,
-            bridge_parent,
+            bridge_to_parent,
             server_account,
             encryptor,
             transport,
@@ -128,14 +128,6 @@ impl Handle {
             Handle::Transactor(h) => Ok(&h.broadcaster),
             Handle::Validator(_) => Err(Error::NotSupportedInValidatorMode),
             Handle::SubGame(h) => Ok(&h.broadcaster),
-        }
-    }
-
-    pub fn event_parent_owned(&self) -> Result<EventBridgeParent> {
-        match self {
-            Handle::Transactor(h) => Ok(h.bridge_parent.to_owned()),
-            Handle::Validator(h) => Ok(h.bridge_parent.to_owned()),
-            Handle::SubGame(_) => Err(Error::NotSupportedInSubGameMode),
         }
     }
 

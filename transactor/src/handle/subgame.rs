@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use crate::component::{
-    Broadcaster, Component, EventBridgeChild, EventBridgeParent, EventBus, EventLoop,
-    LocalConnection, PortsHandle, WrappedClient, WrappedHandler,
+    BridgeToParent, Broadcaster, Component, EventBridgeChild, EventBus, EventLoop, LocalConnection, PortsHandle, WrappedClient, WrappedHandler
 };
 use crate::frame::EventFrame;
 use race_core::error::{Error, Result};
@@ -23,7 +22,7 @@ pub struct SubGameHandle {
 impl SubGameHandle {
     pub async fn try_new(
         sub_game_init: SubGameInit,
-        bridge_parent: EventBridgeParent,
+        bridge_to_parent: BridgeToParent,
         server_account: &ServerAccount,
         encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
@@ -50,7 +49,7 @@ impl SubGameHandle {
         let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone(), game_id);
         let mut broadcaster_handle = broadcaster.start(&addr, broadcaster_ctx);
 
-        let (bridge, bridge_ctx) = bridge_parent.derive_child(game_id.clone());
+        let (bridge, bridge_ctx) = EventBridgeChild::init(game_id, bridge_to_parent);
         let mut bridge_handle = bridge.start(&addr, bridge_ctx);
 
         let (event_loop, event_loop_ctx) =

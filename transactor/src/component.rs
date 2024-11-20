@@ -29,4 +29,4 @@ pub use wrapped_client::WrappedClient;
 pub use wrapped_handler::WrappedHandler;
 pub use wrapped_transport::WrappedTransport;
 pub use wrapped_storage::WrappedStorage;
-pub use event_bridge::{EventBridgeChild, EventBridgeParent};
+pub use event_bridge::{EventBridgeChild, EventBridgeParent, BridgeToParent};

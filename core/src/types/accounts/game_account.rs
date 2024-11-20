@@ -49,6 +49,12 @@ pub struct PlayerJoin {
     pub verify_key: String,
 }
 
+impl std::fmt::Display for PlayerJoin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Player#{}@{}", self.addr, self.access_version)
+    }
+}
+
 impl PlayerJoin {
     pub fn new<S: Into<String>>(
         addr: S,
@@ -91,6 +97,12 @@ impl ServerJoin {
     }
 }
 
+impl std::fmt::Display for ServerJoin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Server#{}@{}", self.addr, self.access_version)
+    }
+}
+
 /// Represent a player call the deposit instruction in contract.
 #[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -100,6 +112,13 @@ pub struct PlayerDeposit {
     pub amount: u64,
     pub settle_version: u64,
 }
+
+impl std::fmt::Display for PlayerDeposit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Deposit#{}-{}", self.addr, self.amount)
+    }
+}
+
 
 impl PlayerDeposit {
     pub fn new<S: Into<String>>(addr: S, balance: u64, settle_version: u64) -> Self {

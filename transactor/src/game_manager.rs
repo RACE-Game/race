@@ -7,12 +7,12 @@ use race_encryptor::Encryptor;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{broadcast, Mutex, mpsc};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
 use crate::blacklist::Blacklist;
-use crate::component::{CloseReason, EventBridgeParent, WrappedStorage, WrappedTransport};
+use crate::component::{BridgeToParent, CloseReason, WrappedStorage, WrappedTransport};
 use crate::frame::{EventFrame, SignalFrame};
 use crate::handle::Handle;
 use crate::utils::current_timestamp;
@@ -34,7 +34,7 @@ impl GameManager {
     pub async fn launch_sub_game(
         &self,
         sub_game_init: SubGameInit,
-        bridge_parent: EventBridgeParent,
+        bridge_to_parent: BridgeToParent,
         server_account: &ServerAccount,
         transport: Arc<WrappedTransport>,
         encryptor: Arc<Encryptor>,
@@ -42,7 +42,7 @@ impl GameManager {
     ) -> Option<JoinHandle<CloseReason>> {
         let game_addr = sub_game_init.spec.game_addr.clone();
         let game_id = sub_game_init.spec.game_id;
-        match Handle::try_new_sub_game_handle(sub_game_init, bridge_parent, server_account, encryptor, transport, debug_mode).await {
+        match Handle::try_new_sub_game_handle(sub_game_init, bridge_to_parent, server_account, encryptor, transport, debug_mode).await {
             Ok(mut handle) => {
                 let mut games = self.games.lock().await;
                 let addr = format!("{}:{}", game_addr, game_id);
@@ -167,13 +167,6 @@ impl GameManager {
         let receiver = broadcaster.get_broadcast_rx();
         let histories = broadcaster.retrieve_histories(settle_version).await;
         Ok((receiver, histories))
-    }
-
-    pub async fn get_event_parent(&self, game_addr: &str) -> Result<EventBridgeParent> {
-        let games = self.games.lock().await;
-        let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
-        let bridge_parent = handle.event_parent_owned()?;
-        Ok(bridge_parent)
     }
 
     /// Shutdown all games, and drop their handles.

@@ -126,7 +126,7 @@ impl ContextPlayer {
 #[derive(Debug, Clone)]
 pub enum SubGameInitSource {
     FromCheckpoint(VersionedData),
-    FromInitAccount(InitAccount),
+    FromInitAccount(InitAccount, Versions),
 }
 
 #[derive(Debug, Clone)]
@@ -214,6 +214,8 @@ impl GameContext {
     pub fn try_new_with_sub_game_spec(init: SubGameInit) -> Result<Self> {
         let SubGameInit { spec, nodes, source } = init;
 
+        println!("NODES: {:?}", nodes);
+
         let (handler_state, versions, init_data, checkpoint) = match source {
             SubGameInitSource::FromCheckpoint(versioned_data) => {
                 let mut checkpoint = Checkpoint::default();
@@ -222,10 +224,12 @@ impl GameContext {
                 checkpoint.init_versioned_data(versioned_data)?;
                 (data, versions, vec![], checkpoint)
             }
-            SubGameInitSource::FromInitAccount(init_account) => {
-                (vec![], Default::default(), init_account.data, Default::default())
+            SubGameInitSource::FromInitAccount(init_account, versions) => {
+                (vec![], versions, init_account.data, Default::default())
             }
         };
+
+        println!("Versions: {}", versions);
 
         Ok(Self {
             spec,
@@ -581,17 +585,6 @@ impl GameContext {
         self.status = status;
     }
 
-    /// Set player status by address.
-    /// Using it in custom event handler is not allowed.
-    pub fn set_node_status(&mut self, addr: &str, status: NodeStatus) -> Result<()> {
-        if let Some(n) = self.nodes.iter_mut().find(|n| n.addr.eq(&addr)) {
-            n.status = status;
-        } else {
-            return Err(Error::InvalidPlayerAddress);
-        }
-        Ok(())
-    }
-
     pub fn add_node(&mut self, node_addr: String, access_version: u64, mode: ClientMode) {
         self.nodes.retain(|n| n.addr.ne(&node_addr));
         self.nodes
@@ -892,7 +885,7 @@ impl GameContext {
                 self.set_game_status(GameStatus::Idle);
             } else if is_init {
                 self.bump_settle_version()?;
-                self.checkpoint.init_data(self.spec.game_id, self.spec.clone(), state)?;
+                self.checkpoint.init_data(self.spec.game_id, self.spec.clone(), self.versions, state)?;
                 self.checkpoint.set_access_version(self.versions.access_version);
                 self.set_game_status(GameStatus::Idle);
             }

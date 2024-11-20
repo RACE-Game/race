@@ -14,15 +14,16 @@ readme.workspace = true
 publish = true
 
 [dependencies]
-sha256 = { workspace = true }
-race-api = { workspace = true }
-async-trait = { workspace = true }
-thiserror = { workspace = true }
+sha256.workspace = true
+race-api.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
-borsh = { workspace = true }
-futures = { workspace = true }
-rs_merkle = { workspace = true }
+borsh.workspace = true
+futures.workspace = true
+rs_merkle.workspace = true
+tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 anyhow.workspace = true

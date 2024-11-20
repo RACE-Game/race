@@ -278,7 +278,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
 
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
                     if let Some(current) = event_backup_groups.back_mut() {
-                        info!("{} Merge sync: {:?}", env.log_prefix, sync);
+                        // info!("{} Merge sync: {:?}", env.log_prefix, sync);
                         current.sync.merge(&sync);
                     } else {
                         error!("{} Sync dropped", env.log_prefix);

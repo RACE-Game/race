@@ -5,7 +5,6 @@ use race_api::{
     types::{EntryLock, Settle, Transfer},
 };
 use race_core::{
-    checkpoint::Checkpoint,
     context::{EventEffects, GameContext, SubGameInit, SubGameInitSource, Versions},
     error::Error,
     types::{ClientMode, GameMode, GameSpec},
@@ -84,7 +83,6 @@ async fn send_bridge_event(
 }
 
 async fn send_settlement(
-    checkpoint: Checkpoint,
     transfers: Vec<Transfer>,
     settles: Vec<Settle>,
     entry_lock: Option<EntryLock>,
@@ -93,6 +91,7 @@ async fn send_settlement(
     ports: &PipelinePorts,
     env: &ComponentEnv,
 ) {
+    let checkpoint = game_context.checkpoint().clone();
     let checkpoint_size = checkpoint.get_data(game_context.game_id()).map(|d| d.len());
     info!(
         "{} Create checkpoint, settle_version: {}, size: {:?}",
@@ -129,16 +128,18 @@ async fn launch_sub_game(
             init_account,
         } = sub_game;
         // Use the existing checkpoint when possible.
+        let spec = GameSpec {
+            game_addr: game_context.game_addr().to_owned(),
+            game_id: id,
+            bundle_addr,
+            max_players: init_account.max_players,
+        };
+        let versions = game_context.versions();
         let ef = EventFrame::LaunchSubGame {
             sub_game_init: Box::new(SubGameInit {
-                spec: GameSpec {
-                    game_addr: game_context.game_addr().to_owned(),
-                    game_id: id,
-                    bundle_addr,
-                    max_players: init_account.max_players,
-                },
+                spec,
                 nodes: game_context.get_nodes().into(),
-                source: SubGameInitSource::FromInitAccount(init_account),
+                source: SubGameInitSource::FromInitAccount(init_account, versions),
             }),
         };
         ports.send(ef).await;
@@ -174,7 +175,6 @@ pub async fn init_state(
 
     let EventEffects {
         checkpoint,
-        launch_sub_games,
         ..
     } = effects;
 
@@ -187,11 +187,11 @@ pub async fn init_state(
     );
 
     let Some(checkpoint) = checkpoint else {
+        ports.send(EventFrame::Shutdown).await;
         return Some(CloseReason::Fault(Error::CheckpointNotFoundAfterInit));
     };
 
     send_settlement(
-        checkpoint.clone(),
         vec![],
         vec![],
         None,
@@ -203,14 +203,8 @@ pub async fn init_state(
         .await;
 
     // Dispatch the initial Ready event if running in Transactor mode.
-    // The whole game lifetime has only one Ready event.
     if client_mode == ClientMode::Transactor {
         game_context.dispatch_safe(Event::Ready, 0);
-    }
-
-    // XXX: launch sub games based on checkpoint, not effects
-    if game_mode == GameMode::Main {
-        launch_sub_game(launch_sub_games, game_context, ports, env).await;
     }
 
     // Tell master game the subgame is successfully created.
@@ -225,6 +219,7 @@ pub async fn init_state(
                 })
                 .await;
         } else {
+            ports.send(EventFrame::Shutdown).await;
             return Some(CloseReason::Fault(Error::CheckpointNotFoundAfterInit));
         }
     }
@@ -235,18 +230,19 @@ pub async fn init_state(
 pub async fn resume_from_checkpoint(
     game_context: &mut GameContext,
     ports: &PipelinePorts,
-    _client_mode: ClientMode,
+    client_mode: ClientMode,
     game_mode: GameMode,
-    _env: &ComponentEnv,
+    env: &ComponentEnv,
 ) -> Option<CloseReason> {
 
     if game_mode == GameMode::Main {
         let versioned_data_list = game_context.checkpoint().list_versioned_data();
+        info!("{} Launch {} subgames", env.log_prefix, versioned_data_list.len() - 1); // except the master game
+
         for versioned_data in versioned_data_list {
             if versioned_data.id == 0 {
                 continue;
             }
-            println!("{:?}", versioned_data);
             let ef = EventFrame::LaunchSubGame {
                 sub_game_init: Box::new(SubGameInit {
                     spec: GameSpec {
@@ -261,6 +257,10 @@ pub async fn resume_from_checkpoint(
             };
             ports.send(ef).await;
         }
+    }
+
+    if client_mode == ClientMode::Transactor {
+        game_context.dispatch_safe(Event::Ready, 0);
     }
 
     None
@@ -309,11 +309,13 @@ pub async fn handle_event(
                 send_start_game(&game_context, ports).await;
             }
 
-            // Send the settlement when there's one
-            // This event will be sent no matter what client mode we are running at
-            if let Some(checkpoint) = checkpoint {
+            // Launch sub games
+            if game_mode == GameMode::Main {
+                launch_sub_game(launch_sub_games, game_context, ports, env).await;
+            }
+
+            if checkpoint.is_some() {
                 send_settlement(
-                    checkpoint,
                     transfers,
                     settles,
                     entry_lock,
@@ -323,11 +325,6 @@ pub async fn handle_event(
                     env,
                 )
                     .await;
-            }
-
-            // Launch sub games
-            if game_mode == GameMode::Main {
-                launch_sub_game(launch_sub_games, game_context, ports, env).await;
             }
 
             // Emit bridge events
@@ -340,6 +337,7 @@ pub async fn handle_event(
             log_execution_context(game_context, &event);
             match e {
                 Error::WasmExecutionError(_) | Error::WasmMemoryOverflow => {
+                    ports.send(EventFrame::Shutdown).await;
                     return Some(CloseReason::Fault(e))
                 }
                 _ => (),

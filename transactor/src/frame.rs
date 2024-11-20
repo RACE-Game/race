@@ -5,10 +5,15 @@ use race_core::{
     checkpoint::{Checkpoint, VersionedData}, context::{GameContext, SubGameInit}, types::{PlayerDeposit, PlayerJoin, ServerJoin, Transfer, TxState, VoteType}
 };
 
-#[derive(Debug, Clone)]
+use crate::component::BridgeToParent;
+
+#[derive(Debug)]
 pub enum SignalFrame {
     StartGame { game_addr: String },
-    LaunchSubGame { sub_game_init: SubGameInit },
+    LaunchSubGame {
+        sub_game_init: SubGameInit,
+        bridge_to_parent: BridgeToParent,
+    },
     Shutdown,
 }
 
@@ -101,12 +106,6 @@ pub enum EventFrame {
         sub_game_init: Box<SubGameInit>,
     },
 
-    /// Resume a subgame from its checkpoint.
-    #[allow(unused)]
-    ResumeSubGame {
-        checkpoint: Checkpoint,
-    },
-
     /// Sync frame for subgames broadcasted from master game.
     SubSync {
         new_players: Vec<PlayerJoin>,
@@ -174,9 +173,6 @@ impl std::fmt::Display for EventFrame {
             }
             EventFrame::SubSync { new_players, new_servers, .. } => {
                 write!(f, "SyncNodes: new_players: {}, new_servers: {}", new_players.len(), new_servers.len())
-            },
-            EventFrame::ResumeSubGame { .. } => {
-                write!(f, "ResumeSubGame")
             },
             EventFrame::SubGameReady { game_id, .. } => {
                 write!(f, "SubGameReady, game_id: {}", game_id)

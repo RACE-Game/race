@@ -129,12 +129,6 @@ pub fn general_handle_event(
             Ok(())
         }
 
-        Event::Bridge {
-            ..
-        } => {
-            Ok(())
-        }
-
         _ => Ok(()),
     }
 }

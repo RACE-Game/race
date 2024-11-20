@@ -257,7 +257,7 @@ export class AppClient extends BaseClient {
       if (checkpointOffChain !== undefined && checkpointOnChain !== undefined) {
         this.__gameContext.checkpoint = Checkpoint.fromParts(checkpointOffChain, checkpointOnChain)
       } else {
-        this.__gameContext.checkpoint = Checkpoint.default()
+        throw new Error('Game is not served. This is unexpected, mostly a bug.')
       }
 
       const gameContext = this.__gameContext.subContext(subGame, this.__gameContext.checkpoint);

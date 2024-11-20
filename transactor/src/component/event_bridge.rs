@@ -5,16 +5,26 @@ use tracing::{info, log::error};
 
 use super::{common::PipelinePorts, CloseReason, Component, ComponentEnv};
 
+#[derive(Debug)]
+pub struct BridgeToParent {
+    tx_to_parent: mpsc::Sender<EventFrame>,
+    rx_from_parent: broadcast::Receiver<EventFrame>,
+}
+
 #[allow(dead_code)]
 pub struct EventBridgeParentContext {
+    /// The sender to send to sub games.
     tx: broadcast::Sender<EventFrame>,
+    /// The receiver to receive from sub games.
     rx: mpsc::Receiver<EventFrame>,
+    /// The sender used to be cloned when launching sub games.
+    sub_tx: mpsc::Sender<EventFrame>,
     signal_tx: mpsc::Sender<SignalFrame>,
 }
 
 #[derive(Clone, Debug)]
 pub struct EventBridgeParent {
-    tx: mpsc::Sender<EventFrame>,
+    #[allow(unused)]
     bc: broadcast::Sender<EventFrame>,
 }
 
@@ -34,26 +44,13 @@ impl EventBridgeParent {
         let (bc_tx, _bc_rx) = broadcast::channel(10);
         (
             Self {
-                tx: mpsc_tx,
                 bc: bc_tx.clone(),
             },
             EventBridgeParentContext {
                 tx: bc_tx,
                 rx: mpsc_rx,
+                sub_tx: mpsc_tx.clone(),
                 signal_tx,
-            },
-        )
-    }
-
-    pub fn derive_child(&self, game_id: usize) -> (EventBridgeChild, EventBridgeChildContext) {
-        (
-            EventBridgeChild {
-                game_id: game_id.clone(),
-            },
-            EventBridgeChildContext {
-                game_id,
-                tx: self.tx.clone(),
-                rx: self.bc.subscribe(),
             },
         )
     }
@@ -99,7 +96,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
     ) -> CloseReason {
         while let Some((from_bridge, event_frame)) = Self::read_event(&mut ports, &mut ctx.rx).await
         {
-            if from_bridge {
+            if from_bridge {    // Bridge parent receives event from bridge child
                 match event_frame {
                     EventFrame::SendBridgeEvent {
                         from,
@@ -122,27 +119,32 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                             .await;
                     }
 
-                    EventFrame::SubGameReady { .. } => {
+                    EventFrame::SubGameReady { game_id, .. } => {
+                        info!("{} Receives subgame ready: {}", env.log_prefix, game_id);
                         ports.send(event_frame).await;
                     }
                     _ => (),
                 }
-            } else {
+            } else {            // Bridge parent receives event from event bus
                 match event_frame {
                     EventFrame::LaunchSubGame { sub_game_init } => {
-                        let f = SignalFrame::LaunchSubGame { sub_game_init: *sub_game_init };
+                        let f = SignalFrame::LaunchSubGame {
+                            sub_game_init: *sub_game_init,
+                            bridge_to_parent: BridgeToParent {
+                                rx_from_parent: ctx.tx.subscribe(),
+                                tx_to_parent: ctx.sub_tx.clone(),
+                            },
+                        };
                         if let Err(e) = ctx.signal_tx.send(f).await {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }
                     }
                     EventFrame::Shutdown => {
-                        info!("{} Stopped", env.log_prefix);
-                        if !ctx.tx.is_empty() {
-                            info!("{} Sends Shutdown", env.log_prefix);
-                            if let Err(e) = ctx.tx.send(event_frame) {
-                                error!("{} Failed to send: {}", env.log_prefix, e);
-                            }
+                        info!("{} Sends Shutdown", env.log_prefix);
+                        if let Err(e) = ctx.tx.send(event_frame) {
+                            error!("{} Failed to send: {}", env.log_prefix, e);
                         }
+                        info!("{} Stopped", env.log_prefix);
                         break;
                     }
                     EventFrame::SendBridgeEvent { dest, .. } if dest != 0 => {
@@ -177,6 +179,20 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
 }
 
 impl EventBridgeChild {
+
+    pub fn init(game_id: usize, bridge_to_parent: BridgeToParent) -> (EventBridgeChild, EventBridgeChildContext) {
+        (
+            EventBridgeChild {
+                game_id: game_id.clone(),
+            },
+            EventBridgeChildContext {
+                game_id,
+                tx: bridge_to_parent.tx_to_parent,
+                rx: bridge_to_parent.rx_from_parent,
+            },
+        )
+    }
+
     /// Read event from both the local event bus and the bridge.
     /// Return (true, event) when the event is from the bridge.
     /// Return None when bridge is closed.
@@ -189,7 +205,7 @@ impl EventBridgeChild {
                 if let Ok(e) = e {
                     Some((true, e))
                 } else {
-                     None
+                    None
                 }
             },
             e = ports.recv() => {
@@ -216,7 +232,7 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
     ) -> CloseReason {
         while let Some((from_bridge, event_frame)) = Self::read_event(&mut ports, &mut ctx.rx).await
         {
-            if from_bridge {
+            if from_bridge { // Bridge child receives event from event parent
                 match event_frame {
                     EventFrame::Shutdown => {
                         info!("{} Stopped", env.log_prefix);
@@ -253,11 +269,12 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                     }
                     _ => {}
                 }
-            } else {
+            } else { // Bridge child receives event from event bus
                 match event_frame {
                     EventFrame::Shutdown => break,
 
                     EventFrame::SubGameReady { .. } => {
+                        info!("{} Send SubGameReady to parent", env.log_prefix);
                         if let Err(e) = ctx.tx.send(event_frame).await {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }

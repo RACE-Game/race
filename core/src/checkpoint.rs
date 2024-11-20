@@ -141,7 +141,7 @@ impl Checkpoint {
         }
     }
 
-    pub fn init_data(&mut self, id: usize, game_spec: GameSpec, data: Vec<u8>) -> Result<(), Error> {
+    pub fn init_data(&mut self, id: usize, game_spec: GameSpec, versions: Versions, data: Vec<u8>) -> Result<(), Error> {
         match self.data.entry(id) {
             std::collections::hash_map::Entry::Occupied(_) => {
                 return Err(Error::CheckpointAlreadyExists);
@@ -154,7 +154,7 @@ impl Checkpoint {
                     data,
                     sha: sha.into(),
                     game_spec,
-                    ..Default::default()
+                    versions,
                 };
                 v.insert(versioned_data);
                 self.update_root_and_proofs();
