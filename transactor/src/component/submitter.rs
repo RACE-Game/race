@@ -17,7 +17,7 @@ use race_core::transport::TransportT;
 use super::ComponentEnv;
 use super::common::PipelinePorts;
 
-const MAX_PENDING_TXS: usize = 10;
+const MAX_PENDING_TXS: usize = 1;
 const PARAMS_READ_TIMEOUT: u64 = 5;
 
 /// Squash two settles into one.

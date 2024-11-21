@@ -1,9 +1,9 @@
 TIME=$(date +%s%3N)
-START_TIME=$(expr $TIME + 600000)
+START_DELAY=$(($1 * 60000))
+START_TIME=$(($TIME + $START_DELAY))
 TICKET=1000000
 TABLE_SIZE=3
 START_CHIPS=100000
-
 
 DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
                           -u64 "$START_TIME" \
@@ -18,7 +18,7 @@ DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
                           -u8 30 \
                           -u8 20 \
                           -u8 0 \
-                          -s "G7FwBniPAuaMwyoMzuPQgEDx4RYLXihHNUkgE4kBe9gV")
+                          -s "E3WPTpsDbDN8waMbgCsFpJr8HHZXjy3BBHwxUKHKdoQf")
 
 
 JSON=$(cat <<EOF
