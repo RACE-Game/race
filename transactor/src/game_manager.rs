@@ -38,6 +38,7 @@ impl GameManager {
         server_account: &ServerAccount,
         transport: Arc<WrappedTransport>,
         encryptor: Arc<Encryptor>,
+        signal_tx: mpsc::Sender<SignalFrame>,
         debug_mode: bool,
     ) -> Option<JoinHandle<CloseReason>> {
         let game_addr = sub_game_init.spec.game_addr.clone();
@@ -47,7 +48,7 @@ impl GameManager {
                 let mut games = self.games.lock().await;
                 let addr = format!("{}:{}", game_addr, game_id);
                 info!("Launch child game {}", addr);
-                let join_handle = handle.wait();
+                let join_handle = handle.wait(signal_tx);
                 games.insert(addr.clone(), handle);
                 Some(join_handle)
             }
@@ -76,10 +77,10 @@ impl GameManager {
     ) -> Option<JoinHandle<CloseReason>> {
         let mut games = self.games.lock().await;
         if let Entry::Vacant(e) = games.entry(game_addr.clone()) {
-            match Handle::try_new(transport, storage, encryptor, server_account, e.key(), signal_tx, debug_mode).await {
+            match Handle::try_new(transport, storage, encryptor, server_account, e.key(), signal_tx.clone(), debug_mode).await {
                 Ok(mut handle) => {
                     info!("Game handle created: {}", e.key());
-                    let join_handle = handle.wait();
+                    let join_handle = handle.wait(signal_tx);
                     e.insert(handle);
                     Some(join_handle)
                 }
@@ -167,6 +168,11 @@ impl GameManager {
         let receiver = broadcaster.get_broadcast_rx();
         let histories = broadcaster.retrieve_histories(settle_version).await;
         Ok((receiver, histories))
+    }
+
+    pub async fn remove_game(&self, addr: &str) {
+        let mut games = self.games.lock().await;
+        games.remove(&addr.to_string());
     }
 
     /// Shutdown all games, and drop their handles.

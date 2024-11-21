@@ -3,7 +3,7 @@ use race_api::types::GameDeposit;
 use async_trait::async_trait;
 use race_api::event::Event;
 use race_core::context::GameContext;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use crate::component::common::{Component, PipelinePorts};
 use crate::component::event_bus::CloseReason;
@@ -311,7 +311,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
                 EventFrame::Shutdown => {
-                    warn!("{} Stopped", env.log_prefix);
+                    info!("{} Stopped", env.log_prefix);
                     return CloseReason::Complete;
                 }
                 _ => (),

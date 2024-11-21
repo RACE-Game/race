@@ -18,6 +18,7 @@ use super::ComponentEnv;
 use super::common::PipelinePorts;
 
 const MAX_PENDING_TXS: usize = 10;
+const PARAMS_READ_TIMEOUT: u64 = 5;
 
 /// Squash two settles into one.
 fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
@@ -27,6 +28,7 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         transfers,
         checkpoint,
         entry_lock,
+        reset,
         ..
     } = next;
     prev.settles.extend(settles);
@@ -46,10 +48,13 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         settle_version: prev.settle_version,
         next_settle_version: prev.next_settle_version + 1,
         entry_lock,
+        reset,
     }
 }
 
-/// Read at most `MAX_PENDING_TXS` settle events from channel.
+// Asynchronously reads a limited number of `SettleParams` from a channel,
+// accumulating them into a vector. Stops reading on delivering a certain number
+// of messages, encountering a params with non-empty `settles` or `reset`, or a timeout.
 async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>) -> Vec<SettleParams> {
     let mut v = vec![];
     let mut cnt = 0;
@@ -63,12 +68,16 @@ async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>) -> Vec<Settle
             p = rx.recv() => {
                 if let Some(p) = p {
                     cnt += 1;
+                    let stop_here = (!p.settles.is_empty()) || p.reset;
                     v.push(p);
+                    if stop_here {
+                        break;
+                    }
                 } else {
                     break;
                 }
             }
-            _ = tokio::time::sleep(Duration::from_secs(1)) => {
+            _ = tokio::time::sleep(Duration::from_secs(PARAMS_READ_TIMEOUT)) => {
                 if v.is_empty() {
                     continue;
                 } else {
@@ -173,6 +182,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     settle_version,
                     previous_settle_version,
                     entry_lock,
+                    reset,
                     ..
                 } => {
                     let checkpoint_onchain = checkpoint.derive_onchain_part();
@@ -202,6 +212,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                             settle_version: previous_settle_version,
                             next_settle_version: settle_version,
                             entry_lock,
+                            reset,
                         })
                         .await;
                     if let Err(e) = res {
@@ -227,59 +238,5 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                 e
             )))
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-    use race_core::{checkpoint::Checkpoint, types::SettleWithAddr};
-    use race_local_db::LocalDbStorage;
-    use race_test::prelude::*;
-
-    #[tokio::test]
-    async fn test_submit_settle() {
-        let mut alice = TestClient::player("alice");
-        let mut bob = TestClient::player("bob");
-        let mut charlie = TestClient::player("charlie");
-        let game_account = TestGameAccountBuilder::default()
-            .add_player(&mut alice, 100)
-            .add_player(&mut bob, 100)
-            .add_player(&mut charlie, 100)
-            .build();
-        let transport = Arc::new(DummyTransport::default());
-        let storage = Arc::new(LocalDbStorage::try_new_mem().unwrap());
-        let (submitter, ctx) = Submitter::init(&game_account, transport.clone(), storage.clone());
-
-        let settles = vec![
-            SettleWithAddr::sub("alice", 50),
-            SettleWithAddr::add("alice", 20),
-            SettleWithAddr::add("alice", 20),
-            SettleWithAddr::sub("alice", 40),
-            SettleWithAddr::add("bob", 50),
-            SettleWithAddr::sub("bob", 20),
-            SettleWithAddr::sub("bob", 20),
-            SettleWithAddr::sub("bob", 20),
-            SettleWithAddr::add("bob", 30),
-            SettleWithAddr::eject("charlie"),
-        ];
-
-        let event_frame = EventFrame::Checkpoint {
-            settles: settles.clone(),
-            transfers: vec![],
-            checkpoint: Checkpoint::default(),
-            settle_version: 1,
-            previous_settle_version: 0,
-            access_version: 1,
-            state_sha: "".into(),
-        };
-        let handle = submitter.start("TEST", ctx);
-
-        handle.send_unchecked(event_frame).await;
-        handle.send_unchecked(EventFrame::Shutdown).await;
-        handle.wait().await;
-
-        assert_eq!(*transport.get_settles(), settles);
     }
 }

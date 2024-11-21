@@ -133,7 +133,7 @@ pub async fn start_reg_task(context: &ApplicationContext) -> JoinHandle<()> {
 
             select! {
                 _ = shutdown_rx.changed() => {
-                    warn!("Stop discovering games");
+                    info!("Stop discovering games");
                     break;
                 },
                 _ = tokio::time::sleep(Duration::from_secs(10)) => { continue; }

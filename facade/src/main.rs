@@ -658,6 +658,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         settle_version,
         next_settle_version,
         entry_lock,
+        reset,
     } = params.one()?;
     println!(
         "! Handle settlements {}, settles: {:?}, transfers: {:?} ",
@@ -714,6 +715,11 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         } else {
             return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
         }
+    }
+
+    if reset {
+        game.players.clear();
+        game.deposits.clear();
     }
 
     context.update_game_account(&game)?;

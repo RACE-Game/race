@@ -123,6 +123,9 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         info!("{} Receives subgame ready: {}", env.log_prefix, game_id);
                         ports.send(event_frame).await;
                     }
+                    EventFrame::Reset => {
+                        ports.send(EventFrame::Shutdown).await;
+                    }
                     _ => (),
                 }
             } else {            // Bridge parent receives event from event bus

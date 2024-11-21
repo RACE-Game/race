@@ -564,6 +564,7 @@ impl TransportT for SolanaTransport {
             settle_version,
             next_settle_version,
             entry_lock,
+            reset,
         } = params;
 
         let payer = &self.keypair;
@@ -642,6 +643,7 @@ impl TransportT for SolanaTransport {
                 settle_version,
                 next_settle_version,
                 entry_lock,
+                reset,
             },
         };
 

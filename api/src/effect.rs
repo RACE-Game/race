@@ -180,6 +180,13 @@ impl EmitBridgeEvent {
 /// effect.settle(0 /* player_id */, 100 /* amount */);
 /// effect.checkpoint();
 /// ```
+///
+/// # Reset
+///
+/// The game can be reset when there's no funds and pending deposit.
+///
+/// By resetting the game, all players will be removed and a new
+/// checkpoint will be made.
 
 #[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Effect {
@@ -209,6 +216,7 @@ pub struct Effect {
     pub valid_players: Vec<u64>,
     pub is_init: bool,
     pub entry_lock: Option<EntryLock>,
+    pub reset: bool,
 }
 
 impl Effect {
@@ -408,6 +416,14 @@ impl Effect {
         self.bridge_events
             .push(EmitBridgeEvent::try_new(dest, evt)?);
         Ok(())
+    }
+
+    /// Reset the game to remove all players.  Be careful on usage,
+    /// it only works when there's no funds left in game.
+    /// A checkpoint will be made.
+    pub fn reset(&mut self) {
+        self.checkpoint();
+        self.reset = true;
     }
 }
 

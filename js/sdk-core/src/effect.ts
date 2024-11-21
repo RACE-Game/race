@@ -152,6 +152,8 @@ export class Effect {
   isInit!: boolean
   @field(option('u8'))
   entryLock!: EntryLock | undefined
+  @field('bool')
+  reset!: boolean
 
   constructor(fields: Fields<Effect>) {
     Object.assign(this, fields)
@@ -189,6 +191,7 @@ export class Effect {
     const bridgeEvents: EmitBridgeEvent[] = []
     const validPlayers = context.players.map(p => p.id)
     const entryLock = undefined
+    const reset = false
     return new Effect({
       actionTimeout,
       waitTimeout,
@@ -216,6 +219,7 @@ export class Effect {
       validPlayers,
       isInit,
       entryLock,
+      reset,
     })
   }
 }

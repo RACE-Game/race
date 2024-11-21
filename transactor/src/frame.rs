@@ -15,6 +15,7 @@ pub enum SignalFrame {
         bridge_to_parent: BridgeToParent,
     },
     Shutdown,
+    RemoveGame { game_addr: String },
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +63,7 @@ pub enum EventFrame {
         previous_settle_version: u64,
         state_sha: String,
         entry_lock: Option<EntryLock>,
+        reset: bool,
     },
     Broadcast {
         event: Event,
@@ -117,7 +119,10 @@ pub enum EventFrame {
     SubGameReady {
         game_id: usize,
         checkpoint_state: VersionedData,
-    }
+    },
+
+    /// Reset, close all subgames.
+    Reset,
 }
 
 impl std::fmt::Display for EventFrame {
@@ -173,9 +178,12 @@ impl std::fmt::Display for EventFrame {
             }
             EventFrame::SubSync { new_players, new_servers, .. } => {
                 write!(f, "SyncNodes: new_players: {}, new_servers: {}", new_players.len(), new_servers.len())
-            },
+            }
             EventFrame::SubGameReady { game_id, .. } => {
                 write!(f, "SubGameReady, game_id: {}", game_id)
+            }
+            EventFrame::Reset => {
+                write!(f, "Reset")
             }
         }
     }

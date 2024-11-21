@@ -17,7 +17,7 @@ use race_encryptor::Encryptor;
 use subgame::SubGameHandle;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tracing::info;
+use tracing::{error, info};
 use transactor::TransactorHandle;
 use validator::ValidatorHandle;
 
@@ -143,7 +143,17 @@ impl Handle {
         matches!(self, Handle::SubGame(_))
     }
 
-    pub fn wait(&mut self) -> JoinHandle<CloseReason> {
+    pub fn addr(&self) -> String {
+        match self {
+            Handle::Transactor(h) => h.addr.clone(),
+            Handle::Validator(h) => h.addr.clone(),
+            Handle::SubGame(h) => h.addr.clone(),
+        }
+    }
+
+    /// Wait handle until it's shutted down.  A
+    /// [SignalFrame::RemoveGame] will be sent through `signal_tx`.
+    pub fn wait(&mut self, signal_tx: mpsc::Sender<SignalFrame>) -> JoinHandle<CloseReason> {
         let handles = match self {
             Handle::Transactor(ref mut x) => &mut x.handles,
             Handle::Validator(ref mut x) => &mut x.handles,
@@ -153,6 +163,7 @@ impl Handle {
             panic!("Some where else is waiting");
         }
         let handles = std::mem::take(handles);
+        let addr = self.addr();
         tokio::spawn(async move {
             let mut close_reason = CloseReason::Complete;
             for h in handles.into_iter() {
@@ -160,6 +171,9 @@ impl Handle {
                 if let CloseReason::Fault(_) = cr {
                     close_reason = cr
                 }
+            }
+            if let Err(e) = signal_tx.send(SignalFrame::RemoveGame { game_addr: addr }).await {
+                error!("Failed to send RemoveGame signal due to {}", e);
             }
             close_reason
         })

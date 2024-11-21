@@ -128,6 +128,7 @@ impl ApplicationContext {
                                 &account_1,
                                 transport_1.clone(),
                                 encryptor_1.clone(),
+                                signal_tx_1.clone(),
                                 debug_mode,
                             )
                             .await {
@@ -139,6 +140,11 @@ impl ApplicationContext {
                         game_manager_1.shutdown().await;
                         shutdown_tx.send(true).expect("Set shutdown flag");
                         break;
+                    }
+
+                    SignalFrame::RemoveGame { game_addr } => {
+                        info!("Unload game {}", game_addr);
+                        game_manager_1.remove_game(&game_addr).await;
                     }
                 }
             }
@@ -209,4 +215,4 @@ impl ApplicationContext {
     pub fn blacklist(&self) -> Arc<Mutex<Blacklist>> {
         self.blacklist.clone()
     }
-}
+ }

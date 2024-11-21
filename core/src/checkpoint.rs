@@ -233,6 +233,11 @@ impl Checkpoint {
             data: self.data.clone(),
         }
     }
+
+    /// Close all subgame data, leave only the master checkpoint.
+    pub fn close_sub_data(&mut self) {
+        self.data.retain(|k, _| *k == 0);
+    }
 }
 
 #[cfg(test)]

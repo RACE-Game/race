@@ -86,6 +86,7 @@ async fn send_settlement(
     transfers: Vec<Transfer>,
     settles: Vec<Settle>,
     entry_lock: Option<EntryLock>,
+    reset: bool,
     original_versions: Versions,
     game_context: &GameContext,
     ports: &PipelinePorts,
@@ -110,6 +111,7 @@ async fn send_settlement(
             transfers,
             state_sha: game_context.state_sha(),
             entry_lock,
+            reset,
         })
         .await;
 }
@@ -175,6 +177,7 @@ pub async fn init_state(
 
     let EventEffects {
         checkpoint,
+        reset,
         ..
     } = effects;
 
@@ -195,6 +198,7 @@ pub async fn init_state(
         vec![],
         vec![],
         None,
+        reset,
         original_versions,
         &game_context,
         ports,
@@ -294,6 +298,7 @@ pub async fn handle_event(
                 bridge_events,
                 start_game,
                 entry_lock,
+                reset,
             } = effects;
 
             // Broacast the event to clients
@@ -319,12 +324,17 @@ pub async fn handle_event(
                     transfers,
                     settles,
                     entry_lock,
+                    reset,
                     original_versions,
                     &game_context,
                     ports,
                     env,
                 )
                     .await;
+            }
+
+            if reset {
+                ports.send(EventFrame::Reset).await;
             }
 
             // Emit bridge events

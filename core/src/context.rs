@@ -153,6 +153,7 @@ pub struct EventEffects {
     pub bridge_events: Vec<EmitBridgeEvent>,
     pub start_game: bool,
     pub entry_lock: Option<EntryLock>,
+    pub reset: bool,
 }
 
 /// The context for public data.
@@ -806,6 +807,7 @@ impl GameContext {
             is_init,
             valid_players: vec![],
             entry_lock: None,
+            reset: false,
         }
     }
 
@@ -903,6 +905,7 @@ impl GameContext {
                 bridge_events,
                 start_game,
                 entry_lock: effect.entry_lock,
+                reset: effect.reset,
             });
         } else if let Some(e) = error {
             return Err(Error::HandleError(e));
@@ -941,6 +944,15 @@ impl GameContext {
 
     pub fn versions(&self) -> Versions {
         self.versions
+    }
+
+    pub fn sub_games(&self) -> &[SubGame] {
+        &self.sub_games
+    }
+
+    pub fn reset(&mut self) {
+        self.sub_games.clear();
+        self.checkpoint.close_sub_data();
     }
 }
 

@@ -2,7 +2,7 @@ TIME=$(date +%s%3N)
 START_TIME=$(expr $TIME + 30000)
 TICKET=100000000
 TABLE_SIZE=3
-START_CHIPS=10000
+START_CHIPS=100000
 
 echo "Delete test db files"
 rm dev/test.*.db
@@ -12,13 +12,12 @@ echo "Ticket is $TICKET"
 echo "Table size is $TABLE_SIZE"
 echo "Start chips is $START_CHIPS"
 
-
 DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
                           -u64 "$START_TIME" \
                           -u64 "$TICKET" \
                           -u8 "$TABLE_SIZE" \
                           -u64 "$START_CHIPS" \
-                          -u64 50 \
+                          -u64 10 \
                           -u64 60000 \
                           -u32 0 \
                           -u32 3 \
