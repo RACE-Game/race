@@ -3,12 +3,13 @@
   "version": "0.2.6",
   "description": "The sui support for Race SDK",
   "scripts": {
+    "check": "tsc -p tsconfig.types.json --skipLibCheck",
     "test": "jest",
     "test:watch": "jest --watch",
     "build": "run-p -l build:*",
-    "build:esm": "tsc -p tsconfig.esm.json",
-    "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:typedefs": "tsc -p tsconfig.types.json",
+    "build:esm": "tsc -p tsconfig.esm.json --skipLibCheck",
+    "build:cjs": "tsc -p tsconfig.cjs.json --skipLibCheck",
+    "build:typedefs": "tsc -p tsconfig.types.json --skipLibCheck",
     "format": "prettier \"src/**/*.ts\" -w",
     "lint": "eslint"
   },
@@ -42,11 +43,10 @@
     "typescript": "^5.0.4"
   },
   "peerDependencies": {
-    "@mysten/sui": "^1.14.3",
+    "@mysten/sui": "^1.15.0",
     "@race-foundation/borsh": "*",
     "@race-foundation/sdk-core": "*",
-    "@suiet/wallet-kit": "^0.3.3",
-    "@suiet/wallet-sdk": "^0.3.2"
+    "valibot": "0.25.0"
   },
   "testDependencies": {
     "crypto": "1.0.1"

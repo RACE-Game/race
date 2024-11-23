@@ -6,6 +6,7 @@ import { Transaction } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/bcs';
 import { SuiWallet } from "./sui-wallet";
 import { LocalSuiWallet } from "./local-wallet";
+import { value } from "valibot";
 // import { getFaucetHost, requestSuiFromFaucetV0 } from '@mysten/sui/faucet';
 
 // import { TransactionBlock } from '@mysten/sui.js';
