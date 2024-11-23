@@ -2,7 +2,7 @@
 {
   race-transactor = pkgs.rustPlatform.buildRustPackage {
     pname = "race-transactor";
-    version = "0.0.4";
+    version = "0.2.7";
     src = ./.;
     cargoBuildFlags = [ "-p" "race-transactor" ];
 
@@ -15,7 +15,7 @@
   };
   race-cli = pkgs.rustPlatform.buildRustPackage {
     pname = "race-cli";
-    version = "0.0.4";
+    version = "0.2.7";
     src = ./.;
     cargoBuildFlags = [ "-p" "race-cli" ];
 

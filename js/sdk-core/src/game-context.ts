@@ -151,6 +151,9 @@ export class GameContext {
     let subGames = []
 
     for (const versionedData of checkpoint.data.values()) {
+      if (versionedData.id === 0) { // Skip the master game
+        continue
+      }
       subGames.push(new SubGame({
         gameId: versionedData.id,
         bundleAddr: versionedData.spec.bundleAddr,
@@ -178,43 +181,27 @@ export class GameContext {
     this.stateSha = stateSha
   }
 
-  subContext(subGame: SubGame, source: Checkpoint | InitAccount): GameContext {
+  subContext(subGame: SubGame): GameContext {
     const c = rfdc({ proto: true })(this)
     Object.setPrototypeOf(c, GameContext.prototype)
     // Use init_account or checkpoint
-    let versions: Versions
-    let initData: Uint8Array
-    let handlerState: Uint8Array
     let spec = new GameSpec({
       gameAddr: this.spec.gameAddr,
       gameId: subGame.gameId,
       bundleAddr: subGame.bundleAddr,
       maxPlayers: subGame.initAccount.maxPlayers,
     })
-    if (source instanceof InitAccount) {
-      versions = Versions.default()
-      initData = source.data
-      handlerState = Uint8Array.of()
-    } else {
-      const vd = source.getVersionedData(spec.gameId)
-      if (vd === undefined){
-        throw new Error('Missing checkpoint')
-      }
-      versions = vd.versions
-      initData = Uint8Array.of()
-      handlerState = vd.data
-    }
-    c.versions = versions
+    c.checkpoint = this.checkpoint
+    c.initData = Uint8Array.of()
+    c.versions = Versions.default()
+    c.handlerState = Uint8Array.of()
     c.nodes = this.nodes
     c.spec = spec
     c.dispatch = undefined
     c.timestamp = 0n
     c.randomStates = []
     c.decisionStates = []
-    c.handlerState = handlerState;
-    c.checkpoint = this.checkpoint.clone()
     c.subGames = []
-    c.initData = initData
     c.entryType = { kind: 'disabled' }
     c.players = []
     return c
@@ -452,6 +439,7 @@ export class GameContext {
   }
 
   async applyEffect(effect: Effect): Promise<EventEffects> {
+    // console.debug('Apply effect:', effect)
     if (effect.startGame) {
     } else if (effect.stopGame) {
       this.shutdownGame()
@@ -536,8 +524,6 @@ export class GameContext {
     const found = this.subGames.find(s => s.gameId === subGame.gameId)
     if (found === undefined) {
       this.subGames.push(subGame)
-    } else {
-      found.initAccount = subGame.initAccount
     }
   }
 

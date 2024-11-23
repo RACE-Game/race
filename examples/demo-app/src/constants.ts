@@ -24,7 +24,7 @@ export const CHAIN_TO_RPC: Record<Chain, string> = {
   'facade': 'http://localhost:12002',
   'solana-local': 'http://localhost:8899',
   'solana-devnet': 'http://api.devnet.solana.com',
-  'solana-mainnet': 'https://quiet-icy-shape.solana-mainnet.quiknode.pro/8afde90d81afb1404027aaad9bbc27886cdba0d4/',
+  'solana-mainnet': 'https://mabel-0drk20-fast-mainnet.helius-rpc.com',
 };
 
 export let CHAIN_ADDR_GAME_MAPPING: Record<Chain, Record<string, string>> = {

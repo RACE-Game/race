@@ -357,6 +357,9 @@ impl Effect {
         max_players: u16,
         init_data: D,
     ) -> HandleResult<()> {
+        if id == 0 {
+            return Err(HandleError::InvalidSubGameId(id));
+        }
         self.launch_sub_games.push(SubGame {
             id,
             bundle_addr,

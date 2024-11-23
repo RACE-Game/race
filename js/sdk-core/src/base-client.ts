@@ -377,6 +377,19 @@ export class BaseClient {
       await this.__handleEvent(event, timestamp, stateSha)
     } else if (frame instanceof BroadcastFrameEventHistories) {
       console.group(`${this.__logPrefix}Receive event histories`, frame)
+
+      // TODO, some special handling for subgame
+      if (this.__gameId !== 0) {
+        const versionedData = frame.checkpointOffChain?.data.get(this.__gameId)
+        if (versionedData === undefined) {
+          throw new Error('Missing checkpoint, mostly a bug')
+        }
+        this.__gameContext.checkpoint.initVersionedData(versionedData)
+        this.__gameContext.setHandlerState(versionedData.data)
+        this.__gameContext.versions = versionedData.versions
+        this.__gameContext.stateSha = await sha256String(versionedData.data)
+      }
+
       try {
         await this.__checkStateSha(frame.stateSha, 'checkpoint-state-sha-mismatch')
 

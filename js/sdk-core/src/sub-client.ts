@@ -15,9 +15,7 @@ import {
   ErrorCallbackFunction,
 } from './types'
 import { IWallet } from './wallet'
-import { Init } from './events'
 import { CheckpointOnChain } from './checkpoint'
-import { clone } from './utils'
 
 export type SubClientCtorOpts = {
   gameAddr: string

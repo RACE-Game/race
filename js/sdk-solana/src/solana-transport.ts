@@ -831,6 +831,10 @@ export class SolanaTransport implements ITransport {
         const token = { addr, name, symbol, icon, decimals }
         console.debug('Found token:', token)
         results.push(token)
+      } else if (decimals !== undefined) {
+        const token = { addr, name: '', symbol: '', icon: '', decimals }
+        console.debug('Found token(missing metadata):', token)
+        results.push(token)
       }
     }
 
@@ -893,6 +897,10 @@ export class SolanaTransport implements ITransport {
       if (decimals !== undefined && name !== undefined && symbol !== undefined && icon !== undefined) {
         const tokenWithBalance = new TokenWithBalance({ addr, name, symbol, icon, decimals }, balance)
         console.debug('Found token with balance:', tokenWithBalance)
+        results.push(tokenWithBalance)
+      } else if (decimals !== undefined) {
+        const tokenWithBalance = new TokenWithBalance({ addr, name: '', symbol: '', icon: '', decimals }, balance)
+        console.debug('Found token with balance(missing metadata):', tokenWithBalance)
         results.push(tokenWithBalance)
       }
     }

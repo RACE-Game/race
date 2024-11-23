@@ -4,7 +4,6 @@ import { GameContext } from './game-context'
 import { enums, field, map, option, struct, array } from '@race-foundation/borsh'
 import { Fields } from './types'
 import { InitAccount } from './init-account'
-import { ContextPlayer } from './game-context'
 import { EntryLock } from './accounts'
 
 export class Settle {

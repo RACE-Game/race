@@ -7,9 +7,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "build": "run-p -l build:*",
-    "build:esm": "tsc -p tsconfig.esm.json",
-    "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:typedefs": "tsc -p tsconfig.types.json",
+    "build:esm": "tsc -p tsconfig.esm.json --skipLibCheck",
+    "build:cjs": "tsc -p tsconfig.cjs.json --skipLibCheck",
+    "build:typedefs": "tsc -p tsconfig.types.json --skipLibCheck",
     "format": "prettier \"src/**/*.ts\" -w",
     "lint": "eslint"
   },

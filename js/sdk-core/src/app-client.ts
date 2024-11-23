@@ -183,8 +183,8 @@ export class AppClient extends BaseClient {
             addr: gameAccount.tokenAddr,
             decimals: decimals,
             icon: '',
-            name: 'Unknown',
-            symbol: 'Unknown',
+            name: '-',
+            symbol: '-',
           }
         }
       }
@@ -218,6 +218,11 @@ export class AppClient extends BaseClient {
     }
   }
 
+  /**
+   * Create a client for subgame.
+   *
+   *
+   */
   async subClient(opts: SubClientInitOpts): Promise<SubClient> {
     try {
       const { gameId, onEvent, onMessage, onTxState, onConnectionState, onError } = opts
@@ -226,11 +231,7 @@ export class AppClient extends BaseClient {
 
       console.group(`SubClient initialization, id: ${gameId}`)
       console.info('Parent Game Context:', clone(this.__gameContext))
-
-      // Query the on-chain game account to get the latest checkpoint.
-      const gameAccount = await this.__getGameAccount()
-      const checkpointOnChain = gameAccount.checkpointOnChain
-      const settleVersion = gameAccount.settleVersion
+      console.info('Versioned data:', this.__gameContext.checkpoint.getVersionedData(gameId))
 
       const subGame = this.__gameContext.findSubGame(gameId)
 
@@ -244,23 +245,13 @@ export class AppClient extends BaseClient {
       const bundleAddr = subGame.bundleAddr
 
       const bundleCacheKey = makeBundleCacheKey(this.__transport.chain, bundleAddr)
-
       const decryptionCache = new DecryptionCache()
       const playerAddr = this.__wallet.walletAddr
       const connection = Connection.initialize(addr, playerAddr, this.__endpoint, this.__encryptor)
       const client = new Client(playerAddr, this.__encryptor, connection)
       const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr)
       const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache)
-
-      // Reload the latest checkpoint.
-      const checkpointOffChain = await this.__connection.getCheckpoint(new GetCheckpointParams({ settleVersion }))
-      if (checkpointOffChain !== undefined && checkpointOnChain !== undefined) {
-        this.__gameContext.checkpoint = Checkpoint.fromParts(checkpointOffChain, checkpointOnChain)
-      } else {
-        throw new Error('Game is not served. This is unexpected, mostly a bug.')
-      }
-
-      const gameContext = this.__gameContext.subContext(subGame, this.__gameContext.checkpoint);
+      const gameContext = this.__gameContext.subContext(subGame);
       console.info("SubGame's GameContext:", clone(gameContext))
 
       return new SubClient({
@@ -268,7 +259,6 @@ export class AppClient extends BaseClient {
         wallet: this.__wallet,
         transport: this.__transport,
         encryptor: this.__encryptor,
-        latestCheckpointOnChain: checkpointOnChain,
         onEvent,
         onMessage,
         onTxState,
@@ -281,6 +271,7 @@ export class AppClient extends BaseClient {
         decryptionCache,
         gameContext,
         gameId,
+        latestCheckpointOnChain: undefined,
       })
     } finally {
       console.groupEnd()

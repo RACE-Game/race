@@ -11,7 +11,7 @@ DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
                           -u8 "$TABLE_SIZE" \
                           -u64 "$START_CHIPS" \
                           -u64 10 \
-                          -u64 60000 \
+                          -u64 300000 \
                           -u32 0 \
                           -u32 3 \
                           -u8 50 \
@@ -26,7 +26,7 @@ JSON=$(cat <<EOF
   "title": "Test MTT",
   "regAddr": "GmmisusD5E6wLpyUAMKXrV7o8MS5fk6JtgX4xpJDBG9b",
   "tokenAddr": "2hsJHem78HuhWhk5ATAxqbanPDAtoq95Dn9M8oE7gCNA",
-  "bundleAddr": "7pWmukH8EDgp8euRnnbUo8tEY8uNabKkV5HLDmaEyG2G",
+  "bundleAddr": "2UdMiE875ajBwwfX9pfskvfFB8fpTZuQyPvTFwhW5hiP",
   "maxPlayers": 6,
   "entryType": {
     "ticket": {

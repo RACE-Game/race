@@ -13,11 +13,12 @@
     }
   },
   "scripts": {
+    "check": "tsc -p tsconfig.types.json --skipLibCheck",
     "test": "jest",
     "test:watch": "jest --watch",
-    "build:esm": "tsc -p tsconfig.esm.json",
-    "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:typedefs": "tsc -p tsconfig.types.json",
+    "build:esm": "tsc -p tsconfig.esm.json --skipLibCheck",
+    "build:cjs": "tsc -p tsconfig.cjs.json --skipLibCheck",
+    "build:typedefs": "tsc -p tsconfig.types.json --skipLibCheck",
     "build": "run-p -l build:*",
     "format": "prettier \"src/**/*.ts\" -w",
     "lint": "eslint"

@@ -92,22 +92,22 @@ impl Broadcaster {
         None
     }
 
+
+    /// Retrieve a list of event histories with a given
+    /// `settle_version`.  All events happened after the
+    /// `settle_version` will be returned.  If a zero `settle_version`
+    /// is provided, just return the events after the latest
+    /// checkpoint.
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
-        // info!(
-        //     "{} Retrieve the histories, settle_version: {}",
-        //     Self::name(),
-        //     settle_version
-        // );
 
         let mut frames: Vec<BroadcastFrame> = Vec::new();
         let event_backup_groups = self.event_backup_groups.lock().await;
 
-        for group in event_backup_groups.iter() {
-            let mut histories: Vec<EventHistory> = Vec::new();
-            if group.settle_version >= settle_version {
-                info!("Broadcast sync {:?}", group.sync);
+        if settle_version == 0 {
+            if let Some(group) = event_backup_groups.iter().last() {
+                let mut histories: Vec<EventHistory> = Vec::new();
                 frames.push(BroadcastFrame::Sync {
-                    sync: group.sync.clone(),
+                    sync: group.sync.clone()
                 });
                 for event in group.events.iter() {
                     histories.push(EventHistory {
@@ -123,6 +123,30 @@ impl Broadcaster {
                     state_sha: group.state_sha.clone(),
                     settle_version: group.settle_version,
                 })
+            }
+        } else {
+            for group in event_backup_groups.iter() {
+                if group.settle_version >= settle_version {
+                    let mut histories: Vec<EventHistory> = Vec::new();
+                    info!("Broadcast sync {:?}", group.sync);
+                    frames.push(BroadcastFrame::Sync {
+                        sync: group.sync.clone(),
+                    });
+                    for event in group.events.iter() {
+                        histories.push(EventHistory {
+                            event: event.event.clone(),
+                            timestamp: event.timestamp,
+                            state_sha: event.state_sha.clone(),
+                        });
+                    }
+                    frames.push(BroadcastFrame::EventHistories {
+                        game_addr: self.id.clone(),
+                        checkpoint_off_chain: group.checkpoint_off_chain.clone(),
+                        histories,
+                        state_sha: group.state_sha.clone(),
+                        settle_version: group.settle_version,
+                    })
+                }
             }
         }
 
@@ -364,7 +388,7 @@ mod tests {
                     access_version: 10,
                     verify_key: "alice".into(),
                 }
-                .into()],
+                    .into()],
                 access_version: 10,
             };
             let event_frame = EventFrame::TxState {

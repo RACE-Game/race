@@ -175,6 +175,13 @@ export class Checkpoint {
     this.updateRootAndProofs()
   }
 
+  async initVersionedData(versionedData: VersionedData) {
+    if (this.data.has(versionedData.id)) {
+      throw new Error(`Checkpoint ${versionedData.id} already exists`)
+    }
+    this.data.set(versionedData.id, versionedData)
+  }
+
   async setData(id: number, data: Uint8Array) {
     const sha = await sha256(data)
     const old = this.data.get(id)

@@ -60,6 +60,9 @@ pub enum HandleError {
 
     #[error("IO error: {0}")]
     IoError(String),
+
+    #[error("Invalid sub game id: {0}")]
+    InvalidSubGameId(usize),
 }
 
 pub type HandleResult<T> = std::result::Result<T, HandleError>;
