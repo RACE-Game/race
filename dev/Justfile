@@ -4,9 +4,6 @@ holdem-simple:
 holdem-multi:
     zellij --layout layouts/holdem-multi.kdl
 
-durak-simple:
-    zellij --layout layouts/durak-simple.kdl
-
 demo-app:
     zellij --layout layouts/demo-app.kdl
 

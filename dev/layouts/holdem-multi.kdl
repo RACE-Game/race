@@ -1,7 +1,7 @@
 // The layout to launch facade and 2 transactors in Zellij
 
 layout {
-		pane {
+	pane {
 			name "Facade"
 			focus true
 			cwd "../"

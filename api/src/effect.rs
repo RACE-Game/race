@@ -325,10 +325,13 @@ impl Effect {
         self.is_checkpoint = true;
     }
 
+    /// Return if there's a checkpoint.
     pub fn is_checkpoint(&self) -> bool {
         self.is_checkpoint
     }
 
+    /// Set the lock for entry.
+    /// This will set current state as checkpoint automatically.
     pub fn set_entry_lock(&mut self, entry_lock: EntryLock) {
         self.checkpoint();
         self.entry_lock = Some(entry_lock);
@@ -349,7 +352,21 @@ impl Effect {
         self.transfers.push(Transfer { slot_id, amount });
     }
 
-    /// Launch sub game
+    /// Launches a new sub-game instance with specified parameters.
+    ///
+    /// # Parameters
+    /// - `id`: Unique identifier for the sub-game. Must be non-zero.
+    /// - `bundle_addr`: Address of the bundle associated with the sub-game.
+    /// - `max_players`: Maximum number of players allowed in the sub-game.
+    ///    The players in sub-game is managed by its master game, `max_players` is here for compatibility.
+    /// - `init_data`: Initialization data for the sub-game. Must implement the `BorshSerialize` trait.
+    ///
+    /// # Returns
+    /// - `Ok(())`: If the sub-game is successfully launched.
+    /// - `Err(HandleError::InvalidSubGameId)`: If the provided sub-game `id` is zero.
+    ///
+    /// # Errors
+    /// Returns an error if the initialization data cannot be serialized.
     pub fn launch_sub_game<D: BorshSerialize>(
         &mut self,
         id: usize,
