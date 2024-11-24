@@ -26,7 +26,7 @@ JSON=$(cat <<EOF
   "title": "Test MTT",
   "regAddr": "GmmisusD5E6wLpyUAMKXrV7o8MS5fk6JtgX4xpJDBG9b",
   "tokenAddr": "2hsJHem78HuhWhk5ATAxqbanPDAtoq95Dn9M8oE7gCNA",
-  "bundleAddr": "2UdMiE875ajBwwfX9pfskvfFB8fpTZuQyPvTFwhW5hiP",
+  "bundleAddr": "EPVhfA4DKSpeRMKXoiXjwtsiV8FWfmkLqSrWNMuKoKBQ",
   "maxPlayers": 6,
   "entryType": {
     "ticket": {
