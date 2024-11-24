@@ -176,9 +176,6 @@ export class Checkpoint {
   }
 
   async initVersionedData(versionedData: VersionedData) {
-    if (this.data.has(versionedData.id)) {
-      throw new Error(`Checkpoint ${versionedData.id} already exists`)
-    }
     this.data.set(versionedData.id, versionedData)
   }
 
@@ -197,6 +194,10 @@ export class Checkpoint {
 
   getVersionedData(id: number): VersionedData | undefined {
     return this.data.get(id)
+  }
+
+  containsVersionedData(id: number): boolean {
+    return this.data.has(id)
   }
 
   updateRootAndProofs() {}
