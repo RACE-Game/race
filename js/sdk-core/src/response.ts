@@ -1,4 +1,21 @@
 // A class for observable response for client api.
+//
+// The flow of status in a transaction.
+//
+// ╔═════════╗  invalid params  ╔══════╗
+// ║preparing╟─────────────────▷║failed║
+// ╚══════╤══╝                  ╚══════╝
+//        │     error in query  ╔══════════════╗
+//        ├────────────────────▷║retry-required║
+//        ▽                     ╚══════════════╝
+// ┏━━━━━━━━━━━━━━━━┓  user cancelled  ╔═════════════╗
+// ┃SEND TRANSACTION┠─────────────────▷║user-rejected║
+// ┗━┯━━━━━━━━━━━━━━┛                  ╚═════════════╝
+//   │ user confirmed ╔══════════╗   error in transaction  ╔══════════════════╗
+//   ╰───────────────▷║confirming╟────────────────────────▷║transaction-failed║
+//                    ╚══════╤═══╝      ╔═══════╗          ╚══════════════════╝
+//                           ╰─────────▷║succeed║
+//                                      ╚═══════╝
 
 export type IPendingResponseStatus = {
   status: 'preparing' | 'waiting-wallet'
