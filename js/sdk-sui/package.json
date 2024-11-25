@@ -45,8 +45,7 @@
   "peerDependencies": {
     "@mysten/sui": "^1.15.0",
     "@race-foundation/borsh": "*",
-    "@race-foundation/sdk-core": "*",
-    "valibot": "0.25.0"
+    "@race-foundation/sdk-core": "*"
   },
   "testDependencies": {
     "crypto": "1.0.1"

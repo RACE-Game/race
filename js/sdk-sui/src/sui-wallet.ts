@@ -1,5 +1,5 @@
 import { SuiClient } from '@mysten/sui/dist/cjs/client'
-import { IWallet, TransactionResult } from '@race-foundation/sdk-core'
+import { IWallet, SendTransactionResult } from '@race-foundation/sdk-core'
 import { Transaction } from '@mysten/sui/transactions'
 // import { WalletAdapter } from '@suiet/wallet-sdk'
 // import type { IdentifierString, WalletAccount } from '@wallet-standard/core';
@@ -19,7 +19,7 @@ export class SuiWallet implements IWallet {
     this.chain = chain
   }
 
-  sendTransaction(tx: any, conn: any): Promise<TransactionResult<void>> {
+  sendTransaction(tx: any, conn: any): Promise<void> {
     throw new Error('Method not implemented.')
   }
 
