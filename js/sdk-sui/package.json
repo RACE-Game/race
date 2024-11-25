@@ -45,7 +45,8 @@
   "peerDependencies": {
     "@mysten/sui": "^1.15.0",
     "@race-foundation/borsh": "*",
-    "@race-foundation/sdk-core": "*"
+    "@race-foundation/sdk-core": "*",
+    "@suiet/wallet-sdk": "^0.3.2"
   },
   "testDependencies": {
     "crypto": "1.0.1"

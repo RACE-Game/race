@@ -1,169 +1,144 @@
-import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance } from "@race-foundation/sdk-core";
+import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance, Result } from "@race-foundation/sdk-core";
 import { Chain } from './common'
-import { Balance, getFullnodeUrl, SuiClient, SuiTransactionBlock } from '@mysten/sui/client';
+import { Balance, getFullnodeUrl, SuiClient, SuiObjectChange, SuiObjectChangeCreated, SuiTransactionBlock } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/bcs';
 import { SuiWallet } from "./sui-wallet";
 import { LocalSuiWallet } from "./local-wallet";
-import { PACKAGE_ID, PROFILE_TABLE_ID } from './constants'
-import { JsonU64 } from "@mysten/sui/dist/cjs/transactions/data/internal";
-import { ok } from "assert";
-import { promises } from "dns";
-// import { getFaucetHost, requestSuiFromFaucetV0 } from '@mysten/sui/faucet';
-export interface ISigner {
-  send(tx: Transaction, client: SuiClient) : Promise<string>
+import { GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_TABLE_ID } from './constants'
+import { ISigner, TxResult } from "./signer";
+
+
+function coerceWallet(wallet: IWallet): asserts wallet is ISigner {
+  if (!(wallet instanceof LocalSuiWallet) && !(wallet instanceof SuiWallet)) {
+    throw new Error('Invalid wallet instance passed')
+  }
 }
-// import { TransactionBlock } from '@mysten/sui.js';
+
 export class SuiTransport implements ITransport {
 
   suiClient: SuiClient
 
   constructor(url: string) {
-    // For devnet 'https://fullnode.devnet.sui.io:443'
-    this.suiClient = new SuiClient({ url: 'https://fullnode.devnet.sui.io:443' });
+    this.suiClient = new SuiClient({ url });
   }
 
   get chain(): Chain { return 'sui' }
-  // debug used , mast be removed in production
-  // getKeypair() {
-  //   // const keypair = Ed25519Keypair.generate();
-  //   // console.log('====>',keypair.getSecretKey())
-  //   // 0xca573b8fd1fc4478010270f0f9099392925f5c116c7c12a71e980e43199c5327
-  //   // suiprivkey1qpvr0xrc7hlzjdz39mrvgqptj30vkqdwwh43kedzp22s9na47vtlg7z4dpj
-  //   const keypair = Ed25519Keypair.fromSecretKey('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2')
-  //   // const keypair = Ed25519Keypair.deriveKeypairFromSeed('0xd5d985d94c233d39c7578dc7b4db6e03fc9a661c7de2710d0144fc855fd7973c')
-  //   const address = keypair.getPublicKey().toSuiAddress()
-  //   const gameModuleAddress = PACKAGE_ID;
-  //   const gasBudget = 5_000_001
-  //   console.log(`Keypair: ${address + '-' + keypair.getSecretKey()}`);
-  //   return { keypair, address, gameModuleAddress, gasBudget }
-  // }
+
   async createGameAccount(wallet: IWallet, params: CreateGameAccountParams, resp: ResponseHandle<CreateGameResponse, CreateGameError>): Promise<void> {
+
+    if (params.title.length > MAXIMUM_TITLE_LENGTH) {
+      return resp.failed('invalid-title')
+    }
+
+    coerceWallet(wallet)
+
     const suiClient = this.suiClient
-    // const info = this.getKeypair()
     const transaction = new Transaction();;
     console.log('=====>createGameAccount wallet', wallet)
     console.log('=====>createGameAccount params', params)
     let args = [
       transaction.pure.string(params.title), // title string
-      transaction.pure.option('address', params.bundleAddr), // bundle_addr address params
-      transaction.pure.option('address', wallet.walletAddr), // owner address wallet
-      transaction.pure.option('address', null), // recipient_addr address params
-      transaction.pure.option('address', params.tokenAddr), // token_addr address params "0x2"
+      transaction.pure.address(params.bundleAddr), // bundle_addr address params
+      transaction.pure.address(wallet.walletAddr), // owner address wallet
+      transaction.pure.address(randomPublicKey()), // recipient_addr address params
+      transaction.pure.address(params.tokenAddr), // token_addr address params "0x2"
       transaction.pure.u64(params.maxPlayers), // max_players u64 params
-      transaction.pure.u32(2), // data_len u32 params
+      transaction.pure.u32(params.data.length), // data_len u32 params
       transaction.pure.vector('u8', params.data), // data vector<u8> params
     ]
-    let gameType = ''
+    let entryFunction = ''
     const kind = params.entryType.kind
     switch (kind) {
       case 'cash':
-        gameType = 'create_cash_game'
+        if (params.entryType.maxDeposit < params.entryType.minDeposit || params.entryType.minDeposit < 0) {
+          return resp.failed('invalid-depsoit-range')
+        }
+        entryFunction = 'create_cash_game'
         args = [
           ...args,
-          transaction.pure.option('address', null), // min_deposit u64 params
-          transaction.pure.option('address', null), // max_deposit u64 params
+          transaction.pure.u64(params.entryType.minDeposit), // min_deposit u64 params
+          transaction.pure.u64(params.entryType.maxDeposit), // max_deposit u64 params
         ]
         break;
       case 'ticket':
-        gameType = 'create_ticket_game'
+        entryFunction = 'create_ticket_game'
         args = [
           ...args,
-          transaction.pure.option('address', null), // amount u64 params
+          transaction.pure.u64(params.entryType.amount), // amount u64 params
         ]
         break;
       case 'gating':
-        gameType = 'create_gating_game'
+        entryFunction = 'create_gating_game'
         args = [
           ...args,
-          transaction.pure.string('yuumi Ganme'), // collection String params
+          transaction.pure.string(params.entryType.collection), // collection String params
         ]
         break;
-      default:
     }
     transaction.moveCall({
-      target: `${PACKAGE_ID}::game::${gameType}`,
+      target: `${PACKAGE_ID}::game::${entryFunction}`,
       arguments: args,
     });
-    transaction.setGasBudget(5_000_001);
-    try {
-      // suiCLient fucntion
-      // const result = await suiClient.signAndExecuteTransaction({
-      //   transaction: transaction,
-      //   signer: info.keypair,
-      //   requestType: 'WaitForLocalExecution',
-      //   options: {
-      //     showEffects: true,
-      //   },
-      // });
-      // wallet function
-      const result = wallet.signAndExecuteTransaction(transaction, suiClient)
-      console.log('Transaction Result:', result);
-      // return { ok: 'ok' }
 
-    } catch (error) {
-      console.log('===>targe 22 t', `${PACKAGE_ID}::game::${gameType}`,)
-      console.error('Error while creating game account:', error);
-      // return { err: 'err'}
+    const result = await wallet.send(transaction, suiClient, resp)
+
+    if ("err" in result) {
+      return resp.transactionFailed(result.err)
     }
+
+    const objectChange = resolveObjectCreatedByType(result.ok, GAME_OBJECT_TYPE, resp)
+    if (objectChange === undefined) return;
+
+    console.log('Transaction Result:', objectChange);
+    return resp.succeed({
+      gameAddr: objectChange.objectId,
+      signature: result.ok.digest,
+    })
   }
 
   async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams, resp: ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>): Promise<void> {
+    coerceWallet(wallet)
+
     const suiClient = this.suiClient;
-    // const info = this.getKeypair()
-    const createPlayeAccount = async () => {
-      const transaction = new Transaction();
-      // For debugging only
-      try {
-        const object = await suiClient.getObject({
-          id: PROFILE_TABLE_ID,
-          options: { showContent: true }
-        });
-        console.log('Profile table:', object);
-      } catch (error) {
-        console.error('Error while accessing profile table:', error);
-      }
-      transaction.moveCall({
-        target: `${PACKAGE_ID}::profile::create_profile`,
-        // arguments: [serializedOption, bcs.option(bcs.string()).serialize(undefined)],
-        arguments: [
-          transaction.pure.string('yuumi'),
-          transaction.pure.option('address', null),
-          transaction.object(PROFILE_TABLE_ID),
-        ],
+
+    const transaction = new Transaction();
+    // For debugging only
+    try {
+      const object = await suiClient.getObject({
+        id: PROFILE_TABLE_ID,
+        options: { showContent: true }
       });
+      console.log('Profile table:', object);
+    } catch (error) {
+      console.error('Error while accessing profile table:', error);
+    }
+    transaction.moveCall({
+      target: `${PACKAGE_ID}::profile::create_profile`,
+      arguments: [
+        transaction.pure.string(params.nick),
+        transaction.pure.option('address', params.pfp),
+        transaction.object(PROFILE_TABLE_ID),
+      ],
+    });
 
-      transaction.setGasBudget(5_000_001);
+    const result = await wallet.send(transaction, suiClient, resp)
+    if ("err" in result) {
+      return resp.transactionFailed(result.err)
+    }
 
-      try {
-        const result = wallet.wallet(transaction, suiClient)
-        // suiCLient fucntion
-        // const result = await suiClient.signAndExecuteTransaction({
-        //   transaction: transaction,
-        //   signer: info.keypair,
-        //   requestType: 'WaitForLocalExecution',
-        //   options: {
-        //     showEffects: true,
-        //   },
-        // });
-        console.log('Transaction Result:', result);
-        return { result: 'ok' }
+    const objectChange = resolveObjectCreatedByType(result.ok, GAME_OBJECT_TYPE, resp)
+    if (objectChange === undefined) return;
 
-      } catch (error) {
-        console.error('Error while creating game account:', error);
-        return { result: 'err' }
-      }
-    };
-    createPlayeAccount();
-    // return { result: 'ok' }
+    console.log('Transaction Result:', objectChange);
   }
   // async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<SendTransactionResult> {
   //   const w = (wallet as SuiWallet)
   //   const suiClient = this.suiClient
   //   const createPlayeAccount = async () => {
   //     const transaction = new Transaction();
-  //     // for debugging only 
+  //     // for debugging only
   //     const gameModuleAddress = '0x195ff9c5fe7c49a1695ce2cab6bf72e109208203b129f60fa880327a22d5e48d';
   //     const PROFILE_TABLE_ID = '0xcf7ae3a5c7e16ec9cc964d998ebadcaf623c61a6c945c3069498c71484ebfc1f';
   //     // For debugging only
@@ -296,34 +271,22 @@ export class SuiTransport implements ITransport {
   }
 }
 
-// const wallet = new LocalSuiWallet()
 
-// const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443')
-// suiTransport.createPlayerProfile(wallet, {
-//   nick: 'yuumi',
-// }).then(result => {
-//   console.log('createPlayerProfile success:', result)
-// })
-//   .catch(error => {
-//     console.error('getPlayerProfile err:', error);
-//   });
+function resolveObjectCreatedByType<T, E>(result: TxResult, objectType: string, resp: ResponseHandle<T, E>): SuiObjectChangeCreated | undefined {
+  if (!("objectChanges" in result)) {
+    resp.transactionFailed('Object changes not found in transaction result')
+    return undefined
+  }
 
-// const addr = '0x9d019a5566152d64686d6dedc03740d912dd91dba9ff2089d853929652d4d194'
-// suiTransport.getPlayerProfile(addr).then((result: any) => {
-//     console.log('getPlayerProfile:', result)
-//     if (result.addr) {
-//         console.log('getPlayerProfile success:', result)
-//     } else {
-//         console.error('getPlayerProfile err:', result.error());
-//     }
-// })
-//     .catch(error => {
-//         console.error('getPlayerProfile err:', error);
-//     });
+  const objectChange = result.objectChanges?.find(c => c.type == 'created' && c.objectType == objectType)
+  if (objectChange === undefined || objectChange.type !== 'created') {
+    resp.transactionFailed('Game object is missing')
+    return undefined
+  }
 
-// suiTransport.createGameAccount().then(result => {
-//   console.log('createGameAccount success:', result)
-// })
-//   .catch(error => {
-//     console.error('createGameAccount err:', error);
-//   });
+  return objectChange
+}
+
+function randomPublicKey(): string {
+  return Ed25519Keypair.generate().getPublicKey().toSuiAddress()
+}

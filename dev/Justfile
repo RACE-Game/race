@@ -9,3 +9,6 @@ demo-app:
 
 mtt-simple:
     zellij --layout layouts/mtt-simple.kdl
+
+test-sdk-sui:
+    zellij --layout layouts/test-sdk-sui.kdl

@@ -1,34 +1,37 @@
-import { SuiClient } from '@mysten/sui/dist/cjs/client';
+import { SuiClient, SuiTransactionBlockResponse } from '@mysten/sui/dist/cjs/client';
 import { Transaction } from '@mysten/sui/dist/cjs/transactions';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { IWallet, SendTransactionResult } from '@race-foundation/sdk-core'
-import { ISignature } from '@race-foundation/sdk-core/lib/types/encryptor';
-import { ISigner } from './sui-transport';
+import { IWallet, ResponseHandle, Result } from '@race-foundation/sdk-core'
+import { ISigner } from './signer';
+import { GAS_BUDGET } from './constants';
 
 export class LocalSuiWallet implements IWallet, ISigner {
 
   keypair: Ed25519Keypair
   address: string
-
-  constructor() {
-    this.keypair = Ed25519Keypair.fromSecretKey('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2')
-    this.address = this.keypair.getPublicKey().toSuiAddress()
-  }
-  send(tx: Transaction, client: SuiClient): Promise<string> {
-    return client.signAndExecuteTransaction(
-      { tx, signer: this.keypair }
-    )
-  }
-
-  sendTransaction(tx: any, conn: any): Promise<void> {
-    throw new Error('Method not implemented.')
-  }
   wallet: any
 
-  signAndExecuteTransaction(transaction: Transaction, conn: SuiClient): any {
-    return conn.signAndExecuteTransaction(
-      { transaction, signer: this.keypair }
-    )
+  constructor(privateKey: string) {
+    this.keypair = Ed25519Keypair.fromSecretKey(privateKey)
+    this.address = this.keypair.getPublicKey().toSuiAddress()
+  }
+
+  async send<T, E>(transaction: Transaction, client: SuiClient, resp: ResponseHandle<T, E>): Promise<Result<SuiTransactionBlockResponse, string>> {
+    resp.waitingWallet()
+    try {
+      transaction.setGasBudget(GAS_BUDGET);
+      const result = await client.signAndExecuteTransaction(
+        { transaction, signer: this.keypair }
+      )
+      const digest = result.digest
+      console.log('digest', digest)
+      const blockResp = await client.getTransactionBlock({ digest, options: { showObjectChanges: true }})
+      console.log('blockResp', blockResp)
+      return { ok: blockResp }
+    } catch (e: any) {
+      resp.transactionFailed('Transaction failed')
+      return { err: '' }
+    }
   }
 
   get isConnected(): boolean {

@@ -1,0 +1,24 @@
+// The layout to run sdk-sui tests
+
+layout {
+	pane {
+		command "echo"
+    args "To quit, use Ctrl-q"
+	}
+	pane {
+		name "create player profile"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "createPlayerProfile"
+		start_suspended true
+	}
+	pane {
+		name "create game account"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "createGameAccount"
+		start_suspended true
+	}
+}

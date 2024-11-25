@@ -1,13 +1,12 @@
 import { SuiClient } from '@mysten/sui/dist/cjs/client'
-import { IWallet, SendTransactionResult } from '@race-foundation/sdk-core'
+import { IWallet, ResponseHandle, Result } from '@race-foundation/sdk-core'
 import { Transaction } from '@mysten/sui/transactions'
-// import { WalletAdapter } from '@suiet/wallet-sdk'
-// import type { IdentifierString, WalletAccount } from '@wallet-standard/core';
+import { WalletAdapter } from '@suiet/wallet-sdk'
+import { SuiSignAndExecuteTransactionOutput } from '@mysten/wallet-standard'
+import type { IdentifierString, WalletAccount } from '@wallet-standard/core';
+import { ISigner } from './signer'
 
-type WalletAdapter = any
-type WalletAccount = any
-type IdentifierString = any
-export class SuiWallet implements IWallet {
+export class SuiWallet implements IWallet, ISigner {
 
   wallet: WalletAdapter
   account: WalletAccount
@@ -19,12 +18,12 @@ export class SuiWallet implements IWallet {
     this.chain = chain
   }
 
-  sendTransaction(tx: any, conn: any): Promise<void> {
-    throw new Error('Method not implemented.')
-  }
-
-  signAndExecuteTransaction(transaction: Transaction, conn: SuiClient): any {
-    this.wallet.signAndExecuteTransaction({ transaction, account: this.account, chain: this.chain})
+  async send<T, E>(transaction: Transaction, _: SuiClient, resp: ResponseHandle<T, E>): Promise<Result<SuiSignAndExecuteTransactionOutput, string>> {
+    resp.waitingWallet()
+    const result = await this.wallet.signAndExecuteTransaction({
+      transaction, account: this.account, chain: this.chain
+    })
+    return { ok: result }
   }
 
   get isConnected(): boolean {
