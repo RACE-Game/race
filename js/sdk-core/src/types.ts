@@ -39,10 +39,28 @@ export type PlayerProfileWithPfp = {
   nick: string
 }
 
+export type EventSourceKind<T extends 'backlog' | 'live'> = IKind<T>
+
+export type EventSourceBacklog = {
+  remaining: number
+} & IKind<'backlog'>
+
+export type EventSourceLive = IKind<'live'>
+
+export type EventCallbackOptionsSource =
+  | EventSourceBacklog
+  | EventSourceLive
+
+export type EventCallbackOptions = {
+  isCheckpoint: boolean
+  source: EventCallbackOptionsSource,
+}
+
 export type EventCallbackFunction = (
   context: GameContextSnapshot,
   state: Uint8Array,
-  event: GameEvent | undefined
+  event: GameEvent | undefined,
+  options: EventCallbackOptions,
 ) => void
 
 export type ErrorKind =

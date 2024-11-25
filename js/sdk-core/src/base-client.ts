@@ -15,13 +15,15 @@ import { IEncryptor, sha256String } from './encryptor'
 import { GameAccount } from './accounts'
 import { PlayerConfirming } from './tx-state'
 import { Client } from './client'
-import { CheckpointReady, Custom, EndOfHistory, GameEvent, ICustomEvent, Init } from './events'
+import { Custom, GameEvent, ICustomEvent } from './events'
 import { DecryptionCache } from './decryption-cache'
 import {
   ConnectionStateCallbackFunction,
   ErrorCallbackFunction,
   ErrorKind,
   EventCallbackFunction,
+  EventCallbackOptions,
+  EventCallbackOptionsSource,
   GameInfo,
   LoadProfileCallbackFunction,
   MessageCallbackFunction,
@@ -235,10 +237,10 @@ export class BaseClient {
     }
   }
 
-  async __invokeEventCallback(event: GameEvent | undefined) {
+  async __invokeEventCallback(event: GameEvent | undefined, options: EventCallbackOptions) {
     const snapshot = new GameContextSnapshot(this.__gameContext)
     const state = this.__gameContext.handlerState
-    this.__onEvent(snapshot, state, event)
+    this.__onEvent(snapshot, state, event, options)
   }
 
   async __getGameAccount(): Promise<GameAccount> {
@@ -287,7 +289,7 @@ export class BaseClient {
     }
   }
 
-  async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string) {
+  async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string, source: EventCallbackOptionsSource) {
     console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + timestamp)
     let state: Uint8Array | undefined
     let err: ErrorKind | undefined
@@ -308,12 +310,11 @@ export class BaseClient {
       }
 
       if (!err) {
-        await this.__invokeEventCallback(event)
-      }
-
-      // When there's a checkpoint, emit an event to indicate that.
-      if (!err && effects?.checkpoint) {
-        this.__invokeEventCallback(new CheckpointReady())
+        await this.__invokeEventCallback(event,
+          {
+            isCheckpoint: effects?.checkpoint !== undefined,
+            source,
+          })
       }
 
       if (err) {
@@ -374,7 +375,7 @@ export class BaseClient {
       }
     } else if (frame instanceof BroadcastFrameEvent) {
       const { event, timestamp, stateSha } = frame
-      await this.__handleEvent(event, timestamp, stateSha)
+      await this.__handleEvent(event, timestamp, stateSha, { kind: 'live' })
     } else if (frame instanceof BroadcastFrameEventHistories) {
       console.group(`${this.__logPrefix}Receive event histories`, frame)
 
@@ -392,13 +393,21 @@ export class BaseClient {
 
       try {
         await this.__checkStateSha(frame.stateSha, 'checkpoint-state-sha-mismatch')
-
-        this.__invokeEventCallback(new Init())
-
-        for (const h of frame.histories) {
-          await this.__handleEvent(h.event, h.timestamp, h.stateSha)
+        let histLen = frame.histories.length
+        for (let i = 0; i < histLen; i ++) {
+          const h = frame.histories[i]
+          const remaining = histLen - i - 1
+          await this.__handleEvent(h.event, h.timestamp, h.stateSha,
+            { kind: 'backlog', remaining }
+          )
         }
-        this.__invokeEventCallback(new EndOfHistory())
+        if (histLen === 0) {
+          this.__invokeEventCallback(undefined,
+            {
+              isCheckpoint: true,
+              source: { kind: 'backlog', remaining: 0 }
+            })
+        }
       } finally {
         console.groupEnd()
       }
