@@ -27,7 +27,7 @@ JSON=$(cat <<EOF
   "regAddr": "GmmisusD5E6wLpyUAMKXrV7o8MS5fk6JtgX4xpJDBG9b",
   "tokenAddr": "2hsJHem78HuhWhk5ATAxqbanPDAtoq95Dn9M8oE7gCNA",
   "bundleAddr": "EPVhfA4DKSpeRMKXoiXjwtsiV8FWfmkLqSrWNMuKoKBQ",
-  "maxPlayers": 6,
+  "maxPlayers": 100,
   "entryType": {
     "ticket": {
       "amount": $TICKET
