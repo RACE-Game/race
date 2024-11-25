@@ -17,8 +17,8 @@ pub fn log_execution_context(ctx: &GameContext, evt: &Event) {
 }
 
 /// Take the event from clients or the pending dispatched event.
-/// Transactor will retrieve events from both dispatching event and
-/// ports, while Validator will retrieve events from only ports.
+/// Transactor retrieves events from both dispatching event and
+/// ports, while Validator retrieves events from only ports.
 pub async fn read_event(
     ports: &mut PipelinePorts,
     game_context: &mut GameContext,
@@ -41,6 +41,7 @@ pub async fn read_event(
             }
             _ = to => {
                 let event = dispatch.event.clone();
+                let timestamp = dispatch.timeout;
                 game_context.cancel_dispatch();
                 Some(EventFrame::SendServerEvent { event, timestamp })
             }

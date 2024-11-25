@@ -43,6 +43,7 @@ fn setup_logger(config: &Config) {
         .compact()
         .with_writer(std::io::stdout)
         .with_level(true)
+        .with_target(false)
         .with_ansi(true)
         .without_time()
         .with_filter(EnvFilter::from_default_env());
