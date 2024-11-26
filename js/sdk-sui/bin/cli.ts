@@ -9,31 +9,19 @@ function testCreatePlayerProfile() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
   const params = {
-    title: 'yuumi Ganme', // title string
-    bundleAddr: '0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192', // bundle_addr address params
-    owner: wallet.walletAddr, // owner address wallet
-    recipientAddr: 'recipient_addr', // recipient_addr address params
-    tokenAddr: "0x2", // token_addr address params "0x2"
-    maxPlayers: 6, // max_players u64 params
-    data_len: 2, // data_len u32 params
-    data: Uint8Array.from([1,2]), // data vector<u8> params
-    entryType: {
-      kind: 'cash' as const,
-      minDeposit: BigInt(0),
-      maxDeposit: BigInt(1000000)
-    },
-    registrationAddr: '12',
+    nick: 'yuumi Game', // nick string
+    pfp: '0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192', // pfp address params
   }
 
-  let response = new ResponseHandle<CreateGameResponse, CreateGameError>()
-  suiTransport.createGameAccount(wallet, params, response);
+  let response = new ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>()
+  suiTransport.createPlayerProfile(wallet, params, response);
 }
 
 function testCreateGameAccount() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
   const params = {
-    title: 'yuumi Ganme', // title string
+    title: 'yuumi Game', // title string
     bundleAddr: '0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192', // bundle_addr address params
     owner: wallet.walletAddr, // owner address wallet
     recipientAddr: 'recipient_addr', // recipient_addr address params
@@ -41,10 +29,14 @@ function testCreateGameAccount() {
     maxPlayers: 6, // max_players u64 params
     data_len: 2, // data_len u32 params
     data: Uint8Array.from([1,2]), // data vector<u8> params
+    // entryType: {
+    //   kind: 'cash' as const,
+    //   minDeposit: BigInt(0),
+    //   maxDeposit: BigInt(1000000)
+    // },
     entryType: {
-      kind: 'cash' as const,
-      minDeposit: BigInt(0),
-      maxDeposit: BigInt(1000000)
+      kind: 'ticket' as const,
+      amount: BigInt(1000000)
     },
     registrationAddr: '12',
   }

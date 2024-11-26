@@ -1,5 +1,5 @@
-export const PROFILE_TABLE_ID = "0xdd52b149cc726a98ca1ab1ee42f1687e56894f4964aa6e0449432adab9a543b6"
-export const PACKAGE_ID = "0x208dff316298d808c09a57ebcb8ef2470bbc65f655b38f11931a2ee0be3ed18a"
+export const PROFILE_TABLE_ID = "0x13c43bafded256bdfda2e0fe086785aefa6e4ff45fb14fc3ca747b613aa12902"
+export const PACKAGE_ID = "0x709acf900a774dc7ad226bf72b21e4a9e698ab5f14086bd105b026682e815fae"
 export const GAME_OBJECT_TYPE = `${PACKAGE_ID}::game::Game`
 export const GAS_BUDGET = 5_000_001
 export const MAXIMUM_TITLE_LENGTH = 16;

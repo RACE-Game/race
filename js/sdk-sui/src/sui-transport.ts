@@ -133,51 +133,6 @@ export class SuiTransport implements ITransport {
 
     console.log('Transaction Result:', objectChange);
   }
-  // async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams): Promise<SendTransactionResult> {
-  //   const w = (wallet as SuiWallet)
-  //   const suiClient = this.suiClient
-  //   const createPlayeAccount = async () => {
-  //     const transaction = new Transaction();
-  //     // for debugging only
-  //     const gameModuleAddress = '0x195ff9c5fe7c49a1695ce2cab6bf72e109208203b129f60fa880327a22d5e48d';
-  //     const PROFILE_TABLE_ID = '0xcf7ae3a5c7e16ec9cc964d998ebadcaf623c61a6c945c3069498c71484ebfc1f';
-  //     // For debugging only
-  //     try {
-  //       const object = await suiClient.getObject({
-  //         id: PROFILE_TABLE_ID,
-  //         options: { showContent: true }
-  //       });
-  //       console.log('Profile table:', object);
-  //     } catch (error) {
-  //       console.error('Error while accessing profile table:', error);
-  //     }
-  //     const createGameAccountFunction = 'create_profile';
-  //     transaction.moveCall({
-  //       target: `${gameModuleAddress}::profile::${createGameAccountFunction}`,
-  //       // arguments: [serializedOption, bcs.option(bcs.string()).serialize(undefined)],
-  //       arguments: [
-  //         transaction.pure.string(params.nick),
-  //         transaction.pure.option('address', params.pfp || null),
-  //         transaction.object(PROFILE_TABLE_ID),
-  //       ],
-  //     });
-
-  //     transaction.setGasBudget(5_000_001);
-
-  //     try {
-  //       const result = w.signAndExecuteTransaction(transaction, suiClient)
-  //       console.log('Transaction Result:', result);
-  //       return { result: 'ok' }
-
-  //     } catch (error) {
-  //       console.error('Error while creating game account:', error);
-  //       return { result: 'err' }
-  //     }
-  //   };
-  //   createPlayeAccount();
-  //   return { result: 'ok' }
-  // }
-
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
     try {
       const suiClient = new SuiClient({ url: 'https://fullnode.devnet.sui.io:443' });
@@ -248,9 +203,11 @@ export class SuiTransport implements ITransport {
   getRecipient(addr: string): Promise<RecipientAccount | undefined> {
     throw new Error("Method not implemented.");
   }
+  // todo
   getTokenDecimals(addr: string): Promise<number | undefined> {
     throw new Error("Method not implemented.");
   }
+  // todo
   getToken(addr: string): Promise<Token | undefined> {
     throw new Error("Method not implemented.");
   }
