@@ -72,6 +72,7 @@ async fn send_bridge_event(
             dest: be.dest,
             event: Event::Bridge {
                 dest_game_id: be.dest,
+                from_game_id: game_context.game_id(),
                 raw: be.raw,
             },
             access_version: game_context.access_version(),

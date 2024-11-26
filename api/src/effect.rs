@@ -86,10 +86,7 @@ pub struct EmitBridgeEvent {
 }
 
 impl EmitBridgeEvent {
-    pub fn try_new<E: BridgeEvent>(
-        dest: usize,
-        bridge_event: E,
-    ) -> HandleResult<Self> {
+    pub fn try_new<E: BridgeEvent>(dest: usize, bridge_event: E) -> HandleResult<Self> {
         Ok(Self {
             dest,
             raw: borsh::to_vec(&bridge_event)?,
@@ -424,11 +421,7 @@ impl Effect {
     }
 
     /// Emit a bridge event.
-    pub fn bridge_event<E: BridgeEvent>(
-        &mut self,
-        dest: usize,
-        evt: E,
-    ) -> HandleResult<()> {
+    pub fn bridge_event<E: BridgeEvent>(&mut self, dest: usize, evt: E) -> HandleResult<()> {
         if self.bridge_events.iter().any(|x| x.dest == dest) {
             return Err(HandleError::DuplicatedBridgeEventTarget);
         }
@@ -436,6 +429,15 @@ impl Effect {
         self.bridge_events
             .push(EmitBridgeEvent::try_new(dest, evt)?);
         Ok(())
+    }
+
+    /// List bridge events, deserialize raw to event type E.
+    pub fn list_bridge_events<E: BridgeEvent>(&self) -> HandleResult<Vec<(usize, E)>>{
+        self.bridge_events.iter().map(|ref emit_bridge_event| {
+            let dest = emit_bridge_event.dest;
+            let event = E::try_from_slice(&emit_bridge_event.raw)?;
+            Ok((dest, event))
+        }).collect()
     }
 
     /// Reset the game to remove all players.  Be careful on usage,
@@ -448,7 +450,4 @@ impl Effect {
 }
 
 #[cfg(test)]
-mod tests {
-
-
-}
+mod tests {}

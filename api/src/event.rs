@@ -133,6 +133,7 @@ pub enum Event {
     /// The custom event from bridge
     Bridge {
         dest_game_id: usize,
+        from_game_id: usize,
         raw: Vec<u8>,
     },
 
@@ -147,13 +148,14 @@ impl std::fmt::Display for Event {
         match self {
             Event::Custom { sender, raw } => write!(f, "Custom from {}, inner: {:?}", sender, raw),
             Event::Bridge {
-                dest_game_id: dest,
+                dest_game_id,
+                from_game_id,
                 raw,
             } => {
                 write!(
                     f,
-                    "Bridge to {}, inner: [{}...]",
-                    dest, raw[0]
+                    "Bridge to {}, from {}, inner: [{}...]",
+                    dest_game_id, from_game_id, raw[0]
                 )
             }
             Event::Ready => write!(f, "Ready"),
@@ -236,9 +238,10 @@ impl Event {
         }
     }
 
-    pub fn bridge<E: BridgeEvent>(dest: usize, e: &E) -> Self {
+    pub fn bridge<E: BridgeEvent>(dest: usize, from: usize, e: &E) -> Self {
         Self::Bridge {
             dest_game_id: dest,
+            from_game_id: from,
             raw: borsh::to_vec(&e).unwrap(),
         }
     }
