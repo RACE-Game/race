@@ -310,11 +310,10 @@ export class BaseClient {
       }
 
       if (!err) {
-        await this.__invokeEventCallback(event,
-          {
-            isCheckpoint: effects?.checkpoint !== undefined,
-            source,
-          })
+        await this.__invokeEventCallback(event, {
+          isCheckpoint: effects?.checkpoint !== undefined,
+          source,
+        })
       }
 
       if (err) {
@@ -394,19 +393,16 @@ export class BaseClient {
       try {
         await this.__checkStateSha(frame.stateSha, 'checkpoint-state-sha-mismatch')
         let histLen = frame.histories.length
-        for (let i = 0; i < histLen; i ++) {
+        for (let i = 0; i < histLen; i++) {
           const h = frame.histories[i]
           const remaining = histLen - i - 1
-          await this.__handleEvent(h.event, h.timestamp, h.stateSha,
-            { kind: 'backlog', remaining }
-          )
+          await this.__handleEvent(h.event, h.timestamp, h.stateSha, { kind: 'backlog', remaining })
         }
         if (histLen === 0) {
-          this.__invokeEventCallback(undefined,
-            {
-              isCheckpoint: true,
-              source: { kind: 'backlog', remaining: 0 }
-            })
+          this.__invokeEventCallback(undefined, {
+            isCheckpoint: true,
+            source: { kind: 'backlog', remaining: 0 },
+          })
         }
       } finally {
         console.groupEnd()
