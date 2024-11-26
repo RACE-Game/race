@@ -406,7 +406,9 @@ export class Shutdown extends GameEvent implements IEventKind {
 @variant(19)
 export class Bridge extends GameEvent implements IEventKind {
   @field('usize')
-  dest!: number
+  destGameId!: number
+  @field('usize')
+  fromGameId!: number
   @field('u8-array')
   raw!: Uint8Array
 
