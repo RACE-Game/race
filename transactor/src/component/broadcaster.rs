@@ -89,6 +89,8 @@ impl Broadcaster {
         }
 
         warn!("Missing the checkpoint for settle_version = {}, the client won't be able to join this game.", settle_version);
+        let available_settle_versions: Vec<u64> = event_backup_groups.iter().map(|g| g.settle_version).collect();
+        warn!("Available versions are: {:?}", available_settle_versions);
         None
     }
 
@@ -268,7 +270,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         error!("{} Received event without checkpoint", env.log_prefix);
                     }
                     // Keep 10 groups at most
-                    if event_backup_groups.len() > 10 {
+                    if event_backup_groups.len() > 200 {
                         event_backup_groups.pop_front();
                     }
                     drop(event_backup_groups);

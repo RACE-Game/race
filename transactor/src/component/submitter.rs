@@ -17,7 +17,7 @@ use race_core::transport::TransportT;
 use super::ComponentEnv;
 use super::common::PipelinePorts;
 
-const MAX_PENDING_TXS: usize = 1;
+const MAX_PENDING_TXS: usize = 32;
 const PARAMS_READ_TIMEOUT: u64 = 5;
 
 /// Squash two settles into one.
@@ -122,7 +122,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
     }
 
     async fn run(mut ports: PipelinePorts, ctx: SubmitterContext, env: ComponentEnv) -> CloseReason {
-        let (queue_tx, mut queue_rx) = mpsc::channel::<SettleParams>(32);
+        let (queue_tx, mut queue_rx) = mpsc::channel::<SettleParams>(128);
         let p = ports.clone_as_producer();
         // Start a task to handle settlements
         // Prevent the blocking from pending transactions

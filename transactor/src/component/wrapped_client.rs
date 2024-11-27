@@ -16,7 +16,7 @@ use race_core::connection::ConnectionT;
 use race_core::encryptor::EncryptorT;
 use race_core::transport::TransportT;
 use race_core::types::ClientMode;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 use super::ComponentEnv;
 use super::event_bus::CloseReason;
@@ -103,7 +103,10 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                 EventFrame::Checkpoint { .. } => {
                     client.flush_secret_states();
                 }
-                EventFrame::Shutdown => break,
+                EventFrame::Shutdown => {
+                    info!("{} Stopped", env.log_prefix);
+                    break;
+                }
                 _ => (),
             }
         }

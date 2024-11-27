@@ -31,8 +31,6 @@ pub struct GameSynchronizerContext {
     game_addr: String,
 }
 
-const MAX_RETRIES: u8 = 10;
-
 /// A component that reads the on-chain states and feeds the system.
 /// To construct a synchronizer, a chain adapter is required.
 pub struct GameSynchronizer {}
@@ -93,6 +91,8 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
 
                 sub_item = sub.next() => {
                     if let Some(Some(game_account)) = sub_item {
+                        retry = 0;
+
                         let GameAccount {
                             players,
                             servers,
@@ -165,9 +165,6 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
 
                         prev_access_version = access_version;
                     } else {
-                        if retry == MAX_RETRIES {
-                            break;
-                        }
                         retry += 1;
                         let interval = u64::pow(2, retry as _).min(20);
                         warn!("{} Game account not found, will retry after {} seconds", env.log_prefix, interval);
