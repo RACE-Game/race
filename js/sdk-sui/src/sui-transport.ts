@@ -6,7 +6,7 @@ import { Transaction } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/bcs';
 import { SuiWallet } from "./sui-wallet";
 import { LocalSuiWallet } from "./local-wallet";
-import { GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_TABLE_ID } from './constants'
+import { GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_TABLE_ID, SUI_ICON_URL } from './constants'
 import { ISigner, TxResult } from "./signer";
 
 
@@ -135,7 +135,7 @@ export class SuiTransport implements ITransport {
   }
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
     try {
-      const suiClient = new SuiClient({ url: 'https://fullnode.devnet.sui.io:443' });
+      const suiClient = this.suiClient;
       const objectResponse = await suiClient.getObject({
         id: PROFILE_TABLE_ID,
         options: {
@@ -203,14 +203,24 @@ export class SuiTransport implements ITransport {
   getRecipient(addr: string): Promise<RecipientAccount | undefined> {
     throw new Error("Method not implemented.");
   }
-  // todo
-  getTokenDecimals(addr: string): Promise<number | undefined> {
-    throw new Error("Method not implemented.");
+  async getTokenDecimals(addr: string): Promise<number | undefined> {
+    return this.getToken(addr).then(token => token?.decimals);
   }
-  // todo
-  getToken(addr: string): Promise<Token | undefined> {
-    throw new Error("Method not implemented.");
+  async getToken(addr: string): Promise<Token | undefined> {
+    const suiClient = this.suiClient;
+    const tokenMetadata = await suiClient.getCoinMetadata({ coinType: addr });
+    if (!tokenMetadata) return undefined
+    const token: Token = {
+      addr: addr,
+      icon: tokenMetadata.iconUrl || SUI_ICON_URL,
+      name: tokenMetadata.name,
+      symbol: tokenMetadata.symbol,
+      decimals: tokenMetadata.decimals
+    }
+    console.log('Token:', token);
+    return token;
   }
+
   getNft(addr: string): Promise<Nft | undefined> {
     throw new Error("Method not implemented.");
   }
