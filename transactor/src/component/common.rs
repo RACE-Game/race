@@ -227,6 +227,9 @@ impl Ports for PipelinePorts {
 }
 
 pub struct ComponentEnv {
+    pub addr: String,
+    pub addr_shorthand: String,
+    pub component_name: String,
     pub log_prefix: String,
 }
 
@@ -234,7 +237,10 @@ impl ComponentEnv {
     pub fn new(addr: &str, component_name: &str) -> Self {
         let addr_short = addr_shorthand(addr);
         Self {
+            addr: addr.into(),
+            addr_shorthand: addr_short.clone(),
             log_prefix: format!("[{}|{}]", addr_short, component_name),
+            component_name: component_name.into(),
         }
     }
 }

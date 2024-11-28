@@ -18,15 +18,15 @@ DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
                           -u8 30 \
                           -u8 20 \
                           -u8 0 \
-                          -s "E3WPTpsDbDN8waMbgCsFpJr8HHZXjy3BBHwxUKHKdoQf")
+                          -s "E3w9sNAG5xHp6XF3fxweSCqBiemKuW898fcKMQBAKQei")
 
 
 JSON=$(cat <<EOF
 {
   "title": "Test MTT",
   "regAddr": "GmmisusD5E6wLpyUAMKXrV7o8MS5fk6JtgX4xpJDBG9b",
-  "tokenAddr": "2hsJHem78HuhWhk5ATAxqbanPDAtoq95Dn9M8oE7gCNA",
-  "bundleAddr": "EPVhfA4DKSpeRMKXoiXjwtsiV8FWfmkLqSrWNMuKoKBQ",
+  "tokenAddr": "So11111111111111111111111111111111111111112",
+  "bundleAddr": "F8j1i4hhUjJ9Fi4bkjNrARMS3pJeVrnaB9Ldb2qpFNDn",
   "maxPlayers": 100,
   "entryType": {
     "ticket": {

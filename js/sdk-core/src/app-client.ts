@@ -282,13 +282,13 @@ export class AppClient extends BaseClient {
    * Connect to the transactor and retrieve the event stream.
    */
   async attachGame() {
-    console.group('Attach to game')
     let sub
     try {
       await this.__attachGameWithRetry()
       sub = this.__connection.subscribeEvents()
       await this.__startSubscribe()
       for (const p of this.__latestGameAccount.players) {
+        console.log('Load profile for', p.addr)
         this.__onLoadProfile(p.accessVersion, p.addr)
       }
     } catch (e) {

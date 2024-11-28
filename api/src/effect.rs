@@ -94,6 +94,20 @@ impl EmitBridgeEvent {
     }
 }
 
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+pub enum LogLevel {
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+pub struct Log {
+    pub level: LogLevel,
+    pub message: String,
+}
+
 /// An effect used in game handler provides reading and mutating to
 /// the game context.  An effect can be created from game context,
 /// manipulated by game handler and applied after event processing.
@@ -174,7 +188,7 @@ impl EmitBridgeEvent {
 /// # use race_api::effect::Effect;
 /// use race_api::types::Settle;
 /// let mut effect = Effect::default();
-/// effect.settle(0 /* player_id */, 100 /* amount */);
+/// effect.settle(0 /* player_id */, 100 /* amount */, true /* eject */);
 /// effect.checkpoint();
 /// ```
 ///
@@ -214,6 +228,7 @@ pub struct Effect {
     pub is_init: bool,
     pub entry_lock: Option<EntryLock>,
     pub reset: bool,
+    pub logs: Vec<Log>,
 }
 
 impl Effect {
@@ -336,9 +351,9 @@ impl Effect {
 
     /// Submit settlements.
     /// This will set current state as checkpoint automatically.
-    pub fn settle(&mut self, player_id: u64, amount: u64) -> HandleResult<()> {
+    pub fn settle(&mut self, player_id: u64, amount: u64, eject: bool) -> HandleResult<()> {
         self.checkpoint();
-        self.settles.push(Settle::new(player_id, amount));
+        self.settles.push(Settle::new(player_id, amount, eject));
         Ok(())
     }
 
@@ -446,6 +461,26 @@ impl Effect {
     pub fn reset(&mut self) {
         self.checkpoint();
         self.reset = true;
+    }
+
+    pub fn log<S: Into<String>>(&mut self, level: LogLevel, message: S) {
+        self.logs.push(Log { level, message: message.into() });
+    }
+
+    pub fn info<S: Into<String>>(&mut self, message: S) {
+        self.log(LogLevel::Info, message);
+    }
+
+    pub fn error<S: Into<String>>(&mut self, message: S) {
+        self.log(LogLevel::Error, message);
+    }
+
+    pub fn warn<S: Into<String>>(&mut self, message: S) {
+        self.log(LogLevel::Warn, message);
+    }
+
+    pub fn debug<S: Into<String>>(&mut self, message: S) {
+        self.log(LogLevel::Debug, message);
     }
 }
 

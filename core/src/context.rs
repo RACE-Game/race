@@ -4,7 +4,7 @@ use crate::types::{ClientMode, EntryType, GameAccount, GameSpec};
 use crate::decision::DecisionState;
 use crate::error::{Error, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, Release, Reveal, SubGame};
+use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, Log, Release, Reveal, SubGame};
 use race_api::engine::GameHandler;
 use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
@@ -154,6 +154,7 @@ pub struct EventEffects {
     pub start_game: bool,
     pub entry_lock: Option<EntryLock>,
     pub reset: bool,
+    pub logs: Vec<Log>,
 }
 
 /// The context for public data.
@@ -808,6 +809,7 @@ impl GameContext {
             valid_players: vec![],
             entry_lock: None,
             reset: false,
+            logs: Vec::new(),
         }
     }
 
@@ -906,6 +908,7 @@ impl GameContext {
                 start_game,
                 entry_lock: effect.entry_lock,
                 reset: effect.reset,
+                logs: effect.logs,
             });
         } else if let Some(e) = error {
             return Err(Error::HandleError(e));

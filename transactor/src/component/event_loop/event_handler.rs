@@ -1,6 +1,6 @@
 use super::misc::log_execution_context;
 use race_api::{
-    effect::{EmitBridgeEvent, SubGame},
+    effect::{EmitBridgeEvent, Log, SubGame},
     event::Event,
     types::{EntryLock, Settle, Transfer},
 };
@@ -14,7 +14,18 @@ use crate::{
     component::{common::PipelinePorts, CloseReason, ComponentEnv, WrappedHandler},
     frame::EventFrame,
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
+
+fn print_logs(logs: &[Log], env: &ComponentEnv) {
+    logs.iter().for_each(|log| {
+        match log.level {
+            race_api::effect::LogLevel::Debug => debug!("[{}|Game] {}", env.addr_shorthand, log.message),
+            race_api::effect::LogLevel::Info => info!("[{}|Game] {}", env.addr_shorthand, log.message),
+            race_api::effect::LogLevel::Warn => warn!("[{}|Game] {}", env.addr_shorthand, log.message),
+            race_api::effect::LogLevel::Error => error!("[{}|Game] {}", env.addr_shorthand, log.message),
+        }
+    })
+}
 
 async fn broadcast_event(
     event: Event,
@@ -167,7 +178,10 @@ pub async fn init_state(
     let original_versions = game_context.versions();
 
     let effects = match handler.init_state(&mut game_context, &init_account) {
-        Ok(effects) => effects,
+        Ok(effects) => {
+            print_logs(&effects.logs, env);
+            effects
+        },
         Err(e) => {
             error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
             error!("{} Init Account: {:?}", env.log_prefix, init_account);
@@ -300,7 +314,10 @@ pub async fn handle_event(
                 start_game,
                 entry_lock,
                 reset,
+                logs,
             } = effects;
+
+            print_logs(&logs, env);
 
             // Broacast the event to clients
             if client_mode == ClientMode::Transactor {

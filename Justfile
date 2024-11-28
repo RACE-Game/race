@@ -23,7 +23,7 @@ build-cli:
 
 # Call command line tool, use `just cli help` to show help menu
 cli *ARGS:
-    cargo run -p race-cli -- {{ARGS}}
+    cargo run -q -p race-cli -- {{ARGS}}
 
 # Run cargo test
 test:
