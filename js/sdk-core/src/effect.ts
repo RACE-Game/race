@@ -2,7 +2,7 @@ import { RandomSpec } from './random-state'
 import { HandleError } from './error'
 import { GameContext } from './game-context'
 import { enums, field, map, option, struct, array } from '@race-foundation/borsh'
-import { Fields } from './types'
+import { Fields, Indices } from './types'
 import { InitAccount } from './init-account'
 import { EntryLock } from './accounts'
 
@@ -11,9 +11,12 @@ export class Settle {
   id: bigint
   @field('u64')
   amount: bigint
+  @field('bool')
+  eject: boolean
   constructor(fields: Fields<Settle>) {
     this.id = fields.id
     this.amount = fields.amount
+    this.eject = fields.eject
   }
 }
 
@@ -98,6 +101,21 @@ export class EmitBridgeEvent {
   }
 }
 
+export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const
+export type LogLevel = Indices<typeof LOG_LEVELS>
+
+export class Log {
+  @field('u8')
+  level!: LogLevel
+
+  @field('string')
+  message!: string
+
+  constructor(fields: Fields<Log>) {
+    Object.assign(this, fields)
+  }
+}
+
 export class Effect {
   @field(option(struct(ActionTimeout)))
   actionTimeout: ActionTimeout | undefined
@@ -153,6 +171,8 @@ export class Effect {
   entryLock!: EntryLock | undefined
   @field('bool')
   reset!: boolean
+  @field(array(struct(Log)))
+  logs!: Log[]
 
   constructor(fields: Fields<Effect>) {
     Object.assign(this, fields)
@@ -191,6 +211,7 @@ export class Effect {
     const validPlayers = context.players.map(p => p.id)
     const entryLock = undefined
     const reset = false
+    const logs: Log[] = []
     return new Effect({
       actionTimeout,
       waitTimeout,
@@ -219,6 +240,7 @@ export class Effect {
       isInit,
       entryLock,
       reset,
+      logs,
     })
   }
 }

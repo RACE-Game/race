@@ -70,6 +70,7 @@ impl WrappedHandler {
         context: &mut GameContext,
         init_account: &InitAccount,
     ) -> Result<EventEffects> {
+
         let memory = self
             .instance
             .exports

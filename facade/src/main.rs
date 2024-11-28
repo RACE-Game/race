@@ -661,8 +661,8 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         reset,
     } = params.one()?;
     println!(
-        "! Handle settlements {}, settles: {:?}, transfers: {:?} ",
-        addr, settles, transfers
+        "! Handle settlements {}, settles: {:?}, transfers: {:?}, reset: {} ",
+        addr, settles, transfers, reset
     );
 
     // Simulate the finality time
@@ -675,6 +675,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
 
     let mut game = context.get_game_account(&addr)?
         .ok_or(custom_error(Error::GameAccountNotFound))?;
+    println!("{} players in game", game.players.len());
 
     // Expire old deposits
     game.deposits
@@ -701,7 +702,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
     // Handle settles
     for s in settles.into_iter() {
         if let Some(index) = game.players.iter().position(|p| p.access_version.eq(&s.player_id)) {
-            let p = game.players.remove(index);
+            let p = &game.players[index];
             let mut player = context.get_player_info(&p.addr)?
                 .ok_or(custom_error(Error::InvalidSettle(format!(
                     "Invalid player address: {}",
@@ -712,6 +713,10 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
                 .entry(game.token_addr.to_owned())
                 .and_modify(|b| *b += s.amount);
             context.update_player_info(&player)?;
+            if s.eject {
+                println!("! Eject player at {index} from game");
+                game.players.remove(index);
+            }
         } else {
             return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
         }
@@ -722,6 +727,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         game.deposits.clear();
     }
 
+    println!("{} players remain in game", game.players.len());
     context.update_game_account(&game)?;
     Ok(format!("facade_settle_{}", settle_version))
 }

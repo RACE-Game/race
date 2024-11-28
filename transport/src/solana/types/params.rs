@@ -137,6 +137,7 @@ pub enum AssetChange {
 pub struct IxSettle {
     pub access_version: u64,
     pub amount: u64,
+    pub eject: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]

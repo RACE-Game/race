@@ -616,6 +616,7 @@ impl TransportT for SolanaTransport {
             ix_settles.push(IxSettle {
                 access_version: settle.player_id,
                 amount: settle.amount,
+                eject: settle.eject,
             });
         }
 

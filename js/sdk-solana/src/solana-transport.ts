@@ -66,9 +66,26 @@ import {
 } from '@race-foundation/sdk-core'
 import * as instruction from './instruction'
 
-import { GAME_ACCOUNT_LEN, NAME_LEN, PROFILE_ACCOUNT_LEN, PLAYER_PROFILE_SEED, SERVER_PROFILE_SEED, RECIPIENT_ACCOUNT_LEN } from './constants'
+import {
+  GAME_ACCOUNT_LEN,
+  NAME_LEN,
+  PROFILE_ACCOUNT_LEN,
+  PLAYER_PROFILE_SEED,
+  SERVER_PROFILE_SEED,
+  RECIPIENT_ACCOUNT_LEN,
+} from './constants'
 
-import { EntryTypeCash, EntryTypeTicket, GameState, PlayerState, RecipientSlotOwnerAssigned, RecipientSlotOwnerUnassigned, RecipientState, RegistryState, ServerState } from './accounts'
+import {
+  EntryTypeCash,
+  EntryTypeTicket,
+  GameState,
+  PlayerState,
+  RecipientSlotOwnerAssigned,
+  RecipientSlotOwnerUnassigned,
+  RecipientState,
+  RegistryState,
+  ServerState,
+} from './accounts'
 
 import { join } from './instruction'
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants'
@@ -89,7 +106,7 @@ type LegacyToken = {
 }
 
 type SendTransactionOptions = {
-  signers?: Keypair[],
+  signers?: Keypair[]
   commitment?: Commitment
 }
 
@@ -125,11 +142,11 @@ export class SolanaTransport implements ITransport {
     const payerKey = new PublicKey(wallet.walletAddr)
 
     let recipientAccountKey: PublicKey
-    if ("recipientAddr" in params) {
+    if ('recipientAddr' in params) {
       recipientAccountKey = new PublicKey(params.recipientAddr)
     } else {
       const createRecipient = await this._prepareCreateRecipient(payerKey, params.recipientParams)
-      if ("err" in createRecipient) {
+      if ('err' in createRecipient) {
         return response.failed(createRecipient.err)
       }
       let { ixs: createRecipientIxs, recipientAccount, signers } = createRecipient.ok
@@ -137,16 +154,22 @@ export class SolanaTransport implements ITransport {
 
       const tx = await makeTransaction(this.#conn, payerKey, createRecipientIxs)
 
-      if ("err" in tx) {
+      if ('err' in tx) {
         return response.retryRequired(tx.err)
       }
 
-      const prioritizationFee = await this._getPrioritizationFee([recipientAccount.publicKey, ...(signers.map(k => k.publicKey))])
-      createRecipientIxs = [ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }), ...createRecipientIxs]
+      const prioritizationFee = await this._getPrioritizationFee([
+        recipientAccount.publicKey,
+        ...signers.map(k => k.publicKey),
+      ])
+      createRecipientIxs = [
+        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }),
+        ...createRecipientIxs,
+      ]
 
       tx.ok.sign(signers)
       const sig = await sendTransaction(wallet, tx.ok, conn, response)
-      if ("err" in sig) {
+      if ('err' in sig) {
         return response.transactionFailed(sig.err)
       } else {
         response.preparing()
@@ -158,12 +181,19 @@ export class SolanaTransport implements ITransport {
     let ixs: TransactionInstruction[] = []
     let signers: Keypair[] = []
 
-    const { ixs: createGameAccountIxs, account: gameAccount } = await this._prepareCreateAccount(payerKey, GAME_ACCOUNT_LEN, PROGRAM_ID)
+    const { ixs: createGameAccountIxs, account: gameAccount } = await this._prepareCreateAccount(
+      payerKey,
+      GAME_ACCOUNT_LEN,
+      PROGRAM_ID
+    )
     ixs.push(...createGameAccountIxs)
     signers.push(gameAccount)
 
     const tokenMintKey = new PublicKey(tokenAddr)
-    const { tokenAccount: stakeAccount, ixs: createStakeAccountIxs } = await this._prepareCreateTokenAccount(payerKey, tokenMintKey)
+    const { tokenAccount: stakeAccount, ixs: createStakeAccountIxs } = await this._prepareCreateTokenAccount(
+      payerKey,
+      tokenMintKey
+    )
     ixs.push(...createStakeAccountIxs)
 
     const bundleKey = new PublicKey(bundleAddr)
@@ -194,13 +224,13 @@ export class SolanaTransport implements ITransport {
     ixs = [ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }), ...ixs]
 
     const tx = await makeTransaction(this.#conn, payerKey, ixs)
-    if ("err" in tx) {
+    if ('err' in tx) {
       response.retryRequired(tx.err)
       return
     }
 
     const sig = await sendTransaction(wallet, tx.ok, conn, response, { signers: [gameAccount, stakeAccount] })
-    if ("err" in sig) {
+    if ('err' in sig) {
       response.transactionFailed(sig.err)
     } else {
       response.succeed({ gameAddr: gameAccount.publicKey.toBase58(), signature: sig.ok })
@@ -212,8 +242,6 @@ export class SolanaTransport implements ITransport {
   }
 
   async join(wallet: IWallet, params: JoinParams, response: ResponseHandle<JoinResponse, JoinError>): Promise<void> {
-    let ixs = [ComputeBudgetProgram.requestHeapFrame({bytes: 1024 * 128})];
-
     const tempAccountLen = AccountLayout.span
 
     const conn = this.#conn
@@ -222,9 +250,8 @@ export class SolanaTransport implements ITransport {
     const playerKey = new PublicKey(wallet.walletAddr)
 
     // Call RPC functions in Parallel
-    const d = new Date();
-    const [tempAccountLamports, prioritizationFee, gameState, playerProfile] = await Promise.all([
-      conn.getMinimumBalanceForRentExemption(tempAccountLen),
+    const d = new Date()
+    const [prioritizationFee, gameState, playerProfile] = await Promise.all([
       this._getPrioritizationFee([gameAccountKey]),
       this._getGameState(gameAccountKey),
       this.getPlayerProfile(wallet.walletAddr),
@@ -251,9 +278,7 @@ export class SolanaTransport implements ITransport {
       }
     } else if (gameState.entryType instanceof EntryTypeTicket) {
       if (amount !== gameState.entryType.amount) {
-        console.warn(
-          `Invalid deposit, ticket = ${gameState.entryType.amount}, submitted = ${amount}`
-        )
+        console.warn(`Invalid deposit, ticket = ${gameState.entryType.amount}, submitted = ${amount}`)
         return response.failed('invalid-deposit-amount')
       }
     } else {
@@ -262,16 +287,18 @@ export class SolanaTransport implements ITransport {
 
     const stakeAccountKey = gameState.stakeKey
 
+    let ixs = []
+
     ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }))
 
     let profileKey: PublicKey
     if (profileKey0 !== undefined) {
       profileKey = profileKey0
     } else if (params.createProfileIfNeeded) {
-      const createProfile = await this.__prepareCreatePlayerProfile(playerKey, {
+      const createProfile = await this._prepareCreatePlayerProfile(playerKey, {
         nick: wallet.walletAddr.substring(0, 6),
       })
-      if ("err" in createProfile) {
+      if ('err' in createProfile) {
         return response.failed(createProfile.err)
       }
       const { ixs: createProfileIxs, profileKey: pk } = createProfile.ok
@@ -281,21 +308,31 @@ export class SolanaTransport implements ITransport {
       return response.failed('profile-not-found')
     }
 
-    const { ixs: createTempAccountIxs, tokenAccount: tempAccount } = await this._prepareCreateTokenAccount(playerKey, mintKey)
-    ixs.push(...createTempAccountIxs)
+    let tempAccount
 
     if (isWsol) {
-      const transferAmount = amount - BigInt(tempAccountLamports)
-      const transferIx = SystemProgram.transfer({
+      const account = Keypair.generate()
+      const accountKey = account.publicKey
+      const ix = SystemProgram.createAccount({
         fromPubkey: playerKey,
-        toPubkey: tempAccount.publicKey,
-        lamports: transferAmount,
+        newAccountPubkey: accountKey,
+        lamports: Number(amount),
+        space: 0,
+        programId: PROGRAM_ID,
       })
-      ixs.push(transferIx)
+
+      ixs.push(ix)
+      tempAccount = account
     } else {
+      const { ixs: createTempAccountIxs, tokenAccount: tokenAccount } = await this._prepareCreateTokenAccount(
+        playerKey,
+        mintKey
+      )
+      ixs.push(...createTempAccountIxs)
       const playerAta = getAssociatedTokenAddressSync(mintKey, playerKey)
-      const transferIx = createTransferInstruction(playerAta, tempAccount.publicKey, playerKey, amount)
+      const transferIx = createTransferInstruction(playerAta, tokenAccount.publicKey, playerKey, amount)
       ixs.push(transferIx)
+      tempAccount = tokenAccount
     }
 
     const joinGameIx = join({
@@ -316,21 +353,25 @@ export class SolanaTransport implements ITransport {
     ixs.push(joinGameIx)
 
     const tx = await makeTransaction(this.#conn, playerKey, ixs)
-    if ("err" in tx) {
+    if ('err' in tx) {
       response.retryRequired(tx.err)
       return
     }
 
     tx.ok.sign([tempAccount])
     const sig = await sendTransaction(wallet, tx.ok, this.#conn, response, { commitment: 'confirmed' })
-    if ("err" in sig) {
+    if ('err' in sig) {
       response.transactionFailed(sig.err)
     } else {
       response.succeed({ signature: sig.ok })
     }
   }
 
-  async deposit(wallet: IWallet, params: DepositParams, response: ResponseHandle<DepositResponse, DepositError>): Promise<void> {
+  async deposit(
+    wallet: IWallet,
+    params: DepositParams,
+    response: ResponseHandle<DepositResponse, DepositError>
+  ): Promise<void> {
     throw new Error('unimplemented')
   }
 
@@ -361,22 +402,22 @@ export class SolanaTransport implements ITransport {
       recipientState,
     })
     const tx = await makeTransaction(this.#conn, payerKey, [recipientClaimIx])
-    if ("err" in tx) {
+    if ('err' in tx) {
       return response.retryRequired(tx.err)
     }
 
     const sig = await sendTransaction(wallet, tx.ok, this.#conn, response)
-    if ("err" in sig) {
+    if ('err' in sig) {
       response.transactionFailed(sig.err)
     } else {
       response.succeed({ recipientAddr: params.recipientAddr, signature: sig.ok })
     }
   }
 
-  async __prepareCreatePlayerProfile(
+  async _prepareCreatePlayerProfile(
     payerKey: PublicKey,
     params: CreatePlayerProfileParams
-  ): Promise<Result<{ ixs: TransactionInstruction[], profileKey: PublicKey }, CreatePlayerProfileError>> {
+  ): Promise<Result<{ ixs: TransactionInstruction[]; profileKey: PublicKey }, CreatePlayerProfileError>> {
     let ixs = []
     const { nick, pfp } = params
     if (nick.length > 16) {
@@ -412,31 +453,35 @@ export class SolanaTransport implements ITransport {
     return {
       ok: {
         ixs,
-        profileKey
-      }
+        profileKey,
+      },
     }
   }
 
-  async createPlayerProfile(wallet: IWallet, params: CreatePlayerProfileParams, response: ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>): Promise<void> {
+  async createPlayerProfile(
+    wallet: IWallet,
+    params: CreatePlayerProfileParams,
+    response: ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>
+  ): Promise<void> {
     let ixs: TransactionInstruction[] = []
 
     const payerKey = new PublicKey(wallet.walletAddr)
 
-    const createPlayerProfile = await this.__prepareCreatePlayerProfile(payerKey, params)
-    if ("err" in createPlayerProfile) {
+    const createPlayerProfile = await this._prepareCreatePlayerProfile(payerKey, params)
+    if ('err' in createPlayerProfile) {
       return response.failed(createPlayerProfile.err)
     }
 
     const { ixs: createProfileIxs, profileKey } = createPlayerProfile.ok
     ixs.push(...createProfileIxs)
 
-    let tx= await makeTransaction(this.#conn, payerKey, ixs)
-    if ("err" in tx) {
+    let tx = await makeTransaction(this.#conn, payerKey, ixs)
+    if ('err' in tx) {
       return response.retryRequired(tx.err)
     }
 
     const sig = await sendTransaction(wallet, tx.ok, this.#conn, response)
-    if ("err" in sig) {
+    if ('err' in sig) {
       response.transactionFailed(sig.err)
     } else {
       response.succeed({
@@ -445,12 +490,15 @@ export class SolanaTransport implements ITransport {
           nick: params.nick,
           pfp: params.pfp,
           addr: profileKey.toBase58(),
-        }
+        },
       })
     }
   }
 
-  async _prepareCreateTokenAccount(payerKey: PublicKey, tokenMintKey: PublicKey): Promise<{ ixs: TransactionInstruction[], tokenAccount: Keypair }> {
+  async _prepareCreateTokenAccount(
+    payerKey: PublicKey,
+    tokenMintKey: PublicKey
+  ): Promise<{ ixs: TransactionInstruction[]; tokenAccount: Keypair }> {
     const { account, ixs } = await this._prepareCreateAccount(payerKey, AccountLayout.span, TOKEN_PROGRAM_ID)
 
     const initStakeAccountIx = createInitializeAccountInstruction(
@@ -464,11 +512,15 @@ export class SolanaTransport implements ITransport {
 
     return {
       ixs,
-      tokenAccount: account
+      tokenAccount: account,
     }
   }
 
-  async _prepareCreateAccount(payerKey: PublicKey, size: number, programId: PublicKey): Promise<{ ixs: TransactionInstruction[], account: Keypair }> {
+  async _prepareCreateAccount(
+    payerKey: PublicKey,
+    size: number,
+    programId: PublicKey
+  ): Promise<{ ixs: TransactionInstruction[]; account: Keypair }> {
     const account = Keypair.generate()
     const accountKey = account.publicKey
     const lamports = await this.#conn.getMinimumBalanceForRentExemption(size)
@@ -483,8 +535,12 @@ export class SolanaTransport implements ITransport {
     return { ixs: [ix], account }
   }
 
-  async _prepareCreateRecipient(payerKey: PublicKey, params: CreateRecipientParams):
-  Promise<Result<{ recipientAccount: Keypair, ixs: TransactionInstruction[], signers: Keypair[] }, CreateRecipientError>> {
+  async _prepareCreateRecipient(
+    payerKey: PublicKey,
+    params: CreateRecipientParams
+  ): Promise<
+    Result<{ recipientAccount: Keypair; ixs: TransactionInstruction[]; signers: Keypair[] }, CreateRecipientError>
+  > {
     if (params.slots.length > 10) {
       return { err: 'invalid-size' }
     }
@@ -499,16 +555,22 @@ export class SolanaTransport implements ITransport {
     }
 
     // Create Recipient Account
-    let { ixs: createRecipientAccountIxs, account: recipientAccount } = await this._prepareCreateAccount(payerKey, RECIPIENT_ACCOUNT_LEN, PROGRAM_ID)
+    let { ixs: createRecipientAccountIxs, account: recipientAccount } = await this._prepareCreateAccount(
+      payerKey,
+      RECIPIENT_ACCOUNT_LEN,
+      PROGRAM_ID
+    )
     ixs.push(...createRecipientAccountIxs)
     signers.push(recipientAccount)
-
 
     // Create Slot Stake Accounts
     let usedId: number[] = []
     let slots: instruction.SlotInit[] = []
     for (const slot of params.slots) {
-      const { ixs: createStakeAccountIxs, tokenAccount: stakeAccount } = await this._prepareCreateTokenAccount(payerKey, new PublicKey(slot.tokenAddr))
+      const { ixs: createStakeAccountIxs, tokenAccount: stakeAccount } = await this._prepareCreateTokenAccount(
+        payerKey,
+        new PublicKey(slot.tokenAddr)
+      )
       ixs.push(...createStakeAccountIxs)
       signers.push(stakeAccount)
       if (usedId.includes(slot.id)) {
@@ -521,16 +583,16 @@ export class SolanaTransport implements ITransport {
         slotType: slot.slotType === 'token' ? 0 : 1,
         initShares: slot.initShares.map(share => {
           let owner
-          if ("addr" in share.owner) {
+          if ('addr' in share.owner) {
             owner = new RecipientSlotOwnerAssigned({ addr: share.owner.addr })
           } else {
             owner = new RecipientSlotOwnerUnassigned({ identifier: share.owner.identifier })
           }
           return new instruction.SlotShareInit({
             owner,
-            weights: share.weights
+            weights: share.weights,
           })
-        })
+        }),
       })
       slots.push(slotInit)
     }
@@ -541,7 +603,7 @@ export class SolanaTransport implements ITransport {
       payerKey,
       recipientKey: recipientAccount.publicKey,
       slots,
-      capKey
+      capKey,
     })
 
     ixs.push(createRecipientIx)
@@ -551,19 +613,23 @@ export class SolanaTransport implements ITransport {
         ixs,
         recipientAccount,
         signers,
-      }
+      },
     }
   }
 
-  async createRecipient(wallet: IWallet, params: CreateRecipientParams, response: ResponseHandle<CreateRecipientResponse, CreateRecipientError>): Promise<void> {
+  async createRecipient(
+    wallet: IWallet,
+    params: CreateRecipientParams,
+    response: ResponseHandle<CreateRecipientResponse, CreateRecipientError>
+  ): Promise<void> {
     const payerKey = new PublicKey(wallet.walletAddr)
     const createRecipient = await this._prepareCreateRecipient(payerKey, params)
-    if ("err" in createRecipient) {
+    if ('err' in createRecipient) {
       return response.failed(createRecipient.err)
     }
     const { ixs, recipientAccount, signers } = createRecipient.ok
     const tx = await makeTransaction(this.#conn, payerKey, ixs)
-    if ("err" in tx) {
+    if ('err' in tx) {
       return response.retryRequired(tx.err)
     }
 
@@ -571,7 +637,7 @@ export class SolanaTransport implements ITransport {
     transaction.sign(signers)
 
     const sig = await sendTransaction(wallet, transaction, this.#conn, response)
-    if ("err" in sig) {
+    if ('err' in sig) {
       response.transactionFailed(sig.err)
     } else {
       response.succeed({ recipientAddr: recipientAccount.publicKey.toBase58(), signature: sig.ok })
@@ -844,10 +910,7 @@ export class SolanaTransport implements ITransport {
   /**
    * List tokens.
    */
-  async listTokensWithBalance(
-    walletAddr: string,
-    tokenAddrs: string[],
-  ): Promise<TokenWithBalance[]> {
+  async listTokensWithBalance(walletAddr: string, tokenAddrs: string[]): Promise<TokenWithBalance[]> {
     if (tokenAddrs.length > 30) {
       throw new Error('Too many token addresses in a row')
     }
@@ -966,7 +1029,7 @@ export class SolanaTransport implements ITransport {
     for (const a of parsedTokenAccounts.value) {
       if (
         a.account.data.parsed.info.tokenAmount.amount !== '1' ||
-          a.account.data.parsed.info.tokenAmount.decimals !== 0
+        a.account.data.parsed.info.tokenAmount.decimals !== 0
       ) {
         continue
       }
@@ -1049,60 +1112,65 @@ export class SolanaTransport implements ITransport {
   }
 }
 
-async function sendTransaction<T, E>(wallet: IWallet, tx: VersionedTransaction, conn: Connection, response: ResponseHandle<T, E>,  config?: SendTransactionOptions):
- Promise<SendTransactionResult> {
+async function sendTransaction<T, E>(
+  wallet: IWallet,
+  tx: VersionedTransaction,
+  conn: Connection,
+  response: ResponseHandle<T, E>,
+  config?: SendTransactionOptions
+): Promise<SendTransactionResult> {
+  const w = (wallet as SolanaWalletAdapter).wallet
 
-   const w = (wallet as SolanaWalletAdapter).wallet
+  const {
+    value: { blockhash, lastValidBlockHeight },
+  } = await conn.getLatestBlockhashAndContext()
 
-   const {
-     value: { blockhash, lastValidBlockHeight },
-   } = await conn.getLatestBlockhashAndContext()
+  response.waitingWallet()
+  const signedTransaction = await w.signTransaction(tx)
 
-   response.waitingWallet()
-   const signedTransaction = await w.signTransaction(tx)
+  try {
+    let simulationResult = await conn.simulateTransaction(signedTransaction, { sigVerify: false })
+    console.debug('Transaction simulation result:', simulationResult)
+    if (simulationResult.value.err) {
+      if (simulationResult.value.logs !== null) {
+        for (const log of simulationResult.value.logs) {
+          console.warn(log)
+        }
+      }
+      console.error(simulationResult.value.err)
+      response.transactionFailed('simulation error')
+      return { err: 'simulation-error' }
+    }
+  } catch (e: any) {
+    response.userRejected(e.toString())
+    return { err: e.toString() }
+  }
 
-   try {
-     let simulationResult = await conn.simulateTransaction(signedTransaction, { sigVerify: false })
-     console.debug('Transaction simulation result:', simulationResult)
-     if (simulationResult.value.err) {
-       if (simulationResult.value.logs !== null) {
-         for (const log of simulationResult.value.logs) {
-           console.warn(log)
-         }
-       }
-       response.transactionFailed('simulation error')
-       return { err: 'simulation-error' }
-     }
-   } catch (e: any) {
-     response.userRejected(e.toString())
-     return { err: e.toString() }
-   }
+  let signature: TransactionSignature
+  try {
+    signature = await conn.sendRawTransaction(signedTransaction.serialize())
+    response.confirming(signature)
+  } catch (e: any) {
+    response.userRejected(e.toString())
+    return { err: e.toString() }
+  }
 
-   let signature: TransactionSignature
-   try {
-     signature = await conn.sendRawTransaction(signedTransaction.serialize())
-     response.confirming(signature)
-   } catch (e: any) {
-     response.userRejected(e.toString())
-     return { err: e.toString() }
-   }
-
-   try {
-     const resp = await conn.confirmTransaction({ blockhash, lastValidBlockHeight, signature }, config?.commitment)
-     if (resp.value.err !== null) {
-       return { err: { signature, error: resp.value.err } }
-     } else {
-       return { ok: signature }
-     }
-   } catch (e: any) {
-     return { err: e.toString() }
-   }
- }
+  try {
+    const resp = await conn.confirmTransaction({ blockhash, lastValidBlockHeight, signature }, config?.commitment)
+    if (resp.value.err !== null) {
+      return { err: { signature, error: resp.value.err } }
+    } else {
+      return { ok: signature }
+    }
+  } catch (e: any) {
+    return { err: e.toString() }
+  }
+}
 
 async function makeTransaction(
   conn: Connection,
   feePayer: PublicKey,
-  instructions: TransactionInstruction[],
+  instructions: TransactionInstruction[]
 ): Promise<Result<VersionedTransaction, string>> {
   const d = new Date()
   const slot = await conn.getSlot()

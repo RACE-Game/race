@@ -19,11 +19,12 @@ pub enum EntryLock {
 pub struct Settle {
     pub player_id: u64,
     pub amount: u64,
+    pub eject: bool,
 }
 
 impl Settle {
-    pub fn new(player_id: u64, amount: u64) -> Self {
-        Self { player_id, amount }
+    pub fn new(player_id: u64, amount: u64, eject: bool) -> Self {
+        Self { player_id, amount, eject }
     }
 }
 
