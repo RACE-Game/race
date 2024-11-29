@@ -55,7 +55,7 @@ pub struct Broadcaster {
 }
 
 impl Broadcaster {
-    pub fn init(id: String, game_id: usize,) -> (Self, BroadcasterContext) {
+    pub fn init(id: String, game_id: usize) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);
@@ -89,11 +89,13 @@ impl Broadcaster {
         }
 
         warn!("Missing the checkpoint for settle_version = {}, the client won't be able to join this game.", settle_version);
-        let available_settle_versions: Vec<u64> = event_backup_groups.iter().map(|g| g.settle_version).collect();
+        let available_settle_versions: Vec<u64> = event_backup_groups
+            .iter()
+            .map(|g| g.settle_version)
+            .collect();
         warn!("Available versions are: {:?}", available_settle_versions);
         None
     }
-
 
     /// Retrieve a list of event histories with a given
     /// `settle_version`.  All events happened after the
@@ -101,32 +103,12 @@ impl Broadcaster {
     /// is provided, just return the events after the latest
     /// checkpoint.
     pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
-
         let mut frames: Vec<BroadcastFrame> = Vec::new();
         let event_backup_groups = self.event_backup_groups.lock().await;
 
-        if settle_version == 0 {
-            if let Some(group) = event_backup_groups.iter().last() {
-                let mut histories: Vec<EventHistory> = Vec::new();
-                frames.push(BroadcastFrame::Sync {
-                    sync: group.sync.clone()
-                });
-                for event in group.events.iter() {
-                    histories.push(EventHistory {
-                        event: event.event.clone(),
-                        timestamp: event.timestamp,
-                        state_sha: event.state_sha.clone(),
-                    });
-                }
-                frames.push(BroadcastFrame::EventHistories {
-                    game_addr: self.id.clone(),
-                    checkpoint_off_chain: group.checkpoint_off_chain.clone(),
-                    histories,
-                    state_sha: group.state_sha.clone(),
-                    settle_version: group.settle_version,
-                })
-            }
-        } else {
+        // By default, returns the histories with settle_version
+        // greater than the given one
+        if settle_version > 0 {
             for group in event_backup_groups.iter() {
                 if group.settle_version >= settle_version {
                     let mut histories: Vec<EventHistory> = Vec::new();
@@ -150,6 +132,31 @@ impl Broadcaster {
                     })
                 }
             }
+        }
+
+        // Return the latest one if the frames are still empty
+        if frames.is_empty() {
+            if let Some(group) = event_backup_groups.iter().last() {
+                let mut histories: Vec<EventHistory> = Vec::new();
+                frames.push(BroadcastFrame::Sync {
+                    sync: group.sync.clone(),
+                });
+                for event in group.events.iter() {
+                    histories.push(EventHistory {
+                        event: event.event.clone(),
+                        timestamp: event.timestamp,
+                        state_sha: event.state_sha.clone(),
+                    });
+                }
+                frames.push(BroadcastFrame::EventHistories {
+                    game_addr: self.id.clone(),
+                    checkpoint_off_chain: group.checkpoint_off_chain.clone(),
+                    histories,
+                    state_sha: group.state_sha.clone(),
+                    settle_version: group.settle_version,
+                })
+            }
+        } else {
         }
 
         frames
@@ -390,7 +397,7 @@ mod tests {
                     access_version: 10,
                     verify_key: "alice".into(),
                 }
-                    .into()],
+                .into()],
                 access_version: 10,
             };
             let event_frame = EventFrame::TxState {

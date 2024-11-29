@@ -1349,7 +1349,6 @@ impl SolanaTransport {
     }
 
     /// Get the state of an on-chain game account by its public key
-    /// It queries the chain according to different modes
     /// Not for public API usage
     async fn internal_get_game_state(
         &self,
