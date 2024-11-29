@@ -6,7 +6,7 @@ use crate::component::{
 };
 use crate::frame::{EventFrame, SignalFrame};
 use race_core::error::{Error, Result};
-use race_core::types::{PlayerJoin, ServerJoin};
+use race_core::types::{PlayerDeposit, PlayerJoin, ServerJoin};
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::context::GameContext;
 use race_core::storage::StorageT;
@@ -46,6 +46,14 @@ fn create_init_sync(game_account: &GameAccount) -> Result<EventFrame> {
         .cloned()
         .collect();
 
+    let settle_version = game_account.settle_version;
+    let new_deposits: Vec<PlayerDeposit> = game_account
+        .deposits
+        .iter()
+        .filter(|d| d.settle_version == settle_version)
+        .cloned()
+        .collect();
+
     let transactor_addr = game_account
         .transactor_addr
         .clone()
@@ -55,7 +63,7 @@ fn create_init_sync(game_account: &GameAccount) -> Result<EventFrame> {
         access_version: game_account.access_version,
         new_players,
         new_servers,
-        new_deposits: vec![],
+        new_deposits,
         transactor_addr,
     };
 
@@ -83,7 +91,7 @@ impl TransactorHandle {
         let checkpoint = game_context.checkpoint().clone();
 
         info!("Use checkpoint: {}", !game_context.checkpoint_is_empty());
-        let init_sync = create_init_sync(&game_account)?;
+        // let init_sync = create_init_sync(&game_account)?;
 
         let handler = WrappedHandler::load_by_bundle(bundle_account, encryptor.clone()).await?;
 
@@ -137,6 +145,7 @@ impl TransactorHandle {
                 checkpoint,
             })
             .await;
+        let init_sync = create_init_sync(&game_account)?;
         event_bus.send(init_sync).await;
 
         let mut synchronizer_handle = synchronizer.start(&game_account.addr, synchronizer_ctx);
