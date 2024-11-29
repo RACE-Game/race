@@ -7,7 +7,6 @@ pub const GAME_ACCOUNT_LEN: usize = 32;
 pub const REGISTRY_INITIAL_ACCOUNT_LEN: usize = 40;
 pub const RECIPIENT_ACCOUNT_LEN: usize = 2000;
 pub const NAME_LEN: usize = 16; // Max len of player nickname | game title
-#[cfg(test)]
 pub const NATIVE_MINT: &str = "So11111111111111111111111111111111111111112";
 /// Max length for metadata's name field
 pub const MAX_NAME_LENGTH: usize = 32;

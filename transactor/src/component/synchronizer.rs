@@ -91,7 +91,6 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
 
                 sub_item = sub.next() => {
                     if let Some(Some(game_account)) = sub_item {
-                        retry = 0;
 
                         let GameAccount {
                             players,
@@ -164,9 +163,10 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                         }
 
                         prev_access_version = access_version;
+                        retry = 0;
                     } else {
                         retry += 1;
-                        let interval = u64::pow(2, retry as _).min(20);
+                        let interval = (retry * 10).min(20);
                         warn!("{} Game account not found, will retry after {} seconds", env.log_prefix, interval);
                         tokio::time::sleep(Duration::from_secs(interval)).await;
                     }

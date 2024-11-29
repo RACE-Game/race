@@ -16,7 +16,12 @@ use race_core::{
     error::{Error, Result},
     transport::TransportT,
     types::{
-        AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams
+        AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams,
+        CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
+        GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams,
+        RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
+        RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer,
+        UnregisterGameParams, VoteParams,
     },
 };
 
@@ -24,6 +29,7 @@ use race_core::{
 use std::str::FromStr;
 use std::{path::PathBuf, pin::Pin};
 
+use solana_account_decoder::UiAccountEncoding;
 use solana_pubsub_client::nonblocking::pubsub_client::PubsubClient;
 use solana_rpc_client::rpc_client::RpcClient;
 use solana_rpc_client_api::config::{RpcAccountInfoConfig, RpcSendTransactionConfig};
@@ -43,7 +49,6 @@ use solana_sdk::{
     system_program,
     sysvar::rent,
 };
-use solana_account_decoder::UiAccountEncoding;
 use spl_associated_token_account::{
     get_associated_token_address, instruction::create_associated_token_account,
 };
@@ -61,6 +66,10 @@ fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
     let keypair = solana_sdk::signature::read_keypair_file(path)
         .map_err(|e| TransportError::InvalidKeyfile(e.to_string()))?;
     Ok(keypair)
+}
+
+fn is_native_mint(mint_pubkey: &Pubkey) -> bool {
+    mint_pubkey.to_string().eq(NATIVE_MINT)
 }
 
 pub struct SolanaTransport {
@@ -85,6 +94,8 @@ impl TransportT for SolanaTransport {
         let game_account = Keypair::new();
         let game_account_pubkey = game_account.pubkey();
         let lamports = self.get_min_lamports(GAME_ACCOUNT_LEN)?;
+
+        let mut ixs = vec![];
         let create_game_account_ix = system_instruction::create_account(
             &payer_pubkey,
             &game_account_pubkey,
@@ -93,27 +104,54 @@ impl TransportT for SolanaTransport {
             &self.program_id,
         );
 
+        ixs.push(create_game_account_ix);
         let recipient_pubkey = Self::parse_pubkey(&params.recipient_addr)?;
         let token_mint_pubkey = Self::parse_pubkey(&params.token_addr)?;
-        let stake_account = Keypair::new();
-        let stake_account_pubkey = stake_account.pubkey();
-        let stake_account_len = Account::LEN;
-        let stake_lamports = self.get_min_lamports(stake_account_len)?;
-        let create_stake_account_ix = system_instruction::create_account(
-            &payer_pubkey,
-            &stake_account_pubkey,
-            stake_lamports,
-            stake_account_len as u64,
-            &spl_token::id(),
-        );
 
-        let init_stake_account_ix = spl_token_instruction::initialize_account(
-            &spl_token::id(),
-            &stake_account_pubkey,
-            &token_mint_pubkey,
-            &payer_pubkey,
-        )
+        let (stake_account_pubkey, stake_account) = if is_native_mint(&token_mint_pubkey) {
+            // For game with SOL, use PDA as stake account
+
+            let (pda, _bump_seed) =
+                Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
+
+            let fee = self.get_recent_prioritization_fees(&[game_account_pubkey])?;
+            let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
+            ixs.push(set_cu_prize_ix);
+
+            (pda, None)
+        } else {
+            // For game with SPL, use dedicated stake account
+            let stake_account_len = Account::LEN;
+            let stake_lamports = self.get_min_lamports(stake_account_len)?;
+            let stake_account = Keypair::new();
+            let stake_account_pubkey = stake_account.pubkey();
+            let create_stake_account_ix = system_instruction::create_account(
+                &payer_pubkey,
+                &stake_account_pubkey,
+                stake_lamports,
+                stake_account_len as u64,
+                &spl_token::id(),
+            );
+
+            let init_stake_account_ix = spl_token_instruction::initialize_account(
+                &spl_token::id(),
+                &stake_account_pubkey,
+                &token_mint_pubkey,
+                &payer_pubkey,
+            )
             .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+
+            let fee =
+                self.get_recent_prioritization_fees(&[game_account_pubkey, stake_account_pubkey])?;
+            let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
+            ixs.push(set_cu_prize_ix);
+            ixs.push(create_stake_account_ix);
+            ixs.push(init_stake_account_ix);
+
+            (stake_account_pubkey, Some(stake_account))
+        };
 
         let create_game_ix = Instruction::new_with_borsh(
             self.program_id,
@@ -123,7 +161,7 @@ impl TransportT for SolanaTransport {
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new(game_account_pubkey, false),
-                AccountMeta::new(stake_account_pubkey, true),
+                AccountMeta::new(stake_account_pubkey, false),
                 AccountMeta::new_readonly(token_mint_pubkey, false),
                 AccountMeta::new_readonly(spl_token::id(), false),
                 AccountMeta::new_readonly(bundle_pubkey, false),
@@ -132,24 +170,19 @@ impl TransportT for SolanaTransport {
             ],
         );
 
-        let fee =
-            self.get_recent_prioritization_fees(&[game_account_pubkey, stake_account_pubkey])?;
-        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+        ixs.push(create_game_ix);
 
-        let message = Message::new(
-            &[
-                set_cu_prize_ix,
-                create_game_account_ix,
-                create_stake_account_ix,
-                init_stake_account_ix,
-                create_game_ix,
-            ],
-            Some(&payer.pubkey()),
-        );
+        let message = Message::new(&ixs, Some(&payer.pubkey()));
 
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
-        tx.sign(&[payer, &game_account, &stake_account], blockhash);
+
+        if let Some(stake_account) = stake_account {
+            tx.sign(&[payer, &game_account, &stake_account], blockhash);
+        } else {
+            tx.sign(&[payer, &game_account], blockhash);
+        }
+
         self.send_transaction(tx)?;
         Ok(game_account_pubkey.to_string())
     }
@@ -158,15 +191,14 @@ impl TransportT for SolanaTransport {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
         let game_account_pubkey = Self::parse_pubkey(&params.addr)?;
-        let game_state = self
-            .internal_get_game_state(&game_account_pubkey)
-            .await?;
+        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
         let stake_account_pubkey = game_state.stake_account;
 
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
 
-        let ata_account_pubkey = get_associated_token_address(&game_account_pubkey, &game_state.token_mint);
+        let ata_account_pubkey =
+            get_associated_token_address(&game_account_pubkey, &game_state.token_mint);
 
         let close_game_ix = Instruction::new_with_borsh(
             self.program_id,
@@ -212,7 +244,11 @@ impl TransportT for SolanaTransport {
 
         ixs.push(set_cu_prize_ix);
 
-        if self.client.get_account_data(&server_account_pubkey).is_err() {
+        if self
+            .client
+            .get_account_data(&server_account_pubkey)
+            .is_err()
+        {
             let create_server_account_ix = create_account_with_seed(
                 &payer_pubkey,
                 &server_account_pubkey,
@@ -238,10 +274,7 @@ impl TransportT for SolanaTransport {
 
         ixs.push(init_or_update_ix);
 
-        let message = Message::new(
-            &ixs,
-            Some(&payer_pubkey),
-        );
+        let message = Message::new(&ixs, Some(&payer_pubkey));
 
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
@@ -260,9 +293,7 @@ impl TransportT for SolanaTransport {
                 .map_err(|_| TransportError::AddressCreationFailed)?;
 
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
-        let game_state = self
-            .internal_get_game_state(&game_account_pubkey)
-            .await?;
+        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
 
         let mint_pubkey = game_state.token_mint;
         let payer_ata = get_associated_token_address(&payer_pubkey, &mint_pubkey);
@@ -295,7 +326,7 @@ impl TransportT for SolanaTransport {
             &mint_pubkey,
             &payer_pubkey,
         )
-            .map_err(|_| TransportError::InitInstructionFailed)?;
+        .map_err(|_| TransportError::InitInstructionFailed)?;
         ixs.push(init_temp_account_ix);
 
         if is_wsol {
@@ -315,7 +346,7 @@ impl TransportT for SolanaTransport {
                 &[&payer_pubkey],
                 params.amount,
             )
-                .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+            .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
             ixs.push(spl_transfer_ix);
         }
 
@@ -484,7 +515,7 @@ impl TransportT for SolanaTransport {
             Some(&payer_pubkey),
             0,
         )
-            .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
+        .map_err(|e| TransportError::InitializationFailed(e.to_string()))?;
 
         let (metadata_pda, _bump_seed) = Pubkey::find_program_address(
             &[
@@ -570,9 +601,7 @@ impl TransportT for SolanaTransport {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
         let game_account_pubkey = Self::parse_pubkey(&addr)?;
-        let game_state = self
-            .internal_get_game_state(&game_account_pubkey)
-            .await?;
+        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
 
         if game_state.settle_version != params.settle_version {
             return Err(Error::SettleVersionMismatch(
@@ -604,14 +633,25 @@ impl TransportT for SolanaTransport {
             vec![Pubkey::from_str(&addr).unwrap(), game_state.stake_account];
 
         for settle in settles.iter() {
-            let Some(player) = game_state.players.iter().find(|p| p.access_version == settle.player_id) else {
-                return Err(Error::InvalidSettle(format!("Player id {} in settle is invalid", settle.player_id)));
+            let Some(player) = game_state
+                .players
+                .iter()
+                .find(|p| p.access_version == settle.player_id)
+            else {
+                return Err(Error::InvalidSettle(format!(
+                    "Player id {} in settle is invalid",
+                    settle.player_id
+                )));
             };
 
-            let ata = get_associated_token_address(&player.addr, &game_state.token_mint);
-
-            accounts.push(AccountMeta::new(ata, false));
-            calc_cu_prize_addrs.push(ata);
+            if is_native_mint(&game_state.token_mint) {
+                accounts.push(AccountMeta::new(player.addr.clone(), false));
+                calc_cu_prize_addrs.push(player.addr.clone());
+            } else {
+                let ata = get_associated_token_address(&player.addr, &game_state.token_mint);
+                accounts.push(AccountMeta::new(ata, false));
+                calc_cu_prize_addrs.push(ata);
+            }
 
             ix_settles.push(IxSettle {
                 access_version: settle.player_id,
@@ -749,35 +789,7 @@ impl TransportT for SolanaTransport {
             }
             used_id.push(slot.id);
 
-            let stake_account = Keypair::new();
-
-            let stake_addr = stake_account.pubkey();
-            account_metas.push(AccountMeta::new_readonly(stake_addr, false));
-
             let token_mint_pubkey = Self::parse_pubkey(&slot.token_addr)?;
-
-            let stake_account_pubkey = stake_account.pubkey();
-            let stake_account_len = Account::LEN;
-            let stake_lamports = self.get_min_lamports(stake_account_len)?;
-
-            let create_stake_account_ix = system_instruction::create_account(
-                &payer_pubkey,
-                &stake_account_pubkey,
-                stake_lamports,
-                stake_account_len as u64,
-                &spl_token::id(),
-            );
-
-            let init_stake_account_ix = spl_token_instruction::initialize_account(
-                &spl_token::id(),
-                &stake_account_pubkey,
-                &token_mint_pubkey,
-                &payer_pubkey,
-            )
-                .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
-
-            init_token_accounts_ixs.push(create_stake_account_ix);
-            init_token_accounts_ixs.push(init_stake_account_ix);
 
             let init_shares = slot
                 .init_shares
@@ -785,15 +797,57 @@ impl TransportT for SolanaTransport {
                 .map(TryInto::try_into)
                 .collect::<TransportResult<Vec<IxRecipientSlotShareInit>>>()?;
 
-            slots.push(IxRecipientSlotInit {
-                id: slot.id,
-                slot_type: slot.slot_type,
-                token_addr: Self::parse_pubkey(&slot.token_addr)?,
-                stake_addr: stake_account_pubkey,
-                init_shares,
-            });
+            if is_native_mint(&token_mint_pubkey) {
+                // For SOL games, use PDA as stake account.
+                let (pda, _) = Pubkey::find_program_address(
+                    &[recipient_account_pubkey.as_ref(), &[slot.id]],
+                    &self.program_id,
+                );
 
-            extra_signers.push(stake_account);
+                slots.push(IxRecipientSlotInit {
+                    id: slot.id,
+                    slot_type: slot.slot_type,
+                    token_addr: Self::parse_pubkey(&slot.token_addr)?,
+                    stake_addr: pda,
+                    init_shares,
+                });
+                account_metas.push(AccountMeta::new(pda, false));
+            } else {
+                let stake_account = Keypair::new();
+                // For SPL games, create a dedicated stake account
+                let stake_account_pubkey = stake_account.pubkey();
+                let stake_account_len = Account::LEN;
+                let stake_lamports = self.get_min_lamports(stake_account_len)?;
+
+                let create_stake_account_ix = system_instruction::create_account(
+                    &payer_pubkey,
+                    &stake_account_pubkey,
+                    stake_lamports,
+                    stake_account_len as u64,
+                    &spl_token::id(),
+                );
+
+                let init_stake_account_ix = spl_token_instruction::initialize_account(
+                    &spl_token::id(),
+                    &stake_account_pubkey,
+                    &token_mint_pubkey,
+                    &payer_pubkey,
+                )
+                .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
+
+                init_token_accounts_ixs.push(create_stake_account_ix);
+                init_token_accounts_ixs.push(init_stake_account_ix);
+                account_metas.push(AccountMeta::new(stake_account_pubkey, false));
+
+                slots.push(IxRecipientSlotInit {
+                    id: slot.id,
+                    slot_type: slot.slot_type,
+                    token_addr: Self::parse_pubkey(&slot.token_addr)?,
+                    stake_addr: stake_account_pubkey,
+                    init_shares,
+                });
+                extra_signers.push(stake_account);
+            }
         }
 
         let create_recipient_ix = Instruction::new_with_borsh(
@@ -973,9 +1027,7 @@ impl TransportT for SolanaTransport {
 
     async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
         let game_account_pubkey = Self::parse_pubkey(addr)?;
-        let game_state = self
-            .internal_get_game_state(&game_account_pubkey)
-            .await?;
+        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
         Ok(Some(game_state.into_account(addr)?))
     }
 
@@ -1054,16 +1106,26 @@ impl TransportT for SolanaTransport {
                 .ok_or(Error::TransportError(
                     "[Unreachable] Cannot get recipient".into(),
                 ))?;
-            let token_data =
-                self.client
-                    .get_account_data(stake_addr)
-                    .or(Err(Error::TransportError(
-                        "Cannot get the state of stake account".into(),
-                    )))?;
-            let token_state = Account::unpack(&token_data).or(Err(Error::TransportError(
-                "Cannot parse data of stake account".into(),
-            )))?;
-            slot.balance = token_state.amount;
+            if is_native_mint(&parse_pubkey(&slot.token_addr)?) {
+                let stake_account =
+                    self.client
+                        .get_account(stake_addr)
+                        .or(Err(Error::TransportError(
+                            "Cannot get the state of stake account".into(),
+                        )))?;
+                slot.balance = stake_account.lamports;
+            } else {
+                let stake_account =
+                    self.client
+                        .get_account_data(stake_addr)
+                        .or(Err(Error::TransportError(
+                            "Cannot get the state of stake account".into(),
+                        )))?;
+                let stake_account_state = Account::unpack(&stake_account).or(Err(Error::TransportError(
+                    "Cannot parse data of stake account".into(),
+                )))?;
+                slot.balance = stake_account_state.amount;
+            }
         }
         Ok(Some(recipient_account))
     }
@@ -1112,12 +1174,18 @@ impl TransportT for SolanaTransport {
                 match slot_share.owner {
                     RecipientSlotOwner::Assigned { ref addr } if addr.eq(&payer_pubkey) => {
                         account_metas.push(AccountMeta::new(slot.stake_addr, false));
-                        let ata = get_associated_token_address(addr, &slot.token_addr);
                         info!(
                             "Expect to claim tokens from slot {}, token address: {}",
                             slot.id, slot.token_addr
                         );
-                        account_metas.push(AccountMeta::new(ata, false));
+                        if is_native_mint(&slot.token_addr) {
+                            info!("Receiver: {}", payer.pubkey());
+                            account_metas.push(AccountMeta::new(payer.pubkey(), false));
+                        } else {
+                            let ata = get_associated_token_address(addr, &slot.token_addr);
+                            info!("Receiver: {}", ata);
+                            account_metas.push(AccountMeta::new(ata, false));
+                        }
                     }
                     _ => (),
                 }
@@ -1258,8 +1326,10 @@ impl SolanaTransport {
             .poll_for_signature_confirmation(&sig, confirm_num)
             .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
 
-
-        match self.client.get_transaction(&sig, UiTransactionEncoding::Json) {
+        match self
+            .client
+            .get_transaction(&sig, UiTransactionEncoding::Json)
+        {
             Ok(tx) => {
                 if let Some(meta) = tx.transaction.meta {
                     meta.log_messages.map(|log_messages| {
@@ -1479,7 +1549,12 @@ mod tests {
             .close_game_account(CloseGameAccountParams { addr: addr.clone() })
             .await
             .expect("Failed to close");
-        assert_eq!(None, transport.get_game_account(&addr, CommitmentConfig::Finalized).await?);
+        assert_eq!(
+            None,
+            transport
+                .get_game_account(&addr, CommitmentConfig::Finalized)
+                .await?
+        );
         Ok(())
     }
 
