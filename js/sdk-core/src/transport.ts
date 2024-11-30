@@ -154,7 +154,7 @@ export type RecipientClaimResponse = {
   signature: string
 }
 
-export type RecipientClaimError = 'not-found'
+export type RecipientClaimError = 'not-found' | 'no-slots-to-claim'
 
 export interface ITransport {
   get chain(): Chain

@@ -114,7 +114,7 @@ impl TransportT for SolanaTransport {
             let (pda, _bump_seed) =
                 Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
 
-            let fee = self.get_recent_prioritization_fees(&[game_account_pubkey])?;
+            let fee = self.get_recent_prioritization_fees(&[game_account_pubkey, pda])?;
             let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
 
             ixs.push(set_cu_prize_ix);
