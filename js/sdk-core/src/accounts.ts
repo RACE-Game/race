@@ -5,191 +5,184 @@ export const ENTRY_LOCKS = ['Open', 'JoinOnly', 'DepositOnly', 'Closed'] as cons
 export type EntryLock = UnionFromValues<typeof ENTRY_LOCKS>
 
 export interface PlayerJoin {
-  readonly addr: string
-  readonly position: number
-  readonly accessVersion: bigint
-  readonly verifyKey: string
+    readonly addr: string
+    readonly position: number
+    readonly accessVersion: bigint
+    readonly verifyKey: string
 }
 
 export interface PlayerDeposit {
-  readonly addr: string
-  readonly amount: bigint
-  readonly settleVersion: bigint
+    readonly addr: string
+    readonly amount: bigint
+    readonly settleVersion: bigint
 }
 
 export interface ServerJoin {
-  readonly addr: string
-  readonly endpoint: string
-  readonly accessVersion: bigint
-  readonly verifyKey: string
+    readonly addr: string
+    readonly endpoint: string
+    readonly accessVersion: bigint
+    readonly verifyKey: string
 }
 
 export const VOTE_TYPES = ['ServerVoteTransactorDropOff', 'ClientVoteTransactorDropOff'] as const
 export type VoteType = UnionFromValues<typeof VOTE_TYPES>
 
 export interface Vote {
-  readonly voter: string
-  readonly votee: string
-  readonly voteType: VoteType
+    readonly voter: string
+    readonly votee: string
+    readonly voteType: VoteType
 }
 
 export interface GameRegistration {
-  readonly title: string
-  readonly addr: string
-  readonly regTime: bigint
-  readonly bundleAddr: string
+    readonly title: string
+    readonly addr: string
+    readonly regTime: bigint
+    readonly bundleAddr: string
 }
 
 export interface GameAccount {
-  readonly addr: string
-  readonly title: string
-  readonly bundleAddr: string
-  readonly tokenAddr: string
-  readonly ownerAddr: string
-  readonly settleVersion: bigint
-  readonly accessVersion: bigint
-  readonly players: PlayerJoin[]
-  readonly deposits: PlayerDeposit[]
-  readonly servers: ServerJoin[]
-  readonly transactorAddr: string | undefined
-  readonly votes: Vote[]
-  readonly unlockTime: bigint | undefined
-  readonly maxPlayers: number
-  readonly dataLen: number
-  readonly data: Uint8Array
-  readonly entryType: EntryType
-  readonly recipientAddr: string
-  readonly checkpointOnChain: CheckpointOnChain | undefined
-  readonly entryLock: EntryLock
+    readonly addr: string
+    readonly title: string
+    readonly bundleAddr: string
+    readonly tokenAddr: string
+    readonly ownerAddr: string
+    readonly settleVersion: bigint
+    readonly accessVersion: bigint
+    readonly players: PlayerJoin[]
+    readonly deposits: PlayerDeposit[]
+    readonly servers: ServerJoin[]
+    readonly transactorAddr: string | undefined
+    readonly votes: Vote[]
+    readonly unlockTime: bigint | undefined
+    readonly maxPlayers: number
+    readonly dataLen: number
+    readonly data: Uint8Array
+    readonly entryType: EntryType
+    readonly recipientAddr: string
+    readonly checkpointOnChain: CheckpointOnChain | undefined
+    readonly entryLock: EntryLock
 }
 
 export interface ServerAccount {
-  readonly addr: string
-  readonly endpoint: string
+    readonly addr: string
+    readonly endpoint: string
 }
 
 export interface GameBundle {
-  readonly addr: string
-  readonly uri: string
-  readonly name: string
-  readonly data: Uint8Array
+    readonly addr: string
+    readonly uri: string
+    readonly name: string
+    readonly data: Uint8Array
 }
 
 export interface PlayerProfile {
-  readonly addr: string
-  readonly nick: string
-  readonly pfp: string | undefined
+    readonly addr: string
+    readonly nick: string
+    readonly pfp: string | undefined
 }
 
 export interface RegistrationAccount {
-  readonly addr: string
-  readonly isPrivate: boolean
-  readonly size: number
-  readonly owner: string | undefined
-  readonly games: GameRegistration[]
+    readonly addr: string
+    readonly isPrivate: boolean
+    readonly size: number
+    readonly owner: string | undefined
+    readonly games: GameRegistration[]
 }
 
 export interface Token {
-  readonly addr: string
-  readonly icon: string
-  readonly name: string
-  readonly symbol: string
-  readonly decimals: number
+    readonly addr: string
+    readonly icon: string
+    readonly name: string
+    readonly symbol: string
+    readonly decimals: number
 }
 
 export class TokenWithBalance {
-  readonly addr!: string
-  readonly icon!: string
-  readonly name!: string
-  readonly symbol!: string
-  readonly decimals!: number
-  readonly amount!: bigint
-  readonly uiAmount!: string
-  constructor(token: Token, amount: bigint) {
-    Object.assign(this, token)
-    this.amount = amount
-    this.uiAmount = (Number(amount) / Math.pow(10, token.decimals)).toLocaleString()
-  }
+    readonly addr!: string
+    readonly icon!: string
+    readonly name!: string
+    readonly symbol!: string
+    readonly decimals!: number
+    readonly amount!: bigint
+    readonly uiAmount!: string
+    constructor(token: Token, amount: bigint) {
+        Object.assign(this, token)
+        this.amount = amount
+        this.uiAmount = (Number(amount) / Math.pow(10, token.decimals)).toLocaleString()
+    }
 }
 
 export interface Nft {
-  readonly addr: string
-  readonly image: string
-  readonly name: string
-  readonly symbol: string
-  readonly collection: string | undefined
-  readonly metadata: any
+    readonly addr: string
+    readonly image: string
+    readonly name: string
+    readonly symbol: string
+    readonly collection: string | undefined
+    readonly metadata: any
 }
 
 export interface RecipientAccount {
-  readonly addr: string
-  readonly capAddr: string | undefined
-  readonly slots: RecipientSlot[]
+    readonly addr: string
+    readonly capAddr: string | undefined
+    readonly slots: RecipientSlot[]
 }
 
-export const RECIPIENT_SLOT_TYPES = [ 'Nft', 'Token' ] as const
+export const RECIPIENT_SLOT_TYPES = ['Nft', 'Token'] as const
 
 export type RecipientSlotType = UnionFromValues<typeof RECIPIENT_SLOT_TYPES>
 
 export interface RecipientSlot {
-  readonly id: number
-  readonly slotType: RecipientSlotType
-  readonly tokenAddr: string
-  readonly shares: RecipientSlotShare[]
-  readonly balance: bigint
+    readonly id: number
+    readonly slotType: RecipientSlotType
+    readonly tokenAddr: string
+    readonly shares: RecipientSlotShare[]
+    readonly balance: bigint
 }
 
 export interface RecipientSlotShare {
-  readonly owner: RecipientSlotOwner
-  readonly weights: number
-  readonly claimAmount: bigint
+    readonly owner: RecipientSlotOwner
+    readonly weights: number
+    readonly claimAmount: bigint
 }
 
 export type RecipientSlotOwnerKind<T extends 'unassigned' | 'assigned'> = IKind<T>
 
 export type RecipientSlotOwnerUnassigned = {
-  readonly identifier: string
+    readonly identifier: string
 } & RecipientSlotOwnerKind<'unassigned'>
 
 export type RecipientSlotOwnerAssigned = {
-  readonly addr: string
+    readonly addr: string
 } & RecipientSlotOwnerKind<'assigned'>
 
-export type RecipientSlotOwner =
-  | RecipientSlotOwnerUnassigned
-  | RecipientSlotOwnerAssigned
+export type RecipientSlotOwner = RecipientSlotOwnerUnassigned | RecipientSlotOwnerAssigned
 
 export type EntryTypeKind<T extends 'cash' | 'ticket' | 'gating' | 'disabled'> = IKind<T>
 
 export type EntryTypeCash = {
-  readonly minDeposit: bigint
-  readonly maxDeposit: bigint
+    readonly minDeposit: bigint
+    readonly maxDeposit: bigint
 } & EntryTypeKind<'cash'>
 
 export type EntryTypeTicket = {
-  readonly amount: bigint
+    readonly amount: bigint
 } & EntryTypeKind<'ticket'>
 
 export type EntryTypeGating = {
-  readonly collection: string
+    readonly collection: string
 } & EntryTypeKind<'gating'>
 
-export type EntryTypeDisabled = {
-} & EntryTypeKind<'disabled'>
+export type EntryTypeDisabled = {} & EntryTypeKind<'disabled'>
 
-export type EntryType =
-  | EntryTypeCash
-  | EntryTypeTicket
-  | EntryTypeGating
-  | EntryTypeDisabled
+export type EntryType = EntryTypeCash | EntryTypeTicket | EntryTypeGating | EntryTypeDisabled
 
 /**
  * The registration account data with games consolidated.
  */
 export interface RegistrationWithGames {
-  readonly addr: string
-  readonly isPrivate: boolean
-  readonly size: number
-  readonly owner: string | undefined
-  readonly games: GameAccount[]
+    readonly addr: string
+    readonly isPrivate: boolean
+    readonly size: number
+    readonly owner: string | undefined
+    readonly games: GameAccount[]
 }

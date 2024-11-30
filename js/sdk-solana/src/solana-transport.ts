@@ -856,13 +856,13 @@ export class SolanaTransport implements ITransport {
                 const name = metadataState.data.name
                     ? trimString(metadataState.data.name)
                     : legacyToken
-                      ? legacyToken.name
-                      : ''
+                    ? legacyToken.name
+                    : ''
                 const symbol = metadataState.data.symbol
                     ? trimString(metadataState.data.symbol)
                     : legacyToken
-                      ? legacyToken.symbol
-                      : ''
+                    ? legacyToken.symbol
+                    : ''
                 const icon = image ? image : legacyToken?.logoURI ? legacyToken.logoURI : ''
                 return { addr, decimals, name, symbol, icon }
             } else {
@@ -894,8 +894,8 @@ export class SolanaTransport implements ITransport {
         const symbol = metadataState.data.symbol
             ? trimString(metadataState.data.symbol)
             : legacyToken
-              ? legacyToken.symbol
-              : ''
+            ? legacyToken.symbol
+            : ''
         const icon = image ? image : legacyToken?.logoURI ? legacyToken.logoURI : ''
         return [name, symbol, icon]
     }

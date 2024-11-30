@@ -6,9 +6,9 @@ type TxError = any
 export type SendTransactionResult = Result<Signature, TxError>
 
 export interface IWallet {
-  isConnected: boolean
+    isConnected: boolean
 
-  walletAddr: string
+    walletAddr: string
 
-  wallet: any
+    wallet: any
 }

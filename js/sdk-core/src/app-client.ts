@@ -12,14 +12,14 @@ import { ProfileLoader } from './profile-loader'
 import { BaseClient } from './base-client'
 import { GameAccount, GameBundle, Token } from './accounts'
 import {
-  ConnectionStateCallbackFunction,
-  EventCallbackFunction,
-  GameInfo,
-  MessageCallbackFunction,
-  TxStateCallbackFunction,
-  PlayerProfileWithPfp,
-  ProfileCallbackFunction,
-  ErrorCallbackFunction,
+    ConnectionStateCallbackFunction,
+    EventCallbackFunction,
+    GameInfo,
+    MessageCallbackFunction,
+    TxStateCallbackFunction,
+    PlayerProfileWithPfp,
+    ProfileCallbackFunction,
+    ErrorCallbackFunction,
 } from './types'
 import { SubClient } from './sub-client'
 import { Checkpoint, CheckpointOffChain } from './checkpoint'
@@ -29,389 +29,389 @@ import { ResponseHandle, ResponseStream } from './response'
 const BUNDLE_CACHE_TTL = 3600 * 365
 
 export type AppClientInitOpts = {
-  transport: ITransport
-  wallet: IWallet
-  gameAddr: string
-  onProfile?: ProfileCallbackFunction
-  onEvent: EventCallbackFunction
-  onMessage?: MessageCallbackFunction
-  onTxState?: TxStateCallbackFunction
-  onError?: ErrorCallbackFunction
-  onConnectionState?: ConnectionStateCallbackFunction
-  storage?: IStorage
+    transport: ITransport
+    wallet: IWallet
+    gameAddr: string
+    onProfile?: ProfileCallbackFunction
+    onEvent: EventCallbackFunction
+    onMessage?: MessageCallbackFunction
+    onTxState?: TxStateCallbackFunction
+    onError?: ErrorCallbackFunction
+    onConnectionState?: ConnectionStateCallbackFunction
+    storage?: IStorage
 }
 
 export type SubClientInitOpts = {
-  gameId: number
-  gameAddr: string
-  onEvent: EventCallbackFunction
-  onMessage?: MessageCallbackFunction
-  onTxState?: TxStateCallbackFunction
-  onError?: ErrorCallbackFunction
-  onConnectionState?: ConnectionStateCallbackFunction
+    gameId: number
+    gameAddr: string
+    onEvent: EventCallbackFunction
+    onMessage?: MessageCallbackFunction
+    onTxState?: TxStateCallbackFunction
+    onError?: ErrorCallbackFunction
+    onConnectionState?: ConnectionStateCallbackFunction
 }
 
 export type JoinOpts = {
-  amount: bigint
-  position?: number
-  createProfileIfNeeded?: boolean
+    amount: bigint
+    position?: number
+    createProfileIfNeeded?: boolean
 }
 
 export type AppClientCtorOpts = {
-  gameAddr: string
-  gameAccount: GameAccount
-  handler: Handler
-  wallet: IWallet
-  client: Client
-  transport: ITransport
-  connection: IConnection
-  gameContext: GameContext
-  onEvent: EventCallbackFunction
-  onMessage: MessageCallbackFunction | undefined
-  onTxState: TxStateCallbackFunction | undefined
-  onConnectionState: ConnectionStateCallbackFunction | undefined
-  onError: ErrorCallbackFunction | undefined
-  encryptor: IEncryptor
-  info: GameInfo
-  decryptionCache: DecryptionCache
-  profileLoader: ProfileLoader
-  storage: IStorage | undefined
-  endpoint: string
+    gameAddr: string
+    gameAccount: GameAccount
+    handler: Handler
+    wallet: IWallet
+    client: Client
+    transport: ITransport
+    connection: IConnection
+    gameContext: GameContext
+    onEvent: EventCallbackFunction
+    onMessage: MessageCallbackFunction | undefined
+    onTxState: TxStateCallbackFunction | undefined
+    onConnectionState: ConnectionStateCallbackFunction | undefined
+    onError: ErrorCallbackFunction | undefined
+    encryptor: IEncryptor
+    info: GameInfo
+    decryptionCache: DecryptionCache
+    profileLoader: ProfileLoader
+    storage: IStorage | undefined
+    endpoint: string
 }
 
 export class AppClient extends BaseClient {
-  __profileLoader: ProfileLoader
-  __storage?: IStorage
-  __endpoint: string
-  __latestGameAccount: GameAccount
+    __profileLoader: ProfileLoader
+    __storage?: IStorage
+    __endpoint: string
+    __latestGameAccount: GameAccount
 
-  constructor(opts: AppClientCtorOpts) {
-    super({
-      onLoadProfile: (id, addr) => opts.profileLoader.load(id, addr),
-      logPrefix: 'MainGame|',
-      gameId: 0,
-      latestCheckpointOnChain: opts.gameAccount.checkpointOnChain,
-      ...opts,
-    })
-    this.__profileLoader = opts.profileLoader
-    this.__storage = opts.storage
-    this.__endpoint = opts.endpoint
-    this.__latestGameAccount = opts.gameAccount
-  }
+    constructor(opts: AppClientCtorOpts) {
+        super({
+            onLoadProfile: (id, addr) => opts.profileLoader.load(id, addr),
+            logPrefix: 'MainGame|',
+            gameId: 0,
+            latestCheckpointOnChain: opts.gameAccount.checkpointOnChain,
+            ...opts,
+        })
+        this.__profileLoader = opts.profileLoader
+        this.__storage = opts.storage
+        this.__endpoint = opts.endpoint
+        this.__latestGameAccount = opts.gameAccount
+    }
 
-  static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
-    const {
-      transport,
-      wallet,
-      gameAddr,
-      onEvent,
-      onMessage,
-      onTxState,
-      onConnectionState,
-      onError,
-      onProfile,
-      storage,
-    } = opts
+    static async initialize(opts: AppClientInitOpts): Promise<AppClient> {
+        const {
+            transport,
+            wallet,
+            gameAddr,
+            onEvent,
+            onMessage,
+            onTxState,
+            onConnectionState,
+            onError,
+            onProfile,
+            storage,
+        } = opts
 
-    console.group(`Initialize AppClient, gameAddr = ${gameAddr}`)
-    try {
-      const playerAddr = wallet.walletAddr
-      console.info(`Player address: ${playerAddr}`)
-      const encryptor = await Encryptor.create(playerAddr, storage)
-      const gameAccount = await transport.getGameAccount(gameAddr)
-      console.info('Game Account:', gameAccount)
-      if (gameAccount === undefined) {
-        throw SdkError.gameAccountNotFound(gameAddr)
-      }
+        console.group(`Initialize AppClient, gameAddr = ${gameAddr}`)
+        try {
+            const playerAddr = wallet.walletAddr
+            console.info(`Player address: ${playerAddr}`)
+            const encryptor = await Encryptor.create(playerAddr, storage)
+            const gameAccount = await transport.getGameAccount(gameAddr)
+            console.info('Game Account:', gameAccount)
+            if (gameAccount === undefined) {
+                throw SdkError.gameAccountNotFound(gameAddr)
+            }
 
-      const bundleCacheKey = makeBundleCacheKey(transport.chain, gameAccount.bundleAddr)
+            const bundleCacheKey = makeBundleCacheKey(transport.chain, gameAccount.bundleAddr)
 
-      const gameBundle = await getGameBundle(transport, storage, bundleCacheKey, gameAccount.bundleAddr)
+            const gameBundle = await getGameBundle(transport, storage, bundleCacheKey, gameAccount.bundleAddr)
 
-      const transactorAddr = gameAccount.transactorAddr
-      if (transactorAddr === undefined || gameAccount.checkpointOnChain === undefined) {
-        throw SdkError.gameNotServed(gameAddr)
-      }
-      console.info(`Transactor address: ${transactorAddr}`)
-      const transactorAccount = await transport.getServerAccount(transactorAddr)
-      if (transactorAccount === undefined) {
-        throw SdkError.transactorAccountNotFound(transactorAddr)
-      }
-      const decryptionCache = new DecryptionCache()
-      const endpoint = transactorAccount.endpoint
-      console.info(`Transactor endpoint: ${endpoint}`)
-      const connection = Connection.initialize(gameAddr, playerAddr, endpoint, encryptor)
-      const client = new Client(playerAddr, encryptor, connection)
-      const handler = await Handler.initialize(gameBundle, encryptor, client, decryptionCache)
+            const transactorAddr = gameAccount.transactorAddr
+            if (transactorAddr === undefined || gameAccount.checkpointOnChain === undefined) {
+                throw SdkError.gameNotServed(gameAddr)
+            }
+            console.info(`Transactor address: ${transactorAddr}`)
+            const transactorAccount = await transport.getServerAccount(transactorAddr)
+            if (transactorAccount === undefined) {
+                throw SdkError.transactorAccountNotFound(transactorAddr)
+            }
+            const decryptionCache = new DecryptionCache()
+            const endpoint = transactorAccount.endpoint
+            console.info(`Transactor endpoint: ${endpoint}`)
+            const connection = Connection.initialize(gameAddr, playerAddr, endpoint, encryptor)
+            const client = new Client(playerAddr, encryptor, connection)
+            const handler = await Handler.initialize(gameBundle, encryptor, client, decryptionCache)
 
-      const getCheckpointParams = new GetCheckpointParams({
-        settleVersion: gameAccount.settleVersion,
-      })
+            const getCheckpointParams = new GetCheckpointParams({
+                settleVersion: gameAccount.settleVersion,
+            })
 
-      let checkpointOffChain: CheckpointOffChain | undefined
-      if (gameAccount.checkpointOnChain !== undefined) {
-        checkpointOffChain = await connection.getCheckpoint(getCheckpointParams)
-        if (checkpointOffChain === undefined) {
-          throw new Error('No checkpoint from transactor.')
+            let checkpointOffChain: CheckpointOffChain | undefined
+            if (gameAccount.checkpointOnChain !== undefined) {
+                checkpointOffChain = await connection.getCheckpoint(getCheckpointParams)
+                if (checkpointOffChain === undefined) {
+                    throw new Error('No checkpoint from transactor.')
+                }
+            }
+
+            console.info('The onchain part of checkpoint:', gameAccount.checkpointOnChain)
+            console.info('The offchain part of checkpoint:', checkpointOffChain)
+            let checkpoint
+            if (checkpointOffChain !== undefined && gameAccount.checkpointOnChain !== undefined) {
+                checkpoint = Checkpoint.fromParts(checkpointOffChain, gameAccount.checkpointOnChain)
+            } else {
+                throw new Error('Game not served')
+            }
+            const handlerState = checkpoint.getData(0)
+            if (handlerState === undefined) {
+                throw new Error('Malformed checkpoint')
+            }
+            const stateSha = await sha256String(handlerState)
+
+            const gameContext = new GameContext(gameAccount, checkpoint, handlerState, stateSha)
+            console.info('Game Context:', clone(gameContext))
+
+            let token: Token | undefined = await transport.getToken(gameAccount.tokenAddr)
+            if (token === undefined) {
+                const decimals = await transport.getTokenDecimals(gameAccount.tokenAddr)
+                if (decimals === undefined) {
+                    throw SdkError.tokenNotFound(gameAccount.tokenAddr)
+                } else {
+                    token = {
+                        addr: gameAccount.tokenAddr,
+                        decimals: decimals,
+                        icon: '',
+                        name: '-',
+                        symbol: '-',
+                    }
+                }
+            }
+            const info = makeGameInfo(gameAccount, token)
+            const profileLoader = new ProfileLoader(transport, storage, onProfile)
+            profileLoader.start()
+
+            return new AppClient({
+                gameAddr,
+                gameAccount,
+                handler,
+                wallet,
+                client,
+                transport,
+                connection,
+                gameContext,
+                onEvent,
+                onMessage,
+                onTxState,
+                onConnectionState,
+                onError,
+                encryptor,
+                info,
+                decryptionCache,
+                profileLoader,
+                storage,
+                endpoint,
+            })
+        } finally {
+            console.groupEnd()
         }
-      }
+    }
 
-      console.info('The onchain part of checkpoint:', gameAccount.checkpointOnChain)
-      console.info('The offchain part of checkpoint:', checkpointOffChain)
-      let checkpoint
-      if (checkpointOffChain !== undefined && gameAccount.checkpointOnChain !== undefined) {
-        checkpoint = Checkpoint.fromParts(checkpointOffChain, gameAccount.checkpointOnChain)
-      } else {
-        throw new Error('Game not served')
-      }
-      const handlerState = checkpoint.getData(0)
-      if (handlerState === undefined) {
-        throw new Error('Malformed checkpoint')
-      }
-      const stateSha = await sha256String(handlerState)
+    /**
+     * Create a client for subgame.
+     *
+     *
+     */
+    async subClient(opts: SubClientInitOpts): Promise<SubClient> {
+        try {
+            const { gameId, onEvent, onMessage, onTxState, onConnectionState, onError } = opts
 
-      const gameContext = new GameContext(gameAccount, checkpoint, handlerState, stateSha)
-      console.info('Game Context:', clone(gameContext))
+            const addr = `${this.__gameAddr}:${gameId.toString()}`
 
-      let token: Token | undefined = await transport.getToken(gameAccount.tokenAddr)
-      if (token === undefined) {
-        const decimals = await transport.getTokenDecimals(gameAccount.tokenAddr)
-        if (decimals === undefined) {
-          throw SdkError.tokenNotFound(gameAccount.tokenAddr)
-        } else {
-          token = {
-            addr: gameAccount.tokenAddr,
-            decimals: decimals,
-            icon: '',
-            name: '-',
-            symbol: '-',
-          }
+            console.group(`SubClient initialization, id: ${gameId}`)
+            console.info('Parent Game Context:', clone(this.__gameContext))
+            console.info('Versioned data:', this.__gameContext.checkpoint.getVersionedData(gameId))
+
+            const subGame = this.__gameContext.findSubGame(gameId)
+
+            if (subGame === undefined) {
+                console.warn('Game context:', this.__gameContext)
+                throw SdkError.invalidSubId(gameId)
+            } else {
+                console.info('Sub Game:', subGame)
+            }
+
+            const bundleAddr = subGame.bundleAddr
+
+            const bundleCacheKey = makeBundleCacheKey(this.__transport.chain, bundleAddr)
+            const decryptionCache = new DecryptionCache()
+            const playerAddr = this.__wallet.walletAddr
+            const connection = Connection.initialize(addr, playerAddr, this.__endpoint, this.__encryptor)
+            const client = new Client(playerAddr, this.__encryptor, connection)
+            const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr)
+            const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache)
+            const gameContext = this.__gameContext.subContext(subGame)
+            console.info("SubGame's GameContext:", clone(gameContext))
+
+            return new SubClient({
+                gameAddr: addr,
+                wallet: this.__wallet,
+                transport: this.__transport,
+                encryptor: this.__encryptor,
+                onEvent,
+                onMessage,
+                onTxState,
+                onConnectionState,
+                onError,
+                handler,
+                connection,
+                client,
+                info: this.__info,
+                decryptionCache,
+                gameContext,
+                gameId,
+                latestCheckpointOnChain: undefined,
+            })
+        } finally {
+            console.groupEnd()
         }
-      }
-      const info = makeGameInfo(gameAccount, token)
-      const profileLoader = new ProfileLoader(transport, storage, onProfile)
-      profileLoader.start()
-
-      return new AppClient({
-        gameAddr,
-        gameAccount,
-        handler,
-        wallet,
-        client,
-        transport,
-        connection,
-        gameContext,
-        onEvent,
-        onMessage,
-        onTxState,
-        onConnectionState,
-        onError,
-        encryptor,
-        info,
-        decryptionCache,
-        profileLoader,
-        storage,
-        endpoint,
-      })
-    } finally {
-      console.groupEnd()
     }
-  }
 
-  /**
-   * Create a client for subgame.
-   *
-   *
-   */
-  async subClient(opts: SubClientInitOpts): Promise<SubClient> {
-    try {
-      const { gameId, onEvent, onMessage, onTxState, onConnectionState, onError } = opts
-
-      const addr = `${this.__gameAddr}:${gameId.toString()}`
-
-      console.group(`SubClient initialization, id: ${gameId}`)
-      console.info('Parent Game Context:', clone(this.__gameContext))
-      console.info('Versioned data:', this.__gameContext.checkpoint.getVersionedData(gameId))
-
-      const subGame = this.__gameContext.findSubGame(gameId)
-
-      if (subGame === undefined) {
-        console.warn('Game context:', this.__gameContext)
-        throw SdkError.invalidSubId(gameId)
-      } else {
-        console.info('Sub Game:', subGame)
-      }
-
-      const bundleAddr = subGame.bundleAddr
-
-      const bundleCacheKey = makeBundleCacheKey(this.__transport.chain, bundleAddr)
-      const decryptionCache = new DecryptionCache()
-      const playerAddr = this.__wallet.walletAddr
-      const connection = Connection.initialize(addr, playerAddr, this.__endpoint, this.__encryptor)
-      const client = new Client(playerAddr, this.__encryptor, connection)
-      const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr)
-      const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache)
-      const gameContext = this.__gameContext.subContext(subGame);
-      console.info("SubGame's GameContext:", clone(gameContext))
-
-      return new SubClient({
-        gameAddr: addr,
-        wallet: this.__wallet,
-        transport: this.__transport,
-        encryptor: this.__encryptor,
-        onEvent,
-        onMessage,
-        onTxState,
-        onConnectionState,
-        onError,
-        handler,
-        connection,
-        client,
-        info: this.__info,
-        decryptionCache,
-        gameContext,
-        gameId,
-        latestCheckpointOnChain: undefined,
-      })
-    } finally {
-      console.groupEnd()
+    /**
+     * Connect to the transactor and retrieve the event stream.
+     */
+    async attachGame() {
+        let sub
+        try {
+            await this.__attachGameWithRetry()
+            sub = this.__connection.subscribeEvents()
+            await this.__startSubscribe()
+            for (const p of this.__latestGameAccount.players) {
+                console.log('Load profile for', p.addr)
+                this.__onLoadProfile(p.accessVersion, p.addr)
+            }
+        } catch (e) {
+            console.error(this.__logPrefix + 'Attaching game failed', e)
+            this.__invokeErrorCallback('attach-failed')
+            throw e
+        } finally {
+            console.groupEnd()
+        }
+        if (sub !== undefined) await this.__processSubscription(sub)
     }
-  }
 
-  /**
-   * Connect to the transactor and retrieve the event stream.
-   */
-  async attachGame() {
-    let sub
-    try {
-      await this.__attachGameWithRetry()
-      sub = this.__connection.subscribeEvents()
-      await this.__startSubscribe()
-      for (const p of this.__latestGameAccount.players) {
-        console.log('Load profile for', p.addr)
-        this.__onLoadProfile(p.accessVersion, p.addr)
-      }
-    } catch (e) {
-      console.error(this.__logPrefix + 'Attaching game failed', e)
-      this.__invokeErrorCallback('attach-failed')
-      throw e
-    } finally {
-      console.groupEnd()
+    /**
+     * Get player profile by its wallet address.
+     */
+    getProfile(id: bigint): PlayerProfileWithPfp | undefined
+    getProfile(addr: string): PlayerProfileWithPfp | undefined
+    getProfile(idOrAddr: string | bigint): PlayerProfileWithPfp | undefined {
+        let addr: string = ''
+        try {
+            if (typeof idOrAddr === 'bigint') {
+                addr = this.__gameContext.idToAddr(idOrAddr)
+            } else {
+                addr = idOrAddr
+            }
+        } catch (e) {
+            return undefined
+        }
+        return this.__profileLoader.getProfile(addr)
     }
-    if (sub !== undefined) await this.__processSubscription(sub)
-  }
 
-  /**
-   * Get player profile by its wallet address.
-   */
-  getProfile(id: bigint): PlayerProfileWithPfp | undefined
-  getProfile(addr: string): PlayerProfileWithPfp | undefined
-  getProfile(idOrAddr: string | bigint): PlayerProfileWithPfp | undefined {
-    let addr: string = ''
-    try {
-      if (typeof idOrAddr === 'bigint') {
-        addr = this.__gameContext.idToAddr(idOrAddr)
-      } else {
-        addr = idOrAddr
-      }
-    } catch (e) {
-      return undefined
+    /**
+     * Return if current player is in game.
+     */
+    isInGame(): boolean {
+        try {
+            const playerId = this.addrToId(this.__wallet.walletAddr)
+            if (this.__gameContext.players.find(p => p.id === playerId) !== undefined) {
+                return true
+            }
+            return false
+        } catch (e) {
+            return false
+        }
     }
-    return this.__profileLoader.getProfile(addr)
-  }
 
-  /**
-   * Return if current player is in game.
-   */
-  isInGame(): boolean {
-    try {
-      const playerId = this.addrToId(this.__wallet.walletAddr)
-      if (this.__gameContext.players.find(p => p.id === playerId) !== undefined) {
-        return true
-      }
-      return false
-    } catch (e) {
-      return false
+    makeSubGameAddr(gameId: number): string {
+        return `${this.__gameAddr}:${gameId}`
     }
-  }
 
-  makeSubGameAddr(gameId: number): string {
-    return `${this.__gameAddr}:${gameId}`
-  }
+    /**
+     * Initiates a join request for a game session. It exports a public key and
+     * sends a join request with required parameters like game address, amount,
+     * position, and whether to create a profile if needed. Returns a stream to
+     * handle the response of the join operation, which can either be a success
+     * (JoinResponse) or an error (JoinError).
+     *
+     * @param {JoinOpts} params - Options and parameters to configure the join request.
+     * @returns {ResponseStream<JoinResponse, JoinError>} A stream to handle the
+     * response of the join request.
+     */
+    join(params: JoinOpts): ResponseStream<JoinResponse, JoinError> {
+        const response = new ResponseHandle<JoinResponse, JoinError>()
 
-  /**
-   * Initiates a join request for a game session. It exports a public key and
-   * sends a join request with required parameters like game address, amount,
-   * position, and whether to create a profile if needed. Returns a stream to
-   * handle the response of the join operation, which can either be a success
-   * (JoinResponse) or an error (JoinError).
-   *
-   * @param {JoinOpts} params - Options and parameters to configure the join request.
-   * @returns {ResponseStream<JoinResponse, JoinError>} A stream to handle the
-   * response of the join request.
-   */
-  join(params: JoinOpts): ResponseStream<JoinResponse, JoinError> {
-    const response = new ResponseHandle<JoinResponse, JoinError>()
+        this.__encryptor.exportPublicKey().then(publicKey => {
+            this.__transport.join(
+                this.__wallet,
+                {
+                    gameAddr: this.gameAddr,
+                    amount: params.amount,
+                    position: params.position || 0,
+                    verifyKey: publicKey.ec,
+                    createProfileIfNeeded: params.createProfileIfNeeded,
+                },
+                response
+            )
+        })
 
-    this.__encryptor.exportPublicKey().then(publicKey => {
-      this.__transport.join(
-        this.__wallet,
-        {
-          gameAddr: this.gameAddr,
-          amount: params.amount,
-          position: params.position || 0,
-          verifyKey: publicKey.ec,
-          createProfileIfNeeded: params.createProfileIfNeeded,
-        },
-        response
-      )
-    })
-
-    return response.stream()
-  }
+        return response.stream()
+    }
 }
 
 // Miscellaneous
 
 export async function getGameBundle(
-  transport: ITransport,
-  storage: IStorage | undefined,
-  bundleCacheKey: string,
-  bundleAddr: string
+    transport: ITransport,
+    storage: IStorage | undefined,
+    bundleCacheKey: string,
+    bundleAddr: string
 ): Promise<GameBundle> {
-  let gameBundle: GameBundle | undefined
-  if (storage !== undefined) {
-    gameBundle = getTtlCache(storage, bundleCacheKey)
-    console.debug('Use game bundle from cache:', gameBundle)
-    if (gameBundle !== undefined) {
-      Object.assign(gameBundle, { data: Uint8Array.of() })
+    let gameBundle: GameBundle | undefined
+    if (storage !== undefined) {
+        gameBundle = getTtlCache(storage, bundleCacheKey)
+        console.debug('Use game bundle from cache:', gameBundle)
+        if (gameBundle !== undefined) {
+            Object.assign(gameBundle, { data: Uint8Array.of() })
+        }
     }
-  }
-  if (gameBundle === undefined) {
-    gameBundle = await transport.getGameBundle(bundleAddr)
-    console.debug('Game bundle:', gameBundle)
-    if (gameBundle !== undefined && storage !== undefined && gameBundle.data.length === 0) {
-      setTtlCache(storage, bundleCacheKey, gameBundle, BUNDLE_CACHE_TTL)
+    if (gameBundle === undefined) {
+        gameBundle = await transport.getGameBundle(bundleAddr)
+        console.debug('Game bundle:', gameBundle)
+        if (gameBundle !== undefined && storage !== undefined && gameBundle.data.length === 0) {
+            setTtlCache(storage, bundleCacheKey, gameBundle, BUNDLE_CACHE_TTL)
+        }
     }
-  }
-  if (gameBundle === undefined) {
-    throw SdkError.gameBundleNotFound(bundleAddr)
-  }
-  return gameBundle
+    if (gameBundle === undefined) {
+        throw SdkError.gameBundleNotFound(bundleAddr)
+    }
+    return gameBundle
 }
 
 export function makeGameInfo(gameAccount: GameAccount, token: Token): GameInfo {
-  const info: GameInfo = {
-    gameAddr: gameAccount.addr,
-    title: gameAccount.title,
-    entryType: gameAccount.entryType,
-    maxPlayers: gameAccount.maxPlayers,
-    tokenAddr: gameAccount.tokenAddr,
-    bundleAddr: gameAccount.bundleAddr,
-    data: gameAccount.data,
-    dataLen: gameAccount.dataLen,
-    token,
-  }
+    const info: GameInfo = {
+        gameAddr: gameAccount.addr,
+        title: gameAccount.title,
+        entryType: gameAccount.entryType,
+        maxPlayers: gameAccount.maxPlayers,
+        tokenAddr: gameAccount.tokenAddr,
+        bundleAddr: gameAccount.bundleAddr,
+        data: gameAccount.data,
+        dataLen: gameAccount.dataLen,
+        token,
+    }
 
-  return info
+    return info
 }

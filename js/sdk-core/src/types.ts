@@ -11,65 +11,63 @@ export type Secret = Uint8Array
 
 export type Digest = Uint8Array
 
-export type Fields<T> = {[K in keyof T as T[K] extends Function ? never: K]: T[K]}
+export type Fields<T> = { [K in keyof T as T[K] extends Function ? never : K]: T[K] }
 
 export type Result<T, E> = { ok: T } | { err: E }
 
-export type IKind<T> = { kind: T}
+export type IKind<T> = { kind: T }
 
 export type Indices<T extends readonly any[]> = Exclude<Partial<T>['length'], T['length']>
 
 export type UnionFromValues<T> = T extends readonly string[] ? T[number] : never
 
 export type GameInfo = {
-  gameAddr: string
-  title: string
-  maxPlayers: number
-  entryType: EntryType
-  token: Token
-  tokenAddr: string
-  bundleAddr: string
-  data: Uint8Array
-  dataLen: number
+    gameAddr: string
+    title: string
+    maxPlayers: number
+    entryType: EntryType
+    token: Token
+    tokenAddr: string
+    bundleAddr: string
+    data: Uint8Array
+    dataLen: number
 }
 
 export type PlayerProfileWithPfp = {
-  pfp: Nft | undefined
-  addr: string
-  nick: string
+    pfp: Nft | undefined
+    addr: string
+    nick: string
 }
 
 export type EventSourceKind<T extends 'backlog' | 'live'> = IKind<T>
 
 export type EventSourceBacklog = {
-  remaining: number
+    remaining: number
 } & IKind<'backlog'>
 
 export type EventSourceLive = IKind<'live'>
 
-export type EventCallbackOptionsSource =
-  | EventSourceBacklog
-  | EventSourceLive
+export type EventCallbackOptionsSource = EventSourceBacklog | EventSourceLive
 
 export type EventCallbackOptions = {
-  isCheckpoint: boolean
-  source: EventCallbackOptionsSource,
+    isCheckpoint: boolean
+    source: EventCallbackOptionsSource
 }
 
 export type EventCallbackFunction = (
-  context: GameContextSnapshot,
-  state: Uint8Array,
-  event: GameEvent | undefined,
-  options: EventCallbackOptions,
+    context: GameContextSnapshot,
+    state: Uint8Array,
+    event: GameEvent | undefined,
+    options: EventCallbackOptions
 ) => void
 
 export type ErrorKind =
-  | 'event-state-sha-mismatch'
-  | 'checkpoint-state-sha-mismatch'
-  | 'onchain-data-not-found'
-  | 'attach-failed'
-  | 'handle-event-error'
-  | 'init-data-invalid'
+    | 'event-state-sha-mismatch'
+    | 'checkpoint-state-sha-mismatch'
+    | 'onchain-data-not-found'
+    | 'attach-failed'
+    | 'handle-event-error'
+    | 'init-data-invalid'
 
 export type MessageCallbackFunction = (message: Message) => void
 

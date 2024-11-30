@@ -6,25 +6,25 @@ import { GameAccount } from './accounts'
  * should be updated everytime we call [AppHelper.listTokens].
  */
 export interface GameAccountCache {
-  addr: string
-  bundleAddr: string
-  tokenAddr: string
-  ownerAddr: string
-  accessVersion: number
-  settleVersion: number
-  transactorAddr: string | undefined
-  transactorEndpoint: string | undefined
+    addr: string
+    bundleAddr: string
+    tokenAddr: string
+    ownerAddr: string
+    accessVersion: number
+    settleVersion: number
+    transactorAddr: string | undefined
+    transactorEndpoint: string | undefined
 }
 
 export function makeGameAccountCache(gameAccount: GameAccount): GameAccountCache {
-  return {
-    addr: gameAccount.addr,
-    bundleAddr: gameAccount.bundleAddr,
-    accessVersion: Number(gameAccount.accessVersion),
-    settleVersion: Number(gameAccount.settleVersion),
-    tokenAddr: gameAccount.tokenAddr,
-    ownerAddr: gameAccount.ownerAddr,
-    transactorAddr: gameAccount.transactorAddr,
-    transactorEndpoint: gameAccount.servers[0]?.endpoint,
-  }
+    return {
+        addr: gameAccount.addr,
+        bundleAddr: gameAccount.bundleAddr,
+        accessVersion: Number(gameAccount.accessVersion),
+        settleVersion: Number(gameAccount.settleVersion),
+        tokenAddr: gameAccount.tokenAddr,
+        ownerAddr: gameAccount.ownerAddr,
+        transactorAddr: gameAccount.transactorAddr,
+        transactorEndpoint: gameAccount.servers[0]?.endpoint,
+    }
 }
