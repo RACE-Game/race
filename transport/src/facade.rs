@@ -132,7 +132,7 @@ impl TransportT for FacadeTransport {
     async fn subscribe_game_account<'a>(
         &'a self,
         addr: &'a str,
-    ) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>> {
         Ok(Box::pin(stream! {
             let mut access_version = 0;
             loop {
@@ -141,11 +141,11 @@ impl TransportT for FacadeTransport {
                         if let Some(game_account) = game_account_opt {
                             if game_account.access_version > access_version {
                                 access_version = game_account.access_version;
-                                yield Some(game_account);
+                                yield Ok(game_account);
                             }
                         }
                     }
-                    Err(e) => yield None,
+                    Err(e) => yield Err(Error::TransportError(e.to_string())),
                 }
             }
         }))

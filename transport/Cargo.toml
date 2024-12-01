@@ -26,6 +26,7 @@ borsh.workspace = true
 jsonrpsee = { workspace = true, features = ["http-client"]}
 async-stream.workspace = true
 futures.workspace = true
+tokio = { workspace = true, features = [ "sync"] }
 solana-account-decoder.workspace = true
 solana-rpc-client.workspace = true
 solana-rpc-client-api.workspace = true

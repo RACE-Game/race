@@ -1,5 +1,6 @@
 //! Wrapped transport, which support retry
 
+use async_stream::stream;
 use futures::Stream;
 use jsonrpsee::core::async_trait;
 use race_core::error::Result;
@@ -15,15 +16,18 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
+use tokio_stream::StreamExt;
 use std::pin::Pin;
 use std::time::Duration;
-use tracing::error;
+use tracing::{error, info};
 
-const DEFAULT_RETRY_INTERVAL: u64 = 10_000;
+const DEFAULT_RETRY_INTERVAL: u64 = 10;
+const DEFAULT_RESUB_INTERVAL: u64 = 5;
 
 pub struct WrappedTransport {
     pub(crate) inner: Box<dyn TransportT>,
     retry_interval: u64,
+    resub_interval: u64,
 }
 
 impl WrappedTransport {
@@ -38,14 +42,47 @@ impl WrappedTransport {
             .try_with_config(config)?
             .build()
             .await?;
-        Ok(Self { inner: transport, retry_interval: DEFAULT_RETRY_INTERVAL })
+        Ok(Self { inner: transport, retry_interval: DEFAULT_RETRY_INTERVAL, resub_interval: DEFAULT_RESUB_INTERVAL })
     }
 }
 
 #[async_trait]
 impl TransportT for WrappedTransport {
-    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
-        self.inner.subscribe_game_account(addr).await
+    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>> {
+        let interval = self.resub_interval;
+        Ok(Box::pin(stream! {
+            let sub = self.inner.subscribe_game_account(addr).await;
+
+            let mut sub = match sub {
+                Ok(sub) => sub,
+                Err(e) => {
+                    return yield Err(e);
+                }
+            };
+
+            loop {
+                let item = sub.next().await;
+                match item {
+                    Some(Ok(item)) => {
+                        yield Ok(item);
+                    },
+                    Some(Err(e)) => {
+                        return yield Err(e);
+                    }
+                    None => {
+                        info!("Restart subscription after {} seconds", interval);
+                        tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
+                        let new_sub = self.inner.subscribe_game_account(addr).await;
+                        sub = match new_sub {
+                            Ok(new_sub) => new_sub,
+                            Err(e) => {
+                                return yield Err(e);
+                            }
+                        };
+                    }
+                }
+            }
+        }))
     }
 
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String> {
@@ -112,7 +149,7 @@ impl TransportT for WrappedTransport {
                         "Got invalid settle_version: {} != {}, will retry in {} secs",
                         game_account.settle_version, params.settle_version, self.retry_interval
                     );
-                    tokio::time::sleep(Duration::from_millis(self.retry_interval)).await;
+                    tokio::time::sleep(Duration::from_secs(self.retry_interval)).await;
                     continue;
                 }
                 // The `settle_version` had been bumped, which
@@ -131,10 +168,10 @@ impl TransportT for WrappedTransport {
                     Ok(rst) => return Ok(rst),
                     Err(e) => {
                         error!(
-                            "Error in settlement: {:?}, will retry in {} milliseconds",
+                            "Error in settlement: {:?}, will retry in {} secs",
                             e, self.retry_interval
                         );
-                        tokio::time::sleep(Duration::from_millis(self.retry_interval)).await;
+                        tokio::time::sleep(Duration::from_secs(self.retry_interval)).await;
                         continue;
                     }
                 }

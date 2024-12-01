@@ -4,7 +4,7 @@
 //! status. For confirming query we have 5 seconds as interval, for
 //! finalized query, we use 2 seconds as interval.
 
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use race_core::error::Error;
@@ -77,7 +77,6 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
             }
         };
 
-        let mut retry = 0;
         loop {
             select! {
                 event_frame = ports.recv() => {
@@ -90,7 +89,9 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                 }
 
                 sub_item = sub.next() => {
-                    if let Some(Some(game_account)) = sub_item {
+
+                    // The retry logic is implemented in `WrappedTransport`.
+                    if let Some(Ok(game_account)) = sub_item {
 
                         let GameAccount {
                             players,
@@ -163,12 +164,6 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                         }
 
                         prev_access_version = access_version;
-                        retry = 0;
-                    } else {
-                        retry += 1;
-                        let interval = (retry * 10).min(20);
-                        warn!("{} Game account not found, will retry after {} seconds", env.log_prefix, interval);
-                        tokio::time::sleep(Duration::from_secs(interval)).await;
                     }
                 }
             }

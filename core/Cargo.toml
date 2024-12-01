@@ -23,7 +23,6 @@ serde_json = { workspace = true, optional = true }
 borsh.workspace = true
 futures.workspace = true
 rs_merkle.workspace = true
-tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 anyhow.workspace = true

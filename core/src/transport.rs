@@ -143,7 +143,13 @@ pub trait TransportT: Send + Sync {
     async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>>;
 
     /// Subscribe game account by its address.
-    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>>;
+    ///
+    /// Notes about the return type:
+    /// An error should be returned when the initialization fails.
+    /// Once the stream is constructed, the caller always restarts the subscription
+    /// when it meets the termination on stream. Therefore an error must be raised
+    /// when it's meaningless to continue the subscription.
+    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>>;
 
     /// Get game bundle account by its address.
     async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>>;

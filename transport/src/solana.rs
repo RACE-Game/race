@@ -963,7 +963,7 @@ impl TransportT for SolanaTransport {
     async fn subscribe_game_account<'a>(
         &'a self,
         addr: &'a str,
-    ) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>> {
         let ws_rpc = self
             .rpc
             .replace("https://", "wss://")
@@ -971,17 +971,16 @@ impl TransportT for SolanaTransport {
         let game_account_pubkey = Self::parse_pubkey(addr)?;
         let addr = addr.to_owned();
 
+        let client = match PubsubClient::new(&ws_rpc).await {
+            Ok(client) => client,
+            Err(e) => {
+                error!("Failed to create PubsubClient due to {:?}", e);
+                return Err(Error::TransportError(e.to_string()));
+            }
+        };
+
         Ok(Box::pin(stream! {
-
-            let client = match PubsubClient::new(&ws_rpc).await {
-                Ok(client) => client,
-                Err(e) => {
-                    error!("Failed to create PubsubClient due to {:?}", e);
-                    return;
-                }
-            };
-
-            let Ok((mut stream, unsub)) = client
+            let (mut stream, unsub) = match client
             .account_subscribe(
                 &game_account_pubkey,
                 Some(RpcAccountInfoConfig {
@@ -990,15 +989,22 @@ impl TransportT for SolanaTransport {
                     commitment: Some(CommitmentConfig::finalized()),
                     min_context_slot: None,
                 }),
-            ).await else {
-                error!("Failed on calling account_subscribe");
-                return;
+            )
+            .await
+            {
+                Ok((stream, unsub)) => (stream, unsub),
+                Err(e) => {
+                    error!("Failed on calling account_subscribe");
+                    yield Err(Error::TransportError(e.to_string()));
+                    return;
+                }
             };
 
             while let Some(rpc_response) = stream.next().await {
                 let ui_account = rpc_response.value;
                 let Some(data) = ui_account.data.decode() else {
                     error!("Found an empty account data");
+                    unsub().await;
                     return;
                 };
                 let state = match GameState::deserialize(&mut data.as_slice()) {
@@ -1006,8 +1012,8 @@ impl TransportT for SolanaTransport {
                     Err(e) => {
                         error!("Game state deserialization error: {}", e.to_string());
                         unsub().await;
-                        yield None;
-                        break;
+                        yield(Err(Error::TransportError(e.to_string())));
+                        return;
                     }
                 };
                 let acc = match state.into_account(addr.clone()) {
@@ -1015,13 +1021,12 @@ impl TransportT for SolanaTransport {
                     Err(e) => {
                         error!("Game account parsing error: {}", e.to_string());
                         unsub().await;
-                        yield None;
-                        break;
+                        yield(Err(Error::TransportError(e.to_string())));
+                        return;
                     }
                 };
-                yield Some(acc);
+                yield(Ok(acc));
             }
-            yield None;
         }))
     }
 
@@ -1121,9 +1126,9 @@ impl TransportT for SolanaTransport {
                         .or(Err(Error::TransportError(
                             "Cannot get the state of stake account".into(),
                         )))?;
-                let stake_account_state = Account::unpack(&stake_account).or(Err(Error::TransportError(
-                    "Cannot parse data of stake account".into(),
-                )))?;
+                let stake_account_state = Account::unpack(&stake_account).or(Err(
+                    Error::TransportError("Cannot parse data of stake account".into()),
+                ))?;
                 slot.balance = stake_account_state.amount;
             }
         }
