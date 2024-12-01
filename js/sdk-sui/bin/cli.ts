@@ -46,11 +46,23 @@ function testCreateGameAccount() {
   suiTransport.createGameAccount(wallet, params, response);
 }
 
-async function  testGetToken() {
+async function testGetToken() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-  let response = new ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>()
-  let res = await suiTransport.getToken('0x2::sui::SUI');
+  let res = await suiTransport.getToken('0x5d9865999eb9a4a5d7cb6615260e42c6400aec1b34cfbb2070005925e673e92e::deliver::GalxeNFT');
   console.log(res)
+}
+
+async function testGetNFT() {
+  const suiTransport = new SuiTransport('https://fullnode.mainnet.sui.io:443');
+  // const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+  let res = await suiTransport.getNft('0x476194da0dbd8a0241cdf05f4eb52ba1bad8e77a5c141b2e61b2d0d246aa8fcd');
+  console.log(res)
+}
+async function testGetNFTLIST() {
+  const suiTransport = new SuiTransport('https://fullnode.mainnet.sui.io:443');
+  // const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+  let res = await suiTransport.listNfts('0x5b6eb18e764749862726832bf35e37d597975d234ef341fb39770a736879bc7b');
+  console.log('res', res)
 }
 
 function main() {
@@ -64,6 +76,12 @@ function main() {
       break
     case 'getToken':
       testGetToken()
+      break
+    case 'getNFT':
+      testGetNFT()
+      break
+    case 'getNFTLIST':
+      testGetNFTLIST()
       break
     default:
       console.error('Invalid command')

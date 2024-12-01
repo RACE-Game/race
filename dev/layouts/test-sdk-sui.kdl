@@ -5,28 +5,44 @@ layout {
 		command "echo"
     args "To quit, use Ctrl-q"
 	}
+//	pane {
+//		name "create player profile"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "createPlayerProfile"
+//		start_suspended true
+//	}
+//	pane {
+//		name "create game account"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "createGameAccount"
+//		start_suspended true
+//	}
+//	pane {
+//		name "get token"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "getToken"
+//		start_suspended true
+//	}
 	pane {
-		name "create player profile"
+		name "get NFT"
 		focus true
 		cwd "../js/sdk-sui"
 		command "npx"
-		args "ts-node" "bin/cli.ts" "createPlayerProfile"
+		args "ts-node" "bin/cli.ts" "getNFT"
 		start_suspended true
 	}
 	pane {
-		name "create game account"
+		name "get NFTLIST"
 		focus true
 		cwd "../js/sdk-sui"
 		command "npx"
-		args "ts-node" "bin/cli.ts" "createGameAccount"
-		start_suspended true
-	}
-	pane {
-		name "get token"
-		focus true
-		cwd "../js/sdk-sui"
-		command "npx"
-		args "ts-node" "bin/cli.ts" "getToken"
+		args "ts-node" "bin/cli.ts" "getNFTLIST"
 		start_suspended true
 	}
 }

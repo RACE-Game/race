@@ -1,6 +1,6 @@
 import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance, Result } from "@race-foundation/sdk-core";
 import { Chain } from './common'
-import { Balance, getFullnodeUrl, SuiClient, SuiObjectChange, SuiObjectChangeCreated, SuiTransactionBlock } from '@mysten/sui/client';
+import { Balance, getFullnodeUrl, SuiClient, SuiObjectChange, SuiObjectChangeCreated, SuiObjectResponse, SuiTransactionBlock } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/bcs';
@@ -36,8 +36,6 @@ export class SuiTransport implements ITransport {
 
     const suiClient = this.suiClient
     const transaction = new Transaction();;
-    console.log('=====>createGameAccount wallet', wallet)
-    console.log('=====>createGameAccount params', params)
     let args = [
       transaction.pure.string(params.title), // title string
       transaction.pure.address(params.bundleAddr), // bundle_addr address params
@@ -221,8 +219,39 @@ export class SuiTransport implements ITransport {
     return token;
   }
 
-  getNft(addr: string): Promise<Nft | undefined> {
-    throw new Error("Method not implemented.");
+  async getNft(addr: string): Promise<Nft | undefined> {
+    const suiClient = this.suiClient;
+    const objectResponse: SuiObjectResponse = await suiClient.getObject({
+      id: addr,
+      options: {
+        showContent: true,
+        showType: true
+      }
+    })
+    if (objectResponse.error) { 
+      console.error('Error fetching NFT:', objectResponse.error);
+      return undefined
+    }
+    const content = objectResponse.data?.content;
+    if (!content || content.dataType !== 'moveObject') {
+      return undefined;
+    }
+    if (!content.fields) return undefined;
+    let fields = content.fields
+    if (Array.isArray(fields)) { return undefined }
+    if ('fields' in fields) { return undefined }
+    if ('balance' in fields) return undefined;
+    if (fields["image_url"] || fields["img_url"]) {
+      return {
+        addr: addr,
+        image: fields?.image_url?.toString() || fields?.img_url?.toString() || '',
+        name: fields.name?.toString() || '',
+        symbol: fields.symbol?.toString() || fields.name?.toString() || '',
+        collection: objectResponse?.data?.type || undefined,
+        metadata: objectResponse
+      }
+    }
+    return undefined
   }
   listTokens(tokenAddrs: string[]): Promise<Token[]> {
     throw new Error("Method not implemented.");
@@ -230,8 +259,44 @@ export class SuiTransport implements ITransport {
   listTokensWithBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<TokenWithBalance[]> {
     throw new Error("Method not implemented.");
   }
-  listNfts(walletAddr: string): Promise<Nft[]> {
-    throw new Error("Method not implemented.");
+  async listNfts(walletAddr: string): Promise<Nft[]> {
+    const suiClient = this.suiClient;
+    const tokenMetadata = await suiClient.getOwnedObjects({ owner: walletAddr });
+    if (!tokenMetadata) return []
+    let ids = tokenMetadata.data.map((obj) => obj?.data?.objectId)
+      .filter((id) : id is string => id !== undefined)
+    const objectResponses: SuiObjectResponse[] = await suiClient.multiGetObjects({
+      ids,
+      options: {
+        showContent: true,
+        showType: true
+      }
+    })
+    let nfts = objectResponses
+      .map((obj: SuiObjectResponse) => {
+        const content = obj.data?.content;
+        if (!content || content.dataType !== 'moveObject') {
+          return undefined;
+        }
+        if (!content.fields) return undefined;
+        let fields = content.fields
+        if (Array.isArray(fields)) { return undefined }
+        if ('fields' in fields) { return undefined }
+        if ('balance' in fields) return undefined;
+        if (fields["image_url"] || fields["img_url"]) {
+          return {
+            addr: walletAddr,
+            image: fields?.image_url?.toString() || fields?.img_url?.toString() || '',
+            name: fields.name?.toString() || '',
+            symbol: fields.symbol?.toString() || fields.name?.toString() || '',
+            collection: obj?.data?.type || undefined,
+            metadata: obj
+          }
+        }
+        return undefined
+      })
+      .filter((obj: Nft | undefined): obj is Nft => obj !== undefined)
+    return nfts
   }
   recipientClaim(wallet: IWallet, params: RecipientClaimParams, resp: ResponseHandle<RecipientClaimResponse, RecipientClaimError>): Promise<void> {
     throw new Error("Method not implemented.");
