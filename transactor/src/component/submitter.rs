@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use race_core::error::Error;
 use race_core::storage::StorageT;
 use race_core::types::{GameAccount, SaveCheckpointParams, SettleParams, SettleResult, TxState};
+use race_env::SubmitterConfig;
 use tokio::select;
 use tokio::sync::mpsc;
 use tracing::{error, info};
@@ -17,8 +18,14 @@ use race_core::transport::TransportT;
 use super::ComponentEnv;
 use super::common::PipelinePorts;
 
-const MAX_PENDING_TXS: usize = 32;
-const PARAMS_READ_TIMEOUT: u64 = 5;
+// The default for time window opened for accepting a new settlement to be squashed.
+const DEFAULT_SUBMITTER_SQUASH_TIME_WINDOW: u64 = 30;
+
+// The default for maximum number of transactions for one squash.
+const DEFAULT_SUBMITTER_SQUASH_LIMIT: usize = 50;
+
+// The default for size of transcation queue.
+const DEFAULT_SUBMITTER_TX_QUEUE_SIZE: usize = 100;
 
 /// Squash two settles into one.
 fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
@@ -55,12 +62,12 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
 // Asynchronously reads a limited number of `SettleParams` from a channel,
 // accumulating them into a vector. Stops reading on delivering a certain number
 // of messages, encountering a params with non-empty `settles` or `reset`, or a timeout.
-async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>) -> Vec<SettleParams> {
+async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>, squash_limit: usize, squash_time_window: u64) -> Vec<SettleParams> {
     let mut v = vec![];
     let mut cnt = 0;
 
     loop {
-        if cnt == MAX_PENDING_TXS {
+        if cnt == squash_limit {
             break;
         }
 
@@ -68,7 +75,10 @@ async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>) -> Vec<Settle
             p = rx.recv() => {
                 if let Some(p) = p {
                     cnt += 1;
-                    let stop_here = (!p.settles.is_empty()) || p.reset;
+
+                    // We should always terminate when there's a settlement
+                    // or we are making the first checkpoint
+                    let stop_here = (!p.settles.is_empty()) || p.reset || p.next_settle_version == 1;
                     v.push(p);
                     if stop_here {
                         break;
@@ -77,7 +87,7 @@ async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>) -> Vec<Settle
                     break;
                 }
             }
-            _ = tokio::time::sleep(Duration::from_secs(PARAMS_READ_TIMEOUT)) => {
+            _ = tokio::time::sleep(Duration::from_secs(squash_time_window)) => {
                 if v.is_empty() {
                     continue;
                 } else {
@@ -94,6 +104,9 @@ pub struct SubmitterContext {
     addr: String,
     transport: Arc<dyn TransportT>,
     storage: Arc<dyn StorageT>,
+    squash_time_window: u64,
+    squash_limit: usize,
+    tx_queue_size: usize,
 }
 
 pub struct Submitter {}
@@ -103,13 +116,20 @@ impl Submitter {
         game_account: &GameAccount,
         transport: Arc<dyn TransportT>,
         storage: Arc<dyn StorageT>,
+        config: Option<&SubmitterConfig>,
     ) -> (Self, SubmitterContext) {
+        let squash_time_window = config.and_then(|c| c.squash_time_window).unwrap_or(DEFAULT_SUBMITTER_SQUASH_TIME_WINDOW);
+        let squash_limit = config.and_then(|c| c.squash_limit).unwrap_or(DEFAULT_SUBMITTER_SQUASH_LIMIT);
+        let tx_queue_size = config.and_then(|c| c.tx_queue_size).unwrap_or(DEFAULT_SUBMITTER_TX_QUEUE_SIZE);
         (
             Self {},
             SubmitterContext {
                 addr: game_account.addr.clone(),
                 transport,
                 storage,
+                squash_time_window,
+                squash_limit,
+                tx_queue_size,
             },
         )
     }
@@ -122,13 +142,15 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
     }
 
     async fn run(mut ports: PipelinePorts, ctx: SubmitterContext, env: ComponentEnv) -> CloseReason {
-        let (queue_tx, mut queue_rx) = mpsc::channel::<SettleParams>(128);
+        let (queue_tx, mut queue_rx) = mpsc::channel::<SettleParams>(ctx.tx_queue_size);
         let p = ports.clone_as_producer();
+        let log_prefix = env.log_prefix.clone();
         // Start a task to handle settlements
         // Prevent the blocking from pending transactions
         let join_handle = tokio::spawn(async move {
             loop {
-                let ps = read_settle_params(&mut queue_rx).await;
+                let ps = read_settle_params(&mut queue_rx, ctx.squash_limit, ctx.squash_time_window).await;
+                info!("{} Squash {} transactions", log_prefix, ps.len());
                 if let Some(params) = ps.into_iter().reduce(squash_settles) {
                     let settle_version = params.settle_version;
                     let res = ctx.transport.settle_game(params).await;

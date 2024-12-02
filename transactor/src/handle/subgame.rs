@@ -6,9 +6,11 @@ use crate::component::{
 use crate::frame::EventFrame;
 use race_core::error::{Error, Result};
 use race_core::context::{GameContext, SubGameInit};
+use race_core::storage::StorageT;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameMode, ServerAccount};
 use race_encryptor::Encryptor;
+use race_env::TransactorConfig;
 
 #[allow(dead_code)]
 pub struct SubGameHandle {
@@ -23,10 +25,11 @@ impl SubGameHandle {
     pub async fn try_new(
         sub_game_init: SubGameInit,
         bridge_to_parent: BridgeToParent,
-        server_account: &ServerAccount,
-        encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
-        _debug_mode: bool,
+        encryptor: Arc<Encryptor>,
+        _storage: Arc<dyn StorageT + Send + Sync>,
+        server_account: &ServerAccount,
+        _config: &TransactorConfig,
     ) -> Result<Self> {
         let game_addr = sub_game_init.spec.game_addr.clone();
         let game_id = sub_game_init.spec.game_id.clone();

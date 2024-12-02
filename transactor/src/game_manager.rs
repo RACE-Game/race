@@ -2,8 +2,9 @@ use race_api::event::{Event, Message};
 use race_core::context::SubGameInit;
 use race_core::error::{Error, Result};
 use race_core::checkpoint::CheckpointOffChain;
-use race_core::types::{BroadcastFrame, ServerAccount};
+use race_core::types::{BroadcastFrame, ClientMode, ServerAccount};
 use race_encryptor::Encryptor;
+use race_env::TransactorConfig;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -38,12 +39,13 @@ impl GameManager {
         server_account: &ServerAccount,
         transport: Arc<WrappedTransport>,
         encryptor: Arc<Encryptor>,
+        storage: Arc<WrappedStorage>,
         signal_tx: mpsc::Sender<SignalFrame>,
-        debug_mode: bool,
+        config: &TransactorConfig,
     ) -> Option<JoinHandle<CloseReason>> {
         let game_addr = sub_game_init.spec.game_addr.clone();
         let game_id = sub_game_init.spec.game_id;
-        match Handle::try_new_sub_game_handle(sub_game_init, bridge_to_parent, server_account, encryptor, transport, debug_mode).await {
+        match Handle::try_new_sub_game(sub_game_init, bridge_to_parent, transport, encryptor, storage, server_account, config).await {
             Ok(mut handle) => {
                 let mut games = self.games.lock().await;
                 let addr = format!("{}:{}", game_addr, game_id);
@@ -64,7 +66,7 @@ impl GameManager {
     }
 
     /// Load game by its address.  This operation is idempotent.
-    pub async fn load_game(
+    pub async fn launch_game(
         &self,
         game_addr: String,
         transport: Arc<WrappedTransport>,
@@ -73,11 +75,18 @@ impl GameManager {
         server_account: &ServerAccount,
         blacklist: Arc<Mutex<Blacklist>>,
         signal_tx: mpsc::Sender<SignalFrame>,
-        debug_mode: bool,
+        mode: ClientMode,
+        config: &TransactorConfig,
     ) -> Option<JoinHandle<CloseReason>> {
         let mut games = self.games.lock().await;
         if let Entry::Vacant(e) = games.entry(game_addr.clone()) {
-            match Handle::try_new(transport, storage, encryptor, server_account, e.key(), signal_tx.clone(), debug_mode).await {
+            let handle = if mode == ClientMode::Transactor {
+                Handle::try_new_transactor(transport, storage, encryptor, server_account, e.key(), signal_tx.clone(), &config).await
+            } else {
+                Handle::try_new_validator(transport, storage, encryptor, server_account, e.key(), signal_tx.clone(), config).await
+            };
+
+            match handle {
                 Ok(mut handle) => {
                     info!("Game handle created: {}", e.key());
                     let join_handle = handle.wait(signal_tx);

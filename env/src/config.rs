@@ -5,26 +5,33 @@ use std::{fs::File, io::Read, path::PathBuf};
 use serde::Deserialize;
 use tracing::info;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct FacadeConfig {
     pub host: String,
     pub address: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct SolanaConfig {
     pub rpc: String,
     pub keyfile: PathBuf,
     pub skip_preflight: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct BnbConfig {
     pub rpc: String,
     pub keyfile: PathBuf,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
+pub struct SubmitterConfig {
+    pub squash_time_window: Option<u64>,
+    pub squash_limit: Option<usize>,
+    pub tx_queue_size: Option<usize>,
+}
+
+#[derive(Deserialize, Clone)]
 pub struct TransactorConfig {
     pub port: u32,
     pub endpoint: String,
@@ -35,14 +42,15 @@ pub struct TransactorConfig {
     pub debug_mode: Option<bool>,
     pub log_dir: Option<String>,
     pub bundle_dir: Option<String>,
+    pub submitter: Option<SubmitterConfig>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct StorageConfig {
     pub db_file_name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Config {
     pub transactor: Option<TransactorConfig>,
     pub storage: Option<StorageConfig>,

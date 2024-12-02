@@ -5,19 +5,18 @@ mod validator;
 use std::sync::Arc;
 
 use crate::component::{
-    BridgeToParent, Broadcaster, CloseReason, EventBus, WrappedStorage, WrappedTransport
+    BridgeToParent, Broadcaster, CloseReason, EventBus, WrappedStorage, WrappedTransport,
 };
 use crate::frame::SignalFrame;
 use race_core::context::SubGameInit;
 use race_core::error::{Error, Result};
-use race_core::storage::StorageT;
-use race_core::transport::TransportT;
-use race_core::types::{GetCheckpointParams, ServerAccount};
+use race_core::types::ServerAccount;
 use race_encryptor::Encryptor;
+use race_env::TransactorConfig;
 use subgame::SubGameHandle;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tracing::{error, info};
+use tracing::error;
 use transactor::TransactorHandle;
 use validator::ValidatorHandle;
 
@@ -27,100 +26,74 @@ pub enum Handle {
     SubGame(SubGameHandle),
 }
 
-/// The handle to the components set of a game.
-///
-/// # Transactor and Validator
-/// `TransactorHandle` will be created when current node is the transactor.
-/// Otherwise, `ValidatorHandle` will be created instead.
-///
-/// # Upgrade
-/// TBD
 impl Handle {
-    /// Create game handle.
-    pub async fn try_new(
+    pub async fn try_new_transactor(
         transport: Arc<WrappedTransport>,
         storage: Arc<WrappedStorage>,
         encryptor: Arc<Encryptor>,
         server_account: &ServerAccount,
-        addr: &str,
+        game_addr: &str,
         signal_tx: mpsc::Sender<SignalFrame>,
-        debug_mode: bool,
+        config: &TransactorConfig,
     ) -> Result<Self> {
-        info!("Try create game handle for {}", addr);
-        let game_account = transport
-            .get_game_account(addr)
-            .await?
-            .ok_or(Error::GameAccountNotFound)?;
-
-        let checkpoint_offchain = storage
-            .get_checkpoint(GetCheckpointParams {
-                game_addr: addr.to_owned(),
-                settle_version: game_account.settle_version,
-            })
-            .await?;
-
-        if let Some(ref transactor_addr) = game_account.transactor_addr {
-            info!("Current transactor: {}", transactor_addr);
-            // Query the game bundle
-            info!("Query game bundle: {}", game_account.bundle_addr);
-            let game_bundle = transport
-                .get_game_bundle(&game_account.bundle_addr)
-                .await?
-                .ok_or(Error::GameBundleNotFound)?;
-
-            if transactor_addr.eq(&server_account.addr) {
-                Ok(Self::Transactor(
-                    TransactorHandle::try_new(
-                        &game_account,
-                        checkpoint_offchain,
-                        server_account,
-                        &game_bundle,
-                        encryptor.clone(),
-                        transport.clone(),
-                        storage.clone(),
-                        signal_tx,
-                        debug_mode,
-                    )
-                    .await?,
-                ))
-            } else {
-                Ok(Self::Validator(
-                    ValidatorHandle::try_new(
-                        &game_account,
-                        checkpoint_offchain,
-                        server_account,
-                        &game_bundle,
-                        encryptor.clone(),
-                        transport.clone(),
-                        signal_tx,
-                        debug_mode,
-                    )
-                    .await?,
-                ))
-            }
-        } else {
-            Err(Error::GameNotServed)
-        }
+        Ok(Self::Transactor(
+            TransactorHandle::try_new(
+                game_addr,
+                server_account,
+                encryptor,
+                transport,
+                storage,
+                signal_tx,
+                config,
+            )
+            .await?,
+        ))
     }
 
-    pub async fn try_new_sub_game_handle(
+    pub async fn try_new_validator(
+        transport: Arc<WrappedTransport>,
+        storage: Arc<WrappedStorage>,
+        encryptor: Arc<Encryptor>,
+        server_account: &ServerAccount,
+        game_addr: &str,
+        signal_tx: mpsc::Sender<SignalFrame>,
+        config: &TransactorConfig,
+    ) -> Result<Self> {
+        Ok(Self::Validator(
+            ValidatorHandle::try_new(
+                game_addr,
+                server_account,
+                encryptor,
+                transport,
+                storage,
+                signal_tx,
+                config,
+            )
+            .await?,
+        ))
+    }
+
+    pub async fn try_new_sub_game(
         sub_game_init: SubGameInit,
         bridge_to_parent: BridgeToParent,
-        server_account: &ServerAccount,
+        transport: Arc<WrappedTransport>,
         encryptor: Arc<Encryptor>,
-        transport: Arc<dyn TransportT + Send + Sync>,
-        debug_mode: bool,
+        storage: Arc<WrappedStorage>,
+        server_account: &ServerAccount,
+        config: &TransactorConfig,
     ) -> Result<Self> {
-        let handle = SubGameHandle::try_new(
-            sub_game_init,
-            bridge_to_parent,
-            server_account,
-            encryptor,
-            transport,
-            debug_mode,
-        )
-        .await?;
-        Ok(Self::SubGame(handle))
+        Ok(Self::SubGame(
+            SubGameHandle::try_new(
+                sub_game_init,
+                bridge_to_parent,
+                transport,
+                encryptor,
+                storage,
+                server_account,
+                config,
+            )
+            .await?,
+        ))
     }
 
     pub fn broadcaster(&self) -> Result<&Broadcaster> {
@@ -172,7 +145,10 @@ impl Handle {
                     close_reason = cr
                 }
             }
-            if let Err(e) = signal_tx.send(SignalFrame::RemoveGame { game_addr: addr }).await {
+            if let Err(e) = signal_tx
+                .send(SignalFrame::RemoveGame { game_addr: addr })
+                .await
+            {
                 error!("Failed to send RemoveGame signal due to {}", e);
             }
             close_reason

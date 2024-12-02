@@ -675,7 +675,6 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
 
     let mut game = context.get_game_account(&addr)?
         .ok_or(custom_error(Error::GameAccountNotFound))?;
-    println!("{} players in game", game.players.len());
 
     // Expire old deposits
     game.deposits

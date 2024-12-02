@@ -1,6 +1,6 @@
 mod config;
 
-pub use config::{Config, TransactorConfig};
+pub use config::{Config, TransactorConfig, SubmitterConfig};
 
 pub fn parse_with_default_rpc<'a>(chain: &'a str, rpc: &'a str) -> &'a str {
     match (chain, rpc) {

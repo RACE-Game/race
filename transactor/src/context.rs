@@ -88,7 +88,7 @@ impl ApplicationContext {
         let account_0 = self.account.clone();
         let blacklist_0 = self.blacklist.clone();
         let signal_tx_0 = self.signal_tx.clone();
-        let debug_mode = self.config.debug_mode.unwrap_or_default();
+        let config_0 = self.config.clone();
 
         tokio::spawn(async move {
             let mut join_handles: Vec<JoinHandle<CloseReason>> = vec![];
@@ -104,9 +104,9 @@ impl ApplicationContext {
                 let signal_tx_1 = signal_tx_0.clone();
 
                 match signal {
-                    SignalFrame::StartGame { game_addr } => {
+                    SignalFrame::StartGame { game_addr, mode } => {
                         if let Some(join_handle) = game_manager_1
-                            .load_game(
+                            .launch_game(
                                 game_addr,
                                 transport_1.clone(),
                                 storage_1.clone(),
@@ -114,7 +114,8 @@ impl ApplicationContext {
                                 &account_1,
                                 blacklist_1.clone(),
                                 signal_tx_1.clone(),
-                                debug_mode,
+                                mode,
+                                &config_0,
                             )
                             .await {
                                 join_handles.push(join_handle);
@@ -128,8 +129,9 @@ impl ApplicationContext {
                                 &account_1,
                                 transport_1.clone(),
                                 encryptor_1.clone(),
+                                storage_1.clone(),
                                 signal_tx_1.clone(),
-                                debug_mode,
+                                &config_0,
                             )
                             .await {
                                 join_handles.push(join_handle);

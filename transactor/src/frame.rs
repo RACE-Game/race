@@ -2,14 +2,14 @@ use race_api::{
     event::{Event, Message}, types::{EntryLock, Settle}
 };
 use race_core::{
-    checkpoint::{Checkpoint, VersionedData}, context::{GameContext, SubGameInit}, types::{PlayerDeposit, PlayerJoin, ServerJoin, Transfer, TxState, VoteType}
+    checkpoint::{Checkpoint, VersionedData}, context::{GameContext, SubGameInit}, types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, Transfer, TxState, VoteType}
 };
 
 use crate::component::BridgeToParent;
 
 #[derive(Debug)]
 pub enum SignalFrame {
-    StartGame { game_addr: String },
+    StartGame { game_addr: String, mode: ClientMode },
     LaunchSubGame {
         sub_game_init: SubGameInit,
         bridge_to_parent: BridgeToParent,

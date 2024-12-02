@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use race_core::error::{Error, Result};
+use race_core::types::ClientMode;
 use race_core::{
     transport::TransportT,
     types::{RegisterServerParams, ServeParams},
@@ -81,6 +82,7 @@ pub async fn start_reg_task(context: &ApplicationContext) -> JoinHandle<()> {
                         }
                         match transport.get_game_account(&game_reg.addr).await {
                             Ok(Some(game_account)) => {
+
                                 // Check if we are registered
                                 if !game_account.servers.iter().any(|s| s.addr.eq(&server_addr)) {
                                     // Register to game
@@ -95,10 +97,27 @@ pub async fn start_reg_task(context: &ApplicationContext) -> JoinHandle<()> {
 
                                 }
 
+                                let Ok(Some(game_account)) = transport.get_game_account(&game_account.addr).await else {
+                                    error!("Failed to fetch game account after sending a serve transaction");
+                                    continue;
+                                };
+
+                                let Some(transactor_addr) = game_account.transactor_addr.as_ref() else {
+                                    error!("Failed to find transactor addr after sending a serve transaction");
+                                    continue;
+                                };
+
                                 loaded_game_addrs.insert(game_account.addr.clone());
+
+                                let mode = if transactor_addr.eq(&server_addr) {
+                                    ClientMode::Transactor
+                                } else {
+                                    ClientMode::Validator
+                                };
                                 let signal_result = signal_tx
                                     .send(SignalFrame::StartGame {
                                         game_addr: game_account.addr.clone(),
+                                        mode,
                                     })
                                     .await;
 
