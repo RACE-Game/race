@@ -31,20 +31,36 @@ layout {
 //		args "ts-node" "bin/cli.ts" "getToken"
 //		start_suspended true
 //	}
+//	pane {
+//		name "get NFT"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "getNFT"
+//		start_suspended true
+//	}
+//	pane {
+//		name "get NFTLIST"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "getNFTLIST"
+//		start_suspended true
+//	}
 	pane {
-		name "get NFT"
+		name "getListTokens"
 		focus true
 		cwd "../js/sdk-sui"
 		command "npx"
-		args "ts-node" "bin/cli.ts" "getNFT"
+		args "ts-node" "bin/cli.ts" "getListTokens"
 		start_suspended true
 	}
 	pane {
-		name "get NFTLIST"
+		name "getListTokensWithBalance"
 		focus true
 		cwd "../js/sdk-sui"
 		command "npx"
-		args "ts-node" "bin/cli.ts" "getNFTLIST"
+		args "ts-node" "bin/cli.ts" "getListTokensWithBalance"
 		start_suspended true
 	}
 	pane size=1 borderless=true {

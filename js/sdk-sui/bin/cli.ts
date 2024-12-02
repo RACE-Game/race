@@ -65,6 +65,30 @@ async function testGetNFTLIST() {
   console.log('res', res)
 }
 
+async function testListTokens() {
+  const suiTransport = new SuiTransport('https://fullnode.mainnet.sui.io:443');
+  // const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+  const tokenAddrs = [
+    '0xb231fcda8bbddb31f2ef02e6161444aec64a514e2c89279584ac9806ce9cf037::coin::COIN',
+    '0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN',
+  ]
+  let res = await suiTransport.listTokens(tokenAddrs);
+  console.log('tokens', res)
+}
+
+async function testListTokensWithBalance() {
+  const suiTransport = new SuiTransport('https://fullnode.mainnet.sui.io:443');
+  // const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+  const tokenAddrs = [
+    '0xb231fcda8bbddb31f2ef02e6161444aec64a514e2c89279584ac9806ce9cf037::coin::COIN',
+    '0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN',
+  ]
+  const walletAddr = '0x5b6eb18e764749862726832bf35e37d597975d234ef341fb39770a736879bc7b'
+  let res = await suiTransport.listTokensWithBalance(walletAddr,tokenAddrs);
+  console.log('tokens', res)
+}
+
+
 function main() {
   const args = process.argv.slice(2, process.argv.length);
   switch (args[0] || '') {
@@ -82,6 +106,12 @@ function main() {
       break
     case 'getNFTLIST':
       testGetNFTLIST()
+      break
+    case 'getListTokens':
+      testListTokens()
+      break
+    case 'getListTokensWithBalance':
+      testListTokensWithBalance()
       break
     default:
       console.error('Invalid command')

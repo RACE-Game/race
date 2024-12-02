@@ -168,27 +168,34 @@ export class SuiTransport implements ITransport {
   closeGameAccount(wallet: IWallet, params: CloseGameAccountParams, resp: ResponseHandle): Promise<void> {
     throw new Error("Method not implemented.");
   }
+  // todo contract
   join(wallet: IWallet, params: JoinParams, resp: ResponseHandle<JoinResponse, JoinError>): Promise<void> {
     throw new Error("Method not implemented.");
   }
+  // todo contract
   deposit(wallet: IWallet, params: DepositParams, resp: ResponseHandle<DepositResponse, DepositError>): Promise<void> {
     throw new Error("Method not implemented.");
   }
   createRecipient(wallet: IWallet, params: CreateRecipientParams, resp: ResponseHandle<CreateRecipientResponse, CreateRecipientError>): Promise<void> {
     throw new Error("Method not implemented.");
   }
+  // todo contract
   registerGame(wallet: IWallet, params: RegisterGameParams, resp: ResponseHandle<RegisterGameResponse, RegisterGameError>): Promise<void> {
     throw new Error("Method not implemented.");
   }
+  // todo contract
   unregisterGame(wallet: IWallet, params: UnregisterGameParams, resp: ResponseHandle): Promise<void> {
     throw new Error("Method not implemented.");
   }
+  // todo sui
   getGameAccount(addr: string): Promise<GameAccount | undefined> {
     throw new Error("Method not implemented.");
   }
+  // todo sui and contract
   getGameBundle(addr: string): Promise<GameBundle | undefined> {
     throw new Error("Method not implemented.");
   }
+  // todo 
   getServerAccount(addr: string): Promise<ServerAccount | undefined> {
     throw new Error("Method not implemented.");
   }
@@ -215,7 +222,6 @@ export class SuiTransport implements ITransport {
       symbol: tokenMetadata.symbol,
       decimals: tokenMetadata.decimals
     }
-    console.log('Token:', token);
     return token;
   }
 
@@ -228,7 +234,7 @@ export class SuiTransport implements ITransport {
         showType: true
       }
     })
-    if (objectResponse.error) { 
+    if (objectResponse.error) {
       console.error('Error fetching NFT:', objectResponse.error);
       return undefined
     }
@@ -253,12 +259,87 @@ export class SuiTransport implements ITransport {
     }
     return undefined
   }
-  listTokens(tokenAddrs: string[]): Promise<Token[]> {
-    throw new Error("Method not implemented.");
+  async listTokens(tokenAddrs: string[]): Promise<Token[]> {
+    const promises = tokenAddrs.map(async addr => {
+      return await this.getToken(addr)
+    })
+    let tokens = await (await Promise.all(promises)).filter((t): t is Token => t !== undefined)
+    return tokens
   }
-  listTokensWithBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<TokenWithBalance[]> {
-    throw new Error("Method not implemented.");
+  async listTokensWithBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<TokenWithBalance[]> {
+    const that = this
+    const suiClient = this.suiClient;
+    const tokenMetadata = await suiClient.getOwnedObjects({ owner: walletAddr });
+    if (!tokenMetadata) {
+      console.error('Error fetching token metadata:', tokenMetadata)
+      return []
+    }
+    let ids = tokenMetadata.data.map((obj: SuiObjectResponse) => obj?.data?.objectId)
+      .filter((id): id is string => id !== undefined)
+    const objectResponses: SuiObjectResponse[] = await suiClient.multiGetObjects({
+      ids,
+      options: {
+        showContent: true,
+        showType: true
+      }
+    })
+    const tokenAndBalances: (TokenWithBalance | undefined)[] = await Promise.all(
+      objectResponses.map(async (obj) => {
+        try {
+          const content = obj.data?.content;
+          if (!content || content.dataType !== 'moveObject' || !content.fields) {
+            return undefined;
+          }
+          const fields = content.fields;
+          if (Array.isArray(fields) || 'fields' in fields || !('balance' in fields)) {
+            return undefined;
+          }
+
+          const list = obj.data?.type?.match(/0x2::coin::Coin<(.+)>/);
+          if (!list) return undefined;
+
+          const objType = list[1];
+          if (!tokenAddrs.includes(objType)) return undefined;
+
+          const token = await that.getToken(objType);
+          if (!token) return undefined;
+
+          return {
+            addr: objType,
+            icon: token.icon,
+            name: token.name,
+            symbol: token.symbol,
+            decimals: token.decimals,
+            amount: BigInt(fields.balance?.toString() || 0),
+            uiAmount: fields.balance?.toString() || '',
+          };
+        } catch (error) {
+          console.error('Error processing object:', error);
+          return undefined;
+        }
+      })
+    );
+    const multokenAndBalances: TokenWithBalance[] = tokenAndBalances
+      .filter((t: TokenWithBalance | undefined): t is TokenWithBalance => t !== undefined)
+    const mergedData = multokenAndBalances.reduce((acc: any, obj: TokenWithBalance) => {
+
+      if (acc[obj.addr]) {
+        acc[obj.addr].amount += obj.amount;
+      } else {
+        acc[obj.addr] = { addr: obj.addr, amount: obj.amount };
+      }
+      acc[obj.addr].addr = obj.addr;
+      acc[obj.addr].icon = obj.icon;
+      acc[obj.addr].name = obj.name;
+      acc[obj.addr].symbol = obj.symbol;
+      acc[obj.addr].decimals = obj.decimals;
+      acc[obj.addr].uiAmount = obj.uiAmount;
+      return acc;
+    }, {});
+
+    return Object.values(mergedData)
   }
+
   async listNfts(walletAddr: string): Promise<Nft[]> {
     const suiClient = this.suiClient;
     const tokenMetadata = await suiClient.getOwnedObjects({ owner: walletAddr });
