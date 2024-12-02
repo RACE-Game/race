@@ -200,7 +200,7 @@ impl ApplicationContext {
         &self,
         game_addr: &str,
         settle_version: u64,
-    ) -> Result<(broadcast::Receiver<BroadcastFrame>, Vec<BroadcastFrame>)> {
+    ) -> Result<(broadcast::Receiver<BroadcastFrame>, BroadcastFrame)> {
         self.game_manager
             .get_broadcast(game_addr, settle_version)
             .await

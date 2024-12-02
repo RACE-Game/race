@@ -170,13 +170,13 @@ impl GameManager {
         &self,
         game_addr: &str,
         settle_version: u64,
-    ) -> Result<(broadcast::Receiver<BroadcastFrame>, Vec<BroadcastFrame>)> {
+    ) -> Result<(broadcast::Receiver<BroadcastFrame>, BroadcastFrame)> {
         let games = self.games.lock().await;
         let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
         let broadcaster = handle.broadcaster()?;
         let receiver = broadcaster.get_broadcast_rx();
-        let histories = broadcaster.retrieve_histories(settle_version).await;
-        Ok((receiver, histories))
+        let backlogs = broadcaster.get_backlogs(settle_version).await;
+        Ok((receiver, backlogs))
     }
 
     pub async fn remove_game(&self, addr: &str) {

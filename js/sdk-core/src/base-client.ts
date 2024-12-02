@@ -289,7 +289,8 @@ export class BaseClient {
         }
     }
 
-    async __handleEvent(event: GameEvent, timestamp: bigint, stateSha: string, source: EventCallbackOptionsSource) {
+    async __handleEvent(frame: BroadcastFrameEvent, source: EventCallbackOptionsSource) {
+        const { event, timestamp, stateSha } = frame
         console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + timestamp)
         let state: Uint8Array | undefined
         let err: ErrorKind | undefined
@@ -326,6 +327,27 @@ export class BaseClient {
         }
     }
 
+    async __handleSync(frame: BroadcastFrameSync) {
+        console.group(`${this.__logPrefix}Receive sync broadcast`, frame)
+        try {
+            for (const node of frame.newServers) {
+                this.__gameContext.addNode(
+                    node.addr,
+                    node.accessVersion,
+                    node.addr === frame.transactor_addr ? 'transactor' : 'validator'
+                )
+            }
+            for (const node of frame.newPlayers) {
+                this.__gameContext.addNode(node.addr, node.accessVersion, 'player')
+                console.info('Load profile for:', node.addr)
+                this.__onLoadProfile(node.accessVersion, node.addr)
+            }
+            this.__gameContext.setAccessVersion(frame.accessVersion)
+        } finally {
+            console.groupEnd()
+        }
+    }
+
     async __handleBroadcastFrame(frame: BroadcastFrame) {
         if (frame instanceof BroadcastFrameMessage) {
             console.group(`${this.__logPrefix}Receive message broadcast`, frame)
@@ -354,27 +376,9 @@ export class BaseClient {
                 console.groupEnd()
             }
         } else if (frame instanceof BroadcastFrameSync) {
-            console.group(`${this.__logPrefix}Receive sync broadcast`, frame)
-            try {
-                for (const node of frame.newServers) {
-                    this.__gameContext.addNode(
-                        node.addr,
-                        node.accessVersion,
-                        node.addr === frame.transactor_addr ? 'transactor' : 'validator'
-                    )
-                }
-                for (const node of frame.newPlayers) {
-                    this.__gameContext.addNode(node.addr, node.accessVersion, 'player')
-                    console.info('Load profile for:', node.addr)
-                    this.__onLoadProfile(node.accessVersion, node.addr)
-                }
-                this.__gameContext.setAccessVersion(frame.accessVersion)
-            } finally {
-                console.groupEnd()
-            }
+            await this.__handleSync(frame);
         } else if (frame instanceof BroadcastFrameEvent) {
-            const { event, timestamp, stateSha } = frame
-            await this.__handleEvent(event, timestamp, stateSha, { kind: 'live' })
+            await this.__handleEvent(frame,  { kind: 'live' })
         } else if (frame instanceof BroadcastFrameEventHistories) {
             console.group(`${this.__logPrefix}Receive event histories`, frame)
 
@@ -392,13 +396,24 @@ export class BaseClient {
 
             try {
                 await this.__checkStateSha(frame.stateSha, 'checkpoint-state-sha-mismatch')
-                let histLen = frame.histories.length
-                for (let i = 0; i < histLen; i++) {
-                    const h = frame.histories[i]
-                    const remaining = histLen - i - 1
-                    await this.__handleEvent(h.event, h.timestamp, h.stateSha, { kind: 'backlog', remaining })
+            } finally {
+                console.groupEnd()
+            }
+
+            try {
+                let len = frame.backlogs.length
+                for (let i = 0; i < len; i++) {
+                    const backlogFrame = frame.backlogs[i]
+                    const remaining = len - i - 1
+                    if (backlogFrame instanceof BroadcastFrameEvent) {
+                        await this.__handleEvent(backlogFrame, { kind: 'backlog', remaining })
+                    } else if (backlogFrame instanceof BroadcastFrameSync) {
+                        await this.__handleSync(backlogFrame)
+                    } else {
+                        console.error('Invalid backlog', backlogFrame)
+                    }
                 }
-                if (histLen === 0) {
+                if (len === 0) {
                     this.__invokeEventCallback(undefined, {
                         isCheckpoint: true,
                         source: { kind: 'backlog', remaining: 0 },

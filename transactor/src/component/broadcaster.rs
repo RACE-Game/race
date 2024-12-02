@@ -7,7 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use race_api::event::Event;
 use race_core::checkpoint::CheckpointOffChain;
-use race_core::types::{BroadcastFrame, BroadcastSync, EventHistory, TxState};
+use race_core::types::{BroadcastFrame, BroadcastSync, TxState};
 use tokio::sync::{broadcast, Mutex};
 use tracing::{debug, error, info, warn};
 
@@ -39,7 +39,25 @@ pub struct EventBackupGroup {
     pub checkpoint_off_chain: Option<CheckpointOffChain>,
 }
 
+impl EventBackupGroup {
+    pub fn to_frames(&self) -> Vec<BroadcastFrame> {
+        let mut frames = vec![];
+        frames.push(BroadcastFrame::Sync {
+            sync: self.sync.clone(),
+        });
+        for event in self.events.iter() {
+            frames.push(BroadcastFrame::Event {
+                event: event.event.clone(),
+                timestamp: event.timestamp,
+                state_sha: event.state_sha.clone(),
+            });
+        }
+        frames
+    }
+}
+
 pub struct BroadcasterContext {
+    #[allow(unused)]
     id: String,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
@@ -47,6 +65,7 @@ pub struct BroadcasterContext {
 
 /// A component that pushes event to clients.
 pub struct Broadcaster {
+    #[allow(unused)]
     id: String,
     #[allow(unused)]
     game_id: usize,
@@ -102,64 +121,44 @@ impl Broadcaster {
     /// `settle_version` will be returned.  If a zero `settle_version`
     /// is provided, just return the events after the latest
     /// checkpoint.
-    pub async fn retrieve_histories(&self, settle_version: u64) -> Vec<BroadcastFrame> {
-        let mut frames: Vec<BroadcastFrame> = Vec::new();
+    pub async fn get_backlogs(&self, settle_version: u64) -> BroadcastFrame {
         let event_backup_groups = self.event_backup_groups.lock().await;
+
+        let mut checkpoint_off_chain: Option<CheckpointOffChain> = None;
+        let mut backlogs: Vec<BroadcastFrame> = vec![];
+        let mut state_sha = "".to_string();
 
         // By default, returns the histories with settle_version
         // greater than the given one
         if settle_version > 0 {
             for group in event_backup_groups.iter() {
+                if group.settle_version == settle_version {
+                    checkpoint_off_chain = group.checkpoint_off_chain.clone();
+                    state_sha = group.state_sha.clone();
+                }
                 if group.settle_version >= settle_version {
-                    let mut histories: Vec<EventHistory> = Vec::new();
-                    info!("Broadcast sync {:?}", group.sync);
-                    frames.push(BroadcastFrame::Sync {
-                        sync: group.sync.clone(),
-                    });
-                    for event in group.events.iter() {
-                        histories.push(EventHistory {
-                            event: event.event.clone(),
-                            timestamp: event.timestamp,
-                            state_sha: event.state_sha.clone(),
-                        });
-                    }
-                    frames.push(BroadcastFrame::EventHistories {
-                        game_addr: self.id.clone(),
-                        checkpoint_off_chain: group.checkpoint_off_chain.clone(),
-                        histories,
-                        state_sha: group.state_sha.clone(),
-                        settle_version: group.settle_version,
-                    })
+                    backlogs.append(&mut group.to_frames());
                 }
             }
         }
 
-        // Return the latest one if the frames are still empty
-        if frames.is_empty() {
+        if backlogs.is_empty() {
             if let Some(group) = event_backup_groups.iter().last() {
-                let mut histories: Vec<EventHistory> = Vec::new();
-                frames.push(BroadcastFrame::Sync {
-                    sync: group.sync.clone(),
-                });
-                for event in group.events.iter() {
-                    histories.push(EventHistory {
-                        event: event.event.clone(),
-                        timestamp: event.timestamp,
-                        state_sha: event.state_sha.clone(),
-                    });
+                if group.settle_version == settle_version {
+                    checkpoint_off_chain = group.checkpoint_off_chain.clone();
+                    state_sha = group.state_sha.clone();
                 }
-                frames.push(BroadcastFrame::EventHistories {
-                    game_addr: self.id.clone(),
-                    checkpoint_off_chain: group.checkpoint_off_chain.clone(),
-                    histories,
-                    state_sha: group.state_sha.clone(),
-                    settle_version: group.settle_version,
-                })
+                if group.settle_version >= settle_version {
+                    backlogs.append(&mut group.to_frames());
+                }
             }
-        } else {
         }
 
-        frames
+        BroadcastFrame::Backlogs {
+            checkpoint_off_chain,
+            backlogs,
+            state_sha,
+        }
     }
 }
 
@@ -177,10 +176,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
         while let Some(event) = ports.recv().await {
             match event {
                 EventFrame::SendMessage { message } => {
-                    let r = ctx.broadcast_tx.send(BroadcastFrame::Message {
-                        game_addr: ctx.id.clone(),
-                        message,
-                    });
+                    let r = ctx.broadcast_tx.send(BroadcastFrame::Message { message });
 
                     if let Err(e) = r {
                         // Usually it means no receivers
@@ -283,7 +279,6 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     drop(event_backup_groups);
 
                     let r = ctx.broadcast_tx.send(BroadcastFrame::Event {
-                        game_addr: ctx.id.clone(),
                         event,
                         timestamp,
                         state_sha,
@@ -373,7 +368,6 @@ mod tests {
             };
 
             let broadcast_frame = BroadcastFrame::Event {
-                game_addr: game_account.addr,
                 timestamp: 0,
                 event: Event::Custom {
                     sender: alice.id(),
@@ -393,7 +387,6 @@ mod tests {
                 confirm_players: vec![PlayerJoin {
                     addr: "Alice".into(),
                     position: 0,
-                    balance: 100,
                     access_version: 10,
                     verify_key: "alice".into(),
                 }

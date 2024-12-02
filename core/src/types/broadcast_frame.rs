@@ -37,26 +37,15 @@ impl BroadcastSync {
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct EventHistory {
-    pub event: Event,
-    pub timestamp: u64,
-    pub state_sha: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub enum BroadcastFrame {
     // Game event
     Event {
-        game_addr: String,
         event: Event,
         timestamp: u64,
         state_sha: String,
     },
     // Arbitrary message
     Message {
-        game_addr: String,
         message: Message,
     },
     // Transaction state updates
@@ -68,12 +57,10 @@ pub enum BroadcastFrame {
         sync: BroadcastSync,
     },
     // This frame is the first frame in broadcast stream.
-    EventHistories {
-        game_addr: String,
+    Backlogs {
         checkpoint_off_chain: Option<CheckpointOffChain>,
-        histories: Vec<EventHistory>,
+        backlogs: Vec<BroadcastFrame>,
         state_sha: String,
-        settle_version: u64,
     },
 }
 
@@ -96,8 +83,8 @@ impl Display for BroadcastFrame {
                     sync.access_version
                 )
             }
-            BroadcastFrame::EventHistories { histories, .. } => {
-                write!(f, "BroadcastFrame::EventHistories, len: {}", histories.len())
+            BroadcastFrame::Backlogs { backlogs, .. } => {
+                write!(f, "BroadcastFrame::EventHistories, len: {}", backlogs.len())
             }
         }
     }

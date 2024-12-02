@@ -1,6 +1,6 @@
 import { TxState } from './tx-state'
 import { array, enums, field, option, struct, variant } from '@race-foundation/borsh'
-import { EventHistory, GameEvent } from './events'
+import { GameEvent } from './events'
 import { CheckpointOffChain } from './checkpoint'
 import { Message } from './message'
 import { Fields } from './types'
@@ -55,8 +55,6 @@ export abstract class BroadcastFrame {
 
 @variant(0)
 export class BroadcastFrameEvent extends BroadcastFrame {
-    @field('string')
-    target!: string
     @field(enums(GameEvent))
     event!: GameEvent
     @field('u64')
@@ -75,8 +73,6 @@ export class BroadcastFrameEvent extends BroadcastFrame {
 
 @variant(1)
 export class BroadcastFrameMessage extends BroadcastFrame {
-    @field('string')
-    target!: string
     @field(struct(Message))
     message!: Message
     constructor(fields: any) {
@@ -127,16 +123,12 @@ export class BroadcastFrameSync extends BroadcastFrame {
 
 @variant(4)
 export class BroadcastFrameEventHistories extends BroadcastFrame {
-    @field('string')
-    gameAddr!: string
     @field(option(struct(CheckpointOffChain)))
     checkpointOffChain: CheckpointOffChain | undefined
-    @field(array(struct(EventHistory)))
-    histories!: EventHistory[]
+    @field(array(enums(BroadcastFrame)))
+    backlogs!: BroadcastFrame[]
     @field('string')
     stateSha!: string
-    @field('u64')
-    settleVersion!: bigint
 
     constructor(fields: any) {
         super()

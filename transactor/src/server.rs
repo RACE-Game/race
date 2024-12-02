@@ -61,10 +61,7 @@ fn parse_params<T: BorshDeserialize>(
 }
 
 /// Ask transactor to load game and provide client's public key for further encryption.
-async fn attach_game(
-    params: Params<'_>,
-    context: Arc<ApplicationContext>,
-) -> Result<(), RpcError> {
+async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
     let (game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
 
     info!("Attach to game, signer: {}", signer);
@@ -161,36 +158,33 @@ async fn subscribe_event(
             }
         };
 
-        let (receiver, frames) = match context.get_broadcast(&game_addr, settle_version).await {
-            Ok(x) => x,
-            Err(e) => {
-                warn!("Game not found: {}", game_addr);
-                let _ = pending.reject(CallError::Failed(e.into())).await;
-                return Ok(());
-            }
-        };
+        let (receiver, backlogs_frame) =
+            match context.get_broadcast(&game_addr, settle_version).await {
+                Ok(x) => x,
+                Err(e) => {
+                    warn!("Game not found: {}", game_addr);
+                    let _ = pending.reject(CallError::Failed(e.into())).await;
+                    return Ok(());
+                }
+            };
 
         drop(context);
         info!(
-            "Subscribe event stream, game: {:?}, settle version: {}, number of historical frames: {}",
-            game_addr,
-            settle_version,
-            frames.len()
+            "Subscribe event stream, game: {:?}, settle version: {}",
+            game_addr, settle_version,
         );
 
         let mut sink = pending.accept().await?;
 
-        for frame in frames.into_iter() {
-            let v = borsh::to_vec(&frame).unwrap();
-            let s = utils::base64_encode(&v);
-            sink.send(SubscriptionMessage::from(&s))
-                .await
-                .map_err(|e| {
-                    error!("Error occurred when broadcasting historical frame: {:?}", e);
-                    e
-                })
-                .unwrap();
-        }
+        let v = borsh::to_vec(&backlogs_frame).unwrap();
+        let s = utils::base64_encode(&v);
+        sink.send(SubscriptionMessage::from(&s))
+            .await
+            .map_err(|e| {
+                error!("Error occurred when broadcasting historical frame: {:?}", e);
+                e
+            })
+            .unwrap();
 
         let rx = BroadcastStream::new(receiver);
         let mut serialized_rx = rx.map(|f| match f {
@@ -225,8 +219,9 @@ async fn subscribe_event(
     }
 }
 
-pub async fn run_server(context: ApplicationContext) -> anyhow::Result<tokio::task::JoinHandle<()>> {
-
+pub async fn run_server(
+    context: ApplicationContext,
+) -> anyhow::Result<tokio::task::JoinHandle<()>> {
     let cors = CorsLayer::new()
         .allow_methods([Method::POST, Method::OPTIONS])
         .allow_origin(Any)
@@ -266,7 +261,10 @@ pub async fn run_server(context: ApplicationContext) -> anyhow::Result<tokio::ta
     info!("Server started at {:?}", host);
 
     Ok(tokio::spawn(async move {
-        shutdown_rx.changed().await.expect("Server listens to shutdown signal");
+        shutdown_rx
+            .changed()
+            .await
+            .expect("Server listens to shutdown signal");
         info!("Stop jsonrpc server");
         handle.stop().expect("Stop jsonrpc server");
         handle.stopped().await;

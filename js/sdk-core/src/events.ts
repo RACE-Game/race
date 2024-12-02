@@ -99,19 +99,6 @@ export abstract class GameEvent implements IEventKind {
     }
 }
 
-export class EventHistory {
-    @field(enums(GameEvent))
-    event!: GameEvent
-    @field('u64')
-    timestamp!: bigint
-    @field('string')
-    stateSha!: string
-    constructor(fields: Fields<Answer>) {
-        Object.assign(this, fields)
-        Object.setPrototypeOf(this, EventHistory.prototype)
-    }
-}
-
 @variant(0)
 export class Custom extends GameEvent implements IEventKind {
     @field('u64')
