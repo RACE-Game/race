@@ -1,9 +1,11 @@
 // The layout to run sdk-sui tests
 
 layout {
+
 	pane {
-		command "echo"
-    args "To quit, use Ctrl-q"
+		command "curl"
+		args "--location" "--request" "POST" "https://faucet.devnet.sui.io/v1/gas" "--header" "Content-Type: application/json" "--data-raw" "{\"FixedAmountRequest\": {\"recipient\": \"0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e\"}}"
+		start_suspended true
 	}
 //	pane {
 //		name "create player profile"
@@ -45,4 +47,7 @@ layout {
 		args "ts-node" "bin/cli.ts" "getNFTLIST"
 		start_suspended true
 	}
+	pane size=1 borderless=true {
+    plugin location="zellij:status-bar"
+  }
 }
