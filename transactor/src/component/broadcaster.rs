@@ -144,13 +144,9 @@ impl Broadcaster {
 
         if backlogs.is_empty() {
             if let Some(group) = event_backup_groups.iter().last() {
-                if group.settle_version == settle_version {
-                    checkpoint_off_chain = group.checkpoint_off_chain.clone();
-                    state_sha = group.state_sha.clone();
-                }
-                if group.settle_version >= settle_version {
-                    backlogs.append(&mut group.to_frames());
-                }
+                checkpoint_off_chain = group.checkpoint_off_chain.clone();
+                state_sha = group.state_sha.clone();
+                backlogs.append(&mut group.to_frames());
             }
         }
 

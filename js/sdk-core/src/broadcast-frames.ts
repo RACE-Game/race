@@ -122,7 +122,7 @@ export class BroadcastFrameSync extends BroadcastFrame {
 }
 
 @variant(4)
-export class BroadcastFrameEventHistories extends BroadcastFrame {
+export class BroadcastFrameBacklogs extends BroadcastFrame {
     @field(option(struct(CheckpointOffChain)))
     checkpointOffChain: CheckpointOffChain | undefined
     @field(array(enums(BroadcastFrame)))
@@ -133,7 +133,7 @@ export class BroadcastFrameEventHistories extends BroadcastFrame {
     constructor(fields: any) {
         super()
         Object.assign(this, fields)
-        Object.setPrototypeOf(this, BroadcastFrameEventHistories.prototype)
+        Object.setPrototypeOf(this, BroadcastFrameBacklogs.prototype)
     }
     kind(): BroadcastFrameKind {
         return 'EventHistories'

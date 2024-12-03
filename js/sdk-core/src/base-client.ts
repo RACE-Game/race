@@ -31,7 +31,7 @@ import {
 } from './types'
 import {
     BroadcastFrame,
-    BroadcastFrameEventHistories,
+    BroadcastFrameBacklogs,
     BroadcastFrameMessage,
     BroadcastFrameSync,
     BroadcastFrameEvent,
@@ -379,13 +379,14 @@ export class BaseClient {
             await this.__handleSync(frame);
         } else if (frame instanceof BroadcastFrameEvent) {
             await this.__handleEvent(frame,  { kind: 'live' })
-        } else if (frame instanceof BroadcastFrameEventHistories) {
+        } else if (frame instanceof BroadcastFrameBacklogs) {
             console.group(`${this.__logPrefix}Receive event histories`, frame)
 
             // TODO, some special handling for subgame
             if (this.__gameId !== 0) {
                 const versionedData = frame.checkpointOffChain?.data.get(this.__gameId)
                 if (versionedData === undefined) {
+                    console.warn('Invalid versioned data', versionedData);
                     throw new Error('Missing checkpoint, mostly a bug')
                 }
                 this.__gameContext.checkpoint.initVersionedData(versionedData)
@@ -401,11 +402,12 @@ export class BaseClient {
             }
 
             try {
-                let len = frame.backlogs.length
-                for (let i = 0; i < len; i++) {
-                    const backlogFrame = frame.backlogs[i]
-                    const remaining = len - i - 1
+                let len = frame.backlogs.filter(f => f instanceof BroadcastFrameEvent).length
+                let index = 0
+                for (const backlogFrame of frame.backlogs) {
                     if (backlogFrame instanceof BroadcastFrameEvent) {
+                        index += 1
+                        const remaining = len - index
                         await this.__handleEvent(backlogFrame, { kind: 'backlog', remaining })
                     } else if (backlogFrame instanceof BroadcastFrameSync) {
                         await this.__handleSync(backlogFrame)
