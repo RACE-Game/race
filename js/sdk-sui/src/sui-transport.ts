@@ -1,6 +1,6 @@
-import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance, Result } from "@race-foundation/sdk-core";
+import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance, Result, CheckpointOnChain, EntryType } from "@race-foundation/sdk-core";
 import { Chain } from './common'
-import { Balance, getFullnodeUrl, SuiClient, SuiObjectChange, SuiObjectChangeCreated, SuiObjectResponse, SuiTransactionBlock } from '@mysten/sui/client';
+import { Balance, getFullnodeUrl, MoveStruct, MoveVariant, SuiClient, SuiMoveObject, SuiObjectChange, SuiObjectChangeCreated, SuiObjectResponse, SuiTransactionBlock } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/bcs';
@@ -42,7 +42,7 @@ export class SuiTransport implements ITransport {
       transaction.pure.address(wallet.walletAddr), // owner address wallet
       transaction.pure.address(randomPublicKey()), // recipient_addr address params
       transaction.pure.address(params.tokenAddr), // token_addr address params "0x2"
-      transaction.pure.u64(params.maxPlayers), // max_players u64 params
+      transaction.pure.u16(params.maxPlayers), // max_players u64 params
       transaction.pure.u32(params.data.length), // data_len u32 params
       transaction.pure.vector('u8', params.data), // data vector<u8> params
     ]
@@ -188,8 +188,45 @@ export class SuiTransport implements ITransport {
     throw new Error("Method not implemented.");
   }
   // todo sui
-  getGameAccount(addr: string): Promise<GameAccount | undefined> {
-    throw new Error("Method not implemented.");
+  async getGameAccount(addr: string): Promise<GameAccount | undefined> {
+    const suiClient = this.suiClient;
+    const info: SuiObjectResponse = await suiClient.getObject({
+      id: addr,
+      options: {
+        showContent: true,
+        showType: true
+      }
+    })
+    const content = info.data?.content;
+    if (!content || content.dataType !== 'moveObject') {
+      return undefined;
+    }
+    if (!content.fields) return undefined;
+    let fields: MoveStruct = content.fields
+    if (Array.isArray(fields)) { return undefined }
+    if ('fields' in fields) { return undefined }
+    return {
+      addr: addr,
+      title: fields?.title as string,
+      bundleAddr: fields.bundle_addr as string,
+      tokenAddr: fields.token_addr as string,
+      ownerAddr: fields.owner as string,
+      settleVersion: BigInt(fields.settle_version?.toString() || 0),
+      accessVersion: BigInt(fields.access_version?.toString() || 0),
+      players: fields.players as [],
+      deposits: fields.deposits as [],
+      servers: fields.servers as [],
+      transactorAddr: fields.transactor_addr as string | undefined,
+      votes: fields.votes as [],
+      unlockTime: BigInt(fields.unlock_time?.toString() || 0),
+      maxPlayers: Number(fields.max_players)|| 0,
+      dataLen: Number(fields.data_len) || 0, 
+      data: fields.data ? new Uint8Array(fields.data as number[]) : new Uint8Array(),
+      entryType: fields?.entry_type ? (fields.entry_type as MoveVariant).variant as unknown as EntryType : 'None' as unknown as EntryType,
+      recipientAddr: fields.recipient_addr as string,
+      checkpointOnChain: fields.checkpoint as unknown as CheckpointOnChain | undefined,
+      entryLock: fields.entry_lock ? (fields.entry_lock as MoveVariant).variant as 'Closed' | 'Open' | 'JoinOnly' | 'DepositOnly' : 'Closed',
+    }
   }
   // todo sui and contract
   getGameBundle(addr: string): Promise<GameBundle | undefined> {
@@ -345,7 +382,7 @@ export class SuiTransport implements ITransport {
     const tokenMetadata = await suiClient.getOwnedObjects({ owner: walletAddr });
     if (!tokenMetadata) return []
     let ids = tokenMetadata.data.map((obj) => obj?.data?.objectId)
-      .filter((id) : id is string => id !== undefined)
+      .filter((id): id is string => id !== undefined)
     const objectResponses: SuiObjectResponse[] = await suiClient.multiGetObjects({
       ids,
       options: {

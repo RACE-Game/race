@@ -21,6 +21,7 @@ function testCreatePlayerProfile() {
 function testCreateGameAccount() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
+  // console.log(wallet.walletAddr)
   const params = {
     title: 'yuumi Game', // title string
     bundleAddr: '0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192', // bundle_addr address params
@@ -44,6 +45,7 @@ function testCreateGameAccount() {
 
   let response = new ResponseHandle<CreateGameResponse, CreateGameError>()
   suiTransport.createGameAccount(wallet, params, response);
+  console.log(response)
 }
 
 async function testGetToken() {
@@ -84,8 +86,14 @@ async function testListTokensWithBalance() {
     '0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN',
   ]
   const walletAddr = '0x5b6eb18e764749862726832bf35e37d597975d234ef341fb39770a736879bc7b'
-  let res = await suiTransport.listTokensWithBalance(walletAddr,tokenAddrs);
+  let res = await suiTransport.listTokensWithBalance(walletAddr, tokenAddrs);
   console.log('tokens', res)
+}
+async function testGetGameAccount() {
+  const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+  const objectId = '0xe561fb89ed4bc02b03390260532f8de922147016e24386d6bb7d62023a55fc03'
+  let res = await suiTransport.getGameAccount(objectId);
+  console.log('testGetGameAccount', res)
 }
 
 
@@ -113,6 +121,10 @@ function main() {
     case 'getListTokensWithBalance':
       testListTokensWithBalance()
       break
+    case 'getGameAccount':
+      testGetGameAccount()
+      break
+
     default:
       console.error('Invalid command')
   }

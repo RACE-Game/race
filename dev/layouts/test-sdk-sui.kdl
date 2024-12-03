@@ -15,14 +15,23 @@ layout {
 //		args "ts-node" "bin/cli.ts" "createPlayerProfile"
 //		start_suspended true
 //	}
-//	pane {
-//		name "create game account"
-//		focus true
-//		cwd "../js/sdk-sui"
-//		command "npx"
-//		args "ts-node" "bin/cli.ts" "createGameAccount"
-//		start_suspended true
-//	}
+	pane {
+		name "create game account"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "createGameAccount"
+		start_suspended true
+	}
+	pane {
+		name "get game account"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "getGameAccount"
+		start_suspended true
+	}
+	
 //	pane {
 //		name "get token"
 //		focus true
@@ -47,14 +56,14 @@ layout {
 //		args "ts-node" "bin/cli.ts" "getNFTLIST"
 //		start_suspended true
 //	}
-	pane {
-		name "getListTokens"
-		focus true
-		cwd "../js/sdk-sui"
-		command "npx"
-		args "ts-node" "bin/cli.ts" "getListTokens"
-		start_suspended true
-	}
+//	pane {
+//		name "getListTokens"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "getListTokens"
+//		start_suspended true
+//	}
 	pane {
 		name "getListTokensWithBalance"
 		focus true
