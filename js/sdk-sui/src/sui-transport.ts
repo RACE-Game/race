@@ -233,10 +233,21 @@ export class SuiTransport implements ITransport {
     throw new Error("Method not implemented.");
   }
   // todo 
-  getServerAccount(addr: string): Promise<ServerAccount | undefined> {
+  async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
+    const suiClient = this.suiClient;
+    const info: SuiObjectResponse = await suiClient.getObject({
+      id: addr,
+      options: {
+        showContent: true,
+        showType: true
+      }
+    })
+    const content = info;
+    console.log('content:', content)
     throw new Error("Method not implemented.");
   }
   getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
+    // ObjectID 
     throw new Error("Method not implemented.");
   }
   getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {

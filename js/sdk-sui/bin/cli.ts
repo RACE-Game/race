@@ -96,10 +96,30 @@ async function testGetGameAccount() {
   console.log('testGetGameAccount', res)
 }
 
+async function testGetRegistration() {
+  const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+  const objectId = '0xe561fb89ed4bc02b03390260532f8de922147016e24386d6bb7d62023a55fc03'
+  let res = await suiTransport.getRegistration(objectId);
+  console.log('testGetRegistration', res)
+}
+
+
+async function testServerAccount() {
+  const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+  const objectId = '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e'
+  let res = await suiTransport.getServerAccount(objectId);
+  console.log('testServerAccount', res)
+}
 
 function main() {
   const args = process.argv.slice(2, process.argv.length);
   switch (args[0] || '') {
+    case 'getServerAccount':
+      testServerAccount()
+      break
+    case 'getRegistration':
+      testGetRegistration()
+      break
     case 'createGameAccount':
       testCreateGameAccount()
       break

@@ -15,6 +15,7 @@ layout {
 //		args "ts-node" "bin/cli.ts" "createPlayerProfile"
 //		start_suspended true
 //	}
+
 	pane {
 		name "create game account"
 		focus true
@@ -31,7 +32,22 @@ layout {
 		args "ts-node" "bin/cli.ts" "getGameAccount"
 		start_suspended true
 	}
-	
+	pane {
+		name "get game registration"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "getRegistration"
+		start_suspended true
+	}
+	pane {
+		name "get ServerAccount"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "getServerAccount"
+		start_suspended true
+	}
 //	pane {
 //		name "get token"
 //		focus true
@@ -64,14 +80,14 @@ layout {
 //		args "ts-node" "bin/cli.ts" "getListTokens"
 //		start_suspended true
 //	}
-	pane {
-		name "getListTokensWithBalance"
-		focus true
-		cwd "../js/sdk-sui"
-		command "npx"
-		args "ts-node" "bin/cli.ts" "getListTokensWithBalance"
-		start_suspended true
-	}
+//	pane {
+//		name "getListTokensWithBalance"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "getListTokensWithBalance"
+//		start_suspended true
+//	}
 	pane size=1 borderless=true {
     plugin location="zellij:status-bar"
   }
