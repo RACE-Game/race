@@ -62,11 +62,11 @@ impl Default for DummyTransport {
 #[async_trait]
 #[allow(unused_variables)]
 impl TransportT for DummyTransport {
-    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Option<GameAccount>> + Send + 'a>>> {
+    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>> {
         let mut states = self.states.lock().unwrap().clone();
         Ok(Box::pin(stream! {
             let game_account = states.remove(0);
-            yield Some(game_account);
+            yield Ok(game_account);
         }))
     }
 

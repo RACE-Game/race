@@ -18,7 +18,7 @@ use race_core::error::Result;
 use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
 use std::{
-    fs::{self, File}, path::PathBuf, sync::Arc
+    fs::{self, create_dir, File}, io::Write, path::{Path, PathBuf}, sync::Arc
 };
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
 
@@ -72,6 +72,12 @@ fn cli() -> Command {
                 .arg(arg!(<SYMBOL> "The symbol used for game metadata file"))
                 .arg(arg!(<CREATOR> "The creator address"))
                 .arg(arg!(<BUNDLE> "The file path to game bundle"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
+            Command::new("download-bundle")
+                .about("Download a game bundle")
+                .arg(arg!(<ADDRESS> "The address to game bundle"))
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -219,6 +225,8 @@ async fn publish(
         .await
         .expect("Arweave uploading metadata failed");
 
+    println!("Metadata URL(on Arweave): {}", meta_addr);
+
     let params = PublishGameParams {
         uri: meta_addr,
         name,
@@ -239,6 +247,28 @@ async fn claim(addr: &str, transport: Arc<dyn TransportT>) {
         .await
         .expect("Failed to claim tokens");
     println!("Done");
+}
+
+async fn download_bundle(addr: &str, transport: Arc<dyn TransportT>) {
+    match transport
+        .get_game_bundle(addr)
+        .await
+        .expect("Network error")
+    {
+        Some(game_bundle) => {
+            let dir = Path::new("bundles");
+            if !dir.exists() {
+                create_dir(dir).expect("Failed to create directory");
+            }
+            let path = Path::new("bundles").join(addr);
+            let mut file = File::create(&path).expect("Failed to create file");
+            file.write_all(&game_bundle.data).expect("Failed to write to file");
+            println!("Bundle file saved at {}", path.to_string_lossy());
+        }
+        None => {
+            println!("Game bundle not found");
+        }
+    }
 }
 
 async fn bundle_info(addr: &str, transport: Arc<dyn TransportT>) {
@@ -607,6 +637,11 @@ async fn main() {
                 transport,
             )
                 .await;
+        }
+        Some(("download-bundle", sub_matches)) => {
+            let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
+            let transport = create_transport(&chain, &rpc, None).await;
+            download_bundle(addr, transport).await;
         }
         Some(("bundle-info", sub_matches)) => {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");

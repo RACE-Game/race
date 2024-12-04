@@ -45,6 +45,7 @@ impl GameManager {
     ) -> Option<JoinHandle<CloseReason>> {
         let game_addr = sub_game_init.spec.game_addr.clone();
         let game_id = sub_game_init.spec.game_id;
+        info!("LaunchSubGame with bundle: {}", sub_game_init.spec.bundle_addr);
         match Handle::try_new_sub_game(sub_game_init, bridge_to_parent, transport, encryptor, storage, server_account, config).await {
             Ok(mut handle) => {
                 let mut games = self.games.lock().await;
