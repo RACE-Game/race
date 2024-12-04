@@ -197,18 +197,27 @@ impl TransportT for SolanaTransport {
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
 
-        let ata_account_pubkey =
-            get_associated_token_address(&game_account_pubkey, &game_state.token_mint);
+
+        // For game with SOL, PDA = stake account
+        let receiver_pubkey = if stake_account_pubkey.eq(&pda) {
+            info!("Game uses SOL, receiver account: {}", payer_pubkey);
+            payer_pubkey
+        } else {
+            let ata_account_pubkey =
+                get_associated_token_address(&game_account_pubkey, &game_state.token_mint);
+            info!("Game uses SPL, receiver account: {}", ata_account_pubkey);
+            ata_account_pubkey
+        };
 
         let close_game_ix = Instruction::new_with_borsh(
             self.program_id,
             &RaceInstruction::CloseGameAccount,
             vec![
-                AccountMeta::new(payer_pubkey, false),
+                AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new(game_account_pubkey, false),
                 AccountMeta::new(stake_account_pubkey, false),
                 AccountMeta::new_readonly(pda, false),
-                AccountMeta::new_readonly(ata_account_pubkey, false),
+                AccountMeta::new_readonly(receiver_pubkey, false),
                 AccountMeta::new_readonly(spl_token::id(), false),
             ],
         );
@@ -597,6 +606,7 @@ impl TransportT for SolanaTransport {
             entry_lock,
             reset,
         } = params;
+        info!("Settle game {}", addr);
 
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
