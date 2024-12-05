@@ -5,10 +5,10 @@ import { LocalSuiWallet } from '../src/local-wallet'
 import { GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_TABLE_ID } from '../src/constants'
 // import { ResponseHandle } from '../../sdk-core/src/response'
 import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance } from "@race-foundation/sdk-core";
+const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
 
 function testCreatePlayerProfile() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-  const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
   const params = {
     nick: 'yuumi Game', // nick string
     pfp: '0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192', // pfp address params
@@ -20,7 +20,6 @@ function testCreatePlayerProfile() {
 
 function testCreateGameAccount() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-  const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
   // console.log(wallet.walletAddr)
   const params = {
     title: 'yuumi Game', // title string
@@ -78,14 +77,16 @@ async function testListTokens() {
   console.log('tokens', res)
 }
 
+
 async function testListTokensWithBalance() {
-  const suiTransport = new SuiTransport('https://fullnode.mainnet.sui.io:443');
+  const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   // const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   const tokenAddrs = [
     '0xb231fcda8bbddb31f2ef02e6161444aec64a514e2c89279584ac9806ce9cf037::coin::COIN',
     '0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN',
   ]
-  const walletAddr = '0x5b6eb18e764749862726832bf35e37d597975d234ef341fb39770a736879bc7b'
+  // const walletAddr = '0x5b6eb18e764749862726832bf35e37d597975d234ef341fb39770a736879bc7b'
+  const walletAddr = '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e'
   let res = await suiTransport.listTokensWithBalance(walletAddr, tokenAddrs);
   console.log('tokens', res)
 }
@@ -110,6 +111,13 @@ async function testServerAccount() {
   let res = await suiTransport.getServerAccount(objectId);
   console.log('testServerAccount', res)
 }
+async function testCreateRecipient() {
+  const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+  let response = new ResponseHandle<CreateRecipientResponse, CreateRecipientError>()
+  let res = await suiTransport.createRecipient(wallet, { capAddr: '', slots: [] }, response);
+  console.log('testCreateRecipient', res)
+}
+
 
 function main() {
   const args = process.argv.slice(2, process.argv.length);
@@ -143,6 +151,9 @@ function main() {
       break
     case 'getGameAccount':
       testGetGameAccount()
+      break
+    case 'createRecipient':
+      testCreateRecipient()
       break
 
     default:

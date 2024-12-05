@@ -6,7 +6,7 @@ import { Transaction } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/bcs';
 import { SuiWallet } from "./sui-wallet";
 import { LocalSuiWallet } from "./local-wallet";
-import { GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_TABLE_ID, SUI_ICON_URL } from './constants'
+import { GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_STRUCT_TYPE, PROFILE_TABLE_ID, SUI_ICON_URL } from './constants'
 import { ISigner, TxResult } from "./signer";
 
 
@@ -21,6 +21,7 @@ export class SuiTransport implements ITransport {
   suiClient: SuiClient
 
   constructor(url: string) {
+    console.log('SuiTransport', url)
     this.suiClient = new SuiClient({ url });
   }
 
@@ -176,7 +177,24 @@ export class SuiTransport implements ITransport {
   deposit(wallet: IWallet, params: DepositParams, resp: ResponseHandle<DepositResponse, DepositError>): Promise<void> {
     throw new Error("Method not implemented.");
   }
-  createRecipient(wallet: IWallet, params: CreateRecipientParams, resp: ResponseHandle<CreateRecipientResponse, CreateRecipientError>): Promise<void> {
+  async createRecipient(wallet: IWallet, params: CreateRecipientParams, resp: ResponseHandle<CreateRecipientResponse, CreateRecipientError>): Promise<void> {
+    const transaction = new Transaction();
+    const suiClient = this.suiClient;
+    coerceWallet(wallet)
+    let createRecipientResult = transaction.moveCall({
+      target: `${PACKAGE_ID}::recipient::create_recipient`,
+      arguments: [
+        transaction.pure.option('address', '0x')
+      ]
+    });
+    console.log('createRecipientResult', createRecipientResult)
+    const result = await wallet.send(transaction, suiClient, resp)
+    if ("err" in result) {
+      return resp.transactionFailed(result.err)
+    }
+    const objectChange = resolveObjectCreatedByType(result.ok, GAME_OBJECT_TYPE, resp)
+    if (objectChange === undefined) return;
+
     throw new Error("Method not implemented.");
   }
   // todo contract
@@ -219,8 +237,8 @@ export class SuiTransport implements ITransport {
       transactorAddr: fields.transactor_addr as string | undefined,
       votes: fields.votes as [],
       unlockTime: BigInt(fields.unlock_time?.toString() || 0),
-      maxPlayers: Number(fields.max_players)|| 0,
-      dataLen: Number(fields.data_len) || 0, 
+      maxPlayers: Number(fields.max_players) || 0,
+      dataLen: Number(fields.data_len) || 0,
       data: fields.data ? new Uint8Array(fields.data as number[]) : new Uint8Array(),
       entryType: fields?.entry_type ? (fields.entry_type as MoveVariant).variant as unknown as EntryType : 'None' as unknown as EntryType,
       recipientAddr: fields.recipient_addr as string,
