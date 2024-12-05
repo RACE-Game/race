@@ -216,8 +216,6 @@ impl GameContext {
     pub fn try_new_with_sub_game_spec(init: SubGameInit) -> Result<Self> {
         let SubGameInit { spec, nodes, source } = init;
 
-        println!("NODES: {:?}", nodes);
-
         let (handler_state, versions, init_data, checkpoint) = match source {
             SubGameInitSource::FromCheckpoint(versioned_data) => {
                 let mut checkpoint = Checkpoint::default();

@@ -380,7 +380,7 @@ export class BaseClient {
         } else if (frame instanceof BroadcastFrameEvent) {
             await this.__handleEvent(frame,  { kind: 'live' })
         } else if (frame instanceof BroadcastFrameBacklogs) {
-            console.group(`${this.__logPrefix}Receive event histories`, frame)
+            console.group(`${this.__logPrefix}Receive event backlogs`, frame)
 
             // TODO, some special handling for subgame
             if (this.__gameId !== 0) {

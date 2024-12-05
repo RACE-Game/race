@@ -45,7 +45,7 @@ export class BroadcastPlayerDeposit {
     }
 }
 
-export type BroadcastFrameKind = 'Invalid' | 'Event' | 'Message' | 'TxState' | 'Sync' | 'EventHistories'
+export type BroadcastFrameKind = 'Invalid' | 'Event' | 'Message' | 'TxState' | 'Sync' | 'Backlogs'
 
 export abstract class BroadcastFrame {
     kind(): BroadcastFrameKind {
@@ -136,6 +136,6 @@ export class BroadcastFrameBacklogs extends BroadcastFrame {
         Object.setPrototypeOf(this, BroadcastFrameBacklogs.prototype)
     }
     kind(): BroadcastFrameKind {
-        return 'EventHistories'
+        return 'Backlogs'
     }
 }
