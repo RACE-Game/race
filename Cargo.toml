@@ -52,7 +52,7 @@ hex = "0.4.3"
 hyper = "0.14.20"
 infer = "0.15.0"
 jsonrpsee = "0.17.1"
-openssl = { version = "^0.10" }
+openssl = { version = "^0.10", features = [ "vendored" ] }
 prettytable-rs = "^0.10"
 project-root = "0.2.2"
 quote = "1.0.23"
