@@ -74,6 +74,16 @@ impl TransportBuilder {
                             .clone(),
                     );
                 }
+                ChainType::Sui => {
+                    self.rpc = Some(
+                        config
+                            .sui
+                            .as_ref()
+                            .ok_or(TransportError::InvalidConfig("RPC unspecified".into()))?
+                            .rpc
+                            .clone(),
+                    );
+                }
                 ChainType::Facade => {
                     self.address = Some(config.facade.as_ref().ok_or(TransportError::InvalidConfig("Address unspecified".into()))?.address.clone());
                     self.rpc = Some(

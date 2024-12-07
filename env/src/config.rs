@@ -25,6 +25,11 @@ pub struct BnbConfig {
 }
 
 #[derive(Deserialize, Clone)]
+pub struct SuiConfig {
+    pub rpc: String,
+}
+
+#[derive(Deserialize, Clone)]
 pub struct SubmitterConfig {
     pub squash_time_window: Option<u64>,
     pub squash_limit: Option<usize>,
@@ -57,6 +62,7 @@ pub struct Config {
     pub facade: Option<FacadeConfig>,
     pub solana: Option<SolanaConfig>,
     pub bnb: Option<BnbConfig>,
+    pub sui: Option<SuiConfig>
 }
 
 impl Config {

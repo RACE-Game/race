@@ -25,7 +25,6 @@ use race_core::{
     },
 };
 
-// use core::slice::SlicePattern;
 use std::str::FromStr;
 use std::{path::PathBuf, pin::Pin};
 
