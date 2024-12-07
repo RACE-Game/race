@@ -9,6 +9,7 @@ import { LocalSuiWallet } from "./local-wallet";
 import { GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_STRUCT_TYPE, PROFILE_TABLE_ID, SUI_ICON_URL } from './constants'
 import { ISigner, TxResult } from "./signer";
 import { option } from "@race-foundation/borsh";
+import { serializeRecipientSlotShares, serializeRecipientSlotType } from "./types";
 
 
 function coerceWallet(wallet: IWallet): asserts wallet is ISigner {
@@ -178,7 +179,8 @@ export class SuiTransport implements ITransport {
   deposit(wallet: IWallet, params: DepositParams, resp: ResponseHandle<DepositResponse, DepositError>): Promise<void> {
     throw new Error("Method not implemented.");
   }
-  async createRecipient(wallet: IWallet, params: CreateRecipientParams, resp: ResponseHandle<CreateRecipientResponse, CreateRecipientError>): Promise<void> {
+    async createRecipient(wallet: IWallet, params: CreateRecipientParams, resp: ResponseHandle<CreateRecipientResponse, CreateRecipientError>): Promise<void> {
+
     const transaction = new Transaction();
     const suiClient = this.suiClient;
     coerceWallet(wallet)
@@ -186,36 +188,14 @@ export class SuiTransport implements ITransport {
       target: `${PACKAGE_ID}::recipient::new_recipient_builder`,
     });
     params.slots.forEach((slot: RecipientSlotInit) => {
-      let slotType: number = 0
-      if (slot.slotType === 'nft') {
-        slotType = 0
-      } else if (slot.slotType === 'token') {
-        slotType = 1
-      }
-      // Struct
-      const addrStruct = bcs.struct('AddrStruct', {
-        owner: bcs.struct('Owner', { addr: bcs.string()}),
-        weights: bcs.u64()
-      })
-      // Struct
-      const identifierStruct = bcs.struct('AdentifierStruct', {
-        owner: bcs.struct('Owner', { identifier: bcs.string()}),
-        weights: bcs.u64()
-      })
-      let shares
-      if( 'addr' in slot.initShares) {
-        shares = addrStruct.serialize({ owner: { addr: '0x'}, weights: 20 });
-      } else {
-        shares = identifierStruct.serialize({ owner: { identifier: '0x'}, weights: 20 });
-      }
-      builder = transaction.moveCall({
+        builder = transaction.moveCall({
         target: `${PACKAGE_ID}::recipient::create_recipient_slot`,
         arguments: [
-          transaction.pure.u8(slot.id), // id u8
-          transaction.pure.option('address', slot.tokenAddr),
-          bcs.vector(bcs.u8()).serialize([slotType]),
-          shares,
-          builder,
+            transaction.pure.u8(slot.id), // id u8
+            transaction.pure.address(slot.tokenAddr),
+            serializeRecipientSlotType(slot.slotType),
+            serializeRecipientSlotShares(slot.initShares),
+            builder,
         ]
       })
     })
@@ -289,7 +269,7 @@ export class SuiTransport implements ITransport {
   getGameBundle(addr: string): Promise<GameBundle | undefined> {
     throw new Error("Method not implemented.");
   }
-  // todo 
+  // todo
   async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
     const suiClient = this.suiClient;
     const info: SuiObjectResponse = await suiClient.getObject({
@@ -304,7 +284,7 @@ export class SuiTransport implements ITransport {
     throw new Error("Method not implemented.");
   }
   getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
-    // ObjectID 
+    // ObjectID
     throw new Error("Method not implemented.");
   }
   getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {

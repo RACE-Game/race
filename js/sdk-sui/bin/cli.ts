@@ -117,18 +117,18 @@ async function testCreateRecipient() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   let response = new ResponseHandle<CreateRecipientResponse, CreateRecipientError>()
   let params: CreateRecipientParams = {
-    capAddr: '0x59ee0cf567a1efb1788873bc0014aa126e102d604daf45cf2003fd48966ca5f3',
+    capAddr: '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e',
     slots: [
       {
         id: 0,
         slotType: 'token', // nft or token
-        tokenAddr: '0x59ee0cf567a1efb1788873bc0014aa126e102d604daf45cf2003fd48966ca5f3',
+        tokenAddr: '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e',
         initShares: [
-          { owner: { addr: '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e'}, weights: 10 },
-          { owner: { addr: '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e'}, weights: 20 },
+          { owner: { identifier: 'Race'}, weights: 10 },
+          { owner: { identifier: 'Race'}, weights: 20 },
         ]
       }
-    ] 
+    ]
   }
   let res = await suiTransport.createRecipient(wallet, params, response);
     console.log('testCreateRecipient', res)
