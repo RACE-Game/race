@@ -111,54 +111,70 @@ async function testServerAccount() {
   let res = await suiTransport.getServerAccount(objectId);
   console.log('testServerAccount', res)
 }
+
+
 async function testCreateRecipient() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   let response = new ResponseHandle<CreateRecipientResponse, CreateRecipientError>()
-  let res = await suiTransport.createRecipient(wallet, { capAddr: '', slots: [] }, response);
-  console.log('testCreateRecipient', res)
-}
-
-
-function main() {
-  const args = process.argv.slice(2, process.argv.length);
-  switch (args[0] || '') {
-    case 'getServerAccount':
-      testServerAccount()
-      break
-    case 'getRegistration':
-      testGetRegistration()
-      break
-    case 'createGameAccount':
-      testCreateGameAccount()
-      break
-    case 'createPlayerProfile':
-      testCreatePlayerProfile()
-      break
-    case 'getToken':
-      testGetToken()
-      break
-    case 'getNFT':
-      testGetNFT()
-      break
-    case 'getNFTLIST':
-      testGetNFTLIST()
-      break
-    case 'getListTokens':
-      testListTokens()
-      break
-    case 'getListTokensWithBalance':
-      testListTokensWithBalance()
-      break
-    case 'getGameAccount':
-      testGetGameAccount()
-      break
-    case 'createRecipient':
-      testCreateRecipient()
-      break
-
-    default:
-      console.error('Invalid command')
+  let params: CreateRecipientParams = {
+    capAddr: '0x59ee0cf567a1efb1788873bc0014aa126e102d604daf45cf2003fd48966ca5f3',
+    slots: [
+      {
+        id: 0,
+        slotType: 'token', // nft or token
+        tokenAddr: '0x59ee0cf567a1efb1788873bc0014aa126e102d604daf45cf2003fd48966ca5f3',
+        initShares: [
+          { owner: { addr: '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e'}, weights: 10 },
+          { owner: { addr: '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e'}, weights: 20 },
+        ]
+      }
+    ] 
   }
-}
+  let res = await suiTransport.createRecipient(wallet, params, response);
+    console.log('testCreateRecipient', res)
+  }
 
-main()
+
+  function main() {
+    const args = process.argv.slice(2, process.argv.length);
+    switch (args[0] || '') {
+      case 'getServerAccount':
+        testServerAccount()
+        break
+      case 'getRegistration':
+        testGetRegistration()
+        break
+      case 'createGameAccount':
+        testCreateGameAccount()
+        break
+      case 'createPlayerProfile':
+        testCreatePlayerProfile()
+        break
+      case 'getToken':
+        testGetToken()
+        break
+      case 'getNFT':
+        testGetNFT()
+        break
+      case 'getNFTLIST':
+        testGetNFTLIST()
+        break
+      case 'getListTokens':
+        testListTokens()
+        break
+      case 'getListTokensWithBalance':
+        testListTokensWithBalance()
+        break
+      case 'getGameAccount':
+        testGetGameAccount()
+        break
+      case 'createRecipient':
+        testCreateRecipient()
+        break
+
+      default:
+        console.error('Invalid command')
+    }
+  }
+
+  main()

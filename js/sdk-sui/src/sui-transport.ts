@@ -1,4 +1,4 @@
-import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance, Result, CheckpointOnChain, EntryType } from "@race-foundation/sdk-core";
+import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance, Result, CheckpointOnChain, EntryType, RecipientSlotInit } from "@race-foundation/sdk-core";
 import { Chain } from './common'
 import { Balance, getFullnodeUrl, MoveStruct, MoveVariant, SuiClient, SuiMoveObject, SuiObjectChange, SuiObjectChangeCreated, SuiObjectResponse, SuiTransactionBlock } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
@@ -8,6 +8,7 @@ import { SuiWallet } from "./sui-wallet";
 import { LocalSuiWallet } from "./local-wallet";
 import { GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_STRUCT_TYPE, PROFILE_TABLE_ID, SUI_ICON_URL } from './constants'
 import { ISigner, TxResult } from "./signer";
+import { option } from "@race-foundation/borsh";
 
 
 function coerceWallet(wallet: IWallet): asserts wallet is ISigner {
@@ -181,13 +182,51 @@ export class SuiTransport implements ITransport {
     const transaction = new Transaction();
     const suiClient = this.suiClient;
     coerceWallet(wallet)
-    let createRecipientResult = transaction.moveCall({
+    let builder = transaction.moveCall({
+      target: `${PACKAGE_ID}::recipient::new_recipient_builder`,
+    });
+    params.slots.forEach((slot: RecipientSlotInit) => {
+      let slotType: number = 0
+      if (slot.slotType === 'nft') {
+        slotType = 0
+      } else if (slot.slotType === 'token') {
+        slotType = 1
+      }
+      // Struct
+      const addrStruct = bcs.struct('AddrStruct', {
+        owner: bcs.struct('Owner', { addr: bcs.string()}),
+        weights: bcs.u64()
+      })
+      // Struct
+      const identifierStruct = bcs.struct('AdentifierStruct', {
+        owner: bcs.struct('Owner', { identifier: bcs.string()}),
+        weights: bcs.u64()
+      })
+      let shares
+      if( 'addr' in slot.initShares) {
+        shares = addrStruct.serialize({ owner: { addr: '0x'}, weights: 20 });
+      } else {
+        shares = identifierStruct.serialize({ owner: { identifier: '0x'}, weights: 20 });
+      }
+      builder = transaction.moveCall({
+        target: `${PACKAGE_ID}::recipient::create_recipient_slot`,
+        arguments: [
+          transaction.pure.u8(slot.id), // id u8
+          transaction.pure.option('address', slot.tokenAddr),
+          bcs.vector(bcs.u8()).serialize([slotType]),
+          shares,
+          builder,
+        ]
+      })
+    })
+    let recipient = transaction.moveCall({
       target: `${PACKAGE_ID}::recipient::create_recipient`,
       arguments: [
-        transaction.pure.option('address', '0x')
+        transaction.pure.option('address', wallet.walletAddr),
+        builder,
       ]
     });
-    console.log('createRecipientResult', createRecipientResult)
+    console.log('createRecipientResult', recipient)
     const result = await wallet.send(transaction, suiClient, resp)
     if ("err" in result) {
       return resp.transactionFailed(result.err)

@@ -14,6 +14,7 @@ export class LocalSuiWallet implements IWallet, ISigner {
   constructor(privateKey: string) {
     this.keypair = Ed25519Keypair.fromSecretKey(privateKey)
     this.address = this.keypair.getPublicKey().toSuiAddress()
+    console.log('this.address', this.address)
   }
 
   async send<T, E>(transaction: Transaction, client: SuiClient, resp: ResponseHandle<T, E>): Promise<Result<SuiTransactionBlockResponse, string>> {
