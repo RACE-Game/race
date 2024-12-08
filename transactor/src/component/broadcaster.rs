@@ -97,6 +97,16 @@ impl Broadcaster {
         self.broadcast_tx.subscribe()
     }
 
+    pub async fn get_latest_checkpoint(&self) -> Option<CheckpointOffChain> {
+        let event_backup_groups = self.event_backup_groups.lock().await;
+
+        if let Some(latest_group) = event_backup_groups.iter().last() {
+            return latest_group.checkpoint_off_chain.clone();
+        }
+
+        return None;
+    }
+
     pub async fn get_checkpoint(&self, settle_version: u64) -> Option<CheckpointOffChain> {
         let event_backup_groups = self.event_backup_groups.lock().await;
         info!("Get checkpoint with settle_version = {}", settle_version);

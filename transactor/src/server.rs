@@ -133,6 +133,27 @@ async fn get_checkpoint(
     Ok(bs)
 }
 
+async fn get_latest_checkpoint(
+    params: Params<'_>,
+    context: Arc<ApplicationContext>,
+) -> Result<Option<Vec<u8>>, RpcError> {
+    let game_addr = params.one::<String>()?;
+
+    info!("Get latest checkpoint, game_addr: {}", game_addr);
+
+    let checkpoint: Option<CheckpointOffChain> = context
+        .game_manager
+        .get_latest_checkpoint(&game_addr)
+        .await
+        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
+
+    let bs = checkpoint
+        .map(|c| borsh::to_vec(&c).map_err(|e| RpcError::Call(CallError::Failed(e.into()))))
+        .transpose()?;
+
+    Ok(bs)
+}
+
 async fn exit_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
     let (game_addr, ExitGameParams {}, sig) = parse_params(params, &context)?;
     info!("Exit game");
@@ -247,6 +268,7 @@ pub async fn run_server(
 
     module.register_method("ping", ping)?;
     module.register_async_method("checkpoint", get_checkpoint)?;
+    module.register_async_method("latest_checkpoint", get_latest_checkpoint)?;
     module.register_async_method("attach_game", attach_game)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;

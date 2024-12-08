@@ -166,6 +166,14 @@ impl GameManager {
         Ok(checkpoint)
     }
 
+    pub async fn get_latest_checkpoint(&self, game_addr: &str) -> Result<Option<CheckpointOffChain>> {
+        let games = self.games.lock().await;
+        let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
+        let broadcaster = handle.broadcaster()?;
+        let checkpoint = broadcaster.get_latest_checkpoint().await;
+        Ok(checkpoint)
+    }
+
     /// Get the broadcast channel of game, and its event histories
     pub async fn get_broadcast(
         &self,
