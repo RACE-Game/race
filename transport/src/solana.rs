@@ -1551,7 +1551,7 @@ mod tests {
         let transport = get_transport()?;
         let addr = create_game(&transport).await?;
         let game_account = transport
-            .get_game_account(&addr, CommitmentConfig::Finalized)
+            .get_game_account(&addr)
             .await?
             .expect("Failed to query");
         assert_eq!(game_account.access_version, 0);
@@ -1565,7 +1565,7 @@ mod tests {
         assert_eq!(
             None,
             transport
-                .get_game_account(&addr, CommitmentConfig::Finalized)
+                .get_game_account(&addr)
                 .await?
         );
         Ok(())

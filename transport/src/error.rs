@@ -1,4 +1,5 @@
 use thiserror::Error;
+use sui_sdk::error::Error as SuiError;
 
 #[derive(Error, Debug)]
 pub enum TransportError {
@@ -107,6 +108,9 @@ pub enum TransportError {
     #[error("Failed to parse string address")]
     ParseAddressError,
 
+    #[error("Failed to parse string ID {0}")]
+    ParseObjectIdError(String),
+
     #[error("Transaction is not confirmed")]
     TransactionNotConfirmed,
 
@@ -168,5 +172,13 @@ impl From<TransportError> for race_core::error::Error {
 impl From<reqwest::Error> for TransportError {
     fn from(value: reqwest::Error) -> Self {
         Self::NetworkError(value.to_string())
+    }
+}
+
+
+// For the SuiSDK error
+impl From<SuiError> for TransportError {
+    fn from(error: SuiError) -> Self {
+        TransportError::NetworkError(error.to_string())
     }
 }
