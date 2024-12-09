@@ -1,4 +1,6 @@
 use thiserror::Error;
+use sui_sdk::error::Error as SuiError;
+use anyhow;
 
 #[derive(Error, Debug)]
 pub enum TransportError {
@@ -77,6 +79,18 @@ pub enum TransportError {
     #[error("Failed to get minimum lamports for rent-exempt")]
     FailedToGetMinimumLamports,
 
+    #[error("Failed to identify the sui module: {0}")]
+    FailedToIdentifySuiModule(String),
+
+    #[error("Failed to identify the sui module function: {0}")]
+    FailedToIdentifySuiModuleFn(String),
+
+    #[error("BCS serialization error: {0}")]
+    BcsError(#[from] bcs::Error),
+
+    #[error("External error: {0}")]
+    External(String),
+
     #[error("Failed to create an adress")]
     AddressCreationFailed,
 
@@ -106,6 +120,9 @@ pub enum TransportError {
 
     #[error("Failed to parse string address")]
     ParseAddressError,
+
+    #[error("Failed to parse string ID {0}")]
+    ParseObjectIdError(String),
 
     #[error("Transaction is not confirmed")]
     TransactionNotConfirmed,
@@ -164,9 +181,27 @@ impl From<TransportError> for race_core::error::Error {
     }
 }
 
+impl From<race_core::error::Error> for TransportError {
+    fn from(error: race_core::error::Error) -> Self {
+        Self::External(error.to_string())
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 impl From<reqwest::Error> for TransportError {
     fn from(value: reqwest::Error) -> Self {
         Self::NetworkError(value.to_string())
+    }
+}
+
+impl From<SuiError> for TransportError {
+    fn from(error: SuiError) -> Self {
+        Self::NetworkError(error.to_string())
+    }
+}
+
+impl From<anyhow::Error> for TransportError {
+    fn from(error: anyhow::Error) -> Self {
+        Self::External(error.to_string())
     }
 }
