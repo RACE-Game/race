@@ -6118,6 +6118,7 @@ version = "0.2.6"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bcs",
  "borsh 1.5.1",
  "futures",
  "race-api",
@@ -6125,8 +6126,9 @@ dependencies = [
  "serde",
  "serde_json",
  "sha256",
- "thiserror",
- "tokio",
+ "signature 2.2.0",
+ "sui-sdk",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -6316,6 +6318,7 @@ dependencies = [
  "anyhow",
  "async-stream",
  "async-trait",
+ "bcs",
  "borsh 1.5.1",
  "futures",
  "jsonrpsee 0.17.1",
@@ -6326,6 +6329,7 @@ dependencies = [
  "reqwest 0.11.27",
  "serde",
  "serde_json",
+ "shared-crypto",
  "shellexpand",
  "solana-account-decoder",
  "solana-pubsub-client",
@@ -6335,6 +6339,8 @@ dependencies = [
  "solana-transaction-status",
  "spl-associated-token-account 6.0.0",
  "spl-token 7.0.0",
+ "sui-config",
+ "sui-keys",
  "sui-sdk",
  "thiserror 1.0.69",
  "tokio",

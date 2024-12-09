@@ -7,14 +7,22 @@ mod constants;
 use async_trait::async_trait;
 use constants::*;
 use futures::{Stream, StreamExt};
+use bcs;
+use shared_crypto::intent::Intent;
+use sui_config::{sui_config_dir, SUI_KEYSTORE_FILENAME};
+use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use sui_sdk::{
+    rpc_types::SuiTransactionBlockResponseOptions,
     types::{
         base_types::{ObjectID, SuiAddress},
         crypto::{get_key_pair_from_rng, SuiKeyPair},
+        programmable_transaction_builder::ProgrammableTransactionBuilder as PTB,
+        transaction::{Argument, CallArg, Command, Transaction, TransactionData},
+        quorum_driver_types::ExecuteTransactionRequestType,
+        Identifier,
     },
     SuiClient, SuiClientBuilder,
     SUI_DEVNET_URL, SUI_COIN_TYPE,
-
 };
 use tracing::{error, info, warn};
 use std::{path::PathBuf, pin::Pin};
@@ -31,6 +39,7 @@ use race_core::{
         RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
         RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer,
         UnregisterGameParams, VoteParams,
+        RecipientSlotInit, RecipientSlotType, RecipientSlotOwner, RecipientSlotShare, RecipientSlotShareInit,
     }
 };
 
@@ -40,6 +49,55 @@ pub struct SuiTransport {
     keypair: SuiAddress,
     client: SuiClient,
 }
+
+// pub fn retrieve_wallet() -> TransportResult<WalletContext> {
+//     let wallet_conf = sui_config_dir()?.join(SUI_CLIENT_CONFIG);
+//     let keystore_path = sui_config_dir()?.join(SUI_KEYSTORE_FILENAME);
+//
+//     // check if a wallet exists and if not, create a wallet and a sui client config
+//     if !keystore_path.exists() {
+//         let keystore = FileBasedKeystore::new(&keystore_path)?;
+//         keystore.save()?;
+//     }
+//
+//     if !wallet_conf.exists() {
+//         let keystore = FileBasedKeystore::new(&keystore_path)?;
+//         let mut client_config = SuiClientConfig::new(keystore.into());
+//
+//         client_config.add_env(SuiEnv::testnet());
+//         client_config.add_env(SuiEnv::devnet());
+//         client_config.add_env(SuiEnv::localnet());
+//
+//         if client_config.active_env.is_none() {
+//             client_config.active_env = client_config.envs.first().map(|env| env.alias.clone());
+//         }
+//
+//         client_config.save(&wallet_conf)?;
+//         info!("Client config file is stored in {:?}.", &wallet_conf);
+//     }
+//
+//     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
+//     let mut client_config: SuiClientConfig = PersistedConfig::read(&wallet_conf)?;
+//
+//     let default_active_address = if let Some(address) = keystore.addresses().first() {
+//         *address
+//     } else {
+//         keystore
+//             .generate_and_add_new_key(ED25519, None, None, None)?
+//             .0
+//     };
+//
+//     if keystore.addresses().len() < 2 {
+//         keystore.generate_and_add_new_key(ED25519, None, None, None)?;
+//     }
+//
+//     client_config.active_address = Some(default_active_address);
+//     client_config.save(&wallet_conf)?;
+//
+//     let wallet = WalletContext::new(&wallet_conf, Some(std::time::Duration::from_secs(60)), None)?;
+//
+//     Ok(wallet)
+// }
 
 impl SuiTransport {
     pub(crate) async fn try_new(rpc: String, package_id: ObjectID) -> TransportResult<Self> {
@@ -99,7 +157,90 @@ impl TransportT for SuiTransport {
     }
 
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
-        todo!()
+
+        let module_name = "recipient";
+        let builder_func_name = "new_recipient_builder";
+        let recipient_func_name = "create_recipient";
+        let recipient_slot_func_name = "create_recipient_slot";
+        let active_addr = SuiAddress::from_str("0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192").map_err(|_| TransportError::ParseAddressError)?;
+        // coin for gas
+        let coins = self.client
+            .coin_read_api()
+            .get_coins(active_addr.clone(), None, None, None)
+            .await?;
+        let coin = coins.data.into_iter().next().unwrap();
+
+        let mut ptb = PTB::new();
+        let module = Identifier::new(module_name)
+            .map_err(|_| TransportError::FailedToIdentifySuiModule(module_name.into()))?;
+        let builder_func = Identifier::new(builder_func_name)
+            .map_err(|_| TransportError::FailedToIdentifySuiModuleFn(builder_func_name.into()))?;
+        ptb.command(Command::move_call(
+            self.package_id.clone(),
+            module.clone(),
+            builder_func,
+            vec![],
+            vec![],
+        ));
+        let keystore = FileBasedKeystore::new(&sui_config_dir()?.join(SUI_KEYSTORE_FILENAME))?;
+
+        let recipient_func = Identifier::new(recipient_func_name)
+            .map_err(|_| TransportError::FailedToIdentifySuiModuleFn(recipient_func_name.into()))?;
+
+        let cap_addr = match params.cap_addr {
+            Some(addr_str) => Some(SuiAddress::from_str(&addr_str)
+                    .map_err(|e| Error::ExternalError(format!("Invalid cap address: {}", e)))?),
+            None => None,
+        };
+
+         let cap_addr_arg = ptb.pure(cap_addr)
+            .map_err(|e| Error::InternalError(format!("Failed to create cap_addr argument: {}", e)))?;
+
+        let recipient_func = Identifier::new(recipient_func_name)
+            .map_err(|_| Error::InternalError("Failed to create recipient function identifier".into()))?;
+
+        ptb.command(Command::move_call(
+            self.package_id.clone(),
+            module.clone(),
+            recipient_func,
+            vec![],  // no type arguments
+            vec![
+                cap_addr_arg,
+                Argument::Result(0),
+            ],
+        ));
+        let gas_price = self.client.read_api().get_reference_gas_price().await?;
+
+         // build and execute the transaction
+        let tx_data = TransactionData::new_programmable(
+            active_addr.clone(),
+            vec![coin.object_ref()],
+            ptb.finish(),
+            GAS_BUDGET,
+            gas_price,
+        );
+
+        // sign and execute transaction
+        let signature = keystore.sign_secure(
+            &active_addr,
+            &tx_data,
+            Intent::sui_transaction(),
+        )
+            .map_err(|_| Error::ExternalError("Failed to sign tx".into()))?;
+
+        let response = self.client
+            .quorum_driver_api()
+            .execute_transaction_block(
+                Transaction::from_data(tx_data, vec![signature]),
+                SuiTransactionBlockResponseOptions::new()
+                    .with_effects()
+                    .with_events(),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
+            .await?;
+
+        // TODO: return recipient object ID
+        Ok(response.digest.to_string())
     }
 
     async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
@@ -166,7 +307,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_sui_transport() ->  TransportResult<()> {
-        let package_id = ObjectID::from_str(PACKAGE_ID)
+        let package_id = ObjectID::from_hex_literal(PACKAGE_ID)
             .map_err(|_| TransportError::ParseObjectIdError(PACKAGE_ID.into()))?;
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), package_id).await?;
         let address = transport.keypair.clone();
@@ -176,6 +317,42 @@ mod tests {
             .get_all_balances(address)
             .await?;
         println!("The balances for all coins owned by address: {address} are {:?}", total_balance);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_recipient() -> TransportResult<()> {
+        let params = CreateRecipientParams {
+            cap_addr: Some("0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192".into()),
+            slots: vec![
+                RecipientSlotInit {
+                    id: 0,
+                    slot_type: RecipientSlotType::Token,
+                    token_addr: "0x02::Sui".into(),
+                    init_shares: vec![
+                        RecipientSlotShareInit {
+                            owner: RecipientSlotOwner::Unassigned {
+                                identifier: "Race".into()
+                            },
+                            weights: 10,
+                        },
+                        RecipientSlotShareInit {
+                            owner: RecipientSlotOwner::Unassigned {
+                                identifier: "Race".into()
+                            },
+                            weights: 20,
+                        }
+                    ],
+                }
+            ]
+        };
+        let package_id = ObjectID::from_hex_literal(PACKAGE_ID)
+            .map_err(|_| TransportError::ParseObjectIdError(PACKAGE_ID.into()))?;
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), package_id).await?;
+
+        let res = transport.create_recipient(params).await?;
+        println!("Create recipient tx digest: {}", res);
+
         Ok(())
     }
 }

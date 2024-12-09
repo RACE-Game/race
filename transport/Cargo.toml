@@ -35,11 +35,15 @@ solana-sdk.workspace = true
 solana-transaction-status.workspace = true
 spl-token.workspace = true
 spl-associated-token-account.workspace = true
-sui_sdk.workspace = true
+bcs.workspace = true
+sui-sdk.workspace = true
+sui-keys.workspace = true
+sui-config.workspace = true
+shared-crypto.workspace = true
 reqwest = { workspace = true, features = [ "json"] }
+anyhow = { workspace = true }
 
 [dev-dependencies]
-anyhow = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 shellexpand = { workspace = true }
 project-root = { workspace = true }
