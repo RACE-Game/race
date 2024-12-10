@@ -1,0 +1,6 @@
+pub const MAX_IDENTIFIER_LEN: u8 = 16;
+pub const MAX_NAME_LENGTH: u8 = 50;
+pub const PACKAGE_ID: &str = "0x73f17a06a5242b488a71ccb4b3fa17c473dee883ab7e3a72e750017c605139cf";
+pub const GAS_BUDGET: u64 = 5_500_001;
+pub const SUI_ACCOUNT: &str = "0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e";
+pub const PUBLISHER: &str = "0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192";

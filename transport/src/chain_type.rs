@@ -2,9 +2,10 @@ use crate::error::TransportError;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ChainType {
-    Solana,
     Bnb,
     Facade,
+    Solana,
+    Sui,
 }
 
 impl TryFrom<&str> for ChainType {
@@ -15,6 +16,7 @@ impl TryFrom<&str> for ChainType {
             "bnb" => Ok(Self::Bnb),
             "facade" => Ok(Self::Facade),
             "solana" => Ok(Self::Solana),
+            "sui" => Ok(Self::Sui),
             _ => Err(TransportError::InvalidChainName(value.into())),
         }
     }
