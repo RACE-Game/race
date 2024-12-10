@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 /// Transport for Sui blockchain
 mod constants;
+mod types;
 
 use async_trait::async_trait;
 use constants::*;
@@ -25,6 +26,7 @@ use sui_sdk::{
     SUI_DEVNET_URL, SUI_COIN_TYPE,
 };
 use tracing::{error, info, warn};
+use types::*;
 use std::{path::PathBuf, pin::Pin};
 use std::str::FromStr;
 
@@ -39,7 +41,7 @@ use race_core::{
         RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
         RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer,
         UnregisterGameParams, VoteParams,
-        RecipientSlotInit, RecipientSlotType, RecipientSlotOwner, RecipientSlotShare, RecipientSlotShareInit,
+        // RecipientSlotInit, RecipientSlotType, RecipientSlotOwner, RecipientSlotShare, RecipientSlotShareInit,
     }
 };
 
@@ -148,6 +150,7 @@ impl TransportT for SuiTransport {
         todo!()
     }
 
+    // TODO: lowest priority
     async fn vote(&self, params: VoteParams) -> Result<()> {
         todo!()
     }
@@ -303,7 +306,6 @@ impl TransportT for SuiTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sui_sdk::types::base_types::{ ObjectID, SuiAddress };
 
     #[tokio::test]
     async fn test_create_sui_transport() ->  TransportResult<()> {
