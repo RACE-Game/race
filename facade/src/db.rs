@@ -280,9 +280,9 @@ pub fn create_game_account(conn: &Connection, game_account: &GameAccount) -> Res
         "INSERT INTO game_account (
             addr, title, bundle_addr, token_addr, owner_addr, settle_version, access_version,
             transactor_addr, unlock_time, max_players, data_len, data, entry_type, recipient_addr,
-            players, deposits, servers, votes, checkpoint_on_chain, entry_lock
+            players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )",
         params![
             game_account.addr,
@@ -305,6 +305,7 @@ pub fn create_game_account(conn: &Connection, game_account: &GameAccount) -> Res
             serde_json::to_string(&game_account.votes).unwrap(),
             serde_json::to_string(&game_account.checkpoint_on_chain).unwrap(),
             serde_json::to_string(&game_account.entry_lock).unwrap(),
+            serde_json::to_string(&game_account.bonuses).unwrap(),
         ],
     )
 }
@@ -314,7 +315,7 @@ pub fn read_game_account(conn: &Connection, addr: &str) -> Result<Option<GameAcc
     let mut stmt = conn.prepare(
         "SELECT addr, title, bundle_addr, token_addr, owner_addr, settle_version, access_version,
         transactor_addr, unlock_time, max_players, data_len, data, entry_type, recipient_addr,
-        players, deposits, servers, votes, checkpoint_on_chain, entry_lock FROM game_account WHERE addr = ?",
+        players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses FROM game_account WHERE addr = ?",
     )?;
 
     let game_account = stmt
@@ -341,6 +342,7 @@ pub fn read_game_account(conn: &Connection, addr: &str) -> Result<Option<GameAcc
                 checkpoint_on_chain: serde_json::from_str(row.get::<_, String>(18)?.as_str())
                     .unwrap(),
                 entry_lock: serde_json::from_str(row.get::<_, String>(19)?.as_str()).unwrap(),
+                bonuses: serde_json::from_str(row.get::<_, String>(20)?.as_str()).unwrap(),
             })
         })
         .optional()?;
@@ -352,7 +354,7 @@ pub fn list_game_accounts(conn: &Connection) -> Result<Vec<GameAccount>> {
     let mut stmt = conn.prepare(
         "SELECT addr, title, bundle_addr, token_addr, owner_addr, settle_version, access_version,
         transactor_addr, unlock_time, max_players, data_len, data, entry_type, recipient_addr,
-        players, deposits, servers, votes, checkpoint_on_chain, entry_lock FROM game_account",
+        players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses FROM game_account",
     )?;
 
     let game_account_iter = stmt.query_map([], |row| {
@@ -377,6 +379,7 @@ pub fn list_game_accounts(conn: &Connection) -> Result<Vec<GameAccount>> {
             votes: serde_json::from_str(row.get::<_, String>(17)?.as_str()).unwrap(),
             checkpoint_on_chain: serde_json::from_str(row.get::<_, String>(18)?.as_str()).unwrap(),
             entry_lock: serde_json::from_str(row.get::<_, String>(19)?.as_str()).unwrap(),
+            bonuses: serde_json::from_str(row.get::<_, String>(20)?.as_str()).unwrap(),
         })
     })?;
 
@@ -451,7 +454,8 @@ pub fn create_game_account_table(conn: &Connection) -> Result<()> {
             servers TEXT NOT NULL,             -- JSON serialized
             votes TEXT NOT NULL,               -- JSON serialized
             checkpoint_on_chain TEXT,          -- JSON serialized
-            entry_lock INTEGER NOT NULL
+            entry_lock INTEGER NOT NULL,
+            bonuses TEXT NOT NULL              -- JSON serialized
         )",
         [],
     )?;

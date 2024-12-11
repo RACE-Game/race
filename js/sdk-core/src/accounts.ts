@@ -14,6 +14,7 @@ export interface PlayerJoin {
 export interface PlayerDeposit {
     readonly addr: string
     readonly amount: bigint
+    readonly accessVersion: bigint
     readonly settleVersion: bigint
 }
 

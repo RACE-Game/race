@@ -10,7 +10,7 @@ use crate::{
     event::BridgeEvent,
     prelude::InitAccount,
     random::RandomSpec,
-    types::{DecisionId, EntryLock, GamePlayer, RandomId, Settle, Transfer},
+    types::{Award, DecisionId, EntryLock, GameDeposit, GamePlayer, RandomId, RejectDeposit, Settle, Transfer},
 };
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -229,6 +229,8 @@ pub struct Effect {
     pub entry_lock: Option<EntryLock>,
     pub reset: bool,
     pub logs: Vec<Log>,
+    pub awards: Vec<Award>,
+    pub reject_deposits: Vec<RejectDeposit>,
 }
 
 impl Effect {
@@ -364,6 +366,13 @@ impl Effect {
         self.transfers.push(Transfer { slot_id, amount });
     }
 
+    /// Award a list of bonus to a player
+    /// This will set current state as checkpoint automatically.
+    pub fn award(&mut self, player_id: u64, bonus_identifier: &str) {
+        self.checkpoint();
+        self.awards.push(Award::new(player_id, bonus_identifier.to_string()));
+    }
+
     /// Launches a new sub-game instance with specified parameters.
     ///
     /// # Parameters
@@ -453,6 +462,13 @@ impl Effect {
             let event = E::try_from_slice(&emit_bridge_event.raw)?;
             Ok((dest, event))
         }).collect()
+    }
+
+    /// Reject a deposit.
+    pub fn reject_deposit(&mut self, deposit: &GameDeposit) {
+        self.reject_deposits.push(RejectDeposit {
+            access_version: deposit.access_version
+        })
     }
 
     /// Reset the game to remove all players.  Be careful on usage,

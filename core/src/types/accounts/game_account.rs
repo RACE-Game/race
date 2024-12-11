@@ -110,6 +110,7 @@ impl std::fmt::Display for ServerJoin {
 pub struct PlayerDeposit {
     pub addr: String,
     pub amount: u64,
+    pub access_version: u64,
     pub settle_version: u64,
 }
 
@@ -121,10 +122,11 @@ impl std::fmt::Display for PlayerDeposit {
 
 
 impl PlayerDeposit {
-    pub fn new<S: Into<String>>(addr: S, balance: u64, settle_version: u64) -> Self {
+    pub fn new<S: Into<String>>(addr: S, balance: u64, access_version: u64, settle_version: u64) -> Self {
         Self {
             addr: addr.into(),
             amount: balance,
+            access_version,
             settle_version,
         }
     }
@@ -137,6 +139,15 @@ pub struct Vote {
     pub voter: String,
     pub votee: String,
     pub vote_type: VoteType,
+}
+
+#[derive(BorshDeserialize, BorshSerialize, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct Bonus {
+    pub identifier: String,
+    pub token_addr: String,
+    pub amount: u64,
 }
 
 /// The data represents the state of on-chain game account.
@@ -235,6 +246,7 @@ pub struct GameAccount {
     pub recipient_addr: String,
     pub checkpoint_on_chain: Option<CheckpointOnChain>,
     pub entry_lock: EntryLock,
+    pub bonuses: Vec<Bonus>,
 }
 
 impl GameAccount {

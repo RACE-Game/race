@@ -39,6 +39,8 @@ export class BroadcastPlayerDeposit {
     @field('u64')
     readonly amount!: bigint
     @field('u64')
+    readonly accessVersion!: bigint
+    @field('u64')
     readonly settleVersion!: bigint
     constructor(fields: Fields<BroadcastPlayerDeposit>) {
         Object.assign(this, fields)

@@ -33,6 +33,7 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         addr,
         settles,
         transfers,
+        awards,
         checkpoint,
         entry_lock,
         reset,
@@ -40,6 +41,7 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
     } = next;
     prev.settles.extend(settles);
     prev.transfers.extend(transfers);
+    prev.awards.extend(awards);
     let entry_lock = if entry_lock.is_none() {
         prev.entry_lock
     } else {
@@ -49,8 +51,11 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         addr,
         settles: prev.settles,
         transfers: prev.transfers,
+        awards: prev.awards,
         // Use the latest checkpoint
         checkpoint,
+        // Use the new access_version
+        access_version: next.access_version,
         // Use the old settle_version
         settle_version: prev.settle_version,
         next_settle_version: prev.next_settle_version + 1,
@@ -155,7 +160,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     let settle_version = params.settle_version;
                     let res = ctx.transport.settle_game(params).await;
                     match res {
-                        Ok(SettleResult{ signature, game_account }) => {
+                        Ok(SettleResult{ signature, .. }) => {
                             let tx_state = TxState::SettleSucceed {
                                 signature: if signature.is_empty() {
                                     None
@@ -165,24 +170,6 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                                 settle_version,
                             };
                             p.send(EventFrame::TxState { tx_state }).await;
-
-                            let mut new_deposits = vec![];
-                            let GameAccount{ transactor_addr, deposits, access_version, .. } = game_account;
-                            for d in deposits {
-                                if d.settle_version == game_account.settle_version {
-                                    new_deposits.push(d);
-                                }
-                            }
-                            if !new_deposits.is_empty() {
-                                let sync = EventFrame::Sync{
-                                    new_players: vec![],
-                                    new_servers: vec![],
-                                    new_deposits,
-                                    transactor_addr: transactor_addr.unwrap_or_default(),
-                                    access_version,
-                                };
-                                p.send(sync).await;
-                            }
                         }
                         Err(e) => {
                             return CloseReason::Fault(e);
@@ -197,16 +184,20 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
 
         while let Some(event) = ports.recv().await {
             match event {
+
                 EventFrame::Checkpoint {
                     settles,
                     transfers,
                     checkpoint,
+                    awards,
+                    access_version,
                     settle_version,
                     previous_settle_version,
                     entry_lock,
                     reset,
                     ..
                 } => {
+
                     let checkpoint_onchain = checkpoint.derive_onchain_part();
                     let checkpoint_offchain = checkpoint.derive_offchain_part();
 
@@ -230,7 +221,9 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                             addr: ctx.addr.clone(),
                             settles,
                             transfers,
+                            awards,
                             checkpoint: checkpoint_onchain,
+                            access_version,
                             settle_version: previous_settle_version,
                             next_settle_version: settle_version,
                             entry_lock,

@@ -16,12 +16,7 @@ use race_core::{
     error::{Error, Result},
     transport::TransportT,
     types::{
-        AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams,
-        CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
-        GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams,
-        RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer,
-        UnregisterGameParams, VoteParams,
+        AssignRecipientParams, Award, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams
     },
 };
 
@@ -196,7 +191,6 @@ impl TransportT for SolanaTransport {
 
         let (pda, _bump_seed) =
             Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
-
 
         // For game with SOL, PDA = stake account
         let receiver_pubkey = if stake_account_pubkey.eq(&pda) {
@@ -600,7 +594,9 @@ impl TransportT for SolanaTransport {
             addr,
             settles,
             transfers,
+            awards,
             checkpoint,
+            access_version,
             settle_version,
             next_settle_version,
             entry_lock,
@@ -639,6 +635,7 @@ impl TransportT for SolanaTransport {
         ];
 
         let mut ix_settles: Vec<IxSettle> = Vec::new();
+        let mut ix_transfers: Vec<Transfer> = Vec::new();
         let mut calc_cu_prize_addrs =
             vec![Pubkey::from_str(&addr).unwrap(), game_state.stake_account];
 
@@ -670,27 +667,60 @@ impl TransportT for SolanaTransport {
             });
         }
 
-        for Transfer { slot_id, .. } in transfers.iter() {
+        for t @ Transfer { slot_id, .. } in transfers.iter() {
             if let Some(slot) = recipient_state.slots.iter().find(|s| s.id == *slot_id) {
                 accounts.push(AccountMeta::new(slot.stake_addr, false));
                 calc_cu_prize_addrs.push(slot.stake_addr);
+                ix_transfers.push(t.clone());
             }
         }
 
-        info!("Solana transport settle game: {}\n  - Settle Version: {} -> {}\n  - Settles: {:?}\n  - Transfers: {:?}\n  - Checkpoint: {:?}",
+        for Award {
+            player_id,
+            bonus_identifier,
+        } in awards.iter()
+        {
+            let Some(player) = game_state
+                .players
+                .iter()
+                .find(|p| p.access_version == *player_id)
+            else {
+                return Err(Error::InvalidSettle(format!(
+                    "Player id {} in award is invalid",
+                    player_id
+                )));
+            };
+
+            for bonus in game_state.bonuses.iter() {
+                if bonus.identifier.eq(bonus_identifier) {
+                    let bonus_addr = bonus.stake_addr.clone();
+                    let receiver_addr =
+                        get_associated_token_address(&player.addr, &bonus.token_addr);
+                    accounts.push(AccountMeta::new(bonus_addr, false));
+                    calc_cu_prize_addrs.push(bonus_addr);
+                    accounts.push(AccountMeta::new(receiver_addr, false));
+                    calc_cu_prize_addrs.push(receiver_addr);
+                }
+            }
+        }
+
+        info!("Solana transport settle game: {}\n  - Settle Version: {} -> {}\n  - Settles: {:?}\n  - Transfers: {:?}\n  - Awards: {:?}\n  - Checkpoint: {:?}",
             addr,
             settle_version,
             next_settle_version,
             ix_settles,
             transfers,
+            awards,
             checkpoint
         );
 
         let params = RaceInstruction::Settle {
             params: IxSettleParams {
                 settles: ix_settles,
-                transfers,
+                transfers: ix_transfers,
+                awards,
                 checkpoint: borsh::to_vec(&checkpoint)?,
+                access_version,
                 settle_version,
                 next_settle_version,
                 entry_lock,
@@ -719,6 +749,61 @@ impl TransportT for SolanaTransport {
             signature: sig.to_string(),
             game_account: game_state.into_account(addr)?,
         })
+    }
+
+    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<()> {
+        let payer = &self.keypair;
+        let payer_pubkey = payer.pubkey();
+
+        let game_account_pubkey = Self::parse_pubkey(&params.addr)?;
+        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
+
+        let calc_cu_prize_addrs = vec![];
+
+        let (pda, _) = Pubkey::find_program_address(
+            &[game_account_pubkey.as_ref()],
+            &self.program_id,
+        );
+
+        let mut accounts = vec![
+            AccountMeta::new_readonly(payer_pubkey, true),
+            AccountMeta::new(game_account_pubkey, false),
+            AccountMeta::new_readonly(game_state.stake_account.clone(), false),
+            AccountMeta::new_readonly(game_state.token_mint.clone(), false),
+            AccountMeta::new_readonly(pda, false),
+            AccountMeta::new_readonly(spl_token::id(), false),
+            AccountMeta::new_readonly(self.program_id, false),
+        ];
+
+        for reject_deposit in params.reject_deposits.iter() {
+            if let Some(deposit) = game_state.deposits.iter().find(|d| d.access_version == reject_deposit.access_version) {
+                let ata = get_associated_token_address(&deposit.addr, &game_state.token_mint);
+                accounts.push(AccountMeta::new_readonly(ata, false));
+            } else {
+                return Err(TransportError::InvalidRejectDeposits(reject_deposit.access_version))?;
+            }
+        }
+
+        let set_cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(1200000);
+        let fee = self.get_recent_prioritization_fees(&calc_cu_prize_addrs)?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
+        let ix_params = IxRejectDepositsParams {
+            reject_deposits: params.reject_deposits
+        };
+
+        let reject_deposit_ix = Instruction::new_with_borsh(self.program_id, &ix_params, accounts);
+
+        let message = Message::new(
+            &[set_cu_prize_ix, set_cu_limit_ix, reject_deposit_ix],
+            Some(&payer.pubkey()),
+        );
+
+        let blockhash = self.get_blockhash()?;
+        let mut tx = Transaction::new_unsigned(message);
+        tx.sign(&[payer], blockhash);
+        self.send_transaction(tx)?;
+        Ok(())
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {

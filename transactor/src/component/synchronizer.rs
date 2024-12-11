@@ -18,10 +18,7 @@ use race_core::{
 };
 use tracing::{info, warn};
 
-use crate::component::{
-    common::Component,
-    event_bus::CloseReason,
-};
+use crate::component::{common::Component, event_bus::CloseReason};
 
 use super::{common::PipelinePorts, ComponentEnv};
 
@@ -98,7 +95,6 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                             servers,
                             deposits,
                             access_version,
-                            settle_version,
                             transactor_addr,
                             ..
                         } = game_account;
@@ -123,17 +119,10 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                         .filter(|s| s.access_version > prev_access_version)
                         .collect();
 
-                        let mut new_deposits: Vec<PlayerDeposit> = vec![];
-
-                        for p in new_players.iter(){
-                            for d in deposits.iter() {
-                                println!("d.settle_version: {}, d.deposit addr: {}, settle_version: {}, p.addr: {}",
-                                    d.settle_version, settle_version, d.addr, p.addr);
-                                if d.settle_version == settle_version && d.addr == p.addr {
-                                    new_deposits.push(PlayerDeposit::new(p.addr.clone(), d.amount, d.settle_version));
-                                }
-                            }
-                        }
+                        let new_deposits: Vec<PlayerDeposit> = deposits
+                        .into_iter()
+                        .filter(|d| d.access_version > prev_access_version)
+                        .collect();
 
                         if !new_players.is_empty() {
                             info!("{} New players: {:?}", env.log_prefix, new_players);
@@ -147,7 +136,7 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                             info!("{} New servers: {:?}", env.log_prefix, new_servers);
                         }
 
-                        if !new_players.is_empty() || !new_servers.is_empty() {
+                        if !new_players.is_empty() || !new_servers.is_empty() || !new_deposits.is_empty() {
                             let frame = EventFrame::Sync {
                                 new_players,
                                 new_servers,
@@ -355,7 +344,13 @@ mod tests {
         let expected_transactor_addr = "foo".to_string();
         let expected_access_version = 4;
 
-        if let EventFrame::Sync { new_players, new_servers, transactor_addr, access_version } = frame {
+        if let EventFrame::Sync {
+            new_players,
+            new_servers,
+            transactor_addr,
+            access_version,
+        } = frame
+        {
             assert_eq!(new_players, expected_new_players);
             assert_eq!(new_servers, expected_new_servers);
             assert_eq!(access_version, expected_access_version);

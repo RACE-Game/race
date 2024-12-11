@@ -190,6 +190,7 @@ export class PlayerJoin implements IPlayerJoin {
     constructor(fields: IPlayerJoin) {
         Object.assign(this, fields)
     }
+
     generalize(): RaceCore.PlayerJoin {
         return {
             addr: this.key.toBase58(),
@@ -206,14 +207,19 @@ export class PlayerDeposit implements IPlayerDeposit {
     @field('u64')
     amount!: bigint
     @field('u64')
+    accessVersion!: bigint
+    @field('u64')
     settleVersion!: bigint
+
     constructor(fields: IPlayerJoin) {
         Object.assign(this, fields)
     }
+
     generalize(): RaceCore.PlayerDeposit {
         return {
             addr: this.key.toBase58(),
             amount: this.amount,
+            accessVersion: this.accessVersion,
             settleVersion: this.settleVersion,
         }
     }

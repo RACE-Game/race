@@ -2,7 +2,7 @@ use super::misc::log_execution_context;
 use race_api::{
     effect::{EmitBridgeEvent, Log, SubGame},
     event::Event,
-    types::{EntryLock, Settle, Transfer},
+    types::{Award, EntryLock, RejectDeposit, Settle, Transfer},
 };
 use race_core::{
     context::{EventEffects, GameContext, SubGameInit, SubGameInitSource, Versions},
@@ -17,12 +17,14 @@ use crate::{
 use tracing::{debug, error, info, warn};
 
 fn print_logs(logs: &[Log], env: &ComponentEnv) {
-    logs.iter().for_each(|log| {
-        match log.level {
-            race_api::effect::LogLevel::Debug => debug!("[{}|Game] {}", env.addr_shorthand, log.message),
-            race_api::effect::LogLevel::Info => info!("[{}|Game] {}", env.addr_shorthand, log.message),
-            race_api::effect::LogLevel::Warn => warn!("[{}|Game] {}", env.addr_shorthand, log.message),
-            race_api::effect::LogLevel::Error => error!("[{}|Game] {}", env.addr_shorthand, log.message),
+    logs.iter().for_each(|log| match log.level {
+        race_api::effect::LogLevel::Debug => {
+            debug!("[{}|Game] {}", env.addr_shorthand, log.message)
+        }
+        race_api::effect::LogLevel::Info => info!("[{}|Game] {}", env.addr_shorthand, log.message),
+        race_api::effect::LogLevel::Warn => warn!("[{}|Game] {}", env.addr_shorthand, log.message),
+        race_api::effect::LogLevel::Error => {
+            error!("[{}|Game] {}", env.addr_shorthand, log.message)
         }
     })
 }
@@ -94,9 +96,23 @@ async fn send_bridge_event(
     }
 }
 
+async fn send_reject_deposits(
+    reject_deposits: Vec<RejectDeposit>,
+    ports: &PipelinePorts,
+    env: &ComponentEnv,
+) {
+
+    info!("{} Send reject deposits, {:?}", env.log_prefix, reject_deposits);
+
+    let ef = EventFrame::RejectDeposits { reject_deposits };
+
+    ports.send(ef).await;
+}
+
 async fn send_settlement(
     transfers: Vec<Transfer>,
     settles: Vec<Settle>,
+    awards: Vec<Award>,
     entry_lock: Option<EntryLock>,
     reset: bool,
     original_versions: Versions,
@@ -121,6 +137,7 @@ async fn send_settlement(
             checkpoint: checkpoint.clone(),
             settles,
             transfers,
+            awards,
             state_sha: game_context.state_sha(),
             entry_lock,
             reset,
@@ -181,7 +198,7 @@ pub async fn init_state(
         Ok(effects) => {
             print_logs(&effects.logs, env);
             effects
-        },
+        }
         Err(e) => {
             error!("{} Failed to initialize state: {:?}", env.log_prefix, e);
             error!("{} Init Account: {:?}", env.log_prefix, init_account);
@@ -191,9 +208,7 @@ pub async fn init_state(
     };
 
     let EventEffects {
-        checkpoint,
-        reset,
-        ..
+        checkpoint, reset, ..
     } = effects;
 
     info!(
@@ -212,6 +227,7 @@ pub async fn init_state(
     send_settlement(
         vec![],
         vec![],
+        vec![],
         None,
         reset,
         original_versions,
@@ -219,7 +235,7 @@ pub async fn init_state(
         ports,
         env,
     )
-        .await;
+    .await;
 
     // Dispatch the initial Ready event if running in Transactor mode.
     if client_mode == ClientMode::Transactor {
@@ -253,10 +269,13 @@ pub async fn resume_from_checkpoint(
     game_mode: GameMode,
     env: &ComponentEnv,
 ) -> Option<CloseReason> {
-
     if game_mode == GameMode::Main {
         let versioned_data_list = game_context.checkpoint().list_versioned_data();
-        info!("{} Launch {} subgames", env.log_prefix, versioned_data_list.len() - 1); // except the master game
+        info!(
+            "{} Launch {} subgames",
+            env.log_prefix,
+            versioned_data_list.len() - 1
+        ); // except the master game
 
         for versioned_data in versioned_data_list {
             if versioned_data.id == 0 {
@@ -308,6 +327,7 @@ pub async fn handle_event(
             let EventEffects {
                 settles,
                 transfers,
+                awards,
                 checkpoint,
                 launch_sub_games,
                 bridge_events,
@@ -315,6 +335,7 @@ pub async fn handle_event(
                 entry_lock,
                 reset,
                 logs,
+                reject_deposits,
             } = effects;
 
             print_logs(&logs, env);
@@ -337,10 +358,15 @@ pub async fn handle_event(
                 launch_sub_game(launch_sub_games, game_context, ports, env).await;
             }
 
+            if !reject_deposits.is_empty() {
+                send_reject_deposits(reject_deposits, ports, env).await;
+            }
+
             if checkpoint.is_some() {
                 send_settlement(
                     transfers,
                     settles,
+                    awards,
                     entry_lock,
                     reset,
                     original_versions,
@@ -348,7 +374,7 @@ pub async fn handle_event(
                     ports,
                     env,
                 )
-                    .await;
+                .await;
             }
 
             if reset {
@@ -366,7 +392,7 @@ pub async fn handle_event(
             match e {
                 Error::WasmExecutionError(_) | Error::WasmMemoryOverflow => {
                     ports.send(EventFrame::Shutdown).await;
-                    return Some(CloseReason::Fault(e))
+                    return Some(CloseReason::Fault(e));
                 }
                 _ => (),
             }

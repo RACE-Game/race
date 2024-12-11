@@ -1,5 +1,5 @@
 use race_api::{
-    event::{Event, Message}, types::{EntryLock, Settle}
+    event::{Event, Message}, types::{Award, EntryLock, RejectDeposit, Settle}
 };
 use race_core::{
     checkpoint::{Checkpoint, VersionedData}, context::{GameContext, SubGameInit}, types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, Transfer, TxState, VoteType}
@@ -57,6 +57,7 @@ pub enum EventFrame {
     Checkpoint {
         settles: Vec<Settle>,
         transfers: Vec<Transfer>,
+        awards: Vec<Award>,
         checkpoint: Checkpoint,
         access_version: u64,
         settle_version: u64,
@@ -123,6 +124,11 @@ pub enum EventFrame {
 
     /// Reset, close all subgames.
     Reset,
+
+    /// Reject a deposit
+    RejectDeposits {
+        reject_deposits: Vec<RejectDeposit>,
+    }
 }
 
 impl std::fmt::Display for EventFrame {
@@ -184,6 +190,9 @@ impl std::fmt::Display for EventFrame {
             }
             EventFrame::Reset => {
                 write!(f, "Reset")
+            }
+            EventFrame::RejectDeposits { reject_deposits } => {
+                write!(f, "Reject deposits, {:?}", reject_deposits)
             }
         }
     }

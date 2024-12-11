@@ -1,6 +1,6 @@
 import { Connection, GetCheckpointParams, IConnection } from './connection'
 import { GameContext } from './game-context'
-import { ITransport, JoinError, JoinResponse } from './transport'
+import { DepositError, DepositResponse, ITransport, JoinError, JoinResponse } from './transport'
 import { IWallet } from './wallet'
 import { Handler } from './handler'
 import { Encryptor, IEncryptor, sha256String } from './encryptor'
@@ -55,6 +55,10 @@ export type JoinOpts = {
     amount: bigint
     position?: number
     createProfileIfNeeded?: boolean
+}
+
+export type DepositOpts = {
+    amount: bigint
 }
 
 export type AppClientCtorOpts = {
@@ -362,6 +366,24 @@ export class AppClient extends BaseClient {
                     position: params.position || 0,
                     verifyKey: publicKey.ec,
                     createProfileIfNeeded: params.createProfileIfNeeded,
+                },
+                response
+            )
+        })
+
+        return response.stream()
+    }
+
+    deposit(params: DepositOpts): ResponseStream<DepositResponse, DepositError> {
+        const response = new ResponseHandle<DepositResponse, DepositError>()
+
+        this.__getGameAccount().then(gameAccount => {
+            this.__transport.deposit(
+                this.__wallet,
+                {
+                    gameAddr: this.gameAddr,
+                    amount: params.amount,
+                    settleVersion: gameAccount.settleVersion,
                 },
                 response
             )

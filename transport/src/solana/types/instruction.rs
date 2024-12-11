@@ -3,7 +3,7 @@
 use super::{
     IxAssignRecipientParams, IxCreateGameAccountParams, IxCreatePlayerProfileParams,
     IxCreateRecipientParams, IxCreateRegistrationParams, IxJoinParams, IxPublishParams,
-    IxRegisterServerParams, IxServeParams, IxSettleParams, IxVoteParams,
+    IxRegisterServerParams, IxServeParams, IxSettleParams, IxVoteParams, IxRejectDepositsParams, IxAttachBonusParams, IxDepositParams
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 
@@ -156,4 +156,40 @@ pub enum RaceInstruction {
     /// 4. `[]` The system program
     /// Rest. `[]` The stake account followed by the corresponding ATA to receive tokens
     RecipientClaim,
+
+    /// # [15] Deposit tokens to a game
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The payer account
+    /// 1. `[]` The player account
+    /// 2. `[writable]` The temp account
+    /// 3. `[writable]` The game account
+    /// 4. `[]` The mint account
+    /// 5. `[writable]` The stake account that holds players' deposit assets
+    /// 6. `[writable]` The pda account
+    /// 7. `[]` The SPL token program
+    /// 8. `[]` The system program
+    Deposit { params: IxDepositParams },
+
+    /// # [16] Attach a bonus to a game
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The payer account
+    /// 1. `[writable]` The game account
+    /// 2. `[]` The SPL token program
+    /// 3. `[]` The system program
+    /// Rest. `[writable]` The temp account for each bonuses
+    AttachBonus { params: IxAttachBonusParams },
+
+    /// #[17] Reject a deposit
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The transactor account
+    /// 1. `[writable]` The game account
+    /// 2. `[]` The stake account
+    /// 3. `[]` The PDA from game account
+    /// 4. `[]` The SPL token program
+    /// 5. `[]` The system program
+    /// Rest. `[writable]` The receiver for each rejected deposit
+    RejectDeposits { params: IxRejectDepositsParams },
 }

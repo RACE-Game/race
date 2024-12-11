@@ -10,7 +10,7 @@ use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
 use race_api::random::RandomSpec;
 use race_api::types::{
-    Ciphertext, DecisionId, EntryLock, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare, Settle, Transfer
+    Award, Ciphertext, DecisionId, EntryLock, GamePlayer, GameStatus, RandomId, RejectDeposit, SecretDigest, SecretShare, Settle, Transfer
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -148,6 +148,7 @@ pub struct SubGameInit {
 pub struct EventEffects {
     pub settles: Vec<Settle>,
     pub transfers: Vec<Transfer>,
+    pub awards: Vec<Award>,
     pub checkpoint: Option<Checkpoint>,
     pub launch_sub_games: Vec<SubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
@@ -155,6 +156,7 @@ pub struct EventEffects {
     pub entry_lock: Option<EntryLock>,
     pub reset: bool,
     pub logs: Vec<Log>,
+    pub reject_deposits: Vec<RejectDeposit>,
 }
 
 /// The context for public data.
@@ -808,6 +810,8 @@ impl GameContext {
             entry_lock: None,
             reset: false,
             logs: Vec::new(),
+            awards: Vec::new(),
+            reject_deposits: Vec::new(),
         }
     }
 
@@ -831,6 +835,8 @@ impl GameContext {
             bridge_events,
             error,
             is_init,
+            awards,
+            reject_deposits,
             ..
         } = effect;
 
@@ -900,6 +906,7 @@ impl GameContext {
             return Ok(EventEffects {
                 settles,
                 transfers,
+                awards,
                 checkpoint: (is_checkpoint || is_init).then(|| self.checkpoint.clone()),
                 launch_sub_games,
                 bridge_events,
@@ -907,6 +914,7 @@ impl GameContext {
                 entry_lock: effect.entry_lock,
                 reset: effect.reset,
                 logs: effect.logs,
+                reject_deposits,
             });
         } else if let Some(e) = error {
             return Err(Error::HandleError(e));

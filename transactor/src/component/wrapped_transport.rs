@@ -5,7 +5,7 @@ use futures::Stream;
 use jsonrpsee::core::async_trait;
 use race_core::error::Result;
 use race_core::types::{
-    AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, ServeParams, SettleResult, UnregisterGameParams, VoteParams
+    AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, ServeParams, SettleResult, UnregisterGameParams, VoteParams, RejectDepositsParams
 };
 use race_core::{
     transport::TransportT,
@@ -221,6 +221,10 @@ impl TransportT for WrappedTransport {
 
     async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
         self.inner.recipient_claim(params).await
+    }
+
+    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<()> {
+        self.inner.reject_deposits(params).await
     }
 }
 

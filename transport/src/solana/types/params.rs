@@ -5,7 +5,7 @@ use race_core::types::{
     CreateRegistrationParams, EntryType, JoinParams, PublishGameParams,
     RecipientSlotShareInit, RecipientSlotType,
     RegisterServerParams, ServeParams, Transfer, VoteParams,
-    VoteType,
+    VoteType, Award, RejectDeposit
 };
 use super::common::RecipientSlotOwner;
 use solana_sdk::pubkey::Pubkey;
@@ -144,7 +144,9 @@ pub struct IxSettle {
 pub struct IxSettleParams {
     pub settles: Vec<IxSettle>,
     pub transfers: Vec<Transfer>,
+    pub awards: Vec<Award>,
     pub checkpoint: Vec<u8>,
+    pub access_version: u64,
     pub settle_version: u64,
     pub next_settle_version: u64,
     pub entry_lock: Option<EntryLock>,
@@ -210,6 +212,12 @@ impl From<VoteParams> for IxVoteParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct IxDepositParams {
+    pub amount: u64,
+    pub settle_version: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct IxPublishParams {
     // Arweave IDX pointing to bundled game data
     pub uri: String,
@@ -243,4 +251,14 @@ impl From<AssignRecipientParams> for IxAssignRecipientParams {
             identifier: value.identifier,
         }
     }
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub struct IxAttachBonusParams {
+    pub identifiers: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct IxRejectDepositsParams {
+    pub reject_deposits: Vec<RejectDeposit>,
 }

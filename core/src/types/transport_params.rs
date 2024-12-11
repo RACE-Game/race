@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::checkpoint::CheckpointOnChain;
-use race_api::types::{Settle, Transfer};
+use race_api::types::{Award, RejectDeposit, Settle, Transfer};
 use crate::types::{EntryType, VoteType, RecipientSlotOwner, RecipientSlotType, RecipientSlot};
 
 use super::{EntryLock, GameAccount};
@@ -54,6 +54,14 @@ pub struct CreateRecipientParams {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct RecipientClaimParams {
     pub recipient_addr: String,
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RejectDepositsParams {
+    pub addr: String,
+    pub reject_deposits: Vec<RejectDeposit>,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -186,7 +194,9 @@ pub struct SettleParams {
     pub addr: String,
     pub settles: Vec<Settle>,
     pub transfers: Vec<Transfer>,
+    pub awards: Vec<Award>,
     pub checkpoint: CheckpointOnChain,
+    pub access_version: u64,
     pub settle_version: u64,
     pub next_settle_version: u64,
     pub entry_lock: Option<EntryLock>,

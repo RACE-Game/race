@@ -1,8 +1,8 @@
 //! This facade server emulates the behavior of its blockchain counterparts.
 //! It is supposed to be used for testing and developing.
 
-mod db;
 mod context;
+mod db;
 
 use clap::{arg, Command};
 use context::Context;
@@ -12,13 +12,13 @@ use jsonrpsee::server::{AllowHosts, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error as RpcError, RpcModule};
 use race_core::error::Error;
+use race_core::types::RecipientSlotInit;
 use race_core::types::RecipientSlotShare;
 use race_core::types::{
     DepositParams, EntryType, GameAccount, GameRegistration, PlayerDeposit, PlayerJoin,
-    PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin,
-    SettleParams, TokenAccount, Vote, VoteParams, VoteType,
+    PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount, RejectDepositsParams,
+    ServerAccount, ServerJoin, SettleParams, TokenAccount, Vote, VoteParams, VoteType,
 };
-use race_core::types::RecipientSlotInit;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -113,7 +113,6 @@ pub struct CreateGameAccountInstruction {
     data: Vec<u8>,
 }
 
-
 fn custom_error(e: Error) -> RpcError {
     RpcError::Custom(serde_json::to_string(&e).unwrap())
 }
@@ -139,7 +138,7 @@ async fn get_registration_info(
 ) -> RpcResult<Option<Vec<u8>>> {
     let addr = params.one()?;
     let context = context.lock().await;
-    let games = context
+    let games: Vec<GameRegistration> = context
         .list_game_accounts()?
         .into_iter()
         .map(|g| GameRegistration {
@@ -157,7 +156,7 @@ async fn get_registration_info(
             owner: None,
             games,
         })
-            .unwrap(),
+        .unwrap(),
     ))
 }
 
@@ -186,10 +185,10 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
             .players
             .iter()
             .find(|p| p.addr.eq(&player_addr))
-            .is_some() {
-                return Err(custom_error(Error::PlayerAlreadyJoined(player_addr)));
-            }
-
+            .is_some()
+        {
+            return Err(custom_error(Error::PlayerAlreadyJoined(player_addr)));
+        }
 
         // Find available position
         let mut pos_list = vec![position];
@@ -224,6 +223,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                     let player_deposit = PlayerDeposit {
                         addr: player_addr.clone(),
                         amount,
+                        access_version: game_account.access_version,
                         settle_version: game_account.settle_version,
                     };
                     game_account.players.push(player_join);
@@ -238,7 +238,9 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                     );
                 }
             }
-            EntryType::Ticket { amount: ticket_amount } => {
+            EntryType::Ticket {
+                amount: ticket_amount,
+            } => {
                 if *ticket_amount != amount {
                     return Err(custom_error(Error::InvalidAmount));
                 } else {
@@ -285,12 +287,6 @@ async fn deposit(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<
         player_addr, game_addr, amount
     );
     let context = context.lock().await;
-    let deposit = PlayerDeposit {
-        addr: player_addr.clone(),
-        amount,
-        // Use a larger settle_version to indicate this deposit is not handled.
-        settle_version: settle_version + 1,
-    };
     if let Some(mut game_account) = context.get_game_account(&game_addr)? {
         if settle_version != game_account.settle_version {
             return Err(custom_error(Error::TransactionExpired));
@@ -300,6 +296,14 @@ async fn deposit(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<
                 game_account.max_players as _,
             )));
         } else {
+            game_account.access_version += 1;
+            let deposit = PlayerDeposit {
+                addr: player_addr.clone(),
+                amount,
+                access_version: game_account.access_version,
+                // Use a larger settle_version to indicate this deposit is not handled.
+                settle_version: settle_version + 1,
+            };
             game_account.deposits.push(deposit);
             context.update_game_account(&game_account)?;
             Ok(())
@@ -496,7 +500,6 @@ async fn vote(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         return Err(custom_error(Error::GameAccountNotFound));
     }
 
-
     Ok(())
 }
 
@@ -513,7 +516,8 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
         return Err(custom_error(Error::ServerAccountNotFound));
     };
 
-    let mut account = context.get_game_account(&game_addr)?
+    let mut account = context
+        .get_game_account(&game_addr)?
         .ok_or(custom_error(Error::GameAccountNotFound))?;
 
     let new_access_version = account.access_version + 1;
@@ -623,30 +627,63 @@ async fn get_recipient(
 
 async fn create_recipient(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {
     let CreateRecipientInstruction {
-        recipient_addr, cap_addr, slots
+        recipient_addr,
+        cap_addr,
+        slots,
     } = params.one()?;
 
-    let slots = slots.into_iter().map(|slot_init| {
-        RecipientSlot {
+    let slots = slots
+        .into_iter()
+        .map(|slot_init| RecipientSlot {
             id: slot_init.id,
             slot_type: slot_init.slot_type,
             token_addr: slot_init.token_addr,
-            shares: slot_init.init_shares.into_iter().map(|share_init| {
-                RecipientSlotShare {
+            shares: slot_init
+                .init_shares
+                .into_iter()
+                .map(|share_init| RecipientSlotShare {
                     owner: share_init.owner,
                     weights: share_init.weights,
-                    claim_amount: 0
-                }
-            }).collect(),
+                    claim_amount: 0,
+                })
+                .collect(),
             balance: 0,
-        }
-    }).collect();
+        })
+        .collect();
 
     let context = context.lock().await;
-    let recipient_account = RecipientAccount { addr: recipient_addr.clone(), cap_addr, slots };
+    let recipient_account = RecipientAccount {
+        addr: recipient_addr.clone(),
+        cap_addr,
+        slots,
+    };
     context.create_recipient_account(&recipient_account)?;
 
     Ok(recipient_addr)
+}
+
+async fn reject_deposits(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
+    let RejectDepositsParams {
+        addr,
+        reject_deposits,
+    } = params.one()?;
+
+    let context = context.lock().await;
+
+    let mut game = context
+        .get_game_account(&addr)?
+        .ok_or(custom_error(Error::GameAccountNotFound))?;
+
+    println!("! Reject deposits {:?}", reject_deposits);
+
+    game.deposits.retain(|d| {
+        reject_deposits
+            .iter()
+            .any(|rd| rd.access_version == d.access_version)
+    });
+
+    context.update_game_account(&game)?;
+    Ok(())
 }
 
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {
@@ -654,7 +691,9 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         addr,
         settles,
         transfers,
+        awards,
         checkpoint,
+        access_version,
         settle_version,
         next_settle_version,
         entry_lock,
@@ -673,12 +712,13 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
 
     // The manipulation should be atomic.
 
-    let mut game = context.get_game_account(&addr)?
+    let mut game = context
+        .get_game_account(&addr)?
         .ok_or(custom_error(Error::GameAccountNotFound))?;
 
     // Expire old deposits
     game.deposits
-        .retain(|d| d.settle_version < game.settle_version);
+        .retain(|d| d.access_version <= access_version);
 
     if game.settle_version != settle_version {
         println!("E The settle_versions mismach");
@@ -700,13 +740,19 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
 
     // Handle settles
     for s in settles.into_iter() {
-        if let Some(index) = game.players.iter().position(|p| p.access_version.eq(&s.player_id)) {
+        if let Some(index) = game
+            .players
+            .iter()
+            .position(|p| p.access_version.eq(&s.player_id))
+        {
             let p = &game.players[index];
-            let mut player = context.get_player_info(&p.addr)?
-                .ok_or(custom_error(Error::InvalidSettle(format!(
-                    "Invalid player address: {}",
-                    p.addr
-                ))))?;
+            let mut player =
+                context
+                    .get_player_info(&p.addr)?
+                    .ok_or(custom_error(Error::InvalidSettle(format!(
+                        "Invalid player address: {}",
+                        p.addr
+                    ))))?;
             player
                 .balances
                 .entry(game.token_addr.to_owned())
@@ -719,6 +765,13 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         } else {
             return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
         }
+    }
+
+    for award in awards {
+        println!(
+            "! Awarad {} to player {}",
+            award.bonus_identifier, award.player_id
+        );
     }
 
     if reset {
@@ -764,6 +817,7 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     module.register_async_method("settle", settle)?;
     module.register_async_method("vote", vote)?;
     module.register_async_method("list_tokens", list_tokens)?;
+    module.register_async_method("reject_deposits", reject_deposits)?;
 
     let handle = http_server.start(module)?;
     Ok(handle)

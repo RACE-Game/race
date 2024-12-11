@@ -30,6 +30,17 @@ export class Transfer {
     }
 }
 
+export class Award {
+    @field('u64')
+    id: bigint
+    @field('string')
+    bonusIdentifier: string
+    constructor(fields: Fields<Award>) {
+        this.id = fields.id
+        this.bonusIdentifier = fields.bonusIdentifier
+    }
+}
+
 export class Ask {
     @field('string')
     playerAddr!: string
@@ -173,6 +184,8 @@ export class Effect {
     reset!: boolean
     @field(array(struct(Log)))
     logs!: Log[]
+    @field(array(struct(Award)))
+    awards!: Award[]
 
     constructor(fields: Fields<Effect>) {
         Object.assign(this, fields)
@@ -212,6 +225,7 @@ export class Effect {
         const entryLock = undefined
         const reset = false
         const logs: Log[] = []
+        const awards: Award[] = []
         return new Effect({
             actionTimeout,
             waitTimeout,
@@ -241,6 +255,7 @@ export class Effect {
             entryLock,
             reset,
             logs,
+            awards,
         })
     }
 }

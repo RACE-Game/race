@@ -28,6 +28,20 @@ impl Settle {
     }
 }
 
+#[derive(Clone, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct Award {
+    pub player_id: u64,
+    pub bonus_identifier: String,
+}
+
+impl Award {
+    pub fn new(player_id: u64, bonus_identifier: String) -> Self {
+        Self { player_id, bonus_identifier }
+    }
+}
+
 pub type Addr = String;
 pub type Amount = u64;
 pub type RandomId = usize;
@@ -226,14 +240,16 @@ impl GamePlayer {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GameDeposit {
     id: u64,
+    pub(crate) access_version: u64,
     balance: u64,
 }
 
 impl GameDeposit {
-    pub fn new(id: u64, balance: u64) -> Self {
+    pub fn new(id: u64, balance: u64, access_version: u64) -> Self {
         Self {
             id,
             balance,
+            access_version,
         }
     }
 
@@ -244,4 +260,11 @@ impl GameDeposit {
     pub fn balance(&self) -> u64 {
         self.balance
     }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RejectDeposit {
+    pub access_version: u64
 }

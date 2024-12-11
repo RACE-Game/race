@@ -149,7 +149,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     for deposit in new_deposits.iter() {
                         if let Ok(id) = game_context.addr_to_id(&deposit.addr) {
-                            deposits.push(GameDeposit::new(id, deposit.amount));
+                            deposits.push(GameDeposit::new(id, deposit.amount, deposit.access_version));
                         } else {
                             error!("A deposit cannot be resolved, addr: {}", deposit.addr);
                         }

@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use crate::component::{
-    Broadcaster, Component, EventBridgeParent, EventBus, EventLoop, GameSynchronizer,
-    LocalConnection, PortsHandle, Submitter, WrappedClient, WrappedHandler,
+    Broadcaster, Component, EventBridgeParent, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle, Refunder, Submitter, WrappedClient, WrappedHandler
 };
 use crate::frame::{EventFrame, SignalFrame};
 use race_core::error::{Error, Result};
@@ -130,6 +129,10 @@ impl TransactorHandle {
         let (synchronizer, synchronizer_ctx) =
             GameSynchronizer::init(transport.clone(), &game_account);
 
+        let (refunder, refunder_ctx) =
+            Refunder::init(&game_account, transport.clone());
+        let mut refunder_handle = refunder.start(&game_account.addr, refunder_ctx);
+
         let mut connection = LocalConnection::new(encryptor.clone());
 
         event_bus.attach(&mut connection).await;
@@ -148,6 +151,7 @@ impl TransactorHandle {
         event_bus.attach(&mut submitter_handle).await;
         event_bus.attach(&mut event_loop_handle).await;
         event_bus.attach(&mut client_handle).await;
+        event_bus.attach(&mut refunder_handle).await;
 
         // Dispatch init state
         event_bus

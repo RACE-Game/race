@@ -194,6 +194,8 @@ export class PlayerDeposit {
     @field('u64')
     readonly amount!: bigint
     @field('u64')
+    readonly accessVersion!: bigint
+    @field('u64')
     readonly settleVersion!: bigint
     constructor(fields: Fields<PlayerDeposit>) {
         Object.assign(this, fields)

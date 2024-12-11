@@ -31,6 +31,7 @@ impl From<PlayerJoin> for race_core::types::PlayerJoin {
 pub struct PlayerDeposit {
     pub addr: Pubkey,
     pub amount: u64,
+    pub access_version: u64,
     pub settle_version: u64,
 }
 
@@ -39,6 +40,7 @@ impl From<PlayerDeposit> for race_core::types::PlayerDeposit {
         Self {
             addr: value.addr.to_string(),
             amount: value.amount,
+            access_version: value.access_version,
             settle_version: value.settle_version,
         }
     }
@@ -70,6 +72,25 @@ pub struct Vote {
     pub voter: Pubkey,
     pub votee: Pubkey,
     pub vote_type: VoteType,
+}
+
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(BorshDeserialize, BorshSerialize, Clone, Debug)]
+pub struct Bonus {
+    pub identifier: String,
+    pub stake_addr: Pubkey,
+    pub token_addr: Pubkey,
+    pub amount: u64,
+}
+
+impl From<Bonus> for race_core::types::Bonus {
+    fn from(value: Bonus) -> Self {
+        Self {
+            identifier: value.identifier,
+            token_addr: value.token_addr.to_string(),
+            amount: value.amount,
+        }
+    }
 }
 
 // State of on-chain GameAccount
@@ -119,6 +140,8 @@ pub struct GameState {
     pub checkpoint: Vec<u8>,
     // the lock for entry
     pub entry_lock: EntryLock,
+    // a list of bonuses that can be awarded in game
+    pub bonuses: Vec<Bonus>,
 }
 
 impl GameState {
@@ -141,12 +164,15 @@ impl GameState {
             checkpoint,
             entry_lock,
             deposits,
+            bonuses,
             ..
         } = self;
 
         let players = players.into_iter().map(Into::into).collect();
         let servers = servers.into_iter().map(Into::into).collect();
         let deposits = deposits.into_iter().map(Into::into).collect();
+        let bonuses = bonuses.into_iter().map(Into::into).collect();
+
         let checkpoint_onchain = if !checkpoint.is_empty() {
             Some(
                 CheckpointOnChain::try_from_slice(&checkpoint)
@@ -176,7 +202,8 @@ impl GameState {
             recipient_addr: recipient_addr.to_string(),
             entry_type,
             checkpoint_on_chain: checkpoint_onchain,
-            entry_lock
+            entry_lock,
+            bonuses,
         })
     }
 }
