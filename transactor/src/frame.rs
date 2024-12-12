@@ -1,5 +1,5 @@
 use race_api::{
-    event::{Event, Message}, types::{Award, EntryLock, RejectDeposit, Settle}
+    event::{Event, Message}, types::{Award, EntryLock, Settle}
 };
 use race_core::{
     checkpoint::{Checkpoint, VersionedData}, context::{GameContext, SubGameInit}, types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, Transfer, TxState, VoteType}
@@ -65,6 +65,7 @@ pub enum EventFrame {
         state_sha: String,
         entry_lock: Option<EntryLock>,
         reset: bool,
+        accept_deposits: Vec<u64>,
     },
     Broadcast {
         event: Event,
@@ -127,7 +128,7 @@ pub enum EventFrame {
 
     /// Reject a deposit
     RejectDeposits {
-        reject_deposits: Vec<RejectDeposit>,
+        reject_deposits: Vec<u64>,
     }
 }
 

@@ -1,5 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::error::Error;
+use race_core::types::DepositStatus;
 use race_core::{
     checkpoint::CheckpointOnChain,
     types::{EntryLock, EntryType, GameAccount, VoteType},
@@ -33,6 +34,7 @@ pub struct PlayerDeposit {
     pub amount: u64,
     pub access_version: u64,
     pub settle_version: u64,
+    pub status: DepositStatus,
 }
 
 impl From<PlayerDeposit> for race_core::types::PlayerDeposit {
@@ -42,6 +44,7 @@ impl From<PlayerDeposit> for race_core::types::PlayerDeposit {
             amount: value.amount,
             access_version: value.access_version,
             settle_version: value.settle_version,
+            status: value.status,
         }
     }
 }

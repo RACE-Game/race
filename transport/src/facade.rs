@@ -14,7 +14,7 @@ use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 
 use race_core::types::{
-    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams, RejectDepositsParams
+    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
 };
 use serde::Serialize;
 
@@ -222,8 +222,16 @@ impl TransportT for FacadeTransport {
         unimplemented!()
     }
 
-    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<()> {
-        unimplemented!()
+    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
+        let game_addr = params.addr.clone();
+        let signature = self.client
+            .request("reject_deposits", rpc_params![params])
+            .await
+            .map_err(|e| Error::RpcError(e.to_string()))?;
+
+        return Ok(RejectDepositsResult {
+            signature,
+        })
     }
 
 }

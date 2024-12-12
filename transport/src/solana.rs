@@ -16,7 +16,12 @@ use race_core::{
     error::{Error, Result},
     transport::TransportT,
     types::{
-        AssignRecipientParams, Award, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams
+        AssignRecipientParams, Award, CloseGameAccountParams, CreateGameAccountParams,
+        CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
+        GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams,
+        RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
+        RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams,
+        ServerAccount, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams,
     },
 };
 
@@ -601,6 +606,7 @@ impl TransportT for SolanaTransport {
             next_settle_version,
             entry_lock,
             reset,
+            accept_deposits,
         } = params;
         info!("Settle game {}", addr);
 
@@ -725,6 +731,7 @@ impl TransportT for SolanaTransport {
                 next_settle_version,
                 entry_lock,
                 reset,
+                accept_deposits,
             },
         };
 
@@ -751,7 +758,7 @@ impl TransportT for SolanaTransport {
         })
     }
 
-    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<()> {
+    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
 
@@ -760,27 +767,34 @@ impl TransportT for SolanaTransport {
 
         let calc_cu_prize_addrs = vec![];
 
-        let (pda, _) = Pubkey::find_program_address(
-            &[game_account_pubkey.as_ref()],
-            &self.program_id,
-        );
+        let (pda, _) =
+            Pubkey::find_program_address(&[game_account_pubkey.as_ref()], &self.program_id);
 
         let mut accounts = vec![
             AccountMeta::new_readonly(payer_pubkey, true),
             AccountMeta::new(game_account_pubkey, false),
-            AccountMeta::new_readonly(game_state.stake_account.clone(), false),
-            AccountMeta::new_readonly(game_state.token_mint.clone(), false),
+            AccountMeta::new(game_state.stake_account.clone(), false),
             AccountMeta::new_readonly(pda, false),
             AccountMeta::new_readonly(spl_token::id(), false),
-            AccountMeta::new_readonly(self.program_id, false),
+            AccountMeta::new_readonly(system_program::id(), false),
         ];
 
         for reject_deposit in params.reject_deposits.iter() {
-            if let Some(deposit) = game_state.deposits.iter().find(|d| d.access_version == reject_deposit.access_version) {
-                let ata = get_associated_token_address(&deposit.addr, &game_state.token_mint);
-                accounts.push(AccountMeta::new_readonly(ata, false));
+            if let Some(deposit) = game_state
+                .deposits
+                .iter()
+                .find(|d| d.access_version == *reject_deposit)
+            {
+                if is_native_mint(&game_state.token_mint) {
+                    accounts.push(AccountMeta::new(deposit.addr.clone(), false));
+                } else {
+                    let ata = get_associated_token_address(&deposit.addr, &game_state.token_mint);
+                    accounts.push(AccountMeta::new(ata, false));
+                }
             } else {
-                return Err(TransportError::InvalidRejectDeposits(reject_deposit.access_version))?;
+                return Err(TransportError::InvalidRejectDeposits(
+                    *reject_deposit,
+                ))?;
             }
         }
 
@@ -788,8 +802,10 @@ impl TransportT for SolanaTransport {
         let fee = self.get_recent_prioritization_fees(&calc_cu_prize_addrs)?;
         let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
 
-        let ix_params = IxRejectDepositsParams {
-            reject_deposits: params.reject_deposits
+        let ix_params = RaceInstruction::RejectDeposits {
+            params: IxRejectDepositsParams {
+                reject_deposits: params.reject_deposits,
+            },
         };
 
         let reject_deposit_ix = Instruction::new_with_borsh(self.program_id, &ix_params, accounts);
@@ -802,8 +818,10 @@ impl TransportT for SolanaTransport {
         let blockhash = self.get_blockhash()?;
         let mut tx = Transaction::new_unsigned(message);
         tx.sign(&[payer], blockhash);
-        self.send_transaction(tx)?;
-        Ok(())
+        let sig = self.send_transaction(tx)?;
+        Ok(RejectDepositsResult {
+            signature: sig.to_string(),
+        })
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {

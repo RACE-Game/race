@@ -326,7 +326,7 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             }
             println!("Deposits:");
             for d in game_account.deposits.iter() {
-                println!("Deposit: from[{}], amount: {}, #S{}", d.addr, d.amount, d.settle_version);
+                println!("Deposit: from[{}], status: {}, amount: {}, #S{}", d.addr, d.status, d.amount, d.settle_version);
             }
             println!("Servers:");
             for s in game_account.servers.iter() {

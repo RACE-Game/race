@@ -63,6 +63,12 @@ pub enum HandleError {
 
     #[error("Invalid sub game id: {0}")]
     InvalidSubGameId(usize),
+
+    #[error("Deposit is already rejected: {0}")]
+    DepositRejected(u64),
+
+    #[error("Deposit is already accepted: {0}")]
+    DepositAccepted(u64),
 }
 
 pub type HandleResult<T> = std::result::Result<T, HandleError>;

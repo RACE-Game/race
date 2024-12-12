@@ -115,6 +115,7 @@ impl Default for TestContextBuilder {
             token_addr: "".into(),
             checkpoint_on_chain: None,
             entry_lock: EntryLock::Open,
+            bonuses: vec![],
         };
         TestContextBuilder { account }
     }
@@ -291,6 +292,7 @@ impl TestContextBuilder {
         self.account.deposits.push(PlayerDeposit {
             addr: player.addr(),
             amount: deposit,
+            access_version: self.account.access_version,
             settle_version: self.account.settle_version,
         });
         player.set_id(self.account.access_version);

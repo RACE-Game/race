@@ -84,7 +84,7 @@ export type DepositResponse = {
     signature: string
 }
 
-export type DepositError = 'invalid-deposit' | 'game-not-served' | 'game-not-found'
+export type DepositError = 'profile-not-found' | 'invalid-deposit-amount' | 'game-not-served' | 'game-not-found' | 'unsupported-entry-type'
 
 export type VoteParams = {
     gameAddr: string

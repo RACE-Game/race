@@ -4,6 +4,9 @@ import { IKind, UnionFromValues } from './types'
 export const ENTRY_LOCKS = ['Open', 'JoinOnly', 'DepositOnly', 'Closed'] as const
 export type EntryLock = UnionFromValues<typeof ENTRY_LOCKS>
 
+export const DEPOSIT_STATUS = ['Pending', 'Rejected', 'Refunded', 'Accepted'] as const
+export type DepositStatus = UnionFromValues<typeof DEPOSIT_STATUS>
+
 export interface PlayerJoin {
     readonly addr: string
     readonly position: number
@@ -16,6 +19,7 @@ export interface PlayerDeposit {
     readonly amount: bigint
     readonly accessVersion: bigint
     readonly settleVersion: bigint
+    readonly status: DepositStatus
 }
 
 export interface ServerJoin {
@@ -23,6 +27,12 @@ export interface ServerJoin {
     readonly endpoint: string
     readonly accessVersion: bigint
     readonly verifyKey: string
+}
+
+export interface Bonus {
+    readonly identifier: string
+    readonly tokenAddr: string
+    readonly amount: bigint
 }
 
 export const VOTE_TYPES = ['ServerVoteTransactorDropOff', 'ClientVoteTransactorDropOff'] as const
@@ -62,6 +72,7 @@ export interface GameAccount {
     readonly recipientAddr: string
     readonly checkpointOnChain: CheckpointOnChain | undefined
     readonly entryLock: EntryLock
+    readonly bonuses: Bonus[]
 }
 
 export interface ServerAccount {

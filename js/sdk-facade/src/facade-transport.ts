@@ -156,7 +156,7 @@ export class FacadeTransport implements ITransport {
             return response.failed('game-not-found')
         }
         if (params.settleVersion !== gameAccount.settleVersion) {
-            return response.failed('invalid-deposit')
+            return response.failed('invalid-deposit-amount')
         }
         const ix: DepositInstruction = { playerAddr, ...params }
         const signature = await this.sendInstruction('deposit', ix)

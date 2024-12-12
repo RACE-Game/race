@@ -52,6 +52,8 @@ export class GameDeposit {
     id!: bigint
     @field('u64')
     amount!: bigint
+    @field('u64')
+    accessVersion!: bigint
     constructor(fields: Fields<GameDeposit>) {
         Object.assign(this, fields)
     }

@@ -12,11 +12,11 @@ use jsonrpsee::server::{AllowHosts, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error as RpcError, RpcModule};
 use race_core::error::Error;
-use race_core::types::RecipientSlotInit;
+use race_core::types::{DepositStatus, RecipientSlotInit, RejectDepositsParams};
 use race_core::types::RecipientSlotShare;
 use race_core::types::{
     DepositParams, EntryType, GameAccount, GameRegistration, PlayerDeposit, PlayerJoin,
-    PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount, RejectDepositsParams,
+    PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount,
     ServerAccount, ServerJoin, SettleParams, TokenAccount, Vote, VoteParams, VoteType,
 };
 use serde::Deserialize;
@@ -225,6 +225,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                         amount,
                         access_version: game_account.access_version,
                         settle_version: game_account.settle_version,
+                        status: DepositStatus::Accepted,
                     };
                     game_account.players.push(player_join);
                     game_account.deposits.push(player_deposit);
@@ -303,6 +304,7 @@ async fn deposit(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<
                 access_version: game_account.access_version,
                 // Use a larger settle_version to indicate this deposit is not handled.
                 settle_version: settle_version + 1,
+                status: DepositStatus::Pending,
             };
             game_account.deposits.push(deposit);
             context.update_game_account(&game_account)?;
@@ -662,7 +664,7 @@ async fn create_recipient(params: Params<'_>, context: Arc<Mutex<Context>>) -> R
     Ok(recipient_addr)
 }
 
-async fn reject_deposits(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()> {
+async fn reject_deposits(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {
     let RejectDepositsParams {
         addr,
         reject_deposits,
@@ -676,14 +678,12 @@ async fn reject_deposits(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rp
 
     println!("! Reject deposits {:?}", reject_deposits);
 
-    game.deposits.retain(|d| {
-        reject_deposits
-            .iter()
-            .any(|rd| rd.access_version == d.access_version)
-    });
+    // TODO, do refund
+    game.deposits.iter_mut().for_each(|d| d.status = DepositStatus::Refunded);
 
+    let settle_version = game.settle_version;
     context.update_game_account(&game)?;
-    Ok(())
+    Ok(format!("facade_settle_{}", settle_version))
 }
 
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {
@@ -698,6 +698,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         next_settle_version,
         entry_lock,
         reset,
+        accept_deposits,
     } = params.one()?;
     println!(
         "! Handle settlements {}, settles: {:?}, transfers: {:?}, reset: {} ",
@@ -716,9 +717,16 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         .get_game_account(&addr)?
         .ok_or(custom_error(Error::GameAccountNotFound))?;
 
+    for d in game.deposits.iter_mut() {
+        if accept_deposits.contains(&d.access_version) {
+            println!("! Mark deposit accepted: {}", d.access_version);
+            d.status = DepositStatus::Accepted;
+        }
+    }
+
     // Expire old deposits
     game.deposits
-        .retain(|d| d.access_version <= access_version);
+        .retain(|d| d.access_version <= access_version && d.status != DepositStatus::Pending);
 
     if game.settle_version != settle_version {
         println!("E The settle_versions mismach");

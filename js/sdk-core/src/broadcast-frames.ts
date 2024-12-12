@@ -4,6 +4,7 @@ import { GameEvent } from './events'
 import { CheckpointOffChain } from './checkpoint'
 import { Message } from './message'
 import { Fields } from './types'
+import { DepositStatus } from './accounts'
 
 export class BroadcastPlayerJoin {
     @field('string')
@@ -42,6 +43,8 @@ export class BroadcastPlayerDeposit {
     readonly accessVersion!: bigint
     @field('u64')
     readonly settleVersion!: bigint
+    @field('u8')
+    readonly status!: DepositStatus
     constructor(fields: Fields<BroadcastPlayerDeposit>) {
         Object.assign(this, fields)
     }

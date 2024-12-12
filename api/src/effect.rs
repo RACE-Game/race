@@ -10,7 +10,7 @@ use crate::{
     event::BridgeEvent,
     prelude::InitAccount,
     random::RandomSpec,
-    types::{Award, DecisionId, EntryLock, GameDeposit, GamePlayer, RandomId, RejectDeposit, Settle, Transfer},
+    types::{Award, DecisionId, EntryLock, GameDeposit, GamePlayer, RandomId, Settle, Transfer},
 };
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -230,7 +230,8 @@ pub struct Effect {
     pub reset: bool,
     pub logs: Vec<Log>,
     pub awards: Vec<Award>,
-    pub reject_deposits: Vec<RejectDeposit>,
+    pub reject_deposits: Vec<u64>,
+    pub accept_deposits: Vec<u64>,
 }
 
 impl Effect {
@@ -370,7 +371,8 @@ impl Effect {
     /// This will set current state as checkpoint automatically.
     pub fn award(&mut self, player_id: u64, bonus_identifier: &str) {
         self.checkpoint();
-        self.awards.push(Award::new(player_id, bonus_identifier.to_string()));
+        self.awards
+            .push(Award::new(player_id, bonus_identifier.to_string()));
     }
 
     /// Launches a new sub-game instance with specified parameters.
@@ -456,19 +458,35 @@ impl Effect {
     }
 
     /// List bridge events, deserialize raw to event type E.
-    pub fn list_bridge_events<E: BridgeEvent>(&self) -> HandleResult<Vec<(usize, E)>>{
-        self.bridge_events.iter().map(|ref emit_bridge_event| {
-            let dest = emit_bridge_event.dest;
-            let event = E::try_from_slice(&emit_bridge_event.raw)?;
-            Ok((dest, event))
-        }).collect()
+    pub fn list_bridge_events<E: BridgeEvent>(&self) -> HandleResult<Vec<(usize, E)>> {
+        self.bridge_events
+            .iter()
+            .map(|ref emit_bridge_event| {
+                let dest = emit_bridge_event.dest;
+                let event = E::try_from_slice(&emit_bridge_event.raw)?;
+                Ok((dest, event))
+            })
+            .collect()
     }
 
     /// Reject a deposit.
-    pub fn reject_deposit(&mut self, deposit: &GameDeposit) {
-        self.reject_deposits.push(RejectDeposit {
-            access_version: deposit.access_version
-        })
+    pub fn reject_deposit(&mut self, deposit: &GameDeposit) -> HandleResult<()> {
+        if self.accept_deposits.contains(&deposit.access_version) {
+            return Err(HandleError::DepositAccepted(deposit.access_version));
+        } else if !self.reject_deposits.contains(&deposit.access_version) {
+            self.reject_deposits.push(deposit.access_version);
+        }
+        Ok(())
+    }
+
+    /// Accept a deposit.
+    pub fn accept_deposit(&mut self, deposit: &GameDeposit) -> HandleResult<()> {
+        if self.reject_deposits.contains(&deposit.access_version) {
+            return Err(HandleError::DepositRejected(deposit.access_version));
+        } else if !self.accept_deposits.contains(&deposit.access_version) {
+            self.accept_deposits.push(deposit.access_version);
+        }
+        Ok(())
     }
 
     /// Reset the game to remove all players.  Be careful on usage,
@@ -480,7 +498,10 @@ impl Effect {
     }
 
     pub fn log<S: Into<String>>(&mut self, level: LogLevel, message: S) {
-        self.logs.push(Log { level, message: message.into() });
+        self.logs.push(Log {
+            level,
+            message: message.into(),
+        });
     }
 
     pub fn info<S: Into<String>>(&mut self, message: S) {

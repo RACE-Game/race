@@ -186,6 +186,10 @@ export class Effect {
     logs!: Log[]
     @field(array(struct(Award)))
     awards!: Award[]
+    @field(array('u64'))
+    rejectDeposits!: bigint[]
+    @field(array('u64'))
+    acceptDeposits!: bigint[]
 
     constructor(fields: Fields<Effect>) {
         Object.assign(this, fields)
@@ -226,6 +230,8 @@ export class Effect {
         const reset = false
         const logs: Log[] = []
         const awards: Award[] = []
+        const rejectDeposits: bigint[] = []
+        const acceptDeposits: bigint[] = []
         return new Effect({
             actionTimeout,
             waitTimeout,
@@ -256,6 +262,8 @@ export class Effect {
             reset,
             logs,
             awards,
+            rejectDeposits,
+            acceptDeposits,
         })
     }
 }

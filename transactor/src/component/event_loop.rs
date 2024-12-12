@@ -3,7 +3,7 @@ use race_api::types::GameDeposit;
 use async_trait::async_trait;
 use race_api::event::Event;
 use race_core::context::GameContext;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::component::common::{Component, PipelinePorts};
 use crate::component::event_bus::CloseReason;
@@ -151,7 +151,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         if let Ok(id) = game_context.addr_to_id(&deposit.addr) {
                             deposits.push(GameDeposit::new(id, deposit.amount, deposit.access_version));
                         } else {
-                            error!("A deposit cannot be resolved, addr: {}", deposit.addr);
+                            warn!("A deposit cannot be resolved, addr: {}, access_version: {}", deposit.addr, deposit.access_version);
                         }
                     }
 

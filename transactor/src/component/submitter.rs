@@ -37,11 +37,13 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         checkpoint,
         entry_lock,
         reset,
+        accept_deposits,
         ..
     } = next;
     prev.settles.extend(settles);
     prev.transfers.extend(transfers);
     prev.awards.extend(awards);
+    prev.accept_deposits.extend(accept_deposits);
     let entry_lock = if entry_lock.is_none() {
         prev.entry_lock
     } else {
@@ -61,6 +63,7 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         next_settle_version: prev.next_settle_version + 1,
         entry_lock,
         reset,
+        accept_deposits: prev.accept_deposits,
     }
 }
 
@@ -195,6 +198,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     previous_settle_version,
                     entry_lock,
                     reset,
+                    accept_deposits,
                     ..
                 } => {
 
@@ -228,6 +232,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                             next_settle_version: settle_version,
                             entry_lock,
                             reset,
+                            accept_deposits,
                         })
                         .await;
                     if let Err(e) = res {

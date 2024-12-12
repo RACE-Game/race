@@ -240,8 +240,8 @@ impl GamePlayer {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GameDeposit {
     id: u64,
-    pub(crate) access_version: u64,
     balance: u64,
+    pub(crate) access_version: u64,
 }
 
 impl GameDeposit {
@@ -260,11 +260,4 @@ impl GameDeposit {
     pub fn balance(&self) -> u64 {
         self.balance
     }
-}
-
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct RejectDeposit {
-    pub access_version: u64
 }

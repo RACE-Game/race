@@ -20,6 +20,7 @@ export interface IPlayerJoin {
 export interface IPlayerDeposit {
     key: PublicKey
     amount: bigint
+    accessVersion: bigint
     settleVersion: bigint
 }
 
@@ -34,6 +35,12 @@ export interface IVote {
     voterKey: PublicKey
     voteeKey: PublicKey
     voteType: VoteType
+}
+
+export interface IBonus {
+    identifier: string
+    tokenAddr: PublicKey
+    amount: bigint
 }
 
 export interface IGameReg {
@@ -74,6 +81,7 @@ export interface IGameState {
     recipientAddr: PublicKey
     checkpoint: Uint8Array
     entryLock: EntryLock
+    bonuses: IBonus[]
 }
 
 export interface IServerState {
@@ -210,6 +218,8 @@ export class PlayerDeposit implements IPlayerDeposit {
     accessVersion!: bigint
     @field('u64')
     settleVersion!: bigint
+    @field('u8')
+    status!: RaceCore.DepositStatus
 
     constructor(fields: IPlayerJoin) {
         Object.assign(this, fields)
@@ -221,6 +231,28 @@ export class PlayerDeposit implements IPlayerDeposit {
             amount: this.amount,
             accessVersion: this.accessVersion,
             settleVersion: this.settleVersion,
+            status: this.status,
+        }
+    }
+}
+
+export class Bonus implements IBonus {
+    @field('string')
+    identifier!: string
+    @field(publicKeyExt)
+    tokenAddr!: PublicKey
+    @field('u64')
+    amount!: bigint
+
+    constructor(fields: IBonus) {
+        Object.assign(this, fields)
+    }
+
+    generalize(): RaceCore.Bonus {
+        return {
+            identifier: this.identifier,
+            tokenAddr: this.tokenAddr.toBase58(),
+            amount: this.amount,
         }
     }
 }
@@ -353,6 +385,8 @@ export class GameState implements IGameState {
     checkpoint!: Uint8Array
     @field('u8')
     entryLock!: EntryLock
+    @field(array(struct(Bonus)))
+    bonuses!: Bonus[]
 
     constructor(fields: IGameState) {
         Object.assign(this, fields)
@@ -393,6 +427,7 @@ export class GameState implements IGameState {
             recipientAddr: this.recipientAddr.toBase58(),
             checkpointOnChain,
             entryLock: RaceCore.ENTRY_LOCKS[this.entryLock],
+            bonuses: this.bonuses.map(b => b.generalize()),
         }
     }
 }

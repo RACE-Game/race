@@ -41,7 +41,7 @@ impl GameSynchronizer {
             Self {},
             GameSynchronizerContext {
                 transport,
-                access_version: game_account.access_version,
+                access_version: game_account.checkpoint_on_chain.as_ref().and_then(|c| Some(c.access_version)).unwrap_or(0),
                 game_addr: game_account.addr.clone(),
             },
         )

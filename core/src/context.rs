@@ -10,12 +10,13 @@ use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
 use race_api::random::RandomSpec;
 use race_api::types::{
-    Award, Ciphertext, DecisionId, EntryLock, GamePlayer, GameStatus, RandomId, RejectDeposit, SecretDigest, SecretShare, Settle, Transfer
+    Award, Ciphertext, DecisionId, EntryLock, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare, Settle, Transfer
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sha256::digest;
 use std::collections::HashMap;
+use std::mem::take;
 
 const OPERATION_TIMEOUT: u64 = 15_000;
 
@@ -156,7 +157,7 @@ pub struct EventEffects {
     pub entry_lock: Option<EntryLock>,
     pub reset: bool,
     pub logs: Vec<Log>,
-    pub reject_deposits: Vec<RejectDeposit>,
+    pub reject_deposits: Vec<u64>,
 }
 
 /// The context for public data.
@@ -212,6 +213,8 @@ pub struct GameContext {
     pub(crate) entry_type: EntryType,
     /// The SHA256 of current handler state
     pub(crate) state_sha: String,
+    /// Accepted deposits, saved for later use in settlement
+    pub(crate) accept_deposits: Vec<u64>,
 }
 
 impl GameContext {
@@ -331,6 +334,7 @@ impl GameContext {
             init_data: game_account.data.clone(),
             entry_type: game_account.entry_type.clone(),
             state_sha,
+            accept_deposits: vec![],
         })
     }
 
@@ -597,6 +601,10 @@ impl GameContext {
         self.versions.access_version = access_version;
     }
 
+    pub fn take_accept_deposits(&mut self) -> Vec<u64> {
+        take(&mut self.accept_deposits)
+    }
+
     /// Dispatch an event if there's none
     pub fn dispatch_safe(&mut self, event: Event, timeout: u64) {
         if self.dispatch.is_none() {
@@ -812,6 +820,7 @@ impl GameContext {
             logs: Vec::new(),
             awards: Vec::new(),
             reject_deposits: Vec::new(),
+            accept_deposits: Vec::new(),
         }
     }
 
@@ -837,6 +846,7 @@ impl GameContext {
             is_init,
             awards,
             reject_deposits,
+            mut accept_deposits,
             ..
         } = effect;
 
@@ -853,6 +863,8 @@ impl GameContext {
         } else if cancel_dispatch {
             self.cancel_dispatch();
         }
+
+        self.accept_deposits.append(&mut accept_deposits);
 
         for Assign {
             random_id,
@@ -982,6 +994,7 @@ impl Default for GameContext {
             init_data: Vec::new(),
             entry_type: EntryType::Disabled,
             state_sha: "".into(),
+            accept_deposits: vec![],
         }
     }
 }

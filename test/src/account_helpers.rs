@@ -29,6 +29,7 @@ impl Default for TestGameAccountBuilder {
             token_addr: "".into(),
             checkpoint_on_chain: None,
             entry_lock: EntryLock::default(),
+            bonuses: vec![],
         };
         TestGameAccountBuilder { account }
     }
@@ -182,6 +183,7 @@ impl TestGameAccountBuilder {
         self.account.deposits.push(PlayerDeposit {
             addr: player.addr(),
             amount: deposit,
+            access_version: self.account.access_version,
             settle_version: self.account.settle_version,
         });
         player.set_id(self.account.access_version);

@@ -197,10 +197,34 @@ export class PlayerDeposit {
     readonly accessVersion!: bigint
     @field('u64')
     readonly settleVersion!: bigint
+    @field('u8')
+    readonly status!: RaceCore.DepositStatus
     constructor(fields: Fields<PlayerDeposit>) {
         Object.assign(this, fields)
     }
 }
+
+export class Bonus {
+    @field('string')
+    identifier!: string
+    @field('string')
+    tokenAddr!: string
+    @field('u64')
+    amount!: bigint
+
+    constructor(fields: Fields<Bonus>) {
+        Object.assign(this, fields)
+    }
+
+    generalize(): RaceCore.Bonus {
+        return {
+            identifier: this.identifier,
+            tokenAddr: this.tokenAddr,
+            amount: this.amount,
+        }
+    }
+}
+
 
 export type VoteType = Indices<typeof VOTE_TYPES>
 
@@ -266,6 +290,8 @@ export class GameAccount {
     readonly checkpointOnChain: CheckpointOnChain | undefined
     @field('u8')
     readonly entryLock!: EntryLock
+    @field(array(struct(Bonus)))
+    readonly bonuses!: Bonus[]
     constructor(fields: Fields<GameAccount>) {
         Object.assign(this, fields)
     }
@@ -291,6 +317,7 @@ export class GameAccount {
             recipientAddr: this.recipientAddr,
             checkpointOnChain: this.checkpointOnChain,
             entryLock: RaceCore.ENTRY_LOCKS[this.entryLock],
+            bonuses: this.bonuses,
         }
     }
 }

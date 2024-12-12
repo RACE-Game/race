@@ -3,9 +3,9 @@
 use async_stream::stream;
 use futures::Stream;
 use jsonrpsee::core::async_trait;
-use race_core::error::Result;
+use race_core::error::{Error, Result};
 use race_core::types::{
-    AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, ServeParams, SettleResult, UnregisterGameParams, VoteParams, RejectDepositsParams
+    AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, DepositStatus, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RejectDepositsParams, RejectDepositsResult, ServeParams, SettleResult, UnregisterGameParams, VoteParams
 };
 use race_core::{
     transport::TransportT,
@@ -181,7 +181,62 @@ impl TransportT for WrappedTransport {
                     params.addr,
                     self.retry_interval
                 );
-                tokio::time::sleep(Duration::from_millis(self.retry_interval)).await;
+                tokio::time::sleep(Duration::from_secs(self.retry_interval)).await;
+                continue;
+            }
+        }
+    }
+
+    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
+        let Some(max_access_version) = params.reject_deposits.iter().max() else {
+            return Err(Error::EmptyRejectDeposits);
+        };
+
+        loop {
+            let game_account = self
+                .inner
+                .get_game_account(&params.addr)
+                .await;
+
+            if let Ok(Some(game_account)) = game_account {
+                // We got an old state, because the access_version is too small
+                if game_account.access_version < *max_access_version {
+                    error!(
+                        "Got invalid access_version: {} < {}, will retry in {} secs",
+                        game_account.access_version, max_access_version, self.retry_interval
+                    );
+                    tokio::time::sleep(Duration::from_secs(self.retry_interval)).await;
+                    continue;
+                }
+
+                // If we see the deposits are marked as rejected/refunded, we should skip
+
+                for d in game_account.deposits.iter() {
+                    if params.reject_deposits.iter().any(|rd| *rd == d.access_version && (d.status == DepositStatus::Rejected || d.status == DepositStatus::Refunded)) {
+                        return Ok(RejectDepositsResult {
+                            signature: "".to_string(),
+                        });
+                    }
+                }
+
+                match self.inner.reject_deposits(params.clone()).await {
+                    Ok(rst) => return Ok(rst),
+                    Err(e) => {
+                        error!(
+                            "Error in reject_deposits: {:?}, will retry in {} secs",
+                            e, self.retry_interval
+                        );
+                        tokio::time::sleep(Duration::from_secs(self.retry_interval)).await;
+                        continue;
+                    }
+                }
+            } else {
+                error!(
+                    "Error in reject_deposits due to unable to get game account {}, will retry in {} secs",
+                    params.addr,
+                    self.retry_interval
+                );
+                tokio::time::sleep(Duration::from_secs(self.retry_interval)).await;
                 continue;
             }
         }
@@ -221,10 +276,6 @@ impl TransportT for WrappedTransport {
 
     async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
         self.inner.recipient_claim(params).await
-    }
-
-    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<()> {
-        self.inner.reject_deposits(params).await
     }
 }
 

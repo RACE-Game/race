@@ -13,4 +13,4 @@ export * from './checkpoint'
 export * from './message'
 export * from './response'
 
-console.info('Race Protocol 24.10')
+console.info('Race Protocol 24.11')

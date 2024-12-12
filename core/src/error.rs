@@ -313,6 +313,12 @@ pub enum Error {
 
     #[error("Checkpoint not found after initialization")]
     CheckpointNotFoundAfterInit,
+
+    #[error("Handled deposit rejection")]
+    HandledDepositRejection,
+
+    #[error("Empty reject deposits")]
+    EmptyRejectDeposits,
 }
 
 #[cfg(feature = "serde")]

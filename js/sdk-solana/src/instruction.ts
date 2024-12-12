@@ -27,6 +27,9 @@ export enum Instruction {
     CreateRecipient = 12,
     AssignRecipient = 13,
     RecipientClaim = 14,
+    Deposit = 15,
+    AttachBonus = 16,
+    RejectDeposits = 17,
 }
 
 // Instruction data definitations
@@ -98,6 +101,21 @@ export class JoinGameData extends Serialize {
         this.settleVersion = params.settleVersion
         this.position = params.position
         this.verifyKey = params.verifyKey
+    }
+}
+
+export class DepositGameData extends Serialize {
+    @field('u8')
+    instruction = Instruction.Deposit
+    @field('u64')
+    amount: bigint
+    @field('u64')
+    settleVersion: bigint
+
+    constructor(params: IxParams<DepositGameData>) {
+        super()
+        this.amount = params.amount
+        this.settleVersion = params.settleVersion
     }
 }
 
@@ -428,6 +446,87 @@ export function join(opts: JoinOptions): TransactionInstruction {
                 pubkey: recipientAccountKey,
                 isSigner: false,
                 isWritable: false,
+            },
+            {
+                pubkey: pda,
+                isSigner: false,
+                isWritable: true,
+            },
+            {
+                pubkey: TOKEN_PROGRAM_ID,
+                isSigner: false,
+                isWritable: false,
+            },
+            {
+                pubkey: SystemProgram.programId,
+                isSigner: false,
+                isWritable: false,
+            },
+        ],
+        programId: PROGRAM_ID,
+        data,
+    })
+}
+
+export type DepositOpts = {
+    playerKey: PublicKey
+    profileKey: PublicKey
+    paymentKey: PublicKey
+    gameAccountKey: PublicKey
+    mint: PublicKey
+    stakeAccountKey: PublicKey
+    recipientAccountKey: PublicKey
+    amount: bigint
+    settleVersion: bigint
+}
+
+export function deposit(opts: DepositOpts): TransactionInstruction {
+
+    const {
+        playerKey,
+        profileKey,
+        paymentKey,
+        gameAccountKey,
+        mint,
+        stakeAccountKey,
+        amount,
+        settleVersion
+    } = opts;
+
+    let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID)
+    const data = new DepositGameData({ amount, settleVersion }).serialize()
+
+    return new TransactionInstruction({
+        keys: [
+            {
+                pubkey: playerKey,
+                isSigner: true,
+                isWritable: false,
+            },
+            {
+                pubkey: profileKey,
+                isSigner: false,
+                isWritable: false,
+            },
+            {
+                pubkey: paymentKey,
+                isSigner: false,
+                isWritable: true,
+            },
+            {
+                pubkey: gameAccountKey,
+                isSigner: false,
+                isWritable: true,
+            },
+            {
+                pubkey: mint,
+                isSigner: false,
+                isWritable: false,
+            },
+            {
+                pubkey: stakeAccountKey,
+                isSigner: false,
+                isWritable: true,
             },
             {
                 pubkey: pda,

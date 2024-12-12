@@ -1,7 +1,7 @@
 use std::pin::Pin;
 
 use crate::types::{
-    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
+    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -128,7 +128,7 @@ pub trait TransportT: Send + Sync {
 
     /// Reject a list of deposits. Based on the game rules, if a
     /// deposit can't be handled properly, it will be rejected.
-    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<()>;
+    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult>;
 
     /// Grant an address with a share to a recipient slot.
     async fn assign_recipient(&self, params: AssignRecipientParams) -> Result<()>;

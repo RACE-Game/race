@@ -142,6 +142,7 @@ impl TestClient {
         game_account.deposits.push(race_core::types::PlayerDeposit {
             addr: self.client.addr.clone(),
             amount: balance,
+            access_version: game_account.access_version,
             settle_version: game_account.settle_version,
         });
         self.set_id(id);

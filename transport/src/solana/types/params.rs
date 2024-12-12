@@ -5,7 +5,7 @@ use race_core::types::{
     CreateRegistrationParams, EntryType, JoinParams, PublishGameParams,
     RecipientSlotShareInit, RecipientSlotType,
     RegisterServerParams, ServeParams, Transfer, VoteParams,
-    VoteType, Award, RejectDeposit
+    VoteType, Award
 };
 use super::common::RecipientSlotOwner;
 use solana_sdk::pubkey::Pubkey;
@@ -151,6 +151,7 @@ pub struct IxSettleParams {
     pub next_settle_version: u64,
     pub entry_lock: Option<EntryLock>,
     pub reset: bool,
+    pub accept_deposits: Vec<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -260,5 +261,5 @@ pub struct IxAttachBonusParams {
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct IxRejectDepositsParams {
-    pub reject_deposits: Vec<RejectDeposit>,
+    pub reject_deposits: Vec<u64>,
 }

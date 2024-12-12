@@ -2,7 +2,7 @@ use super::misc::log_execution_context;
 use race_api::{
     effect::{EmitBridgeEvent, Log, SubGame},
     event::Event,
-    types::{Award, EntryLock, RejectDeposit, Settle, Transfer},
+    types::{Award, EntryLock, Settle, Transfer},
 };
 use race_core::{
     context::{EventEffects, GameContext, SubGameInit, SubGameInitSource, Versions},
@@ -97,7 +97,7 @@ async fn send_bridge_event(
 }
 
 async fn send_reject_deposits(
-    reject_deposits: Vec<RejectDeposit>,
+    reject_deposits: Vec<u64>,
     ports: &PipelinePorts,
     env: &ComponentEnv,
 ) {
@@ -116,7 +116,7 @@ async fn send_settlement(
     entry_lock: Option<EntryLock>,
     reset: bool,
     original_versions: Versions,
-    game_context: &GameContext,
+    game_context: &mut GameContext,
     ports: &PipelinePorts,
     env: &ComponentEnv,
 ) {
@@ -128,6 +128,8 @@ async fn send_settlement(
         game_context.settle_version(),
         checkpoint_size,
     );
+
+    let accept_deposits = game_context.take_accept_deposits();
 
     ports
         .send(EventFrame::Checkpoint {
@@ -141,6 +143,7 @@ async fn send_settlement(
             state_sha: game_context.state_sha(),
             entry_lock,
             reset,
+            accept_deposits,
         })
         .await;
 }
@@ -231,7 +234,7 @@ pub async fn init_state(
         None,
         reset,
         original_versions,
-        &game_context,
+        &mut game_context,
         ports,
         env,
     )
@@ -370,7 +373,7 @@ pub async fn handle_event(
                     entry_lock,
                     reset,
                     original_versions,
-                    &game_context,
+                    game_context,
                     ports,
                     env,
                 )
