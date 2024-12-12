@@ -9,21 +9,14 @@ use async_trait::async_trait;
 use constants::*;
 use futures::{Stream, StreamExt};
 use bcs;
+use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 use shared_crypto::intent::Intent;
 use sui_config::{sui_config_dir, SUI_KEYSTORE_FILENAME};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use sui_sdk::{
-    rpc_types::SuiTransactionBlockResponseOptions,
-    types::{
-        base_types::{ObjectID, SuiAddress},
-        crypto::{get_key_pair_from_rng, SuiKeyPair},
-        programmable_transaction_builder::ProgrammableTransactionBuilder as PTB,
-        transaction::{Argument, CallArg, Command, Transaction, TransactionData},
-        quorum_driver_types::ExecuteTransactionRequestType,
-        Identifier,
-    },
-    SuiClient, SuiClientBuilder,
-    SUI_DEVNET_URL, SUI_COIN_TYPE,
+    rpc_types::{SuiMoveStruct, SuiObjectDataFilter, SuiObjectResponse, SuiObjectResponseQuery, SuiParsedData, SuiParsedMoveObject, SuiTransactionBlockResponseOptions}, types::{
+        base_types::{ObjectID, SuiAddress}, crypto::{get_key_pair_from_rng, SuiKeyPair}, programmable_transaction_builder::ProgrammableTransactionBuilder as PTB, quorum_driver_types::ExecuteTransactionRequestType, sui_serde::HexAccountAddress, transaction::{Argument, CallArg, Command, Transaction, TransactionData}, Identifier
+    }, SuiClient, SuiClientBuilder, SUI_COIN_TYPE, SUI_DEVNET_URL
 };
 use tracing::{error, info, warn};
 use types::*;
@@ -287,7 +280,58 @@ impl TransportT for SuiTransport {
     }
 
     async fn get_player_profile(&self, addr: &str) -> Result<Option<PlayerProfile>> {
-        todo!()
+        println!("Get player profile for {}", addr);
+        let addr = SuiAddress::from_str(addr)
+            .map_err(|e| Error::TransportError(e.to_string()))?;
+
+        println!("Addr: {:?}", addr);
+        let package = AccountAddress::from_str(PACKAGE_ID)
+            .map_err(|e| Error::TransportError(e.to_string()))?;
+
+        let filter_opts = Some(SuiObjectDataFilter::StructType(
+            // xxxx::profile::PlayerProfile
+            StructTag {
+                address: package,
+                module: Identifier::new("profile")
+                    .map_err(|e| Error::TransportError(e.to_string()))?,
+                name: Identifier::new("PlayerProfile")
+                    .map_err(|e| Error::TransportError(e.to_string()))?,
+                type_params: Default::default(),
+            }
+        ));
+        let query = {
+            Some(SuiObjectResponseQuery::new(
+                filter_opts,
+                None,
+            ))
+        };
+        let data: Vec<SuiObjectResponse> = self.client.read_api().get_owned_objects(
+            addr,
+            query,
+            None,
+            None
+        ).await.map_err(|e| Error::TransportError(e.to_string()))?.data;
+
+        let content = data.first()
+            .and_then(|first_item| first_item.data.clone())
+            .and_then(|data| data.content)
+            .ok_or(Error::PlayerProfileNotFound)?;
+
+        let fields = match content {
+            SuiParsedData::MoveObject(
+                SuiParsedMoveObject {
+                    fields: SuiMoveStruct::WithFields(fields) | SuiMoveStruct::WithTypes { fields, .. },
+                    ..
+                },
+            ) => fields,
+            _ => return Err(Error::PlayerProfileNotFound),
+        };
+
+        return Ok(Some(PlayerProfile {
+            nick: fields.get("nick").map(|mv| mv.to_string()).unwrap_or("UNKNOWN".to_string()),
+            pfp: fields.get("pfp").map(|mv| mv.to_string()),
+            addr: addr.to_string(),
+        }))
     }
 
     async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>> {
@@ -306,6 +350,14 @@ impl TransportT for SuiTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow;
+
+    #[tokio::test]
+    async fn test_get_player_profile() {
+        let package_id = ObjectID::from_hex_literal(PACKAGE_ID).unwrap();
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), package_id).await.unwrap();
+        let profile = transport.get_player_profile("0x13c43bafded256bdfda2e0fe086785aefa6e4ff45fb14fc3ca747b613aa12902").await;
+    }
 
     #[tokio::test]
     async fn test_create_sui_transport() ->  TransportResult<()> {
