@@ -5930,7 +5930,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9552f850d5f0964a4e4d0bf306459ac29323ddfbae05e35a7c0d35cb0803cc5"
 dependencies = [
  "anyhow",
- "itertools 0.12.1",
+ "itertools 0.13.0",
  "proc-macro2 1.0.92",
  "quote 1.0.37",
  "syn 2.0.90",
@@ -6322,6 +6322,7 @@ dependencies = [
  "borsh 1.5.1",
  "futures",
  "jsonrpsee 0.17.1",
+ "move-core-types",
  "project-root",
  "race-api",
  "race-core",

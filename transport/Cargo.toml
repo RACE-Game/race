@@ -39,6 +39,7 @@ bcs.workspace = true
 sui-sdk.workspace = true
 sui-keys.workspace = true
 sui-config.workspace = true
+move-core-types.workspace = true
 shared-crypto.workspace = true
 reqwest = { workspace = true, features = [ "json"] }
 anyhow = { workspace = true }
