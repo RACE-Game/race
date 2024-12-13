@@ -15,7 +15,12 @@ use sui_config::{sui_config_dir, SUI_KEYSTORE_FILENAME};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use sui_json_rpc_types::{Coin, CoinPage};
 use sui_sdk::{
-    rpc_types::{SuiMoveStruct, SuiObjectDataFilter, SuiObjectResponse, SuiObjectResponseQuery, SuiParsedData, SuiParsedMoveObject, SuiTransactionBlockResponseOptions}, types::{
+    rpc_types::{SuiMoveStruct, SuiObjectDataFilter, SuiObjectResponse,
+                SuiObjectResponseQuery, SuiParsedData, SuiParsedMoveObject,
+                SuiTransactionBlockResponseOptions
+    },
+    types::{
+        TypeTag,
         base_types::{ObjectID, SuiAddress},
         crypto::{get_key_pair_from_rng, SuiKeyPair},
         programmable_transaction_builder::ProgrammableTransactionBuilder as PTB,
@@ -61,7 +66,7 @@ pub struct SuiTransport {
     package_id: ObjectID,
     // active address associated with this transport, usually the `PUBLISHER`
     active_addr: SuiAddress,
-    // local key file store
+    // TODO: use keypair
     keystore: FileBasedKeystore,
     client: SuiClient,
 }
@@ -141,7 +146,6 @@ impl TransportT for SuiTransport {
     }
 
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
-
         // coin for gas
         let coins = self.client
             .coin_read_api()
@@ -155,61 +159,66 @@ impl TransportT for SuiTransport {
         let recipient_slot_fun = new_identifier(CREATE_RECIPIENT_SLOT)?;
         let slot_type_fun = new_identifier(BUILD_SLOT_TYPE)?;
         let slot_share_fun = new_identifier(CREATE_SLOT_SHARE)?;
-        // track result index
-        // let mut result_idx = 0u16;
 
-        for slot in params.slots.into_iter() {
-            // 1. create shares for this slot frist
-            let mut input_idx = 0u16;
-            let mut cmd_idx = 0u16;
+        // make move calls to build recipient slots one by one
+        for (slot_idx, slot) in params.slots.into_iter().enumerate() {
+
             let mut result_shares = Vec::new();
-
+            // 1. create shares for this slot frist
             for share in slot.init_shares.into_iter() {
+                // prepare inputs for each share
                 let (owner_type, owner_info) = match share.owner {
                     RecipientSlotOwner::Unassigned { identifier } => (0u8, identifier),
-                    RecipientSlotOwner::Assigned { addr } => (1u8, addr.to_string()),
+                    RecipientSlotOwner::Assigned { addr } => (1u8, addr),
                 };
-                add_input(&mut ptb, &owner_type)?;
-                add_input(&mut ptb, &owner_info)?;
-                add_input(&mut ptb, &share.weights)?;
-                // this returned value increment input index by 1?
-                // let result_share = ptb.command(Command::move_call(
-                ptb.command(Command::move_call(
+                let create_share_args = vec![
+                    add_input(&mut ptb, &owner_type)?,
+                    add_input(&mut ptb, &owner_info)?,
+                    add_input(&mut ptb, &share.weights)?,
+                ];
+
+                let result = ptb.command(Command::move_call(
                     self.get_package_id(),
                     module.clone(),
                     slot_share_fun.clone(),
                     vec![],     // no T needed for shares
-                    vec![
-                        Argument::Input(input_idx),   // owner type
-                        Argument::Input(input_idx+1), // owner info
-                        Argument::Input(input_idx+2), // weights
-                    ]
+                    create_share_args
                 ));
 
-                // result_shares.push(result_share);
-                result_shares.push(Argument::Result(cmd_idx));
-                cmd_idx += 1;
-                input_idx += 3;
+                result_shares.push(result);
+
             }
 
+
             // 2. add slot id, token_addr and slot type info
-            add_input(&mut ptb, &slot.id)?;
-
-            add_input(&mut ptb, &slot.token_addr)?;
-
+            let slot_id = add_input(&mut ptb, &slot.id)?;
+            let slot_token_addr = add_input(&mut ptb, &slot.token_addr)?;
             let slot_type = match slot.slot_type {
                 RecipientSlotType::Nft => 0u8,
                 RecipientSlotType::Token => 1u8,
             };
-            add_input(&mut ptb, &slot_type)?;
+            let shares = ptb.command(Command::make_move_vec(
+                Some(
+                    TypeTag::Struct(Box::new(
+                        StructTag {
+                            address: AccountAddress::from_str(PACKAGE_ID)
+                                .map_err(|e| Error::TransportError(e.to_string()))?,
+                            module: new_identifier(RECIPIENT)?,
+                            name: new_identifier("RecipientSlotShare")?,
+                            type_params: vec![]
+                        }
+                    ))
+                ),
+                result_shares,
+            ));
 
-            // 3. make the move call that builds this slot on chain
-            let mut build_slot_args = vec![
-                Argument::Input(input_idx),
-                Argument::Input(input_idx+1),
-                Argument::Input(input_idx+2),
+            let token_addr = parse_str_addr(&slot.token_addr)?;
+            let build_slot_args = vec![
+                add_input(&mut ptb, &slot.id)?,
+                add_input(&mut ptb, &token_addr)?,
+                add_input(&mut ptb, &slot_type)?,
+                shares
             ];
-            build_slot_args.append(&mut result_shares);
 
             ptb.command(Command::move_call(
                 self.get_package_id(),
@@ -220,23 +229,8 @@ impl TransportT for SuiTransport {
             ));
         }
 
-        // let cap_addr = match params.cap_addr {
-        //     Some(addr_str) => Some(parse_str_addr(&addr_str)?),
-        //     None => None,
-        // };
-        //
-        // let cap_addr_arg = ptb.pure(cap_addr)
-        //     .map_err(|e| Error::InternalError(format!("Failed to create cap_addr argument: {}", e)))?;
-        //
-        // let recipient_fun = new_identifier(CREATE_RECIPIENT)?;
-        //
-        // ptb.command(Command::move_call(
-        //     self.get_package_id(),
-        //     module.clone(),
-        //     recipient_fun,
-        //     vec![],  // no type arguments
-        //     vec![cap_addr_arg, Argument::Result(result_idx)],
-        // ));
+        // TODO: create recipeint
+        // recipient;
 
         let gas_price = self.client.read_api().get_reference_gas_price().await?;
 
@@ -389,8 +383,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_player_profile() {
-        let package_id = ObjectID::from_hex_literal(PACKAGE_ID).unwrap();
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), package_id).await.unwrap();
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), PACKAGE_ID).await.unwrap();
         let profile = transport.get_player_profile("0x13c43bafded256bdfda2e0fe086785aefa6e4ff45fb14fc3ca747b613aa12902").await;
     }
 
