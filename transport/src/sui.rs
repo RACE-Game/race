@@ -2,24 +2,31 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 /// Transport for Sui blockchain
-mod constants;
-mod types;
+
 
 use async_trait::async_trait;
-use constants::*;
+
 use futures::{Stream, StreamExt};
 use bcs;
 use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+use serde::{Serialize, Deserialize};
 use shared_crypto::intent::Intent;
 use sui_config::{sui_config_dir, SUI_KEYSTORE_FILENAME};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use sui_json_rpc_types::{Coin, CoinPage};
 use sui_sdk::{
     rpc_types::{SuiMoveStruct, SuiObjectDataFilter, SuiObjectResponse, SuiObjectResponseQuery, SuiParsedData, SuiParsedMoveObject, SuiTransactionBlockResponseOptions}, types::{
-        base_types::{ObjectID, SuiAddress}, crypto::{get_key_pair_from_rng, SuiKeyPair}, programmable_transaction_builder::ProgrammableTransactionBuilder as PTB, quorum_driver_types::ExecuteTransactionRequestType, sui_serde::HexAccountAddress, transaction::{Argument, CallArg, Command, Transaction, TransactionData}, Identifier
-    }, SuiClient, SuiClientBuilder, SUI_COIN_TYPE, SUI_DEVNET_URL
+        base_types::{ObjectID, SuiAddress},
+        crypto::{get_key_pair_from_rng, SuiKeyPair},
+        programmable_transaction_builder::ProgrammableTransactionBuilder as PTB,
+        quorum_driver_types::ExecuteTransactionRequestType, sui_serde::HexAccountAddress,
+        transaction::{Argument, CallArg, Command, Transaction, TransactionData},
+        Identifier
+    },
+    SuiClient, SuiClientBuilder, SUI_COIN_TYPE, SUI_DEVNET_URL
 };
 use tracing::{error, info, warn};
-use types::*;
+
 use std::{path::PathBuf, pin::Pin};
 use std::str::FromStr;
 
@@ -32,87 +39,68 @@ use race_core::{
         CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
         GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams,
         RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer,
-        UnregisterGameParams, VoteParams,
-        // RecipientSlotInit, RecipientSlotType, RecipientSlotOwner, RecipientSlotShare, RecipientSlotShareInit,
+        RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams,
+RecipientSlotInit, RecipientSlotType, RecipientSlotOwner, RecipientSlotShare, RecipientSlotShareInit,
     }
 };
 
+// mods of this crate
+mod constants;
+mod types;
+mod utils;
+use constants::*;
+use types::*;
+use utils::*;
+
+// Helper fns for interacting with Sui APIs
+
 pub struct SuiTransport {
+    // RPC node endpoint
     rpc: String,
+    // on-chain package ID
     package_id: ObjectID,
-    keypair: SuiAddress,
+    // active address associated with this transport, usually the `PUBLISHER`
+    active_addr: SuiAddress,
+    // local key file store
+    keystore: FileBasedKeystore,
     client: SuiClient,
 }
 
-// pub fn retrieve_wallet() -> TransportResult<WalletContext> {
-//     let wallet_conf = sui_config_dir()?.join(SUI_CLIENT_CONFIG);
-//     let keystore_path = sui_config_dir()?.join(SUI_KEYSTORE_FILENAME);
-//
-//     // check if a wallet exists and if not, create a wallet and a sui client config
-//     if !keystore_path.exists() {
-//         let keystore = FileBasedKeystore::new(&keystore_path)?;
-//         keystore.save()?;
-//     }
-//
-//     if !wallet_conf.exists() {
-//         let keystore = FileBasedKeystore::new(&keystore_path)?;
-//         let mut client_config = SuiClientConfig::new(keystore.into());
-//
-//         client_config.add_env(SuiEnv::testnet());
-//         client_config.add_env(SuiEnv::devnet());
-//         client_config.add_env(SuiEnv::localnet());
-//
-//         if client_config.active_env.is_none() {
-//             client_config.active_env = client_config.envs.first().map(|env| env.alias.clone());
-//         }
-//
-//         client_config.save(&wallet_conf)?;
-//         info!("Client config file is stored in {:?}.", &wallet_conf);
-//     }
-//
-//     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
-//     let mut client_config: SuiClientConfig = PersistedConfig::read(&wallet_conf)?;
-//
-//     let default_active_address = if let Some(address) = keystore.addresses().first() {
-//         *address
-//     } else {
-//         keystore
-//             .generate_and_add_new_key(ED25519, None, None, None)?
-//             .0
-//     };
-//
-//     if keystore.addresses().len() < 2 {
-//         keystore.generate_and_add_new_key(ED25519, None, None, None)?;
-//     }
-//
-//     client_config.active_address = Some(default_active_address);
-//     client_config.save(&wallet_conf)?;
-//
-//     let wallet = WalletContext::new(&wallet_conf, Some(std::time::Duration::from_secs(60)), None)?;
-//
-//     Ok(wallet)
-// }
-
 impl SuiTransport {
-    pub(crate) async fn try_new(rpc: String, package_id: ObjectID) -> TransportResult<Self> {
-        println!(
-            "Create Sui transport at RPC: {} for packge id: {:?}",
-            rpc, package_id
-        );
+    async fn try_new(rpc: String, pkg_id: &str) -> TransportResult<Self> {
+        println!("Create Sui transport at RPC: {} for packge: {:?}", rpc, pkg_id);
+        let package_id = ObjectID::from_hex_literal(pkg_id)?;
+        let active_addr = parse_str_addr(PUBLISHER)?;
+        let keystore = FileBasedKeystore::new(&sui_config_dir()?.join(SUI_KEYSTORE_FILENAME))?;
         let client = SuiClientBuilder::default().build(rpc.clone()).await?;
-        let keypair = SuiAddress::from_str(SUI_ACCOUNT)
-            .map_err(|_| TransportError::ParseAddressError)?;
         Ok(Self {
             rpc,
             package_id,
-            keypair,
+            active_addr,
+            keystore,
             client
         })
     }
 
+    fn get_package_id(&self) -> ObjectID {
+        self.package_id.clone()
+    }
+
+    fn get_active_addr(&self) -> SuiAddress {
+        self.active_addr.clone()
+    }
+
+    async fn get_coins(&self) -> TransportResult<Vec<Coin>> {
+        let coin_page = self.client
+            .coin_read_api()
+            .get_coins(self.get_active_addr(), None, None, None)
+            .await?;
+
+        Ok(coin_page.data)
+    }
+
     // generate a random pubkey for some testing cases
-    pub fn random_pubkey() -> SuiAddress {
+    pub fn random_keypair() -> SuiAddress {
         SuiAddress::random_for_testing_only()
     }
 }
@@ -154,62 +142,91 @@ impl TransportT for SuiTransport {
 
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
 
-        let module_name = "recipient";
-        let builder_func_name = "new_recipient_builder";
-        let recipient_func_name = "create_recipient";
-        let recipient_slot_func_name = "create_recipient_slot";
-        let active_addr = SuiAddress::from_str("0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192").map_err(|_| TransportError::ParseAddressError)?;
         // coin for gas
         let coins = self.client
             .coin_read_api()
-            .get_coins(active_addr.clone(), None, None, None)
+            .get_coins(self.get_active_addr(), None, None, None)
             .await?;
         let coin = coins.data.into_iter().next().unwrap();
 
         let mut ptb = PTB::new();
-        let module = Identifier::new(module_name)
-            .map_err(|_| TransportError::FailedToIdentifySuiModule(module_name.into()))?;
-        let builder_func = Identifier::new(builder_func_name)
-            .map_err(|_| TransportError::FailedToIdentifySuiModuleFn(builder_func_name.into()))?;
+        let module = new_identifier(RECIPIENT)?;
+        // create hot potato: recipient builder
+        let recipient_builder_fun = new_identifier(NEW_RECIPIENT_BUILDER)?;
         ptb.command(Command::move_call(
-            self.package_id.clone(),
+            self.get_package_id(),
             module.clone(),
-            builder_func,
+            recipient_builder_fun,
             vec![],
             vec![],
         ));
-        let keystore = FileBasedKeystore::new(&sui_config_dir()?.join(SUI_KEYSTORE_FILENAME))?;
 
-        let recipient_func = Identifier::new(recipient_func_name)
-            .map_err(|_| TransportError::FailedToIdentifySuiModuleFn(recipient_func_name.into()))?;
+        let recipient_slot_fun = new_identifier(CREATE_RECIPIENT_SLOT)?;
+        let slot_type_fun = new_identifier(BUILD_SLOT_TYPE)?;
+        // track result index
+        let mut result_idx = 0u16;
+        for slot in params.slots.into_iter() {
+            // build RecipientSlotType enum on chain and use it as return value
+            let slot_type = match slot.slot_type {
+                RecipientSlotType::Nft => CallArg::Pure(vec![0u8]),
+                RecipientSlotType::Token => CallArg::Pure(vec![1u8]),
+            };
+            ptb.input(slot_type).map_err(|_| Error::ExternalError("Failed to add input slot type".into()))?;
+            ptb.command(Command::move_call(
+                self.get_package_id(),
+                module.clone(),
+                slot_type_fun.clone(),
+                vec![],
+                vec![Argument::Input(0)],
+            ));
+
+            // prepare inputs for subsequent movecalls
+            ptb.input(new_callarg(&slot.id)?)
+                .map_err(|_| Error::ExternalError("Failed to add input slot id".into()))?;
+            let addr = parse_str_addr(&slot.token_addr)?;
+            ptb.input(new_callarg(&addr)?)
+                .map_err(|_| Error::ExternalError("Failed to add input token addr".into()))?;
+
+            // add move call to `create_recipient_slot`
+            ptb.command(Command::move_call(
+                self.get_package_id(),
+                module.clone(),
+                recipient_slot_fun.clone(),
+                vec![],
+                vec![
+                    Argument::Input(1), // slot id
+                    Argument::Input(2), // token address
+                    Argument::Result(result_idx), // builder
+                    Argument::Result(result_idx+1), // slot type
+                    // TODO: add slot shares here
+                ],
+            ));
+
+            result_idx += 2;
+        }
 
         let cap_addr = match params.cap_addr {
-            Some(addr_str) => Some(SuiAddress::from_str(&addr_str)
-                    .map_err(|e| Error::ExternalError(format!("Invalid cap address: {}", e)))?),
+            Some(addr_str) => Some(parse_str_addr(&addr_str)?),
             None => None,
         };
 
-         let cap_addr_arg = ptb.pure(cap_addr)
+        let cap_addr_arg = ptb.pure(cap_addr)
             .map_err(|e| Error::InternalError(format!("Failed to create cap_addr argument: {}", e)))?;
 
-        let recipient_func = Identifier::new(recipient_func_name)
-            .map_err(|_| Error::InternalError("Failed to create recipient function identifier".into()))?;
+        let recipient_fun = new_identifier(CREATE_RECIPIENT)?;
 
         ptb.command(Command::move_call(
-            self.package_id.clone(),
+            self.get_package_id(),
             module.clone(),
-            recipient_func,
+            recipient_fun,
             vec![],  // no type arguments
-            vec![
-                cap_addr_arg,
-                Argument::Result(0),
-            ],
+            vec![cap_addr_arg, Argument::Result(result_idx)],
         ));
         let gas_price = self.client.read_api().get_reference_gas_price().await?;
 
          // build and execute the transaction
         let tx_data = TransactionData::new_programmable(
-            active_addr.clone(),
+            self.get_active_addr(),
             vec![coin.object_ref()],
             ptb.finish(),
             GAS_BUDGET,
@@ -217,8 +234,8 @@ impl TransportT for SuiTransport {
         );
 
         // sign and execute transaction
-        let signature = keystore.sign_secure(
-            &active_addr,
+        let signature = self.keystore.sign_secure(
+            &self.active_addr,
             &tx_data,
             Intent::sui_transaction(),
         )
@@ -364,7 +381,7 @@ mod tests {
         let package_id = ObjectID::from_hex_literal(PACKAGE_ID)
             .map_err(|_| TransportError::ParseObjectIdError(PACKAGE_ID.into()))?;
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), package_id).await?;
-        let address = transport.keypair.clone();
+        let address = transport.keystore.clone();
         println!("Prepare to get balances");
         let total_balance = transport.client
             .coin_read_api()
@@ -382,7 +399,7 @@ mod tests {
                 RecipientSlotInit {
                     id: 0,
                     slot_type: RecipientSlotType::Token,
-                    token_addr: "0x02::Sui".into(),
+                    token_addr: PUBLISHER.into(),
                     init_shares: vec![
                         RecipientSlotShareInit {
                             owner: RecipientSlotOwner::Unassigned {

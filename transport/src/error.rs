@@ -1,5 +1,8 @@
 use thiserror::Error;
-use sui_sdk::error::Error as SuiError;
+use sui_sdk::{
+    error::Error as SuiError,
+    types::base_types::ObjectIDParseError,
+};
 use anyhow;
 
 #[derive(Error, Debug)]
@@ -79,11 +82,8 @@ pub enum TransportError {
     #[error("Failed to get minimum lamports for rent-exempt")]
     FailedToGetMinimumLamports,
 
-    #[error("Failed to identify the sui module: {0}")]
-    FailedToIdentifySuiModule(String),
-
-    #[error("Failed to identify the sui module function: {0}")]
-    FailedToIdentifySuiModuleFn(String),
+    #[error("Failed to identify {0}")]
+    FailedToIdentify(String),
 
     #[error("BCS serialization error: {0}")]
     BcsError(#[from] bcs::Error),
@@ -196,7 +196,13 @@ impl From<reqwest::Error> for TransportError {
 
 impl From<SuiError> for TransportError {
     fn from(error: SuiError) -> Self {
-        Self::NetworkError(error.to_string())
+        Self::External(error.to_string())
+    }
+}
+
+impl From<ObjectIDParseError> for TransportError {
+    fn from(error: ObjectIDParseError) -> Self {
+        Self::External(error.to_string())
     }
 }
 

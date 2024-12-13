@@ -3,7 +3,6 @@ use race_core::types::{RecipientAccount, RecipientSlotType};
 use serde::{Serialize, Deserialize};
 use sui_sdk::types::base_types::SuiAddress;
 
-
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RecipientSlotShare {
@@ -51,14 +50,14 @@ impl From<RecipientSlot> for race_core::types::RecipientSlot {
 // Object representing on-chain Recipient
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(Deserialize, Serialize, Debug)]
-pub struct RecipientState {
+pub struct RecipientObject {
     pub cap_addr: Option<SuiAddress>,
     pub slots: Vec<RecipientSlot>,
 }
 
-impl RecipientState {
+impl RecipientObject {
     pub fn into_account<S: Into<String>>(self, addr: S) -> RecipientAccount {
-        let RecipientState {
+        let RecipientObject {
             cap_addr, slots, ..
         } = self;
         RecipientAccount {
