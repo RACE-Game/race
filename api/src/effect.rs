@@ -10,7 +10,7 @@ use crate::{
     event::BridgeEvent,
     prelude::InitAccount,
     random::RandomSpec,
-    types::{Award, DecisionId, EntryLock, GameDeposit, GamePlayer, RandomId, Settle, Transfer},
+    types::{Award, DecisionId, EntryLock, GameDeposit, GamePlayer, RandomId, GameId, Settle, Transfer},
 };
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -44,7 +44,7 @@ pub struct ActionTimeout {
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
 pub struct SubGame {
-    pub id: usize,
+    pub id: GameId,
     pub bundle_addr: String,
     pub init_account: InitAccount,
 }
@@ -63,7 +63,7 @@ pub struct SubGameLeave {
 
 impl SubGame {
     pub fn try_new<S: BorshSerialize, T: BorshSerialize>(
-        id: usize,
+        id: GameId,
         bundle_addr: String,
         max_players: u16,
         init_data: S,
@@ -81,12 +81,12 @@ impl SubGame {
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
 pub struct EmitBridgeEvent {
-    pub dest: usize,
+    pub dest: GameId,
     pub raw: Vec<u8>,
 }
 
 impl EmitBridgeEvent {
-    pub fn try_new<E: BridgeEvent>(dest: usize, bridge_event: E) -> HandleResult<Self> {
+    pub fn try_new<E: BridgeEvent>(dest: GameId, bridge_event: E) -> HandleResult<Self> {
         Ok(Self {
             dest,
             raw: borsh::to_vec(&bridge_event)?,
@@ -232,6 +232,7 @@ pub struct Effect {
     pub awards: Vec<Award>,
     pub reject_deposits: Vec<u64>,
     pub accept_deposits: Vec<u64>,
+    pub curr_sub_game_id: GameId,
 }
 
 impl Effect {
@@ -378,37 +379,35 @@ impl Effect {
     /// Launches a new sub-game instance with specified parameters.
     ///
     /// # Parameters
-    /// - `id`: Unique identifier for the sub-game. Must be non-zero.
     /// - `bundle_addr`: Address of the bundle associated with the sub-game.
     /// - `max_players`: Maximum number of players allowed in the sub-game.
     ///    The players in sub-game is managed by its master game, `max_players` is here for compatibility.
     /// - `init_data`: Initialization data for the sub-game. Must implement the `BorshSerialize` trait.
-    ///
-    /// # Returns
-    /// - `Ok(())`: If the sub-game is successfully launched.
-    /// - `Err(HandleError::InvalidSubGameId)`: If the provided sub-game `id` is zero.
-    ///
-    /// # Errors
-    /// Returns an error if the initialization data cannot be serialized.
     pub fn launch_sub_game<D: BorshSerialize>(
         &mut self,
-        id: usize,
         bundle_addr: String,
         max_players: u16,
         init_data: D,
-    ) -> HandleResult<()> {
-        if id == 0 {
-            return Err(HandleError::InvalidSubGameId(id));
+    ) -> HandleResult<GameId> {
+        if self.curr_sub_game_id == 255 {
+            return Err(HandleError::CantLaunchMoreSubGames);
         }
+        let sub_game_id = self.curr_sub_game_id;
         self.launch_sub_games.push(SubGame {
-            id,
+            id: sub_game_id,
             bundle_addr,
             init_account: InitAccount {
                 max_players,
                 data: borsh::to_vec(&init_data)?,
             },
         });
-        Ok(())
+        self.curr_sub_game_id += 1;
+        Ok(sub_game_id)
+    }
+
+    /// Return the game_id used for next `launch_sub_game` call.
+    pub fn next_sub_game_id(&self) -> GameId {
+        self.curr_sub_game_id
     }
 
     /// Get handler state.
@@ -447,7 +446,7 @@ impl Effect {
     }
 
     /// Emit a bridge event.
-    pub fn bridge_event<E: BridgeEvent>(&mut self, dest: usize, evt: E) -> HandleResult<()> {
+    pub fn bridge_event<E: BridgeEvent>(&mut self, dest: GameId, evt: E) -> HandleResult<()> {
         if self.bridge_events.iter().any(|x| x.dest == dest) {
             return Err(HandleError::DuplicatedBridgeEventTarget);
         }
@@ -458,7 +457,7 @@ impl Effect {
     }
 
     /// List bridge events, deserialize raw to event type E.
-    pub fn list_bridge_events<E: BridgeEvent>(&self) -> HandleResult<Vec<(usize, E)>> {
+    pub fn list_bridge_events<E: BridgeEvent>(&self) -> HandleResult<Vec<(GameId, E)>> {
         self.bridge_events
             .iter()
             .map(|ref emit_bridge_event| {

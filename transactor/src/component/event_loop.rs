@@ -103,9 +103,11 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         } else {
                             ClientMode::Validator
                         };
+                        info!("{} Game context add server: {}, mode: {:?}", env.log_prefix, server.addr, mode);
                         game_context.add_node(server.addr.clone(), server.access_version, mode);
                     }
                     for player in new_players.iter() {
+                        info!("{} Game context add player: {}", env.log_prefix, player.addr);
                         game_context.add_node(player.addr.clone(), player.access_version, ClientMode::Player);
                     }
                 }
@@ -120,7 +122,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     let timestamp = current_timestamp();
 
                     info!(
-                        "{} handle Sync, access_version: {:?}",
+                        "{} handle Sync, access_version: {}",
                         env.log_prefix, access_version
                     );
                     game_context.set_access_version(access_version);
@@ -134,7 +136,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         };
                         game_context.add_node(server.addr.clone(), server.access_version, mode);
                         info!(
-                            "{} Game context add server: {:?}",
+                            "{} Game context add server: {}",
                             env.log_prefix, server.addr
                         );
                     }

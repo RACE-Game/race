@@ -10,7 +10,7 @@ use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
 use race_api::random::RandomSpec;
 use race_api::types::{
-    Award, Ciphertext, DecisionId, EntryLock, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare, Settle, Transfer
+    Award, Ciphertext, DecisionId, EntryLock, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare, Settle, Transfer, GameId
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -408,7 +408,7 @@ impl GameContext {
         &self.spec.game_addr
     }
 
-    pub fn game_id(&self) -> usize {
+    pub fn game_id(&self) -> GameId {
         self.spec.game_id
     }
 
@@ -789,6 +789,8 @@ impl GameContext {
             .filter_map(|st| st.get_revealed().map(|a| (st.id, a.to_owned())))
             .collect();
 
+        let curr_sub_game_id = self.sub_games.len() + 1;
+
         Effect {
             start_game: false,
             stop_game: false,
@@ -821,6 +823,7 @@ impl GameContext {
             awards: Vec::new(),
             reject_deposits: Vec::new(),
             accept_deposits: Vec::new(),
+            curr_sub_game_id,
         }
     }
 

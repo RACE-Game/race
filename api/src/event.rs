@@ -1,6 +1,6 @@
 use crate::{
     error::HandleError,
-    types::{Ciphertext, DecisionId, GameDeposit, GamePlayer, RandomId, SecretDigest, SecretShare},
+    types::{Ciphertext, DecisionId, GameDeposit, GamePlayer, RandomId, SecretDigest, SecretShare, GameId},
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
@@ -132,14 +132,14 @@ pub enum Event {
 
     /// The custom event from bridge
     Bridge {
-        dest_game_id: usize,
-        from_game_id: usize,
+        dest_game_id: GameId,
+        from_game_id: GameId,
         raw: Vec<u8>,
     },
 
     /// A subgame is ready
     SubGameReady {
-        game_id: usize,
+        game_id: GameId,
     },
 }
 
@@ -238,7 +238,7 @@ impl Event {
         }
     }
 
-    pub fn bridge<E: BridgeEvent>(dest: usize, from: usize, e: &E) -> Self {
+    pub fn bridge<E: BridgeEvent>(dest: GameId, from: GameId, e: &E) -> Self {
         Self::Bridge {
             dest_game_id: dest,
             from_game_id: from,

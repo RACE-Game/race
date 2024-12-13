@@ -4,5 +4,5 @@ pub use crate::engine::GameHandler;
 pub use crate::error::{HandleError, HandleResult};
 pub use crate::event::{CustomEvent, Event, BridgeEvent};
 pub use crate::random::RandomSpec;
-pub use crate::types::{Addr, Amount, DecisionId, RandomId, Settle, GameStatus, GamePlayer, GameDeposit};
+pub use crate::types::{Addr, Amount, DecisionId, RandomId, Settle, GameStatus, GamePlayer, GameDeposit, GameId, EntryLock};
 pub use borsh::{BorshDeserialize, BorshSerialize};

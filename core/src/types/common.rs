@@ -44,7 +44,7 @@ impl std::fmt::Display for Signature {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GameSpec {
     pub game_addr: String,
-    pub game_id: usize,
+    pub game_id: GameId,
     pub bundle_addr: String,
     pub max_players: u16,
 }

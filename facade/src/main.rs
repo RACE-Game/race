@@ -253,7 +253,6 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                         access_version: game_account.access_version,
                         verify_key,
                     };
-                    game_account.players.push(player_join);
                     println!(
                         "! Join game: player: {}, game: {}, amount: {},  access version: {} -> {}",
                         player_addr,
@@ -262,6 +261,15 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                         game_account.access_version - 1,
                         game_account.access_version
                     );
+                    let player_deposit = PlayerDeposit {
+                        addr: player_addr.clone(),
+                        amount,
+                        access_version: game_account.access_version,
+                        settle_version: game_account.settle_version,
+                        status: DepositStatus::Accepted,
+                    };
+                    game_account.players.push(player_join);
+                    game_account.deposits.push(player_deposit);
                 }
             }
             #[allow(unused)]
@@ -417,7 +425,7 @@ async fn get_profile(
         Some(player_info) => Ok(Some(borsh::to_vec(&player_info.profile).unwrap())),
         None => Ok(None),
     };
-    println!("? Player profile: {:?}", ret);
+    println!("? Player profile: {:?}", addr);
     ret
 }
 

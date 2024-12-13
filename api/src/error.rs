@@ -69,6 +69,9 @@ pub enum HandleError {
 
     #[error("Deposit is already accepted: {0}")]
     DepositAccepted(u64),
+
+    #[error("Cannot launch more sub games")]
+    CantLaunchMoreSubGames,
 }
 
 pub type HandleResult<T> = std::result::Result<T, HandleError>;

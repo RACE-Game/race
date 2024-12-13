@@ -10,7 +10,7 @@ use race_api::prelude::InitAccount;
 use race_core::error::Result;
 use race_core::checkpoint::{CheckpointOffChain, CheckpointOnChain, VersionedData};
 use race_core::random::RandomState;
-use race_core::types::{ClientMode, EntryLock, EntryType, GameAccount, GameSpec, PlayerDeposit, PlayerJoin, ServerJoin};
+use race_core::types::{ClientMode, EntryLock, EntryType, GameAccount, GameSpec, PlayerDeposit, PlayerJoin, ServerJoin, DepositStatus};
 use race_core::context::{DispatchEvent, EventEffects, GameContext, Versions};
 
 pub struct TestContext<H>
@@ -294,6 +294,7 @@ impl TestContextBuilder {
             amount: deposit,
             access_version: self.account.access_version,
             settle_version: self.account.settle_version,
+            status: DepositStatus::Accepted,
         });
         player.set_id(self.account.access_version);
         self

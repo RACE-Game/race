@@ -190,6 +190,8 @@ export class Effect {
     rejectDeposits!: bigint[]
     @field(array('u64'))
     acceptDeposits!: bigint[]
+    @field('usize')
+    currSubGameId!: number
 
     constructor(fields: Fields<Effect>) {
         Object.assign(this, fields)
@@ -232,6 +234,7 @@ export class Effect {
         const awards: Award[] = []
         const rejectDeposits: bigint[] = []
         const acceptDeposits: bigint[] = []
+        const currSubGameId = context.subGames.length + 1
         return new Effect({
             actionTimeout,
             waitTimeout,
@@ -264,6 +267,7 @@ export class Effect {
             awards,
             rejectDeposits,
             acceptDeposits,
+            currSubGameId,
         })
     }
 }

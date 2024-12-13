@@ -5,6 +5,7 @@ use std::collections::LinkedList;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use race_api::types::GameId;
 use race_api::event::Event;
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::{BroadcastFrame, BroadcastSync, TxState};
@@ -68,13 +69,13 @@ pub struct Broadcaster {
     #[allow(unused)]
     id: String,
     #[allow(unused)]
-    game_id: usize,
+    game_id: GameId,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 impl Broadcaster {
-    pub fn init(id: String, game_id: usize) -> (Self, BroadcasterContext) {
+    pub fn init(id: String, game_id: GameId) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);

@@ -16,7 +16,7 @@ use race_core::{
         CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams,
         PlayerProfile, PublishGameParams, RegisterGameParams, RegisterServerParams,
         RegistrationAccount, ServeParams, ServerAccount, Settle, SettleParams,
-        UnregisterGameParams, VoteParams,
+        UnregisterGameParams, VoteParams, RejectDepositsParams, RejectDepositsResult
     },
 };
 
@@ -191,6 +191,12 @@ impl TransportT for DummyTransport {
 
     async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
         Ok(())
+    }
+
+    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
+        Ok(RejectDepositsResult {
+            signature: "".to_string()
+        })
     }
 }
 

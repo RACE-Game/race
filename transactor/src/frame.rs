@@ -1,5 +1,5 @@
 use race_api::{
-    event::{Event, Message}, types::{Award, EntryLock, Settle}
+    event::{Event, Message}, types::{Award, EntryLock, Settle, GameId}
 };
 use race_core::{
     checkpoint::{Checkpoint, VersionedData}, context::{GameContext, SubGameInit}, types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, Transfer, TxState, VoteType}
@@ -88,8 +88,8 @@ pub enum EventFrame {
     /// checkpoint in the context, it will be sent along with
     /// `checkpoint`.
     SendBridgeEvent {
-        from: usize,
-        dest: usize,
+        from: GameId,
+        dest: GameId,
         event: Event,
         access_version: u64,
         settle_version: u64,
@@ -97,8 +97,8 @@ pub enum EventFrame {
     },
     /// Similar to `SendBridgeEvent`, but for receiver's event bus.
     RecvBridgeEvent {
-        from: usize,
-        dest: usize,
+        from: GameId,
+        dest: GameId,
         event: Event,
         access_version: u64,
         settle_version: u64,
@@ -119,7 +119,7 @@ pub enum EventFrame {
 
     /// Subgames send this frame after they made their first checkpoint.
     SubGameReady {
-        game_id: usize,
+        game_id: GameId,
         checkpoint_state: VersionedData,
     },
 

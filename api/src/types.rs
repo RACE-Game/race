@@ -46,6 +46,7 @@ pub type Addr = String;
 pub type Amount = u64;
 pub type RandomId = usize;
 pub type DecisionId = usize;
+pub type GameId = usize;
 pub type Ciphertext = Vec<u8>;
 pub type SecretDigest = Vec<u8>;
 pub type SecretKey = Vec<u8>;

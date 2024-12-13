@@ -216,8 +216,9 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new(game_account_pubkey, false),
                 AccountMeta::new(stake_account_pubkey, false),
                 AccountMeta::new_readonly(pda, false),
-                AccountMeta::new_readonly(receiver_pubkey, false),
+                AccountMeta::new(receiver_pubkey, false),
                 AccountMeta::new_readonly(spl_token::id(), false),
+                AccountMeta::new_readonly(system_program::id(), false),
             ],
         );
 

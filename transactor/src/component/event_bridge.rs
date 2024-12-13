@@ -1,7 +1,8 @@
 use crate::frame::{EventFrame, SignalFrame};
 use async_trait::async_trait;
 use tokio::sync::{broadcast, mpsc};
-use tracing::{info, log::error};
+use tracing::{info, warn, log::error};
+use race_api::types::GameId;
 
 use super::{common::PipelinePorts, CloseReason, Component, ComponentEnv};
 
@@ -29,13 +30,13 @@ pub struct EventBridgeParent {
 }
 
 pub struct EventBridgeChildContext {
-    pub game_id: usize,
+    pub game_id: GameId,
     tx: mpsc::Sender<EventFrame>,
     rx: broadcast::Receiver<EventFrame>,
 }
 
 pub struct EventBridgeChild {
-    pub game_id: usize,
+    pub game_id: GameId,
 }
 
 impl EventBridgeParent {
@@ -145,7 +146,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                     EventFrame::Shutdown => {
                         info!("{} Sends Shutdown", env.log_prefix);
                         if let Err(e) = ctx.tx.send(event_frame) {
-                            error!("{} Failed to send: {}", env.log_prefix, e);
+                            warn!("{} Failed to send: {}", env.log_prefix, e);
                         }
                         info!("{} Stopped", env.log_prefix);
                         break;
@@ -157,19 +158,14 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         }
                     }
                     EventFrame::Sync { new_players, new_servers, transactor_addr, .. } => {
-                        if !ctx.tx.is_empty() {
+                        if ctx.tx.receiver_count() > 0 {
                             let sub_sync = EventFrame::SubSync {
                                 new_players, new_servers, transactor_addr
                             };
-                            info!("{} Sends event: {}", env.log_prefix, sub_sync);
+                            info!("{} Broadcast sync: {}", env.log_prefix, sub_sync);
                             if let Err(e) = ctx.tx.send(sub_sync) {
                                 error!("{} Failed to send: {}", env.log_prefix, e);
                             }
-                        }
-                    }
-                    EventFrame::SubSync { .. } => {
-                        if let Err(e) = ctx.tx.send(event_frame) {
-                            error!("{} Failed to send: {}", env.log_prefix, e);
                         }
                     }
                     _ => continue,
@@ -183,7 +179,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
 
 impl EventBridgeChild {
 
-    pub fn init(game_id: usize, bridge_to_parent: BridgeToParent) -> (EventBridgeChild, EventBridgeChildContext) {
+    pub fn init(game_id: GameId, bridge_to_parent: BridgeToParent) -> (EventBridgeChild, EventBridgeChildContext) {
         (
             EventBridgeChild {
                 game_id: game_id.clone(),
@@ -241,10 +237,6 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         info!("{} Stopped", env.log_prefix);
                         ports.send(event_frame).await;
                         break;
-                    }
-                    EventFrame::Sync { .. } => {
-                        info!("{} Receives {}", env.log_prefix, event_frame);
-                        ports.send(event_frame).await;
                     }
                     EventFrame::SubSync { .. } => {
                         info!("{} Receives {}", env.log_prefix, event_frame);

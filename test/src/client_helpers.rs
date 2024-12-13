@@ -10,7 +10,7 @@ use race_core::{
     connection::ConnectionT,
     context::GameContext,
     secret::SecretState,
-    types::{AttachGameParams, ClientMode, DecisionId, ExitGameParams, SubmitEventParams},
+    types::{AttachGameParams, ClientMode, DecisionId, ExitGameParams, SubmitEventParams, DepositStatus},
 };
 use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, Mutex};
@@ -144,6 +144,7 @@ impl TestClient {
             amount: balance,
             access_version: game_account.access_version,
             settle_version: game_account.settle_version,
+            status: DepositStatus::Accepted,
         });
         self.set_id(id);
         game_context.add_node(self.client.addr.clone(), id, ClientMode::Player);

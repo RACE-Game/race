@@ -1,12 +1,14 @@
 TIME=$(date +%s%3N)
 START_DELAY=$(($1 * 60000))
 START_TIME=$(($TIME + $START_DELAY))
+ENTRY_CLOSE_TIME=$(expr $START_TIME + 300000)
 TICKET=1000000
 TABLE_SIZE=3
 START_CHIPS=100000
 
 DATA=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
                           -u64 "$START_TIME" \
+                          -u64 "$ENTRY_CLOSE_TIME" \
                           -u64 "$TICKET" \
                           -u8 "$TABLE_SIZE" \
                           -u64 "$START_CHIPS" \
