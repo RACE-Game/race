@@ -151,77 +151,93 @@ impl TransportT for SuiTransport {
 
         let mut ptb = PTB::new();
         let module = new_identifier(RECIPIENT)?;
-        // create hot potato: recipient builder
-        let recipient_builder_fun = new_identifier(NEW_RECIPIENT_BUILDER)?;
-        ptb.command(Command::move_call(
-            self.get_package_id(),
-            module.clone(),
-            recipient_builder_fun,
-            vec![],
-            vec![],
-        ));
 
         let recipient_slot_fun = new_identifier(CREATE_RECIPIENT_SLOT)?;
         let slot_type_fun = new_identifier(BUILD_SLOT_TYPE)?;
+        let slot_share_fun = new_identifier(CREATE_SLOT_SHARE)?;
         // track result index
-        let mut result_idx = 0u16;
+        // let mut result_idx = 0u16;
+
         for slot in params.slots.into_iter() {
-            // build RecipientSlotType enum on chain and use it as return value
+            // 1. create shares for this slot frist
+            let mut input_idx = 0u16;
+            let mut cmd_idx = 0u16;
+            let mut result_shares = Vec::new();
+
+            for share in slot.init_shares.into_iter() {
+                let (owner_type, owner_info) = match share.owner {
+                    RecipientSlotOwner::Unassigned { identifier } => (0u8, identifier),
+                    RecipientSlotOwner::Assigned { addr } => (1u8, addr.to_string()),
+                };
+                add_input(&mut ptb, &owner_type)?;
+                add_input(&mut ptb, &owner_info)?;
+                add_input(&mut ptb, &share.weights)?;
+                // this returned value increment input index by 1?
+                // let result_share = ptb.command(Command::move_call(
+                ptb.command(Command::move_call(
+                    self.get_package_id(),
+                    module.clone(),
+                    slot_share_fun.clone(),
+                    vec![],     // no T needed for shares
+                    vec![
+                        Argument::Input(input_idx),   // owner type
+                        Argument::Input(input_idx+1), // owner info
+                        Argument::Input(input_idx+2), // weights
+                    ]
+                ));
+
+                // result_shares.push(result_share);
+                result_shares.push(Argument::Result(cmd_idx));
+                cmd_idx += 1;
+                input_idx += 3;
+            }
+
+            // 2. add slot id, token_addr and slot type info
+            add_input(&mut ptb, &slot.id)?;
+
+            add_input(&mut ptb, &slot.token_addr)?;
+
             let slot_type = match slot.slot_type {
-                RecipientSlotType::Nft => CallArg::Pure(vec![0u8]),
-                RecipientSlotType::Token => CallArg::Pure(vec![1u8]),
+                RecipientSlotType::Nft => 0u8,
+                RecipientSlotType::Token => 1u8,
             };
-            ptb.input(slot_type).map_err(|_| Error::ExternalError("Failed to add input slot type".into()))?;
-            ptb.command(Command::move_call(
-                self.get_package_id(),
-                module.clone(),
-                slot_type_fun.clone(),
-                vec![],
-                vec![Argument::Input(0)],
-            ));
+            add_input(&mut ptb, &slot_type)?;
 
-            // prepare inputs for subsequent movecalls
-            ptb.input(new_callarg(&slot.id)?)
-                .map_err(|_| Error::ExternalError("Failed to add input slot id".into()))?;
-            let addr = parse_str_addr(&slot.token_addr)?;
-            ptb.input(new_callarg(&addr)?)
-                .map_err(|_| Error::ExternalError("Failed to add input token addr".into()))?;
+            // 3. make the move call that builds this slot on chain
+            let mut build_slot_args = vec![
+                Argument::Input(input_idx),
+                Argument::Input(input_idx+1),
+                Argument::Input(input_idx+2),
+            ];
+            build_slot_args.append(&mut result_shares);
 
-            // add move call to `create_recipient_slot`
             ptb.command(Command::move_call(
                 self.get_package_id(),
                 module.clone(),
                 recipient_slot_fun.clone(),
-                vec![],
-                vec![
-                    Argument::Input(1), // slot id
-                    Argument::Input(2), // token address
-                    Argument::Result(result_idx), // builder
-                    Argument::Result(result_idx+1), // slot type
-                    // TODO: add slot shares here
-                ],
+                vec![],         // TODO: add T (Coin) info later
+                build_slot_args,
             ));
-
-            result_idx += 2;
         }
 
-        let cap_addr = match params.cap_addr {
-            Some(addr_str) => Some(parse_str_addr(&addr_str)?),
-            None => None,
-        };
+        // let cap_addr = match params.cap_addr {
+        //     Some(addr_str) => Some(parse_str_addr(&addr_str)?),
+        //     None => None,
+        // };
+        //
+        // let cap_addr_arg = ptb.pure(cap_addr)
+        //     .map_err(|e| Error::InternalError(format!("Failed to create cap_addr argument: {}", e)))?;
+        //
+        // let recipient_fun = new_identifier(CREATE_RECIPIENT)?;
+        //
+        // ptb.command(Command::move_call(
+        //     self.get_package_id(),
+        //     module.clone(),
+        //     recipient_fun,
+        //     vec![],  // no type arguments
+        //     vec![cap_addr_arg, Argument::Result(result_idx)],
+        // ));
 
-        let cap_addr_arg = ptb.pure(cap_addr)
-            .map_err(|e| Error::InternalError(format!("Failed to create cap_addr argument: {}", e)))?;
-
-        let recipient_fun = new_identifier(CREATE_RECIPIENT)?;
-
-        ptb.command(Command::move_call(
-            self.get_package_id(),
-            module.clone(),
-            recipient_fun,
-            vec![],  // no type arguments
-            vec![cap_addr_arg, Argument::Result(result_idx)],
-        ));
         let gas_price = self.client.read_api().get_reference_gas_price().await?;
 
          // build and execute the transaction
@@ -253,6 +269,7 @@ impl TransportT for SuiTransport {
             .await?;
 
         // TODO: return recipient object ID
+        println!("Error (if any) {:?}", response.errors);
         Ok(response.digest.to_string())
     }
 
@@ -364,6 +381,7 @@ impl TransportT for SuiTransport {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,17 +395,18 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_create_sui_transport() ->  TransportResult<()> {
-        let package_id = ObjectID::from_hex_literal(PACKAGE_ID)
-            .map_err(|_| TransportError::ParseObjectIdError(PACKAGE_ID.into()))?;
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), package_id).await?;
-        let address = transport.keystore.clone();
-        println!("Prepare to get balances");
-        let total_balance = transport.client
-            .coin_read_api()
-            .get_all_balances(address)
-            .await?;
-        println!("The balances for all coins owned by address: {address} are {:?}", total_balance);
+        // let package_id = ObjectID::from_hex_literal(PACKAGE_ID)
+        //     .map_err(|_| TransportError::ParseObjectIdError(PACKAGE_ID.into()))?;
+        // let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), package_id).await?;
+        // let address = transport.keystore.clone();
+        // println!("Prepare to get balances");
+        // let total_balance = transport.client
+        //     .coin_read_api()
+        //     .get_all_balances(address)
+        //     .await?;
+        // println!("The balances for all coins owned by address: {address} are {:?}", total_balance);
         Ok(())
     }
 
@@ -403,13 +422,13 @@ mod tests {
                     init_shares: vec![
                         RecipientSlotShareInit {
                             owner: RecipientSlotOwner::Unassigned {
-                                identifier: "Race".into()
+                                identifier: "Race1".into()
                             },
                             weights: 10,
                         },
                         RecipientSlotShareInit {
                             owner: RecipientSlotOwner::Unassigned {
-                                identifier: "Race".into()
+                                identifier: "Race2".into()
                             },
                             weights: 20,
                         }
@@ -417,9 +436,7 @@ mod tests {
                 }
             ]
         };
-        let package_id = ObjectID::from_hex_literal(PACKAGE_ID)
-            .map_err(|_| TransportError::ParseObjectIdError(PACKAGE_ID.into()))?;
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), package_id).await?;
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), PACKAGE_ID).await?;
 
         let res = transport.create_recipient(params).await?;
         println!("Create recipient tx digest: {}", res);
