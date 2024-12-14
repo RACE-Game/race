@@ -12,18 +12,28 @@ pub(crate) fn parse_str_addr(value: &str) -> TransportResult<SuiAddress> {
         .map_err(|_| TransportError::ParseAddressError)
 }
 
+pub(crate) fn parse_option_addr(value: Option<String>) -> TransportResult<Option<SuiAddress>> {
+    match value {
+        Some(val) => {
+            let addr = parse_str_addr(&val)?;
+            Ok(Some(addr))
+        }
+        None => {
+            Ok(None)
+        }
+    }
+}
+
 pub(crate) fn new_callarg<T: Serialize>(input: &T) -> TransportResult<CallArg> {
     Ok(CallArg::Pure(
         bcs::to_bytes(input)
-            .map_err(|e| Error::ExternalError(
-                format!("Failed to serialize due to Error: {}", e)
-            ))?
+            .map_err(|e| Error::TransportError(e.to_string()))?
     ))
 }
 
 pub(crate) fn add_input<T: Serialize>(ptb: &mut PTB, input: &T) -> TransportResult<Argument> {
     let arg = ptb.input(new_callarg(input)?)
-        .map_err(|_| Error::ExternalError("Failed to add ptb input".into()))?;
+        .map_err(|e| Error::TransportError(e.to_string()))?;
     Ok(arg)
 }
 

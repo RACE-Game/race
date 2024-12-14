@@ -1,4 +1,3 @@
-use bcs;
 use serde::{Serialize, Deserialize};
 use sui_sdk::types::base_types::SuiAddress;
 use crate::error::{TransportError, TransportResult};
@@ -13,7 +12,7 @@ pub fn parse_addr(addr: &str) -> TransportResult<SuiAddress> {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum RecipientSlotOwner {
     Unassigned { identifier: String },
-    Assigned { addr: SuiAddress },
+    Assigned { addr: String },
 }
 
 impl TryFrom<race_core::types::RecipientSlotOwner> for RecipientSlotOwner {
@@ -25,7 +24,7 @@ impl TryFrom<race_core::types::RecipientSlotOwner> for RecipientSlotOwner {
                 Self::Unassigned { identifier }
             }
             race_core::types::RecipientSlotOwner::Assigned { addr } => {
-                Self::Assigned { addr: parse_addr(&addr)? }
+                Self::Assigned { addr }
             }
         })
     }
@@ -38,9 +37,7 @@ impl From<RecipientSlotOwner> for race_core::types::RecipientSlotOwner {
                 race_core::types::RecipientSlotOwner::Unassigned { identifier }
             }
             RecipientSlotOwner::Assigned { addr } => {
-                race_core::types::RecipientSlotOwner::Assigned {
-                    addr: addr.to_string()
-                }
+                race_core::types::RecipientSlotOwner::Assigned { addr }
             }
         }
     }

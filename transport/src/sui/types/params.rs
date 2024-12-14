@@ -5,45 +5,13 @@ use race_api::types::EntryLock;
 use race_core::types::{
     AssignRecipientParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, EntryType, JoinParams, PublishGameParams,
-    RecipientSlotShareInit, RecipientSlotType,
     RegisterServerParams, ServeParams, Transfer, VoteParams,
     VoteType,
 };
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 use sui_sdk::types::base_types::SuiAddress;
-use super::common::RecipientSlotOwner;
 use crate::error::{TransportError, TransportResult};
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct McRecipientSlotShareInit {
-    pub owner: RecipientSlotOwner,
-    pub weights: u16,
-}
-
-impl TryFrom<RecipientSlotShareInit> for McRecipientSlotShareInit {
-    type Error = TransportError;
-
-    fn try_from(value: RecipientSlotShareInit) -> Result<Self, Self::Error> {
-        let RecipientSlotShareInit {
-            owner,
-            weights,
-        } = value;
-        Ok(Self {
-            owner: owner.try_into()?,
-            weights,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct McRecipientSlotInit {
-    pub id: u8,
-    pub slot_type: RecipientSlotType,
-    // TODO: rename to coin_addr?
-    pub token_addr: SuiAddress,
-    pub init_shares: Vec<McRecipientSlotShareInit>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct McCreateGameAccountParams {
@@ -220,11 +188,6 @@ impl From<PublishGameParams> for McPublishParams {
             symbol: value.symbol,
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct McCreateRecipientParams {
-    pub slots: Vec<McRecipientSlotInit>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

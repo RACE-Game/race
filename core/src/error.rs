@@ -148,9 +148,6 @@ pub enum Error {
     #[error("Internal error: {0}")]
     InternalError(String),
 
-    #[error("External error: {0}")]
-    ExternalError(String),
-
     #[error("Missing secret")]
     MissingSecret,
 
@@ -355,24 +352,24 @@ impl From<HandleError> for Error {
 
 impl From<anyhow::Error> for Error {
     fn from(e: anyhow::Error) -> Self {
-        Error::ExternalError(e.to_string())
+        Error::TransportError(e.to_string())
     }
 }
 
 impl From<bcs::Error> for Error {
     fn from(e: bcs::Error) -> Self {
-        Error::ExternalError(e.to_string())
+        Error::TransportError(e.to_string())
     }
 }
 
 impl From<signature::Error> for Error {
     fn from(e: signature::Error) -> Self {
-        Error::ExternalError(e.to_string())
+        Error::TransportError(e.to_string())
     }
 }
 
 impl From<sui_sdk::error::Error> for Error {
     fn from(e: sui_sdk::error::Error) -> Self {
-        Error::ExternalError(e.to_string())
+        Error::TransportError(e.to_string())
     }
 }

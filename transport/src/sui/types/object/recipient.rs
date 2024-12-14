@@ -1,7 +1,29 @@
-use crate::sui::types::RecipientSlotOwner;
-use race_core::types::{RecipientAccount, RecipientSlotType};
+use race_core::types::{RecipientAccount, RecipientSlotType, RecipientSlotOwner};
 use serde::{Serialize, Deserialize};
-use sui_sdk::types::base_types::SuiAddress;
+use sui_sdk::types::{
+    base_types::SuiAddress,
+    transaction::Argument
+};
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RecipientBuilderWrapper {
+    builder: Argument
+}
+
+impl RecipientBuilderWrapper {
+    pub(crate) fn new(builder: Argument) -> Self {
+        Self { builder }
+    }
+
+    pub(crate) fn update(&mut self, new_builder: Argument) {
+        self.builder = new_builder;
+    }
+
+    pub(crate) fn builder(&self) -> Argument {
+        self.builder.clone()
+    }
+}
+
 
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(Deserialize, Serialize, Debug)]

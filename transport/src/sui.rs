@@ -2,10 +2,7 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 /// Transport for Sui blockchain
-
-
 use async_trait::async_trait;
-
 use futures::{Stream, StreamExt};
 use bcs;
 use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
@@ -44,8 +41,7 @@ use race_core::{
         CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
         GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams,
         RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams,
-RecipientSlotInit, RecipientSlotType, RecipientSlotOwner, RecipientSlotShare, RecipientSlotShareInit,
+        RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams, RecipientSlotInit, RecipientSlotShareInit, RecipientSlotType, RecipientSlotOwner
     }
 };
 
@@ -104,8 +100,8 @@ impl SuiTransport {
         Ok(coin_page.data)
     }
 
-    // generate a random pubkey for some testing cases
-    pub fn random_keypair() -> SuiAddress {
+    // generate a random address for some testing cases
+    pub fn random_address() -> SuiAddress {
         SuiAddress::random_for_testing_only()
     }
 }
@@ -146,24 +142,34 @@ impl TransportT for SuiTransport {
     }
 
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
-        // coin for gas
-        let coins = self.client
-            .coin_read_api()
-            .get_coins(self.get_active_addr(), None, None, None)
-            .await?;
-        let coin = coins.data.into_iter().next().unwrap();
-
+        let mut used_ids = Vec::<u8>::new();
         let mut ptb = PTB::new();
         let module = new_identifier(RECIPIENT)?;
+        let recipient_buider_fn = new_identifier(RECIPIENT_BUILDER_FN)?;
+        let recipient_slot_fn = new_identifier(RECIPIENT_SLOT_FN)?;
+        let slot_share_fn = new_identifier(SLOT_SHARE_FN)?;
+        let recipient_fn = new_identifier(RECIPIENT_FN)?;
 
-        let recipient_slot_fun = new_identifier(CREATE_RECIPIENT_SLOT)?;
-        let slot_share_fun = new_identifier(CREATE_SLOT_SHARE)?;
+        // 1. move call new_recipient_builder to get a hot potato
+        let builder = ptb.command(Command::move_call(
+            self.get_package_id(),
+            module.clone(),
+            recipient_buider_fn.clone(),
+            vec![],             // no type arguments,
+            vec![]              // no arguments
+        ));
+        let mut final_builder = RecipientBuilderWrapper::new(builder.clone());
 
-        // make move calls to build recipient slots one by one
+        // 2. a series of move calls to build recipient slots one by one
         for slot in params.slots.into_iter() {
+            // slot id must be unique
+            if used_ids.contains(&slot.id) {
+                return Err(Error::InvalidRecipientSlotParams);
+            }
+            used_ids.push(slot.id);
 
+            // 2.1. create shares for this slot and collect them into a vector
             let mut result_shares = Vec::new();
-            // 1. create shares for this slot frist
             for share in slot.init_shares.into_iter() {
                 // prepare inputs for each share
                 let (owner_type, owner_info) = match share.owner {
@@ -179,17 +185,15 @@ impl TransportT for SuiTransport {
                 let result = ptb.command(Command::move_call(
                     self.get_package_id(),
                     module.clone(),
-                    slot_share_fun.clone(),
+                    slot_share_fn.clone(),
                     vec![],     // no T needed for shares
                     create_share_args
                 ));
 
                 result_shares.push(result);
-
             }
 
-            // 2. add slot id, token_addr and slot type info
-            // TODO: make first argument a function return value
+            // 2.2. add slot id, token_addr and slot type info
             let shares = ptb.command(Command::make_move_vec(
                 Some(
                     TypeTag::Struct(Box::new(
@@ -197,7 +201,7 @@ impl TransportT for SuiTransport {
                             address: AccountAddress::from_str(PACKAGE_ID)
                                 .map_err(|e| Error::TransportError(e.to_string()))?,
                             module: new_identifier(RECIPIENT)?,
-                            name: new_identifier("RecipientSlotShare")?,
+                            name: new_identifier(SLOT_SHARE_STRUCT)?,
                             type_params: vec![]
                         }
                     ))
@@ -214,7 +218,8 @@ impl TransportT for SuiTransport {
                 add_input(&mut ptb, &slot.id)?,
                 add_input(&mut ptb, &slot.token_addr)?,
                 add_input(&mut ptb, &slot_type)?,
-                shares
+                shares,
+                builder         // builder moved here in each loop
             ];
 
             let type_args = vec![
@@ -227,21 +232,41 @@ impl TransportT for SuiTransport {
                 }))
             ];
 
-            ptb.command(Command::move_call(
+            // 2.3 move call to create the slot; return the hot potato for next loop
+            let builder = ptb.command(Command::move_call(
                 self.get_package_id(),
                 module.clone(),
-                recipient_slot_fun.clone(),
-                type_args,         // TODO: add T (Coin) info later
+                recipient_slot_fn.clone(),
+                type_args,         // Coin<T> for this slot
                 build_slot_args,
             ));
+
+            // store the updated builder result
+            final_builder.update(builder.clone());
+
         }
 
-        // TODO: create recipeint
-        // recipient;
+        // 3. move call to create the recipient
+        let cap_addr_arg: Option<SuiAddress> = parse_option_addr(params.cap_addr)?;
+        let recipient_args = vec![
+            add_input(&mut ptb, &cap_addr_arg)?,
+            final_builder.builder()
+        ];
+        ptb.command(Command::move_call(
+            self.get_package_id(),
+            module.clone(),
+            recipient_fn,
+            vec![],             // no type arguments
+            recipient_args,
+        ));
 
+        // 4. get coin for gas price, then sign, send and execute the transaction
+        let coins = self.client
+            .coin_read_api()
+            .get_coins(self.get_active_addr(), None, None, None)
+            .await?;
+        let coin = coins.data.into_iter().next().unwrap();
         let gas_price = self.client.read_api().get_reference_gas_price().await?;
-
-         // build and execute the transaction
         let tx_data = TransactionData::new_programmable(
             self.get_active_addr(),
             vec![coin.object_ref()],
@@ -250,13 +275,12 @@ impl TransportT for SuiTransport {
             gas_price,
         );
 
-        // sign and execute transaction
         let signature = self.keystore.sign_secure(
             &self.active_addr,
             &tx_data,
             Intent::sui_transaction(),
         )
-            .map_err(|_| Error::ExternalError("Failed to sign tx".into()))?;
+            .map_err(|e| Error::TransportError(e.to_string()))?;
 
         let response = self.client
             .quorum_driver_api()
