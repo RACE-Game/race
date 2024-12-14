@@ -157,11 +157,10 @@ impl TransportT for SuiTransport {
         let module = new_identifier(RECIPIENT)?;
 
         let recipient_slot_fun = new_identifier(CREATE_RECIPIENT_SLOT)?;
-        let slot_type_fun = new_identifier(BUILD_SLOT_TYPE)?;
         let slot_share_fun = new_identifier(CREATE_SLOT_SHARE)?;
 
         // make move calls to build recipient slots one by one
-        for (slot_idx, slot) in params.slots.into_iter().enumerate() {
+        for slot in params.slots.into_iter() {
 
             let mut result_shares = Vec::new();
             // 1. create shares for this slot frist
@@ -189,14 +188,8 @@ impl TransportT for SuiTransport {
 
             }
 
-
             // 2. add slot id, token_addr and slot type info
-            let slot_id = add_input(&mut ptb, &slot.id)?;
-            let slot_token_addr = add_input(&mut ptb, &slot.token_addr)?;
-            let slot_type = match slot.slot_type {
-                RecipientSlotType::Nft => 0u8,
-                RecipientSlotType::Token => 1u8,
-            };
+            // TODO: make first argument a function return value
             let shares = ptb.command(Command::make_move_vec(
                 Some(
                     TypeTag::Struct(Box::new(
@@ -212,19 +205,33 @@ impl TransportT for SuiTransport {
                 result_shares,
             ));
 
-            let token_addr = parse_str_addr(&slot.token_addr)?;
+            let (coin_addr, coin_module, coin_name) = parse_coin_type(&slot.token_addr)?;
+            let slot_type = match slot.slot_type {
+                RecipientSlotType::Nft => 0u8,
+                RecipientSlotType::Token => 1u8,
+            };
             let build_slot_args = vec![
                 add_input(&mut ptb, &slot.id)?,
-                add_input(&mut ptb, &token_addr)?,
+                add_input(&mut ptb, &slot.token_addr)?,
                 add_input(&mut ptb, &slot_type)?,
                 shares
+            ];
+
+            let type_args = vec![
+                TypeTag::Struct(Box::new(StructTag {
+                    address: AccountAddress::from_str(&coin_addr)
+                        .map_err(|e| Error::TransportError(e.to_string()))?,
+                    module: new_identifier(&coin_module)?,
+                    name: new_identifier(&coin_name)?,
+                    type_params: vec![]
+                }))
             ];
 
             ptb.command(Command::move_call(
                 self.get_package_id(),
                 module.clone(),
                 recipient_slot_fun.clone(),
-                vec![],         // TODO: add T (Coin) info later
+                type_args,         // TODO: add T (Coin) info later
                 build_slot_args,
             ));
         }
@@ -411,7 +418,7 @@ mod tests {
                 RecipientSlotInit {
                     id: 0,
                     slot_type: RecipientSlotType::Token,
-                    token_addr: PUBLISHER.into(),
+                    token_addr: COIN_SUI_ADDR.into(),
                     init_shares: vec![
                         RecipientSlotShareInit {
                             owner: RecipientSlotOwner::Unassigned {

@@ -28,6 +28,9 @@ pub enum TransportError {
     #[error("Invalid chain name: {0}")]
     InvalidChainName(String),
 
+    #[error("Invalid Sui coin type {0}")]
+    InvalidCoinType(String),
+
     #[error("Game title or nick name exceeds 16 letters: {0}")]
     InvalidNameLength(String),
 

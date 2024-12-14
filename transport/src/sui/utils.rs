@@ -27,37 +27,15 @@ pub(crate) fn add_input<T: Serialize>(ptb: &mut PTB, input: &T) -> TransportResu
     Ok(arg)
 }
 
-// TODO: replace with Sui transport's own RecipientXXX structs
-pub(crate) fn add_share_inputs(ptb: &mut PTB, share: &RecipientSlotShareInit) -> TransportResult<()> {
-    let (owner_type, owner_info) = match &share.owner {
-        &RecipientSlotOwner::Unassigned { ref identifier } => (0u8, identifier.clone()),
-        &RecipientSlotOwner::Assigned { ref addr } => (1u8, addr.to_string()),
-    };
-    add_input(ptb, &owner_type)?;
-    add_input(ptb, &owner_info)?;
-    add_input(ptb, &share.weights)?;
-    Ok(())
-}
-
-// For each slot, the input indexes go as follows:
-// Input(0): slot id
-// Input(1): slot token addr
-// Input(2): slot type
-// Input(3 ... x): for slot shares
-pub(crate) fn add_slot_inputs(ptb: &mut PTB, slot: &RecipientSlotInit) -> TransportResult<()> {
-    add_input(ptb, &slot.id)?;
-    let token_addr = parse_str_addr(&slot.token_addr)?;
-    add_input(ptb, &token_addr)?;
-    let slot_type = match slot.slot_type {
-        RecipientSlotType::Nft => 0u8,
-        RecipientSlotType::Token => 1u8,
-    };
-    add_input(ptb, &slot_type)?;
-
-    for share in &slot.init_shares {
-        add_share_inputs(ptb, share)?;
+// coin has 3 types of info: coin account address, coin module, coin name
+type CoinInfo = (String, String, String);
+pub(crate) fn parse_coin_type(coin_str: &str) -> TransportResult<CoinInfo> {
+    let parts: Vec<&str> = coin_str.split("::").collect();
+    if parts.len() != 3 {
+        return Err(TransportError::InvalidCoinType(coin_str.to_string()));
     }
-    Ok(())
+
+    Ok((parts[0].to_string(), parts[1].to_string(), parts[2].to_string()))
 }
 
 #[cfg(test)]
@@ -79,6 +57,24 @@ mod tests {
         assert_eq!(move_owner_type, CallArg::Pure(vec![0u8]));
         assert_eq!(move_owner_info, CallArg::Pure(vec![5, 82u8, 97u8, 99u8, 101u8, 49u8]));
         assert_eq!(move_weights, CallArg::Pure(vec![10, 0]));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_coin_type() -> TransportResult<()> {
+        let sui = "0x2::sui::SUI";
+        let usdc = "0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::usdc::USDC";
+
+        let (sui_addr, sui_module, sui_name) = parse_coin_type(sui)?;
+        let (usdc_addr, usdc_module, usdc_name) = parse_coin_type(usdc)?;
+
+        assert_eq!(sui_addr, "0x2");
+        assert_eq!(sui_module, "sui");
+        assert_eq!(sui_name, "SUI");
+        assert_eq!(usdc_addr, "0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf");
+        assert_eq!(usdc_module, "usdc");
+        assert_eq!(usdc_name, "USDC");
 
         Ok(())
     }
