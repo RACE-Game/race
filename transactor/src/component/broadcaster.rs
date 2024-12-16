@@ -55,6 +55,10 @@ impl EventBackupGroup {
         }
         frames
     }
+
+    pub fn merge_sync(&mut self, sync: &BroadcastSync) {
+        self.sync.merge(sync)
+    }
 }
 
 pub struct BroadcasterContext {
@@ -163,7 +167,7 @@ impl Broadcaster {
 
         BroadcastFrame::Backlogs {
             checkpoint_off_chain,
-            backlogs,
+            backlogs: Box::new(backlogs),
             state_sha,
         }
     }
@@ -311,14 +315,33 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         transactor_addr,
                     };
 
-                    let mut event_backup_groups = ctx.event_backup_groups.lock().await;
-                    if let Some(current) = event_backup_groups.back_mut() {
-                        // info!("{} Merge sync: {:?}", env.log_prefix, sync);
-                        current.sync.merge(&sync);
-                    } else {
-                        error!("{} Sync dropped", env.log_prefix);
+                    ctx.event_backup_groups.lock().await.back_mut().map(|g| g.merge_sync(&sync));
+
+                    let broadcast_frame = BroadcastFrame::Sync { sync };
+                    let r = ctx.broadcast_tx.send(broadcast_frame);
+
+                    if let Err(e) = r {
+                        debug!(
+                            "{} Failed to broadcast node updates: {:?}",
+                            env.log_prefix, e
+                        );
                     }
-                    drop(event_backup_groups);
+                }
+                EventFrame::SubSync {
+                    access_version,
+                    new_players,
+                    new_servers,
+                    transactor_addr,
+                } => {
+                    let sync = BroadcastSync {
+                        new_players,
+                        new_servers,
+                        new_deposits: vec![],
+                        access_version,
+                        transactor_addr,
+                    };
+
+                    ctx.event_backup_groups.lock().await.back_mut().map(|g| g.merge_sync(&sync));
 
                     let broadcast_frame = BroadcastFrame::Sync { sync };
                     let r = ctx.broadcast_tx.send(broadcast_frame);

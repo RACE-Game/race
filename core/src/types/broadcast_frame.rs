@@ -59,7 +59,7 @@ pub enum BroadcastFrame {
     // This frame is the first frame in broadcast stream.
     Backlogs {
         checkpoint_off_chain: Option<CheckpointOffChain>,
-        backlogs: Vec<BroadcastFrame>,
+        backlogs: Box<Vec<BroadcastFrame>>,
         state_sha: String,
     },
 }

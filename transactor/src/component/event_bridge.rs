@@ -190,10 +190,10 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                             }
                         }
                     }
-                    EventFrame::Sync { new_players, new_servers, transactor_addr, .. } => {
+                    EventFrame::Sync { new_players, new_servers, transactor_addr, access_version, .. } => {
                         if ctx.tx.receiver_count() > 0 {
                             let sub_sync = EventFrame::SubSync {
-                                new_players, new_servers, transactor_addr
+                                new_players, new_servers, transactor_addr, access_version
                             };
                             info!("{} Broadcast sync: {}", env.log_prefix, sub_sync);
                             if let Err(e) = ctx.tx.send(sub_sync) {

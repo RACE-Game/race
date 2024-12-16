@@ -102,10 +102,12 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
 
                 EventFrame::SubSync {
+                    access_version,
                     new_players,
                     new_servers,
                     transactor_addr,
                 } => {
+                    game_context.set_access_version(access_version);
                     for server in new_servers.iter() {
                         let mode = if server.addr.eq(&transactor_addr) {
                             ClientMode::Transactor

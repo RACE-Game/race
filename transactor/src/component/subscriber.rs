@@ -115,7 +115,7 @@ async fn handle_frame(frame: BroadcastFrame, ports: &mut PipelinePorts, env: &Co
                 backlogs.len()
             );
             let mut r = None;
-            for backlog_frame in backlogs {
+            for backlog_frame in *backlogs {
                 if let Some(close_reason) = *Pin::into_inner(Box::pin(handle_frame(backlog_frame, ports, &env)).await) {
                     r = Some(close_reason.clone());
                 }

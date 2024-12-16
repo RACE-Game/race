@@ -112,6 +112,7 @@ pub enum EventFrame {
 
     /// Sync frame for subgames broadcasted from master game.
     SubSync {
+        access_version: u64,
         new_players: Vec<PlayerJoin>,
         new_servers: Vec<ServerJoin>,
         transactor_addr: String,
