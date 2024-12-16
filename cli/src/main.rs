@@ -286,7 +286,6 @@ async fn bundle_info(addr: &str, transport: Arc<dyn TransportT>) {
     }
 }
 
-#[allow(unused)]
 fn print_hex(data: Vec<u8>) {
     let mut row = vec![];
     for i in data {
@@ -345,6 +344,8 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             } else {
                 println!("Checkpoint: None");
             }
+            println!("Data:");
+            print_hex(game_account.data);
         }
         None => {
             println!("Game account not found");
