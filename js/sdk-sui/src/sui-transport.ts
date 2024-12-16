@@ -1,8 +1,8 @@
-import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance, Result, CheckpointOnChain, EntryType, RecipientSlotInit } from "@race-foundation/sdk-core";
+import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance, Result, CheckpointOnChain, EntryType, RecipientSlotInit, RecipientSlotShareInit } from "@race-foundation/sdk-core";
 import { Chain } from './common'
-import { Balance, getFullnodeUrl, MoveStruct, MoveVariant, SuiClient, SuiMoveObject, SuiObjectChange, SuiObjectChangeCreated, SuiObjectResponse, SuiTransactionBlock } from '@mysten/sui/client';
+import { Balance, getFullnodeUrl, MoveStruct, MoveVariant, PaginatedObjectsResponse, SuiClient, SuiMoveObject, SuiObjectChange, SuiObjectChangeCreated, SuiObjectResponse, SuiTransactionBlock } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { Transaction } from '@mysten/sui/transactions'
+import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/bcs';
 import { SuiWallet } from "./sui-wallet";
 import { LocalSuiWallet } from "./local-wallet";
@@ -132,37 +132,42 @@ export class SuiTransport implements ITransport {
     const objectChange = resolveObjectCreatedByType(result.ok, GAME_OBJECT_TYPE, resp)
     if (objectChange === undefined) return;
 
-    console.log('Transaction Result:', objectChange);
   }
   async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
     try {
       const suiClient = this.suiClient;
-      const objectResponse = await suiClient.getObject({
-        id: PROFILE_TABLE_ID,
+      const objectResponse: PaginatedObjectsResponse = await suiClient.getOwnedObjects({
+        owner: addr,
+        filter: {
+          StructType: `${PACKAGE_ID}::profile::Profile`
+        },
         options: {
           showContent: true,
           showType: true,
         }
       });
-
-      if (!objectResponse.data) {
+      let fields: any
+      objectResponse.data.map((objectResponse: SuiObjectResponse) => {
+        if (!objectResponse.data) {
+          return undefined;
+        }
+        const content = objectResponse.data?.content;
+        if (!content || content.dataType !== 'moveObject') {
+          return undefined;
+        }
+        fields = content.fields as any;
+      })
+      if (!fields) {
         return undefined;
       }
-      // Extract the content from the response
-      const content = objectResponse.data.content;
-      console.log('>objectResponse:', objectResponse)
-      if (!content || content.dataType !== 'moveObject') {
-        return undefined;
+      if ('nick' in fields && 'pfp' in fields) {
+        return {
+          addr: addr,
+          nick: fields.nick,
+          pfp: fields.pfp,
+        }
       }
-      // Parse the fields from the content
-      const fields = content.fields as any;
-      // Convert the SUI object data into PlayerProfile format
-      return {
-        addr: addr,
-        nick: fields.nick,
-        pfp: fields.pfp,
-        // Add any other fields that are part of your PlayerProfile interface
-      };
+      return undefined
     } catch (error) {
       console.error('Error fetching player profile:', error);
       return undefined;
@@ -179,42 +184,87 @@ export class SuiTransport implements ITransport {
   deposit(wallet: IWallet, params: DepositParams, resp: ResponseHandle<DepositResponse, DepositError>): Promise<void> {
     throw new Error("Method not implemented.");
   }
-    async createRecipient(wallet: IWallet, params: CreateRecipientParams, resp: ResponseHandle<CreateRecipientResponse, CreateRecipientError>): Promise<void> {
+  async createRecipient(wallet: IWallet, params: CreateRecipientParams, resp: ResponseHandle<CreateRecipientResponse, CreateRecipientError>): Promise<void> {
 
     const transaction = new Transaction();
     const suiClient = this.suiClient;
     coerceWallet(wallet)
+    // 1. move call new_recipient_builder to get a hot potato
     let builder = transaction.moveCall({
       target: `${PACKAGE_ID}::recipient::new_recipient_builder`,
     });
+    // 2. a series of move calls to build recipient slots one by one
+    let used_ids: number[] = [];
     params.slots.forEach((slot: RecipientSlotInit) => {
-        builder = transaction.moveCall({
+      // slot id must be unique
+      if (used_ids.includes(slot.id)) {
+        return resp.transactionFailed('slot id must be unique');
+      }
+      used_ids.push(slot.id);
+      // 2.1. create shares for this slot and collect them into a vector
+      let result_shares: TransactionObjectArgument[] = []
+      slot.initShares.forEach((share: RecipientSlotShareInit) => {
+        if (share.owner === undefined) { return resp.transactionFailed('share owner must be defined'); }
+        let owner_type
+        let owner_info
+        if ('addr' in share.owner) {
+          owner_type = 1
+          owner_info = share.owner.addr
+        } else {
+          owner_type = 0
+          owner_info = share.owner.identifier
+        }
+        let result: TransactionObjectArgument = transaction.moveCall({
+          target: `${PACKAGE_ID}::recipient::create_slot_share`,
+          arguments: [
+            transaction.pure.u8(owner_type), // owner_type u8
+            transaction.pure.string(owner_info), // owner_info String
+            transaction.pure.u16(share.weights),// owner_weight u16
+          ]
+          // arguments: [
+          //   transaction.pure.u8(slot.id), // id u8
+          //   transaction.pure.address(slot.tokenAddr),
+          //   serializeRecipientSlotType(slot.slotType),
+          //   serializeRecipientSlotShares(slot.initShares),
+          //   builder,
+          // ]
+        })
+        result_shares.push(result)
+      });
+      let shares = transaction.makeMoveVec({
+        type: `${PACKAGE_ID}::recipient::RecipientSlotShare`,
+        elements: result_shares
+      })
+      let type_args
+      if (slot.slotType === 'nft') {
+        type_args = 0
+      } else {
+        type_args = 1
+      }
+      builder = transaction.moveCall({
         target: `${PACKAGE_ID}::recipient::create_recipient_slot`,
         arguments: [
-            transaction.pure.u8(slot.id), // id u8
-            transaction.pure.address(slot.tokenAddr),
-            serializeRecipientSlotType(slot.slotType),
-            serializeRecipientSlotShares(slot.initShares),
-            builder,
-        ]
+          transaction.pure.u8(slot.id), // id u8
+          transaction.pure.string(slot.tokenAddr), // token_addr address params,
+          transaction.pure.u8(type_args), // 0 nft, 1 token
+          // serializeRecipientSlotShares(slot.initShares),
+          shares,
+          builder,
+        ],
+        typeArguments: [slot.tokenAddr]
       })
     })
-    let recipient = transaction.moveCall({
+    transaction.moveCall({
       target: `${PACKAGE_ID}::recipient::create_recipient`,
       arguments: [
         transaction.pure.option('address', wallet.walletAddr),
         builder,
       ]
     });
-    console.log('createRecipientResult', recipient)
     const result = await wallet.send(transaction, suiClient, resp)
     if ("err" in result) {
       return resp.transactionFailed(result.err)
     }
-    const objectChange = resolveObjectCreatedByType(result.ok, GAME_OBJECT_TYPE, resp)
-    if (objectChange === undefined) return;
-
-    throw new Error("Method not implemented.");
   }
   // todo contract
   registerGame(wallet: IWallet, params: RegisterGameParams, resp: ResponseHandle<RegisterGameResponse, RegisterGameError>): Promise<void> {
@@ -224,7 +274,6 @@ export class SuiTransport implements ITransport {
   unregisterGame(wallet: IWallet, params: UnregisterGameParams, resp: ResponseHandle): Promise<void> {
     throw new Error("Method not implemented.");
   }
-  // todo sui
   async getGameAccount(addr: string): Promise<GameAccount | undefined> {
     const suiClient = this.suiClient;
     const info: SuiObjectResponse = await suiClient.getObject({
@@ -269,7 +318,6 @@ export class SuiTransport implements ITransport {
   getGameBundle(addr: string): Promise<GameBundle | undefined> {
     throw new Error("Method not implemented.");
   }
-  // todo
   async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
     const suiClient = this.suiClient;
     const info: SuiObjectResponse = await suiClient.getObject({
@@ -280,8 +328,8 @@ export class SuiTransport implements ITransport {
       }
     })
     const content = info;
-    console.log('content:', content)
     throw new Error("Method not implemented.");
+
   }
   getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
     // ObjectID

@@ -17,6 +17,11 @@ function testCreatePlayerProfile() {
   let response = new ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>()
   suiTransport.createPlayerProfile(wallet, params, response);
 }
+async function testGetPlayerProfile() {
+  const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+  let res = await suiTransport.getPlayerProfile(wallet.walletAddr)
+  console.log('res', res)
+}
 
 function testCreateGameAccount() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
@@ -117,64 +122,78 @@ async function testCreateRecipient() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   let response = new ResponseHandle<CreateRecipientResponse, CreateRecipientError>()
   let params: CreateRecipientParams = {
-    capAddr: '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e',
+    capAddr: '0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192',
     slots: [
       {
         id: 0,
         slotType: 'token', // nft or token
-        tokenAddr: '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e',
+        tokenAddr: '0x2::sui::SUI',
         initShares: [
-          { owner: { identifier: 'Race'}, weights: 10 },
-          { owner: { identifier: 'Race'}, weights: 20 },
+          { owner: { identifier: 'Race1' }, weights: 10 },
+          { owner: { identifier: 'Race2' }, weights: 20 },
         ]
-      }
+      },
+      // {
+      //   id: 1,
+      //   slotType: 'token', // nft or token
+      //   tokenAddr: '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e',
+      //   initShares: [
+      //     { owner: { identifier: 'Race'}, weights: 10 },
+      //     { owner: { identifier: 'Race'}, weights: 20 },
+      //   ]
+      // }
     ]
   }
+  const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
+
   let res = await suiTransport.createRecipient(wallet, params, response);
-    console.log('testCreateRecipient', res)
+  console.log('testCreateRecipient', res)
+}
+
+
+function main() {
+  const args = process.argv.slice(2, process.argv.length);
+  switch (args[0] || '') {
+    case 'getServerAccount':
+      testServerAccount()
+      break
+    case 'getRegistration':
+      testGetRegistration()
+      break
+    case 'createGameAccount':
+      testCreateGameAccount()
+      break
+    case 'createPlayerProfile':
+      testCreatePlayerProfile()
+      break
+    case 'getPlayerProfile':
+        testGetPlayerProfile()
+      break
+    case 'getToken':
+      testGetToken()
+      break
+    case 'getNFT':
+      testGetNFT()
+      break
+    case 'getNFTLIST':
+      testGetNFTLIST()
+      break
+    case 'getListTokens':
+      testListTokens()
+      break
+    case 'getListTokensWithBalance':
+      testListTokensWithBalance()
+      break
+    case 'getGameAccount':
+      testGetGameAccount()
+      break
+    case 'createRecipient':
+      testCreateRecipient()
+      break
+
+    default:
+      console.error('Invalid command')
   }
+}
 
-
-  function main() {
-    const args = process.argv.slice(2, process.argv.length);
-    switch (args[0] || '') {
-      case 'getServerAccount':
-        testServerAccount()
-        break
-      case 'getRegistration':
-        testGetRegistration()
-        break
-      case 'createGameAccount':
-        testCreateGameAccount()
-        break
-      case 'createPlayerProfile':
-        testCreatePlayerProfile()
-        break
-      case 'getToken':
-        testGetToken()
-        break
-      case 'getNFT':
-        testGetNFT()
-        break
-      case 'getNFTLIST':
-        testGetNFTLIST()
-        break
-      case 'getListTokens':
-        testListTokens()
-        break
-      case 'getListTokensWithBalance':
-        testListTokensWithBalance()
-        break
-      case 'getGameAccount':
-        testGetGameAccount()
-        break
-      case 'createRecipient':
-        testCreateRecipient()
-        break
-
-      default:
-        console.error('Invalid command')
-    }
-  }
-
-  main()
+main()
