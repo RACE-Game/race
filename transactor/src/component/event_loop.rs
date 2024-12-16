@@ -14,8 +14,8 @@ use race_core::types::{ClientMode, GameMode, GamePlayer};
 
 use super::ComponentEnv;
 
-mod misc;
 mod event_handler;
+mod misc;
 
 pub struct EventLoopContext {
     handler: WrappedHandler,
@@ -60,13 +60,21 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.client_mode,
                             ctx.game_mode,
                             &env,
-                        ).await {
-                            return close_reason
+                        )
+                        .await
+                        {
+                            return close_reason;
                         }
                     } else {
                         if let Some(close_reason) = event_handler::resume_from_checkpoint(
-                            &mut game_context, &ports, ctx.client_mode, ctx.game_mode, &env
-                        ).await {
+                            &mut game_context,
+                            &ports,
+                            ctx.client_mode,
+                            ctx.game_mode,
+                            &env,
+                        )
+                        .await
+                        {
                             return close_reason;
                         }
                     }
@@ -85,10 +93,11 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.game_mode,
                             timestamp,
                             &env,
-                        ).await {
+                        )
+                        .await
+                        {
                             return close_reason;
                         }
-
                     }
                 }
 
@@ -103,12 +112,22 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         } else {
                             ClientMode::Validator
                         };
-                        info!("{} Game context add server: {}, mode: {:?}", env.log_prefix, server.addr, mode);
+                        info!(
+                            "{} Game context add server: {}, mode: {:?}",
+                            env.log_prefix, server.addr, mode
+                        );
                         game_context.add_node(server.addr.clone(), server.access_version, mode);
                     }
                     for player in new_players.iter() {
-                        info!("{} Game context add player: {}", env.log_prefix, player.addr);
-                        game_context.add_node(player.addr.clone(), player.access_version, ClientMode::Player);
+                        info!(
+                            "{} Game context add player: {}",
+                            env.log_prefix, player.addr
+                        );
+                        game_context.add_node(
+                            player.addr.clone(),
+                            player.access_version,
+                            ClientMode::Player,
+                        );
                     }
                 }
 
@@ -146,24 +165,34 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     for player in new_players.iter() {
                         players.push(GamePlayer::new(player.access_version, player.position));
-                        game_context.add_node(player.addr.clone(), player.access_version, ClientMode::Player);
+                        game_context.add_node(
+                            player.addr.clone(),
+                            player.access_version,
+                            ClientMode::Player,
+                        );
                     }
 
                     for deposit in new_deposits.iter() {
                         if let Ok(id) = game_context.addr_to_id(&deposit.addr) {
-                            deposits.push(GameDeposit::new(id, deposit.amount, deposit.access_version));
+                            deposits.push(GameDeposit::new(
+                                id,
+                                deposit.amount,
+                                deposit.access_version,
+                            ));
                         } else {
-                            warn!("A deposit cannot be resolved, addr: {}, access_version: {}", deposit.addr, deposit.access_version);
+                            warn!(
+                                "A deposit cannot be resolved, addr: {}, access_version: {}",
+                                deposit.addr, deposit.access_version
+                            );
                         }
                     }
 
                     // We only generate join event in Transactor & Main mode.
-                    if ctx.client_mode == ClientMode::Transactor && ctx.game_mode == GameMode::Main {
+                    if ctx.client_mode == ClientMode::Transactor && ctx.game_mode == GameMode::Main
+                    {
                         // Send new players
                         if !players.is_empty() {
-                            let event = Event::Join {
-                                players
-                            };
+                            let event = Event::Join { players };
                             if let Some(close_reason) = event_handler::handle_event(
                                 &mut handler,
                                 &mut game_context,
@@ -173,15 +202,15 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                                 ctx.game_mode,
                                 timestamp,
                                 &env,
-                            ).await {
+                            )
+                            .await
+                            {
                                 return close_reason;
                             }
                         }
                         // Send new deposits
                         if !deposits.is_empty() {
-                            let event = Event::Deposit {
-                                deposits
-                            };
+                            let event = Event::Deposit { deposits };
                             if let Some(close_reason) = event_handler::handle_event(
                                 &mut handler,
                                 &mut game_context,
@@ -191,7 +220,9 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                                 ctx.game_mode,
                                 timestamp,
                                 &env,
-                            ).await {
+                            )
+                            .await
+                            {
                                 return close_reason;
                             }
                         }
@@ -210,7 +241,9 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ctx.game_mode,
                             timestamp,
                             &env,
-                        ).await {
+                        )
+                        .await
+                        {
                             return close_reason;
                         }
                     } else {
@@ -221,27 +254,35 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
 
-                EventFrame::SubGameReady { checkpoint_state, game_id } => {
+                EventFrame::SubGameReady {
+                    checkpoint_state,
+                    game_id,
+                } => {
                     if ctx.game_mode == GameMode::Main {
                         info!("Update checkpoint for sub game: {}", game_id);
-                        if let Err(e) = game_context.checkpoint_mut().init_versioned_data(checkpoint_state) {
+                        if let Err(e) = game_context
+                            .checkpoint_mut()
+                            .init_versioned_data(checkpoint_state)
+                        {
                             error!("{} Failed to init checkpoint data: {:?}", env.log_prefix, e);
                             ports.send(EventFrame::Shutdown).await;
                         }
-                    }
-                    let timestamp = current_timestamp();
-                    let event = Event::SubGameReady { game_id };
-                    if let Some(close_reason) = event_handler::handle_event(
-                        &mut handler,
-                        &mut game_context,
-                        event,
-                        &ports,
-                        ctx.client_mode,
-                        ctx.game_mode,
-                        timestamp,
-                        &env,
-                    ).await {
-                        return close_reason;
+                        let timestamp = current_timestamp();
+                        let event = Event::SubGameReady { game_id };
+                        if let Some(close_reason) = event_handler::handle_event(
+                            &mut handler,
+                            &mut game_context,
+                            event,
+                            &ports,
+                            ctx.client_mode,
+                            ctx.game_mode,
+                            timestamp,
+                            &env,
+                        )
+                        .await
+                        {
+                            return close_reason;
+                        }
                     }
                 }
 
@@ -260,7 +301,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("Update checkpoint for sub game: {}", from);
-                        if let Err(e) = game_context.checkpoint_mut().update_versioned_data(checkpoint_state) {
+                        if let Err(e) = game_context
+                            .checkpoint_mut()
+                            .update_versioned_data(checkpoint_state)
+                        {
                             error!("{} Failed to set checkpoint data: {:?}", env.log_prefix, e);
                             ports.send(EventFrame::Shutdown).await;
                         }
@@ -275,7 +319,9 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         timestamp,
                         &env,
-                    ).await {
+                    )
+                    .await
+                    {
                         return close_reason;
                     }
                 }
@@ -289,7 +335,9 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         timestamp,
                         &env,
-                    ).await {
+                    )
+                    .await
+                    {
                         return close_reason;
                     }
                 }
@@ -308,7 +356,9 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         ctx.game_mode,
                         timestamp,
                         &env,
-                    ).await {
+                    )
+                    .await
+                    {
                         return close_reason;
                     }
                 }
@@ -321,12 +371,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         }
 
         return CloseReason::Complete;
-
     }
 }
 
 impl EventLoop {
-
     pub fn init(
         handler: WrappedHandler,
         game_context: GameContext,

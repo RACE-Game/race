@@ -95,6 +95,13 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
         mut ctx: EventBridgeParentContext,
         env: ComponentEnv,
     ) -> CloseReason {
+
+        // We save the pending events here.
+        let mut pending_events: Vec<(GameId, EventFrame)> = Vec::with_capacity(10);
+
+        // We save the launching game IDs here.
+        let mut launching_game_ids: Vec<GameId> = Vec::with_capacity(10);
+
         while let Some((from_bridge, event_frame)) = Self::read_event(&mut ports, &mut ctx.rx).await
         {
             if from_bridge {    // Bridge parent receives event from bridge child
@@ -122,6 +129,22 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
 
                     EventFrame::SubGameReady { game_id, .. } => {
                         info!("{} Receives subgame ready: {}", env.log_prefix, game_id);
+                        // Remove the launching game's ID
+                        launching_game_ids.retain(|id| *id != game_id);
+                        // Send the pending events
+                        let mut i = 0;
+                        while i < pending_events.len() {
+                            if pending_events[i].0 == game_id {
+                                let (_, event_frame) = pending_events.remove(i);
+                                info!("{} Send pending event: {}", env.log_prefix, event_frame);
+                                if let Err(e) = ctx.tx.send(event_frame) {
+                                    error!("{} Failed to send: {}", env.log_prefix, e);
+                                }
+                            } else {
+                                i += 1;
+                            }
+                        }
+
                         ports.send(event_frame).await;
                     }
                     EventFrame::Reset => {
@@ -132,6 +155,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
             } else {            // Bridge parent receives event from event bus
                 match event_frame {
                     EventFrame::LaunchSubGame { sub_game_init } => {
+                        let game_id = sub_game_init.spec.game_id;
                         let f = SignalFrame::LaunchSubGame {
                             sub_game_init: *sub_game_init,
                             bridge_to_parent: BridgeToParent {
@@ -139,6 +163,8 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                                 tx_to_parent: ctx.sub_tx.clone(),
                             },
                         };
+                        // Save the launching game's ID
+                        launching_game_ids.push(game_id);
                         if let Err(e) = ctx.signal_tx.send(f).await {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }
@@ -152,9 +178,16 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         break;
                     }
                     EventFrame::SendBridgeEvent { dest, .. } if dest != 0 => {
-                        info!("{} Sends event: {}", env.log_prefix, event_frame);
-                        if let Err(e) = ctx.tx.send(event_frame) {
-                            error!("{} Failed to send: {}", env.log_prefix, e);
+                        if launching_game_ids.contains(&dest) {
+                            // Subgame is not ready, add it to pending events
+                            info!("{} Defer event: {}", env.log_prefix, event_frame);
+                            pending_events.push((dest, event_frame));
+                        } else {
+                            // Send directly, the subgame is ready
+                            info!("{} Sends event: {}", env.log_prefix, event_frame);
+                            if let Err(e) = ctx.tx.send(event_frame) {
+                                error!("{} Failed to send: {}", env.log_prefix, e);
+                            }
                         }
                     }
                     EventFrame::Sync { new_players, new_servers, transactor_addr, .. } => {
