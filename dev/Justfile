@@ -9,3 +9,7 @@ demo-app:
 
 mtt-simple:
     zellij --layout layouts/mtt-simple.kdl
+
+ltmtt-simple:
+	zellij --layout layouts/ltmtt-simple.kdl
+
