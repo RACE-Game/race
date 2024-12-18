@@ -17,7 +17,8 @@ type Method =
     | 'submit_message'
     | 'get_state'
     | 'ping'
-    | 'checkpoint'
+    | 'get_checkpoint'
+    | 'get_latest_checkpoint'
 
 interface IAttachGameParams {
     signer: string
@@ -265,7 +266,7 @@ export class Connection implements IConnection {
     }
 
     async getCheckpoint(params: GetCheckpointParams): Promise<CheckpointOffChain | undefined> {
-        const req = makeReqNoSig(this.target, 'checkpoint', params)
+        const req = makeReqNoSig(this.target, 'get_checkpoint', params)
         const resp: { result: number[] | null } = await this.requestXhr(req)
         if (!resp.result) return undefined
         return CheckpointOffChain.deserialize(Uint8Array.from(resp.result))
@@ -427,12 +428,11 @@ function makeReqNoSig<P>(target: string, method: Method, params: P): string {
     })
 }
 
-export async function getCheckpoint(
+export async function getLatestCheckpoint(
     transactorEndpoint: string,
     addr: string,
-    params: GetCheckpointParams
 ): Promise<CheckpointOffChain | undefined> {
-    const req = makeReqNoSig(addr, 'checkpoint', params)
+    const req = makeReqNoSig(addr, 'get_latest_checkpoint', {})
     try {
         const resp = await fetch(transactorEndpoint.replace(/^ws/, 'http'), {
             method: 'POST',

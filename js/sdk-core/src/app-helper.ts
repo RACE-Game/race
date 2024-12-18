@@ -1,5 +1,6 @@
 import { GameAccount, Nft, Token, TokenWithBalance, RecipientAccount } from './accounts'
 import { GAME_ACCOUNT_CACHE_TTL, NFT_CACHE_TTL, TOKEN_CACHE_TTL } from './common'
+import { CheckpointOffChain } from './checkpoint'
 import { ResponseHandle, ResponseStream } from './response'
 import {
     getTtlCache,
@@ -24,7 +25,7 @@ import {
 } from './transport'
 import { PlayerProfileWithPfp } from './types'
 import { IWallet } from './wallet'
-import { getCheckpoint } from './connection'
+import { getLatestCheckpoint } from './connection'
 
 export type AppHelperInitOpts = {
     transport: ITransport
@@ -157,34 +158,22 @@ export class AppHelper {
     }
 
     /**
-     * Retrieves the checkpoint state for a given address.
+     * Get latest checkpoint of a game.
      *
-     * This function attempts to fetch the checkpoint state of a specific game account
-     * based on the provided account address. It checks if storage is set up and if the game
-     * cache contains a valid transactor endpoint to retrieve the data from.
-     *
-     * @param addr - The address of the game account for which the checkpoint state is requested.
-     * @returns A promise that resolves to a `Uint8Array` containing the checkpoint state if available, or `undefined`.
-     * @throws Will throw an error if the game is not loaded or if storage is not set.
+     * @param gameAccount
+     * @returns The latest checkpoint from transactor or undefined when it's not available.
      */
-    async getCheckpointState(addr: string): Promise<Uint8Array | undefined> {
-        if (this.#storage !== undefined) {
-            const cacheKey = makeGameAccountCacheKey(this.#transport.chain, addr)
-            const gameCache = getTtlCache<GameAccountCache>(this.#storage, cacheKey)
-            if (gameCache !== undefined) {
-                if (gameCache.transactorEndpoint === undefined) {
-                    return undefined // The game is not served
-                }
-                const checkpointOffChain = await getCheckpoint(gameCache.transactorEndpoint, gameCache.addr, {
-                    settleVersion: BigInt(gameCache.settleVersion),
-                })
-                return checkpointOffChain?.data.get(0)?.data
-            } else {
-                throw new Error('Game not loaded, try listGames or getGame first')
-            }
-        } else {
-            throw new Error('Storage is required')
+    async getLatestCheckpoint(gameAccount: GameAccount): Promise<CheckpointOffChain | undefined> {
+        if (gameAccount.transactorAddr === undefined) {
+            return undefined
         }
+        const transactor = gameAccount.servers.find(s => s.addr == gameAccount.transactorAddr)
+        if (transactor === undefined) {
+            return undefined
+        }
+
+        const checkpointOffChain = await getLatestCheckpoint(transactor.endpoint, gameAccount.addr);
+        return checkpointOffChain;
     }
 
     /**

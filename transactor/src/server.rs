@@ -16,7 +16,7 @@ use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
     AttachGameParams, CheckpointParams, ExitGameParams, Signature, SubmitEventParams,
-    SubscribeEventParams,
+    SubscribeEventParams, LatestCheckpointParams
 };
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
@@ -137,9 +137,7 @@ async fn get_latest_checkpoint(
     params: Params<'_>,
     context: Arc<ApplicationContext>,
 ) -> Result<Option<Vec<u8>>, RpcError> {
-    let game_addr = params.one::<String>()?;
-
-    info!("Get latest checkpoint, game_addr: {}", game_addr);
+    let (game_addr, LatestCheckpointParams {} ) = parse_params_no_sig(params)?;
 
     let checkpoint: Option<CheckpointOffChain> = context
         .game_manager
@@ -267,8 +265,8 @@ pub async fn run_server(
     let mut module = RpcModule::new(context);
 
     module.register_method("ping", ping)?;
-    module.register_async_method("checkpoint", get_checkpoint)?;
-    module.register_async_method("latest_checkpoint", get_latest_checkpoint)?;
+    module.register_async_method("get_checkpoint", get_checkpoint)?;
+    module.register_async_method("get_latest_checkpoint", get_latest_checkpoint)?;
     module.register_async_method("attach_game", attach_game)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;

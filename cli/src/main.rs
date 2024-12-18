@@ -309,6 +309,7 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
         Some(game_account) => {
             println!("Game account: {}", game_account.addr);
             println!("Title: {}", game_account.title);
+            println!("Owner: {}", game_account.owner_addr);
             println!("Game bundle: {}", game_account.bundle_addr);
             println!("Token address: {}", game_account.token_addr);
             println!("Versions: #S{}, #A{}", game_account.settle_version, game_account.access_version);
