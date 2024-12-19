@@ -5,6 +5,7 @@ import { LocalSuiWallet } from '../src/local-wallet'
 import { GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_TABLE_ID } from '../src/constants'
 // import { ResponseHandle } from '../../sdk-core/src/response'
 import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance } from "@race-foundation/sdk-core";
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
 
 function testCreatePlayerProfile() {
@@ -30,7 +31,7 @@ function testCreateGameAccount() {
     title: 'yuumi Game', // title string
     bundleAddr: '0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192', // bundle_addr address params
     owner: wallet.walletAddr, // owner address wallet
-    recipientAddr: 'recipient_addr', // recipient_addr address params
+    recipientAddr: randomPublicKey(), // recipient_addr address params
     tokenAddr: "0x2", // token_addr address params "0x2"
     maxPlayers: 6, // max_players u64 params
     data_len: 2, // data_len u32 params
@@ -40,9 +41,16 @@ function testCreateGameAccount() {
     //   minDeposit: BigInt(0),
     //   maxDeposit: BigInt(1000000)
     // },
+    // entryType: {
+    //   kind: 'ticket' as const,
+    //   amount: BigInt(1000000)
+    // },
+    // entryType: {
+    //   kind: 'gating' as const,
+    //   collection: 'abc'
+    // },
     entryType: {
-      kind: 'ticket' as const,
-      amount: BigInt(1000000)
+      kind: 'disabled' as const,
     },
     registrationAddr: '12',
   }
@@ -97,7 +105,7 @@ async function testListTokensWithBalance() {
 }
 async function testGetGameAccount() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-  const objectId = '0xe561fb89ed4bc02b03390260532f8de922147016e24386d6bb7d62023a55fc03'
+  const objectId = '0x0cb1411ec1ed736640a53acf29b22559efd869429b82915123b600c741fe2add'
   let res = await suiTransport.getGameAccount(objectId);
   console.log('testGetGameAccount', res)
 }
@@ -197,3 +205,7 @@ function main() {
 }
 
 main()
+
+function randomPublicKey(): string {
+  return Ed25519Keypair.generate().getPublicKey().toSuiAddress()
+}

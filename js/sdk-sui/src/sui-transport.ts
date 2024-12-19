@@ -38,49 +38,58 @@ export class SuiTransport implements ITransport {
     coerceWallet(wallet)
 
     const suiClient = this.suiClient
-    const transaction = new Transaction();;
-    let args = [
+    const transaction = new Transaction();
+    let recipientAddr = ''
+    if( 'recipientAddr' in params){
+      recipientAddr = params.recipientAddr 
+    }
+    let create_game_args = [
       transaction.pure.string(params.title), // title string
       transaction.pure.address(params.bundleAddr), // bundle_addr address params
       transaction.pure.address(wallet.walletAddr), // owner address wallet
-      transaction.pure.address(randomPublicKey()), // recipient_addr address params
-      transaction.pure.address(params.tokenAddr), // token_addr address params "0x2"
+
+      transaction.pure.address(recipientAddr), // recipient_addr address params
+      transaction.pure.string(params.tokenAddr), // token_addr address params "0x2"
       transaction.pure.u16(params.maxPlayers), // max_players u64 params
       transaction.pure.u32(params.data.length), // data_len u32 params
       transaction.pure.vector('u8', params.data), // data vector<u8> params
     ]
     let entryFunction = ''
+    let entry_type_args: any = []
     const kind = params.entryType.kind
     switch (kind) {
       case 'cash':
         if (params.entryType.maxDeposit < params.entryType.minDeposit || params.entryType.minDeposit < 0) {
           return resp.failed('invalid-depsoit-range')
         }
-        entryFunction = 'create_cash_game'
-        args = [
-          ...args,
+        entryFunction = 'create_cash_entry'
+        entry_type_args = [
           transaction.pure.u64(params.entryType.minDeposit), // min_deposit u64 params
           transaction.pure.u64(params.entryType.maxDeposit), // max_deposit u64 params
         ]
         break;
       case 'ticket':
-        entryFunction = 'create_ticket_game'
-        args = [
-          ...args,
+        entryFunction = 'create_ticket_entry'
+        entry_type_args = [
           transaction.pure.u64(params.entryType.amount), // amount u64 params
         ]
         break;
       case 'gating':
-        entryFunction = 'create_gating_game'
-        args = [
-          ...args,
+        entryFunction = 'create_gating_entry'
+        entry_type_args = [
           transaction.pure.string(params.entryType.collection), // collection String params
         ]
         break;
+      default:
+        entryFunction = 'create_disabled_entry'
     }
-    transaction.moveCall({
+    let entry_type_result = transaction.moveCall({
       target: `${PACKAGE_ID}::game::${entryFunction}`,
-      arguments: args,
+      arguments: entry_type_args,
+    });
+    transaction.moveCall({
+      target: `${PACKAGE_ID}::game::create_game`,
+      arguments: [...create_game_args, entry_type_result],
     });
 
     const result = await wallet.send(transaction, suiClient, resp)
