@@ -7,15 +7,20 @@ pub(crate) fn new_identifier(literal: &str) -> TransportResult<Identifier> {
         .map_err(|_| TransportError::FailedToIdentify(literal.into()))
 }
 
-pub(crate) fn parse_str_addr(value: &str) -> TransportResult<SuiAddress> {
+pub(crate) fn parse_sui_addr(value: &str) -> TransportResult<SuiAddress> {
     SuiAddress::from_str(value)
+        .map_err(|_|TransportError::ParseAddressError)
+}
+
+pub(crate) fn parse_account_addr(value: &str) -> TransportResult<AccountAddress> {
+    AccountAddress::from_str(value)
         .map_err(|_| TransportError::ParseAddressError)
 }
 
 pub(crate) fn parse_option_addr(value: Option<String>) -> TransportResult<Option<SuiAddress>> {
     match value {
         Some(val) => {
-            let addr = parse_str_addr(&val)?;
+            let addr = parse_sui_addr(&val)?;
             Ok(Some(addr))
         }
         None => {

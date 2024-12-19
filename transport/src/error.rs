@@ -46,6 +46,12 @@ pub enum TransportError {
     #[error("Invalid pubkey: {0}")]
     InvalidPubkey(String),
 
+    #[error("Gas fees should be positive but got negative: {0}")]
+    NegativeGas(i64),
+
+    #[error("No coin found for this client")]
+    NoCoinFound,
+
     #[error("Failed to get balance for pubkey: {0}")]
     InvalidBalance(String),
 
