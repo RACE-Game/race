@@ -1,9 +1,4 @@
-use race_core::types::{RecipientAccount, RecipientSlotType, RecipientSlotOwner};
-use serde::{Serialize, Deserialize};
-use sui_sdk::types::{
-    base_types::SuiAddress,
-    transaction::Argument
-};
+use super::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RecipientBuilderWrapper {

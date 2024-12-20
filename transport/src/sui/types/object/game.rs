@@ -1,12 +1,5 @@
 //! Struct for on-chain game object
-use bcs;
-use race_core::error::Error;
-use race_core::{
-    checkpoint::CheckpointOnChain,
-    types::{EntryLock, EntryType, GameAccount, VoteType},
-};
-use sui_sdk::types::base_types::{SuiAddress};
-use serde::{Serialize, Deserialize};
+use super::*;
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
@@ -24,6 +17,25 @@ impl From<PlayerJoin> for race_core::types::PlayerJoin {
             position: value.position,
             access_version: value.access_version,
             verify_key: value.verify_key,
+        }
+    }
+}
+
+impl TryFromSuiMoveValue for PlayerJoin {
+    fn try_from_sui_move_value(value: &SuiMoveValue) -> Result<Self> {
+        match value {
+            SuiMoveValue::Struct(
+                SuiMoveStruct::WithTypes { fields, ..}
+                | SuiMoveStruct::WithFields(fields)
+            ) => {
+                Ok(Self {
+                    addr: get_mv_value(fields, "addr")?,
+                    position: get_mv_value(fields, "position")?,
+                    access_version: get_mv_value(fields, "access_version")?,
+                    verify_key: get_mv_value(fields, "verify_key")?
+                })
+            },
+            _ => Err(Error::TransportError("expected PlayerJoin; got sth else".into()))
         }
     }
 }
@@ -46,8 +58,26 @@ impl From<PlayerDeposit> for race_core::types::PlayerDeposit {
     }
 }
 
+impl TryFromSuiMoveValue for PlayerDeposit {
+    fn try_from_sui_move_value(value: &SuiMoveValue) -> Result<Self> {
+        match value {
+            SuiMoveValue::Struct(
+                SuiMoveStruct::WithTypes { fields, ..}
+                | SuiMoveStruct::WithFields(fields)
+            ) => {
+                Ok(Self {
+                    addr: get_mv_value(fields, "addr")?,
+                    amount: get_mv_value::<u64>(fields, "amount")?,
+                    settle_version: get_mv_value::<u64>(fields, "settle_version")?,
+                })
+            },
+            _ => Err(Error::TransportError("expected PlayerDeposit; got sth else".into()))
+        }
+    }
+}
+
 #[cfg_attr(test, derive(PartialEq, Eq))]
-#[derive(Default, Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ServerJoin {
     pub addr: SuiAddress,
     pub endpoint: String,
@@ -66,6 +96,68 @@ impl From<ServerJoin> for race_core::types::ServerJoin {
     }
 }
 
+impl TryFromSuiMoveValue for ServerJoin {
+    fn try_from_sui_move_value(value: &SuiMoveValue) -> Result<Self> {
+        match value {
+            SuiMoveValue::Struct(
+                SuiMoveStruct::WithTypes { fields, ..}
+                | SuiMoveStruct::WithFields(fields)
+            ) => {
+                Ok(Self {
+                    addr: get_mv_value(fields, "addr")?,
+                    endpoint: get_mv_value::<String>(fields, "endpoint")?,
+                    access_version: get_mv_value::<u64>(fields, "access_version")?,
+                    verify_key: get_mv_value::<String>(fields, "verify_key")?
+                })
+            },
+            _ => Err(Error::TransportError("expected ServerJoin; got sth else".into()))
+        }
+    }
+}
+
+impl TryFromSuiMoveValue for EntryType {
+    fn try_from_sui_move_value(value: &SuiMoveValue) -> Result<Self> {
+        match value {
+            SuiMoveValue::Variant(variant) => {
+                match variant.variant.as_str() {
+                    "Cash" => Ok(Self::Cash {
+                        min_deposit: get_mv_value(&variant.fields, "min_deposit")?,
+                        max_deposit: get_mv_value(&variant.fields, "max_deposit")?,
+                    }),
+                    "Ticket" => Ok(Self::Ticket {
+                        amount: get_mv_value(&variant.fields, "amount")?,
+                    }),
+                    "Gating" => Ok(Self::Gating {
+                        collection: get_mv_value(&variant.fields, "collection")?,
+                    }),
+                    "Disabled" => Ok(Self::Disabled),
+                    _ => Err(Error::TransportError(format!("unknown entry type  {}", variant.variant)))
+                }
+            }
+            _ => Err(Error::TransportError("expected EntryType enum value".into()))
+        }
+    }
+}
+
+impl TryFromSuiMoveValue for EntryLock  {
+    fn try_from_sui_move_value(value: &SuiMoveValue) -> Result<Self> {
+        match value {
+            SuiMoveValue::Variant(variant) => {
+                match variant.variant.as_str() {
+                    "Open" => Ok(Self::Open),
+                    "JoinOnly" => Ok(Self::JoinOnly),
+                    "DepositOnly" => Ok(Self::DepositOnly),
+                    "Closed" => Ok(Self::Closed),
+                    _ => Err(Error::TransportError(
+                        format!("invalid EntryLock {}", variant.variant))
+                    )
+                }
+            },
+            _ => Err(Error::TransportError("expected EntryLock enum value".into()))
+        }
+    }
+}
+
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Serialize, Clone, Deserialize, Debug)]
 pub struct Vote {
@@ -74,24 +166,61 @@ pub struct Vote {
     pub vote_type: VoteType,
 }
 
+// TODO: to use this, on-chain object must support the VoteType enum (now its a u8 type)
+impl TryFromSuiMoveValue for VoteType {
+    fn try_from_sui_move_value(value: &SuiMoveValue) -> Result<Self> {
+        match value {
+            SuiMoveValue::Variant(variant) => {
+                match variant.variant.as_str() {
+                    "ServerVoteTransactorDropOff" => Ok(Self::ServerVoteTransactorDropOff),
+                    "ClientVoteTransactorDropOff" => Ok(Self::ClientVoteTransactorDropOff),
+                    _ => Err(Error::TransportError(
+                        format!("invalid VoteType {}", variant.variant))
+                    )
+                }
+            },
+            _ => Err(Error::TransportError("expected VoteType enum value".into()))
+        }
+    }
+}
+
+impl TryFromSuiMoveValue for Vote {
+    fn try_from_sui_move_value(value: &SuiMoveValue) -> Result<Self> {
+        match value {
+            SuiMoveValue::Struct(
+                SuiMoveStruct::WithTypes { fields, ..}
+                | SuiMoveStruct::WithFields(fields)
+            ) => {
+                Ok(Self {
+                    voter: get_mv_value::<SuiAddress>(fields, "voter")?,
+                    votee: get_mv_value::<SuiAddress>(fields, "votee")?,
+                    vote_type: get_mv_value::<VoteType>(fields, "vote_type")?,
+                })
+            },
+            _ => Err(Error::TransportError("expected enum value".into()))
+        }
+    }
+}
+
 // On-chain object that represents a game
 #[cfg_attr(test, derive(PartialEq, Clone))]
-#[derive(Default, Serialize, Deserialize, Debug)]
-pub struct Game {
-    pub is_initialized: bool,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GameObject {
+    // ObjectID in hex literal string format: 0x...
+    pub id: ObjectID,
     // the contract version, used for upgrade
     pub version: String,
     // game name displayed on chain
     pub title: String,
-    // addr to the game core logic program on Arweave
+    // addr to the game nft object
     pub bundle_addr: SuiAddress,
-    // addr to the account that holds all players' deposits
-    pub stake_account: SuiAddress,
+    // coin type (e.g. "0x02::sui::SUI") that holds all players' deposits in balance
+    pub token_addr: String,
     // game owner who created this game account
     pub owner: SuiAddress,
-    // mint id of the token used for game
-    pub token_mint: SuiAddress,
-    // addr of the first server joined the game
+    // the recipient account
+    pub recipient_addr: SuiAddress,
+    // addr of the first server object joined the game
     pub transactor_addr: Option<SuiAddress>,
     // a serial number, increased by 1 after each PlayerJoin or ServerJoin
     pub access_version: u64,
@@ -115,22 +244,49 @@ pub struct Game {
     pub unlock_time: Option<u64>,
     // the entry type
     pub entry_type: EntryType,
-    // the recipient account
-    pub recipient_addr: SuiAddress,
     // the checkpoint state
     pub checkpoint: Vec<u8>,
     // the lock for entry
     pub entry_lock: EntryLock,
 }
 
-impl Game {
-    // convert object-like game to GameAccount struct
-    pub fn into_account<S: Into<String>>(self, addr: S) -> Result<GameAccount, Error> {
-        let Game {
+impl TryFrom<&BTreeMap<String, SuiMoveValue>> for GameObject {
+    type Error = Error;
+    fn try_from(fields: &BTreeMap<String, SuiMoveValue>) -> Result<Self> {
+        Ok(Self {
+            id: get_mv_value(fields, "id")?,
+            version: get_mv_value(fields, "version")?,
+            title: get_mv_value(fields, "title")?,
+            bundle_addr: get_mv_value(fields, "bundle_addr")?,
+            token_addr: get_mv_value(fields, "token_addr")?,
+            owner: get_mv_value(fields, "owner")?,
+            recipient_addr: get_mv_value(fields, "recipient_addr")?,
+            transactor_addr: get_mv_value(fields, "transactor_addr")?,
+            access_version: get_mv_value(fields, "access_version")?,
+            settle_version: get_mv_value(fields, "settle_version")?,
+            max_players: get_mv_value(fields, "max_players")?,
+            players: get_mv_value(fields, "players")?,
+            deposits: get_mv_value(fields, "deposits")?,
+            servers: get_mv_value(fields, "servers")?,
+            data_len: get_mv_value(fields, "data_len")?,
+            data: get_mv_value(fields, "data")?,
+            votes: get_mv_value(fields, "votes")?,
+            unlock_time: get_mv_value(fields, "unlock_time")?,
+            entry_type: get_mv_value(fields, "entry_type")?,
+            checkpoint: get_mv_value(fields, "checkpoint")?,
+            entry_lock: get_mv_value(fields, "entry_lock")?,
+        })
+    }
+}
+
+impl GameObject {
+    pub fn into_account<S: Into<String>>(self, addr: S) -> Result<GameAccount> {
+        let GameObject {
+            id,
             title,
             bundle_addr,
             owner,
-            token_mint,
+            token_addr,
             transactor_addr,
             access_version,
             settle_version,
@@ -157,11 +313,11 @@ impl Game {
         };
 
         Ok(GameAccount {
-            addr: addr.into(),
+            addr: id.to_canonical_string(true),
             title,
             settle_version,
             bundle_addr: bundle_addr.to_string(),
-            token_addr: token_mint.to_string(),
+            token_addr,
             owner_addr: owner.to_string(),
             access_version,
             players,
@@ -178,5 +334,191 @@ impl Game {
             checkpoint_on_chain: checkpoint_onchain,
             entry_lock
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sui::utils::new_structtag;
+    use sui_sdk::types::base_types::SuiAddress;
+    use sui_json_rpc_types::{SuiMoveVariant, SuiMoveValue};
+
+    #[test]
+    fn test_complex_types_deserialization() -> Result<()> {
+        // Test data setup
+        let addr1 = SuiAddress::random_for_testing_only();
+        let addr2 = SuiAddress::random_for_testing_only();
+
+        // PlayerJoin vector test
+        let player_joins = SuiMoveValue::Vector(vec![
+            SuiMoveValue::Struct(SuiMoveStruct::WithTypes {
+                type_: new_structtag("0x1::game::PlayerJoin")?,
+                fields: BTreeMap::from([
+                    ("addr".into(), SuiMoveValue::Address(addr1)),
+                    ("position".into(), SuiMoveValue::Number(1)),
+                    ("access_version".into(), SuiMoveValue::String("100".into())),
+                    ("verify_key".into(), SuiMoveValue::String("key1".into()))
+                ])
+            })
+        ]);
+
+        // PlayerDeposit vector test
+        let player_deposits = SuiMoveValue::Vector(vec![
+            SuiMoveValue::Struct(SuiMoveStruct::WithTypes {
+                type_: new_structtag("0x1::game::PlayerDeposit")?,
+                fields: BTreeMap::from([
+                    ("addr".into(), SuiMoveValue::Address(addr1)),
+                    ("amount".into(), SuiMoveValue::String("1000".into())),
+                    ("settle_version".into(), SuiMoveValue::String("1".into()))
+                ])
+            })
+        ]);
+
+        // ServerJoin vector test
+        let server_joins = SuiMoveValue::Vector(vec![
+            SuiMoveValue::Struct(SuiMoveStruct::WithTypes {
+                type_: new_structtag("0x1::game::ServerJoin")?,
+                fields: BTreeMap::from([
+                    ("addr".into(), SuiMoveValue::Address(addr1)),
+                    ("endpoint".into(), SuiMoveValue::String("http://localhost:8080".into())),
+                    ("access_version".into(), SuiMoveValue::String("1".into())),
+                    ("verify_key".into(), SuiMoveValue::String("server_key1".into()))
+                ])
+            })
+        ]);
+
+        // Vote vector test
+        let votes = SuiMoveValue::Vector(vec![
+            SuiMoveValue::Struct(SuiMoveStruct::WithTypes {
+                type_: new_structtag("0x1::game::Vote")?,
+                fields: BTreeMap::from([
+                    ("voter".into(), SuiMoveValue::Address(addr1)),
+                    ("votee".into(), SuiMoveValue::Address(addr2)),
+                    ("vote_type".into(), SuiMoveValue::Variant(SuiMoveVariant {
+                        type_: new_structtag("0x1::game::VoteType")?,
+                        variant: "ServerVoteTransactorDropOff".into(),
+                        fields: BTreeMap::<String, SuiMoveValue>::new()
+                    }))
+                ])
+            })
+        ]);
+
+        // Option tests
+        let some_address = SuiMoveValue::Option(Box::new(Some(SuiMoveValue::Address(addr1))));
+        let none_address: SuiMoveValue = SuiMoveValue::Option(Box::new(None));
+        let some_u64 = SuiMoveValue::Option(Box::new(Some(SuiMoveValue::String("100".into()))));
+        let none_u64: SuiMoveValue = SuiMoveValue::Option(Box::new(None));
+
+        // EntryType tests
+        let entry_cash = SuiMoveValue::Variant(SuiMoveVariant {
+            type_: new_structtag("0x1::game::EntryType")?,
+            variant: "Cash".into(),
+            fields: BTreeMap::from([
+                ("min_deposit".into(), SuiMoveValue::String("100".into())),
+                ("max_deposit".into(), SuiMoveValue::String("1000".into()))
+            ])
+        });
+
+        let entry_ticket = SuiMoveValue::Variant(SuiMoveVariant {
+            type_: new_structtag("0x1::game::EntryType")?,
+            variant: "Ticket".into(),
+            fields: BTreeMap::from([
+                ("amount".into(), SuiMoveValue::String("500".into()))
+            ])
+        });
+
+        // EntryLock test (assuming it's represented as a variant)
+        let entry_locks = vec![
+            SuiMoveValue::Variant(SuiMoveVariant {
+                type_: new_structtag("0x1::game::EntryLock")?,
+                variant: "Open".into(),
+                fields: BTreeMap::<String, SuiMoveValue>::new()
+            }),
+            SuiMoveValue::Variant(SuiMoveVariant {
+                type_: new_structtag("0x1::game::EntryLock")?,
+                variant: "JoinOnly".into(),
+                fields: BTreeMap::<String, SuiMoveValue>::new()
+            }),
+            SuiMoveValue::Variant(SuiMoveVariant {
+                type_: new_structtag("0x1::game::EntryLock")?,
+                variant: "DepositOnly".into(),
+                fields: BTreeMap::<String, SuiMoveValue>::new()
+            }),
+            SuiMoveValue::Variant(SuiMoveVariant {
+                type_: new_structtag("0x1::game::EntryLock")?,
+                variant: "Closed".into(),
+                fields: BTreeMap::<String, SuiMoveValue>::new()
+            })
+        ];
+
+        // Test deserialization
+        let players: Vec<PlayerJoin> = Vec::try_from_sui_move_value(&player_joins)?;
+        assert_eq!(players.len(), 1);
+        assert_eq!(players[0].addr, addr1);
+        assert_eq!(players[0].position, 1);
+
+        let deposits: Vec<PlayerDeposit> = Vec::try_from_sui_move_value(&player_deposits)?;
+        assert_eq!(deposits.len(), 1);
+        assert_eq!(deposits[0].addr, addr1);
+        assert_eq!(deposits[0].amount, 1000);
+
+        let servers: Vec<ServerJoin> = Vec::try_from_sui_move_value(&server_joins)?;
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].addr, addr1);
+        assert_eq!(servers[0].verify_key, "server_key1");
+
+        let vote_list: Vec<Vote> = Vec::try_from_sui_move_value(&votes)?;
+        assert_eq!(vote_list.len(), 1);
+        assert_eq!(vote_list[0].voter, addr1);
+        assert_eq!(vote_list[0].votee, addr2);
+
+        // Test Options
+        let some_addr: Option<SuiAddress> = Option::try_from_sui_move_value(&some_address)?;
+        assert_eq!(some_addr, Some(addr1));
+        let none_addr: Option<SuiAddress> = Option::try_from_sui_move_value(&none_address)?;
+        assert_eq!(none_addr, None);
+
+        let some_num: Option<u64> = Option::try_from_sui_move_value(&some_u64)?;
+        assert_eq!(some_num, Some(100));
+        let none_num: Option<u64> = Option::try_from_sui_move_value(&none_u64)?;
+        assert_eq!(none_num, None);
+
+        // Test EntryType
+        let cash_type = EntryType::try_from_sui_move_value(&entry_cash)?;
+        match cash_type {
+            EntryType::Cash { min_deposit, max_deposit } => {
+                assert_eq!(min_deposit, 100);
+                assert_eq!(max_deposit, 1000);
+            },
+            _ => panic!("Wrong variant")
+        }
+
+        let ticket_type = EntryType::try_from_sui_move_value(&entry_ticket)?;
+        match ticket_type {
+            EntryType::Ticket { amount } => {
+                assert_eq!(amount, 500);
+            },
+            _ => panic!("Wrong variant")
+        }
+
+        // Test EntryLock
+        for (i, lock_value) in entry_locks.iter().enumerate() {
+            let lock = EntryLock::try_from_sui_move_value(lock_value)?;
+            match i {
+                0 => assert!(matches!(lock, EntryLock::Open)),
+                1 => assert!(matches!(lock, EntryLock::JoinOnly)),
+                2 => assert!(matches!(lock, EntryLock::DepositOnly)),
+                3 => assert!(matches!(lock, EntryLock::Closed)),
+                _ => panic!("Unexpected variant")
+            }
+        }
+
+        // Test some error casesi: wrong types
+        assert!(Vec::<PlayerJoin>::try_from_sui_move_value(&some_address).is_err());
+        assert!(Option::<u64>::try_from_sui_move_value(&player_joins).is_err());
+        assert!(EntryType::try_from_sui_move_value(&some_address).is_err());
+
+        Ok(())
     }
 }

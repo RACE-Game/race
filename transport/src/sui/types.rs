@@ -3,5 +3,6 @@
 mod params;
 mod object;
 
+// or only re-export specific items for public use
 pub use params::*;
 pub use object::*;

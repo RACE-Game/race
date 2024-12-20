@@ -28,9 +28,6 @@ pub enum TransportError {
     #[error("Invalid chain name: {0}")]
     InvalidChainName(String),
 
-    #[error("Invalid Sui coin type {0}")]
-    InvalidCoinType(String),
-
     #[error("Game title or nick name exceeds 16 letters: {0}")]
     InvalidNameLength(String),
 
@@ -45,12 +42,6 @@ pub enum TransportError {
 
     #[error("Invalid pubkey: {0}")]
     InvalidPubkey(String),
-
-    #[error("Gas fees should be positive but got negative: {0}")]
-    NegativeGas(i64),
-
-    #[error("No coin found for this client")]
-    NoCoinFound,
 
     #[error("Failed to get balance for pubkey: {0}")]
     InvalidBalance(String),
@@ -129,9 +120,6 @@ pub enum TransportError {
 
     #[error("Failed to parse string address")]
     ParseAddressError,
-
-    #[error("Failed to parse string ID {0}")]
-    ParseObjectIdError(String),
 
     #[error("Transaction is not confirmed")]
     TransactionNotConfirmed,

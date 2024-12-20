@@ -1,5 +1,4 @@
-use serde::{Serialize, Deserialize};
-use sui_sdk::types::base_types::SuiAddress;
+use super::*;
 
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(Serialize, Deserialize, Default, Debug)]
