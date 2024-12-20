@@ -112,7 +112,7 @@ async function testGetGameAccount() {
 
 async function testGetRegistration() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-  const objectId = '0xe561fb89ed4bc02b03390260532f8de922147016e24386d6bb7d62023a55fc03'
+  const objectId = '0xedc53aecfdf417d6a57d5c2cbf8ad30f877d39cc67ed77ddf5e0ad7a8827d15c'
   let res = await suiTransport.getRegistration(objectId);
   console.log('testGetRegistration', res)
 }

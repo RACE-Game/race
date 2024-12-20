@@ -276,7 +276,7 @@ export class SuiTransport implements ITransport {
     }
   }
   // todo contract
-  registerGame(wallet: IWallet, params: RegisterGameParams, resp: ResponseHandle<RegisterGameResponse, RegisterGameError>): Promise<void> {
+  async registerGame(wallet: IWallet, params: RegisterGameParams, resp: ResponseHandle<RegisterGameResponse, RegisterGameError>): Promise<void> {
     throw new Error("Method not implemented.");
   }
   // todo contract
@@ -340,9 +340,30 @@ export class SuiTransport implements ITransport {
     throw new Error("Method not implemented.");
 
   }
-  getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
-    // ObjectID
-    throw new Error("Method not implemented.");
+  async getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
+    const suiClient = this.suiClient;
+    const info: SuiObjectResponse = await suiClient.getObject({
+      id: addr,
+      options: {
+        showContent: true,
+        showType: true
+      }
+    })
+    const content = info.data?.content;
+    if (!content || content.dataType !== 'moveObject') {
+      return undefined;
+    }
+    if (!content.fields) return undefined;
+    let fields: MoveStruct = content.fields
+    if (Array.isArray(fields)) { return undefined }
+    if ('fields' in fields) { return undefined }
+    return {
+      addr: addr,
+      isPrivate: fields.is_private as boolean,
+      size: fields.size as number,
+      owner: fields.owner as string,
+      games: fields.games as [],
+    }
   }
   getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {
     throw new Error("Method not implemented.");
