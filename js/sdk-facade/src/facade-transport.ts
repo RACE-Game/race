@@ -27,6 +27,7 @@ import {
     CreatePlayerProfileParams,
     CreateRegistrationParams,
     DepositParams,
+    AttachBonusParams,
     Token,
     TokenWithBalance,
 } from '@race-foundation/sdk-core'
@@ -179,6 +180,9 @@ export class FacadeTransport implements ITransport {
         throw new Error('Method not implemented.')
     }
     recipientClaim(_wallet: IWallet, _params: RecipientClaimParams): Promise<void> {
+        throw new Error('Method not implemented.')
+    }
+    attachBonus(_wallet: IWallet, _params: AttachBonusParams): Promise<void> {
         throw new Error('Method not implemented.')
     }
 

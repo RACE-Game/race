@@ -2,6 +2,7 @@ mod constants;
 mod metadata;
 mod types;
 
+use std::time::Duration;
 use async_stream::stream;
 use constants::*;
 use futures::{Stream, StreamExt};
@@ -88,12 +89,18 @@ impl TransportT for SolanaTransport {
             return Err(TransportError::InvalidNameLength(params.title))?;
         }
 
+        // Save all used keys for later fee calculation
+        let mut used_keys = vec![];
+
         let payer = &self.keypair;
         let payer_pubkey = payer.pubkey();
         let bundle_pubkey = Self::parse_pubkey(&params.bundle_addr)?;
+        used_keys.push(payer_pubkey.clone());
+
         let game_account = Keypair::new();
         let game_account_pubkey = game_account.pubkey();
         let lamports = self.get_min_lamports(GAME_ACCOUNT_LEN)?;
+        used_keys.push(game_account_pubkey.clone());
 
         let mut ixs = vec![];
         let create_game_account_ix = system_instruction::create_account(
@@ -106,6 +113,7 @@ impl TransportT for SolanaTransport {
 
         ixs.push(create_game_account_ix);
         let recipient_pubkey = Self::parse_pubkey(&params.recipient_addr)?;
+        used_keys.push(recipient_pubkey.clone());
         let token_mint_pubkey = Self::parse_pubkey(&params.token_addr)?;
 
         let (stake_account_pubkey, stake_account) = if is_native_mint(&token_mint_pubkey) {
@@ -113,11 +121,6 @@ impl TransportT for SolanaTransport {
 
             let (pda, _bump_seed) =
                 Pubkey::find_program_address(&[&game_account_pubkey.to_bytes()], &self.program_id);
-
-            let fee = self.get_recent_prioritization_fees(&[game_account_pubkey, pda])?;
-            let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
-
-            ixs.push(set_cu_prize_ix);
 
             (pda, None)
         } else {
@@ -142,11 +145,8 @@ impl TransportT for SolanaTransport {
             )
             .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
 
-            let fee =
-                self.get_recent_prioritization_fees(&[game_account_pubkey, stake_account_pubkey])?;
-            let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+            used_keys.push(stake_account_pubkey.clone());
 
-            ixs.push(set_cu_prize_ix);
             ixs.push(create_stake_account_ix);
             ixs.push(init_stake_account_ix);
 
@@ -171,6 +171,11 @@ impl TransportT for SolanaTransport {
         );
 
         ixs.push(create_game_ix);
+
+        let fee =
+            self.get_recent_prioritization_fees(&[game_account_pubkey, stake_account_pubkey])?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+        ixs.insert(0, set_cu_prize_ix);
 
         let message = Message::new(&ixs, Some(&payer.pubkey()));
 
@@ -203,7 +208,7 @@ impl TransportT for SolanaTransport {
             payer_pubkey
         } else {
             let ata_account_pubkey =
-                get_associated_token_address(&game_account_pubkey, &game_state.token_mint);
+                get_associated_token_address(&payer_pubkey, &game_state.token_mint);
             info!("Game uses SPL, receiver account: {}", ata_account_pubkey);
             ata_account_pubkey
         };
@@ -1360,7 +1365,7 @@ impl SolanaTransport {
             CommitmentConfig::finalized()
         };
         let debug = skip_preflight;
-        let client = RpcClient::new_with_commitment(rpc.clone(), commitment);
+        let client = RpcClient::new_with_timeout_and_commitment(rpc.clone(), Duration::from_secs(60), commitment);
         Ok(Self {
             rpc,
             client,
@@ -1382,13 +1387,11 @@ impl SolanaTransport {
             .map_err(|e| TransportError::FeeCalculationError(e.to_string()))?;
         let mut fee = 0;
         for f in fees {
-            if f.prioritization_fee > fee {
-                fee = f.prioritization_fee;
-            }
+            fee += f.prioritization_fee;
         }
         info!("Estimate fee: {} in lamports", fee);
         // XXX: We add a fixed amount to recommended fee
-        Ok(fee + 50)
+        Ok(fee + 10000)
     }
 
     fn get_min_lamports(&self, account_len: usize) -> TransportResult<u64> {

@@ -63,6 +63,9 @@ import {
     CreateRecipientParams,
     DepositResponse,
     DepositError,
+    AttachBonusParams,
+    AttachBonusResponse,
+    AttachBonusError,
 } from '@race-foundation/sdk-core'
 import * as instruction from './instruction'
 
@@ -102,6 +105,14 @@ type LegacyToken = {
     logoURI: string
     address: string
     decimals: number
+}
+
+const SOL_TOKEN = {
+    addr: 'So11111111111111111111111111111111111111112',
+    name: 'SOL',
+    symbol: 'SOL',
+    icon: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
+    decimals: 9,
 }
 
 type SendTransactionOptions = {
@@ -469,6 +480,62 @@ export class SolanaTransport implements ITransport {
             response.succeed({ signature: sig.ok })
         }
     }
+
+    async attachBonus(
+        wallet: IWallet,
+        params: AttachBonusParams,
+        response: ResponseHandle<AttachBonusResponse, AttachBonusError>
+    ): Promise<void> {
+        const payerKey = new PublicKey(wallet.walletAddr)
+        const gameAccountKey = new PublicKey(params.gameAddr)
+        const gameState = await this._getGameState(gameAccountKey)
+        if (gameState === undefined) {
+            return response.failed('game-not-found')
+        }
+        let ixs = []
+        let tempAccountKeys = []
+        let signers = []
+
+        for (const bonus of params.bonuses) {
+            const { tokenAddr, amount } = bonus
+            const mintKey = new PublicKey(tokenAddr)
+            const { ixs: createTempAccountIxs, tokenAccount: tokenAccount } = await this._prepareCreateTokenAccount(
+                payerKey,
+                mintKey
+            )
+            ixs.push(...createTempAccountIxs)
+            const payerAta = getAssociatedTokenAddressSync(mintKey, payerKey)
+            const transferIx = createTransferInstruction(payerAta, tokenAccount.publicKey, payerKey, amount)
+            ixs.push(transferIx)
+            tempAccountKeys.push(tokenAccount.publicKey)
+            signers.push(tokenAccount)
+        }
+
+        const attachBonusIx = instruction.attachBonus({
+            payerKey,
+            gameAccountKey: new PublicKey(params.gameAddr),
+            stakeAccountKey: gameState.stakeKey,
+            identifiers: params.bonuses.map(b => b.identifier),
+            tempAccountKeys,
+        })
+
+        if ('err' in attachBonusIx) {
+            return response.failed(attachBonusIx.err)
+        }
+        console.info('Transaction Instruction[attachBonus]:', attachBonusIx.ok)
+        ixs.push(attachBonusIx.ok)
+        const tx = await makeTransaction(this.#conn, payerKey, ixs)
+        if ('err' in tx) {
+            return response.retryRequired(tx.err)
+        }
+        const sig = await sendTransaction(wallet, tx.ok, this.#conn, response, { signers })
+        if ('err' in sig) {
+            response.transactionFailed(sig.err)
+        } else {
+            response.succeed({ signature: sig.ok })
+        }
+    }
+
     async publishGame(_wallet: IWallet, _params: PublishGameParams): Promise<void> {
         throw new Error('unimplemented')
     }
@@ -838,7 +905,7 @@ export class SolanaTransport implements ITransport {
         const prioritizationFee = await this.#conn.getRecentPrioritizationFees({
             lockedWritableAccounts: pubkeys,
         })
-        let f = 0
+        let f = 10000
         for (const fee of prioritizationFee) {
             f += fee.prioritizationFee
         }
@@ -927,11 +994,15 @@ export class SolanaTransport implements ITransport {
         let mintMetaList: [PublicKey, PublicKey][] = []
         for (const t of tokenAddrs) {
             const mintKey = new PublicKey(t)
-            const [metadataKey] = PublicKey.findProgramAddressSync(
-                [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
-                METAPLEX_PROGRAM_ID
-            )
-            mintMetaList.push([mintKey, metadataKey])
+            if (mintKey.equals(NATIVE_MINT)) {
+                results.push(SOL_TOKEN)
+            } else {
+                const [metadataKey] = PublicKey.findProgramAddressSync(
+                    [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
+                    METAPLEX_PROGRAM_ID
+                )
+                mintMetaList.push([mintKey, metadataKey])
+            }
         }
         const accountInfos = await this.#conn.getMultipleAccountsInfo(mintMetaList.flat())
         for (let i = 0; i < mintMetaList.length; i++) {
@@ -974,12 +1045,17 @@ export class SolanaTransport implements ITransport {
         let mintAtaList: [PublicKey, PublicKey, PublicKey][] = []
         for (const t of tokenAddrs) {
             const mintKey = new PublicKey(t)
-            const ataKey = getAssociatedTokenAddressSync(mintKey, ownerKey)
-            const [metadataKey] = PublicKey.findProgramAddressSync(
-                [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
-                METAPLEX_PROGRAM_ID
-            )
-            mintAtaList.push([mintKey, ataKey, metadataKey])
+            if (mintKey.equals(NATIVE_MINT)) {
+                const lamports = await this.#conn.getBalance(ownerKey);
+                results.push(new TokenWithBalance(SOL_TOKEN, BigInt(lamports)))
+            } else {
+                const ataKey = getAssociatedTokenAddressSync(mintKey, ownerKey)
+                const [metadataKey] = PublicKey.findProgramAddressSync(
+                    [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
+                    METAPLEX_PROGRAM_ID
+                )
+                mintAtaList.push([mintKey, ataKey, metadataKey])
+            }
         }
         const accountInfos = await this.#conn.getMultipleAccountsInfo(mintAtaList.flat())
         for (let i = 0; i < mintAtaList.length; i++) {
@@ -1185,6 +1261,7 @@ async function sendTransaction<T, E>(
             return { err: 'simulation-error' }
         }
     } catch (e: any) {
+        console.error(e);
         response.userRejected(e.toString())
         return { err: e.toString() }
     }

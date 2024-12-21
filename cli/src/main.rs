@@ -584,7 +584,9 @@ async fn unreg_game(reg_addr: String, game_addr: String, transport: Arc<dyn Tran
 #[tokio::main]
 async fn main() {
     let subscriber = tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer()
+            .without_time()
+        )
         .with(
             EnvFilter::builder()
                 .with_default_directive(LevelFilter::INFO.into())

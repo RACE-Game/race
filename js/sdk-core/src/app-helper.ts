@@ -12,6 +12,9 @@ import {
 } from './storage'
 import { GameAccountCache, makeGameAccountCache } from './account-cache'
 import {
+    AttachBonusError,
+    AttachBonusItem,
+    AttachBonusResponse,
     CreateGameAccountParams,
     CreateGameError,
     CreateGameResponse,
@@ -155,6 +158,26 @@ export class AppHelper {
         this.#transport.createPlayerProfile(wallet, { nick, pfp }, response)
 
         return response.stream()
+    }
+
+    /**
+     * Attaches bonuses to the specified game address within a wallet and returns a response stream.
+     *
+     * @param wallet - The wallet object implementing the IWallet interface.
+     * @param gameAddr - The address of the game to attach bonuses to.
+     * @param bonuses - An array of AttachBonusItem objects representing the bonuses to be attached.
+     * @returns A ResponseStream which provides the result of the operation with either an AttachBonusResponse or an AttachBonusError.
+     */
+    attachBonus(
+        wallet: IWallet,
+        gameAddr: string,
+        bonuses: AttachBonusItem[]
+    ): ResponseStream<AttachBonusResponse, AttachBonusError> {
+        const response = new ResponseHandle<AttachBonusResponse, AttachBonusError>();
+
+        this.#transport.attachBonus(wallet, { gameAddr, bonuses }, response);
+
+        return response.stream();
     }
 
     /**

@@ -4,7 +4,7 @@ import { publicKeyExt } from './utils'
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants'
 import { array, enums, field, serialize, struct } from '@race-foundation/borsh'
 import { Buffer } from 'buffer'
-import { EntryType, Fields, RecipientClaimError, Result } from '@race-foundation/sdk-core'
+import { EntryType, Fields, RecipientClaimError, AttachBonusError, Result } from '@race-foundation/sdk-core'
 import { AEntryType, RecipientSlotOwner, RecipientSlotOwnerAssigned, RecipientState } from './accounts'
 
 // Instruction types
@@ -180,6 +180,19 @@ export class CreateRecipientData extends Serialize {
     constructor(params: IxParams<CreateRecipientData>) {
         super()
         this.slots = params.slots
+    }
+}
+
+export class AttachBonusData extends Serialize {
+    @field('u8')
+    instruction = Instruction.AttachBonus
+
+    @field(array('string'))
+    identifiers: string[]
+
+    constructor(params: IxParams<AttachBonusData>) {
+        super()
+        this.identifiers = params.identifiers
     }
 }
 
@@ -674,6 +687,60 @@ export function createRecipient(opts: CreateRecipientOpts): TransactionInstructi
         programId: PROGRAM_ID,
         data,
     })
+}
+
+export type AttachBonusOpts = {
+    payerKey: PublicKey
+    gameAccountKey: PublicKey
+    stakeAccountKey: PublicKey
+    tempAccountKeys: PublicKey[]
+    identifiers: string[]
+}
+
+export function attachBonus(opts: AttachBonusOpts): Result<TransactionInstruction, AttachBonusError> {
+    let keys = [
+        {
+            pubkey: opts.payerKey,
+            isSigner: true,
+            isWritable: false,
+        },
+        {
+            pubkey: opts.gameAccountKey,
+            isSigner: false,
+            isWritable: true,
+        },
+        {
+            pubkey: TOKEN_PROGRAM_ID,
+            isSigner: false,
+            isWritable: false,
+        },
+        {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+        },
+        ...opts.tempAccountKeys.map(k => ({
+            pubkey: k,
+            isSigner: true,
+            isWritable: true,
+        }))
+    ]
+
+    if (keys.length > 20) {
+        return { err: 'too-much-bonuses' }
+    }
+
+    const data = new AttachBonusData({
+        identifiers: opts.identifiers
+    }).serialize()
+
+    return {
+        ok: new TransactionInstruction({
+            keys,
+            programId: PROGRAM_ID,
+            data,
+        })
+    }
 }
 
 export type ClaimOpts = {

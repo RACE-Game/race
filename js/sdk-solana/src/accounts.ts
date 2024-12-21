@@ -240,6 +240,8 @@ export class Bonus implements IBonus {
     @field('string')
     identifier!: string
     @field(publicKeyExt)
+    stakeAddr!: PublicKey
+    @field(publicKeyExt)
     tokenAddr!: PublicKey
     @field('u64')
     amount!: bigint

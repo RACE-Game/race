@@ -156,6 +156,23 @@ export type RecipientClaimResponse = {
 
 export type RecipientClaimError = 'not-found' | 'no-slots-to-claim'
 
+export type AttachBonusItem = {
+    identifier: string
+    tokenAddr: string
+    amount: bigint
+}
+
+export type AttachBonusParams = {
+    gameAddr: string
+    bonuses: AttachBonusItem[]
+}
+
+export type AttachBonusResponse = {
+    signature: string
+}
+
+export type AttachBonusError = 'bonuses-is-full' | 'game-not-found' | 'too-much-bonuses'
+
 export interface ITransport {
     get chain(): Chain
 
@@ -194,6 +211,8 @@ export interface ITransport {
         params: RegisterGameParams,
         resp: ResponseHandle<RegisterGameResponse, RegisterGameError>
     ): Promise<void>
+
+    attachBonus(wallet: IWallet, params: AttachBonusParams, resp: ResponseHandle<AttachBonusResponse, AttachBonusError>): Promise<void>;
 
     unregisterGame(wallet: IWallet, params: UnregisterGameParams, resp: ResponseHandle): Promise<void>
 
