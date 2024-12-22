@@ -84,9 +84,9 @@ async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>, squash_limit:
                 if let Some(p) = p {
                     cnt += 1;
 
-                    // We should always terminate when there's a settlement
+                    // We terminate when there are non-empty settles/awards
                     // or we are making the first checkpoint
-                    let stop_here = (!p.settles.is_empty()) || p.reset || p.next_settle_version == 1;
+                    let stop_here = (!p.settles.is_empty()) || (!p.awards.is_empty()) || p.reset || p.next_settle_version == 1;
                     v.push(p);
                     if stop_here {
                         break;

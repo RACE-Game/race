@@ -49,6 +49,7 @@ export type CreateGameResponse = {
 export type CreateGameError = 'invalid-title' | 'invalid-depsoit-range' | CreateRecipientError
 
 export type CloseGameAccountParams = {
+    regAddr: string
     gameAddr: string
 }
 
@@ -171,6 +172,16 @@ export type AttachBonusResponse = {
     signature: string
 }
 
+export type CloseGameAccountResponse = {
+    signature: string
+}
+
+export type CloseGameAccountError =
+    | 'game-not-found'
+    | 'permission-denied'
+    | 'game-not-in-reg'
+    | 'reg-not-found'
+
 export type AttachBonusError = 'bonuses-is-full' | 'game-not-found' | 'too-much-bonuses'
 
 export interface ITransport {
@@ -182,7 +193,7 @@ export interface ITransport {
         resp: ResponseHandle<CreateGameResponse, CreateGameError>
     ): Promise<void>
 
-    closeGameAccount(wallet: IWallet, params: CloseGameAccountParams, resp: ResponseHandle): Promise<void>
+    closeGameAccount(wallet: IWallet, params: CloseGameAccountParams, resp: ResponseHandle<CloseGameAccountResponse, CloseGameAccountError>): Promise<void>
 
     join(wallet: IWallet, params: JoinParams, resp: ResponseHandle<JoinResponse, JoinError>): Promise<void>
 

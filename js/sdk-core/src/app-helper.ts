@@ -25,6 +25,8 @@ import {
     RecipientClaimResponse,
     RegisterGameError,
     RegisterGameResponse,
+    CloseGameAccountResponse,
+    CloseGameAccountError,
 } from './transport'
 import { PlayerProfileWithPfp } from './types'
 import { IWallet } from './wallet'
@@ -176,6 +178,26 @@ export class AppHelper {
         const response = new ResponseHandle<AttachBonusResponse, AttachBonusError>();
 
         this.#transport.attachBonus(wallet, { gameAddr, bonuses }, response);
+
+        return response.stream()
+    }
+
+    /**
+     * Initiates the process to close a game account.
+     *
+     * @param wallet - An interface representing the user's wallet.
+     * @param regAddr - A string representing the registration address for the game.
+     * @param gameAddr - A string representing the address of the game account to be closed.
+     * @returns A ResponseStream that emits either a CloseGameAccountResponse or a CloseGameAccountError.
+     */
+    closeGame(
+        wallet: IWallet,
+        regAddr: string,
+        gameAddr: string
+    ): ResponseStream<CloseGameAccountResponse, CloseGameAccountError> {
+        const response = new ResponseHandle<CloseGameAccountResponse, CloseGameAccountError>();
+
+        this.#transport.closeGameAccount(wallet, { regAddr, gameAddr }, response);
 
         return response.stream();
     }

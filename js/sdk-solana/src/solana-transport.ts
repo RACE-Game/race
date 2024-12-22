@@ -66,6 +66,8 @@ import {
     AttachBonusParams,
     AttachBonusResponse,
     AttachBonusError,
+    CloseGameAccountResponse,
+    CloseGameAccountError,
 } from '@race-foundation/sdk-core'
 import * as instruction from './instruction'
 
@@ -259,11 +261,116 @@ export class SolanaTransport implements ITransport {
     }
 
     async closeGameAccount(
-        _wallet: IWallet,
-        _params: CloseGameAccountParams,
-        _response: ResponseHandle
+        wallet: IWallet,
+        params: CloseGameAccountParams,
+        response: ResponseHandle<CloseGameAccountResponse, CloseGameAccountError>
     ): Promise<void> {
-        throw new Error('unimplemented')
+        const conn = this.#conn
+        const { gameAddr, regAddr } = params
+
+        const payerKey = new PublicKey(wallet.walletAddr)
+        const gameAccountKey = new PublicKey(gameAddr)
+        const regAccountKey = new PublicKey(regAddr)
+
+        const gameState = await this._getGameState(gameAccountKey)
+
+        if (gameState === undefined) {
+            return response.failed('game-not-found')
+        }
+
+        if (!gameState.ownerKey.equals(payerKey)) {
+            return response.failed('permission-denied')
+        }
+        const regState = await this._getRegState(regAccountKey)
+
+        if (regState === undefined) {
+            return response.failed('reg-not-found')
+        }
+
+        if (regState.games.find(g => g.gameKey.equals(gameAccountKey)) === undefined) {
+            return response.failed('game-not-in-reg')
+        }
+        const ixs = []
+        const [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID)
+        const ata = getAssociatedTokenAddressSync(gameState.tokenKey, payerKey)
+        const prioritizationFee = await this._getPrioritizationFee([
+            gameAccountKey,
+            gameState.stakeKey,
+            ata,
+            pda,
+            regAccountKey,
+        ])
+        ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }))
+        const unregisterGameIx = new TransactionInstruction({
+            keys: [
+                {
+                    pubkey: payerKey,
+                    isSigner: true,
+                    isWritable: false,
+                },
+                {
+                    pubkey: regAccountKey,
+                    isSigner: false,
+                    isWritable: true,
+                },
+                {
+                    pubkey: gameAccountKey,
+                    isSigner: false,
+                    isWritable: false,
+                },
+            ],
+            data: Buffer.from(Uint8Array.of(instruction.Instruction.UnregisterGame)),
+            programId: PROGRAM_ID,
+        })
+        ixs.push(unregisterGameIx)
+        const closeGameAccountIx = new TransactionInstruction({
+            keys: [
+                {
+                    pubkey: payerKey,
+                    isSigner: true,
+                    isWritable: false,
+                },
+                {
+                    pubkey: gameAccountKey,
+                    isSigner: false,
+                    isWritable: true,
+                },
+                {
+                    pubkey: gameState.stakeKey,
+                    isSigner: false,
+                    isWritable: true,
+                },
+                {
+                    pubkey: pda,
+                    isSigner: false,
+                    isWritable: false,
+                },
+                {
+                    pubkey: ata,
+                    isSigner: false,
+                    isWritable: true,
+                },
+                {
+                    pubkey: TOKEN_PROGRAM_ID,
+                    isSigner: false,
+                    isWritable: false,
+                },
+            ],
+            data: Buffer.from(Uint8Array.of(instruction.Instruction.CloseGameAccount)),
+            programId: PROGRAM_ID,
+        })
+        ixs.push(closeGameAccountIx)
+        const tx = await makeTransaction(this.#conn, payerKey, ixs)
+        if ('err' in tx) {
+            response.retryRequired(tx.err)
+            return
+        }
+        const sig = await sendTransaction(wallet, tx.ok, this.#conn, response, { commitment: 'confirmed' })
+        if ('err' in sig) {
+            response.transactionFailed(sig.err)
+        } else {
+            response.succeed({ signature: sig.ok })
+        }
     }
 
     async join(wallet: IWallet, params: JoinParams, response: ResponseHandle<JoinResponse, JoinError>): Promise<void> {
@@ -1046,7 +1153,7 @@ export class SolanaTransport implements ITransport {
         for (const t of tokenAddrs) {
             const mintKey = new PublicKey(t)
             if (mintKey.equals(NATIVE_MINT)) {
-                const lamports = await this.#conn.getBalance(ownerKey);
+                const lamports = await this.#conn.getBalance(ownerKey)
                 results.push(new TokenWithBalance(SOL_TOKEN, BigInt(lamports)))
             } else {
                 const ataKey = getAssociatedTokenAddressSync(mintKey, ownerKey)
@@ -1261,7 +1368,7 @@ async function sendTransaction<T, E>(
             return { err: 'simulation-error' }
         }
     } catch (e: any) {
-        console.error(e);
+        console.error(e)
         response.userRejected(e.toString())
         return { err: e.toString() }
     }
