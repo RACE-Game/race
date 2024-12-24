@@ -1,6 +1,11 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::{error::HandleError, types::{DecisionId, RandomId}};
 
+use anyhow;
+use bcs;
+use sui_sdk;
+use signature;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -348,5 +353,29 @@ impl From<crate::error::Error> for HandleError {
 impl From<HandleError> for Error {
     fn from(value: HandleError) -> Self {
         Error::HandleError(value)
+    }
+}
+
+impl From<anyhow::Error> for Error {
+    fn from(e: anyhow::Error) -> Self {
+        Error::TransportError(e.to_string())
+    }
+}
+
+impl From<bcs::Error> for Error {
+    fn from(e: bcs::Error) -> Self {
+        Error::TransportError(e.to_string())
+    }
+}
+
+impl From<signature::Error> for Error {
+    fn from(e: signature::Error) -> Self {
+        Error::TransportError(e.to_string())
+    }
+}
+
+impl From<sui_sdk::error::Error> for Error {
+    fn from(e: sui_sdk::error::Error) -> Self {
+        Error::TransportError(e.to_string())
     }
 }

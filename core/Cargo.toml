@@ -23,9 +23,10 @@ serde_json = { workspace = true, optional = true }
 borsh.workspace = true
 futures.workspace = true
 rs_merkle.workspace = true
-
-[dev-dependencies]
+sui-sdk.workspace = true
+signature.workspace= true
 anyhow.workspace = true
+bcs.workspace = true
 
 [features]
 serde = ["dep:serde", "dep:serde_json"]
