@@ -20,11 +20,11 @@ use sui_sdk::{
     },
     types::{
         TypeTag,
-        base_types::{ObjectID, SuiAddress},
+        base_types::{ObjectID, SuiAddress, SequenceNumber},
         crypto::{get_key_pair_from_rng, SuiKeyPair},
         programmable_transaction_builder::ProgrammableTransactionBuilder as PTB,
         quorum_driver_types::ExecuteTransactionRequestType, sui_serde::HexAccountAddress,
-        transaction::{Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData},
+        transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableTransaction, Transaction, TransactionData, },
         Identifier
     },
     SuiClient, SuiClientBuilder, SUI_COIN_TYPE, SUI_DEVNET_URL
@@ -134,7 +134,7 @@ impl TransportT for SuiTransport {
         let gas_price = self.get_gas_price().await?;
         let gas_fees = self.estimate_gas(gas_price, coin.clone(), pt.clone()).await?;
 
-        println!("Needed gase fees {} and transport balance: {}",
+        println!("Needed gase fees {} and transport has balance: {}",
                  gas_fees, coin.balance);
 
         // actually send the tx with the calcualted balance
@@ -153,15 +153,11 @@ impl TransportT for SuiTransport {
         let object_changes: Vec<ObjectChange> = response.object_changes
             .unwrap_or_else(|| Vec::<ObjectChange>::new());
 
-        if object_changes.len() == 0 {
-            return Err(Error::TransportError("No game object created".into()));
-        }
-
         let object_id: Option<String> = object_changes.iter()
             .find_map(|obj| match obj {
                 ObjectChange::Created { object_id,  .. } => {
                     let obj_str_id: String = object_id.to_hex_uncompressed();
-                    println!("Created registry object with id: {}", obj_str_id);
+                    println!("Created game object with id: {}", obj_str_id);
                     Some(obj_str_id)
                 },
                 _ => None
@@ -373,30 +369,33 @@ impl TransportT for SuiTransport {
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
         let module = new_identifier("registry")?;
         let registry_fn = new_identifier("create_registry")?;
-        let mut ptb = PTB::new();
         let registry_args = vec![
-            add_input(&mut ptb, &params.is_private)?,
-            add_input(&mut ptb, &params.size)?
+            new_callarg(&params.is_private)?,
+            new_callarg(&params.size)?
         ];
-        ptb.command(Command::move_call(
-            self.get_package_id(),
-            module,
-            registry_fn,
-            vec![],
-            registry_args
-        ));
-
-        let pt = ptb.finish();
         let coin = self.get_max_coin(Some(COIN_SUI_ADDR.into())).await?;
         let gas_price = self.get_gas_price().await?;
-        let gas_fees = self.estimate_gas(gas_price, coin.clone(), pt.clone()).await?;
-        let tx_data = TransactionData::new_programmable(
-            self.get_active_addr(),
-            vec![coin.object_ref()],
-            pt,
+        let tx_data = TransactionData::new_move_call(
+            self.active_addr,
+            self.package_id,
+            module,
+            registry_fn,
+            vec![],             // no type arguments
+            coin.object_ref(),
+            registry_args,
             coin.balance,
             gas_price
-        );
+        )?;
+
+        let gas_fees = self.estimate_gas1(tx_data.clone()).await?;
+
+        println!("Needed gase fees {} and transport has balance: {}",
+                 gas_fees, coin.balance);
+
+        if gas_fees > coin.balance {
+            return Err(Error::TransportError("insufficient balance for gas fees".into()));
+        }
+
 
         let response = self.send_transaction(tx_data).await?;
 
@@ -404,10 +403,6 @@ impl TransportT for SuiTransport {
 
         let object_changes: Vec<ObjectChange> = response.object_changes
             .unwrap_or_else(|| Vec::<ObjectChange>::new());
-
-        if object_changes.len() == 0 {
-            return Err(Error::TransportError("No registry object created".into()));
-        }
 
         let object_id: Option<String> = object_changes.iter()
             .find_map(|obj| match obj {
@@ -423,18 +418,59 @@ impl TransportT for SuiTransport {
     }
 
     async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
-        let game_id: ObjectID = parse_object_id(&params.game_addr)?;
-        let registry_id: ObjectID = parse_object_id(&params.reg_addr)?;
-
-        // get on chain game for title and bundle account address (may ID?)
-        let game: GameObject = self.internal_get_game_object(game_id).await?;
+        let game_id = parse_object_id(&params.game_addr)?;
+        let registry_id = parse_object_id(&params.reg_addr)?;
+        let clock_id = parse_object_id(CLOCK_ID)?;
+        let game_version = self.get_object_seqnum(game_id).await?;
+        let registry_version = self.get_object_seqnum(registry_id).await?;
+        // let clock_version = self.get_object_seqnum(clock_id).await?;
         let module = new_identifier("registry")?;
         let reg_game_fn = new_identifier("register_game")?;
-        let mut ptb = PTB::new();
-        let reg_game_args: Vec<Argument> = vec![
-        ];
+        let coin = self.get_max_coin(Some(COIN_SUI_ADDR.into())).await?;
+        let gas_price = self.get_gas_price().await?;
+        let tx_data = TransactionData::new_move_call(
+            self.active_addr,
+            self.package_id,
+            module,
+            reg_game_fn,
+            vec![],             // no type arguments
+            coin.object_ref(),
+            vec![
+                CallArg::Object(ObjectArg::SharedObject{
+                    id: game_id,
+                    initial_shared_version: game_version,
+                    mutable: false
+                }),
+                CallArg::Object(ObjectArg::SharedObject{
+                    id: registry_id,
+                    initial_shared_version: SequenceNumber::from_u64(47),
+                    mutable: true
+                }),
+                CallArg::Object(ObjectArg::SharedObject{
+                    id: clock_id,
+                    initial_shared_version: SequenceNumber::from_u64(1),
+                    mutable: false
+                })
+            ],
+            coin.balance,
+            gas_price
+        )?;
 
-        todo!()
+        let gas_fees = self.estimate_gas1(tx_data.clone()).await?;
+
+        println!("Needed gase fees {} and transport has balance: {}",
+                 gas_fees, coin.balance);
+
+        if gas_fees > coin.balance {
+            return Err(Error::TransportError("insufficient balance for gas fees".into()));
+        }
+
+        let response = self.send_transaction(tx_data).await?;
+
+        println!("Error: {:?}", response.errors);
+        println!("Registering game tx digest: {}", response.digest.to_string());
+
+        Ok(())
     }
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
@@ -537,11 +573,11 @@ impl SuiTransport {
     }
 
     fn get_package_id(&self) -> ObjectID {
-        self.package_id.clone()
+        self.package_id
     }
 
     fn get_active_addr(&self) -> SuiAddress {
-        self.active_addr.clone()
+        self.active_addr
     }
 
     // Get the coin with the most balance to pay the transaction gas fees.
@@ -569,6 +605,42 @@ impl SuiTransport {
             .await?;
         let balance = coin_page.data.into_iter().map(|c: Coin| c.balance).sum();
         Ok(balance)
+    }
+
+    async fn estimate_gas1(&self, tx_data: TransactionData) -> Result<u64> {
+        let dry_run = self.client.read_api()
+            .dry_run_transaction_block(tx_data)
+            .await?;
+        let cost_summary = dry_run.effects.gas_cost_summary();
+        let net_gas_fees: i64 = cost_summary.net_gas_usage();
+        println!("Got net gas fees: {} in MIST", net_gas_fees);
+
+        if net_gas_fees < 0 {
+            return Err(Error::TransportError("Unexpected negative gas fees".into()));
+        };
+
+
+        // add a small buffer to the estimated gas fees
+        Ok(net_gas_fees as u64 + 50)
+    }
+
+    async fn get_object_seqnum(&self, id: ObjectID) -> Result<SequenceNumber> {
+        let response = self.client
+            .read_api()
+            .get_object_with_options(
+                id,
+                SuiObjectDataOptions::new()
+            )
+            .await?;
+
+        let seqnum = response
+            .data
+            .and_then(|d| Some(d.version))
+            .ok_or_else(|| Error::TransportError("No seuqeunce number found".into()))?;
+
+        println!("Object {} with sequence number {}", id ,seqnum.value());
+
+        Ok(seqnum)
     }
 
     async fn estimate_gas(
@@ -654,11 +726,10 @@ impl SuiTransport {
 
     fn rand_account_str_addr() -> String {
         AccountAddress::random().to_canonical_string(true)
-
     }
 
     // A few private helpers to query on chain objects, not for public uses
-    async fn internal_get_game_object(
+    async fn internal_get_game(
         &self,
         game_id: ObjectID
     ) -> Result<GameObject> {
@@ -679,22 +750,47 @@ impl SuiTransport {
             )
             .await?;
 
-
         let bcs: SuiRawData = response
             .data
             .and_then(|d| d.bcs)
             .ok_or(Error::GameAccountNotFound)?;
 
         let raw: SuiRawMoveObject = match bcs {
-            SuiRawData::MoveObject(sui_raw_mv_obj) => {
-                sui_raw_mv_obj
-            },
-            _ => return Err(Error::TransportError("TestEntryLock not found".into()))
+            SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
+            _ => return Err(Error::TransportError("Game Object not found".into()))
         };
 
-        println!("raw bytes: {:?}", raw.bcs_bytes);
+        // println!("raw bytes: {:?}", raw.bcs_bytes);
 
-        raw.deserialize().map_err(|e| Error::TransportError(e.to_string()))
+        raw.deserialize::<GameObject>()
+            .map_err(|e| Error::TransportError(e.to_string()))
+    }
+
+    async fn internal_get_registry(
+        &self,
+        registry_id: ObjectID
+    ) -> Result<RegistryObject> {
+        println!("Trying to get registry object {:?}", registry_id);
+
+        let response = self.client.read_api()
+            .get_object_with_options(
+                registry_id,
+                SuiObjectDataOptions::bcs_lossless()
+            )
+            .await?;
+
+        let raw_data: SuiRawData = response
+            .data
+            .and_then(|d| d.bcs)
+            .ok_or_else(|| Error::RegistrationNotFound)?;
+
+        let raw: SuiRawMoveObject = match raw_data {
+            SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
+            _ => return Err(Error::TransportError("Registry not found".into()))
+        };
+
+        raw.deserialize::<RegistryObject>()
+            .map_err(|e| Error::TransportError(e.to_string()))
     }
 }
 
@@ -702,7 +798,7 @@ impl SuiTransport {
 mod tests {
     use super::*;
 
-    const TEST_PACKAGE_ID: &str = "0x6d9caadf9402936619002cd029a2334bddb5fabdfacb115768c8366105541e56";
+    const TEST_PACKAGE_ID: &str = "0x6bad43ecb1772d0992a5d40ee5f4508d128060238b0584a68e174c3ea393f921";
 
     fn ser_game_obj_bytes() -> Result<Vec<u8>> {
         let game = GameObject {
@@ -738,6 +834,17 @@ mod tests {
     async fn test_get_player_profile() {
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await.unwrap();
         let profile = transport.get_player_profile("0x13c43bafded256bdfda2e0fe086785aefa6e4ff45fb14fc3ca747b613aa12902").await;
+    }
+
+    #[tokio::test]
+    async fn test_get_seqnum() -> Result<()> {
+        let game_id_str = "0x22d111cb94424373a1873bfb770129b95b8ea5e609eed25b3750c20e9be2dff5";
+        let game_id = parse_object_id(game_id_str)?;
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        transport.get_object_seqnum(game_id).await?;
+
+        Ok(())
+
     }
 
     #[tokio::test]
@@ -788,8 +895,6 @@ mod tests {
 
         let object_id = transport.create_registration(params).await?;
 
-        println!("Created registration object : {}", object_id);
-
         Ok(())
     }
 
@@ -828,11 +933,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_register_game() -> Result<()> {
+        let params = RegisterGameParams {
+            game_addr: "0x34eff1b304a6def8f717941f122cdf08b8b67dce954ecd66aea2fede3b0ff792".to_string(),
+            reg_addr: "0x65f80e8f4e82f4885c96ccba4da02668428662e975b0a6cd1fa08b61e4e3a2fc".to_string()
+        };
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+
+        transport.register_game(params).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_get_game_account() -> Result<()> {
         let game_id_str = "0x22d111cb94424373a1873bfb770129b95b8ea5e609eed25b3750c20e9be2dff5";
         let game_id = parse_object_id(game_id_str)?;
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
-        let game_obj = transport.internal_get_game_object(game_id).await?;
+        let game_obj = transport.internal_get_game(game_id).await?;
 
         assert_eq!(game_obj.title, "Race Sui".to_string());
         assert_eq!(game_obj.access_version, 0);

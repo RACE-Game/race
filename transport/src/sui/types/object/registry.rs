@@ -2,6 +2,7 @@ use super::*;
 
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[derive(Default, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct GameReg {
     pub title: String, // max: 16 chars
     pub addr: SuiAddress,

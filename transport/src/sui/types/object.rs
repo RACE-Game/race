@@ -1,4 +1,5 @@
 //! Structs that represent Sui on-chain objects (those with UID or capabilities)
+use bcs;
 use race_core::{
     error::{Error, Result},
     checkpoint::CheckpointOnChain,
@@ -12,7 +13,6 @@ use sui_sdk::types::{
 };
 use sui_json_rpc_types::{SuiMoveStruct, SuiMoveValue};
 use std::collections::BTreeMap;
-use crate::sui::utils::{TryFromSuiMoveValue, get_mv_value};
 
 mod game;
 mod server;

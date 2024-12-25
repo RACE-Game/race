@@ -13,6 +13,7 @@ pub const PUBLISHER: &str = "0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504d
 pub const COIN_SUI_ADDR: &str = "0x2::sui::SUI";
 pub const COIN_USDC_ADDR: &str = "0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::usdc::USDC";
 
+pub const CLOCK_ID: &str = "0x0000000000000000000000000000000000000000000000000000000000000006";
 // names for modules, structs, enums and functions in the published move package
 pub const RECIPIENT: &str = "recipient";
 pub const SLOT_SHARE_STRUCT: &str = "RecipientSlotShare";
