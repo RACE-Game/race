@@ -127,18 +127,10 @@ impl TransportT for SuiTransport {
             create_game_args,
         );
         ptb.command(create_game_cmd);
-        // get a ProgrammableTransaction type
-        let pt = ptb.finish();
-
         // dry run to get the estimated total gas fee
+        let pt = ptb.finish();
         let coin = self.get_max_coin(Some(params.token_addr)).await?;
         let gas_price = self.get_gas_price().await?;
-        let gas_fees = self.estimate_gas(gas_price, coin.clone(), pt.clone()).await?;
-
-        println!("Needed gase fees {} and transport has balance: {}",
-                 gas_fees, coin.balance);
-
-        // actually send the tx with the calcualted balance
         let tx_data = TransactionData::new_programmable(
             self.active_addr,
             vec![coin.object_ref()],
@@ -146,10 +138,14 @@ impl TransportT for SuiTransport {
             coin.balance,
             gas_price
         );
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
+        println!("Needed gase fees {} and transport has balance: {}",
+                 gas_fees, coin.balance);
 
+        // actually send the tx with the calcualted balance
         let response = self.send_transaction(tx_data).await?;
 
-        println!("Tx digest: {}", response.digest.to_string());
+        println!("Creating game tx digest: {}", response.digest.to_string());
 
         let object_changes: Vec<ObjectChange> = response.object_changes
             .unwrap_or_else(|| Vec::<ObjectChange>::new());
@@ -197,28 +193,30 @@ impl TransportT for SuiTransport {
     }
 
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
-        let mut used_ids = Vec::<u8>::new();
+        let mut used_ids: Vec<u8> = Vec::new();
+        let module = new_identifier("recipient")?;
+        let recipient_buider_fn = new_identifier("new_recipient_builder")?;
+        let recipient_slot_fn = new_identifier("create_recipient_slot")?;
+        let slot_share_fn = new_identifier("create_slot_share")?;
+        let recipient_fn = new_identifier("create_recipient")?;
         let mut ptb = PTB::new();
-        let module = new_identifier(RECIPIENT)?;
-        let recipient_buider_fn = new_identifier(RECIPIENT_BUILDER_FN)?;
-        let recipient_slot_fn = new_identifier(RECIPIENT_SLOT_FN)?;
-        let slot_share_fn = new_identifier(SLOT_SHARE_FN)?;
-        let recipient_fn = new_identifier(RECIPIENT_FN)?;
-
-        // 1. move call new_recipient_builder to get a hot potato
-        let builder = ptb.command(Command::move_call(
+        // 1. make move call to new_recipient_builder to get a hot potato
+        let mut recipient_builder = ptb.command(Command::move_call(
             self.package_id,
             module.clone(),
-            recipient_buider_fn.clone(),
+            recipient_buider_fn,
             vec![],             // no type arguments,
             vec![]              // no arguments
         ));
-        let mut final_builder = RecipientBuilderWrapper::new(builder.clone());
+        println!("Builder is argument: {:?}", recipient_builder);
+        // let mut final_builder = RecipientBuilderWrapper::new(builder);
+        // let mut final_builder: Argument = builder.clone();
 
-        // 2. a series of move calls to build recipient slots one by one
+        // 2. make a series of move calls to build recipient slots one by one
         for slot in params.slots.into_iter() {
             // slot id must be unique
             if used_ids.contains(&slot.id) {
+                println!("{:?} already contains slot id {}", used_ids, slot.id);
                 return Err(Error::InvalidRecipientSlotParams);
             }
             used_ids.push(slot.id);
@@ -251,16 +249,13 @@ impl TransportT for SuiTransport {
 
             // 2.2. add slot id, token_addr and slot type info
             let shares = ptb.command(Command::make_move_vec(
-                Some(
-                    TypeTag::Struct(Box::new(
-                        StructTag {
-                            address: parse_account_addr(PACKAGE_ID)?,
-                            module: new_identifier(RECIPIENT)?,
-                            name: new_identifier(SLOT_SHARE_STRUCT)?,
-                            type_params: vec![]
-                        }
-                    ))
-                ),
+                Some(TypeTag::Struct(Box::new(
+                    StructTag {
+                        address: parse_account_addr(&self.package_id.to_hex_uncompressed())?,
+                        module: new_identifier("recipient")?,
+                        name: new_identifier("RecipientSlotShare")?,
+                        type_params: vec![]
+                    }))),
                 result_shares,
             ));
 
@@ -274,37 +269,41 @@ impl TransportT for SuiTransport {
                 add_input(&mut ptb, &slot.token_addr)?,
                 add_input(&mut ptb, &slot_type)?,
                 shares,
-                builder         // builder moved here in each loop
+                recipient_builder        // builder moved here in each loop on the chain as Result0
             ];
-
             let type_args = vec![
-                TypeTag::Struct(Box::new(StructTag {
-                    address: parse_account_addr(&coin_addr)?,
-                    module: new_identifier(&coin_module)?,
-                    name: new_identifier(&coin_name)?,
-                    type_params: vec![]
-                }))
+                TypeTag::Struct(Box::new(
+                    StructTag {
+                        address: parse_account_addr(&coin_addr)?,
+                        module: new_identifier(&coin_module)?,
+                        name: new_identifier(&coin_name)?,
+                        type_params: vec![]
+                    }))
             ];
 
-            // 2.3 move call to create the slot; return the hot potato for next loop
-            let builder = ptb.command(Command::move_call(
+            // 2.3 move call to create the slot; return the builder for next loop
+            recipient_builder = ptb.command(Command::move_call(
                 self.package_id,
                 module.clone(),
                 recipient_slot_fn.clone(),
                 type_args,         // Coin<T> for this slot
                 build_slot_args,
             ));
+            println!("Builder is argument: {:?}", recipient_builder);
 
             // store the updated builder result
-            final_builder.update(builder.clone());
+            // final_builder = builder.clone();
+            // final_builder.update(builder.clone());
 
         } // for slot ends
 
         // 3. move call to create the recipient
+        println!("Builder is argument: {:?}", recipient_builder);
+
         let cap_addr_arg: Option<SuiAddress> = parse_option_addr(params.cap_addr)?;
         let recipient_args = vec![
             add_input(&mut ptb, &cap_addr_arg)?,
-            final_builder.builder()
+            recipient_builder
         ];
         ptb.command(Command::move_call(
             self.package_id,
@@ -314,41 +313,39 @@ impl TransportT for SuiTransport {
             recipient_args,
         ));
 
-        // 4. get coin for gas price, then sign, send and execute the transaction
-        // the coin type defaults to SUI
-        let coins = self.client
-            .coin_read_api()
-            .get_coins(self.active_addr, None, None, None)
-            .await?;
-        let coin = coins.data.into_iter().next().unwrap();
+        // 4. get max coin for gas price, then sign, send and execute the transaction
+        let coin = self.get_max_coin(None).await?;
         let gas_price = self.client.read_api().get_reference_gas_price().await?;
         let tx_data = TransactionData::new_programmable(
             self.active_addr,
             vec![coin.object_ref()],
             ptb.finish(),
-            GAS_BUDGET,
+            coin.balance,
             gas_price,
         );
 
-        let signature = self.keystore.sign_secure(
-            &self.active_addr,
-            &tx_data,
-            Intent::sui_transaction(),
-        ).map_err(|e| Error::TransportError(e.to_string()))?;
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
 
-        let response = self.client
-            .quorum_driver_api()
-            .execute_transaction_block(
-                Transaction::from_data(tx_data, vec![signature]),
-                SuiTransactionBlockResponseOptions::new()
-                    .with_effects()
-                    .with_events()
-                    .with_object_changes(),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-            )
-            .await?;
+        println!("Needed gase fees {} and transport has balance: {}",
+                 gas_fees, coin.balance);
 
-        Ok(response.digest.to_string())
+        let response = self.send_transaction(tx_data).await?;
+        println!("Creating recipient tx digest: {}", response.digest.to_string());
+
+        // Search for `Recipient` struct among the created objects (many slots and one recipient )
+        let identifier = new_identifier("Recipient")?;
+        response.object_changes
+            .and_then(|chs| chs.into_iter().find(|obj| match obj {
+                &ObjectChange::Created { ref object_type, ..} => {
+                    &object_type.name == &identifier
+                },
+                _ => false
+            }))
+            .and_then(|ch| {
+                println!("Created recipient object with id {}", ch.object_id());
+                Some(ch.object_id().to_hex_uncompressed())
+            })
+            .ok_or_else(|| Error::TransportError("No recipient created".into()))
     }
 
     async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
@@ -388,7 +385,7 @@ impl TransportT for SuiTransport {
             gas_price
         )?;
 
-        let gas_fees = self.estimate_gas1(tx_data.clone()).await?;
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
 
         println!("Needed gase fees {} and transport has balance: {}",
                  gas_fees, coin.balance);
@@ -397,10 +394,9 @@ impl TransportT for SuiTransport {
             return Err(Error::TransportError("insufficient balance for gas fees".into()));
         }
 
-
         let response = self.send_transaction(tx_data).await?;
 
-        println!("Tx digest: {}", response.digest.to_string());
+        println!("Creating registry tx digest: {}", response.digest.to_string());
 
         let object_changes: Vec<ObjectChange> = response.object_changes
             .unwrap_or_else(|| Vec::<ObjectChange>::new());
@@ -457,7 +453,7 @@ impl TransportT for SuiTransport {
             gas_price
         )?;
 
-        let gas_fees = self.estimate_gas1(tx_data.clone()).await?;
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
 
         println!("Needed gase fees {} and transport has balance: {}",
                  gas_fees, coin.balance);
@@ -470,6 +466,9 @@ impl TransportT for SuiTransport {
     }
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
+        println!("Unregistering game: {}", params.game_addr);
+        println!("From registery: {}", params.reg_addr);
+
         let game_id = parse_object_id(&params.game_addr)?;
         let registry_id = parse_object_id(&params.reg_addr)?;
         let registry_version = self.get_initial_shared_version(registry_id).await?;
@@ -496,7 +495,7 @@ impl TransportT for SuiTransport {
             gas_price
         )?;
 
-        let gas_fees = self.estimate_gas1(tx_data.clone()).await?;
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
                 println!("Needed gase fees {} and transport has balance: {}",
                  gas_fees, coin.balance);
 
@@ -629,7 +628,7 @@ impl SuiTransport {
         Ok(balance)
     }
 
-    async fn estimate_gas1(&self, tx_data: TransactionData) -> Result<u64> {
+    async fn estimate_gas(&self, tx_data: TransactionData) -> Result<u64> {
         let dry_run = self.client.read_api()
             .dry_run_transaction_block(tx_data)
             .await?;
@@ -687,37 +686,6 @@ impl SuiTransport {
         Ok(seqnum)
     }
 
-    async fn estimate_gas(
-        &self,
-        gas_price: u64,
-        coin: Coin,
-        pt: ProgrammableTransaction
-    ) -> Result<u64> {
-        let tx_data = TransactionData::new_programmable(
-            self.active_addr,
-            vec![coin.object_ref()],
-            pt,
-            coin.balance,
-            gas_price
-        );
-
-        // TODO: if dry run returns useful error message, print it
-        let dry_run = self.client.read_api()
-            .dry_run_transaction_block(tx_data)
-            .await?;
-        let cost_summary = dry_run.effects.gas_cost_summary();
-        let net_gas_fees: i64 = cost_summary.net_gas_usage();
-        println!("Got net gas fees: {} in MIST", net_gas_fees);
-
-        if net_gas_fees < 0 {
-            return Err(Error::TransportError("Unexpected negative gas fees".into()));
-        };
-
-
-        // add a small buffer to the estimated gas fees
-        Ok(net_gas_fees as u64 + 50)
-    }
-
     async fn send_transaction(
         &self,
         tx_data: TransactionData
@@ -728,7 +696,7 @@ impl SuiTransport {
             Intent::sui_transaction()
         ).map_err(|e| Error::TransportError(e.to_string()))?;
 
-        // TODO: may need `with_balance_changes()`
+        // NOTE: may need `with_balance_changes()`
         let response = self.client
             .quorum_driver_api()
             .execute_transaction_block(
@@ -843,7 +811,7 @@ impl SuiTransport {
 mod tests {
     use super::*;
 
-    const TEST_PACKAGE_ID: &str = "0x6ff6126445e2430f1a84a3413e8449fd91474591c207f39cb52487a6900b48eb";
+    const TEST_PACKAGE_ID: &str = "0x3c43f4a1f1d4c8a29403f4a579ef9ff201e209e78f5777f225bc8adff90b7034";
 
     fn ser_game_obj_bytes() -> Result<Vec<u8>> {
         let game = GameObject {
@@ -966,13 +934,31 @@ mod tests {
                             weights: 20,
                         }
                     ],
+                },
+                RecipientSlotInit {
+                    id: 1,
+                    slot_type: RecipientSlotType::Nft,
+                    token_addr: COIN_SUI_ADDR.into(),
+                    init_shares: vec![
+                        RecipientSlotShareInit {
+                            owner: RecipientSlotOwner::Unassigned {
+                                identifier: "RaceSui1".into()
+                            },
+                            weights: 20,
+                        },
+                        RecipientSlotShareInit {
+                            owner: RecipientSlotOwner::Assigned {
+                                addr: trim_prefix(PUBLISHER).to_string()
+                            },
+                            weights: 40,
+                        }
+                    ],
                 }
             ]
         };
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
 
         let res = transport.create_recipient(params).await?;
-        println!("Create recipient tx digest: {}", res);
 
         Ok(())
     }

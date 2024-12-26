@@ -45,6 +45,11 @@ pub(crate) fn to_account_addr(addr: SuiAddress) -> Result<AccountAddress> {
         .map_err(|e| Error::TransportError(e.to_string()))
 }
 
+// In case sometimes we do not need the `0x` prefix of a string addr
+pub(crate) fn trim_prefix(s: &str) -> &str {
+    s.strip_prefix("0x").unwrap_or(s)
+}
+
 // Convert a `SuiAddress` to `ObjectID` using its inner bytes
 pub(crate) fn to_object_id(addr: SuiAddress) -> Result<ObjectID> {
     let bytes = addr.to_inner();
