@@ -95,6 +95,9 @@ sdk-core:
 sdk-solana:
     npm --prefix ./js/sdk-solana run build
 
+sdk-sui:
+    npm --prefix ./js/sdk-sui run build
+
 sdk-facade:
     npm --prefix ./js/sdk-facade run build
 
