@@ -150,7 +150,7 @@ impl TransportT for SuiTransport {
         let object_changes: Vec<ObjectChange> = response.object_changes
             .unwrap_or_else(|| Vec::<ObjectChange>::new());
 
-        let object_id: Option<String> = object_changes.iter()
+        let game_id: Option<String> = object_changes.iter()
             .find_map(|obj| match obj {
                 ObjectChange::Created { object_id,  .. } => {
                     let obj_str_id: String = object_id.to_hex_uncompressed();
@@ -160,7 +160,7 @@ impl TransportT for SuiTransport {
                 _ => None
             });
 
-        object_id.ok_or_else(|| Error::TransportError("No game created".into()))
+        game_id.ok_or_else(|| Error::TransportError("No game created".into()))
     }
 
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
@@ -172,7 +172,45 @@ impl TransportT for SuiTransport {
     }
 
     async fn join(&self, params: JoinParams) -> Result<()> {
-        todo!()
+        println!("{} joining game {}", self.active_addr, params.game_addr);
+
+        let module = new_identifier("game")?;
+        let join_fn = new_identifier("join_game")?;
+        let game_id = parse_object_id(&params.game_addr)?;
+        let game_init_version = self.get_initial_shared_version(game_id).await?;
+        let coin = self.get_max_coin(Some(COIN_SUI_ADDR.into())).await?;
+        let gas_price = self.get_gas_price().await?;
+        let tx_data = TransactionData::new_move_call(
+            self.active_addr,
+            self.package_id,
+            module,
+            join_fn,
+            vec![],             // no type arguments
+            coin.object_ref(),
+            vec![
+                CallArg::Object(ObjectArg::SharedObject{
+                    id: game_id,
+                    initial_shared_version: game_init_version,
+                    mutable: true
+                }),
+                new_callarg(&params.position)?,
+                new_callarg(&params.access_version)?,
+                new_callarg(&params.amount)?,
+                new_callarg(&params.verify_key)?,
+            ],
+            coin.balance,
+            gas_price,
+        )?;
+
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
+        println!("Needed gase fees {} and transport has balance: {}",
+                         gas_fees, coin.balance);
+
+        let response = self.send_transaction(tx_data).await?;
+
+        println!("Joining game tx digest: {}", response.digest.to_string());
+
+        Ok(())
     }
 
     async fn deposit(&self, params: DepositParams) -> Result<()> {
@@ -208,9 +246,7 @@ impl TransportT for SuiTransport {
             vec![],             // no type arguments,
             vec![]              // no arguments
         ));
-        println!("Builder is argument: {:?}", recipient_builder);
-        // let mut final_builder = RecipientBuilderWrapper::new(builder);
-        // let mut final_builder: Argument = builder.clone();
+        println!("RecipientBuilder starts as argument: {:?}", recipient_builder);
 
         // 2. make a series of move calls to build recipient slots one by one
         for slot in params.slots.into_iter() {
@@ -289,16 +325,12 @@ impl TransportT for SuiTransport {
                 type_args,         // Coin<T> for this slot
                 build_slot_args,
             ));
-            println!("Builder is argument: {:?}", recipient_builder);
-
-            // store the updated builder result
-            // final_builder = builder.clone();
-            // final_builder.update(builder.clone());
+            println!("RecipientBuilder in-process as argument: {:?}", recipient_builder);
 
         } // for slot ends
 
         // 3. move call to create the recipient
-        println!("Builder is argument: {:?}", recipient_builder);
+        println!("Builder ends up as argument: {:?}", recipient_builder);
 
         let cap_addr_arg: Option<SuiAddress> = parse_option_addr(params.cap_addr)?;
         let recipient_args = vec![
@@ -811,7 +843,7 @@ impl SuiTransport {
 mod tests {
     use super::*;
 
-    const TEST_PACKAGE_ID: &str = "0x3c43f4a1f1d4c8a29403f4a579ef9ff201e209e78f5777f225bc8adff90b7034";
+    const TEST_PACKAGE_ID: &str = "0xa443ad6e73d8ffbedbd25bf721698c7a9e7929d3838c4e5e849fd0eb7c4058fa";
 
     fn ser_game_obj_bytes() -> Result<Vec<u8>> {
         let game = GameObject {
@@ -988,7 +1020,31 @@ mod tests {
         transport.unregister_game(params).await?;
 
         Ok(())
+    }
 
+    #[tokio::test]
+    async fn test_join_game() -> Result<()> {
+        let params = CreateGameAccountParams {
+            title: "Race Sui Test".into(),
+            bundle_addr: SuiTransport::rand_account_str_addr(),
+            token_addr: COIN_SUI_ADDR.into(),
+            max_players: 10,
+            entry_type: EntryType::Cash { min_deposit: 20, max_deposit: 100 },
+            recipient_addr: SuiTransport::rand_account_str_addr(),
+            data: vec![8u8, 1u8, 2u8, 3u8, 4u8],
+        };
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let game_addr = transport.create_game_account(params).await?;
+        let join_params = JoinParams {
+            game_addr,
+            access_version: 0,
+            amount: 50,
+            position: 2,
+            verify_key: "player".to_string()
+        };
+        transport.join(join_params).await?;
+
+        Ok(())
     }
 
     #[tokio::test]
