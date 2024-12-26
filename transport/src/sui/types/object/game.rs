@@ -119,8 +119,6 @@ pub struct GameObject {
     pub entry_lock: EntryLock,
 }
 
-use race_core::types::EntryType as ET;
-use race_core::types::EntryLock as EL;
 impl GameObject {
     pub fn into_account<S: Into<String>>(self, addr: S) -> Result<GameAccount> {
         let GameObject {
@@ -148,6 +146,7 @@ impl GameObject {
         let players = players.into_iter().map(Into::into).collect();
         let servers = servers.into_iter().map(Into::into).collect();
         let deposits = deposits.into_iter().map(Into::into).collect();
+        // TODO: use borsh to deserialize the checkpoint
         let checkpoint_onchain = if !checkpoint.is_empty() {
             Some(bcs::from_bytes(&checkpoint).map_err(|_| Error::MalformedCheckpoint)?)
         } else {
@@ -172,9 +171,9 @@ impl GameObject {
             votes: Vec::new(),
             unlock_time: None,
             recipient_addr: recipient_addr.to_string(),
-            entry_type: ET::Disabled,
+            entry_type,
             checkpoint_on_chain: checkpoint_onchain,
-            entry_lock: EL::Open
+            entry_lock
         })
     }
 }

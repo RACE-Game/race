@@ -10,6 +10,7 @@ use serde::{Serialize, Deserialize};
 use shared_crypto::intent::Intent;
 use sui_config::{sui_config_dir, SUI_KEYSTORE_FILENAME};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use sui_types::object::Owner;
 use sui_json_rpc_types::{
     Coin, CoinPage, SuiMoveValue, ObjectChange, SuiRawData, SuiRawMoveObject,
     SuiTransactionBlockResponse, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI};
@@ -421,9 +422,9 @@ impl TransportT for SuiTransport {
         let game_id = parse_object_id(&params.game_addr)?;
         let registry_id = parse_object_id(&params.reg_addr)?;
         let clock_id = parse_object_id(CLOCK_ID)?;
-        let game_version = self.get_object_seqnum(game_id).await?;
-        let registry_version = self.get_object_seqnum(registry_id).await?;
-        // let clock_version = self.get_object_seqnum(clock_id).await?;
+        let game_version = self.get_initial_shared_version(game_id).await?;
+        let registry_version = self.get_initial_shared_version(registry_id).await?;
+        let clock_version = self.get_initial_shared_version(clock_id).await?;
         let module = new_identifier("registry")?;
         let reg_game_fn = new_identifier("register_game")?;
         let coin = self.get_max_coin(Some(COIN_SUI_ADDR.into())).await?;
@@ -443,12 +444,12 @@ impl TransportT for SuiTransport {
                 }),
                 CallArg::Object(ObjectArg::SharedObject{
                     id: registry_id,
-                    initial_shared_version: SequenceNumber::from_u64(47),
+                    initial_shared_version: registry_version,
                     mutable: true
                 }),
                 CallArg::Object(ObjectArg::SharedObject{
                     id: clock_id,
-                    initial_shared_version: SequenceNumber::from_u64(1),
+                    initial_shared_version: clock_version, // always 1?
                     mutable: false
                 })
             ],
@@ -624,6 +625,29 @@ impl SuiTransport {
         Ok(net_gas_fees as u64 + 50)
     }
 
+    // The `initial_shared_version` is needed for mutating an on-chain object
+    async fn get_initial_shared_version(&self, id: ObjectID) -> Result<SequenceNumber> {
+        let response = self.client
+            .read_api()
+            .get_object_with_options(
+                id,
+                SuiObjectDataOptions::new().with_owner() // seqnum wrapped in `Owner`
+            )
+            .await?;
+
+        response.data
+            .and_then(|d| d.owner)
+            .and_then(|o| match o {
+                Owner::Shared { initial_shared_version } => {
+                    println!("Initial sequm: {}", initial_shared_version.value());
+                    Some(initial_shared_version)
+                },
+                _ => None
+            })
+            .ok_or_else(|| Error::TransportError("No initial shared version found".into()))
+    }
+
+    // Get the latest on-chain object sequencenumber
     async fn get_object_seqnum(&self, id: ObjectID) -> Result<SequenceNumber> {
         let response = self.client
             .read_api()
@@ -866,20 +890,20 @@ mod tests {
     #[tokio::test]
     async fn test_create_game() -> Result<()> {
         let params = CreateGameAccountParams {
-            title: "Race Sui".into(),
+            title: "Race Sui2".into(),
             bundle_addr: SuiTransport::rand_account_str_addr(),
             token_addr: COIN_SUI_ADDR.into(),
-            max_players: 6,
-            entry_type: EntryType::Cash {min_deposit: 10, max_deposit: 100},
+            max_players: 10,
+            entry_type: EntryType::Ticket { amount: 20},
             recipient_addr: SuiTransport::rand_account_str_addr(),
             data: vec![8u8, 1u8, 2u8, 3u8, 4u8],
         };
 
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
 
-        let digest = transport.create_game_account(params).await?;
+        let game_id = transport.create_game_account(params).await?;
 
-        println!("Create game object tx digest: {}", digest);
+        println!("Create game object with id: {}", game_id);
 
         Ok(())
     }
@@ -935,7 +959,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_game() -> Result<()> {
         let params = RegisterGameParams {
-            game_addr: "0x34eff1b304a6def8f717941f122cdf08b8b67dce954ecd66aea2fede3b0ff792".to_string(),
+            game_addr: "0xaeeb09391060db21ac2699ccaf07ed51682441168c93ab5c7dfd498cd910871c".to_string(),
             reg_addr: "0x65f80e8f4e82f4885c96ccba4da02668428662e975b0a6cd1fa08b61e4e3a2fc".to_string()
         };
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
