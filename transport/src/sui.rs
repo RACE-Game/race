@@ -75,7 +75,7 @@ impl TransportT for SuiTransport {
         if params.title.len() > MAX_GAME_NAME_LEN {
             return Err(TransportError::InvalidNameLength(params.title))?;
         }
-        let payer = self.get_active_addr();
+        let payer = self.active_addr;
         let bundle_addr = parse_account_addr(&params.bundle_addr)?;
         let recipient_addr = parse_account_addr(&params.recipient_addr)?;
         let mut ptb = PTB::new();
@@ -140,7 +140,7 @@ impl TransportT for SuiTransport {
 
         // actually send the tx with the calcualted balance
         let tx_data = TransactionData::new_programmable(
-            self.get_active_addr(),
+            self.active_addr,
             vec![coin.object_ref()],
             pt,
             coin.balance,
@@ -207,7 +207,7 @@ impl TransportT for SuiTransport {
 
         // 1. move call new_recipient_builder to get a hot potato
         let builder = ptb.command(Command::move_call(
-            self.get_package_id(),
+            self.package_id,
             module.clone(),
             recipient_buider_fn.clone(),
             vec![],             // no type arguments,
@@ -239,7 +239,7 @@ impl TransportT for SuiTransport {
                 ];
 
                 let result = ptb.command(Command::move_call(
-                    self.get_package_id(),
+                    self.package_id,
                     module.clone(),
                     slot_share_fn.clone(),
                     vec![],     // no T needed for shares
@@ -288,7 +288,7 @@ impl TransportT for SuiTransport {
 
             // 2.3 move call to create the slot; return the hot potato for next loop
             let builder = ptb.command(Command::move_call(
-                self.get_package_id(),
+                self.package_id,
                 module.clone(),
                 recipient_slot_fn.clone(),
                 type_args,         // Coin<T> for this slot
@@ -307,7 +307,7 @@ impl TransportT for SuiTransport {
             final_builder.builder()
         ];
         ptb.command(Command::move_call(
-            self.get_package_id(),
+            self.package_id,
             module.clone(),
             recipient_fn,
             vec![],             // no type arguments
@@ -318,12 +318,12 @@ impl TransportT for SuiTransport {
         // the coin type defaults to SUI
         let coins = self.client
             .coin_read_api()
-            .get_coins(self.get_active_addr(), None, None, None)
+            .get_coins(self.active_addr, None, None, None)
             .await?;
         let coin = coins.data.into_iter().next().unwrap();
         let gas_price = self.client.read_api().get_reference_gas_price().await?;
         let tx_data = TransactionData::new_programmable(
-            self.get_active_addr(),
+            self.active_addr,
             vec![coin.object_ref()],
             ptb.finish(),
             GAS_BUDGET,
@@ -462,19 +462,48 @@ impl TransportT for SuiTransport {
         println!("Needed gase fees {} and transport has balance: {}",
                  gas_fees, coin.balance);
 
-        if gas_fees > coin.balance {
-            return Err(Error::TransportError("insufficient balance for gas fees".into()));
-        }
-
         let response = self.send_transaction(tx_data).await?;
 
-        println!("Error: {:?}", response.errors);
         println!("Registering game tx digest: {}", response.digest.to_string());
 
         Ok(())
     }
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
+        let game_id = parse_object_id(&params.game_addr)?;
+        let registry_id = parse_object_id(&params.reg_addr)?;
+        let registry_version = self.get_initial_shared_version(registry_id).await?;
+        let module = new_identifier("registry")?;
+        let unreg_game_fn = new_identifier("unregister_game")?;
+        let coin = self.get_max_coin(Some(COIN_SUI_ADDR.into())).await?;
+        let gas_price = self.get_gas_price().await?;
+        let tx_data = TransactionData::new_move_call(
+            self.active_addr,
+            self.package_id,
+            module,
+            unreg_game_fn,
+            vec![],             // no type arguments
+            coin.object_ref(),
+            vec![
+                new_callarg(&game_id)?,
+                CallArg::Object(ObjectArg::SharedObject{
+                    id: registry_id,
+                    initial_shared_version: registry_version,
+                    mutable: true
+                }),
+            ],
+            coin.balance,
+            gas_price
+        )?;
+
+        let gas_fees = self.estimate_gas1(tx_data.clone()).await?;
+                println!("Needed gase fees {} and transport has balance: {}",
+                 gas_fees, coin.balance);
+
+        let response = self.send_transaction(tx_data).await?;
+
+        println!("Unregistering game tx digest: {}", response.digest.to_string());
+
         Ok(())
     }
 
@@ -573,25 +602,17 @@ impl SuiTransport {
         })
     }
 
-    fn get_package_id(&self) -> ObjectID {
-        self.package_id
-    }
-
-    fn get_active_addr(&self) -> SuiAddress {
-        self.active_addr
-    }
-
     // Get the coin with the most balance to pay the transaction gas fees.
     // The `String` in param `coin_type` represents a full Coin path, which defaults
     // to "0x2::sui::SUI" (if None is given)
     async fn get_max_coin(&self, coin_type: Option<String>) -> Result<Coin> {
         let coins: CoinPage = self.client
             .coin_read_api()
-            .get_coins(self.get_active_addr(), coin_type, None, Some(50))
+            .get_coins(self.active_addr, coin_type, None, Some(50))
             .await?;
         coins.data.into_iter()
             .max_by_key(|c| c.balance)
-            .ok_or(Error::TransportError("No Coin Found".to_string()))
+            .ok_or_else(|| Error::TransportError("No Coin Found".to_string()))
     }
 
     async fn get_gas_price(&self) -> Result<u64> {
@@ -602,7 +623,7 @@ impl SuiTransport {
     async fn get_raw_balance(&self, coin_type: Option<String>) -> Result<u64> {
         let coin_page: CoinPage = self.client
             .coin_read_api()
-            .get_coins(self.get_active_addr(), coin_type, None, Some(50))
+            .get_coins(self.active_addr, coin_type, None, Some(50))
             .await?;
         let balance = coin_page.data.into_iter().map(|c: Coin| c.balance).sum();
         Ok(balance)
@@ -619,7 +640,6 @@ impl SuiTransport {
         if net_gas_fees < 0 {
             return Err(Error::TransportError("Unexpected negative gas fees".into()));
         };
-
 
         // add a small buffer to the estimated gas fees
         Ok(net_gas_fees as u64 + 50)
@@ -674,7 +694,7 @@ impl SuiTransport {
         pt: ProgrammableTransaction
     ) -> Result<u64> {
         let tx_data = TransactionData::new_programmable(
-            self.get_active_addr(),
+            self.active_addr,
             vec![coin.object_ref()],
             pt,
             coin.balance,
@@ -732,24 +752,7 @@ impl SuiTransport {
         type_args: Vec<TypeTag>,
         args: Vec<Argument>
     ) -> Command {
-        Command::move_call(self.get_package_id(), module, fun, type_args, args)
-    }
-
-    // generate a random address for some testing cases
-    fn rand_sui_addr() -> SuiAddress {
-        SuiAddress::random_for_testing_only()
-    }
-
-    fn rand_sui_str_addr() -> String {
-        SuiAddress::random_for_testing_only().to_string()
-    }
-
-    fn rand_account_addr() -> AccountAddress {
-        AccountAddress::random()
-    }
-
-    fn rand_account_str_addr() -> String {
-        AccountAddress::random().to_canonical_string(true)
+        Command::move_call(self.package_id, module, fun, type_args, args)
     }
 
     // A few private helpers to query on chain objects, not for public uses
@@ -816,13 +819,31 @@ impl SuiTransport {
         raw.deserialize::<RegistryObject>()
             .map_err(|e| Error::TransportError(e.to_string()))
     }
+
+    // generate a random address for some testing cases
+    fn rand_sui_addr() -> SuiAddress {
+        SuiAddress::random_for_testing_only()
+    }
+
+    fn rand_sui_str_addr() -> String {
+        SuiAddress::random_for_testing_only().to_string()
+    }
+
+    fn rand_account_addr() -> AccountAddress {
+        AccountAddress::random()
+    }
+
+    fn rand_account_str_addr() -> String {
+        AccountAddress::random().to_canonical_string(true)
+    }
+
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const TEST_PACKAGE_ID: &str = "0x6bad43ecb1772d0992a5d40ee5f4508d128060238b0584a68e174c3ea393f921";
+    const TEST_PACKAGE_ID: &str = "0x6ff6126445e2430f1a84a3413e8449fd91474591c207f39cb52487a6900b48eb";
 
     fn ser_game_obj_bytes() -> Result<Vec<u8>> {
         let game = GameObject {
@@ -967,6 +988,21 @@ mod tests {
         transport.register_game(params).await?;
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_unregister_game() -> Result<()> {
+        let params = UnregisterGameParams {
+            game_addr: "0xaeeb09391060db21ac2699ccaf07ed51682441168c93ab5c7dfd498cd910871c".to_string(),
+            reg_addr: "0x65f80e8f4e82f4885c96ccba4da02668428662e975b0a6cd1fa08b61e4e3a2fc".to_string()
+        };
+
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+
+        transport.unregister_game(params).await?;
+
+        Ok(())
+
     }
 
     #[tokio::test]
