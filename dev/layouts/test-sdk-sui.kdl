@@ -57,6 +57,14 @@ layout {
 		args "ts-node" "bin/cli.ts" "getRegistration"
 		start_suspended true
 	}
+	pane {
+		name "get game registration with game"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "getRegistrationWithGames"
+		start_suspended true
+	}
 //	pane {
 //		name "get ServerAccount"
 //		focus true

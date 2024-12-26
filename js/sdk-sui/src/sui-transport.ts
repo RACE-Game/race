@@ -40,8 +40,8 @@ export class SuiTransport implements ITransport {
     const suiClient = this.suiClient
     const transaction = new Transaction();
     let recipientAddr = ''
-    if( 'recipientAddr' in params){
-      recipientAddr = params.recipientAddr 
+    if ('recipientAddr' in params) {
+      recipientAddr = params.recipientAddr
     }
     let create_game_args = [
       transaction.pure.string(params.title), // title string
@@ -328,15 +328,15 @@ export class SuiTransport implements ITransport {
     throw new Error("Method not implemented.");
   }
   async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
-    const suiClient = this.suiClient;
-    const info: SuiObjectResponse = await suiClient.getObject({
-      id: addr,
-      options: {
-        showContent: true,
-        showType: true
-      }
-    })
-    const content = info;
+    // const suiClient = this.suiClient;
+    // const info: SuiObjectResponse = await suiClient.getObject({
+    //   id: addr,
+    //   options: {
+    //     showContent: true,
+    //     showType: true
+    //   }
+    // })
+    // const content = info;
     throw new Error("Method not implemented.");
 
   }
@@ -365,8 +365,42 @@ export class SuiTransport implements ITransport {
       games: fields.games as [],
     }
   }
-  getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {
-    throw new Error("Method not implemented.");
+  async getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {
+    const suiClient = this.suiClient;
+    const resReg: SuiObjectResponse = await suiClient.getObject({
+      id: addr,
+      options: {
+        showContent: true,
+        showType: true
+      }
+    })
+    const content = resReg.data?.content;
+    if (!content || content.dataType !== 'moveObject') {
+      return undefined;
+    }
+    if (!content.fields) return undefined;
+    let fields: MoveStruct = content.fields
+    if (Array.isArray(fields)) { return undefined }
+    if ('fields' in fields) { return undefined }
+    let gameAccounts:any = []
+    if (!('games' in content.fields)) { return undefined }
+    let games = content.fields.games
+    console.log('games', games)
+    if (Array.isArray(games) && games.length > 0) {
+      const promises: Promise<GameAccount | undefined>[] = games.map(async (game:any) => {
+        if (!game) { return undefined }
+        if (!('fields' in game)) { return undefined }
+        return await this.getGameAccount( game.fields.game_id)
+      })
+      gameAccounts = await (await Promise.all(promises))
+    }
+    return {
+      addr: addr,
+      isPrivate: fields.is_private as boolean,
+      size: fields.size as number,
+      owner: fields.owner as string,
+      games: gameAccounts,
+    }
   }
   getRecipient(addr: string): Promise<RecipientAccount | undefined> {
     throw new Error("Method not implemented.");
