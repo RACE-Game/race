@@ -2,11 +2,11 @@ mod constants;
 mod metadata;
 mod types;
 
-use std::time::Duration;
 use async_stream::stream;
 use constants::*;
 use futures::{Stream, StreamExt};
 use solana_transaction_status::UiTransactionEncoding;
+use std::time::Duration;
 use tracing::{error, info, warn};
 use types::*;
 
@@ -798,9 +798,7 @@ impl TransportT for SolanaTransport {
                     accounts.push(AccountMeta::new(ata, false));
                 }
             } else {
-                return Err(TransportError::InvalidRejectDeposits(
-                    *reject_deposit,
-                ))?;
+                return Err(TransportError::InvalidRejectDeposits(*reject_deposit))?;
             }
         }
 
@@ -1130,8 +1128,8 @@ impl TransportT for SolanaTransport {
                     Ok(x) => x,
                     Err(e) => {
                         error!("Game state deserialization error: {}", e.to_string());
-                        unsub().await;
                         yield(Err(Error::TransportError(e.to_string())));
+                        unsub().await;
                         return;
                     }
                 };
@@ -1139,8 +1137,8 @@ impl TransportT for SolanaTransport {
                     Ok(x) => x,
                     Err(e) => {
                         error!("Game account parsing error: {}", e.to_string());
-                        unsub().await;
                         yield(Err(Error::TransportError(e.to_string())));
+                        unsub().await;
                         return;
                     }
                 };
@@ -1365,7 +1363,11 @@ impl SolanaTransport {
             CommitmentConfig::finalized()
         };
         let debug = skip_preflight;
-        let client = RpcClient::new_with_timeout_and_commitment(rpc.clone(), Duration::from_secs(60), commitment);
+        let client = RpcClient::new_with_timeout_and_commitment(
+            rpc.clone(),
+            Duration::from_secs(60),
+            commitment,
+        );
         Ok(Self {
             rpc,
             client,
@@ -1670,12 +1672,7 @@ mod tests {
             .close_game_account(CloseGameAccountParams { addr: addr.clone() })
             .await
             .expect("Failed to close");
-        assert_eq!(
-            None,
-            transport
-                .get_game_account(&addr)
-                .await?
-        );
+        assert_eq!(None, transport.get_game_account(&addr).await?);
         Ok(())
     }
 

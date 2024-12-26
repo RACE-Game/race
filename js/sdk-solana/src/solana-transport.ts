@@ -292,11 +292,18 @@ export class SolanaTransport implements ITransport {
         }
         const ixs = []
         const [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID)
-        const ata = getAssociatedTokenAddressSync(gameState.tokenKey, payerKey)
+
+        let receiver
+        if (gameState.tokenKey.equals(NATIVE_MINT)) {
+            receiver = payerKey
+        } else {
+            receiver = getAssociatedTokenAddressSync(gameState.tokenKey, payerKey)
+        }
+
         const prioritizationFee = await this._getPrioritizationFee([
             gameAccountKey,
             gameState.stakeKey,
-            ata,
+            receiver,
             pda,
             regAccountKey,
         ])
@@ -346,7 +353,7 @@ export class SolanaTransport implements ITransport {
                     isWritable: false,
                 },
                 {
-                    pubkey: ata,
+                    pubkey: receiver,
                     isSigner: false,
                     isWritable: true,
                 },

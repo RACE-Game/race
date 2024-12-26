@@ -56,7 +56,8 @@ impl TransportT for WrappedTransport {
             let mut sub = match sub {
                 Ok(sub) => sub,
                 Err(e) => {
-                    return yield Err(e);
+                    yield Err(e);
+                    return;
                 }
             };
 
@@ -67,7 +68,9 @@ impl TransportT for WrappedTransport {
                         yield Ok(item);
                     },
                     Some(Err(e)) => {
-                        return yield Err(e);
+                        error!("An error occurred in game account subscription, quit sub loop");
+                        yield Err(e);
+                        return;
                     }
                     None => {
                         info!("Restart subscription after {} seconds", interval);
@@ -76,7 +79,8 @@ impl TransportT for WrappedTransport {
                         sub = match new_sub {
                             Ok(new_sub) => new_sub,
                             Err(e) => {
-                                return yield Err(e);
+                                yield Err(e);
+                                return;
                             }
                         };
                     }
@@ -293,7 +297,7 @@ mod tests {
         let mut ga1 = TestGameAccountBuilder::new().build();
         ga1.settle_version = 1;
         t.simulate_states(vec![ga0, ga1]);
-        let wt = WrappedTransport { inner: Box::new(t), retry_interval: 1 };
+        let wt = WrappedTransport { inner: Box::new(t), retry_interval: 1, resub_interval: 1 };
         let r = wt
             .settle_game(SettleParams {
                 addr: test_game_addr(),
@@ -301,11 +305,16 @@ mod tests {
                 transfers: vec![],
                 checkpoint: CheckpointOnChain::default(),
                 settle_version: 1,
+                access_version: 1,
+                accept_deposits: vec![],
+                awards: vec![],
+                entry_lock: None,
+                reset: false,
                 next_settle_version: 2,
             })
             .await;
 
-        assert_eq!(r, Ok("".to_string()));
+        assert_eq!(r.unwrap().signature, "".to_string());
         Ok(())
     }
 
@@ -317,7 +326,7 @@ mod tests {
         let mut ga1 = TestGameAccountBuilder::new().build();
         ga1.settle_version = 1;
         t.simulate_states(vec![ga0, ga1]);
-        let wt = WrappedTransport { inner: Box::new(t), retry_interval: 1 };
+        let wt = WrappedTransport { inner: Box::new(t), retry_interval: 1, resub_interval: 1 };
         let r = wt
             .settle_game(SettleParams {
                 addr: test_game_addr(),
@@ -325,11 +334,16 @@ mod tests {
                 settles: vec![],
                 checkpoint: CheckpointOnChain::default(),
                 settle_version: 0,
+                access_version: 1,
+                accept_deposits: vec![],
+                awards: vec![],
+                entry_lock: None,
+                reset: false,
                 next_settle_version: 2,
             })
             .await;
 
-        assert_eq!(r, Ok("".to_string()));
+        assert_eq!(r.unwrap().signature, "".to_string());
         Ok(())
     }
 }
