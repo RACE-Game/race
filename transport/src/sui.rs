@@ -168,7 +168,56 @@ impl TransportT for SuiTransport {
     }
 
     async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
-        todo!()
+        println!("Registering server with endpoint {}", params.endpoint);
+
+        let module = new_identifier("server")?;
+        let reg_server_fn = new_identifier("register_server")?;
+        let server_table_id = parse_object_id(SERVER_TABLE_ID)?;
+        let server_table_version = self.get_initial_shared_version(server_table_id).await?;
+        let coin = self.get_max_coin(None).await?;
+        let gas_price = self.get_gas_price().await?;
+        let tx_data = TransactionData::new_move_call(
+            self.active_addr,
+            self.package_id,
+            module,
+            reg_server_fn,
+            vec![],             // no type arguments
+            coin.object_ref(),
+            vec![
+                new_callarg(&params.endpoint)?,
+                CallArg::Object(ObjectArg::SharedObject {
+                    id: server_table_id,
+                    initial_shared_version: server_table_version,
+                    mutable: true
+                })
+            ],
+            coin.balance,
+            gas_price
+        )?;
+
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
+        println!("Needed gase fees {} and transport has balance: {}",
+                 gas_fees, coin.balance);
+
+        let response = self.send_transaction(tx_data).await?;
+        println!("Registering server tx digset: {}", response.digest.to_string());
+
+        response.object_changes
+            .inspect(|chs| {
+                let _ = chs.into_iter().map(|obj| match obj {
+                    ObjectChange::Created { .. } => {
+                        println!("Created server with ID {}", obj.object_id());
+                    },
+                    ObjectChange::Mutated { object_id, ..} => {
+                        if *object_id == server_table_id {
+                            println!("Server registered in Table {}", obj.object_id());
+                        }
+                    },
+                    _ => ()
+                });
+            });
+
+        Ok(())
     }
 
     async fn join(&self, params: JoinParams) -> Result<()> {
@@ -188,7 +237,7 @@ impl TransportT for SuiTransport {
             vec![],             // no type arguments
             coin.object_ref(),
             vec![
-                CallArg::Object(ObjectArg::SharedObject{
+                CallArg::Object(ObjectArg::SharedObject {
                     id: game_id,
                     initial_shared_version: game_init_version,
                     mutable: true
@@ -845,6 +894,8 @@ mod tests {
 
     const TEST_PACKAGE_ID: &str = "0xa443ad6e73d8ffbedbd25bf721698c7a9e7929d3838c4e5e849fd0eb7c4058fa";
 
+    const TEST_SERVER_TABLE_ID: &str = "0x8874ac1c1596e499628102068b10ad657081d122383de02766b6b3081c431755";
+
     fn ser_game_obj_bytes() -> Result<Vec<u8>> {
         let game = GameObject {
             id: parse_object_id("0x22d111cb94424373a1873bfb770129b95b8ea5e609eed25b3750c20e9be2dff5")?,
@@ -1063,6 +1114,16 @@ mod tests {
         assert_eq!(game_obj.entry_type,
                    EntryType::Cash {min_deposit: 10, max_deposit: 100});
         assert_eq!(game_obj.entry_lock, EntryLock::Open);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_register_server() -> Result<()> {
+        let params = RegisterServerParams {
+            endpoint: "https://race.poker".to_string(),
+        };
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        transport.register_server(params).await?;
         Ok(())
     }
 }
