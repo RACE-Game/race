@@ -91,7 +91,7 @@ pub(crate) fn new_structtag(path: &str) -> Result<StructTag> {
         address: parse_account_addr(&parts.0)?,
         module: new_identifier(&parts.1)?,
         name: new_identifier(&parts.2)?,
-        type_params: vec![],
+        type_params: Default::default(),
     })
 }
 

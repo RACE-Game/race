@@ -10,7 +10,12 @@ use serde::{Serialize, Deserialize};
 use shared_crypto::intent::Intent;
 use sui_config::{sui_config_dir, SUI_KEYSTORE_FILENAME};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
-use sui_types::object::Owner;
+use sui_types::{
+    base_types::ObjectRef,
+    digests::ObjectDigest,
+    object::Owner
+
+};
 use sui_json_rpc_types::{
     Coin, CoinPage, SuiMoveValue, ObjectChange, SuiRawData, SuiRawMoveObject,
     SuiTransactionBlockResponse, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI};
@@ -148,7 +153,7 @@ impl TransportT for SuiTransport {
         println!("Creating game tx digest: {}", response.digest.to_string());
 
         let object_changes: Vec<ObjectChange> = response.object_changes
-            .unwrap_or_else(|| Vec::<ObjectChange>::new());
+            .unwrap_or_else(Vec::<ObjectChange>::new);
 
         let game_id: Option<String> = object_changes.iter()
             .find_map(|obj| match obj {
@@ -203,18 +208,21 @@ impl TransportT for SuiTransport {
         println!("Registering server tx digset: {}", response.digest.to_string());
 
         response.object_changes
-            .inspect(|chs| {
-                let _ = chs.into_iter().map(|obj| match obj {
-                    ObjectChange::Created { .. } => {
-                        println!("Created server with ID {}", obj.object_id());
+            .map(|chs| {
+                chs.iter().for_each(|obj| match obj {
+                    ObjectChange::Created { object_id, version, .. } => {
+                        println!("Created server {}", object_id);
+                        println!("Server on chain version {}", version);
                     },
-                    ObjectChange::Mutated { object_id, ..} => {
+                    ObjectChange::Mutated { object_id, version, previous_version, ..} => {
                         if *object_id == server_table_id {
                             println!("Server registered in Table {}", obj.object_id());
+                            println!("Table version changed from {} to {}", version, previous_version);
                         }
                     },
                     _ => ()
                 });
+                chs             // make clippy happy as we need side effect only
             });
 
         Ok(())
@@ -267,7 +275,60 @@ impl TransportT for SuiTransport {
     }
 
     async fn serve(&self, params: ServeParams) -> Result<()> {
-        todo!()
+        let module = new_identifier("game")?;
+        let serve_fn = new_identifier("serve_game")?;
+        let game_id = parse_object_id(&params.game_addr)?;
+        let game_version = self.get_initial_shared_version(game_id).await?;
+        let server_obj_ref = self.get_owned_object_info(
+            self.active_addr,
+            SuiObjectDataFilter::StructType(
+                // 0xpkgid::server::Server
+                new_structtag(&format!("{}::{}::{}", self.package_id, "server", "Server"))?
+            )
+        ).await?;
+        let coin = self.get_max_coin(None).await?;
+        let gas_price = self.get_gas_price().await?;
+        let tx_data = TransactionData::new_move_call(
+            self.active_addr,
+            self.package_id,
+            module,
+            serve_fn,
+            vec![],             // no type arguments
+            coin.object_ref(),
+            vec![
+                CallArg::Object(ObjectArg::SharedObject {
+                    id: game_id,
+                    initial_shared_version: game_version,
+                    mutable: true
+                }),
+                CallArg::Object(ObjectArg::ImmOrOwnedObject(server_obj_ref)),
+                new_callarg(&params.verify_key)?
+            ],
+            coin.balance,
+            gas_price
+        )?;
+
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
+        println!("Needed gase fees {} and transport has balance: {}",
+                 gas_fees, coin.balance);
+
+        let response = self.send_transaction(tx_data).await?;
+
+        // Print all mutated objects including the game, server, and coin(sui)
+        // Joining a game changes a server's version, even it passed as an immutable
+        response.object_changes
+            .map(|chs| {
+                chs.iter().for_each(|obj| if let ObjectChange::Mutated {
+                    object_id, version, previous_version, object_type, .. } = obj {
+                    println!("Object {} is {} ", object_id, object_type.name);
+                    println!("Its version changed from {} to {}", version, previous_version);
+                });
+                chs             // return chs as is because we need side effects only
+            });
+
+        println!("Registering server tx digset: {}", response.digest.to_string());
+
+        Ok(())
     }
 
     // TODO: lowest priority
@@ -413,18 +474,18 @@ impl TransportT for SuiTransport {
         let response = self.send_transaction(tx_data).await?;
         println!("Creating recipient tx digest: {}", response.digest.to_string());
 
-        // Search for `Recipient` struct among the created objects (many slots and one recipient )
+        // Search for `Recipient` struct among the created objects (many slots and one recipient)
         let identifier = new_identifier("Recipient")?;
         response.object_changes
             .and_then(|chs| chs.into_iter().find(|obj| match obj {
-                &ObjectChange::Created { ref object_type, ..} => {
-                    &object_type.name == &identifier
+                ObjectChange::Created { object_type, ..} => {
+                    object_type.name == identifier
                 },
                 _ => false
             }))
-            .and_then(|ch| {
+            .map(|ch| {
                 println!("Created recipient object with id {}", ch.object_id());
-                Some(ch.object_id().to_hex_uncompressed())
+                ch.object_id().to_hex_uncompressed() // return ID in string form
             })
             .ok_or_else(|| Error::TransportError("No recipient created".into()))
     }
@@ -480,7 +541,7 @@ impl TransportT for SuiTransport {
         println!("Creating registry tx digest: {}", response.digest.to_string());
 
         let object_changes: Vec<ObjectChange> = response.object_changes
-            .unwrap_or_else(|| Vec::<ObjectChange>::new());
+            .unwrap_or_else(Vec::<ObjectChange>::new);
 
         let object_id: Option<String> = object_changes.iter()
             .find_map(|obj| match obj {
@@ -608,7 +669,7 @@ impl TransportT for SuiTransport {
         let package = parse_account_addr(PACKAGE_ID)?;
 
         let filter_opts = Some(SuiObjectDataFilter::StructType(
-            // xxxx::profile::PlayerProfile
+            // 0xxxxx::profile::PlayerProfile
             StructTag {
                 address: package,
                 module: new_identifier("profile")?,
@@ -759,12 +820,46 @@ impl SuiTransport {
 
         let seqnum = response
             .data
-            .and_then(|d| Some(d.version))
+            .map(|d| d.version)
             .ok_or_else(|| Error::TransportError("No seuqeunce number found".into()))?;
 
         println!("Object {} with sequence number {}", id ,seqnum.value());
 
         Ok(seqnum)
+    }
+
+    // Get object id and initial shared version of a specific address-owned object
+    async fn get_owned_object_info(
+        &self,
+        owner: SuiAddress,
+        filter: SuiObjectDataFilter
+    ) -> Result<ObjectRef> {
+        let query = Some(SuiObjectResponseQuery::new(
+                Some(filter),
+                Some(SuiObjectDataOptions::new().with_owner())
+        ));
+
+        let data: Vec<SuiObjectResponse> = self.client
+            .read_api()
+            .get_owned_objects(
+                owner,
+                query,
+                None,
+                None
+            ).await.map_err(|e| Error::TransportError(e.to_string()))?
+            .data;
+        println!("{:?}", data[0]);
+        data.first()
+            .and_then(|first_item| first_item.data.clone())
+            .map(|data| {
+                let version = data.owner.and_then(|o| match o {
+                    Owner::AddressOwner(_) => Some(data.version),
+                    _ => None
+                }).ok_or_else(|| Error::TransportError("init version not found".into()))?;
+                Ok((data.object_id, version, data.digest))
+            })                  // Some(Ok((id, v)))
+            .transpose()        // Ok(Some((id, v)))
+            .and_then(|ret| ret.ok_or_else(|| Error::TransportError("Queried owned object not found".into())))
     }
 
     async fn send_transaction(
@@ -803,6 +898,8 @@ impl SuiTransport {
     ) -> Command {
         Command::move_call(self.package_id, module, fun, type_args, args)
     }
+
+
 
     // A few private helpers to query on chain objects, not for public uses
     async fn internal_get_game(
@@ -858,7 +955,7 @@ impl SuiTransport {
         let raw_data: SuiRawData = response
             .data
             .and_then(|d| d.bcs)
-            .ok_or_else(|| Error::RegistrationNotFound)?;
+            .ok_or(Error::RegistrationNotFound)?;
 
         let raw: SuiRawMoveObject = match raw_data {
             SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
@@ -868,6 +965,12 @@ impl SuiTransport {
         raw.deserialize::<RegistryObject>()
             .map_err(|e| Error::TransportError(e.to_string()))
     }
+
+    async fn internal_get_server() -> Result<ServerObject> {
+        todo!()
+    }
+
+
 
     // generate a random address for some testing cases
     fn rand_sui_addr() -> SuiAddress {
@@ -1124,6 +1227,18 @@ mod tests {
         };
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
         transport.register_server(params).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_serve_game() -> Result<()> {
+        let params = ServeParams {
+            game_addr: "0x391109a9d7b71438df00e4cb30b06d602302b7208e1a9723ba703b6024ceb2dc".to_string(),
+            verify_key: "RaceTest1".to_string()
+        };
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        transport.serve(params).await?;
+
         Ok(())
     }
 }

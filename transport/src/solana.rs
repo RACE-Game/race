@@ -654,8 +654,8 @@ impl TransportT for SolanaTransport {
             };
 
             if is_native_mint(&game_state.token_mint) {
-                accounts.push(AccountMeta::new(player.addr.clone(), false));
-                calc_cu_prize_addrs.push(player.addr.clone());
+                accounts.push(AccountMeta::new(player.addr, false));
+                calc_cu_prize_addrs.push(player.addr);
             } else {
                 let ata = get_associated_token_address(&player.addr, &game_state.token_mint);
                 accounts.push(AccountMeta::new(ata, false));

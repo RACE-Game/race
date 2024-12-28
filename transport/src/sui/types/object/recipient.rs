@@ -29,7 +29,7 @@ impl From<RecipientSlot> for race_core::types::RecipientSlot {
         let shares = shares
             .into_iter()
             .map(|s| race_core::types::RecipientSlotShare {
-                owner: s.owner.into(),
+                owner: s.owner,
                 weights: s.weights,
                 claim_amount: s.claim_amount,
             })
