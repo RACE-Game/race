@@ -31,7 +31,7 @@ export class LocalSuiWallet implements IWallet, ISigner {
       return { ok: blockResp }
     } catch (e: any) {
       resp.transactionFailed('Transaction failed')
-      return { err: '' }
+      return { err: e.toString() }
     }
   }
 

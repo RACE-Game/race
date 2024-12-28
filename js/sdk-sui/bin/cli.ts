@@ -124,6 +124,18 @@ async function testGetRegistrationWithGames() {
   console.log('testGetRegistrationWithGames', res)
 }
 
+async function testRegisterGame() {
+  const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+  const params: RegisterGameParams = {
+    gameAddr: '0x23f5786879d909cfc7c75414b2156b24333e553bedf77c80421e4c8f0bd32968',
+    regAddr: '0x251a0ef52ce578f512f76edba4e740a3a1f79e0f94c9a3595bdd24b537191964',
+  }
+  let response = new ResponseHandle<RegisterGameResponse, RegisterGameError>()
+  let res = await suiTransport.registerGame(wallet, params, response);
+  console.log('testRegisterGame', response)
+}
+
+
 
 
 async function testServerAccount() {
@@ -205,6 +217,9 @@ function main() {
       break
     case 'getGameAccount':
       testGetGameAccount()
+      break
+    case 'registerGame':
+      testRegisterGame()
       break
     case 'createRecipient':
       testCreateRecipient()

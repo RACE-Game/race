@@ -1,15 +1,13 @@
 import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance, Result, CheckpointOnChain, EntryType, RecipientSlotInit, RecipientSlotShareInit } from "@race-foundation/sdk-core";
 import { Chain } from './common'
-import { Balance, getFullnodeUrl, MoveStruct, MoveVariant, PaginatedObjectsResponse, SuiClient, SuiMoveObject, SuiObjectChange, SuiObjectChangeCreated, SuiObjectResponse, SuiTransactionBlock } from '@mysten/sui/client';
+import { Balance, getFullnodeUrl, MoveStruct, MoveVariant, ObjectOwner, PaginatedObjectsResponse, SuiClient, SuiMoveObject, SuiObjectChange, SuiObjectChangeCreated, SuiObjectResponse, SuiTransactionBlock } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
+import { Transaction, TransactionDataBuilder, TransactionObjectArgument } from '@mysten/sui/transactions'
 import { bcs } from '@mysten/bcs';
 import { SuiWallet } from "./sui-wallet";
 import { LocalSuiWallet } from "./local-wallet";
-import { GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_STRUCT_TYPE, PROFILE_TABLE_ID, SUI_ICON_URL } from './constants'
+import { CLOCK_ID, GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_STRUCT_TYPE, PROFILE_TABLE_ID, SUI_ICON_URL } from './constants'
 import { ISigner, TxResult } from "./signer";
-import { option } from "@race-foundation/borsh";
-import { serializeRecipientSlotShares, serializeRecipientSlotType } from "./types";
 
 
 function coerceWallet(wallet: IWallet): asserts wallet is ISigner {
@@ -185,11 +183,11 @@ export class SuiTransport implements ITransport {
   closeGameAccount(wallet: IWallet, params: CloseGameAccountParams, resp: ResponseHandle): Promise<void> {
     throw new Error("Method not implemented.");
   }
-  // todo contract
+
   join(wallet: IWallet, params: JoinParams, resp: ResponseHandle<JoinResponse, JoinError>): Promise<void> {
     throw new Error("Method not implemented.");
   }
-  // todo contract
+
   deposit(wallet: IWallet, params: DepositParams, resp: ResponseHandle<DepositResponse, DepositError>): Promise<void> {
     throw new Error("Method not implemented.");
   }
@@ -230,13 +228,6 @@ export class SuiTransport implements ITransport {
             transaction.pure.string(owner_info), // owner_info String
             transaction.pure.u16(share.weights),// owner_weight u16
           ]
-          // arguments: [
-          //   transaction.pure.u8(slot.id), // id u8
-          //   transaction.pure.address(slot.tokenAddr),
-          //   serializeRecipientSlotType(slot.slotType),
-          //   serializeRecipientSlotShares(slot.initShares),
-          //   builder,
-          // ]
         })
         result_shares.push(result)
       });
@@ -275,9 +266,72 @@ export class SuiTransport implements ITransport {
       return resp.transactionFailed(result.err)
     }
   }
-  // todo contract
+
   async registerGame(wallet: IWallet, params: RegisterGameParams, resp: ResponseHandle<RegisterGameResponse, RegisterGameError>): Promise<void> {
-    throw new Error("Method not implemented.");
+    coerceWallet(wallet)
+    const transaction = new Transaction();
+    const suiClient = this.suiClient;
+    const objectsRes: SuiObjectResponse[] = await suiClient.multiGetObjects({
+      ids: [params.gameAddr, params.regAddr, CLOCK_ID],
+      options: {
+        showOwner: true
+      }
+    });
+    let objVersions: any = {
+      gameVersion: '',
+      regVersion: '',
+      lockVersion: ''
+    }
+    objectsRes.forEach(v => {
+      const owner: ObjectOwner | null = v.data?.owner ? v.data.owner : null
+      if (!owner) return
+      if (owner instanceof Object && 'Shared' in owner) {
+        const shared = owner.Shared
+        if ('initial_shared_version' in shared) {
+          switch (v.data?.objectId) {
+            case params.gameAddr:
+              objVersions.gameVersion = shared.initial_shared_version;
+              break;
+            case params.regAddr:
+              objVersions.regVersion = shared.initial_shared_version;
+              break;
+            case CLOCK_ID:
+              objVersions.lockVersion = shared.initial_shared_version;
+              break;
+          }
+          return shared.initial_shared_version
+        }
+      }
+      return
+    });
+    transaction.moveCall({
+      target: `${PACKAGE_ID}::registry::register_game`,
+      arguments: [
+        transaction.sharedObjectRef({
+          initialSharedVersion: objVersions.gameVersion,
+          mutable: false,
+          objectId: params.gameAddr
+        }),
+        transaction.sharedObjectRef({
+          initialSharedVersion: objVersions.regVersion,
+          mutable: true,
+          objectId: params.regAddr
+        }),
+        transaction.sharedObjectRef({
+          initialSharedVersion: objVersions.lockVersion,
+          mutable: false,
+          objectId: CLOCK_ID
+        })
+      ],
+    });
+    const result = await wallet.send(transaction, suiClient, resp)
+    if ("err" in result) {
+      return resp.transactionFailed(result.err)
+    }
+    return resp.succeed({
+      gameAddr: params.gameAddr,
+      regAddr: params.regAddr,
+    })
   }
   // todo contract
   unregisterGame(wallet: IWallet, params: UnregisterGameParams, resp: ResponseHandle): Promise<void> {
@@ -382,15 +436,15 @@ export class SuiTransport implements ITransport {
     let fields: MoveStruct = content.fields
     if (Array.isArray(fields)) { return undefined }
     if ('fields' in fields) { return undefined }
-    let gameAccounts:any = []
+    let gameAccounts: any = []
     if (!('games' in content.fields)) { return undefined }
     let games = content.fields.games
     console.log('games', games)
     if (Array.isArray(games) && games.length > 0) {
-      const promises: Promise<GameAccount | undefined>[] = games.map(async (game:any) => {
+      const promises: Promise<GameAccount | undefined>[] = games.map(async (game: any) => {
         if (!game) { return undefined }
         if (!('fields' in game)) { return undefined }
-        return await this.getGameAccount( game.fields.game_id)
+        return await this.getGameAccount(game.fields.game_id)
       })
       gameAccounts = await (await Promise.all(promises))
     }
