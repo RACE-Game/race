@@ -3,7 +3,7 @@ use bcs;
 use race_core::{
     error::{Error, Result},
     checkpoint::CheckpointOnChain,
-    types::{EntryLock, EntryType, GameAccount, GameRegistration, VoteType, RecipientAccount, RecipientSlotType, RecipientSlot},
+    types::{EntryLock, EntryType, GameAccount, GameRegistration, VoteType, RecipientAccount, RecipientSlotType, RecipientSlot, RegistrationAccount, ServerAccount},
 };
 use serde::{Serialize, Deserialize};
 use move_core_types::account_address::AccountAddress;

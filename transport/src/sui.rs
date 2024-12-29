@@ -284,7 +284,7 @@ impl TransportT for SuiTransport {
         let serve_fn = new_identifier("serve_game")?;
         let game_id = parse_object_id(&params.game_addr)?;
         let game_version = self.get_initial_shared_version(game_id).await?;
-        let server_obj_ref = self.get_owned_object_info(
+        let server_obj_ref = self.get_owned_object_ref(
             self.active_addr,
             SuiObjectDataFilter::StructType(
                 // 0xpkgid::server::Server
@@ -721,7 +721,13 @@ impl TransportT for SuiTransport {
     }
 
     async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>> {
-        todo!()
+        let server_id = parse_object_id(addr)?;
+        let server_obj: ServerObject = self.get_object(
+            server_id,
+            Error::ServerAccountNotFound
+        ).await?;
+
+        Ok(Some(server_obj.into_account()))
     }
 
     async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>> {
@@ -866,7 +872,7 @@ impl SuiTransport {
     }
 
     // Get object id and initial shared version of a specific address-owned object
-    async fn get_owned_object_info(
+    async fn get_owned_object_ref(
         &self,
         owner: SuiAddress,
         filter: SuiObjectDataFilter
@@ -885,7 +891,9 @@ impl SuiTransport {
                 None
             ).await.map_err(|e| Error::TransportError(e.to_string()))?
             .data;
-        println!("{:?}", data[0]);
+
+        println!("Got reponses data {:?}", data[0]);
+
         data.first()
             .and_then(|first_item| first_item.data.clone())
             .map(|data| {
@@ -1074,12 +1082,6 @@ impl SuiTransport {
         raw.deserialize::<RegistryObject>()
             .map_err(|e| Error::TransportError(e.to_string()))
     }
-
-    async fn internal_get_server() -> Result<ServerObject> {
-        todo!()
-    }
-
-
 
     // generate a random address for some testing cases
     fn rand_sui_addr() -> SuiAddress {
@@ -1491,6 +1493,36 @@ mod tests {
         };
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
         transport.register_server(params).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_server_account() -> Result<()> {
+        // create a server
+        let params = RegisterServerParams {
+            endpoint: "https://race.poker".to_string(),
+        };
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        transport.register_server(params).await?;
+
+        // get the server
+        let server_ref: ObjectRef = transport.get_owned_object_ref(
+            parse_sui_addr(PUBLISHER)?,
+            SuiObjectDataFilter::StructType(
+                new_structtag(&format!(
+                    "{}::{}::{}",
+                    transport.package_id, "server", "Server"))?
+            )
+        ).await?;
+        let server_id_string = server_ref.0.to_hex_uncompressed();
+
+        // test
+        let result = transport.get_server_account(&server_id_string).await?;
+        assert!(result.is_some());
+        let server_account = result.unwrap();
+        assert_eq!(server_account.addr, server_id_string);
+        assert_eq!(server_account.endpoint, "https://race.poker".to_string());
+
         Ok(())
     }
 

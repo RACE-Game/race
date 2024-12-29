@@ -33,9 +33,9 @@ pub struct RegistryObject {
 }
 
 impl RegistryObject {
-    pub fn into_account(self) -> race_core::types::RegistrationAccount {
+    pub fn into_account(self) -> RegistrationAccount {
         let RegistryObject { id, is_private, size, owner, games } = self;
-        race_core::types::RegistrationAccount {
+        RegistrationAccount {
             addr: id.to_hex_uncompressed(),
             is_private,
             size,

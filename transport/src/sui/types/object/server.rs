@@ -7,3 +7,13 @@ pub struct ServerObject {
     pub owner: SuiAddress,
     pub endpoint: String, // max: 50 chars
 }
+
+impl ServerObject {
+    pub fn into_account(self) -> ServerAccount {
+        let ServerObject { addr, endpoint, .. } = self;
+        ServerAccount {
+            addr: addr.to_string(),
+            endpoint
+        }
+    }
+}
