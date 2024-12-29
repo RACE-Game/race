@@ -174,7 +174,39 @@ impl TransportT for SuiTransport {
     }
 
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
-        todo!()
+        println!("Closing game: {}", params.addr);
+        let module = new_identifier("game")?;
+        let close_fn = new_identifier("close_game")?;
+        let game_id = parse_object_id(&params.addr)?;
+        let game_version = self.get_initial_shared_version(game_id).await?;
+        let coin = self.get_max_coin(None).await?;
+        let gas_price = self.get_gas_price().await?;
+        let tx_data = TransactionData::new_move_call(
+            self.active_addr,
+            self.package_id,
+            module,
+            close_fn,
+            vec![],             // no type arguments
+            coin.object_ref(),
+            vec![
+                CallArg::Object(ObjectArg::SharedObject {
+                    id: game_id,
+                    initial_shared_version: game_version,
+                    mutable: true
+                }),
+            ],
+            coin.balance,
+            gas_price,
+        )?;
+
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
+        println!("Needed gase fees {} and transport has balance: {}",
+                         gas_fees, coin.balance);
+
+        let response = self.send_transaction(tx_data).await?;
+        println!("Closing game tx digest: {}", response.digest.to_string());
+
+        Ok(())
     }
 
     async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
@@ -822,11 +854,13 @@ impl SuiTransport {
         println!("Got net gas fees: {} in MIST", net_gas_fees);
 
         if net_gas_fees < 0 {
-            return Err(Error::TransportError("Unexpected negative gas fees".into()));
-        };
+            println!("Sender will get rebate: {}", -net_gas_fees);
+            Ok(0)
+        } else {
+            // add a small buffer to the estimated gas fees
+            Ok(net_gas_fees as u64 + 50)
+        }
 
-        // add a small buffer to the estimated gas fees
-        Ok(net_gas_fees as u64 + 50)
     }
 
     // The `initial_shared_version` is needed for mutating an on-chain object
@@ -1536,5 +1570,20 @@ mod tests {
         transport.serve(params).await?;
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_close_game_account() -> Result<()> {
+        // create a game for deletion purposes
+        let params = make_game_params();
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let game_id: String = transport.create_game_account(params).await?;
+
+        // delete it
+        let dparams = CloseGameAccountParams { addr: game_id };
+        transport.close_game_account(dparams).await?;
+
+        Ok(())
+
     }
 }
