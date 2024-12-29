@@ -120,7 +120,7 @@ pub struct GameObject {
 }
 
 impl GameObject {
-    pub fn into_account<S: Into<String>>(self, addr: S) -> Result<GameAccount> {
+    pub fn into_account(self) -> Result<GameAccount> {
         let GameObject {
             id,
             title,
@@ -146,15 +146,15 @@ impl GameObject {
         let players = players.into_iter().map(Into::into).collect();
         let servers = servers.into_iter().map(Into::into).collect();
         let deposits = deposits.into_iter().map(Into::into).collect();
-        // TODO: use borsh to deserialize the checkpoint
         let checkpoint_onchain = if !checkpoint.is_empty() {
+            // TODO: test this out once done settle
             Some(bcs::from_bytes(&checkpoint).map_err(|_| Error::MalformedCheckpoint)?)
         } else {
             None
         };
 
         Ok(GameAccount {
-            addr: id.to_canonical_string(true),
+            addr: id.to_hex_uncompressed(),
             title,
             settle_version,
             bundle_addr: bundle_addr.to_string(),

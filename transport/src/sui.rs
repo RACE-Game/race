@@ -6,7 +6,10 @@ use async_trait::async_trait;
 use futures::{Stream, StreamExt};
 use bcs;
 use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
-use serde::{Serialize, Deserialize};
+use serde::{
+    Serialize, Deserialize,
+    de::DeserializeOwned,
+};
 use shared_crypto::intent::Intent;
 use sui_config::{sui_config_dir, SUI_KEYSTORE_FILENAME};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
@@ -654,8 +657,7 @@ impl TransportT for SuiTransport {
         let game_id = parse_object_id(addr)?;
         let game_obj = self.internal_get_game(game_id).await?;
 
-
-        todo!()
+        Ok(Some(game_obj.into_account()?))
     }
 
     async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>> {
@@ -723,7 +725,13 @@ impl TransportT for SuiTransport {
     }
 
     async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>> {
-        todo!()
+        let registration_id = parse_object_id(addr)?;
+        let registration_obj: RegistryObject = self.get_object(
+            registration_id,
+            Error::RegistrationNotFound
+        ).await?;
+
+        Ok(Some(registration_obj.into_account()))
     }
 
     async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
@@ -928,6 +936,34 @@ impl SuiTransport {
         Command::move_call(self.package_id, module, fun, type_args, args)
     }
 
+    // General method to get an on-chain object
+    async fn get_object<T: DeserializeOwned>(
+        &self,
+        object_id: ObjectID,
+        err: Error
+    ) -> Result<T> {
+        println!("Trying to get object: {}", object_id.to_hex_uncompressed());
+
+        let response = self.client.read_api()
+            .get_object_with_options(
+                object_id,
+                SuiObjectDataOptions::bcs_lossless()
+            )
+            .await?;
+
+        let bcs: SuiRawData = response
+            .data
+            .and_then(|d| d.bcs)
+            .ok_or(err)?;
+
+        let raw: SuiRawMoveObject = match bcs {
+            SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
+            _ => return Err(Error::TransportError("Object raw data not found".into()))
+        };
+
+        raw.deserialize::<T>()
+            .map_err(|e| Error::TransportError(e.to_string()))
+    }
 
 
     // A few private helpers to query on chain objects, not for public uses
@@ -935,7 +971,7 @@ impl SuiTransport {
         &self,
         game_id: ObjectID
     ) -> Result<GameObject> {
-        println!("Trying to get game object {}", game_id.to_hex_uncompressed());
+        println!("Trying to get game object: {}", game_id.to_hex_uncompressed());
 
         let response = self.client.read_api()
             .get_object_with_options(
@@ -951,7 +987,7 @@ impl SuiTransport {
 
         let raw: SuiRawMoveObject = match bcs {
             SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
-            _ => return Err(Error::TransportError("Game Object not found".into()))
+            _ => return Err(Error::TransportError("Game object raw data not found".into()))
         };
 
         // println!("raw bytes: {:?}", raw.bcs_bytes);
@@ -977,7 +1013,7 @@ impl SuiTransport {
 
         let raw: SuiRawMoveObject = match bcs {
             SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
-            _ => return Err(Error::RecipientDataNotFound)
+            _ => return Err(Error::TransportError("Recipient raw data not found".into()))
         };
 
         // println!("raw bytes: {:?}", raw.bcs_bytes);
@@ -1003,7 +1039,7 @@ impl SuiTransport {
 
         let raw: SuiRawMoveObject = match bcs {
             SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
-            _ => return Err(Error::RecipientSlotDataNotFound)
+            _ => return Err(Error::TransportError("Slot raw data not found".into()))
         };
 
         // println!("raw bytes: {:?}", raw.bcs_bytes);
@@ -1032,7 +1068,7 @@ impl SuiTransport {
 
         let raw: SuiRawMoveObject = match raw_data {
             SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
-            _ => return Err(Error::TransportError("Registry not found".into()))
+            _ => return Err(Error::TransportError("Registry raw data not found".into()))
         };
 
         raw.deserialize::<RegistryObject>()
@@ -1072,6 +1108,7 @@ mod tests {
     const TEST_PACKAGE_ID: &str = "0xa443ad6e73d8ffbedbd25bf721698c7a9e7929d3838c4e5e849fd0eb7c4058fa";
     const TEST_SERVER_TABLE_ID: &str = "0x8874ac1c1596e499628102068b10ad657081d122383de02766b6b3081c431755";
     const TEST_RECIPIENT_ID: &str = "0xd4614643f5d53bdeebab7bfd52a69f0d51900343e5ae1257b39b95a3fc1d0e86";
+    const TEST_REGISTRY: &str = "0x0cf95d442043e22dbad10c08ddcb1fa4be0bdb1e0b63b1c02ca961f35e438536";
 
     // helper fns to generate some large structures for tests
     fn ser_game_obj_bytes() -> Result<Vec<u8>> {
@@ -1102,6 +1139,20 @@ mod tests {
         println!("Original game bytes: {:?}", bytes);
 
         Ok(bytes)
+    }
+
+    fn make_game_params() -> CreateGameAccountParams{
+        // update entry type if needed
+        let entry_type = EntryType::Ticket { amount: 100 };
+        CreateGameAccountParams {
+            title: "Race Devnet Test".into(),
+            bundle_addr: SuiTransport::rand_account_str_addr(),
+            token_addr: COIN_SUI_ADDR.into(),
+            max_players: 10,
+            entry_type,
+            recipient_addr: SuiTransport::rand_account_str_addr(),
+            data: vec![8u8, 1u8, 2u8, 3u8, 4u8],
+        }
     }
 
     fn make_recipient_params() -> CreateRecipientParams {
@@ -1179,40 +1230,6 @@ mod tests {
         //     .get_all_balances(address)
         //     .await?;
         // println!("The balances for all coins owned by address: {address} are {:?}", total_balance);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_create_game() -> Result<()> {
-        // TODO: add real serialized data field
-        let params = CreateGameAccountParams {
-            title: "Race Sui2".into(),
-            bundle_addr: SuiTransport::rand_account_str_addr(),
-            token_addr: COIN_SUI_ADDR.into(),
-            max_players: 10,
-            entry_type: EntryType::Ticket { amount: 20},
-            recipient_addr: SuiTransport::rand_account_str_addr(),
-            data: vec![8u8, 1u8, 2u8, 3u8, 4u8],
-        };
-
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
-
-        let game_id = transport.create_game_account(params).await?;
-
-        println!("Create game object with id: {}", game_id);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_create_registration() -> Result<()> {
-        let params = CreateRegistrationParams {
-            is_private: false,
-            size: 20
-        };
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
-        let object_id = transport.create_registration(params).await?;
-
         Ok(())
     }
 
@@ -1297,28 +1314,112 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_register_game() -> Result<()> {
-        let params = RegisterGameParams {
-            game_addr: "0xaeeb09391060db21ac2699ccaf07ed51682441168c93ab5c7dfd498cd910871c".to_string(),
-            reg_addr: "0x65f80e8f4e82f4885c96ccba4da02668428662e975b0a6cd1fa08b61e4e3a2fc".to_string()
+    async fn test_create_registration() -> Result<()> {
+        let params = CreateRegistrationParams {
+            is_private: false,
+            size: 20
         };
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let object_id = transport.create_registration(params).await?;
 
-        transport.register_game(params).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_registration() -> Result<()> {
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        // create registration
+        let reg_str_id = transport.create_registration( CreateRegistrationParams {
+            is_private: false,
+            size: 30
+        }).await?;
+        // get the registration
+        let result = transport.get_registration(&reg_str_id).await?;
+        assert!(result.is_some());
+
+        let reg_account = result.unwrap();
+        assert_eq!(reg_account.addr, reg_str_id);
+        assert_eq!(reg_account.is_private, false);
+        assert_eq!(reg_account.size, 30);
+        assert_eq!(reg_account.games.len(), 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_register_game() -> Result<()> {
+        // create game
+        let game_params = make_game_params();
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let game_addr: String = transport.create_game_account(game_params).await?;
+
+        // register game in the test registry (created before hand)
+        let reg_params = RegisterGameParams {
+            game_addr: game_addr.clone(),
+            reg_addr: TEST_REGISTRY.to_string()
+        };
+
+        // register the newly created game
+        transport.register_game(reg_params).await?;
+
+        // get the registry to check if the game is successfully registered
+        let result = transport.get_registration(TEST_REGISTRY).await?;
+        assert!(result.is_some());
+
+        let reg_account = result.unwrap();
+        assert!(reg_account.games.len() >= 1);
+        assert_eq!(
+            reg_account.games.iter().find(|g| g.addr == game_addr).map(|g| g.addr.clone()),
+            Some(game_addr)
+        );
 
         Ok(())
     }
 
     #[tokio::test]
     async fn test_unregister_game() -> Result<()> {
-        let params = UnregisterGameParams {
-            game_addr: "0xaeeb09391060db21ac2699ccaf07ed51682441168c93ab5c7dfd498cd910871c".to_string(),
-            reg_addr: "0x65f80e8f4e82f4885c96ccba4da02668428662e975b0a6cd1fa08b61e4e3a2fc".to_string()
-        };
-
+        // create game
+        let game_params = make_game_params();
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let game_addr: String = transport.create_game_account(game_params).await?;
 
-        transport.unregister_game(params).await?;
+        // register this new game in the test registry (created before hand)
+        let reg_params = RegisterGameParams {
+            game_addr: game_addr.clone(),
+            reg_addr: TEST_REGISTRY.to_string()
+        };
+        transport.register_game(reg_params).await?;
+
+        // make sure the game is registered
+        let result1 = transport.get_registration(TEST_REGISTRY).await?;
+        assert!(result1.is_some());
+
+        let reg_account1 = result1.unwrap();
+        let game_num1 = reg_account1.games.len();
+        assert!(game_num1 >= 1);
+        assert_eq!(
+            reg_account1.games.iter().find(|g| g.addr == game_addr).map(|g| g.addr.clone()),
+            Some(game_addr.clone())
+        );
+
+        // now unregister it
+        let unreg_params = UnregisterGameParams {
+            game_addr: game_addr.to_string(),
+            reg_addr: TEST_REGISTRY.to_string()
+        };
+        transport.unregister_game(unreg_params).await?;
+
+        // check the result
+        let result2 = transport.get_registration(TEST_REGISTRY).await?;
+        assert!(result2.is_some());
+
+        let reg_account2 = result2.unwrap();
+        let game_num2 = reg_account2.games.len();
+        assert_eq!(game_num2, game_num1 - 1);
+        assert_eq!(
+            reg_account2.games.iter().find(|g| g.addr == game_addr).map(|g| g.addr.clone()),
+            None
+        );
 
         Ok(())
     }
@@ -1348,14 +1449,27 @@ mod tests {
         Ok(())
     }
 
+        #[tokio::test]
+    async fn test_create_game() -> Result<()> {
+        // TODO: add real serialized data field
+        let params = make_game_params();
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let game_id = transport.create_game_account(params).await?;
+        println!("Create game object with id: {}", game_id);
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_get_game_account() -> Result<()> {
-        let game_id_str = "0x22d111cb94424373a1873bfb770129b95b8ea5e609eed25b3750c20e9be2dff5";
-        let game_id = parse_object_id(game_id_str)?;
+        // create a game and then try to get it from the chain (devnet)
+        let params = make_game_params();
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
-        let game_obj = transport.internal_get_game(game_id).await?;
+        let game_id_str = transport.create_game_account(params).await?;
+        let game_id = parse_object_id(&game_id_str)?;
 
-        // TODO: convert game object to game account
+        // test getting game object
+        let game_obj = transport.internal_get_game(game_id).await?;
         assert_eq!(game_obj.title, "Race Sui".to_string());
         assert_eq!(game_obj.access_version, 0);
         assert_eq!(game_obj.settle_version, 0);
@@ -1365,6 +1479,8 @@ mod tests {
         assert_eq!(game_obj.entry_type,
                    EntryType::Cash {min_deposit: 10, max_deposit: 100});
         assert_eq!(game_obj.entry_lock, EntryLock::Open);
+
+        // test getting game object and convert it to account
         Ok(())
     }
 

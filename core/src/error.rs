@@ -70,17 +70,11 @@ pub enum Error {
     #[error("Registration not found")]
     RegistrationNotFound,
 
-    #[error("Recipient data not found on chain")]
+    #[error("Recipient not found on chain")]
     RecipientNotFound,
 
-    #[error("Recipient data not found on chain")]
-    RecipientDataNotFound,
-
-    #[error("Recipient data not found on chain")]
+    #[error("Recipient slot not found on chain")]
     RecipientSlotNotFound,
-
-    #[error("RecipientSlot not found on chain")]
-    RecipientSlotDataNotFound,
 
     #[error("Rpc error: {0}")]
     RpcError(String),
