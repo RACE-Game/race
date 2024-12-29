@@ -277,48 +277,48 @@ export class SuiTransport implements ITransport {
         showOwner: true
       }
     });
-    let objVersions: any = {
-      gameVersion: '',
-      regVersion: '',
-      lockVersion: ''
-    }
-    objectsRes.forEach(v => {
+    let objVersions: Record<string, number | string> = {}
+    let getObjVersionRes = false
+    for (const v of objectsRes) {
       const owner: ObjectOwner | null = v.data?.owner ? v.data.owner : null
-      if (!owner) return
-      if (owner instanceof Object && 'Shared' in owner) {
-        const shared = owner.Shared
-        if ('initial_shared_version' in shared) {
-          switch (v.data?.objectId) {
-            case params.gameAddr:
-              objVersions.gameVersion = shared.initial_shared_version;
-              break;
-            case params.regAddr:
-              objVersions.regVersion = shared.initial_shared_version;
-              break;
-            case CLOCK_ID:
-              objVersions.lockVersion = shared.initial_shared_version;
-              break;
-          }
-          return shared.initial_shared_version
-        }
+      if (!owner) {
+        getObjVersionRes = true
+        break;
       }
-      return
-    });
+      if (!(owner instanceof Object && 'Shared' in owner)) {
+        getObjVersionRes = true
+        break;
+      }
+      const shared = owner.Shared
+      if (!('initial_shared_version' in shared)) {
+        getObjVersionRes = true
+        break;
+      }
+      const objectId = v.data?.objectId
+      if (!objectId) {
+        getObjVersionRes = true
+        break;
+      }
+      objVersions[objectId] = shared.initial_shared_version;
+    };
+    if (getObjVersionRes) {
+      return resp.transactionFailed('get initial_shared_version failed')
+    }
     transaction.moveCall({
       target: `${PACKAGE_ID}::registry::register_game`,
       arguments: [
         transaction.sharedObjectRef({
-          initialSharedVersion: objVersions.gameVersion,
+          initialSharedVersion: objVersions[params.gameAddr],
           mutable: false,
           objectId: params.gameAddr
         }),
         transaction.sharedObjectRef({
-          initialSharedVersion: objVersions.regVersion,
+          initialSharedVersion: objVersions[params.regAddr],
           mutable: true,
           objectId: params.regAddr
         }),
         transaction.sharedObjectRef({
-          initialSharedVersion: objVersions.lockVersion,
+          initialSharedVersion: objVersions[CLOCK_ID],
           mutable: false,
           objectId: CLOCK_ID
         })
