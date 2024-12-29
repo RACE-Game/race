@@ -45,12 +45,14 @@ use race_core::{
     error::{Error, Result},
     transport::TransportT,
     types::{
-        AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams,
-        CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
-        GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams, EntryType, EntryLock,
+        AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
+        CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle,
+        GameRegistration, JoinParams, PlayerProfile, PublishGameParams, EntryType, EntryLock,
         RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams,
-        RecipientSlotInit, RecipientSlotShareInit, RecipientSlotType, RecipientSlotOwner
+        RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer,
+        UnregisterGameParams, VoteParams, RecipientSlotInit, RecipientSlotShareInit, RecipientSlotType, RecipientSlot,
+        RecipientSlotOwner as CoreRecipientSlotOwner
+
     }
 };
 
@@ -372,8 +374,8 @@ impl TransportT for SuiTransport {
             for share in slot.init_shares.into_iter() {
                 // prepare inputs for each share
                 let (owner_type, owner_info) = match share.owner {
-                    RecipientSlotOwner::Unassigned { identifier } => (0u8, identifier),
-                    RecipientSlotOwner::Assigned { addr } => (1u8, addr),
+                    CoreRecipientSlotOwner::Unassigned { identifier } => (0u8, identifier),
+                    CoreRecipientSlotOwner::Assigned { addr } => (1u8, addr),
                 };
 
                 let create_share_args = vec![
@@ -649,6 +651,9 @@ impl TransportT for SuiTransport {
     }
 
     async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
+        let game_id = parse_object_id(addr)?;
+        let game_obj = self.internal_get_game(game_id).await?;
+
 
         todo!()
     }
@@ -666,7 +671,8 @@ impl TransportT for SuiTransport {
         let addr = parse_sui_addr(addr)?;
 
         println!("Addr: {:?}", addr);
-        let package = parse_account_addr(PACKAGE_ID)?;
+
+        let package = parse_account_addr(&self.package_id.to_hex_uncompressed())?;
 
         let filter_opts = Some(SuiObjectDataFilter::StructType(
             // 0xxxxx::profile::PlayerProfile
@@ -721,7 +727,30 @@ impl TransportT for SuiTransport {
     }
 
     async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
-        todo!()
+        let recipient_id = parse_object_id(addr)?;
+        let recipient_obj = self.internal_get_recipient(recipient_id).await?;
+
+        println!("Need to get {} recipient slots", recipient_obj.slots.len());
+
+        let mut slots: Vec<RecipientSlot> = Vec::new();
+        for slot_id in recipient_obj.slots.iter() {
+            let slot_obj = self.internal_get_recipient_slot(*slot_id).await?;
+            slots.push(slot_obj.into());
+        }
+
+        if slots.len() == recipient_obj.slots.len() {
+            Ok(Some(
+                RecipientAccount {
+                    addr: recipient_obj.id.to_hex_uncompressed(),
+                    cap_addr: recipient_obj.cap_addr.map(|a| a.to_string()),
+                    slots
+                }
+            ))
+        } else {
+            println!("Expected {} slots but got {}",
+                     recipient_obj.slots.len(), slots.len());
+            Ok(None)
+        }
     }
 }
 
@@ -911,15 +940,7 @@ impl SuiTransport {
         let response = self.client.read_api()
             .get_object_with_options(
                 game_id,
-                 SuiObjectDataOptions {
-                    show_type: true,
-                    show_owner: true,
-                    show_previous_transaction: true,
-                    show_display: true,
-                    show_content: true,
-                    show_bcs: true,
-                    show_storage_rebate: true,
-                }
+                SuiObjectDataOptions::bcs_lossless()
             )
             .await?;
 
@@ -936,6 +957,58 @@ impl SuiTransport {
         // println!("raw bytes: {:?}", raw.bcs_bytes);
 
         raw.deserialize::<GameObject>()
+            .map_err(|e| Error::TransportError(e.to_string()))
+    }
+
+    async fn internal_get_recipient(&self, recipient_id: ObjectID) -> Result<RecipientObject> {
+        println!("Getting Recipient object: {}", recipient_id);
+
+        let response = self.client.read_api()
+            .get_object_with_options(
+                recipient_id,
+                SuiObjectDataOptions::bcs_lossless()
+            )
+            .await?;
+
+        let bcs: SuiRawData = response
+            .data
+            .and_then(|d| d.bcs)
+            .ok_or(Error::RecipientNotFound)?;
+
+        let raw: SuiRawMoveObject = match bcs {
+            SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
+            _ => return Err(Error::RecipientDataNotFound)
+        };
+
+        // println!("raw bytes: {:?}", raw.bcs_bytes);
+
+        raw.deserialize::<RecipientObject>()
+            .map_err(|e| Error::TransportError(e.to_string()))
+    }
+
+    async fn internal_get_recipient_slot(&self, slot_obj_id: ObjectID) -> Result<RecipientSlotObject> {
+        println!("Getting RecipientSlot object: {}", slot_obj_id);
+
+        let response = self.client.read_api()
+            .get_object_with_options(
+                slot_obj_id,
+                SuiObjectDataOptions::bcs_lossless()
+            )
+            .await?;
+
+        let bcs: SuiRawData = response
+            .data
+            .and_then(|d| d.bcs)
+            .ok_or(Error::RecipientSlotNotFound)?;
+
+        let raw: SuiRawMoveObject = match bcs {
+            SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
+            _ => return Err(Error::RecipientSlotDataNotFound)
+        };
+
+        // println!("raw bytes: {:?}", raw.bcs_bytes);
+
+        raw.deserialize::<RecipientSlotObject>()
             .map_err(|e| Error::TransportError(e.to_string()))
     }
 
@@ -995,10 +1068,12 @@ impl SuiTransport {
 mod tests {
     use super::*;
 
+    // temporary IDs for quick tests
     const TEST_PACKAGE_ID: &str = "0xa443ad6e73d8ffbedbd25bf721698c7a9e7929d3838c4e5e849fd0eb7c4058fa";
-
     const TEST_SERVER_TABLE_ID: &str = "0x8874ac1c1596e499628102068b10ad657081d122383de02766b6b3081c431755";
+    const TEST_RECIPIENT_ID: &str = "0xd4614643f5d53bdeebab7bfd52a69f0d51900343e5ae1257b39b95a3fc1d0e86";
 
+    // helper fns to generate some large structures for tests
     fn ser_game_obj_bytes() -> Result<Vec<u8>> {
         let game = GameObject {
             id: parse_object_id("0x22d111cb94424373a1873bfb770129b95b8ea5e609eed25b3750c20e9be2dff5")?,
@@ -1029,6 +1104,52 @@ mod tests {
         Ok(bytes)
     }
 
+    fn make_recipient_params() -> CreateRecipientParams {
+        CreateRecipientParams {
+            cap_addr: Some("0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192".into()),
+            slots: vec![
+                RecipientSlotInit {
+                    id: 0,
+                    slot_type: RecipientSlotType::Token,
+                    token_addr: COIN_SUI_ADDR.into(),
+                    init_shares: vec![
+                        RecipientSlotShareInit {
+                            owner: CoreRecipientSlotOwner::Unassigned {
+                                identifier: "Race1".into()
+                            },
+                            weights: 10,
+                        },
+                        RecipientSlotShareInit {
+                            owner: CoreRecipientSlotOwner::Unassigned {
+                                identifier: "Race2".into()
+                            },
+                            weights: 20,
+                        }
+                    ],
+                },
+                RecipientSlotInit {
+                    id: 1,
+                    slot_type: RecipientSlotType::Nft,
+                    token_addr: COIN_SUI_ADDR.into(),
+                    init_shares: vec![
+                        RecipientSlotShareInit {
+                            owner: CoreRecipientSlotOwner::Unassigned {
+                                identifier: "RaceSui1".into()
+                            },
+                            weights: 20,
+                        },
+                        RecipientSlotShareInit {
+                            owner: CoreRecipientSlotOwner::Assigned {
+                                addr: trim_prefix(PUBLISHER)
+                            },
+                            weights: 40,
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+
     #[tokio::test]
     async fn test_get_player_profile() {
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await.unwrap();
@@ -1043,7 +1164,6 @@ mod tests {
         transport.get_object_seqnum(game_id).await?;
 
         Ok(())
-
     }
 
     #[tokio::test]
@@ -1064,6 +1184,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_game() -> Result<()> {
+        // TODO: add real serialized data field
         let params = CreateGameAccountParams {
             title: "Race Sui2".into(),
             bundle_addr: SuiTransport::rand_account_str_addr(),
@@ -1089,9 +1210,7 @@ mod tests {
             is_private: false,
             size: 20
         };
-
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
-
         let object_id = transport.create_registration(params).await?;
 
         Ok(())
@@ -1099,52 +1218,80 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_recipient() -> Result<()> {
-        let params = CreateRecipientParams {
-            cap_addr: Some("0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192".into()),
-            slots: vec![
-                RecipientSlotInit {
-                    id: 0,
-                    slot_type: RecipientSlotType::Token,
-                    token_addr: COIN_SUI_ADDR.into(),
-                    init_shares: vec![
-                        RecipientSlotShareInit {
-                            owner: RecipientSlotOwner::Unassigned {
-                                identifier: "Race1".into()
-                            },
-                            weights: 10,
-                        },
-                        RecipientSlotShareInit {
-                            owner: RecipientSlotOwner::Unassigned {
-                                identifier: "Race2".into()
-                            },
-                            weights: 20,
-                        }
-                    ],
-                },
-                RecipientSlotInit {
-                    id: 1,
-                    slot_type: RecipientSlotType::Nft,
-                    token_addr: COIN_SUI_ADDR.into(),
-                    init_shares: vec![
-                        RecipientSlotShareInit {
-                            owner: RecipientSlotOwner::Unassigned {
-                                identifier: "RaceSui1".into()
-                            },
-                            weights: 20,
-                        },
-                        RecipientSlotShareInit {
-                            owner: RecipientSlotOwner::Assigned {
-                                addr: trim_prefix(PUBLISHER).to_string()
-                            },
-                            weights: 40,
-                        }
-                    ],
-                }
-            ]
-        };
+        let params = make_recipient_params();
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
 
         let res = transport.create_recipient(params).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_recipient_object() -> Result<()> {
+        let params = make_recipient_params();
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let response = transport.create_recipient(params).await?;
+        let recipient_id = parse_object_id(&response)?;
+        let recipient_obj = transport.internal_get_recipient(recipient_id).await?;
+        let cap_addr = parse_sui_addr(PUBLISHER)?;
+        println!("Found recipient {}", recipient_obj.id);
+
+        assert_eq!(recipient_obj.slots.len(), 2);
+        assert_eq!(recipient_obj.cap_addr, Some(cap_addr));
+
+        let slot0 = transport.internal_get_recipient_slot(recipient_obj.slots[0]).await?;
+        println!("slot 0: {:?}", slot0);
+        assert_eq!(slot0.slot_id, 0);
+        assert_eq!(slot0.token_addr, COIN_SUI_ADDR.to_string());
+        assert_eq!(slot0.slot_type, RecipientSlotType::Token);
+        assert_eq!(slot0.balance, 0);
+        assert_eq!(slot0.shares.len(), 2);
+        assert_eq!(slot0.shares[0].owner,
+                   RecipientSlotOwner::Unassigned { identifier: "Race1".to_string()});
+        assert_eq!(slot0.shares[0].weights, 10);
+        assert_eq!(slot0.shares[0].claim_amount, 0);
+
+        let slot1 = transport.internal_get_recipient_slot(recipient_obj.slots[1]).await?;
+        assert_eq!(slot1.slot_id, 1);
+        assert_eq!(slot1.token_addr, COIN_SUI_ADDR.to_string());
+        assert_eq!(slot1.slot_type, RecipientSlotType::Nft);
+        assert_eq!(slot1.balance, 0);
+        assert_eq!(slot1.shares.len(), 2);
+        assert_eq!(slot1.shares[1].owner,
+                   RecipientSlotOwner::Assigned { addr: parse_sui_addr(PUBLISHER)? });
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_recipient_account() -> Result<()> {
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let result = transport.get_recipient(TEST_RECIPIENT_ID).await?;
+        assert!(result.is_some());
+
+        let recipient_account = result.unwrap();
+        assert_eq!(recipient_account.slots.len(), 2);
+        let slot0: race_core::types::RecipientSlot = recipient_account.slots[0].clone();
+        assert_eq!(slot0.shares.len(), 2);
+        assert_eq!(slot0.id, 0);
+        assert_eq!(slot0.token_addr, COIN_SUI_ADDR.to_string());
+        assert_eq!(slot0.slot_type, RecipientSlotType::Token);
+        assert_eq!(slot0.balance, 0);
+        assert_eq!(slot0.shares.len(), 2);
+        assert_eq!(slot0.shares[0].owner,
+                   race_core::types::RecipientSlotOwner::Unassigned {
+                       identifier: "Race1".to_string()});
+        assert_eq!(slot0.shares[0].weights, 10);
+        assert_eq!(slot0.shares[0].claim_amount, 0);
+
+        let slot1: race_core::types::RecipientSlot = recipient_account.slots[1].clone();
+        assert_eq!(slot1.id, 1);
+        assert_eq!(slot1.token_addr, COIN_SUI_ADDR.to_string());
+        assert_eq!(slot1.slot_type, race_core::types::RecipientSlotType::Nft);
+        assert_eq!(slot1.balance, 0);
+        assert_eq!(slot1.shares.len(), 2);
+        assert_eq!(slot1.shares[1].owner,
+                   race_core::types::RecipientSlotOwner::Assigned {
+                       addr: PUBLISHER.to_string() });
 
         Ok(())
     }
@@ -1208,6 +1355,7 @@ mod tests {
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
         let game_obj = transport.internal_get_game(game_id).await?;
 
+        // TODO: convert game object to game account
         assert_eq!(game_obj.title, "Race Sui".to_string());
         assert_eq!(game_obj.access_version, 0);
         assert_eq!(game_obj.settle_version, 0);

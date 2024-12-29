@@ -46,8 +46,8 @@ pub(crate) fn to_account_addr(addr: SuiAddress) -> Result<AccountAddress> {
 }
 
 // In case sometimes we do not need the `0x` prefix of a string addr
-pub(crate) fn trim_prefix(s: &str) -> &str {
-    s.strip_prefix("0x").unwrap_or(s)
+pub(crate) fn trim_prefix(s: &str) -> String {
+    s.strip_prefix("0x").unwrap_or(s).to_string()
 }
 
 // Convert a `SuiAddress` to `ObjectID` using its inner bytes

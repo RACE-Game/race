@@ -3,7 +3,7 @@ use bcs;
 use race_core::{
     error::{Error, Result},
     checkpoint::CheckpointOnChain,
-    types::{EntryLock, EntryType, GameAccount, VoteType, RecipientAccount, RecipientSlotType, RecipientSlotOwner},
+    types::{EntryLock, EntryType, GameAccount, VoteType, RecipientAccount, RecipientSlotType, RecipientSlot},
 };
 use serde::{Serialize, Deserialize};
 use move_core_types::account_address::AccountAddress;
@@ -11,7 +11,7 @@ use sui_sdk::types::{
     base_types::{ObjectID, SuiAddress},
     transaction::Argument
 };
-use sui_json_rpc_types::{SuiMoveStruct, SuiMoveValue};
+use sui_json_rpc_types::{Coin, SuiMoveStruct, SuiMoveValue};
 use std::collections::BTreeMap;
 
 mod game;
