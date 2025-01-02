@@ -1,4 +1,3 @@
-// TODO: make imports more specific?
 use super::*;
 // Helper functions for parsing/converting string to Sui types
 pub(crate) fn new_identifier(literal: &str) -> Result<Identifier> {
@@ -56,16 +55,19 @@ pub(crate) fn to_object_id(addr: SuiAddress) -> Result<ObjectID> {
     ObjectID::from_bytes(bytes).map_err(|e| Error::TransportError(e.to_string()))
 }
 
-pub(crate) fn new_callarg<T: Serialize>(input: &T) -> Result<CallArg> {
+pub(crate) fn new_pure_arg<T: Serialize>(value: &T) -> Result<CallArg> {
     Ok(CallArg::Pure(
-        bcs::to_bytes(input)
+        bcs::to_bytes(value)
             .map_err(|e| Error::TransportError(e.to_string()))?
     ))
 }
 
-pub(crate) fn add_input<T: Serialize>(ptb: &mut PTB, input: &T) -> Result<Argument> {
-    let arg = ptb.input(new_callarg(input)?)
-        .map_err(|e| Error::TransportError(e.to_string()))?;
+pub(crate) fn new_obj_arg(value: ObjectArg) -> Result<CallArg> {
+    Ok(CallArg::Object(value))
+}
+
+pub(crate) fn add_input(ptb: &mut PTB, input: CallArg) -> Result<Argument> {
+    let arg = ptb.input(input).map_err(|e| Error::TransportError(e.to_string()))?;
     Ok(arg)
 }
 
@@ -95,6 +97,10 @@ pub(crate) fn new_structtag(path: &str) -> Result<StructTag> {
     })
 }
 
+pub(crate) fn new_typetag(path: &str) -> Result<TypeTag> {
+    Ok(TypeTag::Struct(Box::new(new_structtag(path)?)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,9 +114,9 @@ mod tests {
             &RecipientSlotOwner::Assigned { ref addr } => (1u8, addr.to_string())
         };
 
-        let move_owner_type = new_callarg(&owner_type)?;
-        let move_owner_info = new_callarg(&owner_info)?;
-        let move_weights = new_callarg(&10u16)?;
+        let move_owner_type = new_pure_arg(&owner_type)?;
+        let move_owner_info = new_pure_arg(&owner_info)?;
+        let move_weights = new_pure_arg(&10u16)?;
 
         assert_eq!(move_owner_type, CallArg::Pure(vec![0u8]));
         assert_eq!(move_owner_info, CallArg::Pure(vec![5, 82u8, 97u8, 99u8, 101u8, 49u8]));

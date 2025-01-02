@@ -84,7 +84,7 @@ pub struct GameObject {
     // addr to the game nft object
     pub bundle_addr: SuiAddress,
     // coin type (e.g. "0x02::sui::SUI") that holds all players' deposits in balance
-    pub coin_type: String,
+    pub token_addr: String,
     // game owner who created this game account
     pub owner: SuiAddress,
     // the recipient account
@@ -117,6 +117,8 @@ pub struct GameObject {
     pub checkpoint: Vec<u8>,
     // the lock for entry
     pub entry_lock: EntryLock,
+    // bonus ids
+    pub bonuses: Vec<ObjectID>,
 }
 
 impl GameObject {
@@ -126,7 +128,7 @@ impl GameObject {
             title,
             bundle_addr,
             owner,
-            coin_type,
+            token_addr,
             transactor_addr,
             access_version,
             settle_version,
@@ -140,6 +142,7 @@ impl GameObject {
             checkpoint,
             entry_lock,
             deposits,
+            bonuses,
             ..
         } = self;
 
@@ -152,13 +155,13 @@ impl GameObject {
         } else {
             None
         };
-
+        let _bonuses = bonuses.into_iter().map(|b| b.to_string()).collect::<String>();
         Ok(GameAccount {
             addr: id.to_hex_uncompressed(),
             title,
             settle_version,
             bundle_addr: bundle_addr.to_string(),
-            token_addr: coin_type,
+            token_addr,
             owner_addr: owner.to_string(),
             access_version,
             players,
@@ -173,7 +176,8 @@ impl GameObject {
             recipient_addr: recipient_addr.to_string(),
             entry_type,
             checkpoint_on_chain: checkpoint_onchain,
-            entry_lock
+            entry_lock,
+            // TODO: add bonuses
         })
     }
 }
