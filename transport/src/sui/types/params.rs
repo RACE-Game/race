@@ -1,12 +1,7 @@
 //! Parameters for SuiTransport
 use bcs;
 use race_api::types::EntryLock;
-use race_core::types::{
-    AssignRecipientParams, CreateGameAccountParams, CreatePlayerProfileParams,
-    CreateRegistrationParams, EntryType, JoinParams, PublishGameParams,
-    RegisterServerParams, ServeParams, Transfer, VoteParams,
-    VoteType,
-};
+use race_core::types::VoteType;
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 use sui_sdk::{
@@ -30,13 +25,6 @@ pub enum AssetChange {
     NoChange,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DepositParams {
-    pub amount: u64,
-    pub settle_version: u64,
-}
-
-
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug, Clone)]
 pub enum BonusType {
@@ -54,5 +42,4 @@ pub struct AttachBonusParams {
     pub amount: u64,
     pub bonus_type: BonusType,
     pub filter: Option<SuiObjectDataFilter> // None when `bonus_type` is Coin
-
 }

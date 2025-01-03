@@ -281,33 +281,58 @@ impl TransportT for SuiTransport {
         let join_fn = new_identifier("join_game")?;
         let game_id = parse_object_id(&params.game_addr)?;
         let game_init_version = self.get_initial_shared_version(game_id).await?;
-        let coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
+        let game_obj = self.get_move_object::<GameObject>(game_id).await?;
+
+        if game_obj.players.len() >= game_obj.max_players as usize {
+            return Err(Error::TransportError("Game is already full".into()));
+        }
+
+        // split coin for deposit
+        let mut ptb = PTB::new();
+        let token_addr = game_obj.token_addr.clone();
+        let payer_coin = self.get_payment_coin(
+            Some(token_addr.clone()),
+            params.amount
+        ).await?;
+        let coin_arg = add_input(
+            &mut ptb,
+            new_obj_arg(ObjectArg::ImmOrOwnedObject(payer_coin.object_ref()))?
+        )?;
+        let amt_arg = vec![add_input(&mut ptb, new_pure_arg(&params.amount)?)?];
+        ptb.command(Command::SplitCoins(coin_arg, amt_arg));
+        // join game
+        let gas_coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
         let gas_price = self.get_gas_price().await?;
-        let tx_data = TransactionData::new_move_call(
-            self.active_addr,
+        let join_args = vec![
+            add_input(&mut ptb, new_obj_arg(ObjectArg::SharedObject {
+                id: game_id,
+                initial_shared_version: game_init_version,
+                mutable: true
+            })?)?,
+            add_input(&mut ptb, new_pure_arg(&params.position)?)?,
+            add_input(&mut ptb, new_pure_arg(&params.access_version)?)?,
+            add_input(&mut ptb, new_pure_arg(&params.amount)?)?,
+            add_input(&mut ptb, new_pure_arg(&params.verify_key)?)?,
+            Argument::NestedResult(0, 0)
+        ];
+        ptb.command(Command::move_call(
             self.package_id,
             module,
             join_fn,
-            vec![],             // no type arguments
-            coin.object_ref(),
-            vec![
-                CallArg::Object(ObjectArg::SharedObject {
-                    id: game_id,
-                    initial_shared_version: game_init_version,
-                    mutable: true
-                }),
-                new_pure_arg(&params.position)?,
-                new_pure_arg(&params.access_version)?,
-                new_pure_arg(&params.amount)?,
-                new_pure_arg(&params.verify_key)?,
-            ],
-            coin.balance,
-            gas_price,
-        )?;
+            vec![new_typetag(&token_addr, None)?],
+            join_args
+        ));
+        let tx_data = TransactionData::new_programmable(
+            self.active_addr,
+            vec![gas_coin.object_ref()],
+            ptb.finish(),
+            gas_coin.balance,
+            gas_price
+        );
 
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Needed gase fees {} and transport has balance: {}",
-                         gas_fees, coin.balance);
+        println!("Need gase fees {gas_fees} and transport has balance: {}",
+                 gas_coin.balance);
 
         let response = self.send_transaction(tx_data).await?;
 
@@ -329,6 +354,12 @@ impl TransportT for SuiTransport {
         let serve_fn = new_identifier("serve_game")?;
         let game_id = parse_object_id(&params.game_addr)?;
         let game_version = self.get_initial_shared_version(game_id).await?;
+        let game_obj = self.get_move_object::<GameObject>(game_id).await?;
+
+        if game_obj.servers.len() >= MAX_SERVER_NUM as usize {
+            return Err(Error::TransportError("Game servers reaches the limit of 10".into()));
+        }
+
         let server_obj_ref = self.get_owned_object_ref(
             self.active_addr,
             SuiObjectDataFilter::StructType(
@@ -524,7 +555,7 @@ impl TransportT for SuiTransport {
                 _ => false
             }))
             .map(|ch| {
-                println!("Created recipient object with id {}", ch.object_id());
+                println!("Created recipient object: {}", ch.object_id());
                 ch.object_id().to_hex_uncompressed() // return ID in string form
             })
             .ok_or_else(|| Error::TransportError("No recipient created".into()))
@@ -756,33 +787,26 @@ impl TransportT for SuiTransport {
 
     async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>> {
         let server_id = parse_object_id(addr)?;
-        let server_obj: ServerObject = self.get_object(
-            server_id,
-            Error::ServerAccountNotFound
-        ).await?;
+        let server_obj = self.get_move_object::<ServerObject>(server_id).await?;
 
         Ok(Some(server_obj.into_account()))
     }
 
     async fn get_registration(&self, addr: &str) -> Result<Option<RegistrationAccount>> {
-        let registration_id = parse_object_id(addr)?;
-        let registration_obj: RegistryObject = self.get_object(
-            registration_id,
-            Error::RegistrationNotFound
-        ).await?;
-
-        Ok(Some(registration_obj.into_account()))
+        let reg_id = parse_object_id(addr)?;
+        let reg_obj = self.get_move_object::<RegistryObject>(reg_id).await?;
+        Ok(Some(reg_obj.into_account()))
     }
 
     async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>> {
         let recipient_id = parse_object_id(addr)?;
-        let recipient_obj = self.internal_get_recipient(recipient_id).await?;
+        let recipient_obj = self.get_move_object::<RecipientObject>(recipient_id).await?;
 
         println!("Need to get {} recipient slots", recipient_obj.slots.len());
 
         let mut slots: Vec<RecipientSlot> = Vec::new();
         for slot_id in recipient_obj.slots.iter() {
-            let slot_obj = self.internal_get_recipient_slot(*slot_id).await?;
+            let slot_obj = self.get_move_object::<RecipientSlotObject>(*slot_id).await?;
             slots.push(slot_obj.into());
         }
 
@@ -925,6 +949,7 @@ impl SuiTransport {
     }
 
     // Get object id and initial shared version of a specific address-owned object
+    // Used when the object id is unknown
     async fn get_owned_object_ref(
         &self,
         owner: SuiAddress,
@@ -1017,10 +1042,7 @@ impl SuiTransport {
                 )?;
                 let amt_arg = vec![
                     add_input(&mut ptb, new_pure_arg(&params.amount)?)?];
-                let coin_arg =
-                    ptb.command(Command::SplitCoins(coin_arg, amt_arg)) else {
-                        Err(Error::TransportError("expect an Argument type".into()))?
-                    };
+                ptb.command(Command::SplitCoins(coin_arg, amt_arg));
                 // create coin bonus
                 let coin_bonus_fn = new_identifier("create_coin_bonus")?;
                 let args = vec![
@@ -1161,6 +1183,13 @@ impl SuiTransport {
             .map_err(|e| Error::TransportError(e.to_string()))
     }
 
+    async fn get_move_object<T: DeserializeOwned>(
+        &self,
+        object_id: ObjectID
+    ) -> Result<T> {
+        let raw = self.client.read_api().get_move_object_bcs(object_id).await?;
+        bcs::from_bytes::<T>(raw.as_slice()).map_err(|e| Error::TransportError(e.to_string()))
+    }
 
     // A few private helpers to query on chain objects, not for public uses
     async fn internal_get_game(
@@ -1189,58 +1218,6 @@ impl SuiTransport {
         // println!("raw bytes: {:?}", raw.bcs_bytes);
 
         raw.deserialize::<GameObject>()
-            .map_err(|e| Error::TransportError(e.to_string()))
-    }
-
-    async fn internal_get_recipient(&self, recipient_id: ObjectID) -> Result<RecipientObject> {
-        println!("Getting Recipient object: {}", recipient_id);
-
-        let response = self.client.read_api()
-            .get_object_with_options(
-                recipient_id,
-                SuiObjectDataOptions::bcs_lossless()
-            )
-            .await?;
-
-        let bcs: SuiRawData = response
-            .data
-            .and_then(|d| d.bcs)
-            .ok_or(Error::RecipientNotFound)?;
-
-        let raw: SuiRawMoveObject = match bcs {
-            SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
-            _ => return Err(Error::TransportError("Recipient raw data not found".into()))
-        };
-
-        // println!("raw bytes: {:?}", raw.bcs_bytes);
-
-        raw.deserialize::<RecipientObject>()
-            .map_err(|e| Error::TransportError(e.to_string()))
-    }
-
-    async fn internal_get_recipient_slot(&self, slot_obj_id: ObjectID) -> Result<RecipientSlotObject> {
-        println!("Getting RecipientSlot object: {}", slot_obj_id);
-
-        let response = self.client.read_api()
-            .get_object_with_options(
-                slot_obj_id,
-                SuiObjectDataOptions::bcs_lossless()
-            )
-            .await?;
-
-        let bcs: SuiRawData = response
-            .data
-            .and_then(|d| d.bcs)
-            .ok_or(Error::RecipientSlotNotFound)?;
-
-        let raw: SuiRawMoveObject = match bcs {
-            SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
-            _ => return Err(Error::TransportError("Slot raw data not found".into()))
-        };
-
-        // println!("raw bytes: {:?}", raw.bcs_bytes);
-
-        raw.deserialize::<RecipientSlotObject>()
             .map_err(|e| Error::TransportError(e.to_string()))
     }
 
@@ -1295,46 +1272,17 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0xa7ff07ce9613ae8b42f9cfa4fcb40871a831fa54bde79426be874158412a2493";
+    const TEST_PACKAGE_ID: &str = "0x91a8a91117eb044905372730a4d0068aea4be175d0466e5951025ed0b6e58fb4";
+    const TEST_GAME_ID: &str = "0x21fdd5dd02d4a5c048b55e205e250dc6bb0a85267d144b6156aee42e10cd9731";
     const TEST_SERVER_TABLE_ID: &str = "0xb59e79c0eca5abf380627612d8f3f4324a572e5268b110057bb2468e069a08d2";
-    const TEST_RECIPIENT_ID: &str = "0xd4614643f5d53bdeebab7bfd52a69f0d51900343e5ae1257b39b95a3fc1d0e86";
+    const TEST_RECIPIENT_ID: &str = "0x4ebbd27d5a1b0d79126edf0cfb477df004f4770ff33bc907def4dbc7013b14dc";
     const TEST_REGISTRY: &str = "0x0cf95d442043e22dbad10c08ddcb1fa4be0bdb1e0b63b1c02ca961f35e438536";
+    const TEST_BUNDLE_ADDR: &str = "0x173edaccd027b5b80e7bf5c440fd54ba6998cc49be7f790efc5580f167db78ec";
 
     // helper fns to generate some large structures for tests
-    fn ser_game_obj_bytes() -> Result<Vec<u8>> {
-        let game = GameObject {
-            id: parse_object_id("0x22d111cb94424373a1873bfb770129b95b8ea5e609eed25b3750c20e9be2dff5")?,
-            version: "0.1.0".to_string(),
-            title: "Race Sui".to_string(),
-            bundle_addr: parse_sui_addr("0xb4d6e06e2d8d76fd2c5340e17ff0d8e9de6be51be3a04d74c0fb66461435573e")?,
-            token_addr: COIN_SUI_PATH.to_string(),
-            owner: parse_sui_addr(PUBLISHER)?,
-            recipient_addr: parse_sui_addr("0xd37f3779435ee556815772daa05ceb93d00669b5f7c3cb89d81ec70fd70ad939")?,
-            transactor_addr: None,
-            access_version: 0,
-            settle_version: 0,
-            max_players: 6,
-            players:vec![],
-            deposits: vec![],
-            servers:vec![],
-            data_len: 5,
-            data: vec![8,1,2,3,4],
-            votes: vec![],
-            unlock_time: None,
-            entry_type: EntryType::Cash {min_deposit: 10, max_deposit: 100},
-            checkpoint:vec![],
-            entry_lock: EntryLock::Open,
-            bonuses: vec![]
-        };
-        let bytes = bcs::to_bytes(&game).map_err(|e| Error::TransportError(e.to_string()))?;
-        println!("Original game bytes: {:?}", bytes);
-
-        Ok(bytes)
-    }
-
-    fn make_game_params() -> CreateGameAccountParams{
+    fn make_game_params() -> CreateGameAccountParams {
         // update entry type if needed
-        let entry_type = EntryType::Ticket { amount: 100 };
+        let entry_type = EntryType::Ticket { amount: 100_000_000 }; // 0.1 SUI
         CreateGameAccountParams {
             title: "Race Devnet Test".into(),
             bundle_addr: SuiTransport::rand_account_str_addr(),
@@ -1348,7 +1296,7 @@ mod tests {
 
     fn make_recipient_params() -> CreateRecipientParams {
         CreateRecipientParams {
-            cap_addr: Some("0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192".into()),
+            cap_addr: Some(PUBLISHER.into()),
             slots: vec![
                 RecipientSlotInit {
                     id: 0,
@@ -1392,35 +1340,51 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_get_player_profile() {
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await.unwrap();
-        let profile = transport.get_player_profile("0x13c43bafded256bdfda2e0fe086785aefa6e4ff45fb14fc3ca747b613aa12902").await;
-    }
-
-    #[tokio::test]
-    async fn test_get_seqnum() -> Result<()> {
-        let game_id_str = "0x22d111cb94424373a1873bfb770129b95b8ea5e609eed25b3750c20e9be2dff5";
-        let game_id = parse_object_id(game_id_str)?;
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
-        transport.get_object_seqnum(game_id).await?;
+    #[test]
+    fn ser_game_obj() -> Result<()> {
+        let game = GameObject {
+            id: parse_object_id(TEST_GAME_ID)?,
+            version: "0.1.0".to_string(),
+            title: "Race Devnet Test".to_string(),
+            bundle_addr: parse_sui_addr(TEST_BUNDLE_ADDR)?,
+            token_addr: COIN_SUI_PATH.to_string(),
+            owner: parse_sui_addr(PUBLISHER)?,
+            recipient_addr: parse_sui_addr(TEST_RECIPIENT_ID)?,
+            transactor_addr: None,
+            access_version: 0,
+            settle_version: 0,
+            max_players: 10,
+            players:vec![],
+            deposits: vec![],
+            servers:vec![],
+            balance: 0,
+            data_len: 5,
+            data: vec![8,1,2,3,4],
+            votes: vec![],
+            unlock_time: None,
+            entry_type: EntryType::Ticket { amount: 100 },
+            checkpoint:vec![],
+            entry_lock: EntryLock::Open,
+            bonuses: vec![]
+        };
+        let bytes = bcs::to_bytes(&game).map_err(|e| Error::TransportError(e.to_string()))?;
+        println!("Original game bytes: {:?}", bytes);
 
         Ok(())
     }
 
     #[tokio::test]
-    #[ignore]
-    async fn test_create_sui_transport() ->  TransportResult<()> {
-        // let package_id = ObjectID::from_hex_literal(PACKAGE_ID)
-        //     .map_err(|_| TransportError::ParseObjectIdError(PACKAGE_ID.into()))?;
-        // let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), package_id).await?;
-        // let address = transport.keystore.clone();
-        // println!("Prepare to get balances");
-        // let total_balance = transport.client
-        //     .coin_read_api()
-        //     .get_all_balances(address)
-        //     .await?;
-        // println!("The balances for all coins owned by address: {address} are {:?}", total_balance);
+    async fn test_get_player_profile() {
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await.unwrap();
+        let profile = transport.get_player_profile(PUBLISHER).await;
+    }
+
+    #[tokio::test]
+    async fn test_get_seqnum() -> Result<()> {
+        let game_id = parse_object_id(TEST_GAME_ID)?;
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        transport.get_object_seqnum(game_id).await?;
+
         Ok(())
     }
 
@@ -1436,18 +1400,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_recipient_object() -> Result<()> {
-        let params = make_recipient_params();
+        // create a recipient with 2 slots
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let params = make_recipient_params();
         let response = transport.create_recipient(params).await?;
+        // get the recipient object
         let recipient_id = parse_object_id(&response)?;
-        let recipient_obj = transport.internal_get_recipient(recipient_id).await?;
+        let recipient_obj = transport.get_move_object::<RecipientObject>(recipient_id).await?;
         let cap_addr = parse_sui_addr(PUBLISHER)?;
         println!("Found recipient {}", recipient_obj.id);
 
         assert_eq!(recipient_obj.slots.len(), 2);
         assert_eq!(recipient_obj.cap_addr, Some(cap_addr));
 
-        let slot0 = transport.internal_get_recipient_slot(recipient_obj.slots[0]).await?;
+        // get the slot one by one
+        let slot0 = transport
+            .get_move_object::<RecipientSlotObject>(recipient_obj.slots[0]).await?;
         println!("slot 0: {:?}", slot0);
         assert_eq!(slot0.slot_id, 0);
         assert_eq!(slot0.token_addr, COIN_SUI_PATH.to_string());
@@ -1459,7 +1427,8 @@ mod tests {
         assert_eq!(slot0.shares[0].weights, 10);
         assert_eq!(slot0.shares[0].claim_amount, 0);
 
-        let slot1 = transport.internal_get_recipient_slot(recipient_obj.slots[1]).await?;
+        let slot1 = transport
+            .get_move_object::<RecipientSlotObject>(recipient_obj.slots[1]).await?;
         assert_eq!(slot1.slot_id, 1);
         assert_eq!(slot1.token_addr, COIN_SUI_PATH.to_string());
         assert_eq!(slot1.slot_type, RecipientSlotType::Nft);
@@ -1617,21 +1586,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_join_game() -> Result<()> {
-        let params = CreateGameAccountParams {
-            title: "Race Sui Test".into(),
-            bundle_addr: SuiTransport::rand_account_str_addr(),
-            token_addr: COIN_SUI_PATH.into(),
-            max_players: 10,
-            entry_type: EntryType::Cash { min_deposit: 20, max_deposit: 100 },
-            recipient_addr: SuiTransport::rand_account_str_addr(),
-            data: vec![8u8, 1u8, 2u8, 3u8, 4u8],
-        };
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
-        let game_addr = transport.create_game_account(params).await?;
         let join_params = JoinParams {
-            game_addr,
+            game_addr: TEST_GAME_ID.to_string(),
             access_version: 0,
-            amount: 50,
+            amount: 100,
             position: 2,
             verify_key: "player".to_string()
         };
@@ -1642,7 +1601,6 @@ mod tests {
 
         #[tokio::test]
     async fn test_create_game() -> Result<()> {
-        // TODO: add real serialized data field
         let params = make_game_params();
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
         let game_id = transport.create_game_account(params).await?;
@@ -1654,21 +1612,21 @@ mod tests {
     #[tokio::test]
     async fn test_get_game_account() -> Result<()> {
         // create a game and then try to get it from the chain (devnet)
-        let params = make_game_params();
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let params = make_game_params();
         let game_id_str = transport.create_game_account(params).await?;
         let game_id = parse_object_id(&game_id_str)?;
 
         // test getting game object
-        let game_obj = transport.internal_get_game(game_id).await?;
-        assert_eq!(game_obj.title, "Race Sui".to_string());
+        let game_obj = transport.get_move_object::<GameObject>(game_id).await?;
+        assert_eq!(game_obj.title, "Race Devnet Test".to_string());
         assert_eq!(game_obj.access_version, 0);
         assert_eq!(game_obj.settle_version, 0);
-        assert_eq!(game_obj.max_players, 6);
+        assert_eq!(game_obj.max_players, 10);
         assert_eq!(game_obj.transactor_addr, None);
         assert_eq!(game_obj.players, vec![]);
-        assert_eq!(game_obj.entry_type,
-                   EntryType::Cash {min_deposit: 10, max_deposit: 100});
+        assert_eq!(game_obj.balance, 0);
+        assert_eq!(game_obj.entry_type, EntryType::Ticket {amount: 100});
         assert_eq!(game_obj.entry_lock, EntryLock::Open);
 
         // test getting game object and convert it to account
@@ -1719,7 +1677,7 @@ mod tests {
     #[tokio::test]
     async fn test_serve_game() -> Result<()> {
         let params = ServeParams {
-            game_addr: "0x391109a9d7b71438df00e4cb30b06d602302b7208e1a9723ba703b6024ceb2dc".to_string(),
+            game_addr: TEST_GAME_ID.to_string(),
             verify_key: "RaceTest1".to_string()
         };
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
@@ -1748,13 +1706,12 @@ mod tests {
         let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
         let game_params = make_game_params();
         let game_id: String = transport.create_game_account(game_params).await?;
-        // let game_id = "0x3b86e768b39f5cce061ac38cbd8f9f42d2729f80603a9e854d93692f1ca425e3".to_string();
         // attach coin bonus to it
         let bonus_params = AttachBonusParams {
             game_id: parse_object_id(&game_id)?,
             token_addr: COIN_SUI_PATH.to_string(),
             identifier: "RaceSuiBonus".to_string(),
-            amount: 100_000_000, // 1 SUI
+            amount: 100_000_000, // 0.1 SUI
             bonus_type: BonusType::Coin(COIN_SUI_PATH.to_string()),
             filter: None
         };

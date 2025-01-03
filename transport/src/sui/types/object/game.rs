@@ -103,6 +103,8 @@ pub struct GameObject {
     pub deposits: Vec<PlayerDeposit>,
     // game servers (max: 10)
     pub servers: Vec<ServerJoin>,
+    // game total deposits
+    pub balance: u64,
     // length of game-specific data
     pub data_len: u32,
     // serialized data of game-specific data such as sb/bb in Texas Holdem
@@ -118,7 +120,7 @@ pub struct GameObject {
     // the lock for entry
     pub entry_lock: EntryLock,
     // bonus ids
-    pub bonuses: Vec<ObjectID>,
+    pub bonuses: Vec<ObjectID>
 }
 
 impl GameObject {
