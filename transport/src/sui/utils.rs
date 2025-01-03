@@ -84,21 +84,29 @@ pub(crate) fn parse_sui_path(path: &str) -> Result<SuiPathParts > {
     Ok((parts[0].to_string(), parts[1].to_string(), parts[2].to_string()))
 }
 
-// Create a StructTag to match a specific struct (or object) defined in Sui move
-// Param indicates a full object/struct path: `"package::module::struct"`.  Find
-// constant paths in the `constants.rs` mod
-pub(crate) fn new_structtag(path: &str) -> Result<StructTag> {
+// Create a StructTag to match a specific struct (or object) defined on chain
+// `path` indicates a full object/struct path: `"package::module::struct"`.
+// `type_tag` is for recursive types such as `Coin<T>` where info for both `Coin`
+// and `T` must be provided to avoid `VMVerificationOrDeserializationError`
+pub(crate) fn new_structtag(
+    path: &str,
+    type_path: Option<&str>
+) -> Result<StructTag> {
     let parts: SuiPathParts = parse_sui_path(path)?;
+    let type_params = match type_path {
+        Some(path) => vec![new_typetag(path, None)?],
+        None => vec![]
+    };
     Ok(StructTag {
         address: parse_account_addr(&parts.0)?,
         module: new_identifier(&parts.1)?,
         name: new_identifier(&parts.2)?,
-        type_params: Default::default(),
+        type_params,
     })
 }
 
-pub(crate) fn new_typetag(path: &str) -> Result<TypeTag> {
-    Ok(TypeTag::Struct(Box::new(new_structtag(path)?)))
+pub(crate) fn new_typetag(path: &str, type_path: Option<&str>) -> Result<TypeTag> {
+    Ok(TypeTag::Struct(Box::new(new_structtag(path, type_path)?)))
 }
 
 #[cfg(test)]
@@ -127,8 +135,8 @@ mod tests {
 
     #[test]
     fn test_parse_coin_type() -> Result<()> {
-        let (sui_addr, sui_module, sui_name) = parse_sui_path(COIN_SUI_ADDR)?;
-        let (usdc_addr, usdc_module, usdc_name) = parse_sui_path(COIN_USDC_ADDR)?;
+        let (sui_addr, sui_module, sui_name) = parse_sui_path(COIN_SUI_PATH)?;
+        let (usdc_addr, usdc_module, usdc_name) = parse_sui_path(COIN_USDC_PATH)?;
 
         assert_eq!(sui_addr, "0x2");
         assert_eq!(sui_module, "sui");

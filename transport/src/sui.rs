@@ -16,8 +16,7 @@ use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use sui_types::{
     base_types::ObjectRef,
     digests::ObjectDigest,
-    object::Owner
-
+    object::Owner,
 };
 use sui_json_rpc_types::{
     Coin, CoinPage, SuiMoveValue, ObjectChange, SuiRawData, SuiRawMoveObject,
@@ -282,7 +281,7 @@ impl TransportT for SuiTransport {
         let join_fn = new_identifier("join_game")?;
         let game_id = parse_object_id(&params.game_addr)?;
         let game_init_version = self.get_initial_shared_version(game_id).await?;
-        let coin = self.get_max_coin(Some(COIN_SUI_ADDR.into())).await?;
+        let coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_move_call(
             self.active_addr,
@@ -334,7 +333,7 @@ impl TransportT for SuiTransport {
             self.active_addr,
             SuiObjectDataFilter::StructType(
                 // 0xpkgid::server::Server
-                new_structtag(&format!("{}::{}::{}", self.package_id, "server", "Server"))?
+                new_structtag(&format!("{}::{}::{}", self.package_id, "server", "Server"), None)?
             )
         ).await?;
         let coin = self.get_max_coin(None).await?;
@@ -452,7 +451,7 @@ impl TransportT for SuiTransport {
                 "RecipientSlotShare"
             );
             let shares = ptb.command(Command::make_move_vec(
-                Some(new_typetag(&path)?),
+                Some(new_typetag(&path, None)?),
                 result_shares,
             ));
             let slot_type = match slot.slot_type {
@@ -466,7 +465,7 @@ impl TransportT for SuiTransport {
                 shares,
                 recipient_builder        // builder moved here in each loop
             ];
-            let type_args = vec![new_typetag(&slot.token_addr)?];
+            let type_args = vec![new_typetag(&slot.token_addr, None)?];
 
             // 2.3 move call to create the slot; return the builder for next loop
             recipient_builder = ptb.programmable_move_call(
@@ -554,7 +553,7 @@ impl TransportT for SuiTransport {
             new_pure_arg(&params.is_private)?,
             new_pure_arg(&params.size)?
         ];
-        let coin = self.get_max_coin(Some(COIN_SUI_ADDR.into())).await?;
+        let coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_move_call(
             self.active_addr,
@@ -606,7 +605,7 @@ impl TransportT for SuiTransport {
         let clock_version = self.get_initial_shared_version(clock_id).await?;
         let module = new_identifier("registry")?;
         let reg_game_fn = new_identifier("register_game")?;
-        let coin = self.get_max_coin(Some(COIN_SUI_ADDR.into())).await?;
+        let coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_move_call(
             self.active_addr,
@@ -657,7 +656,7 @@ impl TransportT for SuiTransport {
         let registry_version = self.get_initial_shared_version(registry_id).await?;
         let module = new_identifier("registry")?;
         let unreg_game_fn = new_identifier("unregister_game")?;
-        let coin = self.get_max_coin(Some(COIN_SUI_ADDR.into())).await?;
+        let coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_move_call(
             self.active_addr,
@@ -834,8 +833,9 @@ impl SuiTransport {
             .ok_or_else(|| Error::TransportError("No Max Coin Found".to_string()))
     }
 
-    // Get the coin that has at least amount of balance for bonus
-    async fn get_bonus_coin(
+    // Get the coin that has at least the given amount of balance for payment
+    // purposes such as bonus or deposits
+    async fn get_payment_coin(
         &self,
         coin_type: Option<String>,
         payment: u64
@@ -845,7 +845,8 @@ impl SuiTransport {
             .get_coins(self.active_addr, coin_type, None, Some(50))
             .await?;
         coins.data.into_iter()
-            .find(|c| c.balance > payment + 100) // add a small buffer
+            .filter(|c| c.balance > payment + 100_000) // add a small buffer
+            .min_by_key(|c| c.balance)
             .ok_or_else(|| Error::TransportError("No Bonus Coin Found".to_string()))
     }
 
@@ -996,7 +997,7 @@ impl SuiTransport {
         Command::move_call(self.package_id, module, fun, type_args, args)
     }
 
-    // attach a bnous to the given game
+    // attach a bonus to the given game
     async fn attach_bonus(
         &self,
         params: AttachBonusParams
@@ -1005,25 +1006,35 @@ impl SuiTransport {
         let mut ptb = PTB::new();
         let bonus_id: Argument = match params.bonus_type {
             BonusType::Coin(coin_type) => {
-                let coin_bonus_fn = new_identifier("create_coin_bonus")?;
-                let bcoin = self.get_bonus_coin(
+                let payer_coin = self.get_payment_coin(
                     Some(coin_type.clone()),
                     params.amount,
                 ).await?;
+                // split the payer coin for bonus
+                let coin_arg = add_input(
+                    &mut ptb,
+                    new_obj_arg(ObjectArg::ImmOrOwnedObject(payer_coin.object_ref()))?
+                )?;
+                let amt_arg = vec![
+                    add_input(&mut ptb, new_pure_arg(&params.amount)?)?];
+                let coin_arg =
+                    ptb.command(Command::SplitCoins(coin_arg, amt_arg)) else {
+                        Err(Error::TransportError("expect an Argument type".into()))?
+                    };
+                // create coin bonus
+                let coin_bonus_fn = new_identifier("create_coin_bonus")?;
                 let args = vec![
                     add_input(&mut ptb, new_pure_arg(&params.identifier)?)?,
                     add_input(&mut ptb, new_pure_arg(&coin_type)?)?,
                     add_input(&mut ptb, new_pure_arg(&params.amount)?)?,
-                    add_input(
-                        &mut ptb,
-                        new_obj_arg(ObjectArg::ImmOrOwnedObject(bcoin.object_ref()))?
-                    )?
+                    // coin_arg
+                    Argument::NestedResult(0,0)
                 ];
                 ptb.programmable_move_call(
                     self.package_id,
                     module.clone(),
                     coin_bonus_fn,
-                    vec![new_typetag(&coin_type)?],
+                    vec![new_typetag(COIN_TYPE_PATH, Some(&coin_type))?], // Coin<T>
                     args
                 )
             },
@@ -1035,7 +1046,7 @@ impl SuiTransport {
                 );
                 let obj_ref = self.get_owned_object_ref(
                     self.active_addr,
-                    SuiObjectDataFilter::StructType(new_structtag(&obj_path)?)
+                    SuiObjectDataFilter::StructType(new_structtag(&obj_path, None)?)
                 ).await?;
                 let args = vec![
                     add_input(&mut ptb, new_pure_arg(&params.identifier)?)?,
@@ -1048,12 +1059,13 @@ impl SuiTransport {
                     self.package_id,
                     module.clone(),
                     obj_bonus_fn,
-                    vec![new_typetag(&obj_path)?],
+                    vec![new_typetag(&obj_path, None)?],
                     args
                 )
             }
         };
 
+        // attach bonus
         let attach_fn = new_identifier("attach_bonus")?;
         let game_version = self.get_initial_shared_version(params.game_id).await?;
         let args = vec![
@@ -1068,10 +1080,10 @@ impl SuiTransport {
             self.package_id,
             module,
             attach_fn,
-            vec![new_typetag(&params.token_addr)?],
+            vec![new_typetag(&params.token_addr, None)?],
             args
         );
-
+        // transaction
         let gas_coin = self.get_max_coin(None).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_programmable(
@@ -1087,6 +1099,7 @@ impl SuiTransport {
 
         let response = self.send_transaction(tx_data).await?;
 
+        println!("Attaching bonus tx digest: {}", response.digest.to_string());
         // game object changed and bonus object created
         response.object_changes
             .and_then(|chs| {
@@ -1116,7 +1129,6 @@ impl SuiTransport {
             })
             .ok_or_else(|| Error::TransportError("Expected 2 obj changes".into()))?;
 
-        println!("Attaching bonus tx digest {}", response.digest.to_string());
         Ok(())
     }
 
@@ -1283,7 +1295,7 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0xb59e79c0eca5abf380627612d8f3f4324a572e5268b110057bb2468e069a08d2";
+    const TEST_PACKAGE_ID: &str = "0xa7ff07ce9613ae8b42f9cfa4fcb40871a831fa54bde79426be874158412a2493";
     const TEST_SERVER_TABLE_ID: &str = "0xb59e79c0eca5abf380627612d8f3f4324a572e5268b110057bb2468e069a08d2";
     const TEST_RECIPIENT_ID: &str = "0xd4614643f5d53bdeebab7bfd52a69f0d51900343e5ae1257b39b95a3fc1d0e86";
     const TEST_REGISTRY: &str = "0x0cf95d442043e22dbad10c08ddcb1fa4be0bdb1e0b63b1c02ca961f35e438536";
@@ -1295,7 +1307,7 @@ mod tests {
             version: "0.1.0".to_string(),
             title: "Race Sui".to_string(),
             bundle_addr: parse_sui_addr("0xb4d6e06e2d8d76fd2c5340e17ff0d8e9de6be51be3a04d74c0fb66461435573e")?,
-            token_addr: COIN_SUI_ADDR.to_string(),
+            token_addr: COIN_SUI_PATH.to_string(),
             owner: parse_sui_addr(PUBLISHER)?,
             recipient_addr: parse_sui_addr("0xd37f3779435ee556815772daa05ceb93d00669b5f7c3cb89d81ec70fd70ad939")?,
             transactor_addr: None,
@@ -1312,6 +1324,7 @@ mod tests {
             entry_type: EntryType::Cash {min_deposit: 10, max_deposit: 100},
             checkpoint:vec![],
             entry_lock: EntryLock::Open,
+            bonuses: vec![]
         };
         let bytes = bcs::to_bytes(&game).map_err(|e| Error::TransportError(e.to_string()))?;
         println!("Original game bytes: {:?}", bytes);
@@ -1325,7 +1338,7 @@ mod tests {
         CreateGameAccountParams {
             title: "Race Devnet Test".into(),
             bundle_addr: SuiTransport::rand_account_str_addr(),
-            token_addr: COIN_SUI_ADDR.into(),
+            token_addr: COIN_SUI_PATH.into(),
             max_players: 10,
             entry_type,
             recipient_addr: SuiTransport::rand_account_str_addr(),
@@ -1340,7 +1353,7 @@ mod tests {
                 RecipientSlotInit {
                     id: 0,
                     slot_type: RecipientSlotType::Token,
-                    token_addr: COIN_SUI_ADDR.into(),
+                    token_addr: COIN_SUI_PATH.into(),
                     init_shares: vec![
                         RecipientSlotShareInit {
                             owner: CoreRecipientSlotOwner::Unassigned {
@@ -1359,7 +1372,7 @@ mod tests {
                 RecipientSlotInit {
                     id: 1,
                     slot_type: RecipientSlotType::Nft,
-                    token_addr: COIN_SUI_ADDR.into(),
+                    token_addr: COIN_SUI_PATH.into(),
                     init_shares: vec![
                         RecipientSlotShareInit {
                             owner: CoreRecipientSlotOwner::Unassigned {
@@ -1437,7 +1450,7 @@ mod tests {
         let slot0 = transport.internal_get_recipient_slot(recipient_obj.slots[0]).await?;
         println!("slot 0: {:?}", slot0);
         assert_eq!(slot0.slot_id, 0);
-        assert_eq!(slot0.token_addr, COIN_SUI_ADDR.to_string());
+        assert_eq!(slot0.token_addr, COIN_SUI_PATH.to_string());
         assert_eq!(slot0.slot_type, RecipientSlotType::Token);
         assert_eq!(slot0.balance, 0);
         assert_eq!(slot0.shares.len(), 2);
@@ -1448,7 +1461,7 @@ mod tests {
 
         let slot1 = transport.internal_get_recipient_slot(recipient_obj.slots[1]).await?;
         assert_eq!(slot1.slot_id, 1);
-        assert_eq!(slot1.token_addr, COIN_SUI_ADDR.to_string());
+        assert_eq!(slot1.token_addr, COIN_SUI_PATH.to_string());
         assert_eq!(slot1.slot_type, RecipientSlotType::Nft);
         assert_eq!(slot1.balance, 0);
         assert_eq!(slot1.shares.len(), 2);
@@ -1468,7 +1481,7 @@ mod tests {
         let slot0: race_core::types::RecipientSlot = recipient_account.slots[0].clone();
         assert_eq!(slot0.shares.len(), 2);
         assert_eq!(slot0.id, 0);
-        assert_eq!(slot0.token_addr, COIN_SUI_ADDR.to_string());
+        assert_eq!(slot0.token_addr, COIN_SUI_PATH.to_string());
         assert_eq!(slot0.slot_type, RecipientSlotType::Token);
         assert_eq!(slot0.balance, 0);
         assert_eq!(slot0.shares.len(), 2);
@@ -1480,7 +1493,7 @@ mod tests {
 
         let slot1: race_core::types::RecipientSlot = recipient_account.slots[1].clone();
         assert_eq!(slot1.id, 1);
-        assert_eq!(slot1.token_addr, COIN_SUI_ADDR.to_string());
+        assert_eq!(slot1.token_addr, COIN_SUI_PATH.to_string());
         assert_eq!(slot1.slot_type, race_core::types::RecipientSlotType::Nft);
         assert_eq!(slot1.balance, 0);
         assert_eq!(slot1.shares.len(), 2);
@@ -1607,7 +1620,7 @@ mod tests {
         let params = CreateGameAccountParams {
             title: "Race Sui Test".into(),
             bundle_addr: SuiTransport::rand_account_str_addr(),
-            token_addr: COIN_SUI_ADDR.into(),
+            token_addr: COIN_SUI_PATH.into(),
             max_players: 10,
             entry_type: EntryType::Cash { min_deposit: 20, max_deposit: 100 },
             recipient_addr: SuiTransport::rand_account_str_addr(),
@@ -1685,9 +1698,10 @@ mod tests {
         let server_ref: ObjectRef = transport.get_owned_object_ref(
             parse_sui_addr(PUBLISHER)?,
             SuiObjectDataFilter::StructType(
-                new_structtag(&format!(
-                    "{}::{}::{}",
-                    transport.package_id, "server", "Server"))?
+                new_structtag(
+                    &format!("{}::{}::{}", transport.package_id, "server", "Server"),
+                    None
+                )?
             )
         ).await?;
         let server_id_string = server_ref.0.to_hex_uncompressed();
@@ -1726,6 +1740,25 @@ mod tests {
         transport.close_game_account(dparams).await?;
 
         Ok(())
+    }
 
+    #[tokio::test]
+    async fn test_attach_coin_bonus() -> Result<()> {
+        // create a game
+        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let game_params = make_game_params();
+        let game_id: String = transport.create_game_account(game_params).await?;
+        // let game_id = "0x3b86e768b39f5cce061ac38cbd8f9f42d2729f80603a9e854d93692f1ca425e3".to_string();
+        // attach coin bonus to it
+        let bonus_params = AttachBonusParams {
+            game_id: parse_object_id(&game_id)?,
+            token_addr: COIN_SUI_PATH.to_string(),
+            identifier: "RaceSuiBonus".to_string(),
+            amount: 100_000_000, // 1 SUI
+            bonus_type: BonusType::Coin(COIN_SUI_PATH.to_string()),
+            filter: None
+        };
+        transport.attach_bonus(bonus_params).await?;
+        Ok(())
     }
 }
