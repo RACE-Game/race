@@ -25,10 +25,23 @@ impl From<PlayerJoin> for race_core::types::PlayerJoin {
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
+pub enum DepositStatus {
+    #[default]
+    Pending,
+    Rejected,
+    Refunded,
+    Accepted,
+}
+
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Default, Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerDeposit {
     pub addr: SuiAddress,
     pub amount: u64,
+    pub access_version: u64,
     pub settle_version: u64,
+    pub status: DepositStatus
 }
 
 impl From<PlayerDeposit> for race_core::types::PlayerDeposit {
@@ -74,6 +87,7 @@ pub struct Vote {
 // On-chain object that represents a game
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct GameObject {
     // ObjectID in hex literal string format: 0x...
     pub id: ObjectID,

@@ -268,7 +268,7 @@ impl TransportT for SuiTransport {
                 ObjectChange::Mutated { object_id, version, previous_version, ..} => {
                     if *object_id == self.server_table_id {
                         println!("Server registered in Table {}", obj.object_id());
-                        println!("Table version changed from {version} to {previous_version}");
+                        println!("Table version changed from {previous_version} to {version}");
                     }
                 },
                 _ => ()
@@ -369,18 +369,20 @@ impl TransportT for SuiTransport {
             self.active_addr,
             SuiObjectDataFilter::StructType(
                 // 0xpkgid::server::Server
-                new_structtag(&format!("{}::{}::{}", self.package_id, "server", "Server"), None)?
+                new_structtag(&format!(
+                    "{}::{}::{}",
+                    self.package_id, "server", "Server"), None)?
             )
         ).await?;
-        let coin = self.get_max_coin(None).await?;
+        let gas_coin = self.get_max_coin(None).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_move_call(
             self.active_addr,
             self.package_id,
             module,
             serve_fn,
-            vec![],             // no type arguments
-            coin.object_ref(),
+            vec![new_typetag(&game_obj.token_addr, None)?],
+            gas_coin.object_ref(),
             vec![
                 CallArg::Object(ObjectArg::SharedObject {
                     id: game_id,
@@ -390,13 +392,13 @@ impl TransportT for SuiTransport {
                 CallArg::Object(ObjectArg::ImmOrOwnedObject(server_obj_ref)),
                 new_pure_arg(&params.verify_key)?
             ],
-            coin.balance,
+            gas_coin.balance,
             gas_price
         )?;
 
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
         println!("Needed gase fees {} and transport has balance: {}",
-                 gas_fees, coin.balance);
+                 gas_fees, gas_coin.balance);
 
         let response = self.send_transaction(tx_data).await?;
 
@@ -406,7 +408,7 @@ impl TransportT for SuiTransport {
             .map(|chs| {
                 chs.iter().for_each(|obj| if let ObjectChange::Mutated {
                     object_id, version, previous_version, object_type, .. } = obj {
-                    println!("Object {} is {} ", object_id, object_type.name);
+                    println!("Mutated object {} with id: {} ", object_type.name, object_id);
                     println!("Its version changed from {} to {}", version, previous_version);
                 });
                 chs             // return chs as is because we need side effects only
@@ -1142,12 +1144,12 @@ impl SuiTransport {
                 let collected: Vec<_> = chs.into_iter()
                     .filter_map(|obj| match obj {
                         ObjectChange::Created { object_id, .. } => {
-                            println!("Created object: {object_id}");
+                            println!("Created bonus object: {object_id}");
                             Some(*object_id)
                         },
                         ObjectChange::Mutated { object_id, .. } => {
                             if *object_id == *params.game_id {
-                                println!("Mutated object: {object_id}");
+                                println!("Bonus attached to game: {object_id}");
                                 Some(*object_id)
                             } else {
                                 None
@@ -1202,6 +1204,7 @@ impl SuiTransport {
         object_id: ObjectID
     ) -> Result<T> {
         let raw = self.client.read_api().get_move_object_bcs(object_id).await?;
+        println!("{:?}", raw);
         bcs::from_bytes::<T>(raw.as_slice()).map_err(|e| Error::TransportError(e.to_string()))
     }
 
@@ -1340,7 +1343,8 @@ mod tests {
             id: parse_object_id(TEST_GAME_ID)?,
             version: "0.1.0".to_string(),
             title: "Race Devnet Test".to_string(),
-            bundle_addr: parse_sui_addr(TEST_BUNDLE_ADDR)?,
+            // bundle_addr: parse_sui_addr(TEST_BUNDLE_ADDR)?,
+            bundle_addr: parse_sui_addr("0x173edaccd027b5b80e7bf5c440fd54ba6998cc49be7f790efc5580f167db78ec")?,
             token_addr: COIN_SUI_PATH.to_string(),
             owner: parse_sui_addr(PUBLISHER)?,
             recipient_addr: parse_sui_addr(TEST_RECIPIENT_ID)?,
@@ -1348,10 +1352,21 @@ mod tests {
             access_version: 0,
             settle_version: 0,
             max_players: 10,
-            players:vec![],
-            deposits: vec![],
-            servers:vec![],
-            balance: 0,
+            players: vec![ PlayerJoin {
+                addr: parse_sui_addr(PUBLISHER)?,
+                position: 2u16,
+                access_version: 1,
+                verify_key: "player".to_string()
+            }],
+            deposits: vec![ PlayerDeposit {
+                addr: parse_sui_addr(PUBLISHER)?,
+                amount: 100,
+                access_version: 1,
+                settle_version: 0,
+                status: DepositStatus::Accepted
+            }],
+            servers: vec![],
+            balance: 100,
             data_len: 5,
             data: vec![8,1,2,3,4],
             votes: vec![],
@@ -1776,18 +1791,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_attach_coin_bonus() -> Result<()> {
-        // create a game
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
             TEST_SERVER_TABLE_ID,
             TEST_PROFILE_TABLE_ID
         ).await.unwrap();
-        let game_params = make_game_params();
-        let game_id: String = transport.create_game_account(game_params).await?;
         // attach coin bonus to it
         let bonus_params = AttachBonusParams {
-            game_id: parse_object_id(&game_id)?,
+            game_id: parse_object_id(TEST_GAME_ID)?,
             token_addr: COIN_SUI_PATH.to_string(),
             identifier: "RaceSuiBonus".to_string(),
             amount: 100_000_000, // 0.1 SUI
