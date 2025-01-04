@@ -69,10 +69,14 @@ use utils::*;
 pub struct SuiTransport {
     // RPC node endpoint
     rpc: String,
-    // on-chain package ID
-    package_id: ObjectID,
     // active address associated with this transport, usually the `PUBLISHER`
     active_addr: SuiAddress,
+    // on-chain package ID
+    package_id: ObjectID,
+    // a global lookup table where each user address maps to their own server
+    server_table_id: ObjectID,
+    // a global lookup table where each user wallet maps to their player profile
+    profile_table_id: ObjectID,
     // TODO: use keypair
     keystore: FileBasedKeystore,
     client: SuiClient,
@@ -223,8 +227,7 @@ impl TransportT for SuiTransport {
 
         let module = new_identifier("server")?;
         let reg_server_fn = new_identifier("register_server")?;
-        let server_table_id = parse_object_id(SERVER_TABLE_ID)?;
-        let server_table_version = self.get_initial_shared_version(server_table_id).await?;
+        let server_table_version = self.get_initial_shared_version(self.server_table_id).await?;
         let coin = self.get_max_coin(None).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_move_call(
@@ -237,7 +240,7 @@ impl TransportT for SuiTransport {
             vec![
                 new_pure_arg(&params.endpoint)?,
                 CallArg::Object(ObjectArg::SharedObject {
-                    id: server_table_id,
+                    id: self.server_table_id,
                     initial_shared_version: server_table_version,
                     mutable: true
                 })
@@ -253,23 +256,25 @@ impl TransportT for SuiTransport {
         let response = self.send_transaction(tx_data).await?;
         println!("Registering server tx digset: {}", response.digest.to_string());
 
-        response.object_changes
-            .map(|chs| {
-                chs.iter().for_each(|obj| match obj {
-                    ObjectChange::Created { object_id, version, .. } => {
-                        println!("Created server {}", object_id);
-                        println!("Server on chain version {}", version);
-                    },
-                    ObjectChange::Mutated { object_id, version, previous_version, ..} => {
-                        if *object_id == server_table_id {
-                            println!("Server registered in Table {}", obj.object_id());
-                            println!("Table version changed from {} to {}", version, previous_version);
-                        }
-                    },
-                    _ => ()
-                });
-                chs             // make clippy happy as we need side effect only
+        response.object_changes .map(|chs| {
+            chs.iter().for_each(|obj| match obj {
+                ObjectChange::Created { object_id, version, object_type, .. } => {
+                    let server_path = self.get_canonical_path("server", "Server");
+                    if object_type.to_canonical_string(true) == server_path {
+                        println!("Created server: {object_id}");
+                        println!("Server on-chain version: {version}");
+                    }
+                },
+                ObjectChange::Mutated { object_id, version, previous_version, ..} => {
+                    if *object_id == self.server_table_id {
+                        println!("Server registered in Table {}", obj.object_id());
+                        println!("Table version changed from {version} to {previous_version}");
+                    }
+                },
+                _ => ()
             });
+            chs             // make clippy happy as we need side effect only
+        });
 
         Ok(())
     }
@@ -827,9 +832,16 @@ impl TransportT for SuiTransport {
 }
 
 impl SuiTransport {
-    async fn try_new(rpc: String, pkg_id: &str) -> TransportResult<Self> {
+    async fn try_new(
+        rpc: String,
+        pkg_id: &str,
+        stable_id: &str,
+        ptable_id: &str
+    ) -> TransportResult<Self> {
         println!("Create Sui transport at RPC: {} for packge: {:?}", rpc, pkg_id);
-        let package_id = ObjectID::from_hex_literal(pkg_id)?;
+        let package_id = parse_object_id(pkg_id)?;
+        let server_table_id = parse_object_id(stable_id)?;
+        let profile_table_id = parse_object_id(ptable_id)?;
         let active_addr = parse_sui_addr(PUBLISHER)?;
         let keystore = FileBasedKeystore::new(
             &sui_config_dir()?.join(SUI_KEYSTORE_FILENAME)
@@ -837,8 +849,10 @@ impl SuiTransport {
         let client = SuiClientBuilder::default().build(rpc.clone()).await?;
         Ok(Self {
             rpc,
-            package_id,
             active_addr,
+            package_id,
+            server_table_id,
+            profile_table_id,
             keystore,
             client
         })
@@ -1221,31 +1235,10 @@ impl SuiTransport {
             .map_err(|e| Error::TransportError(e.to_string()))
     }
 
-    async fn internal_get_registry(
-        &self,
-        registry_id: ObjectID
-    ) -> Result<RegistryObject> {
-        println!("Trying to get registry object {:?}", registry_id);
-
-        let response = self.client.read_api()
-            .get_object_with_options(
-                registry_id,
-                SuiObjectDataOptions::bcs_lossless()
-            )
-            .await?;
-
-        let raw_data: SuiRawData = response
-            .data
-            .and_then(|d| d.bcs)
-            .ok_or(Error::RegistrationNotFound)?;
-
-        let raw: SuiRawMoveObject = match raw_data {
-            SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
-            _ => return Err(Error::TransportError("Registry raw data not found".into()))
-        };
-
-        raw.deserialize::<RegistryObject>()
-            .map_err(|e| Error::TransportError(e.to_string()))
+    // get a canonical string representation of the format: 0xpackage_id::module::name
+    fn get_canonical_path(&self, module: &str, name: &str) -> String {
+        format!("{}::{}::{}",
+                &self.package_id.to_hex_uncompressed(), module, name)
     }
 
     // generate a random address for some testing cases
@@ -1274,7 +1267,8 @@ mod tests {
     // temporary IDs for quick tests
     const TEST_PACKAGE_ID: &str = "0x91a8a91117eb044905372730a4d0068aea4be175d0466e5951025ed0b6e58fb4";
     const TEST_GAME_ID: &str = "0x21fdd5dd02d4a5c048b55e205e250dc6bb0a85267d144b6156aee42e10cd9731";
-    const TEST_SERVER_TABLE_ID: &str = "0xb59e79c0eca5abf380627612d8f3f4324a572e5268b110057bb2468e069a08d2";
+    const TEST_SERVER_TABLE_ID: &str = "0x3ffa29351797294a052fef5ded6e4de69ec25c84d97d07d296541f243b18c351";
+    const TEST_PROFILE_TABLE_ID: &str = "0xc57aa1de858bfecfad51a2c7cae526adbbbddf47975a9507ad5b0dbac181d1bc";
     const TEST_RECIPIENT_ID: &str = "0x4ebbd27d5a1b0d79126edf0cfb477df004f4770ff33bc907def4dbc7013b14dc";
     const TEST_REGISTRY: &str = "0x0cf95d442043e22dbad10c08ddcb1fa4be0bdb1e0b63b1c02ca961f35e438536";
     const TEST_BUNDLE_ADDR: &str = "0x173edaccd027b5b80e7bf5c440fd54ba6998cc49be7f790efc5580f167db78ec";
@@ -1375,14 +1369,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_player_profile() {
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await.unwrap();
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         let profile = transport.get_player_profile(PUBLISHER).await;
     }
 
     #[tokio::test]
     async fn test_get_seqnum() -> Result<()> {
         let game_id = parse_object_id(TEST_GAME_ID)?;
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         transport.get_object_seqnum(game_id).await?;
 
         Ok(())
@@ -1391,7 +1395,12 @@ mod tests {
     #[tokio::test]
     async fn test_create_recipient() -> Result<()> {
         let params = make_recipient_params();
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
 
         let res = transport.create_recipient(params).await?;
 
@@ -1401,7 +1410,12 @@ mod tests {
     #[tokio::test]
     async fn test_get_recipient_object() -> Result<()> {
         // create a recipient with 2 slots
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         let params = make_recipient_params();
         let response = transport.create_recipient(params).await?;
         // get the recipient object
@@ -1441,7 +1455,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_recipient_account() -> Result<()> {
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         let result = transport.get_recipient(TEST_RECIPIENT_ID).await?;
         assert!(result.is_some());
 
@@ -1479,7 +1498,12 @@ mod tests {
             is_private: false,
             size: 20
         };
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         let object_id = transport.create_registration(params).await?;
 
         Ok(())
@@ -1487,7 +1511,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_registration() -> Result<()> {
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         // create registration
         let reg_str_id = transport.create_registration( CreateRegistrationParams {
             is_private: false,
@@ -1510,7 +1539,12 @@ mod tests {
     async fn test_register_game() -> Result<()> {
         // create game
         let game_params = make_game_params();
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         let game_addr: String = transport.create_game_account(game_params).await?;
 
         // register game in the test registry (created before hand)
@@ -1540,7 +1574,12 @@ mod tests {
     async fn test_unregister_game() -> Result<()> {
         // create game
         let game_params = make_game_params();
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_SERVER_TABLE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         let game_addr: String = transport.create_game_account(game_params).await?;
 
         // register this new game in the test registry (created before hand)
@@ -1586,7 +1625,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_join_game() -> Result<()> {
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         let join_params = JoinParams {
             game_addr: TEST_GAME_ID.to_string(),
             access_version: 0,
@@ -1602,7 +1646,12 @@ mod tests {
         #[tokio::test]
     async fn test_create_game() -> Result<()> {
         let params = make_game_params();
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         let game_id = transport.create_game_account(params).await?;
         println!("[Test]: Created game object with id: {}", game_id);
 
@@ -1612,7 +1661,12 @@ mod tests {
     #[tokio::test]
     async fn test_get_game_account() -> Result<()> {
         // create a game and then try to get it from the chain (devnet)
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         let params = make_game_params();
         let game_id_str = transport.create_game_account(params).await?;
         let game_id = parse_object_id(&game_id_str)?;
@@ -1638,7 +1692,12 @@ mod tests {
         let params = RegisterServerParams {
             endpoint: "https://race.poker".to_string(),
         };
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         transport.register_server(params).await?;
         Ok(())
     }
@@ -1649,7 +1708,12 @@ mod tests {
         let params = RegisterServerParams {
             endpoint: "https://race.poker".to_string(),
         };
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         transport.register_server(params).await?;
 
         // get the server
@@ -1680,7 +1744,12 @@ mod tests {
             game_addr: TEST_GAME_ID.to_string(),
             verify_key: "RaceTest1".to_string()
         };
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         transport.serve(params).await?;
 
         Ok(())
@@ -1690,7 +1759,12 @@ mod tests {
     async fn test_close_game_account() -> Result<()> {
         // create a game for deletion purposes
         let params = make_game_params();
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         let game_id: String = transport.create_game_account(params).await?;
 
         // delete it
@@ -1703,7 +1777,12 @@ mod tests {
     #[tokio::test]
     async fn test_attach_coin_bonus() -> Result<()> {
         // create a game
-        let transport = SuiTransport::try_new(SUI_DEVNET_URL.into(), TEST_PACKAGE_ID).await?;
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
         let game_params = make_game_params();
         let game_id: String = transport.create_game_account(game_params).await?;
         // attach coin bonus to it
