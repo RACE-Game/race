@@ -577,7 +577,40 @@ impl TransportT for SuiTransport {
     }
 
     async fn publish_game(&self, params: PublishGameParams) -> Result<String> {
-        todo!()
+        let module = new_identifier("game")?;
+        let publish_fn = new_identifier("publish")?;
+        let gas_coin = self.get_max_coin(None).await?;
+        let gas_price = self.get_gas_price().await?;
+        let tx_data = TransactionData::new_move_call(
+            self.active_addr,
+            self.package_id,
+            module,
+            publish_fn,
+            vec![],                             // no type argument
+            gas_coin.object_ref(),
+            vec![new_pure_arg(&params.name)?,
+                 new_pure_arg(&params.uri)?,    // wasm bundle url
+                 new_pure_arg(&params.symbol)?, // cover image url
+            ],
+            gas_coin.balance,
+            gas_price
+        )?;
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
+        println!("Need gase fees {} and transport has balance: {}",
+                 gas_fees, gas_coin.balance);
+
+        let response = self.send_transaction(tx_data).await?;
+        println!("Publishing game tx digest: {}", response.digest.to_string());
+
+        response.object_changes
+            .and_then(|chs| chs.into_iter().find(|obj| match obj {
+                ObjectChange::Created { .. } => true,
+                _ => false
+            }).map(|ch| {
+                println!("Published game NFT: {}", ch.object_id());
+                ch.object_id().to_hex_uncompressed()
+            }))
+            .ok_or_else(|| Error::TransportError("No game published".into()))
     }
 
     async fn settle_game(&self, params: SettleParams) -> Result<SettleResult> {
@@ -607,12 +640,8 @@ impl TransportT for SuiTransport {
 
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
 
-        println!("Needed gase fees {} and transport has balance: {}",
+        println!("Need gase fees {} and transport has balance: {}",
                  gas_fees, coin.balance);
-
-        if gas_fees > coin.balance {
-            return Err(Error::TransportError("insufficient balance for gas fees".into()));
-        }
 
         let response = self.send_transaction(tx_data).await?;
 
@@ -1001,6 +1030,15 @@ impl SuiTransport {
             .and_then(|ret| ret.ok_or_else(|| Error::TransportError("Queried owned object not found".into())))
     }
 
+    async fn get_object_ref(&self, object_id: ObjectID) -> Result<ObjectRef> {
+        let response = self.client
+            .read_api()
+            .get_object_with_options(object_id, SuiObjectDataOptions::new()).await?;
+        response
+            .object_ref_if_exists()
+            .ok_or_else(|| Error::TransportError("ObjectRef not found".into()))
+    }
+
     async fn send_transaction(
         &self,
         tx_data: TransactionData
@@ -1082,10 +1120,7 @@ impl SuiTransport {
                     "{}::{}::{}",
                     &self.package_id, "game", "GameNFT"
                 );
-                let obj_ref = self.get_owned_object_ref(
-                    self.active_addr,
-                    SuiObjectDataFilter::StructType(new_structtag(&obj_path, None)?)
-                ).await?;
+                let obj_ref = self.get_object_ref(obj_id).await?;
                 let args = vec![
                     add_input(&mut ptb, new_pure_arg(&params.identifier)?)?,
                     add_input(
@@ -1268,10 +1303,10 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0x91a8a91117eb044905372730a4d0068aea4be175d0466e5951025ed0b6e58fb4";
-    const TEST_GAME_ID: &str = "0x21fdd5dd02d4a5c048b55e205e250dc6bb0a85267d144b6156aee42e10cd9731";
-    const TEST_SERVER_TABLE_ID: &str = "0x3ffa29351797294a052fef5ded6e4de69ec25c84d97d07d296541f243b18c351";
-    const TEST_PROFILE_TABLE_ID: &str = "0xc57aa1de858bfecfad51a2c7cae526adbbbddf47975a9507ad5b0dbac181d1bc";
+    const TEST_PACKAGE_ID: &str = "0xf58460970f66fab8d78e672eea4bbf5d1c4395f2dc26afd7c968c5f7e704f667";
+    const TEST_GAME_ID: &str = "0xd07a843ab6f94917edb82cb29196fb1a9a55401b78e9e619cc342377909a9a44";
+    const TEST_SERVER_TABLE_ID: &str = "0x85ce2364c1e8167076d740094d23c1d2508d16d2f1bd536d1133f0d2f6e00c08";
+    const TEST_PROFILE_TABLE_ID: &str = "0xf6a6c24d5b876a2d1ad9952527fa6aa84ed30acd275c745de8bbc893ddb1ed96";
     const TEST_RECIPIENT_ID: &str = "0x4ebbd27d5a1b0d79126edf0cfb477df004f4770ff33bc907def4dbc7013b14dc";
     const TEST_REGISTRY: &str = "0x0cf95d442043e22dbad10c08ddcb1fa4be0bdb1e0b63b1c02ca961f35e438536";
     const TEST_BUNDLE_ADDR: &str = "0x173edaccd027b5b80e7bf5c440fd54ba6998cc49be7f790efc5580f167db78ec";
@@ -1649,7 +1684,7 @@ mod tests {
         let join_params = JoinParams {
             game_addr: TEST_GAME_ID.to_string(),
             access_version: 0,
-            amount: 100,
+            amount: 100_000_000,
             position: 2,
             verify_key: "player".to_string()
         };
@@ -1804,6 +1839,47 @@ mod tests {
             identifier: "RaceSuiBonus".to_string(),
             amount: 100_000_000, // 0.1 SUI
             bonus_type: BonusType::Coin(COIN_SUI_PATH.to_string()),
+            filter: None
+        };
+        transport.attach_bonus(bonus_params).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_publish_game() -> Result<()> {
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
+
+        // publish game
+        let publish_params = PublishGameParams {
+            uri: "https://arweave.net/rb0z--jgbT3-4hBFXGR5esnRPGTj7aSeh_-qc-ucTfk".to_string(),
+            name: "RaceSuiTestNFT".to_string(),
+            symbol: "https://ar-io.net/RxxOQizlpeUfLJzDmNYSCrBRtIWibkAUC-VhO2coFbE".to_string()
+        };
+        let _nft_id = transport.publish_game(publish_params).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_attach_nft_bonus() -> Result<()> {
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
+        // attach coin bonus to it
+        let nft_id = "0x1a5b13088a9a5dcafea2f4ae4996b7b6995bc281ecb600ffd8458ed0d6b78e4c";
+        let bonus_params = AttachBonusParams {
+            game_id: parse_object_id(TEST_GAME_ID)?,
+            token_addr: COIN_SUI_PATH.to_string(),
+            identifier: "RaceSuiNFT".to_string(),
+            amount: 0,
+            bonus_type: BonusType::Object(parse_object_id(nft_id)?),
             filter: None
         };
         transport.attach_bonus(bonus_params).await?;
