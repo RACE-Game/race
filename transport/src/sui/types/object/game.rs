@@ -103,7 +103,7 @@ pub struct GameObject {
     pub owner: SuiAddress,
     // the recipient account
     pub recipient_addr: SuiAddress,
-    // addr of the first server object joined the game
+    // addr of the owner of the server object that first joined the game
     pub transactor_addr: Option<SuiAddress>,
     // a serial number, increased by 1 after each PlayerJoin or ServerJoin
     pub access_version: u64,

@@ -192,15 +192,27 @@ impl TransportT for SuiTransport {
         let close_fn = new_identifier("close_game")?;
         let game_id = parse_object_id(&params.addr)?;
         let game_version = self.get_initial_shared_version(game_id).await?;
-        let coin = self.get_max_coin(None).await?;
+        let game_obj = self.get_move_object::<GameObject>(game_id).await?;
+
+        if game_obj.players.len() > 0 {
+            return Err(Error::TransportError("Game still has players".into()));
+        }
+        if game_obj.bonuses.len() > 0 {
+            return Err(Error::TransportError("Game bonuses not claimed".into()));
+        }
+        if game_obj.balance > 0 {
+            return Err(Error::TransportError("Game stake is not 0".into()));
+        }
+
+        let gas_coin = self.get_max_coin(None).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_move_call(
             self.active_addr,
             self.package_id,
             module,
             close_fn,
-            vec![],             // no type arguments
-            coin.object_ref(),
+            vec![new_typetag(&game_obj.token_addr, None)?],
+            gas_coin.object_ref(),
             vec![
                 CallArg::Object(ObjectArg::SharedObject {
                     id: game_id,
@@ -208,13 +220,12 @@ impl TransportT for SuiTransport {
                     mutable: true
                 }),
             ],
-            coin.balance,
+            gas_coin.balance,
             gas_price,
         )?;
 
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Needed gase fees {} and transport has balance: {}",
-                         gas_fees, coin.balance);
+        println!("Need gase fees {gas_fees} and transport has balance: {}", gas_coin.balance);
 
         let response = self.send_transaction(tx_data).await?;
         println!("Closing game tx digest: {}", response.digest.to_string());
@@ -250,8 +261,7 @@ impl TransportT for SuiTransport {
         )?;
 
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Needed gase fees {} and transport has balance: {}",
-                 gas_fees, coin.balance);
+        println!("Need gase fees {gas_fees} and transport has balance: {}", coin.balance);
 
         let response = self.send_transaction(tx_data).await?;
         println!("Registering server tx digset: {}", response.digest.to_string());
