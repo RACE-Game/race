@@ -1,3 +1,6 @@
+import { _set_subtle_crypto } from '../src/crypto'
+_set_subtle_crypto(require('crypto').subtle)
+
 import { assert } from 'chai';
 import {
   encryptAes,

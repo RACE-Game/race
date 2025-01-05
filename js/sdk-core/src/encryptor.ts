@@ -4,16 +4,9 @@ import { field } from '@race-foundation/borsh'
 import { base64ToArrayBuffer, arrayBufferToBase64 } from './utils'
 import { Chacha20 } from 'ts-chacha20'
 import { IStorage } from './storage'
+import { subtle } from './crypto'
 
 const ENCRYPTOR_VERSION = '1.0'
-
-let subtle: SubtleCrypto
-if (typeof window === 'undefined') {
-    const crypto = require('crypto')
-    subtle = crypto.subtle
-} else {
-    subtle = window.crypto.subtle
-}
 
 export const aesContentIv = Uint8Array.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
@@ -62,41 +55,41 @@ const EC_PARAMS = {
 }
 
 export async function exportRsaPublicKey(publicKey: CryptoKey): Promise<string> {
-    return arrayBufferToBase64(await subtle.exportKey('spki', publicKey))
+    return arrayBufferToBase64(await subtle().exportKey('spki', publicKey))
 }
 
 export async function exportEcPublicKey(publicKey: CryptoKey): Promise<string> {
-    return arrayBufferToBase64(await subtle.exportKey('spki', publicKey))
+    return arrayBufferToBase64(await subtle().exportKey('spki', publicKey))
 }
 
 export async function exportAes(key: CryptoKey): Promise<Uint8Array> {
-    return new Uint8Array(await subtle.exportKey('raw', key))
+    return new Uint8Array(await subtle().exportKey('raw', key))
 }
 
 export async function exportRsa(keypair: CryptoKeyPair): Promise<[string, string]> {
-    let privkey = await subtle.exportKey('pkcs8', keypair.privateKey)
+    let privkey = await subtle().exportKey('pkcs8', keypair.privateKey)
     return [arrayBufferToBase64(privkey), await exportRsaPublicKey(keypair.publicKey)]
 }
 
 export async function exportEc(keypair: CryptoKeyPair): Promise<[string, string]> {
-    let privkey = await subtle.exportKey('pkcs8', keypair.privateKey)
+    let privkey = await subtle().exportKey('pkcs8', keypair.privateKey)
     return [arrayBufferToBase64(privkey), await exportEcPublicKey(keypair.publicKey)]
 }
 
 export async function encryptRsa(publicKey: CryptoKey, plaintext: Uint8Array): Promise<Uint8Array> {
-    return new Uint8Array(await subtle.encrypt('RSA-OAEP', publicKey, plaintext))
+    return new Uint8Array(await subtle().encrypt('RSA-OAEP', publicKey, plaintext))
 }
 
 export async function decryptRsa(privateKey: CryptoKey, ciphertext: Uint8Array): Promise<Uint8Array> {
-    return new Uint8Array(await subtle.decrypt('RSA-OAEP', privateKey, ciphertext))
+    return new Uint8Array(await subtle().decrypt('RSA-OAEP', privateKey, ciphertext))
 }
 
 export async function signEc(privateKey: CryptoKey, message: Uint8Array): Promise<Uint8Array> {
-    return new Uint8Array(await subtle.sign({ name: 'ECDSA', hash: { name: 'SHA-256' } }, privateKey, message))
+    return new Uint8Array(await subtle().sign({ name: 'ECDSA', hash: { name: 'SHA-256' } }, privateKey, message))
 }
 
 export async function verifyEc(publicKey: CryptoKey, signature: Uint8Array, message: Uint8Array): Promise<boolean> {
-    return await subtle.verify({ name: 'ECDSA', hash: { name: 'SHA-256' } }, publicKey, signature, message)
+    return await subtle().verify({ name: 'ECDSA', hash: { name: 'SHA-256' } }, publicKey, signature, message)
 }
 
 export function encryptChacha20(key: Uint8Array, text: Uint8Array, nonce: Uint8Array): Uint8Array {
@@ -109,7 +102,7 @@ export function decryptChacha20(key: Uint8Array, text: Uint8Array, nonce: Uint8A
 
 export async function encryptAes(key: CryptoKey, text: Uint8Array, iv: Uint8Array): Promise<Uint8Array> {
     return new Uint8Array(
-        await subtle.encrypt(
+        await subtle().encrypt(
             {
                 name: 'AES-CTR',
                 counter: iv,
@@ -123,7 +116,7 @@ export async function encryptAes(key: CryptoKey, text: Uint8Array, iv: Uint8Arra
 
 export async function decryptAes(key: CryptoKey, text: Ciphertext, iv: Uint8Array): Promise<Uint8Array> {
     return new Uint8Array(
-        await subtle.decrypt(
+        await subtle().decrypt(
             {
                 name: 'AES-CTR',
                 counter: iv,
@@ -136,41 +129,41 @@ export async function decryptAes(key: CryptoKey, text: Ciphertext, iv: Uint8Arra
 }
 
 export async function importAes(rawKey: Uint8Array): Promise<CryptoKey> {
-    return await subtle.importKey('raw', rawKey, { name: 'AES-CTR' }, true, ['encrypt', 'decrypt'])
+    return await subtle().importKey('raw', rawKey, { name: 'AES-CTR' }, true, ['encrypt', 'decrypt'])
 }
 
 export async function importRsa([privateKeyStr, publicKeyStr]: [string, string]): Promise<CryptoKeyPair> {
     const privateBuf = base64ToArrayBuffer(privateKeyStr)
-    const privateKey = await subtle.importKey('pkcs8', privateBuf, RSA_PARAMS, true, ['decrypt'])
+    const privateKey = await subtle().importKey('pkcs8', privateBuf, RSA_PARAMS, true, ['decrypt'])
     const publicKey = await importRsaPublicKey(publicKeyStr)
     return { publicKey, privateKey }
 }
 
 export async function importEc([privateKeyStr, publicKeyStr]: [string, string]): Promise<CryptoKeyPair> {
     const privateBuf = base64ToArrayBuffer(privateKeyStr)
-    const privateKey = await subtle.importKey('pkcs8', privateBuf, EC_PARAMS, true, ['sign'])
+    const privateKey = await subtle().importKey('pkcs8', privateBuf, EC_PARAMS, true, ['sign'])
     const publicKey = await importEcPublicKey(publicKeyStr)
     return { publicKey, privateKey }
 }
 
 export async function importRsaPublicKey(publicKeyStr: string): Promise<CryptoKey> {
     const publicBuf = base64ToArrayBuffer(publicKeyStr)
-    const publicKey = await subtle.importKey('spki', publicBuf, RSA_PARAMS, true, ['encrypt'])
+    const publicKey = await subtle().importKey('spki', publicBuf, RSA_PARAMS, true, ['encrypt'])
     return publicKey
 }
 
 export async function importEcPublicKey(publicKeyStr: string): Promise<CryptoKey> {
     const publicBuf = base64ToArrayBuffer(publicKeyStr)
-    const publicKey = await subtle.importKey('spki', publicBuf, EC_PARAMS, true, ['verify'])
+    const publicKey = await subtle().importKey('spki', publicBuf, EC_PARAMS, true, ['verify'])
     return publicKey
 }
 
 export async function generateEcKeypair(): Promise<CryptoKeyPair> {
-    return await subtle.generateKey(EC_PARAMS, true, ['verify', 'sign'])
+    return await subtle().generateKey(EC_PARAMS, true, ['verify', 'sign'])
 }
 
 export async function generateRsaKeypair(): Promise<CryptoKeyPair> {
-    return await subtle.generateKey(
+    return await subtle().generateKey(
         {
             name: 'RSA-OAEP',
             modulusLength: 1024,
@@ -189,7 +182,7 @@ export function generateChacha20(): Uint8Array {
 }
 
 export async function generateAes(): Promise<CryptoKey> {
-    const k = await subtle.generateKey(
+    const k = await subtle().generateKey(
         {
             name: 'AES-CTR',
             length: 128,
@@ -462,7 +455,7 @@ export class Encryptor implements IEncryptor {
 }
 
 export async function sha256(data: Uint8Array): Promise<Uint8Array> {
-    let hashBuffer = await subtle.digest('SHA-256', data)
+    let hashBuffer = await subtle().digest('SHA-256', data)
     return new Uint8Array(hashBuffer)
 }
 
