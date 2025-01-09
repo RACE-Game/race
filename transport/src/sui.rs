@@ -44,17 +44,17 @@ use std::str::FromStr;
 use std::collections::BTreeMap;
 use crate::error::{TransportError, TransportResult};
 use race_core::{
+    checkpoint::CheckpointOnChain as CoreCheckpointOnChain,
     error::{Error, Result},
     transport::TransportT,
     types::{
-        AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
+        Award, AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle,
         GameRegistration, JoinParams, PlayerProfile, PublishGameParams, EntryType, EntryLock,
         RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer,
+        RegistrationAccount, ServeParams, ServerAccount, Settle, SettleParams, SettleResult, Transfer,
         UnregisterGameParams, VoteParams, RecipientSlotInit, RecipientSlotShareInit, RecipientSlotType, RecipientSlot,
         RecipientSlotOwner as CoreRecipientSlotOwner
-
     }
 };
 
@@ -213,19 +213,17 @@ impl TransportT for SuiTransport {
             close_fn,
             vec![new_typetag(&game_obj.token_addr, None)?],
             gas_coin.object_ref(),
-            vec![
-                CallArg::Object(ObjectArg::SharedObject {
+            vec![CallArg::Object(
+                ObjectArg::SharedObject {
                     id: game_id,
                     initial_shared_version: game_version,
                     mutable: true
-                }),
-            ],
+                })],
             gas_coin.balance,
-            gas_price,
-        )?;
-
+            gas_price)?;
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Need gase fees {gas_fees} and transport has balance: {}", gas_coin.balance);
+        println!("Need gase fees {gas_fees} and transport has balance: {}",
+                 gas_coin.balance);
 
         let response = self.send_transaction(tx_data).await?;
         println!("Closing game tx digest: {}", response.digest.to_string());
@@ -248,18 +246,14 @@ impl TransportT for SuiTransport {
             reg_server_fn,
             vec![],             // no type arguments
             coin.object_ref(),
-            vec![
-                new_pure_arg(&params.endpoint)?,
-                CallArg::Object(ObjectArg::SharedObject {
-                    id: self.server_table_id,
-                    initial_shared_version: server_table_version,
-                    mutable: true
-                })
-            ],
+            vec![new_pure_arg(&params.endpoint)?,
+                 CallArg::Object(ObjectArg::SharedObject {
+                     id: self.server_table_id,
+                     initial_shared_version: server_table_version,
+                     mutable: true
+                 })],
             coin.balance,
-            gas_price
-        )?;
-
+            gas_price)?;
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
         println!("Need gase fees {gas_fees} and transport has balance: {}", coin.balance);
 
@@ -493,10 +487,8 @@ impl TransportT for SuiTransport {
 
             // 2.2. add slot id, token_addr and slot type info
             let path = format!(
-                "{}::{}::{}",
+                "{}::recipient::RecipientSlotShare",
                 self.package_id.to_hex_uncompressed(),
-                "recipient",
-                "RecipientSlotShare"
             );
             let shares = ptb.command(Command::make_move_vec(
                 Some(new_typetag(&path, None)?),
@@ -624,7 +616,268 @@ impl TransportT for SuiTransport {
     }
 
     async fn settle_game(&self, params: SettleParams) -> Result<SettleResult> {
-        todo!()
+        let SettleParams {
+            addr,
+            settles,
+            transfers,
+            awards,
+            checkpoint,
+            access_version,
+            settle_version,
+            next_settle_version,
+            entry_lock,
+            reset,
+            accept_deposits
+        } = params;
+        println!("Settling for game: {}", addr);
+        if settles.len() + transfers.len() + awards.len() + 10 > 1024 {
+            return Err(Error::TransportError("Settles exceed the 1024 limit".into()));
+        }
+        let module = new_identifier("settle")?;
+        let game_id = parse_object_id(&addr)?;
+        let game_ref = self.get_object_ref(game_id).await?;
+        let game_version = self.get_initial_shared_version(game_id).await?;
+        let game_obj = self.get_move_object::<GameObject>(game_id).await?;
+        // get coins from settle players
+        let mut settle_players: Vec<SuiAddress> = Vec::with_capacity(settles.len());
+        for settle in settles.iter() {
+            game_obj.players.iter()
+                .find(|p| p.access_version == settle.player_id)
+                .map(|p| settle_players.push(p.addr));
+        }
+        let mut settle_coins: Vec<ObjectArg> = Vec::with_capacity(settles.len());
+        for player in settle_players {
+            let coin_ref = self.get_settle_coin_ref(
+                player, Some(game_obj.token_addr.clone())).await?;
+            settle_coins.push(ObjectArg::ImmOrOwnedObject(coin_ref));
+        }
+        println!("Expected {} settle coins, got {}",
+                 settles.len(), settle_coins.len());
+        if settles.len() != settle_coins.len() {
+            return Err(Error::InvalidSettle("Settles didn't match settle coins".into()))
+        }
+
+        let mut ptb = PTB::new();
+        // run prechecks for settlemenet
+        let game_obj_arg = ObjectArg::SharedObject {
+            id: game_id,
+            initial_shared_version: game_version,
+            mutable: true
+        };
+        let pre_check_args = vec![
+            add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
+            add_input(&mut ptb, new_pure_arg(&self.active_addr)?)?,
+            add_input(&mut ptb, new_pure_arg(&settle_version)?)?,
+            add_input(&mut ptb, new_pure_arg(&next_settle_version)?)?,
+        ];
+        let checks_passed = ptb.programmable_move_call(
+            self.package_id,
+            module.clone(),
+            new_identifier("pre_settle_checks")?,
+            vec![new_typetag(&game_obj.token_addr, None)?],
+            pre_check_args
+        );                      // this returns the needed `checks_passed` input
+
+        // prepare settles
+        let mut result_settles: Vec<Argument> = Vec::new();
+        for Settle { player_id, amount, eject } in settles {
+            println!("Prepare settle for {}, amoutn = {}, eject: {}",
+                     player_id, amount, eject);
+            let args = vec![
+                add_input(&mut ptb, new_pure_arg(&player_id)?)?,
+                add_input(&mut ptb, new_pure_arg(&amount)?)?,
+                add_input(&mut ptb, new_pure_arg(&eject)?)?,
+            ];
+            let settle_ret = ptb.programmable_move_call(
+                self.package_id,
+                module.clone(),
+                new_identifier("create_settle")?,
+                vec![],         // no type argument
+                args
+            );
+            result_settles.push(settle_ret);
+        }
+
+        // process settles in batch
+        let path = format!(
+            "{}::settle::Settle",
+            self.package_id.to_hex_uncompressed()
+        );
+        let settles_arg = ptb.command(Command::make_move_vec(
+            Some(new_typetag(&path, None)?),
+            result_settles,
+        ));
+        let coins_arg = ptb.make_obj_vec(settle_coins)?;
+        let handle_settle_args = vec![
+            add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
+            settles_arg,
+            coins_arg,
+            checks_passed
+        ];
+        ptb.programmable_move_call(
+            self.package_id,
+            module.clone(),
+            new_identifier("handle_settle")?,
+            vec![new_typetag(&game_obj.token_addr, None)?],
+            handle_settle_args
+        );
+
+        // prepare transfers
+        let handle_transfer_fn = new_identifier("handle_transfer")?;
+        let recipient_id = ObjectID::from_address(
+            to_account_addr(game_obj.recipient_addr)?
+        );
+        let recipient_obj = self.get_move_object::<RecipientObject>(recipient_id).await?;
+        let mut slots: Vec<RecipientSlotObject> = Vec::with_capacity(
+            recipient_obj.slots.len()
+        );
+        for slot_id in recipient_obj.slots.iter() {
+            let slot_obj = self.get_move_object::<RecipientSlotObject>(*slot_id).await?;
+            slots.push(slot_obj);
+        }
+        // process transfers one by one
+        for Transfer { slot_id, amount } in transfers {
+            println!("Tranfer {} for slot id {}", amount, slot_id);
+            // TODO: to use the stake token to match the target slot
+            if let Some(slot) = slots.iter().find(|s| s.slot_id == slot_id) {
+                if game_obj.token_addr.ne(&slot.token_addr) {
+                    return Err(Error::TransportError(format!(
+                        "Expected token {} but got {}",
+                        game_obj.token_addr, slot.token_addr)
+                    ));
+                }
+                let slot_version = self.get_initial_shared_version(slot.id).await?;
+                let handle_transfer_args = vec![
+                    add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
+                    add_input(&mut ptb, CallArg::Object(ObjectArg::SharedObject{
+                        id: slot.id,
+                        initial_shared_version: slot_version,
+                        mutable: true
+                    }))?,
+                    add_input(&mut ptb, new_pure_arg(&amount)?)?,
+                    add_input(&mut ptb, new_pure_arg(&checks_passed)?)?
+                ];
+                ptb.programmable_move_call(
+                    self.package_id,
+                    module.clone(),
+                    handle_transfer_fn.clone(),
+                    vec![new_typetag(&game_obj.token_addr, None)?],
+                    handle_transfer_args
+                );
+            } else {
+                return Err(Error::InvalidSettle(format!(
+                    "Failed to find slot: {}", slot_id)));
+            }
+        }
+
+        // process awards one by one
+        let handle_bonus_fn = new_identifier("handle_bonus")?;
+        for Award {player_id, bonus_identifier} in awards.iter() {
+            let Some(player) = game_obj.players
+                .iter().find(|p| p.access_version == *player_id)
+            else {
+                return Err(Error::InvalidSettle(format!(
+                    "Bonus not found for {} with identifier {}",
+                    player_id, bonus_identifier
+                )));
+            };
+            for Bonus {id, identifier, token_addr, amount} in game_obj.bonuses.iter() {
+                if identifier.eq(bonus_identifier) {
+                    let bonus_init_version = self.get_initial_shared_version(*id).await?;
+                    let bonus_type_arg = if *amount == 0 { // NFT
+                        let path = format!(
+                            "{}::game::GameNFT",
+                            self.package_id.to_hex_uncompressed()
+                        );
+                        vec![new_typetag(&path, None)?]
+                    } else { // Coin
+                        vec![new_typetag(COIN_TYPE_PATH, Some(token_addr))?]
+                    };
+                    let handle_bonus_args = vec![
+                        add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
+                        add_input(&mut ptb, CallArg::Object(ObjectArg::SharedObject {
+                            id: *id,
+                            initial_shared_version: bonus_init_version,
+                            mutable: true
+                        }))?,
+                        add_input(&mut ptb, new_pure_arg(&identifier)?)?,
+                        add_input(&mut ptb, new_pure_arg(&player_id)?)?,
+                        add_input(&mut ptb, new_pure_arg(&player.addr)?)?,
+                        add_input(&mut ptb, new_pure_arg(&checks_passed)?)?,
+                    ];
+                    ptb.programmable_move_call(
+                        self.package_id,
+                        module.clone(),
+                        handle_bonus_fn.clone(),
+                        bonus_type_arg,
+                        handle_bonus_args
+                    );
+                }
+            }
+        }
+        // update deposits, settle version, entry lock, etc
+        let entry_lock_variant: u8 = match entry_lock {
+            Some(lock) => match lock {
+                EntryLock::Open => 0,
+                EntryLock::JoinOnly => 1,
+                EntryLock::DepositOnly => 2,
+                EntryLock::Closed => 3,
+            },
+            None => 4
+        };
+        let entry_lock_create_arg = vec![add_input(&mut ptb, new_pure_arg(&entry_lock_variant)?)?];
+        let entry_lock_arg = ptb.programmable_move_call(
+            self.package_id,
+            new_identifier("game")?,
+            new_identifier("create_entry_lock")?,
+            vec![],         // no type arg
+            entry_lock_create_arg
+        );
+
+        let complete_settle_fn = new_identifier("complete_settle")?;
+        let ckpt: RaceCheckpointOnChain = checkpoint.into();
+        let raw_checkpoint = bcs::to_bytes(&ckpt).map(|_| Error::MalformedCheckpoint)?;
+        let complete_args = vec![
+            add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
+            add_input(&mut ptb, new_pure_arg(&accept_deposits)?)?,
+            add_input(&mut ptb, new_pure_arg(&next_settle_version)?)?,
+            add_input(&mut ptb, new_pure_arg(&raw_checkpoint)?)?,
+            entry_lock_arg,
+            add_input(&mut ptb, new_pure_arg(&reset)?)?,
+            checks_passed,
+        ];
+        ptb.programmable_move_call(
+            self.package_id,
+            module.clone(),
+            complete_settle_fn,
+            vec![new_typetag(&game_obj.token_addr, None)?],
+            complete_args
+        );
+
+        // actually send the transaction
+        let gas_coin = self.get_max_coin(None).await?;
+        let gas_price = self.get_gas_price().await?;
+        let tx_data = TransactionData::new_programmable(
+            self.active_addr,
+            vec![gas_coin.object_ref()],
+            ptb.finish(),
+            gas_coin.balance,
+            gas_price
+        );
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
+        println!("Needed gase fees {gas_fees} and transport has balance: {}",
+                 gas_coin.balance);
+
+        let response = self.send_transaction(tx_data).await?;
+        println!("Game settlement tx digest: {}", response.digest.to_string());
+
+        let signature = response.digest.to_string();
+        let updated_game = self.get_move_object::<GameObject>(game_id).await?;
+        let game_account = updated_game.into_account()?;
+        Ok(SettleResult {
+            signature,
+            game_account
+        })
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
@@ -909,7 +1162,7 @@ impl SuiTransport {
             .await?;
         coins.data.into_iter()
             .max_by_key(|c| c.balance)
-            .ok_or_else(|| Error::TransportError("No Max Coin Found".to_string()))
+            .ok_or_else(|| Error::TransportError("No max coin found".to_string()))
     }
 
     // Get the coin that has at least the given amount of balance for payment
@@ -926,7 +1179,22 @@ impl SuiTransport {
         coins.data.into_iter()
             .filter(|c| c.balance > payment + 100_000) // add a small buffer
             .min_by_key(|c| c.balance)
-            .ok_or_else(|| Error::TransportError("No Bonus Coin Found".to_string()))
+            .ok_or_else(|| Error::TransportError("No bonus coin found".to_string()))
+    }
+
+    async fn get_settle_coin_ref(
+        &self,
+        player_addr: SuiAddress,
+        coin_type: Option<String>
+    ) -> Result<ObjectRef> {
+        let coins: CoinPage = self.client
+            .coin_read_api()
+            .get_coins(player_addr, coin_type, None, Some(50))
+            .await?;
+        coins.data
+            .first()
+            .and_then(|c| Some(c.object_ref()))
+            .ok_or_else(|| Error::TransportError("No settle coin found".to_string()))
     }
 
     async fn get_gas_price(&self) -> Result<u64> {
@@ -949,10 +1217,10 @@ impl SuiTransport {
             .await?;
         let cost_summary = dry_run.effects.gas_cost_summary();
         let net_gas_fees: i64 = cost_summary.net_gas_usage();
-        println!("Got net gas fees: {} in MIST", net_gas_fees);
+        println!("Net gas fees: {} MIST", net_gas_fees);
 
         if net_gas_fees < 0 {
-            println!("Sender will get rebate: {}", -net_gas_fees);
+            println!("Tx sender will get rebate: {} MIST", -net_gas_fees);
             Ok(0)
         } else {
             // add a small buffer to the estimated gas fees
@@ -1102,7 +1370,7 @@ impl SuiTransport {
                 // split the payer coin for bonus
                 let coin_arg = add_input(
                     &mut ptb,
-                    new_obj_arg(ObjectArg::ImmOrOwnedObject(payer_coin.object_ref()))?
+                    CallArg::Object(ObjectArg::ImmOrOwnedObject(payer_coin.object_ref()))
                 )?;
                 let amt_arg = vec![
                     add_input(&mut ptb, new_pure_arg(&params.amount)?)?];
@@ -1250,7 +1518,8 @@ impl SuiTransport {
     ) -> Result<T> {
         let raw = self.client.read_api().get_move_object_bcs(object_id).await?;
         println!("{:?}", raw);
-        bcs::from_bytes::<T>(raw.as_slice()).map_err(|e| Error::TransportError(e.to_string()))
+        bcs::from_bytes::<T>(raw.as_slice())
+            .map_err(|e| Error::TransportError(e.to_string()))
     }
 
     // A few private helpers to query on chain objects, not for public uses
@@ -1893,6 +2162,31 @@ mod tests {
             filter: None
         };
         transport.attach_bonus(bonus_params).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_settle_game() -> Result<()> {
+        let transport = SuiTransport::try_new(
+            SUI_DEVNET_URL.into(),
+            TEST_PACKAGE_ID,
+            TEST_SERVER_TABLE_ID,
+            TEST_PROFILE_TABLE_ID
+        ).await.unwrap();
+        let params = SettleParams {
+            addr: "".to_string(),
+            settles: vec![],
+            transfers: vec![],
+            awards: vec![],
+            checkpoint: CheckpointOnChain { root: vec![], size: 0, access_version: 0 },
+            access_version: 0,
+            settle_version: 0,
+            next_settle_version: 0,
+            entry_lock: Some(EntryLock::Closed),
+            reset: true,
+            accept_deposits: vec![0, 1],
+        };
+        let result = transport.settle_game(params).await?;
         Ok(())
     }
 }

@@ -84,6 +84,58 @@ pub struct Vote {
     pub vote_type: VoteType,
 }
 
+#[cfg_attr(test, derive(PartialEq, Clone))]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Bonus {
+    pub id: ObjectID,
+    // bonus identifier
+    pub identifier: String,
+    // 0xpackageid::module::name or 0x2::coin::Coin<0xxxx::coin_type::CoinStruct>
+    pub token_addr: String,
+    // coin value or 0 (nft)
+    pub amount: u64,
+}
+
+impl From<Bonus> for race_core::types::Bonus {
+    fn from(bonus: Bonus) -> Self {
+        Self {
+            identifier: bonus.identifier,
+            token_addr: bonus.token_addr,
+            amount: bonus.amount
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RaceCheckpointOnChain {
+    pub root: Vec<u8>,
+    pub size: usize,
+    pub access_version: u64,
+}
+
+impl From<RaceCheckpointOnChain> for race_core::checkpoint::CheckpointOnChain {
+    fn from(value: RaceCheckpointOnChain) -> Self {
+        Self {
+            root: value.root,
+            size: value.size,
+            access_version: value.access_version
+        }
+    }
+}
+
+impl From<race_core::checkpoint::CheckpointOnChain> for RaceCheckpointOnChain {
+    fn from(value: race_core::checkpoint::CheckpointOnChain) -> Self {
+        Self {
+            root: value.root,
+            size: value.size,
+            access_version: value.access_version
+        }
+    }
+}
+
 // On-chain object that represents a game
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(Serialize, Deserialize, Debug)]
@@ -133,8 +185,8 @@ pub struct GameObject {
     pub checkpoint: Vec<u8>,
     // the lock for entry
     pub entry_lock: EntryLock,
-    // bonus ids
-    pub bonuses: Vec<ObjectID>
+    // prizes for this game, the actual bonus stored in the onchain bonus objects
+    pub bonuses: Vec<Bonus>
 }
 
 impl GameObject {
@@ -158,7 +210,6 @@ impl GameObject {
             checkpoint,
             entry_lock,
             deposits,
-            bonuses,
             ..
         } = self;
 
@@ -166,12 +217,12 @@ impl GameObject {
         let servers = servers.into_iter().map(Into::into).collect();
         let deposits = deposits.into_iter().map(Into::into).collect();
         let checkpoint_onchain = if !checkpoint.is_empty() {
-            // TODO: test this out once done settle
-            Some(bcs::from_bytes(&checkpoint).map_err(|_| Error::MalformedCheckpoint)?)
+            let chpt = bcs::from_bytes::<CheckpointOnChain>(&checkpoint)
+                 .map_err(|_| Error::MalformedCheckpoint)?;
+            Some(chpt.into())
         } else {
             None
         };
-        let _bonuses = bonuses.into_iter().map(|b| b.to_string()).collect::<String>();
         Ok(GameAccount {
             addr: id.to_hex_uncompressed(),
             title,
@@ -193,7 +244,6 @@ impl GameObject {
             entry_type,
             checkpoint_on_chain: checkpoint_onchain,
             entry_lock,
-            // TODO: add bonuses
         })
     }
 }

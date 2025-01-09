@@ -10,21 +10,6 @@ use sui_sdk::{
 };
 use crate::error::{TransportError, TransportResult};
 
-/// The player status in settlement.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PlayerStatus {
-    Normal,
-    Left,
-    Dropout,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AssetChange {
-    Add,
-    Sub,
-    NoChange,
-}
-
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Debug, Clone)]
 pub enum BonusType {

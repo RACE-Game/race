@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::checkpoint::CheckpointOnChain;
 use race_api::types::{Settle, Transfer};
-use crate::types::{EntryType, VoteType, RecipientSlotOwner, RecipientSlotType, RecipientSlot};
+use crate::types::{Award, EntryType, VoteType, RecipientSlotOwner, RecipientSlotType, RecipientSlot};
 
 use super::{EntryLock, GameAccount};
 
@@ -182,15 +182,33 @@ pub struct SettleResult {
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RejectDepositsParams {
+    pub addr: String,
+    pub reject_deposits: Vec<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct RejectDepositsResult {
+    pub signature: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct SettleParams {
     pub addr: String,
     pub settles: Vec<Settle>,
     pub transfers: Vec<Transfer>,
+    pub awards: Vec<Award>,
     pub checkpoint: CheckpointOnChain,
+    pub access_version: u64,
     pub settle_version: u64,
     pub next_settle_version: u64,
     pub entry_lock: Option<EntryLock>,
     pub reset: bool,
+    pub accept_deposits: Vec<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

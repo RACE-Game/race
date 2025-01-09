@@ -599,11 +599,14 @@ impl TransportT for SolanaTransport {
             addr,
             settles,
             transfers,
+            awards,
             checkpoint,
+            access_version,
             settle_version,
             next_settle_version,
             entry_lock,
             reset,
+            accept_deposits
         } = params;
         info!("Settle game {}", addr);
 

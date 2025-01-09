@@ -139,6 +139,15 @@ pub struct Vote {
     pub vote_type: VoteType,
 }
 
+#[derive(BorshDeserialize, BorshSerialize, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct Bonus {
+    pub identifier: String,
+    pub token_addr: String,
+    pub amount: u64,
+}
+
 /// The data represents the state of on-chain game account.
 ///
 /// # Access Version and Settle Version

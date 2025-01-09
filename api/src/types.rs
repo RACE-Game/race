@@ -28,6 +28,20 @@ impl Settle {
     }
 }
 
+#[derive(Clone, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct Award {
+    pub player_id: u64,
+    pub bonus_identifier: String,
+}
+
+impl Award {
+    pub fn new(player_id: u64, bonus_identifier: String) -> Self {
+        Self { player_id, bonus_identifier }
+    }
+}
+
 pub type Addr = String;
 pub type Amount = u64;
 pub type RandomId = usize;
