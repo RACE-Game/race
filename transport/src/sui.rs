@@ -44,7 +44,7 @@ use std::str::FromStr;
 use std::collections::BTreeMap;
 use crate::error::{TransportError, TransportResult};
 use race_core::{
-    checkpoint::CheckpointOnChain as CoreCheckpointOnChain,
+    checkpoint::CheckpointOnChain,
     error::{Error, Result},
     transport::TransportT,
     types::{
@@ -835,7 +835,7 @@ impl TransportT for SuiTransport {
         );
 
         let complete_settle_fn = new_identifier("complete_settle")?;
-        let ckpt: RaceCheckpointOnChain = checkpoint.into();
+        let ckpt: CheckpointOnSui = checkpoint.into();
         let raw_checkpoint = bcs::to_bytes(&ckpt).map(|_| Error::MalformedCheckpoint)?;
         let complete_args = vec![
             add_input(&mut ptb, CallArg::Object(game_obj_arg))?,

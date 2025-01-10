@@ -110,14 +110,14 @@ impl From<Bonus> for race_core::types::Bonus {
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RaceCheckpointOnChain {
+pub struct CheckpointOnSui {
     pub root: Vec<u8>,
     pub size: usize,
     pub access_version: u64,
 }
 
-impl From<RaceCheckpointOnChain> for race_core::checkpoint::CheckpointOnChain {
-    fn from(value: RaceCheckpointOnChain) -> Self {
+impl From<CheckpointOnSui> for race_core::checkpoint::CheckpointOnChain {
+    fn from(value: CheckpointOnSui) -> Self {
         Self {
             root: value.root,
             size: value.size,
@@ -126,7 +126,7 @@ impl From<RaceCheckpointOnChain> for race_core::checkpoint::CheckpointOnChain {
     }
 }
 
-impl From<race_core::checkpoint::CheckpointOnChain> for RaceCheckpointOnChain {
+impl From<race_core::checkpoint::CheckpointOnChain> for CheckpointOnSui {
     fn from(value: race_core::checkpoint::CheckpointOnChain) -> Self {
         Self {
             root: value.root,
