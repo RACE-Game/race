@@ -372,10 +372,7 @@ impl TransportT for SuiTransport {
         let server_obj_ref = self.get_owned_object_ref(
             self.active_addr,
             SuiObjectDataFilter::StructType(
-                // 0xpkgid::server::Server
-                new_structtag(&format!(
-                    "{}::{}::{}",
-                    self.package_id, "server", "Server"), None)?
+                new_structtag(&format!("{}::server::Server", self.package_id), None)?
             )
         ).await?;
         let gas_coin = self.get_max_coin(None).await?;
@@ -592,7 +589,7 @@ impl TransportT for SuiTransport {
             gas_coin.object_ref(),
             vec![new_pure_arg(&params.name)?,
                  new_pure_arg(&params.uri)?,    // wasm bundle url
-                 new_pure_arg(&params.symbol)?, // cover image url
+                 new_pure_arg(&params.symbol)?, // symbol
             ],
             gas_coin.balance,
             gas_price
@@ -1582,13 +1579,13 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0xf58460970f66fab8d78e672eea4bbf5d1c4395f2dc26afd7c968c5f7e704f667";
-    const TEST_GAME_ID: &str = "0xd07a843ab6f94917edb82cb29196fb1a9a55401b78e9e619cc342377909a9a44";
-    const TEST_SERVER_TABLE_ID: &str = "0x85ce2364c1e8167076d740094d23c1d2508d16d2f1bd536d1133f0d2f6e00c08";
-    const TEST_PROFILE_TABLE_ID: &str = "0xf6a6c24d5b876a2d1ad9952527fa6aa84ed30acd275c745de8bbc893ddb1ed96";
-    const TEST_RECIPIENT_ID: &str = "0x4ebbd27d5a1b0d79126edf0cfb477df004f4770ff33bc907def4dbc7013b14dc";
-    const TEST_REGISTRY: &str = "0x0cf95d442043e22dbad10c08ddcb1fa4be0bdb1e0b63b1c02ca961f35e438536";
-    const TEST_BUNDLE_ADDR: &str = "0x173edaccd027b5b80e7bf5c440fd54ba6998cc49be7f790efc5580f167db78ec";
+    const TEST_PACKAGE_ID: &str = "0xf3c857da70fbf7275495e35243e66d628dcac3f7a83a4b094a918811df5b1f99";
+    const TEST_GAME_ID: &str = "0xe48c698837045e6296c7cd6d14d809f90192d38fb6651940d2adbaae2d700e1d";
+    const TEST_SERVER_TABLE_ID: &str = "0x6b42f9a3c1be90700ca3ebca78ae3d65d360f3e17d52f17ca753cf185557b253";
+    const TEST_PROFILE_TABLE_ID: &str = "0x0e93925793634d7aa2d6cf3fff73b171c5bf694f7616485cfee1773c58ff6f0e";
+    const TEST_RECIPIENT_ID: &str = "0xc3c6277f5c374139e42d6972b5223e4b4bfbd4cabd7a5af6811af79301aefa66";
+    const TEST_REGISTRY: &str = "0xc91df1896e7bfac9f288cdcd239c7aaf0e21a37bc38af4a5b006e066b368c0df";
+    const TEST_GAME_NFT: &str = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
 
     // helper fns to generate some large structures for tests
     fn make_game_params() -> CreateGameAccountParams {
@@ -1600,7 +1597,7 @@ mod tests {
             token_addr: COIN_SUI_PATH.into(),
             max_players: 10,
             entry_type,
-            recipient_addr: SuiTransport::rand_account_str_addr(),
+            recipient_addr: TEST_RECIPIENT_ID.to_string(),
             data: vec![8u8, 1u8, 2u8, 3u8, 4u8],
         }
     }
@@ -1657,8 +1654,7 @@ mod tests {
             id: parse_object_id(TEST_GAME_ID)?,
             version: "0.1.0".to_string(),
             title: "Race Devnet Test".to_string(),
-            // bundle_addr: parse_sui_addr(TEST_BUNDLE_ADDR)?,
-            bundle_addr: parse_sui_addr("0x173edaccd027b5b80e7bf5c440fd54ba6998cc49be7f790efc5580f167db78ec")?,
+            bundle_addr: parse_sui_addr(TEST_GAME_NFT)?,
             token_addr: COIN_SUI_PATH.to_string(),
             owner: parse_sui_addr(PUBLISHER)?,
             recipient_addr: parse_sui_addr(TEST_RECIPIENT_ID)?,
@@ -1964,8 +1960,8 @@ mod tests {
             game_addr: TEST_GAME_ID.to_string(),
             access_version: 0,
             amount: 100_000_000,
-            position: 2,
-            verify_key: "player".to_string()
+            position: 1,
+            verify_key: "player1".to_string()
         };
         transport.join(join_params).await?;
 
@@ -2137,7 +2133,7 @@ mod tests {
         let publish_params = PublishGameParams {
             uri: "https://arweave.net/rb0z--jgbT3-4hBFXGR5esnRPGTj7aSeh_-qc-ucTfk".to_string(),
             name: "RaceSuiTestNFT".to_string(),
-            symbol: "https://ar-io.net/RxxOQizlpeUfLJzDmNYSCrBRtIWibkAUC-VhO2coFbE".to_string()
+            symbol: "RACESUI".to_string()
         };
         let _nft_id = transport.publish_game(publish_params).await?;
         Ok(())
