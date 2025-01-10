@@ -299,19 +299,18 @@ impl TransportT for SuiTransport {
         // split coin for deposit
         let mut ptb = PTB::new();
         let token_addr = game_obj.token_addr.clone();
-        let payer_coin = self.get_payment_coin(
-            Some(token_addr.clone()),
-            params.amount
-        ).await?;
-        let coin_arg = add_input(
-            &mut ptb,
-            new_obj_arg(ObjectArg::ImmOrOwnedObject(payer_coin.object_ref()))?
-        )?;
+        let coin_arg = if token_addr.eq(COIN_SUI_PATH) {
+            Argument::GasCoin
+        } else {
+            let payer_coin = self.get_payment_coin(Some(token_addr.clone()), params.amount).await?;
+            add_input(
+                &mut ptb,
+                new_obj_arg(ObjectArg::ImmOrOwnedObject(payer_coin.object_ref()))?
+            )?
+        };
         let amt_arg = vec![add_input(&mut ptb, new_pure_arg(&params.amount)?)?];
         ptb.command(Command::SplitCoins(coin_arg, amt_arg));
         // join game
-        let gas_coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
-        let gas_price = self.get_gas_price().await?;
         let join_args = vec![
             add_input(&mut ptb, new_obj_arg(ObjectArg::SharedObject {
                 id: game_id,
@@ -331,6 +330,9 @@ impl TransportT for SuiTransport {
             vec![new_typetag(&token_addr, None)?],
             join_args
         ));
+
+        let gas_coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
+        let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_programmable(
             self.active_addr,
             vec![gas_coin.object_ref()],
@@ -338,10 +340,8 @@ impl TransportT for SuiTransport {
             gas_coin.balance,
             gas_price
         );
-
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Need gase fees {gas_fees} and transport has balance: {}",
-                 gas_coin.balance);
+        println!("Need gase fees: {gas_fees}");
 
         let response = self.send_transaction(tx_data).await?;
 
