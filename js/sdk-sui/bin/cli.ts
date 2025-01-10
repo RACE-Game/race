@@ -8,11 +8,19 @@ import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfilePar
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
 
+const TEST_PACKAGE_ID = "0xf3c857da70fbf7275495e35243e66d628dcac3f7a83a4b094a918811df5b1f99";
+const TEST_GAME_ID = "0xe48c698837045e6296c7cd6d14d809f90192d38fb6651940d2adbaae2d700e1d";
+const TEST_SERVER_TABLE_ID = "0x6b42f9a3c1be90700ca3ebca78ae3d65d360f3e17d52f17ca753cf185557b253";
+const TEST_PROFILE_TABLE_ID = "0x0e93925793634d7aa2d6cf3fff73b171c5bf694f7616485cfee1773c58ff6f0e";
+const TEST_RECIPIENT_ID = "0xc3c6277f5c374139e42d6972b5223e4b4bfbd4cabd7a5af6811af79301aefa66";
+const TEST_REGISTRY = "0xc91df1896e7bfac9f288cdcd239c7aaf0e21a37bc38af4a5b006e066b368c0df";
+const TEST_GAME_NFT = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
+
 function testCreatePlayerProfile() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   const params = {
     nick: 'yuumi Game', // nick string
-    pfp: '0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192', // pfp address params
+    pfp: undefined, // pfp address params
   }
 
   let response = new ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>()
@@ -29,7 +37,7 @@ function testCreateGameAccount() {
   // console.log(wallet.walletAddr)
   const params = {
     title: 'yuumi Game', // title string
-    bundleAddr: '0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192', // bundle_addr address params
+    bundleAddr: TEST_GAME_NFT, // bundle_addr address params
     owner: wallet.walletAddr, // owner address wallet
     recipientAddr: randomPublicKey(), // recipient_addr address params
     tokenAddr: "0x2", // token_addr address params "0x2"
@@ -135,8 +143,18 @@ async function testRegisterGame() {
   console.log('testRegisterGame', response)
 }
 
-
-
+async function testJoinGame() {
+  const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+  const params: JoinGameParams = {
+    gameAddr: TEST_GAME_ID,
+    amount: 100_000_000,
+    position: 3,
+    verifyKey: 'player3',
+  };
+  let response = new ResponseHandle<RegisterGameResponse, RegisterGameError>();
+  let res = await suiTransport.join(wallet, params, response);
+  console.log('testJoinGame', response);
+}
 
 async function testServerAccount() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');

@@ -184,23 +184,95 @@ export class SuiTransport implements ITransport {
     throw new Error("Method not implemented.");
   }
 
-  join(wallet: IWallet, params: JoinParams, resp: ResponseHandle<JoinResponse, JoinError>): Promise<void> {
-    throw new Error("Method not implemented.");
+  async join(wallet: IWallet, params: JoinParams, resp: ResponseHandle<JoinResponse, JoinError>): Promise<void> {
+    const {
+      gameAddr,
+      amount,
+      position,
+      verifyKey,
+      createProfileIfNeeded = false
+    } = params;
+
+    if (createProfileIfNeeded) {
+      await createPlayerProfile(wallet, { nick: wallet.addr.slice(0,8) });
+    }
+
+    // get game object for token info and object ref
+    const game = await this.getGameAccount(gameAddr);
+    if (game == undefined) {
+      console.error("Cannot join the game: game not found: ", gameAddr);
+      return;
+    }
+
+    if (game.players.length >= game.maxPlayers) {
+      console.error("Cannot join the game: game already full: ", game.maxPlayers);
+      return;
+    }
+    const objRes: SuiObjectResponse = await suiClient.getObject({
+      id: gameAddr,
+      options: { showOwner: true}
+    });
+    let found = false;
+    const owner: ObjectOwner | null = objRes.data?.owner ? objRes.data.owner : null;
+    const objectId = objRes.data?.objectId;
+    if (!owner || !objectId) {
+      return resp.transactionFailed('get game object failed')
+    }
+    if (!(owner instanceof Object && 'Shared' in owner)) {
+      return resp.transactionFailed('get game object onwer failed')
+    }
+    const shared = owner.Shared;
+    if (!('initial_shared_version' in shared)) {
+      return resp.transactionFailed('game object is not shared')
+    }
+    const game_init_version = shared.initial_shared_verison;
+
+    const transaction = new Transaction();
+    const suiClient = this.suiClient;
+    coerceWallet(wallet);
+
+    // split coin for buyin
+    const [coin] = transaction.splitCoin(transaction.gas, [transaction.pure(params.amount)]);
+    // join the game
+    transaction.moveCall({
+      target: `${PACKAGE_ID}::game::join_game`,
+      arguments: [
+        transaction.sharedObjectRef({
+          objectId: gameAddr,
+          initialSharedVersion: game_init_version,
+          mutable: false,
+        }),
+        transaction.pure.u16(position),
+        transaction.pure.u64(access_version),
+        transaction.pure.u64(amount),
+        transaction.pure.u64(verifyKey),
+        coin
+      ],
+      typeArgument: [game.tokenAddr]
+    });
+
+    const result = await wallet.send(transaction, suiClient, resp);
+    if ("err" in result) {
+      return resp.transactionFailed(result.err)
+    }
+
+    console.log(result);
   }
 
   deposit(wallet: IWallet, params: DepositParams, resp: ResponseHandle<DepositResponse, DepositError>): Promise<void> {
     throw new Error("Method not implemented.");
   }
+
   async createRecipient(wallet: IWallet, params: CreateRecipientParams, resp: ResponseHandle<CreateRecipientResponse, CreateRecipientError>): Promise<void> {
 
     const transaction = new Transaction();
     const suiClient = this.suiClient;
     coerceWallet(wallet)
-    // 1. move call new_recipient_builder to get a hot potato
+    // 1. make move call to `new_recipient_builder` to get a hot potato
     let builder = transaction.moveCall({
       target: `${PACKAGE_ID}::recipient::new_recipient_builder`,
     });
-    // 2. a series of move calls to build recipient slots one by one
+    // 2. make a series of move calls to build recipient slots one by one
     let used_ids: number[] = [];
     params.slots.forEach((slot: RecipientSlotInit) => {
       // slot id must be unique
