@@ -302,7 +302,8 @@ impl TransportT for SuiTransport {
         let coin_arg = if token_addr.eq(COIN_SUI_PATH) {
             Argument::GasCoin
         } else {
-            let payer_coin = self.get_payment_coin(Some(token_addr.clone()), params.amount).await?;
+            let payer_coin = self.get_payment_coin(
+                Some(token_addr.clone()), params.amount).await?;
             add_input(
                 &mut ptb,
                 new_obj_arg(ObjectArg::ImmOrOwnedObject(payer_coin.object_ref()))?
@@ -337,7 +338,7 @@ impl TransportT for SuiTransport {
             self.active_addr,
             vec![gas_coin.object_ref()],
             ptb.finish(),
-            gas_coin.balance,
+            3_000_000,           // usually this costs 1,853,024 MIST
             gas_price
         );
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
