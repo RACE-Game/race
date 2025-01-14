@@ -33,6 +33,17 @@ pub enum DepositStatus {
     Accepted,
 }
 
+impl From<DepositStatus> for race_core::types::DepositStatus {
+    fn from(value: DepositStatus) -> Self {
+        match value {
+            DepositStatus::Pending => Self::Pending,
+            DepositStatus::Rejected => Self::Rejected,
+            DepositStatus::Refunded => Self::Refunded,
+            DepositStatus::Accepted => Self::Accepted,
+        }
+    }
+}
+
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Default, Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -49,7 +60,9 @@ impl From<PlayerDeposit> for race_core::types::PlayerDeposit {
         Self {
             addr: value.addr.to_string(),
             amount: value.amount,
+            access_version: value.access_version,
             settle_version: value.settle_version,
+            status: value.status.into()
         }
     }
 }

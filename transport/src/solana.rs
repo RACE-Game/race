@@ -20,7 +20,7 @@ use race_core::{
         CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams,
         GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams,
         RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer,
+        RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, Transfer,
         UnregisterGameParams, VoteParams,
     },
 };
@@ -720,6 +720,70 @@ impl TransportT for SolanaTransport {
         Ok(SettleResult {
             signature: sig.to_string(),
             game_account: game_state.into_account(addr)?,
+        })
+    }
+
+    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
+        let payer = &self.keypair;
+        let payer_pubkey = payer.pubkey();
+
+        let game_account_pubkey = Self::parse_pubkey(&params.addr)?;
+        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
+
+        let calc_cu_prize_addrs = vec![];
+
+        let (pda, _) =
+            Pubkey::find_program_address(&[game_account_pubkey.as_ref()], &self.program_id);
+
+        let mut accounts = vec![
+            AccountMeta::new_readonly(payer_pubkey, true),
+            AccountMeta::new(game_account_pubkey, false),
+            AccountMeta::new(game_state.stake_account.clone(), false),
+            AccountMeta::new_readonly(pda, false),
+            AccountMeta::new_readonly(spl_token::id(), false),
+            AccountMeta::new_readonly(system_program::id(), false),
+        ];
+
+        for reject_deposit in params.reject_deposits.iter() {
+            if let Some(deposit) = game_state
+                .deposits
+                .iter()
+                .find(|d| d.access_version == *reject_deposit)
+            {
+                if is_native_mint(&game_state.token_mint) {
+                    accounts.push(AccountMeta::new(deposit.addr.clone(), false));
+                } else {
+                    let ata = get_associated_token_address(&deposit.addr, &game_state.token_mint);
+                    accounts.push(AccountMeta::new(ata, false));
+                }
+            } else {
+                return Err(TransportError::InvalidRejectDeposits(*reject_deposit))?;
+            }
+        }
+
+        let set_cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(1200000);
+        let fee = self.get_recent_prioritization_fees(&calc_cu_prize_addrs)?;
+        let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
+
+        let ix_params = RaceInstruction::RejectDeposits {
+            params: IxRejectDepositsParams {
+                reject_deposits: params.reject_deposits,
+            },
+        };
+
+        let reject_deposit_ix = Instruction::new_with_borsh(self.program_id, &ix_params, accounts);
+
+        let message = Message::new(
+            &[set_cu_prize_ix, set_cu_limit_ix, reject_deposit_ix],
+            Some(&payer.pubkey()),
+        );
+
+        let blockhash = self.get_blockhash()?;
+        let mut tx = Transaction::new_unsigned(message);
+        tx.sign(&[payer], blockhash);
+        let sig = self.send_transaction(tx)?;
+        Ok(RejectDepositsResult {
+            signature: sig.to_string(),
         })
     }
 

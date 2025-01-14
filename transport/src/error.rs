@@ -168,6 +168,9 @@ pub enum TransportError {
 
     #[error("Subscription error: {0}")]
     SubscriptionError(String),
+
+    #[error("Invalid reject deposits: {0}")]
+    InvalidRejectDeposits(u64),
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

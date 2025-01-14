@@ -3,7 +3,7 @@
 use super::{
     IxAssignRecipientParams, IxCreateGameAccountParams, IxCreatePlayerProfileParams,
     IxCreateRecipientParams, IxCreateRegistrationParams, IxJoinParams, IxPublishParams,
-    IxRegisterServerParams, IxServeParams, IxSettleParams, IxVoteParams,
+    IxRegisterServerParams, IxServeParams, IxSettleParams, IxVoteParams, IxRejectDepositsParams
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 
@@ -156,4 +156,17 @@ pub enum RaceInstruction {
     /// 4. `[]` The system program
     /// Rest. `[]` The stake account followed by the corresponding ATA to receive tokens
     RecipientClaim,
+
+
+    /// #[17] Reject a deposit
+    ///
+    /// Accounts expected:
+    /// 0. `[signer]` The transactor account
+    /// 1. `[writable]` The game account
+    /// 2. `[]` The stake account
+    /// 3. `[]` The PDA from game account
+    /// 4. `[]` The SPL token program
+    /// 5. `[]` The system program
+    /// Rest. `[writable]` The receiver for each rejected deposit
+    RejectDeposits { params: IxRejectDepositsParams },
 }

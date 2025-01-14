@@ -244,3 +244,8 @@ impl From<AssignRecipientParams> for IxAssignRecipientParams {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct IxRejectDepositsParams {
+    pub reject_deposits: Vec<u64>,
+}

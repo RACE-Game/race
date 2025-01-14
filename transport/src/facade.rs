@@ -14,7 +14,7 @@ use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 
 use race_core::types::{
-    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
+    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
 };
 use serde::Serialize;
 
@@ -196,6 +196,10 @@ impl TransportT for FacadeTransport {
             signature,
             game_account,
         })
+    }
+
+    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
+        unimplemented!()
     }
 
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {

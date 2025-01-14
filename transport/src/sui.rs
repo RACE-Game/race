@@ -52,7 +52,7 @@ use race_core::{
         CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle,
         GameRegistration, JoinParams, PlayerProfile, PublishGameParams, EntryType, EntryLock,
         RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, ServeParams, ServerAccount, Settle, SettleParams, SettleResult, Transfer,
+        RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, Settle, SettleParams, SettleResult, Transfer,
         UnregisterGameParams, VoteParams, RecipientSlotInit, RecipientSlotShareInit, RecipientSlotType, RecipientSlot,
         RecipientSlotOwner as CoreRecipientSlotOwner
     }
@@ -869,6 +869,10 @@ impl TransportT for SuiTransport {
             signature,
             game_account
         })
+    }
+
+    async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
+        todo!()
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {

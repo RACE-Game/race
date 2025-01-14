@@ -103,6 +103,17 @@ impl std::fmt::Display for ServerJoin {
     }
 }
 
+#[derive(Default, Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub enum DepositStatus {
+    #[default]
+    Pending,
+    Rejected,
+    Refunded,
+    Accepted,
+}
+
 /// Represent a player call the deposit instruction in contract.
 #[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -110,7 +121,20 @@ impl std::fmt::Display for ServerJoin {
 pub struct PlayerDeposit {
     pub addr: String,
     pub amount: u64,
+    pub access_version: u64,
     pub settle_version: u64,
+    pub status: DepositStatus,
+}
+
+impl std::fmt::Display for DepositStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            DepositStatus::Pending => "Pending",
+            DepositStatus::Rejected => "Rejected",
+            DepositStatus::Refunded => "Refunded",
+            DepositStatus::Accepted => "Accepted",
+        })
+    }
 }
 
 impl std::fmt::Display for PlayerDeposit {
@@ -121,11 +145,13 @@ impl std::fmt::Display for PlayerDeposit {
 
 
 impl PlayerDeposit {
-    pub fn new<S: Into<String>>(addr: S, balance: u64, settle_version: u64) -> Self {
+    pub fn new<S: Into<String>>(addr: S, balance: u64, access_version: u64, settle_version: u64) -> Self {
         Self {
             addr: addr.into(),
             amount: balance,
+            access_version,
             settle_version,
+            status: DepositStatus::Pending,
         }
     }
 }
