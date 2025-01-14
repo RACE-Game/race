@@ -928,6 +928,7 @@ impl TransportT for SuiTransport {
         let game_version = self.get_initial_shared_version(game_id).await?;
         let registry_version = self.get_initial_shared_version(registry_id).await?;
         let clock_version = self.get_initial_shared_version(clock_id).await?;
+        let game_obj = self.get_move_object::<GameObject>(game_id).await?;
         let module = new_identifier("registry")?;
         let reg_game_fn = new_identifier("register_game")?;
         let coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
@@ -937,7 +938,7 @@ impl TransportT for SuiTransport {
             self.package_id,
             module,
             reg_game_fn,
-            vec![],             // no type arguments
+            vec![new_typetag(&game_obj.token_addr, None)?],
             coin.object_ref(),
             vec![
                 CallArg::Object(ObjectArg::SharedObject{
@@ -966,7 +967,7 @@ impl TransportT for SuiTransport {
                  gas_fees, coin.balance);
 
         let response = self.send_transaction(tx_data).await?;
-
+        // TODO: check the registry did get mutated or fail the tx otherwise
         println!("Registering game tx digest: {}", response.digest.to_string());
 
         Ok(())
@@ -1014,7 +1015,7 @@ impl TransportT for SuiTransport {
 
     async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
         let game_id = parse_object_id(addr)?;
-        let game_obj = self.internal_get_game(game_id).await?;
+        let game_obj = self.get_move_object::<GameObject>(game_id).await?;
 
         Ok(Some(game_obj.into_account()?))
     }
@@ -1460,72 +1461,14 @@ impl SuiTransport {
         Ok(())
     }
 
-    // General method to get an on-chain object
-    async fn get_object<T: DeserializeOwned>(
-        &self,
-        object_id: ObjectID,
-        err: Error
-    ) -> Result<T> {
-        println!("Trying to get object: {}", object_id.to_hex_uncompressed());
-
-        let response = self.client.read_api()
-            .get_object_with_options(
-                object_id,
-                SuiObjectDataOptions::bcs_lossless()
-            )
-            .await?;
-
-        let bcs: SuiRawData = response
-            .data
-            .and_then(|d| d.bcs)
-            .ok_or(err)?;
-
-        let raw: SuiRawMoveObject = match bcs {
-            SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
-            _ => return Err(Error::TransportError("Object raw data not found".into()))
-        };
-
-        raw.deserialize::<T>()
-            .map_err(|e| Error::TransportError(e.to_string()))
-    }
-
+    // get on chain move objects and deserialize it into corresponding off chain struct
     async fn get_move_object<T: DeserializeOwned>(
         &self,
         object_id: ObjectID
     ) -> Result<T> {
         let raw = self.client.read_api().get_move_object_bcs(object_id).await?;
-        println!("{:?}", raw);
+        // println!("{:?}", raw);
         bcs::from_bytes::<T>(raw.as_slice())
-            .map_err(|e| Error::TransportError(e.to_string()))
-    }
-
-    // A few private helpers to query on chain objects, not for public uses
-    async fn internal_get_game(
-        &self,
-        game_id: ObjectID
-    ) -> Result<GameObject> {
-        println!("Trying to get game object: {}", game_id.to_hex_uncompressed());
-
-        let response = self.client.read_api()
-            .get_object_with_options(
-                game_id,
-                SuiObjectDataOptions::bcs_lossless()
-            )
-            .await?;
-
-        let bcs: SuiRawData = response
-            .data
-            .and_then(|d| d.bcs)
-            .ok_or(Error::GameAccountNotFound)?;
-
-        let raw: SuiRawMoveObject = match bcs {
-            SuiRawData::MoveObject(sui_raw_mv_obj) => sui_raw_mv_obj,
-            _ => return Err(Error::TransportError("Game object raw data not found".into()))
-        };
-
-        // println!("raw bytes: {:?}", raw.bcs_bytes);
-
-        raw.deserialize::<GameObject>()
             .map_err(|e| Error::TransportError(e.to_string()))
     }
 
@@ -1559,18 +1502,20 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0x304ccc42ddab07d74a9cc0ebb6268ce84645e158250f587a365792f1cf5f1ef3";
-    const TEST_GAME_ID: &str = "0xe48c698837045e6296c7cd6d14d809f90192d38fb6651940d2adbaae2d700e1d";
-    const TEST_SERVER_TABLE_ID: &str = "0x6b42f9a3c1be90700ca3ebca78ae3d65d360f3e17d52f17ca753cf185557b253";
-    const TEST_PROFILE_TABLE_ID: &str = "0x0e93925793634d7aa2d6cf3fff73b171c5bf694f7616485cfee1773c58ff6f0e";
-    const TEST_RECIPIENT_ID: &str = "0xb27deadc71d05ed761b681d2e274a81dd782b482023d820849aefb9b109883f4";
-    const TEST_REGISTRY: &str = "0xc91df1896e7bfac9f288cdcd239c7aaf0e21a37bc38af4a5b006e066b368c0df";
+    const TEST_PACKAGE_ID: &str = "0xefdf5f95dd6dc87307e10b18abcafb35e0fdc82077c76edec18469064e4a4e99";
+    const TEST_GAME_ID: &str = "0xca42f1f255ea4d8944ce706bee318d9411d2f2a4ad043f29cc81aadf16f6a061";
+    const TEST_SERVER_TABLE_ID: &str = "0x302e13fa8331a2c37345ff053d347dd4e19666afa44ff62dcb6ec84fdc13a86e";
+    const TEST_PROFILE_TABLE_ID: &str = "0x4b4e744f568b7c904e4353f88f7c9a49a46f151493ff25878d9b0e66c2cd1ef3";
+    const TEST_RECIPIENT_ID: &str = "0x3bd2cf3a28df3e80779b2e401af54ef24a405fdd7d67f7687145f597d18dbb03";
+    const TEST_REGISTRY: &str = "0xcb430f98bd97f8c3697cbdbf0de6b9b59411b2634aeebd07f4434fec30f443c7";
     const TEST_GAME_NFT: &str = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
 
     // helper fns to generate some large structures for tests
     fn make_game_params() -> CreateGameAccountParams {
         // update entry type if needed
-        let entry_type = EntryType::Ticket { amount: 100_000_000 }; // 0.1 SUI
+        let entry_type = EntryType::Cash {
+            max_deposit: 900_000_000, min_deposit: 300_000_000 }; // 0.1 SUI
+        // let entry_type = EntryType::Ticket { amount: 300_000_000 }; // 0.1 SUI
         CreateGameAccountParams {
             title: "Race Devnet Test".into(),
             bundle_addr: SuiTransport::rand_account_str_addr(),
