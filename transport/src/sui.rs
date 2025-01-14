@@ -726,18 +726,11 @@ impl TransportT for SuiTransport {
             to_account_addr(game_obj.recipient_addr)?
         );
         let recipient_obj = self.get_move_object::<RecipientObject>(recipient_id).await?;
-        let mut slots: Vec<RecipientSlotObject> = Vec::with_capacity(
-            recipient_obj.slots.len()
-        );
-        for slot_id in recipient_obj.slots.iter() {
-            let slot_obj = self.get_move_object::<RecipientSlotObject>(*slot_id).await?;
-            slots.push(slot_obj);
-        }
         // process transfers one by one
         for Transfer { slot_id, amount } in transfers {
             println!("Tranfer {} for slot id {}", amount, slot_id);
             // TODO: to use the stake token to match the target slot
-            if let Some(slot) = slots.iter().find(|s| s.slot_id == slot_id) {
+            if let Some(slot) = recipient_obj.slots.iter().find(|s| s.slot_id == slot_id) {
                 if game_obj.token_addr.ne(&slot.token_addr) {
                     return Err(Error::TransportError(format!(
                         "Expected token {} but got {}",
@@ -1099,27 +1092,9 @@ impl TransportT for SuiTransport {
         let recipient_id = parse_object_id(addr)?;
         let recipient_obj = self.get_move_object::<RecipientObject>(recipient_id).await?;
 
-        println!("Need to get {} recipient slots", recipient_obj.slots.len());
+        println!("Recipient has {} slots", recipient_obj.slots.len());
 
-        let mut slots: Vec<RecipientSlot> = Vec::new();
-        for slot_id in recipient_obj.slots.iter() {
-            let slot_obj = self.get_move_object::<RecipientSlotObject>(*slot_id).await?;
-            slots.push(slot_obj.into());
-        }
-
-        if slots.len() == recipient_obj.slots.len() {
-            Ok(Some(
-                RecipientAccount {
-                    addr: recipient_obj.id.to_hex_uncompressed(),
-                    cap_addr: recipient_obj.cap_addr.map(|a| a.to_string()),
-                    slots
-                }
-            ))
-        } else {
-            println!("Expected {} slots but got {}",
-                     recipient_obj.slots.len(), slots.len());
-            Ok(None)
-        }
+        Ok(Some(recipient_obj.into()))
     }
 }
 
@@ -1580,11 +1555,11 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0xf3c857da70fbf7275495e35243e66d628dcac3f7a83a4b094a918811df5b1f99";
+    const TEST_PACKAGE_ID: &str = "0x304ccc42ddab07d74a9cc0ebb6268ce84645e158250f587a365792f1cf5f1ef3";
     const TEST_GAME_ID: &str = "0xe48c698837045e6296c7cd6d14d809f90192d38fb6651940d2adbaae2d700e1d";
     const TEST_SERVER_TABLE_ID: &str = "0x6b42f9a3c1be90700ca3ebca78ae3d65d360f3e17d52f17ca753cf185557b253";
     const TEST_PROFILE_TABLE_ID: &str = "0x0e93925793634d7aa2d6cf3fff73b171c5bf694f7616485cfee1773c58ff6f0e";
-    const TEST_RECIPIENT_ID: &str = "0xc3c6277f5c374139e42d6972b5223e4b4bfbd4cabd7a5af6811af79301aefa66";
+    const TEST_RECIPIENT_ID: &str = "0xb27deadc71d05ed761b681d2e274a81dd782b482023d820849aefb9b109883f4";
     const TEST_REGISTRY: &str = "0xc91df1896e7bfac9f288cdcd239c7aaf0e21a37bc38af4a5b006e066b368c0df";
     const TEST_GAME_NFT: &str = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
 
@@ -1735,17 +1710,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_recipient_object() -> Result<()> {
-        // create a recipient with 2 slots
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
             TEST_SERVER_TABLE_ID,
             TEST_PROFILE_TABLE_ID
         ).await.unwrap();
-        let params = make_recipient_params();
-        let response = transport.create_recipient(params).await?;
         // get the recipient object
-        let recipient_id = parse_object_id(&response)?;
+        let recipient_id = parse_object_id(TEST_RECIPIENT_ID)?;
         let recipient_obj = transport.get_move_object::<RecipientObject>(recipient_id).await?;
         let cap_addr = parse_sui_addr(PUBLISHER)?;
         println!("Found recipient {}", recipient_obj.id);
@@ -1754,8 +1726,7 @@ mod tests {
         assert_eq!(recipient_obj.cap_addr, Some(cap_addr));
 
         // get the slot one by one
-        let slot0 = transport
-            .get_move_object::<RecipientSlotObject>(recipient_obj.slots[0]).await?;
+        let slot0: &RecipientSlotObject = recipient_obj.slots.get(0).unwrap();
         println!("slot 0: {:?}", slot0);
         assert_eq!(slot0.slot_id, 0);
         assert_eq!(slot0.token_addr, COIN_SUI_PATH.to_string());
@@ -1767,8 +1738,7 @@ mod tests {
         assert_eq!(slot0.shares[0].weights, 10);
         assert_eq!(slot0.shares[0].claim_amount, 0);
 
-        let slot1 = transport
-            .get_move_object::<RecipientSlotObject>(recipient_obj.slots[1]).await?;
+        let slot1: &RecipientSlotObject = recipient_obj.slots.get(1).unwrap();
         assert_eq!(slot1.slot_id, 1);
         assert_eq!(slot1.token_addr, COIN_SUI_PATH.to_string());
         assert_eq!(slot1.slot_type, RecipientSlotType::Nft);

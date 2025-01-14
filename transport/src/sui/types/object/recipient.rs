@@ -80,5 +80,15 @@ impl From<RecipientSlotObject> for race_core::types::RecipientSlot {
 pub struct RecipientObject {
     pub id: ObjectID,
     pub cap_addr: Option<SuiAddress>,
-    pub slots: Vec<ObjectID>,
+    pub slots: Vec<RecipientSlotObject>,
+}
+
+impl From<RecipientObject> for race_core::types::RecipientAccount {
+    fn from(value: RecipientObject) -> Self {
+        Self {
+            addr: value.id.to_hex_uncompressed(),
+            cap_addr: value.cap_addr.map(|a| a.to_string()),
+            slots: value.slots.into_iter().map(Into::into).collect()
+        }
+    }
 }
