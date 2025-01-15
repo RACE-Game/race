@@ -872,7 +872,55 @@ impl TransportT for SuiTransport {
     }
 
     async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
-        todo!()
+        let game_id = parse_object_id(&params.addr)?;
+        let game_version = self.get_initial_shared_version(game_id).await?;
+        let game_obj = self.get_move_object::<GameObject>(game_id).await?;
+        let module = new_identifier("game")?;
+        let reject_fn = new_identifier("reject_deposits")?;
+        let gas_coin = self.get_max_coin(None).await?;
+        let gas_price = self.get_gas_price().await?;
+        let tx_data = TransactionData::new_move_call(
+            self.active_addr,
+            self.package_id,
+            module,
+            reject_fn,
+            vec![new_typetag(&game_obj.token_addr, None)?],
+            gas_coin.object_ref(),
+            vec![
+                CallArg::Object(ObjectArg::SharedObject {
+                    id: game_id,
+                    initial_shared_version: game_version,
+                    mutable: true
+                }),
+                new_pure_arg(&params.reject_deposits)?
+            ],
+            gas_coin.balance,
+            gas_price
+        )?;
+
+        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
+
+        println!("Need gase fees {gas_fees} and transport has balance: {}",
+                 gas_coin.balance);
+
+        let response = self.send_transaction(tx_data).await?;
+        println!("Rejecting desposits tx digest: {}", response.digest.to_string());
+
+        response.object_changes
+            .and_then(|chs| chs.iter().find(|ch| match ch {
+                ObjectChange::Mutated { object_id, .. } => {
+                    *object_id == game_id
+                },
+                _ => false
+            }).and_then(|ch| {
+                println!("Rejected deposits: {:?} from {game_id}", params.reject_deposits);
+                Some(game_id)
+            }))
+            .ok_or_else(|| Error::TransportError("Failed to reject the deposits".into()));
+
+        Ok(RejectDepositsResult {
+            signature: response.digest.to_string()
+        })
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
