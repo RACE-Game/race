@@ -24,7 +24,7 @@
             cargo
             openssl
             pkg-config
-            nodejs_18
+            nodejs
             just
             binaryen
             # For development
@@ -35,6 +35,7 @@
             zellij
             perl
           ];
+
           RUST_LOG = "info,hyper=error,parse_headers=error,encode_headers=error,wasmer_compiler_cranelift=info,solana_rpc_client=debug,solana_client=debug,jsonrpsee_server=info";
           RUST_BACKTRACE = 1;
         };

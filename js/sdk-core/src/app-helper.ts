@@ -1,4 +1,4 @@
-import { GameAccount, Nft, Token, TokenWithBalance, RecipientAccount } from './accounts'
+import { GameAccount, Nft, Token, TokenBalance, RecipientAccount } from './accounts'
 import { GAME_ACCOUNT_CACHE_TTL, NFT_CACHE_TTL, TOKEN_CACHE_TTL } from './common'
 import { CheckpointOffChain } from './checkpoint'
 import { ResponseHandle, ResponseStream } from './response'
@@ -299,8 +299,8 @@ export class AppHelper {
      *
      * @return A list of token info.
      */
-    async listTokensWithBalance(walletAddr: string, tokenAddrs: string[]): Promise<TokenWithBalance[]> {
-        return await this.#transport.listTokensWithBalance(walletAddr, tokenAddrs)
+    async listTokenBalance(walletAddr: string, tokenAddrs: string[]): Promise<TokenBalance[]> {
+        return await this.#transport.listTokenBalance(walletAddr, tokenAddrs)
     }
 
     /**

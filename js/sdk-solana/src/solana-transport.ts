@@ -1,27 +1,32 @@
 import {
-    SystemProgram,
-    Connection,
-    PublicKey,
-    Keypair,
-    ComputeBudgetProgram,
-    TransactionMessage,
-    TransactionInstruction,
-    VersionedTransaction,
-    AccountInfo,
-    TransactionSignature,
     Commitment,
+    Rpc,
+    createSolanaRpcFromTransport,
+    createDefaultRpcTransport,
+    SolanaRpcApi,
+    createTransactionMessage,
+    setTransactionMessageFeePayer,
+    setTransactionMessageLifetimeUsingBlockhash,
+    address,
+    Address,
+    TransactionMessage,
+    pipe,
+    partiallySignTransaction,
+    appendTransactionMessageInstructions,
+    IInstruction,
+    generateKeyPairSigner,
+    getProgramDerivedAddress,
+    KeyPairSigner,
+    TransactionSigner,
+    TransactionSendingSigner,
+    compileTransaction,
+    TransactionMessageWithBlockhashLifetime,
+    ITransactionMessageWithFeePayer,
+    createAddressWithSeed,
+    Blockhash,
+    Transaction,
 } from '@solana/web3.js'
-import { Buffer } from 'buffer'
-import {
-    AccountLayout,
-    MintLayout,
-    NATIVE_MINT,
-    TOKEN_PROGRAM_ID,
-    createInitializeAccountInstruction,
-    createTransferInstruction,
-    getAssociatedTokenAddressSync,
-    getMint,
-} from '@solana/spl-token'
+import * as SPL from '@solana-program/token'
 import {
     IWallet,
     ITransport,
@@ -46,7 +51,7 @@ import {
     RecipientAccount,
     RecipientSlot,
     RecipientClaimParams,
-    TokenWithBalance,
+    TokenBalance,
     ResponseHandle,
     CreateGameResponse,
     CreateGameError,
@@ -76,8 +81,8 @@ import {
     NAME_LEN,
     PROFILE_ACCOUNT_LEN,
     PLAYER_PROFILE_SEED,
-    SERVER_PROFILE_SEED,
     RECIPIENT_ACCOUNT_LEN,
+    NATIVE_MINT,
 } from './constants'
 
 import {
@@ -96,9 +101,29 @@ import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants'
 import { Metadata } from './metadata'
 import { Chain } from '@race-foundation/sdk-core/lib/types/common'
 import { SolanaWalletAdapter } from './solana-wallet'
+import { getCreateAccountInstruction, getCreateAccountWithSeedInstruction } from '@solana-program/system'
+import { TOKEN_PROGRAM_ADDRESS } from '@solana-program/token'
+import { createDasRpc, MetaplexDASApi } from './metaplex'
+
+type TransactionMessageWithFeePayerAndBlockhashLifetime = TransactionMessage &
+    ITransactionMessageWithFeePayer &
+    TransactionMessageWithBlockhashLifetime
+
+function base64ToUint8Array(base64: string): Uint8Array {
+    const rawBytes = atob(base64)
+    const uint8Array = new Uint8Array(rawBytes.length)
+    for (let i = 0; i < rawBytes.length; i++) {
+        uint8Array[i] = rawBytes.charCodeAt(i)
+    }
+    return uint8Array
+}
 
 function trimString(s: string): string {
     return s.replace(/\0/g, '')
+}
+
+function getSigner(wallet: IWallet): TransactionSendingSigner {
+    return (wallet as SolanaWalletAdapter).wallet
 }
 
 type LegacyToken = {
@@ -118,26 +143,24 @@ const SOL_TOKEN = {
 }
 
 type SendTransactionOptions = {
-    signers?: Keypair[]
+    signers?: KeyPairSigner[]
     commitment?: Commitment
 }
 
 export class SolanaTransport implements ITransport {
-    #conn: Connection
-    #legacyTokens?: LegacyToken[]
+    #rpc: Rpc<SolanaRpcApi>
+    #dasRpc: Rpc<MetaplexDASApi>
+    #endpoint: string
 
     constructor(endpoint: string) {
-        this.#conn = new Connection(endpoint, 'confirmed')
+        const transport = createDefaultRpcTransport({ url: endpoint })
+        this.#endpoint = endpoint
+        this.#rpc = createSolanaRpcFromTransport(transport)
+        this.#dasRpc = createDasRpc(transport)
     }
 
     get chain(): Chain {
         return 'solana'
-    }
-
-    async _fetchLegacyTokens() {
-        const resp = await fetch('https://arweave.net/60i6lMrqKZU8MtGM27WNrqr3s52ry2munrwMOK4jaO8')
-        const m = await resp.json()
-        this.#legacyTokens = m['tokens']
     }
 
     async createGameAccount(
@@ -145,86 +168,55 @@ export class SolanaTransport implements ITransport {
         params: CreateGameAccountParams,
         response: ResponseHandle<CreateGameResponse, CreateGameError>
     ): Promise<void> {
-        const conn = this.#conn
         const { title, bundleAddr, tokenAddr } = params
         if (title.length > NAME_LEN) {
             return response.failed('invalid-title')
         }
 
-        const payerKey = new PublicKey(wallet.walletAddr)
+        const payer = getSigner(wallet)
 
-        let recipientAccountKey: PublicKey
-        if ('recipientAddr' in params) {
-            recipientAccountKey = new PublicKey(params.recipientAddr)
-        } else {
-            const createRecipient = await this._prepareCreateRecipient(payerKey, params.recipientParams)
-            if ('err' in createRecipient) {
-                return response.failed(createRecipient.err)
-            }
-            let { ixs: createRecipientIxs, recipientAccount, signers } = createRecipient.ok
-            recipientAccountKey = recipientAccount.publicKey
+        const recipientAccountKey = address(params.recipientAddr)
 
-            const tx = await makeTransaction(this.#conn, payerKey, createRecipientIxs)
+        const registrationAccountKey = address(params.registrationAddr)
 
-            if ('err' in tx) {
-                return response.retryRequired(tx.err)
-            }
-
-            const prioritizationFee = await this._getPrioritizationFee([
-                recipientAccount.publicKey,
-                ...signers.map(k => k.publicKey),
-            ])
-            createRecipientIxs = [
-                ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }),
-                ...createRecipientIxs,
-            ]
-
-            tx.ok.sign(signers)
-            const sig = await sendTransaction(wallet, tx.ok, conn, response)
-            if ('err' in sig) {
-                return response.transactionFailed(sig.err)
-            } else {
-                response.preparing()
-            }
-        }
-
-        const registrationAccountKey = new PublicKey(params.registrationAddr)
-
-        let ixs: TransactionInstruction[] = []
-        let signers: Keypair[] = []
+        let ixs: IInstruction[] = []
+        let signers: KeyPairSigner[] = []
 
         const { ixs: createGameAccountIxs, account: gameAccount } = await this._prepareCreateAccount(
-            payerKey,
+            payer,
             GAME_ACCOUNT_LEN,
             PROGRAM_ID
         )
         ixs.push(...createGameAccountIxs)
         signers.push(gameAccount)
 
-        const tokenMintKey = new PublicKey(tokenAddr)
+        const tokenMintKey = address(tokenAddr)
 
         let stakeAccountKey
-        if (tokenMintKey.equals(NATIVE_MINT)) {
+        if (tokenMintKey == NATIVE_MINT) {
             // For SOL game, use PDA as stake account
-            const [pda, _] = PublicKey.findProgramAddressSync([gameAccount.publicKey.toBuffer()], PROGRAM_ID)
+            const [pda, _] = await getProgramDerivedAddress({
+                programAddress: PROGRAM_ID,
+                seeds: [gameAccount.address],
+            })
             stakeAccountKey = pda
-            console.info('Game uses SOL as token, use PDA as stake account:', stakeAccountKey.toBase58())
+            console.info('Game uses SOL as token, use PDA as stake account:', stakeAccountKey)
         } else {
             // For SPL game, use dedicated stake account
             const { tokenAccount: stakeAccount, ixs: createStakeAccountIxs } = await this._prepareCreateTokenAccount(
-                payerKey,
+                payer,
                 tokenMintKey
             )
             signers.push(stakeAccount)
             ixs.push(...createStakeAccountIxs)
-            stakeAccountKey = stakeAccount.publicKey
-            console.info('Game uses SPL as token, use dedicated stake account:', stakeAccountKey.toBase58())
+            stakeAccountKey = stakeAccount.address
+            console.info('Game uses SPL as token, use dedicated stake account:', stakeAccountKey)
         }
 
-        const bundleKey = new PublicKey(bundleAddr)
+        const bundleKey = address(bundleAddr)
         const createGame = instruction.createGameAccount({
-            ownerKey: payerKey,
-            gameAccountKey: gameAccount.publicKey,
+            ownerKey: payer.address,
+            gameAccountKey: gameAccount.address,
             stakeAccountKey,
             recipientAccountKey: recipientAccountKey,
             mint: tokenMintKey,
@@ -238,25 +230,25 @@ export class SolanaTransport implements ITransport {
         ixs.push(createGame)
 
         const registerGame = instruction.registerGame({
-            ownerKey: payerKey,
-            gameAccountKey: gameAccount.publicKey,
+            ownerKey: payer.address,
+            gameAccountKey: gameAccount.address,
             registrationAccountKey,
         })
 
         console.info('Transaction Instruction[RegisterGame]:', registerGame)
         ixs.push(registerGame)
 
-        const tx = await makeTransaction(this.#conn, payerKey, ixs)
+        const tx = await makeTransaction(this.#rpc, payer, ixs)
         if ('err' in tx) {
             response.retryRequired(tx.err)
             return
         }
 
-        const sig = await sendTransaction(wallet, tx.ok, conn, response, { signers })
+        const sig = await sendTransaction(payer, tx.ok, response, { signers })
         if ('err' in sig) {
             response.transactionFailed(sig.err)
         } else {
-            response.succeed({ gameAddr: gameAccount.publicKey.toBase58(), signature: sig.ok })
+            response.succeed({ gameAddr: gameAccount.address, signature: sig.ok })
         }
     }
 
@@ -265,12 +257,11 @@ export class SolanaTransport implements ITransport {
         params: CloseGameAccountParams,
         response: ResponseHandle<CloseGameAccountResponse, CloseGameAccountError>
     ): Promise<void> {
-        const conn = this.#conn
         const { gameAddr, regAddr } = params
 
-        const payerKey = new PublicKey(wallet.walletAddr)
-        const gameAccountKey = new PublicKey(gameAddr)
-        const regAccountKey = new PublicKey(regAddr)
+        const payer = getSigner(wallet)
+        const gameAccountKey = address(gameAddr)
+        const regAccountKey = address(regAddr)
 
         const gameState = await this._getGameState(gameAccountKey)
 
@@ -278,7 +269,7 @@ export class SolanaTransport implements ITransport {
             return response.failed('game-not-found')
         }
 
-        if (!gameState.ownerKey.equals(payerKey)) {
+        if (gameState.ownerKey != payer.address) {
             return response.failed('permission-denied')
         }
         const regState = await this._getRegState(regAccountKey)
@@ -287,92 +278,45 @@ export class SolanaTransport implements ITransport {
             return response.failed('reg-not-found')
         }
 
-        if (regState.games.find(g => g.gameKey.equals(gameAccountKey)) === undefined) {
+        if (regState.games.find(g => g.gameKey != gameAccountKey) === undefined) {
             return response.failed('game-not-in-reg')
         }
         const ixs = []
-        const [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID)
+        const [pda, _] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [gameAccountKey] })
 
         let receiver
-        if (gameState.tokenKey.equals(NATIVE_MINT)) {
-            receiver = payerKey
+
+        if (gameState.tokenKey == NATIVE_MINT) {
+            receiver = payer.address
         } else {
-            receiver = getAssociatedTokenAddressSync(gameState.tokenKey, payerKey)
+            ;[receiver] = await SPL.findAssociatedTokenPda({
+                owner: payer.address,
+                tokenProgram: SPL.TOKEN_PROGRAM_ADDRESS,
+                mint: gameState.tokenKey,
+            })
         }
 
-        const prioritizationFee = await this._getPrioritizationFee([
-            gameAccountKey,
-            gameState.stakeKey,
-            receiver,
-            pda,
+        const unregisterGameIx = instruction.unregisterGame({
+            payerKey: payer.address,
             regAccountKey,
-        ])
-        ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }))
-        const unregisterGameIx = new TransactionInstruction({
-            keys: [
-                {
-                    pubkey: payerKey,
-                    isSigner: true,
-                    isWritable: false,
-                },
-                {
-                    pubkey: regAccountKey,
-                    isSigner: false,
-                    isWritable: true,
-                },
-                {
-                    pubkey: gameAccountKey,
-                    isSigner: false,
-                    isWritable: false,
-                },
-            ],
-            data: Buffer.from(Uint8Array.of(instruction.Instruction.UnregisterGame)),
-            programId: PROGRAM_ID,
+            gameAccountKey,
         })
         ixs.push(unregisterGameIx)
-        const closeGameAccountIx = new TransactionInstruction({
-            keys: [
-                {
-                    pubkey: payerKey,
-                    isSigner: true,
-                    isWritable: false,
-                },
-                {
-                    pubkey: gameAccountKey,
-                    isSigner: false,
-                    isWritable: true,
-                },
-                {
-                    pubkey: gameState.stakeKey,
-                    isSigner: false,
-                    isWritable: true,
-                },
-                {
-                    pubkey: pda,
-                    isSigner: false,
-                    isWritable: false,
-                },
-                {
-                    pubkey: receiver,
-                    isSigner: false,
-                    isWritable: true,
-                },
-                {
-                    pubkey: TOKEN_PROGRAM_ID,
-                    isSigner: false,
-                    isWritable: false,
-                },
-            ],
-            data: Buffer.from(Uint8Array.of(instruction.Instruction.CloseGameAccount)),
-            programId: PROGRAM_ID,
+        const stakeKey = gameState.stakeKey
+        const closeGameAccountIx = instruction.closeGame({
+            payerKey: payer.address,
+            gameAccountKey,
+            stakeKey,
+            pda,
+            receiver,
         })
         ixs.push(closeGameAccountIx)
-        const tx = await makeTransaction(this.#conn, payerKey, ixs)
+        const tx = await makeTransaction(this.#rpc, payer, ixs)
         if ('err' in tx) {
             response.retryRequired(tx.err)
             return
         }
-        const sig = await sendTransaction(wallet, tx.ok, this.#conn, response, { commitment: 'confirmed' })
+        const sig = await sendTransaction(payer, tx.ok, response, { commitment: 'confirmed' })
         if ('err' in sig) {
             response.transactionFailed(sig.err)
         } else {
@@ -382,19 +326,18 @@ export class SolanaTransport implements ITransport {
 
     async join(wallet: IWallet, params: JoinParams, response: ResponseHandle<JoinResponse, JoinError>): Promise<void> {
         const { gameAddr, amount: amountRaw, position, verifyKey } = params
-        const gameAccountKey = new PublicKey(gameAddr)
-        const playerKey = new PublicKey(wallet.walletAddr)
+        const gameAccountKey = address(gameAddr)
+        const player = getSigner(wallet)
 
         // Call RPC functions in Parallel
         const d = new Date()
-        const [prioritizationFee, gameState, playerProfile] = await Promise.all([
-            this._getPrioritizationFee([gameAccountKey]),
+        const [gameState, playerProfile] = await Promise.all([
             this._getGameState(gameAccountKey),
             this.getPlayerProfile(wallet.walletAddr),
         ])
         console.debug('Batched RPC calls took %s milliseconds', new Date().getTime() - d.getTime())
 
-        const profileKey0 = playerProfile !== undefined ? new PublicKey(playerProfile?.addr) : undefined
+        const profileKey0 = playerProfile !== undefined ? address(playerProfile?.addr) : undefined
 
         if (gameState === undefined) return response.failed('game-not-found')
 
@@ -402,7 +345,7 @@ export class SolanaTransport implements ITransport {
         const settleVersion = gameState.settleVersion
 
         const mintKey = gameState.tokenKey
-        const isWsol = mintKey.equals(NATIVE_MINT)
+        const isWsol = mintKey == NATIVE_MINT
         const amount = BigInt(amountRaw)
 
         if (gameState.entryType instanceof EntryTypeCash) {
@@ -423,15 +366,13 @@ export class SolanaTransport implements ITransport {
 
         const stakeAccountKey = gameState.stakeKey
 
-        let ixs = []
+        let ixs: IInstruction[] = []
 
-        ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }))
-
-        let profileKey: PublicKey
+        let profileKey: Address
         if (profileKey0 !== undefined) {
             profileKey = profileKey0
         } else if (params.createProfileIfNeeded) {
-            const createProfile = await this._prepareCreatePlayerProfile(playerKey, {
+            const createProfile = await this._prepareCreatePlayerProfile(player, {
                 nick: wallet.walletAddr.substring(0, 6),
             })
             if ('err' in createProfile) {
@@ -445,32 +386,44 @@ export class SolanaTransport implements ITransport {
         }
         let tempAccount
         if (isWsol) {
-            const account = Keypair.generate()
-            const accountKey = account.publicKey
-            const ix = SystemProgram.createAccount({
-                fromPubkey: playerKey,
-                newAccountPubkey: accountKey,
-                lamports: Number(amount),
+            const account = await generateKeyPairSigner()
+            const ix = getCreateAccountInstruction({
+                payer: player,
+                newAccount: account,
+                lamports: amount,
                 space: 0,
-                programId: PROGRAM_ID,
+                programAddress: PROGRAM_ID,
             })
             ixs.push(ix)
             tempAccount = account
         } else {
             const { ixs: createTempAccountIxs, tokenAccount: tokenAccount } = await this._prepareCreateTokenAccount(
-                playerKey,
+                player,
                 mintKey
             )
             ixs.push(...createTempAccountIxs)
-            const playerAta = getAssociatedTokenAddressSync(mintKey, playerKey)
-            const transferIx = createTransferInstruction(playerAta, tokenAccount.publicKey, playerKey, amount)
+
+            const [playerAta] = await SPL.findAssociatedTokenPda({
+                owner: player.address,
+                mint: mintKey,
+                tokenProgram: SPL.TOKEN_PROGRAM_ADDRESS,
+            })
+            const transferIx = SPL.getTransferInstruction({
+                amount,
+                authority: player,
+                source: playerAta,
+                destination: tokenAccount.address,
+            })
             ixs.push(transferIx)
             tempAccount = tokenAccount
         }
+
+        let [pda] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [gameAccountKey] })
+
         const joinGameIx = instruction.join({
-            playerKey,
+            playerKey: player.address,
             profileKey,
-            paymentKey: tempAccount.publicKey,
+            paymentKey: tempAccount.address,
             gameAccountKey,
             mint: mintKey,
             stakeAccountKey,
@@ -480,32 +433,38 @@ export class SolanaTransport implements ITransport {
             settleVersion,
             position,
             verifyKey,
+            pda,
         })
+
         console.info('Transaction Instruction[Join]:', joinGameIx)
         ixs.push(joinGameIx)
-        const tx = await makeTransaction(this.#conn, playerKey, ixs)
+
+        const tx = await makeTransaction(this.#rpc, player, ixs)
         if ('err' in tx) {
             response.retryRequired(tx.err)
             return
         }
-        tx.ok.sign([tempAccount])
-        const sig = await sendTransaction(wallet, tx.ok, this.#conn, response, { commitment: 'confirmed' })
+
+        const sig = await sendTransaction(player, tx.ok, response, {
+            commitment: 'confirmed',
+            signers: [tempAccount],
+        })
         if ('err' in sig) {
             response.transactionFailed(sig.err)
         } else {
             response.succeed({ signature: sig.ok })
         }
     }
+
     async deposit(
         wallet: IWallet,
         params: DepositParams,
         response: ResponseHandle<DepositResponse, DepositError>
     ): Promise<void> {
-        const playerKey = new PublicKey(wallet.walletAddr)
-        const gameAccountKey = new PublicKey(params.gameAddr)
+        const player = getSigner(wallet)
+        const gameAccountKey = address(params.gameAddr)
         // Call RPC functions in Parallel
-        const [prioritizationFee, gameState, playerProfile] = await Promise.all([
-            this._getPrioritizationFee([gameAccountKey]),
+        const [gameState, playerProfile] = await Promise.all([
             this._getGameState(gameAccountKey),
             this.getPlayerProfile(wallet.walletAddr),
         ])
@@ -517,14 +476,14 @@ export class SolanaTransport implements ITransport {
         if (playerProfile === undefined) {
             return response.failed('profile-not-found')
         } else {
-            profileKey = new PublicKey(playerProfile.addr)
+            profileKey = address(playerProfile.addr)
         }
         if (gameState.transactorKey === undefined) {
             return response.failed('game-not-served')
         }
         const settleVersion = gameState.settleVersion
         const mintKey = gameState.tokenKey
-        const isWsol = mintKey.equals(NATIVE_MINT)
+        const isWsol = mintKey == NATIVE_MINT
         const amount = BigInt(params.amount)
         if (gameState.entryType instanceof EntryTypeCash) {
             if (amount < gameState.entryType.minDeposit || amount > gameState.entryType.maxDeposit) {
@@ -542,52 +501,68 @@ export class SolanaTransport implements ITransport {
             return response.failed('unsupported-entry-type')
         }
         let ixs = []
-        ixs.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: prioritizationFee }))
 
         let tempAccount
         if (isWsol) {
-            const account = Keypair.generate()
-            const accountKey = account.publicKey
-            const ix = SystemProgram.createAccount({
-                fromPubkey: playerKey,
-                newAccountPubkey: accountKey,
-                lamports: Number(amount),
+            const account = await generateKeyPairSigner()
+
+            const ix = getCreateAccountInstruction({
+                payer: player,
+                newAccount: account,
+                lamports: amount,
                 space: 0,
-                programId: PROGRAM_ID,
+                programAddress: PROGRAM_ID,
             })
             ixs.push(ix)
             tempAccount = account
         } else {
             const { ixs: createTempAccountIxs, tokenAccount: tokenAccount } = await this._prepareCreateTokenAccount(
-                playerKey,
+                player,
                 mintKey
             )
             ixs.push(...createTempAccountIxs)
-            const playerAta = getAssociatedTokenAddressSync(mintKey, playerKey)
-            const transferIx = createTransferInstruction(playerAta, tokenAccount.publicKey, playerKey, amount)
+
+            const [playerAta] = await SPL.findAssociatedTokenPda({
+                owner: player.address,
+                mint: mintKey,
+                tokenProgram: SPL.ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+            })
+            const transferIx = SPL.getTransferInstruction({
+                amount,
+                authority: player,
+                source: playerAta,
+                destination: tokenAccount.address,
+            })
+
             ixs.push(transferIx)
             tempAccount = tokenAccount
         }
+
+        const [pda, _] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [gameAccountKey] })
+
         const depositGameIx = instruction.deposit({
-            playerKey,
+            playerKey: player.address,
             profileKey,
-            paymentKey: tempAccount.publicKey,
+            paymentKey: tempAccount.address,
             gameAccountKey,
             mint: mintKey,
             stakeAccountKey: gameState.stakeKey,
             recipientAccountKey: gameState.recipientAddr,
             amount,
             settleVersion,
+            pda,
         })
         console.info('Transaction Instruction[Deposit]:', depositGameIx)
         ixs.push(depositGameIx)
-        const tx = await makeTransaction(this.#conn, playerKey, ixs)
+        const tx = await makeTransaction(this.#rpc, player, ixs)
         if ('err' in tx) {
             response.retryRequired(tx.err)
             return
         }
-        tx.ok.sign([tempAccount])
-        const sig = await sendTransaction(wallet, tx.ok, this.#conn, response, { commitment: 'confirmed' })
+        const sig = await sendTransaction(player, tx.ok, response, {
+            commitment: 'confirmed',
+            signers: [tempAccount],
+        })
         if ('err' in sig) {
             response.transactionFailed(sig.err)
         } else {
@@ -600,8 +575,8 @@ export class SolanaTransport implements ITransport {
         params: AttachBonusParams,
         response: ResponseHandle<AttachBonusResponse, AttachBonusError>
     ): Promise<void> {
-        const payerKey = new PublicKey(wallet.walletAddr)
-        const gameAccountKey = new PublicKey(params.gameAddr)
+        const payer = getSigner(wallet)
+        const gameAccountKey = address(params.gameAddr)
         const gameState = await this._getGameState(gameAccountKey)
         if (gameState === undefined) {
             return response.failed('game-not-found')
@@ -612,22 +587,36 @@ export class SolanaTransport implements ITransport {
 
         for (const bonus of params.bonuses) {
             const { tokenAddr, amount } = bonus
-            const mintKey = new PublicKey(tokenAddr)
+            const mintKey = address(tokenAddr)
+            const mint = await SPL.fetchMint(this.#rpc, mintKey, { commitment: 'finalized' })
             const { ixs: createTempAccountIxs, tokenAccount: tokenAccount } = await this._prepareCreateTokenAccount(
-                payerKey,
+                payer,
                 mintKey
             )
             ixs.push(...createTempAccountIxs)
-            const payerAta = getAssociatedTokenAddressSync(mintKey, payerKey)
-            const transferIx = createTransferInstruction(payerAta, tokenAccount.publicKey, payerKey, amount)
+            const [playerAta] = await SPL.findAssociatedTokenPda({
+                owner: payer.address,
+                tokenProgram: SPL.ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+                mint: gameState.tokenKey,
+            })
+
+            const transferIx = SPL.getTransferCheckedInstruction({
+                source: playerAta,
+                mint: tokenAccount.address,
+                destination: playerAta,
+                amount,
+                decimals: mint.data.decimals,
+                authority: payer.address,
+            })
+
             ixs.push(transferIx)
-            tempAccountKeys.push(tokenAccount.publicKey)
+            tempAccountKeys.push(tokenAccount.address)
             signers.push(tokenAccount)
         }
 
         const attachBonusIx = instruction.attachBonus({
-            payerKey,
-            gameAccountKey: new PublicKey(params.gameAddr),
+            payerKey: payer.address,
+            gameAccountKey: address(params.gameAddr),
             stakeAccountKey: gameState.stakeKey,
             identifiers: params.bonuses.map(b => b.identifier),
             tempAccountKeys,
@@ -638,11 +627,11 @@ export class SolanaTransport implements ITransport {
         }
         console.info('Transaction Instruction[attachBonus]:', attachBonusIx.ok)
         ixs.push(attachBonusIx.ok)
-        const tx = await makeTransaction(this.#conn, payerKey, ixs)
+        const tx = await makeTransaction(this.#rpc, payer, ixs)
         if ('err' in tx) {
             return response.retryRequired(tx.err)
         }
-        const sig = await sendTransaction(wallet, tx.ok, this.#conn, response, { signers })
+        const sig = await sendTransaction(payer, tx.ok, response, { signers })
         if ('err' in sig) {
             response.transactionFailed(sig.err)
         } else {
@@ -661,59 +650,78 @@ export class SolanaTransport implements ITransport {
         params: RecipientClaimParams,
         response: ResponseHandle<RecipientClaimResponse, RecipientClaimError>
     ): Promise<void> {
-        const payerKey = new PublicKey(wallet.walletAddr)
-        const recipientKey = new PublicKey(params.recipientAddr)
+        const payer = getSigner(wallet)
+        const recipientKey = address(params.recipientAddr)
         const recipientState = await this._getRecipientState(recipientKey)
         if (recipientState === undefined) {
             return response.failed('not-found')
         }
-        const recipientClaimIx = instruction.claim({
+
+        const [pda, _] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [recipientKey] })
+
+        const recipientClaimIx = await instruction.claim({
             recipientKey,
-            payerKey,
+            payerKey: payer.address,
             recipientState,
+            pda,
         })
         if ('err' in recipientClaimIx) {
             return response.failed(recipientClaimIx.err)
         }
-        const tx = await makeTransaction(this.#conn, payerKey, [recipientClaimIx.ok])
+        const tx = await makeTransaction(this.#rpc, payer, [recipientClaimIx.ok])
         if ('err' in tx) {
             return response.retryRequired(tx.err)
         }
-        const sig = await sendTransaction(wallet, tx.ok, this.#conn, response)
+        const sig = await sendTransaction(payer, tx.ok, response)
         if ('err' in sig) {
             response.transactionFailed(sig.err)
         } else {
             response.succeed({ recipientAddr: params.recipientAddr, signature: sig.ok })
         }
     }
+
+    async _getPlayerProfileAddress(payerKey: Address) {
+        return await createAddressWithSeed({
+            baseAddress: payerKey,
+            programAddress: PROGRAM_ID,
+            seed: PLAYER_PROFILE_SEED,
+        })
+    }
+
     async _prepareCreatePlayerProfile(
-        payerKey: PublicKey,
+        payer: TransactionSendingSigner,
         params: CreatePlayerProfileParams
-    ): Promise<Result<{ ixs: TransactionInstruction[]; profileKey: PublicKey }, CreatePlayerProfileError>> {
+    ): Promise<Result<{ ixs: IInstruction[]; profileKey: Address }, CreatePlayerProfileError>> {
         let ixs = []
         const { nick, pfp } = params
         if (nick.length > 16) {
             return { err: 'invalid-nick' }
         }
-        console.info('Payer Public Key:', payerKey.toBase58())
-        const profileKey = await PublicKey.createWithSeed(payerKey, PLAYER_PROFILE_SEED, PROGRAM_ID)
-        console.info('Player profile public key: ', profileKey.toBase58())
-        if (!(await this.#conn.getAccountInfo(profileKey))) {
-            const lamports = await this.#conn.getMinimumBalanceForRentExemption(PROFILE_ACCOUNT_LEN)
-            const ix = SystemProgram.createAccountWithSeed({
-                fromPubkey: payerKey,
-                basePubkey: payerKey,
-                newAccountPubkey: profileKey,
-                lamports: lamports,
+        console.info('Payer Public Key:', payer.address)
+
+        const profileKey = await this._getPlayerProfileAddress(payer.address)
+
+        console.info('Player profile public key: ', profileKey)
+        const profileAccountData = await this._getFinializedBase64AccountData(profileKey)
+
+        if (!profileAccountData) {
+            const lamports = await this.#rpc.getMinimumBalanceForRentExemption(PROFILE_ACCOUNT_LEN).send()
+            const ix = getCreateAccountWithSeedInstruction({
+                baseAccount: payer,
+                payer: payer,
+                newAccount: profileKey,
                 space: PROFILE_ACCOUNT_LEN,
+                programAddress: PROGRAM_ID,
                 seed: PLAYER_PROFILE_SEED,
-                programId: PROGRAM_ID,
+                amount: lamports,
+                base: payer.address,
             })
             console.info('Transaction Instruction[CreateAccount]:', ix)
             ixs.push(ix)
         }
-        const pfpKey = !pfp ? PublicKey.default : new PublicKey(pfp)
-        const createProfile = instruction.createPlayerProfile(payerKey, profileKey, nick, pfpKey)
+
+        const pfpKey = !pfp ? address('11111111111111111111111111111111') : address(pfp)
+        const createProfile = instruction.createPlayerProfile(payer.address, profileKey, nick, pfpKey)
         console.info('Transaction Instruction[CreatePlayerProfile]:', createProfile)
         ixs.push(createProfile)
         return {
@@ -723,24 +731,25 @@ export class SolanaTransport implements ITransport {
             },
         }
     }
+
     async createPlayerProfile(
         wallet: IWallet,
         params: CreatePlayerProfileParams,
         response: ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>
     ): Promise<void> {
-        let ixs: TransactionInstruction[] = []
-        const payerKey = new PublicKey(wallet.walletAddr)
-        const createPlayerProfile = await this._prepareCreatePlayerProfile(payerKey, params)
+        let ixs: IInstruction[] = []
+        const payer = getSigner(wallet)
+        const createPlayerProfile = await this._prepareCreatePlayerProfile(payer, params)
         if ('err' in createPlayerProfile) {
             return response.failed(createPlayerProfile.err)
         }
         const { ixs: createProfileIxs, profileKey } = createPlayerProfile.ok
         ixs.push(...createProfileIxs)
-        let tx = await makeTransaction(this.#conn, payerKey, ixs)
+        let tx = await makeTransaction(this.#rpc, payer, ixs)
         if ('err' in tx) {
             return response.retryRequired(tx.err)
         }
-        const sig = await sendTransaction(wallet, tx.ok, this.#conn, response)
+        const sig = await sendTransaction(payer, tx.ok, response)
         if ('err' in sig) {
             response.transactionFailed(sig.err)
         } else {
@@ -749,67 +758,78 @@ export class SolanaTransport implements ITransport {
                 profile: {
                     nick: params.nick,
                     pfp: params.pfp,
-                    addr: profileKey.toBase58(),
+                    addr: profileKey,
                 },
             })
         }
     }
     async _prepareCreateTokenAccount(
-        payerKey: PublicKey,
-        tokenMintKey: PublicKey
-    ): Promise<{ ixs: TransactionInstruction[]; tokenAccount: Keypair }> {
-        const { account, ixs } = await this._prepareCreateAccount(payerKey, AccountLayout.span, TOKEN_PROGRAM_ID)
-        const initStakeAccountIx = createInitializeAccountInstruction(
-            account.publicKey,
-            tokenMintKey,
-            payerKey,
-            TOKEN_PROGRAM_ID
-        )
-        console.info('Transaction Instruction[InitializeAccount]:', initStakeAccountIx)
-        ixs.push(initStakeAccountIx)
+        payer: TransactionSigner,
+        mint: Address
+    ): Promise<{ ixs: IInstruction[]; tokenAccount: KeyPairSigner }> {
+        const token = await generateKeyPairSigner()
+        const space = SPL.getTokenSize()
+        const rent = await this.#rpc.getMinimumBalanceForRentExemption(BigInt(space)).send()
+
+        const ixs = [
+            getCreateAccountInstruction({
+                payer,
+                newAccount: token,
+                lamports: rent,
+                space,
+                programAddress: TOKEN_PROGRAM_ADDRESS,
+            }),
+            SPL.getInitializeAccountInstruction({
+                account: token.address,
+                mint,
+                owner: payer.address,
+            }),
+        ]
+
         return {
             ixs,
-            tokenAccount: account,
+            tokenAccount: token,
         }
     }
     async _prepareCreateAccount(
-        payerKey: PublicKey,
-        size: number,
-        programId: PublicKey
-    ): Promise<{ ixs: TransactionInstruction[]; account: Keypair }> {
-        const account = Keypair.generate()
-        const accountKey = account.publicKey
-        const lamports = await this.#conn.getMinimumBalanceForRentExemption(size)
-        const ix = SystemProgram.createAccount({
-            fromPubkey: payerKey,
-            newAccountPubkey: accountKey,
-            lamports: lamports,
+        payer: TransactionSigner,
+        size: bigint,
+        programAddress: Address
+    ): Promise<{ ixs: IInstruction[]; account: KeyPairSigner }> {
+        const account = await generateKeyPairSigner()
+        const lamports = await this.#rpc.getMinimumBalanceForRentExemption(size).send()
+
+        const ix = getCreateAccountInstruction({
+            payer,
+            newAccount: account,
             space: size,
-            programId,
+            lamports,
+            programAddress,
         })
+
         console.info('Transaction Instruction[CreateAccount]:', ix)
         return { ixs: [ix], account }
     }
     async _prepareCreateRecipient(
-        payerKey: PublicKey,
+        payer: TransactionSigner,
         params: CreateRecipientParams
     ): Promise<
-        Result<{ recipientAccount: Keypair; ixs: TransactionInstruction[]; signers: Keypair[] }, CreateRecipientError>
+        Result<{ recipientAccount: KeyPairSigner; ixs: IInstruction[]; signers: KeyPairSigner[] }, CreateRecipientError>
     > {
         if (params.slots.length > 10) {
             return { err: 'invalid-size' }
         }
-        let ixs: TransactionInstruction[] = []
-        let signers: Keypair[] = []
-        let capKey: PublicKey
+        let ixs: IInstruction[] = []
+        let signers: KeyPairSigner[] = []
+        let capKey: Address
         if (params.capAddr === undefined) {
-            capKey = payerKey
+            capKey = payer.address
         } else {
-            capKey = new PublicKey(params.capAddr)
+            capKey = address(params.capAddr)
         }
         // Create Recipient Account
         let { ixs: createRecipientAccountIxs, account: recipientAccount } = await this._prepareCreateAccount(
-            payerKey,
+            payer,
             RECIPIENT_ACCOUNT_LEN,
             PROGRAM_ID
         )
@@ -825,25 +845,26 @@ export class SolanaTransport implements ITransport {
             } else {
                 usedId.push(slot.id)
             }
-            let stakeAddr: PublicKey
-            if (slot.tokenAddr === NATIVE_MINT.toBase58()) {
+            let stakeAddr: Address
+            if (slot.tokenAddr === NATIVE_MINT) {
                 // Use PDA as stake account for SOL slot
-                const [pda, _] = PublicKey.findProgramAddressSync(
-                    [recipientAccount.publicKey.toBytes(), Uint8Array.of(slot.id)],
-                    PROGRAM_ID
-                )
+                const [pda] = await getProgramDerivedAddress({
+                    programAddress: PROGRAM_ID,
+                    seeds: [recipientAccount.address, Uint8Array.of(slot.id)],
+                })
+
                 stakeAddr = pda
             } else {
                 // Use dedicated stake account
                 const { ixs: createStakeAccountIxs, tokenAccount: stakeAccount } =
-                    await this._prepareCreateTokenAccount(payerKey, new PublicKey(slot.tokenAddr))
+                    await this._prepareCreateTokenAccount(payer, address(slot.tokenAddr))
                 ixs.push(...createStakeAccountIxs)
                 signers.push(stakeAccount)
-                stakeAddr = stakeAccount.publicKey
+                stakeAddr = stakeAccount.address
             }
             const slotInit = new instruction.SlotInit({
                 id: slot.id,
-                tokenAddr: new PublicKey(slot.tokenAddr),
+                tokenAddr: address(slot.tokenAddr),
                 stakeAddr,
                 slotType: slot.slotType === 'token' ? 0 : 1,
                 initShares: slot.initShares.map(share => {
@@ -864,8 +885,8 @@ export class SolanaTransport implements ITransport {
         console.debug('Slots for recipient:', slots)
         // Initialize Recipient Account
         const createRecipientIx = instruction.createRecipient({
-            payerKey,
-            recipientKey: recipientAccount.publicKey,
+            payerKey: payer.address,
+            recipientKey: recipientAccount.address,
             slots,
             capKey,
         })
@@ -883,23 +904,22 @@ export class SolanaTransport implements ITransport {
         params: CreateRecipientParams,
         response: ResponseHandle<CreateRecipientResponse, CreateRecipientError>
     ): Promise<void> {
-        const payerKey = new PublicKey(wallet.walletAddr)
-        const createRecipient = await this._prepareCreateRecipient(payerKey, params)
+        const payer = getSigner(wallet)
+        const createRecipient = await this._prepareCreateRecipient(payer, params)
         if ('err' in createRecipient) {
             return response.failed(createRecipient.err)
         }
         const { ixs, recipientAccount, signers } = createRecipient.ok
-        const tx = await makeTransaction(this.#conn, payerKey, ixs)
+        const tx = await makeTransaction(this.#rpc, payer, ixs)
         if ('err' in tx) {
             return response.retryRequired(tx.err)
         }
         const transaction = tx.ok
-        transaction.sign(signers)
-        const sig = await sendTransaction(wallet, transaction, this.#conn, response)
+        const sig = await sendTransaction(payer, transaction, response, { signers })
         if ('err' in sig) {
             response.transactionFailed(sig.err)
         } else {
-            response.succeed({ recipientAddr: recipientAccount.publicKey.toBase58(), signature: sig.ok })
+            response.succeed({ recipientAddr: recipientAccount.address, signature: sig.ok })
         }
     }
     async createRegistration(_wallet: IWallet, _params: CreateRegistrationParams): Promise<void> {
@@ -912,25 +932,26 @@ export class SolanaTransport implements ITransport {
         throw new Error('unimplemented')
     }
     async getGameAccount(addr: string): Promise<GameAccount | undefined> {
-        const gameAccountKey = new PublicKey(addr)
+        const gameAccountKey = address(addr)
         const gameState = await this._getGameState(gameAccountKey)
         if (gameState !== undefined) {
-            return gameState.generalize(new PublicKey(addr))
+            return gameState.generalize(address(addr))
         } else {
             return undefined
         }
     }
     async getGameBundle(addr: string): Promise<GameBundle | undefined> {
-        const mintKey = new PublicKey(addr)
-        const [metadataKey] = PublicKey.findProgramAddressSync(
-            [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
-            METAPLEX_PROGRAM_ID
-        )
-        const metadataAccount = await this.#conn.getAccountInfo(metadataKey)
-        if (metadataAccount === null) {
+        const mintKey = address(addr)
+        const [metadataKey] = await getProgramDerivedAddress({
+            programAddress: METAPLEX_PROGRAM_ID,
+            seeds: ['metadata', METAPLEX_PROGRAM_ID, mintKey],
+        })
+
+        const metadataAccountData = await this._getFinializedBase64AccountData(metadataKey)
+        if (metadataAccountData === undefined) {
             return undefined
         }
-        const metadataState = Metadata.deserialize(metadataAccount.data)
+        const metadataState = Metadata.deserialize(metadataAccountData)
         console.debug('Metadata of game bundle:', metadataState)
         let { uri, name } = metadataState.data
         // URI should contains the wasm property
@@ -941,12 +962,13 @@ export class SolanaTransport implements ITransport {
         return { addr, uri: wasm_file['uri'], name: trimString(name), data: new Uint8Array(0) }
     }
     async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
-        const conn = this.#conn
-        const playerKey = new PublicKey(addr)
-        const profileKey = await PublicKey.createWithSeed(playerKey, PLAYER_PROFILE_SEED, PROGRAM_ID)
-        const profileAccount = await conn.getAccountInfo(profileKey)
-        if (profileAccount) {
-            const profileAccountData = profileAccount.data
+        const playerKey = address(addr)
+
+        const profileKey = await this._getPlayerProfileAddress(playerKey)
+
+        const profileAccountData = await this._getFinializedBase64AccountData(profileKey)
+
+        if (profileAccountData !== undefined) {
             const state = PlayerState.deserialize(profileAccountData)
             return state.generalize(playerKey)
         } else {
@@ -954,7 +976,7 @@ export class SolanaTransport implements ITransport {
         }
     }
     async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
-        const serverKey = new PublicKey(addr)
+        const serverKey = address(addr)
         const serverState = await this._getServerState(serverKey)
         if (serverState !== undefined) {
             return serverState.generalize()
@@ -963,7 +985,7 @@ export class SolanaTransport implements ITransport {
         }
     }
     async getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
-        const regKey = new PublicKey(addr)
+        const regKey = address(addr)
         const regState = await this._getRegState(regKey)
         if (regState !== undefined) {
             return regState.generalize(regKey)
@@ -974,7 +996,7 @@ export class SolanaTransport implements ITransport {
     async getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {
         const regAccount = await this.getRegistration(addr)
         if (regAccount === undefined) return undefined
-        const keys = regAccount.games.map(g => new PublicKey(g.addr))
+        const keys = regAccount.games.map(g => address(g.addr))
         const gameStates = await this._getMultiGameStates(keys)
         let games: Array<GameAccount> = []
         for (let i = 0; i < gameStates.length; i++) {
@@ -989,23 +1011,24 @@ export class SolanaTransport implements ITransport {
         }
     }
     async getRecipient(addr: string): Promise<RecipientAccount | undefined> {
-        const recipientKey = new PublicKey(addr)
+        const recipientKey = address(addr)
         const recipientState = await this._getRecipientState(recipientKey)
         if (recipientState === undefined) return undefined
         let slots: RecipientSlot[] = []
         for (const slot of recipientState.slots) {
             let balance
-            if (slot.tokenAddr.equals(NATIVE_MINT)) {
-                const resp = await this.#conn.getAccountInfo(slot.stakeAddr)
+            if (slot.tokenAddr == NATIVE_MINT) {
+                const resp = (await this.#rpc.getAccountInfo(slot.stakeAddr).send()).value
                 balance = BigInt(resp?.lamports || 0n)
             } else {
-                const resp = await this.#conn.getTokenAccountBalance(slot.stakeAddr)
+                const resp = await this.#rpc.getTokenAccountBalance(slot.stakeAddr).send()
                 balance = BigInt(resp.value.amount)
             }
             slots.push(slot.generalize(balance))
         }
         return recipientState.generalize(addr, slots)
     }
+
     async _fetchImageFromDataUri(dataUri: string): Promise<string | undefined> {
         try {
             const resp = await fetch(dataUri)
@@ -1015,283 +1038,181 @@ export class SolanaTransport implements ITransport {
             return undefined
         }
     }
-    async _getPrioritizationFee(pubkeys: PublicKey[]): Promise<number> {
-        const prioritizationFee = await this.#conn.getRecentPrioritizationFees({
-            lockedWritableAccounts: pubkeys,
-        })
-        let f = 10000
-        for (const fee of prioritizationFee) {
-            f += fee.prioritizationFee
-        }
-        console.info('Estimated prioritization fee:', f)
-        return f
-    }
+
     async getTokenDecimals(addr: string): Promise<number | undefined> {
-        const mintKey = new PublicKey(addr)
-        const mint = await getMint(this.#conn, mintKey, 'finalized')
-        return mint.decimals
+        const mintKey = address(addr)
+
+        const mint = await SPL.fetchMint(this.#rpc, mintKey, { commitment: 'finalized' })
+
+        return mint.data.decimals
     }
-    async getToken(addr: string): Promise<Token | undefined> {
-        const mintKey = new PublicKey(addr)
-        try {
-            const mint = await getMint(this.#conn, mintKey, 'finalized')
-            const [metadataKey] = PublicKey.findProgramAddressSync(
-                [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
-                METAPLEX_PROGRAM_ID
-            )
-            const metadataAccount = await this.#conn.getAccountInfo(metadataKey)
-            let metadataState
-            if (metadataAccount !== null) {
-                metadataState = Metadata.deserialize(metadataAccount.data)
-            }
-            // Get from legacy token
-            if (this.#legacyTokens === undefined) {
-                await this._fetchLegacyTokens()
-            }
-            let legacyToken: LegacyToken | undefined = undefined
-            if (this.#legacyTokens !== undefined) {
-                legacyToken = this.#legacyTokens.find(t => t.address === addr)
-            }
-            if (metadataState !== undefined) {
-                const addr = mint.address.toBase58()
-                const decimals = mint.decimals
-                const image = await this._fetchImageFromDataUri(metadataState.data.uri)
-                const name = metadataState.data.name
-                    ? trimString(metadataState.data.name)
-                    : legacyToken
-                      ? legacyToken.name
-                      : ''
-                const symbol = metadataState.data.symbol
-                    ? trimString(metadataState.data.symbol)
-                    : legacyToken
-                      ? legacyToken.symbol
-                      : ''
-                const icon = image ? image : legacyToken?.logoURI ? legacyToken.logoURI : ''
-                return { addr, decimals, name, symbol, icon }
-            } else {
+
+    async _getAssetAsToken(addr: Address): Promise<Token | undefined> {
+        const assetResp = await this.#dasRpc.getAsset(addr).send()
+        if ('result' in assetResp) {
+            const asset = assetResp.result
+            const { name, symbol } = asset.content.metadata
+            const icon = asset.content.files?.[0]?.uri
+            if (icon == undefined) {
+                console.warn('Skip token %s as its icon is not available', addr)
                 return undefined
             }
+            const decimals = asset.token_info.decimals
+            const token = {
+                addr,
+                name,
+                symbol,
+                icon,
+                decimals,
+            }
+            return token
+        } else {
+            console.warn(assetResp.error, 'Error in getAsset response')
+            return undefined
+        }
+    }
+
+    async getToken(addr: string): Promise<Token | undefined> {
+        const mintKey = address(addr)
+        try {
+            return await this._getAssetAsToken(mintKey)
         } catch (e) {
             console.warn(e)
             return undefined
         }
     }
-    // Return [name, symbol, icon]
-    async parseTokenMetadata(
-        addr: string,
-        metadataAccount: AccountInfo<Buffer>
-    ): Promise<[string | undefined, string | undefined, string | undefined]> {
-        const metadataState = Metadata.deserialize(metadataAccount.data)
-        const uri = trimString(metadataState.data.uri)
-        const image = uri ? await this._fetchImageFromDataUri(uri) : undefined
-        if (this.#legacyTokens === undefined) {
-            await this._fetchLegacyTokens()
-        }
-        let legacyToken: LegacyToken | undefined = undefined
-        if (this.#legacyTokens !== undefined) {
-            legacyToken = this.#legacyTokens.find(t => t.address === addr)
-        }
-        const name = metadataState.data.name ? trimString(metadataState.data.name) : legacyToken ? legacyToken.name : ''
-        const symbol = metadataState.data.symbol
-            ? trimString(metadataState.data.symbol)
-            : legacyToken
-              ? legacyToken.symbol
-              : ''
-        const icon = image ? image : legacyToken?.logoURI ? legacyToken.logoURI : ''
-        return [name, symbol, icon]
-    }
-    async listTokens(tokenAddrs: string[]): Promise<Token[]> {
-        if (tokenAddrs.length > 30) {
+
+    async listTokens(rawMintAddrs: string[]): Promise<Token[]> {
+        // In Solana, token specification is stored in Mint, user token wallet is stored in Token.
+        // Here we are querying the Mints.
+
+        if (rawMintAddrs.length > 30) {
             throw new Error('Too many token addresses in a row')
         }
-        let results = []
-        let mintMetaList: [PublicKey, PublicKey][] = []
-        for (const t of tokenAddrs) {
-            const mintKey = new PublicKey(t)
-            if (mintKey.equals(NATIVE_MINT)) {
-                results.push(SOL_TOKEN)
-            } else {
-                const [metadataKey] = PublicKey.findProgramAddressSync(
-                    [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
-                    METAPLEX_PROGRAM_ID
-                )
-                mintMetaList.push([mintKey, metadataKey])
-            }
-        }
-        const accountInfos = await this.#conn.getMultipleAccountsInfo(mintMetaList.flat())
-        for (let i = 0; i < mintMetaList.length; i++) {
-            const mintKey = mintMetaList[i][0]
-            const mintAccount = accountInfos[2 * i]
-            const metadataAccount = accountInfos[2 * i + 1]
-            let addr = mintKey.toBase58()
-            let decimals: number | undefined = undefined
-            let name: string | undefined = undefined
-            let symbol: string | undefined = undefined
-            let icon: string | undefined = undefined
-            if (mintAccount) {
-                const m = MintLayout.decode(mintAccount.data)
-                decimals = m.decimals
-            }
-            if (metadataAccount) {
-                ;[name, symbol, icon] = await this.parseTokenMetadata(addr, metadataAccount)
-            }
-            if (decimals !== undefined && name !== undefined && symbol !== undefined && icon !== undefined) {
-                const token = { addr, name, symbol, icon, decimals }
-                console.debug('Found token:', token)
-                results.push(token)
-            } else if (decimals !== undefined) {
-                const token = { addr, name: '', symbol: '', icon: '', decimals }
-                console.debug('Found token(missing metadata):', token)
-                results.push(token)
-            }
-        }
-        return results
+
+        let tokens = await Promise.all(rawMintAddrs.map(a => this._getAssetAsToken(address(a))))
+
+        return tokens.filter((t): t is Token => t !== undefined)
     }
+
     /**
      * List tokens.
      */
-    async listTokensWithBalance(walletAddr: string, tokenAddrs: string[]): Promise<TokenWithBalance[]> {
-        if (tokenAddrs.length > 30) {
+    async listTokenBalance(rawWalletAddr: string, rawMintAddrs: string[]): Promise<TokenBalance[]> {
+        if (rawMintAddrs.length > 30) {
             throw new Error('Too many token addresses in a row')
         }
-        let results = []
-        const ownerKey = new PublicKey(walletAddr)
-        let mintAtaList: [PublicKey, PublicKey, PublicKey][] = []
-        for (const t of tokenAddrs) {
-            const mintKey = new PublicKey(t)
-            if (mintKey.equals(NATIVE_MINT)) {
-                const lamports = await this.#conn.getBalance(ownerKey)
-                results.push(new TokenWithBalance(SOL_TOKEN, BigInt(lamports)))
+        const walletAddr = address(rawWalletAddr)
+        const mintAddrs = rawMintAddrs.map(a => address(a))
+        const rpc = this.#rpc
+
+        const queryBalanceTasks = mintAddrs.map(async mintAddr => {
+            if (mintAddr == NATIVE_MINT) {
+                const resp = await rpc.getBalance(walletAddr).send()
+                if (resp !== null) {
+                    return {
+                        addr: mintAddr,
+                        amount: resp.value,
+                    }
+                } else {
+                    return {
+                        addr: mintAddr,
+                        amount: 0n,
+                    }
+                }
             } else {
-                const ataKey = getAssociatedTokenAddressSync(mintKey, ownerKey)
-                const [metadataKey] = PublicKey.findProgramAddressSync(
-                    [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
-                    METAPLEX_PROGRAM_ID
-                )
-                mintAtaList.push([mintKey, ataKey, metadataKey])
+                const [ata] = await SPL.findAssociatedTokenPda({
+                    owner: walletAddr,
+                    tokenProgram: SPL.TOKEN_PROGRAM_ADDRESS,
+                    mint: mintAddr,
+                })
+                const token = await SPL.fetchMaybeToken(this.#rpc, ata)
+                if (token.exists) {
+                    return {
+                        addr: mintAddr,
+                        amount: token.data.amount,
+                    }
+                } else {
+                    return {
+                        addr: mintAddr,
+                        amount: 0n,
+                    }
+                }
             }
-        }
-        const accountInfos = await this.#conn.getMultipleAccountsInfo(mintAtaList.flat())
-        for (let i = 0; i < mintAtaList.length; i++) {
-            const mintKey = mintAtaList[i][0]
-            const mintAccount = accountInfos[3 * i]
-            const ataAccount = accountInfos[3 * i + 1]
-            const metadataAccount = accountInfos[3 * i + 2]
-            let addr = mintKey.toBase58()
-            let decimals: number | undefined = undefined
-            let name: string | undefined = undefined
-            let symbol: string | undefined = undefined
-            let icon: string | undefined = undefined
-            let balance: bigint = 0n
-            if (mintAccount) {
-                const m = MintLayout.decode(mintAccount.data)
-                decimals = m.decimals
-            }
-            if (metadataAccount) {
-                ;[name, symbol, icon] = await this.parseTokenMetadata(addr, metadataAccount)
-            }
-            if (ataAccount) {
-                const acc = AccountLayout.decode(ataAccount.data)
-                balance = acc.amount
-            }
-            if (decimals !== undefined && name !== undefined && symbol !== undefined && icon !== undefined) {
-                const tokenWithBalance = new TokenWithBalance({ addr, name, symbol, icon, decimals }, balance)
-                console.debug('Found token with balance:', tokenWithBalance)
-                results.push(tokenWithBalance)
-            } else if (decimals !== undefined) {
-                const tokenWithBalance = new TokenWithBalance(
-                    { addr, name: '', symbol: '', icon: '', decimals },
-                    balance
-                )
-                console.debug('Found token with balance(missing metadata):', tokenWithBalance)
-                results.push(tokenWithBalance)
-            }
-        }
-        return results
+        })
+
+        return await Promise.all(queryBalanceTasks)
     }
-    async getNft(addr: string | PublicKey): Promise<Nft | undefined> {
-        let mintKey: PublicKey
-        if (addr instanceof PublicKey) {
-            mintKey = addr
-        } else {
-            mintKey = new PublicKey(addr)
-        }
-        try {
-            const mint = await getMint(this.#conn, mintKey, 'finalized')
-            // Non-zero decimals stands for a fungible token
-            if (mint.decimals !== 0) {
-                return undefined
-            }
-            const [metadataKey] = PublicKey.findProgramAddressSync(
-                [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mintKey.toBuffer()],
-                METAPLEX_PROGRAM_ID
-            )
-            const metadataAccount = await this.#conn.getAccountInfo(metadataKey)
-            let metadataState
-            if (metadataAccount !== null) {
-                metadataState = Metadata.deserialize(metadataAccount.data)
-            }
-            if (metadataState !== undefined) {
-                const image = await this._fetchImageFromDataUri(metadataState.data.uri)
-                if (image === undefined) return undefined
-                const nft = {
-                    addr: mint.address.toBase58(),
-                    name: trimString(metadataState.data.name),
-                    symbol: trimString(metadataState.data.symbol),
+
+    async getNft(addr: Address): Promise<Nft | undefined> {
+        const resp = await this.#dasRpc.getAsset(addr).send()
+
+        if ('result' in resp) {
+            const item = resp.result
+            const collection = item.grouping.find(g => g.group_key === 'collection')?.group_value
+            const image = item.content.links?.['image'] as string | undefined
+
+            if (image !== undefined) {
+                const nft: Nft = {
+                    addr: item.id,
+                    collection: collection,
                     image,
-                    collection: metadataState?.collection?.key.toBase58(),
-                    metadata: metadataState?.data,
+                    metadata: item.content.metadata,
+                    name: item.content.metadata.name,
+                    symbol: item.content.metadata.symbol,
                 }
                 return nft
             } else {
-                return undefined
-            }
-        } catch (e) {
-            console.warn(e)
-            return undefined
-        }
-    }
-    async listNfts(walletAddr: string): Promise<Nft[]> {
-        let nfts = []
-        const ownerKey = new PublicKey(walletAddr)
-        const parsedTokenAccounts = await this.#conn.getParsedTokenAccountsByOwner(ownerKey, {
-            programId: TOKEN_PROGRAM_ID,
-        })
-        for (const a of parsedTokenAccounts.value) {
-            if (
-                a.account.data.parsed.info.tokenAmount.amount !== '1' ||
-                a.account.data.parsed.info.tokenAmount.decimals !== 0
-            ) {
-                continue
-            }
-            const nft = await this.getNft(a.account.data.parsed.info.mint)
-            if (nft !== undefined) {
-                nfts.push(nft)
+                console.warn('Ignore nft %s as not image found', item.id)
             }
         }
-        return nfts
+        return undefined
     }
-    async _getGameState(gameAccountKey: PublicKey): Promise<GameState | undefined> {
-        const conn = this.#conn
-        const gameAccount = await conn.getAccountInfo(gameAccountKey)
-        if (gameAccount !== null) {
-            const data = gameAccount.data
-            return GameState.deserialize(data)
-        } else {
-            return undefined
+
+    async listNfts(rawWalletAddr: string): Promise<Nft[]> {
+        const walletAddr = address(rawWalletAddr)
+        const resp = await this.#dasRpc
+            .getAssetsByOwner({
+                ownerAddress: walletAddr,
+            })
+            .send()
+        let result: Nft[] = []
+
+        if ('result' in resp) {
+            const assetsResp = resp.result
+            for (const item of assetsResp.items) {
+                const collection = item.grouping.find(g => g.group_key === 'collection')?.group_value
+                const image = item.content.links?.['image'] as string | undefined
+
+                if (image !== undefined) {
+                    const nft: Nft = {
+                        addr: item.id,
+                        collection: collection,
+                        image,
+                        metadata: item.content.metadata,
+                        name: item.content.metadata.name,
+                        symbol: item.content.metadata.symbol,
+                    }
+                    result.push(nft)
+                } else {
+                    console.warn('Ignore nft %s as not image found', item.id)
+                }
+            }
         }
+
+        return result
     }
-    async _getMultiGameStates(gameAccountKeys: PublicKey[]): Promise<Array<GameState | undefined>> {
-        const conn = this.#conn
-        const accountsInfo = await conn.getMultipleAccountsInfo(gameAccountKeys)
+
+    async _getMultiGameStates(gameAccountKeys: Address[]): Promise<Array<GameState | undefined>> {
+        const accounts = await this.#rpc.getMultipleAccounts(gameAccountKeys).send()
         const ret: Array<GameState | undefined> = []
-        console.info('Get %s games from registry', accountsInfo.length)
-        for (let i = 0; i < accountsInfo.length; i++) {
+        console.info('Get %s games from registry', accounts.value.length)
+        for (let i = 0; i < accounts.value.length; i++) {
             const key = gameAccountKeys[i]
-            const accountInfo = accountsInfo[i]
+            const accountInfo = accounts.value[i]
             if (accountInfo !== null) {
                 try {
-                    ret.push(GameState.deserialize(accountInfo.data))
+                    ret.push(GameState.deserialize(base64ToUint8Array(accountInfo.data[0])))
                     console.info('Found game account %s', key)
                 } catch (_: any) {
                     ret.push(undefined)
@@ -1304,32 +1225,49 @@ export class SolanaTransport implements ITransport {
         }
         return ret
     }
-    async _getRecipientState(recipientKey: PublicKey): Promise<RecipientState | undefined> {
-        const conn = this.#conn
-        const recipientAccount = await conn.getAccountInfo(recipientKey)
-        if (recipientAccount !== null) {
-            const data = recipientAccount.data
+
+    // This function returns the account data in Uint8Array which is parsed from base64 string
+    // format.
+    async _getFinializedBase64AccountData(addr: Address): Promise<Readonly<Uint8Array> | undefined> {
+        const value = (await this.#rpc.getAccountInfo(addr, { commitment: 'finalized', encoding: 'base64' }).send())
+            .value
+        if (value == null) {
+            return undefined
+        } else {
+            return base64ToUint8Array(value.data[0])
+        }
+    }
+
+    async _getGameState(gameAccountKey: Address): Promise<GameState | undefined> {
+        const data = await this._getFinializedBase64AccountData(gameAccountKey)
+        if (data !== undefined) {
+            return GameState.deserialize(data)
+        } else {
+            return undefined
+        }
+    }
+
+    async _getRecipientState(recipientKey: Address): Promise<RecipientState | undefined> {
+        const data = await this._getFinializedBase64AccountData(recipientKey)
+        if (data !== undefined) {
             return RecipientState.deserialize(data)
         } else {
             return undefined
         }
     }
-    async _getRegState(regKey: PublicKey): Promise<RegistryState | undefined> {
-        const conn = this.#conn
-        const regAccount = await conn.getAccountInfo(regKey)
-        if (regAccount !== null) {
-            const data = regAccount.data
+
+    async _getRegState(regKey: Address): Promise<RegistryState | undefined> {
+        const data = await this._getFinializedBase64AccountData(regKey)
+        if (data !== undefined) {
             return RegistryState.deserialize(data)
         } else {
             return undefined
         }
     }
-    async _getServerState(serverKey: PublicKey): Promise<ServerState | undefined> {
-        const conn = this.#conn
-        const profileKey = await PublicKey.createWithSeed(serverKey, SERVER_PROFILE_SEED, PROGRAM_ID)
-        const serverAccount = await conn.getAccountInfo(profileKey)
-        if (serverAccount !== null) {
-            const data = serverAccount.data
+
+    async _getServerState(serverKey: Address): Promise<ServerState | undefined> {
+        const data = await this._getFinializedBase64AccountData(serverKey)
+        if (data !== undefined) {
             return ServerState.deserialize(data)
         } else {
             return undefined
@@ -1337,90 +1275,73 @@ export class SolanaTransport implements ITransport {
     }
 }
 async function sendTransaction<T, E>(
-    wallet: IWallet,
-    tx: VersionedTransaction,
-    conn: Connection,
+    signer: TransactionSendingSigner,
+    tx: TransactionMessageWithFeePayerAndBlockhashLifetime,
     response: ResponseHandle<T, E>,
     config?: SendTransactionOptions
 ): Promise<SendTransactionResult> {
-    const w = (wallet as SolanaWalletAdapter).wallet
-    const {
-        value: { blockhash, lastValidBlockHeight },
-    } = await conn.getLatestBlockhashAndContext()
-    console.info('Signers: ', config?.signers)
+    // const getComputeUnitEstimateForTransactionMessage = getComputeUnitEstimateForTransactionMessageFactory({ rpc })
+
     response.waitingWallet()
-    if (config?.signers !== undefined) {
-        tx.sign(config.signers)
-    }
-    let signedTransaction
+
+    let transaction: Transaction = compileTransaction(tx)
+
     try {
-        signedTransaction = await w.signTransaction(tx)
+        if (config?.signers !== undefined) {
+            console.info('Signers: ', config?.signers)
+            transaction = await partiallySignTransaction(
+                config.signers.map(s => s.keyPair),
+                transaction
+            )
+        }
+
+        const signature = await signer.signAndSendTransactions([transaction])
+        console.log('Signature:', signature)
+        return { ok: '' }
     } catch (e: any) {
         console.error(e)
         response.userRejected(e.toString())
         return { err: e }
     }
-    console.info('Signed transaction:', signedTransaction)
-    try {
-        let simulationResult = await conn.simulateTransaction(signedTransaction, { sigVerify: true })
-        console.debug('Transaction simulation result:', simulationResult)
-        if (simulationResult.value.err) {
-            if (simulationResult.value.logs !== null) {
-                for (const log of simulationResult.value.logs) {
-                    console.warn(log)
-                }
-            }
-            console.error(simulationResult.value.err)
-            response.transactionFailed('simulation error')
-            return { err: 'simulation-error' }
-        }
-    } catch (e: any) {
-        console.error(e)
-        response.userRejected(e.toString())
-        return { err: e.toString() }
-    }
-    let signature: TransactionSignature
-    try {
-        signature = await conn.sendRawTransaction(signedTransaction.serialize())
-        response.confirming(signature)
-    } catch (e: any) {
-        console.error(e)
-        response.userRejected(e.toString())
-        return { err: e.toString() }
-    }
-    try {
-        const resp = await conn.confirmTransaction({ blockhash, lastValidBlockHeight, signature }, config?.commitment)
-        if (resp.value.err !== null) {
-            return { err: { signature, error: resp.value.err } }
-        } else {
-            return { ok: signature }
-        }
-    } catch (e: any) {
-        return { err: e.toString() }
-    }
 }
+
 async function makeTransaction(
-    conn: Connection,
-    feePayer: PublicKey,
-    instructions: TransactionInstruction[]
-): Promise<Result<VersionedTransaction, string>> {
+    rpc: Rpc<SolanaRpcApi>,
+    feePayer: TransactionSendingSigner,
+    instructions: TransactionMessage['instructions'][number][]
+): Promise<Result<TransactionMessageWithFeePayerAndBlockhashLifetime, string>> {
     const d = new Date()
-    const slot = await conn.getSlot()
-    let block
+    let latestBlockhash: Readonly<{ blockhash: Blockhash; lastValidBlockHeight: bigint }>
     try {
-        block = await conn.getBlock(slot, { maxSupportedTransactionVersion: 0, transactionDetails: 'none' })
+        latestBlockhash = (await rpc.getLatestBlockhash().send()).value
     } catch (e: any) {
         return { err: 'block-not-found' }
     }
-    if (block === null) {
+    if (!latestBlockhash) {
         return { err: 'block-not-found' }
     }
-    console.debug('Got block hash %s, took %s milliseconds', block.blockhash, new Date().getTime() - d.getTime())
-    const messageV0 = new TransactionMessage({
-        payerKey: feePayer,
-        recentBlockhash: block.blockhash,
-        instructions,
-    }).compileToV0Message()
-    const transaction = new VersionedTransaction(messageV0)
-    return { ok: transaction }
+
+    console.debug(
+        'Got block hash %s, took %s milliseconds',
+        latestBlockhash.blockhash,
+        new Date().getTime() - d.getTime()
+    )
+    const transactionMessage = pipe(
+        createTransactionMessage({ version: 0 }),
+        tx => (
+            console.info(feePayer, 'Setting the transaction fee payer'),
+            setTransactionMessageFeePayer(feePayer.address, tx)
+        ),
+        tx => (
+            console.info(latestBlockhash, 'Setting the transaction lifetime'),
+            setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx)
+        ),
+        tx => (
+            console.info(instructions, 'Setting the transaction instructions'),
+            appendTransactionMessageInstructions(instructions, tx)
+        )
+    )
+
+    console.info(transactionMessage, 'Transaction Message')
+    return { ok: transactionMessage }
 }

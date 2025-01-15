@@ -1,16 +1,17 @@
-import { PublicKey } from '@solana/web3.js'
+import { Address, getAddressDecoder, getAddressEncoder } from '@solana/web3.js'
 import { IExtendWriter, IExtendReader, extend } from '@race-foundation/borsh'
 
-class PublicKeyWriter implements IExtendWriter<PublicKey> {
-    write(value: PublicKey, buf: Uint8Array, offset: number) {
-        buf.set(value.toBytes(), offset)
+class PublicKeyWriter implements IExtendWriter<Address> {
+    write(value: Address, buf: Uint8Array, offset: number) {
+        const bytes = getAddressEncoder().encode(value)
+        buf.set(bytes, offset)
     }
 }
 
-class PublicKeyReader implements IExtendReader<PublicKey> {
-    read(buf: Uint8Array, offset: number): PublicKey {
+class PublicKeyReader implements IExtendReader<Address> {
+    read(buf: Uint8Array, offset: number): Address {
         const slice = buf.slice(offset, offset + 32)
-        return new PublicKey(slice)
+        return getAddressDecoder().decode(slice)
     }
 }
 

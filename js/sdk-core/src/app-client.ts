@@ -23,7 +23,6 @@ import {
 } from './types'
 import { SubClient } from './sub-client'
 import { Checkpoint, CheckpointOffChain } from './checkpoint'
-import { clone } from './utils'
 import { ResponseHandle, ResponseStream } from './response'
 
 const BUNDLE_CACHE_TTL = 3600 * 365
@@ -175,7 +174,6 @@ export class AppClient extends BaseClient {
             const stateSha = await sha256String(handlerState)
 
             const gameContext = new GameContext(gameAccount, checkpoint, handlerState, stateSha)
-            console.info('Game Context:', clone(gameContext))
 
             let token: Token | undefined = await transport.getToken(gameAccount.tokenAddr)
             if (token === undefined) {
@@ -234,7 +232,6 @@ export class AppClient extends BaseClient {
             const addr = `${this.__gameAddr}:${gameId.toString()}`
 
             console.group(`SubClient initialization, id: ${gameId}`)
-            console.info('Parent Game Context:', clone(this.__gameContext))
             console.info('Versioned data:', this.__gameContext.checkpoint.getVersionedData(gameId))
 
             const subGame = this.__gameContext.findSubGame(gameId)
@@ -256,7 +253,6 @@ export class AppClient extends BaseClient {
             const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr)
             const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache)
             const gameContext = this.__gameContext.subContext(subGame)
-            console.info("SubGame's GameContext:", clone(gameContext))
 
             return new SubClient({
                 gameAddr: addr,

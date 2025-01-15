@@ -17,8 +17,6 @@ import { InitAccount } from './init-account'
 import { Effect, EmitBridgeEvent, SubGame, Settle, Transfer } from './effect'
 import { EntryType, GameAccount } from './accounts'
 import { Ciphertext, Digest, Fields } from './types'
-import { clone } from './utils'
-import rfdc from 'rfdc'
 import { sha256String } from './encryptor'
 
 const OPERATION_TIMEOUT = 15_000n
@@ -90,7 +88,6 @@ export class GameContext {
         if (checkpoint === undefined) {
             throw new Error('Missing checkpoint')
         }
-        console.info('Build game context with checkpoint:', clone(checkpoint))
         const checkpointAccessVersion = gameAccount.checkpointOnChain?.accessVersion || 0
         const transactorAddr = gameAccount.transactorAddr
         if (transactorAddr === undefined) {
@@ -185,7 +182,7 @@ export class GameContext {
     }
 
     subContext(subGame: SubGame): GameContext {
-        const c = rfdc({ proto: true })(this)
+        const c = structuredClone(this)
         Object.setPrototypeOf(c, GameContext.prototype)
         // Use init_account or checkpoint
         let spec = new GameSpec({

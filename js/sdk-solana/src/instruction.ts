@@ -1,13 +1,16 @@
-import { PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram, TransactionInstruction } from '@solana/web3.js'
-import { NATIVE_MINT, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token'
+import * as SPL from '@solana-program/token'
+import * as SYSTEM from '@solana-program/system'
 import { publicKeyExt } from './utils'
-import { PROGRAM_ID, METAPLEX_PROGRAM_ID } from './constants'
+import { PROGRAM_ID, METAPLEX_PROGRAM_ID, SYSVAR_RENT, NATIVE_MINT } from './constants'
 import { array, enums, field, serialize, struct } from '@race-foundation/borsh'
-import { Buffer } from 'buffer'
 import { EntryType, Fields, RecipientClaimError, AttachBonusError, Result } from '@race-foundation/sdk-core'
 import { AEntryType, RecipientSlotOwner, RecipientSlotOwnerAssigned, RecipientState } from './accounts'
-
-// Instruction types
+import {
+    AccountRole,
+    address,
+    Address,
+    IInstruction,
+} from '@solana/web3.js'
 
 type IxParams<T> = Omit<Fields<T>, 'instruction'>
 
@@ -35,8 +38,8 @@ export enum Instruction {
 // Instruction data definitations
 
 abstract class Serialize {
-    serialize(): Buffer {
-        return Buffer.from(serialize(this))
+    serialize(): Uint8Array {
+        return serialize(this)
     }
 }
 
@@ -157,10 +160,10 @@ export class SlotInit {
     slotType!: 0 | 1
 
     @field(publicKeyExt)
-    tokenAddr!: PublicKey
+    tokenAddr!: Address
 
     @field(publicKeyExt)
-    stakeAddr!: PublicKey
+    stakeAddr!: Address
 
     @field(array(struct(SlotShareInit)))
     initShares!: SlotShareInit[]
@@ -199,48 +202,44 @@ export class AttachBonusData extends Serialize {
 // Instruction helpers
 
 export function createPlayerProfile(
-    ownerKey: PublicKey,
-    profileKey: PublicKey,
+    ownerKey: Address,
+    profileKey: Address,
     nick: string,
-    pfpKey?: PublicKey
-): TransactionInstruction {
+    pfpKey?: Address
+): IInstruction {
     const data = new CreatePlayerProfileData(nick).serialize()
 
-    return new TransactionInstruction({
-        keys: [
+    return {
+        accounts: [
             {
-                pubkey: ownerKey,
-                isSigner: true,
-                isWritable: false,
+                address: ownerKey,
+                role: AccountRole.READONLY_SIGNER,
             },
             {
-                pubkey: profileKey,
-                isSigner: false,
-                isWritable: true,
+                address: profileKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: pfpKey || PublicKey.default,
-                isSigner: false,
-                isWritable: false,
+                address: pfpKey || address(''),
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: SystemProgram.programId,
-                isSigner: false,
-                isWritable: false,
+                address: SYSTEM.SYSTEM_PROGRAM_ADDRESS,
+                role: AccountRole.READONLY,
             },
         ],
-        programId: PROGRAM_ID,
-        data: Buffer.from(data),
-    })
+        programAddress: PROGRAM_ID,
+        data,
+    }
 }
 
 export type CreateGameOptions = {
-    ownerKey: PublicKey
-    gameAccountKey: PublicKey
-    stakeAccountKey: PublicKey
-    recipientAccountKey: PublicKey
-    mint: PublicKey
-    gameBundleKey: PublicKey
+    ownerKey: Address
+    gameAccountKey: Address
+    stakeAccountKey: Address
+    recipientAccountKey: Address
+    mint: Address
+    gameBundleKey: Address
     title: string
     maxPlayers: number
     entryType: EntryType
@@ -248,42 +247,38 @@ export type CreateGameOptions = {
 }
 
 export type RegisterGameOptions = {
-    ownerKey: PublicKey
-    gameAccountKey: PublicKey
-    registrationAccountKey: PublicKey
+    ownerKey: Address
+    gameAccountKey: Address
+    registrationAccountKey: Address
 }
 
-export function registerGame(opts: RegisterGameOptions): TransactionInstruction {
-    const data = Buffer.from(Uint8Array.of(Instruction.RegisterGame))
-    return new TransactionInstruction({
-        keys: [
+export function registerGame(opts: RegisterGameOptions): IInstruction {
+    const data = Uint8Array.of(Instruction.RegisterGame)
+    return {
+        accounts: [
             {
-                pubkey: opts.ownerKey,
-                isSigner: true,
-                isWritable: false,
+                address: opts.ownerKey,
+                role: AccountRole.READONLY_SIGNER,
             },
             {
-                pubkey: opts.registrationAccountKey,
-                isSigner: false,
-                isWritable: true,
+                address: opts.registrationAccountKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: opts.gameAccountKey,
-                isSigner: false,
-                isWritable: false,
+                address: opts.gameAccountKey,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: SystemProgram.programId,
-                isSigner: false,
-                isWritable: false,
+                address: SYSTEM.SYSTEM_PROGRAM_ADDRESS,
+                role: AccountRole.READONLY,
             },
         ],
-        programId: PROGRAM_ID,
+        programAddress: PROGRAM_ID,
         data,
-    })
+    }
 }
 
-export function createGameAccount(opts: CreateGameOptions): TransactionInstruction {
+export function createGameAccount(opts: CreateGameOptions): IInstruction {
     const params = new CreateGameAccountData({
         title: opts.title,
         entryType: AEntryType.from(opts.entryType),
@@ -292,119 +287,107 @@ export function createGameAccount(opts: CreateGameOptions): TransactionInstructi
     })
     console.debug('Build CreateGameAccount instruction with:', params)
     const data = params.serialize()
-    return new TransactionInstruction({
-        keys: [
+    return {
+        accounts: [
             {
-                pubkey: opts.ownerKey,
-                isSigner: true,
-                isWritable: false,
+                address: opts.ownerKey,
+                role: AccountRole.READONLY_SIGNER,
             },
             {
-                pubkey: opts.gameAccountKey,
-                isSigner: false,
-                isWritable: true,
+                address: opts.gameAccountKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: opts.stakeAccountKey,
-                isSigner: false,
-                isWritable: true,
+                address: opts.stakeAccountKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: opts.mint,
-                isSigner: false,
-                isWritable: false,
+                address: opts.mint,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: TOKEN_PROGRAM_ID,
-                isSigner: false,
-                isWritable: false,
+                address: SPL.TOKEN_PROGRAM_ADDRESS,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: opts.gameBundleKey,
-                isSigner: false,
-                isWritable: false,
+                address: opts.gameBundleKey,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: opts.recipientAccountKey,
-                isSigner: false,
-                isWritable: false,
+                address: opts.recipientAccountKey,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: SystemProgram.programId,
-                isSigner: false,
-                isWritable: false,
+                address: SYSTEM.SYSTEM_PROGRAM_ADDRESS,
+                role: AccountRole.READONLY,
             },
         ],
-        programId: PROGRAM_ID,
+        programAddress: PROGRAM_ID,
         data,
-    })
+    }
 }
 
 export type CloseGameAccountOptions = {
-    ownerKey: PublicKey
-    gameAccountKey: PublicKey
-    regAccountKey: PublicKey
-    gameStakeKey: PublicKey
+    pda: Address
+    ownerKey: Address
+    gameAccountKey: Address
+    regAccountKey: Address
+    gameStakeKey: Address
 }
 
-export function closeGameAccount(opts: CloseGameAccountOptions): TransactionInstruction {
-    const { ownerKey, gameAccountKey, regAccountKey, gameStakeKey } = opts
+export function closeGameAccount(opts: CloseGameAccountOptions): IInstruction {
+    const { ownerKey, gameAccountKey, regAccountKey, gameStakeKey, pda } = opts
     const data = new CloseGameAccountData().serialize()
-    let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID)
-    return new TransactionInstruction({
-        keys: [
+    // const [pda, _]  = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [gameAccountKey] })
+    return {
+        accounts: [
             {
-                pubkey: ownerKey,
-                isSigner: true,
-                isWritable: false,
+                address: ownerKey,
+                role: AccountRole.READONLY_SIGNER,
             },
             {
-                pubkey: gameAccountKey,
-                isSigner: false,
-                isWritable: true,
+                address: gameAccountKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: regAccountKey,
-                isSigner: false,
-                isWritable: true,
+                address: regAccountKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: gameStakeKey,
-                isSigner: false,
-                isWritable: true,
+                address: gameStakeKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: pda,
-                isSigner: false,
-                isWritable: false,
+                address: pda,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: PROGRAM_ID,
-                isSigner: false,
-                isWritable: false,
+                address: PROGRAM_ID,
+                role: AccountRole.READONLY,
             },
         ],
-        programId: PROGRAM_ID,
+        programAddress: PROGRAM_ID,
         data,
-    })
+    }
 }
 
 export type JoinOptions = {
-    playerKey: PublicKey
-    profileKey: PublicKey
-    paymentKey: PublicKey
-    gameAccountKey: PublicKey
-    mint: PublicKey
-    stakeAccountKey: PublicKey
-    recipientAccountKey: PublicKey
+    playerKey: Address
+    profileKey: Address
+    paymentKey: Address
+    gameAccountKey: Address
+    mint: Address
+    stakeAccountKey: Address
+    recipientAccountKey: Address
     amount: bigint
     accessVersion: bigint
     settleVersion: bigint
     position: number
     verifyKey: string
+    pda: Address
 }
 
-export function join(opts: JoinOptions): TransactionInstruction {
+export function join(opts: JoinOptions): IInstruction {
     const {
         playerKey,
         profileKey,
@@ -418,404 +401,432 @@ export function join(opts: JoinOptions): TransactionInstruction {
         settleVersion,
         position,
         verifyKey,
+        pda,
     } = opts
 
-    let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID)
     const data = new JoinGameData({ amount, accessVersion, settleVersion, position, verifyKey }).serialize()
 
-    return new TransactionInstruction({
-        keys: [
+    return {
+        accounts: [
             {
-                pubkey: playerKey,
-                isSigner: true,
-                isWritable: false,
+                address: playerKey,
+                role: AccountRole.READONLY_SIGNER,
             },
             {
-                pubkey: profileKey,
-                isSigner: false,
-                isWritable: false,
+                address: profileKey,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: paymentKey,
-                isSigner: false,
-                isWritable: true,
+                address: paymentKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: gameAccountKey,
-                isSigner: false,
-                isWritable: true,
+                address: gameAccountKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: mint,
-                isSigner: false,
-                isWritable: false,
+                address: mint,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: stakeAccountKey,
-                isSigner: false,
-                isWritable: true,
+                address: stakeAccountKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: recipientAccountKey,
-                isSigner: false,
-                isWritable: false,
+                address: recipientAccountKey,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: pda,
-                isSigner: false,
-                isWritable: true,
+                address: pda,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: TOKEN_PROGRAM_ID,
-                isSigner: false,
-                isWritable: false,
+                address: SPL.TOKEN_PROGRAM_ADDRESS,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: SystemProgram.programId,
-                isSigner: false,
-                isWritable: false,
+                address: SYSTEM.SYSTEM_PROGRAM_ADDRESS,
+                role: AccountRole.READONLY,
             },
         ],
-        programId: PROGRAM_ID,
+        programAddress: PROGRAM_ID,
         data,
-    })
+    }
 }
 
 export type DepositOpts = {
-    playerKey: PublicKey
-    profileKey: PublicKey
-    paymentKey: PublicKey
-    gameAccountKey: PublicKey
-    mint: PublicKey
-    stakeAccountKey: PublicKey
-    recipientAccountKey: PublicKey
+    playerKey: Address
+    profileKey: Address
+    paymentKey: Address
+    gameAccountKey: Address
+    mint: Address
+    stakeAccountKey: Address
+    recipientAccountKey: Address
     amount: bigint
     settleVersion: bigint
+    pda: Address
 }
 
-export function deposit(opts: DepositOpts): TransactionInstruction {
+export function deposit(opts: DepositOpts): IInstruction {
+    const { playerKey, profileKey, paymentKey, gameAccountKey, mint, stakeAccountKey, amount, settleVersion, pda } =
+        opts
 
-    const {
-        playerKey,
-        profileKey,
-        paymentKey,
-        gameAccountKey,
-        mint,
-        stakeAccountKey,
-        amount,
-        settleVersion
-    } = opts;
-
-    let [pda, _] = PublicKey.findProgramAddressSync([gameAccountKey.toBuffer()], PROGRAM_ID)
     const data = new DepositGameData({ amount, settleVersion }).serialize()
 
-    return new TransactionInstruction({
-        keys: [
+    return {
+        accounts: [
             {
-                pubkey: playerKey,
-                isSigner: true,
-                isWritable: false,
+                address: playerKey,
+                role: AccountRole.READONLY_SIGNER,
             },
             {
-                pubkey: profileKey,
-                isSigner: false,
-                isWritable: false,
+                address: profileKey,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: paymentKey,
-                isSigner: false,
-                isWritable: true,
+                address: paymentKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: gameAccountKey,
-                isSigner: false,
-                isWritable: true,
+                address: gameAccountKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: mint,
-                isSigner: false,
-                isWritable: false,
+                address: mint,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: stakeAccountKey,
-                isSigner: false,
-                isWritable: true,
+                address: stakeAccountKey,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: pda,
-                isSigner: false,
-                isWritable: true,
+                address: pda,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: TOKEN_PROGRAM_ID,
-                isSigner: false,
-                isWritable: false,
+                address: SPL.TOKEN_PROGRAM_ADDRESS,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: SystemProgram.programId,
-                isSigner: false,
-                isWritable: false,
+                address: SYSTEM.SYSTEM_PROGRAM_ADDRESS,
+                role: AccountRole.READONLY,
             },
         ],
-        programId: PROGRAM_ID,
+        programAddress: PROGRAM_ID,
         data,
-    })
+    }
 }
 
 export type PublishGameOptions = {
-    ownerKey: PublicKey
-    mint: PublicKey
-    tokenAccountKey: PublicKey
+    ownerKey: Address
+    mint: Address
+    tokenAccountKey: Address
     uri: string
     name: string
     symbol: string
+    metadataPda: Address
+    ata: Address
+    editionPda: Address
 }
 
-export function publishGame(opts: PublishGameOptions): TransactionInstruction {
-    const { ownerKey, mint, uri, name, symbol } = opts
+export function publishGame(opts: PublishGameOptions): IInstruction {
+    const { ownerKey, mint, uri, name, symbol, metadataPda, editionPda, ata } = opts
 
-    let [metadataPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mint.toBuffer()],
-        METAPLEX_PROGRAM_ID
-    )
+    // let [metadataPda] = PublicKey.findProgramAddressSync(
+    //     [Buffer.from('metadata', 'utf8'), METAPLEX_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+    //     METAPLEX_PROGRAM_ID
+    // )
 
-    let [editonPda] = PublicKey.findProgramAddressSync(
-        [
-            Buffer.from('metadata', 'utf8'),
-            METAPLEX_PROGRAM_ID.toBuffer(),
-            mint.toBuffer(),
-            Buffer.from('edition', 'utf8'),
-        ],
-        METAPLEX_PROGRAM_ID
-    )
-    let ata = getAssociatedTokenAddressSync(mint, ownerKey)
+    // let [editonPda] = PublicKey.findProgramAddressSync(
+    //     [
+    //         Buffer.from('metadata', 'utf8'),
+    //         METAPLEX_PROGRAM_ID.toBuffer(),
+    //         mint.toBuffer(),
+    //         Buffer.from('edition', 'utf8'),
+    //     ],
+    //     METAPLEX_PROGRAM_ID
+    // )
 
     let data = new PublishGameData({ uri, name, symbol }).serialize()
 
-    return new TransactionInstruction({
-        keys: [
+    return {
+        accounts: [
             {
-                pubkey: ownerKey,
-                isSigner: true,
-                isWritable: false,
+                address: ownerKey,
+                role: AccountRole.READONLY_SIGNER,
             },
             {
-                pubkey: mint,
-                isSigner: false,
-                isWritable: false,
+                address: mint,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: ata,
-                isSigner: false,
-                isWritable: true,
+                address: ata,
+                role: AccountRole.WRITABLE,
             },
             {
-                pubkey: metadataPda,
-                isSigner: false,
-                isWritable: false,
+                address: metadataPda,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: editonPda,
-                isSigner: false,
-                isWritable: false,
+                address: editionPda,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: TOKEN_PROGRAM_ID,
-                isSigner: false,
-                isWritable: false,
+                address: SPL.TOKEN_PROGRAM_ADDRESS,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: METAPLEX_PROGRAM_ID,
-                isSigner: false,
-                isWritable: false,
+                address: METAPLEX_PROGRAM_ID,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: SYSVAR_RENT_PUBKEY,
-                isSigner: false,
-                isWritable: false,
+                address: SYSVAR_RENT,
+                role: AccountRole.READONLY,
             },
             {
-                pubkey: PublicKey.default,
-                isSigner: false,
-                isWritable: false,
+                address: SYSTEM.SYSTEM_PROGRAM_ADDRESS,
+                role: AccountRole.READONLY,
             },
         ],
-        programId: PROGRAM_ID,
+        programAddress: PROGRAM_ID,
         data,
-    })
+    }
 }
 
 export type CreateRecipientOpts = {
-    payerKey: PublicKey
-    capKey: PublicKey
-    recipientKey: PublicKey
+    payerKey: Address
+    capKey: Address
+    recipientKey: Address
     slots: SlotInit[]
 }
 
-export function createRecipient(opts: CreateRecipientOpts): TransactionInstruction {
+export function createRecipient(opts: CreateRecipientOpts): IInstruction {
     const { payerKey, capKey, recipientKey, slots } = opts
 
-    let keys = [
+    let accounts = [
         {
-            pubkey: payerKey,
-            isSigner: true,
-            isWritable: false,
+            address: payerKey,
+            role: AccountRole.READONLY_SIGNER,
         },
         {
-            pubkey: capKey,
-            isSigner: false,
-            isWritable: false,
+            address: capKey,
+            role: AccountRole.READONLY,
         },
         {
-            pubkey: recipientKey,
-            isSigner: false,
-            isWritable: false,
+            address: recipientKey,
+            role: AccountRole.READONLY,
         },
         {
-            pubkey: TOKEN_PROGRAM_ID,
-            isSigner: false,
-            isWritable: false,
+            address: SPL.TOKEN_PROGRAM_ADDRESS,
+            role: AccountRole.READONLY,
         },
     ]
 
-    slots.forEach(slot => keys.push({ pubkey: slot.stakeAddr, isSigner: false, isWritable: false }))
+    slots.forEach(slot => accounts.push({ address: slot.stakeAddr, role: AccountRole.READONLY }))
 
     const data = new CreateRecipientData({ slots }).serialize()
 
-    return new TransactionInstruction({
-        keys,
-        programId: PROGRAM_ID,
+    return {
+        accounts,
+        programAddress: PROGRAM_ID,
         data,
-    })
+    }
 }
 
 export type AttachBonusOpts = {
-    payerKey: PublicKey
-    gameAccountKey: PublicKey
-    stakeAccountKey: PublicKey
-    tempAccountKeys: PublicKey[]
+    payerKey: Address
+    gameAccountKey: Address
+    stakeAccountKey: Address
+    tempAccountKeys: Address[]
     identifiers: string[]
 }
 
-export function attachBonus(opts: AttachBonusOpts): Result<TransactionInstruction, AttachBonusError> {
-    let keys = [
+export function attachBonus(opts: AttachBonusOpts): Result<IInstruction, AttachBonusError> {
+    let accounts = [
         {
-            pubkey: opts.payerKey,
-            isSigner: true,
-            isWritable: false,
+            address: opts.payerKey,
+            role: AccountRole.READONLY_SIGNER,
         },
         {
-            pubkey: opts.gameAccountKey,
-            isSigner: false,
-            isWritable: true,
+            address: opts.gameAccountKey,
+            role: AccountRole.WRITABLE,
         },
         {
-            pubkey: TOKEN_PROGRAM_ID,
-            isSigner: false,
-            isWritable: false,
+            address: SPL.TOKEN_PROGRAM_ADDRESS,
+            role: AccountRole.READONLY,
         },
         {
-            pubkey: SystemProgram.programId,
-            isSigner: false,
-            isWritable: false,
+            address: SYSTEM.SYSTEM_PROGRAM_ADDRESS,
+            role: AccountRole.READONLY,
         },
         ...opts.tempAccountKeys.map(k => ({
-            pubkey: k,
-            isSigner: true,
-            isWritable: true,
-        }))
+            address: k,
+            role: AccountRole.WRITABLE_SIGNER,
+        })),
     ]
 
-    if (keys.length > 20) {
+    if (accounts.length > 20) {
         return { err: 'too-much-bonuses' }
     }
 
     const data = new AttachBonusData({
-        identifiers: opts.identifiers
+        identifiers: opts.identifiers,
     }).serialize()
 
     return {
-        ok: new TransactionInstruction({
-            keys,
-            programId: PROGRAM_ID,
+        ok: {
+            accounts,
+            programAddress: PROGRAM_ID,
             data,
-        })
+        },
     }
 }
 
 export type ClaimOpts = {
-    payerKey: PublicKey
-    recipientKey: PublicKey
+    payerKey: Address
+    recipientKey: Address
     recipientState: RecipientState
+    pda: Address
 }
 
-export function claim(opts: ClaimOpts): Result<TransactionInstruction, RecipientClaimError> {
-    const [pda, _] = PublicKey.findProgramAddressSync([opts.recipientKey.toBuffer()], PROGRAM_ID)
+export async function claim(opts: ClaimOpts): Promise<Result<IInstruction, RecipientClaimError>> {
+    const {
 
-    let keys = [
+    } = opts
+
+    let accounts = [
         {
-            pubkey: opts.payerKey,
-            isSigner: true,
-            isWritable: false,
+            address: opts.payerKey,
+            role: AccountRole.READONLY_SIGNER,
         },
         {
-            pubkey: opts.recipientKey,
-            isSigner: false,
-            isWritable: true,
+            address: opts.recipientKey,
+            role: AccountRole.WRITABLE,
         },
         {
-            pubkey: pda,
-            isSigner: false,
-            isWritable: false,
+            address: opts.pda,
+            role: AccountRole.READONLY,
         },
         {
-            pubkey: TOKEN_PROGRAM_ID,
-            isSigner: false,
-            isWritable: false,
+            address: SPL.TOKEN_PROGRAM_ADDRESS,
+            role: AccountRole.READONLY,
         },
         {
-            pubkey: SystemProgram.programId,
-            isSigner: false,
-            isWritable: false,
+            address: SYSTEM.SYSTEM_PROGRAM_ADDRESS,
+            role: AccountRole.READONLY,
         },
     ]
 
     for (const slot of opts.recipientState.slots) {
         for (const slotShare of slot.shares) {
             if (slotShare.owner instanceof RecipientSlotOwnerAssigned && slotShare.owner.addr === opts.payerKey) {
-                keys.push({
-                    pubkey: slot.stakeAddr,
-                    isSigner: false,
-                    isWritable: false,
+                accounts.push({
+                    address: slot.stakeAddr,
+                    role: AccountRole.READONLY,
                 })
 
-                if (slot.tokenAddr.equals(NATIVE_MINT)) {
-                    keys.push({
-                        pubkey: opts.payerKey,
-                        isSigner: false,
-                        isWritable: false,
+                if (slot.tokenAddr == NATIVE_MINT) {
+                    accounts.push({
+                        address: opts.payerKey,
+                        role: AccountRole.READONLY,
                     })
                 } else {
-                    const ata = getAssociatedTokenAddressSync(slotShare.owner.addr, slot.tokenAddr)
-                    keys.push({
-                        pubkey: ata,
-                        isSigner: false,
-                        isWritable: false,
+
+                    const [ata] = await SPL.findAssociatedTokenPda({
+                        mint: address(slot.tokenAddr),
+                        owner: address(slotShare.owner.addr),
+                        tokenProgram: SPL.TOKEN_PROGRAM_ADDRESS
+                    })
+                    accounts.push({
+                        address: ata,
+                        role: AccountRole.READONLY,
                     })
                 }
             }
         }
     }
 
-    if (keys.length === 5) {
+    if (accounts.length === 5) {
         return { err: 'no-slots-to-claim' }
     }
 
     return {
-        ok: new TransactionInstruction({
-            keys,
-            programId: PROGRAM_ID,
-            data: Buffer.from(Uint8Array.of(Instruction.RecipientClaim)),
-        }),
+        ok: {
+            accounts,
+            programAddress: PROGRAM_ID,
+            data: Uint8Array.of(Instruction.RecipientClaim),
+        },
+    }
+}
+
+export type UnregisterGameOpts = {
+    payerKey: Address
+    regAccountKey: Address
+    gameAccountKey: Address
+}
+
+export function unregisterGame(opts: UnregisterGameOpts): IInstruction {
+    const { payerKey, regAccountKey, gameAccountKey } = opts
+
+    return {
+        accounts: [
+            {
+                address: payerKey,
+                role: AccountRole.READONLY_SIGNER,
+            },
+            {
+                address: regAccountKey,
+                role: AccountRole.WRITABLE,
+            },
+            {
+                address: gameAccountKey,
+                role: AccountRole.READONLY,
+            },
+        ],
+        data: Uint8Array.of(Instruction.UnregisterGame),
+        programAddress: PROGRAM_ID,
+    }
+}
+
+export type CloseGameAccountOpts = {
+    payerKey: Address
+    gameAccountKey: Address
+    stakeKey: Address
+    pda: Address
+    receiver: Address
+}
+
+export function closeGame(opts: CloseGameAccountOpts): IInstruction {
+    const { payerKey, gameAccountKey, stakeKey, pda, receiver } = opts
+
+    return {
+        accounts: [
+            {
+                address: payerKey,
+                role: AccountRole.READONLY_SIGNER,
+            },
+            {
+                address: gameAccountKey,
+                role: AccountRole.WRITABLE,
+            },
+            {
+                address: stakeKey,
+                role: AccountRole.WRITABLE,
+            },
+            {
+                address: pda,
+                role: AccountRole.READONLY,
+            },
+            {
+                address: receiver,
+                role: AccountRole.WRITABLE,
+            },
+            {
+                address: SPL.TOKEN_PROGRAM_ADDRESS,
+                role: AccountRole.READONLY,
+            },
+        ],
+        data: Uint8Array.of(Instruction.CloseGameAccount),
+        programAddress: PROGRAM_ID,
     }
 }

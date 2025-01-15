@@ -109,19 +109,9 @@ export interface Token {
     readonly decimals: number
 }
 
-export class TokenWithBalance {
+export class TokenBalance {
     readonly addr!: string
-    readonly icon!: string
-    readonly name!: string
-    readonly symbol!: string
-    readonly decimals!: number
     readonly amount!: bigint
-    readonly uiAmount!: string
-    constructor(token: Token, amount: bigint) {
-        Object.assign(this, token)
-        this.amount = amount
-        this.uiAmount = (Number(amount) / Math.pow(10, token.decimals)).toLocaleString()
-    }
 }
 
 export interface Nft {

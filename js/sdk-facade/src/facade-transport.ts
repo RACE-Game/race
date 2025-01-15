@@ -29,7 +29,7 @@ import {
     DepositParams,
     AttachBonusParams,
     Token,
-    TokenWithBalance,
+    TokenBalance,
 } from '@race-foundation/sdk-core'
 import { deserialize } from '@race-foundation/borsh'
 import { Chain } from '@race-foundation/sdk-core/lib/types/common'
@@ -190,17 +190,15 @@ export class FacadeTransport implements ITransport {
         return Object.values(tokenMap).filter(t => tokenAddrs.includes(t.addr))
     }
 
-    async listTokensWithBalance(walletAddr: string, tokenAddrs: string[]): Promise<TokenWithBalance[]> {
+    async listTokenBalance(walletAddr: string, tokenAddrs: string[]): Promise<TokenBalance[]> {
         const balances = await this.fetchBalances(walletAddr, tokenAddrs)
         const tokens = Object.values(tokenMap).filter(t => tokenAddrs.includes(t.addr))
-        let ret: TokenWithBalance[] = []
+        let ret: TokenBalance[] = []
         for (const token of tokens) {
             const amount = balances.get(token.addr) || 0n
-            const uiAmount = (Number(amount) / Math.pow(10, token.decimals)).toString()
             ret.push({
+                addr: token.addr,
                 amount,
-                uiAmount,
-                ...token,
             })
         }
         return ret

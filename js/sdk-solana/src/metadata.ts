@@ -1,4 +1,4 @@
-import { PublicKey } from '@solana/web3.js'
+import { Address } from '@solana/web3.js'
 import { publicKeyExt } from './utils'
 import { deserialize, field, array, struct, option } from '@race-foundation/borsh'
 
@@ -10,8 +10,8 @@ import { deserialize, field, array, struct, option } from '@race-foundation/bors
  */
 export interface IMetadata {
     key: number
-    updateAuthority: PublicKey
-    mint: PublicKey
+    updateAuthority: Address
+    mint: Address
     data: Data
     primarySaleHappened: boolean
     isMutable: boolean
@@ -23,7 +23,7 @@ export interface IMetadata {
 
 export interface ICollection {
     verified: boolean
-    key: PublicKey
+    key: Address
 }
 
 export const USE_METHOD = {
@@ -51,7 +51,7 @@ export const TOKEN_STANDARD = {
 export type TokenStandard = (typeof TOKEN_STANDARD)[keyof typeof TOKEN_STANDARD]
 
 export interface ICreator {
-    address: PublicKey
+    address: Address
     verified: boolean
     share: number
 }
@@ -66,7 +66,7 @@ export interface IData {
 
 export class Creator implements ICreator {
     @field(publicKeyExt)
-    address!: PublicKey
+    address!: Address
     @field('bool')
     verified!: boolean
     @field('u8')
@@ -96,7 +96,7 @@ export class Collection implements ICollection {
     @field('bool')
     verified!: boolean
     @field(publicKeyExt)
-    key!: PublicKey
+    key!: Address
 
     constructor(fields: IData) {
         Object.assign(this, fields)
@@ -120,9 +120,9 @@ export class Metadata implements IMetadata {
     @field('u8')
     key!: number
     @field(publicKeyExt)
-    updateAuthority!: PublicKey
+    updateAuthority!: Address
     @field(publicKeyExt)
-    mint!: PublicKey
+    mint!: Address
     @field(struct(Data))
     data!: Data
     @field('bool')
@@ -141,7 +141,7 @@ export class Metadata implements IMetadata {
     constructor(fields: IMetadata) {
         Object.assign(this, fields)
     }
-    static deserialize(data: Buffer): Metadata {
+    static deserialize(data: Uint8Array): Metadata {
         return deserialize(Metadata, new Uint8Array(data.buffer))
     }
 }

@@ -322,7 +322,6 @@ export class BaseClient {
                 throw new Error(`An error occurred in event loop: ${err}`)
             }
         } finally {
-            // console.debug('Game Context after:', clone(this.__gameContext));
             console.groupEnd()
         }
     }

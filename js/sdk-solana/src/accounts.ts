@@ -1,4 +1,4 @@
-import { PublicKey } from '@solana/web3.js'
+import { Address } from '@solana/web3.js'
 import * as _ from 'borsh'
 import { publicKeyExt } from './utils'
 import * as RaceCore from '@race-foundation/sdk-core'
@@ -7,46 +7,46 @@ import { deserialize, serialize, field, option, array, struct, enums, variant } 
 export interface IPlayerState {
     isInitialized: boolean
     nick: string
-    pfpKey?: PublicKey
+    pfpKey?: Address
 }
 
 export interface IPlayerJoin {
-    key: PublicKey
+    key: Address
     position: number
     accessVersion: bigint
     verifyKey: string
 }
 
 export interface IPlayerDeposit {
-    key: PublicKey
+    key: Address
     amount: bigint
     accessVersion: bigint
     settleVersion: bigint
 }
 
 export interface IServerJoin {
-    key: PublicKey
+    key: Address
     endpoint: string
     accessVersion: bigint
     verifyKey: string
 }
 
 export interface IVote {
-    voterKey: PublicKey
-    voteeKey: PublicKey
+    voterKey: Address
+    voteeKey: Address
     voteType: VoteType
 }
 
 export interface IBonus {
     identifier: string
-    tokenAddr: PublicKey
+    tokenAddr: Address
     amount: bigint
 }
 
 export interface IGameReg {
     title: string
-    gameKey: PublicKey
-    bundleKey: PublicKey
+    gameKey: Address
+    bundleKey: Address
     regTime: bigint
 }
 
@@ -54,7 +54,7 @@ export interface IRegistryState {
     isInitialized: boolean
     isPrivate: boolean
     size: number
-    ownerKey: PublicKey
+    ownerKey: Address
     games: IGameReg[]
 }
 
@@ -62,11 +62,11 @@ export interface IGameState {
     isInitialized: boolean
     version: string
     title: string
-    bundleKey: PublicKey
-    stakeKey: PublicKey
-    ownerKey: PublicKey
-    tokenKey: PublicKey
-    transactorKey: PublicKey | undefined
+    bundleKey: Address
+    stakeKey: Address
+    ownerKey: Address
+    tokenKey: Address
+    transactorKey: Address | undefined
     accessVersion: bigint
     settleVersion: bigint
     maxPlayers: number
@@ -78,7 +78,7 @@ export interface IGameState {
     votes: IVote[]
     unlockTime: bigint | undefined
     entryType: AEntryType
-    recipientAddr: PublicKey
+    recipientAddr: Address
     checkpoint: Uint8Array
     entryLock: EntryLock
     bonuses: IBonus[]
@@ -86,14 +86,14 @@ export interface IGameState {
 
 export interface IServerState {
     isInitialized: boolean
-    key: PublicKey
-    ownerKey: PublicKey
+    key: Address
+    ownerKey: Address
     endpoint: string
 }
 
 export interface IRecipientState {
     isInitialized: boolean
-    capAddr: PublicKey | undefined
+    capAddr: Address | undefined
     slots: IRecipientSlot[]
 }
 
@@ -102,8 +102,8 @@ type RecipientSlotType = RaceCore.Indices<typeof RaceCore.RECIPIENT_SLOT_TYPES>
 export interface IRecipientSlot {
     readonly id: number
     readonly slotType: RecipientSlotType
-    readonly tokenAddr: PublicKey
-    readonly stakeAddr: PublicKey
+    readonly tokenAddr: Address
+    readonly stakeAddr: Address
     readonly shares: IRecipientSlotShare[]
 }
 
@@ -119,7 +119,7 @@ export class PlayerState implements IPlayerState {
     @field('string')
     nick!: string
     @field(option(publicKeyExt))
-    pfpKey?: PublicKey
+    pfpKey?: Address
 
     constructor(fields: IPlayerState) {
         Object.assign(this, fields)
@@ -133,11 +133,11 @@ export class PlayerState implements IPlayerState {
         return deserialize(PlayerState, data)
     }
 
-    generalize(addr: PublicKey): RaceCore.PlayerProfile {
+    generalize(addr: Address): RaceCore.PlayerProfile {
         return {
-            addr: addr.toBase58(),
+            addr: addr,
             nick: this.nick,
-            pfp: this.pfpKey?.toBase58(),
+            pfp: this.pfpKey,
         }
     }
 }
@@ -146,9 +146,9 @@ type VoteType = RaceCore.Indices<typeof RaceCore.VOTE_TYPES>
 
 export class Vote implements IVote {
     @field(publicKeyExt)
-    voterKey!: PublicKey
+    voterKey!: Address
     @field(publicKeyExt)
-    voteeKey!: PublicKey
+    voteeKey!: Address
     @field('u8')
     voteType!: VoteType
     constructor(fields: IVote) {
@@ -156,8 +156,8 @@ export class Vote implements IVote {
     }
     generalize(): RaceCore.Vote {
         return {
-            voter: this.voterKey.toBase58(),
-            votee: this.voteeKey.toBase58(),
+            voter: this.voterKey,
+            votee: this.voteeKey,
             voteType: RaceCore.VOTE_TYPES[this.voteType],
         }
     }
@@ -165,7 +165,7 @@ export class Vote implements IVote {
 
 export class ServerJoin implements IServerJoin {
     @field(publicKeyExt)
-    key!: PublicKey
+    key!: Address
     @field('string')
     endpoint!: string
     @field('u64')
@@ -177,7 +177,7 @@ export class ServerJoin implements IServerJoin {
     }
     generalize(): RaceCore.ServerJoin {
         return {
-            addr: this.key.toBase58(),
+            addr: this.key,
             endpoint: this.endpoint,
             accessVersion: this.accessVersion,
             verifyKey: this.verifyKey,
@@ -187,7 +187,7 @@ export class ServerJoin implements IServerJoin {
 
 export class PlayerJoin implements IPlayerJoin {
     @field(publicKeyExt)
-    key!: PublicKey
+    key!: Address
     @field('u16')
     position!: number
     @field('u64')
@@ -201,7 +201,7 @@ export class PlayerJoin implements IPlayerJoin {
 
     generalize(): RaceCore.PlayerJoin {
         return {
-            addr: this.key.toBase58(),
+            addr: this.key,
             position: this.position,
             accessVersion: this.accessVersion,
             verifyKey: this.verifyKey,
@@ -211,7 +211,7 @@ export class PlayerJoin implements IPlayerJoin {
 
 export class PlayerDeposit implements IPlayerDeposit {
     @field(publicKeyExt)
-    key!: PublicKey
+    key!: Address
     @field('u64')
     amount!: bigint
     @field('u64')
@@ -227,7 +227,7 @@ export class PlayerDeposit implements IPlayerDeposit {
 
     generalize(): RaceCore.PlayerDeposit {
         return {
-            addr: this.key.toBase58(),
+            addr: this.key,
             amount: this.amount,
             accessVersion: this.accessVersion,
             settleVersion: this.settleVersion,
@@ -240,9 +240,9 @@ export class Bonus implements IBonus {
     @field('string')
     identifier!: string
     @field(publicKeyExt)
-    stakeAddr!: PublicKey
+    stakeAddr!: Address
     @field(publicKeyExt)
-    tokenAddr!: PublicKey
+    tokenAddr!: Address
     @field('u64')
     amount!: bigint
 
@@ -253,7 +253,7 @@ export class Bonus implements IBonus {
     generalize(): RaceCore.Bonus {
         return {
             identifier: this.identifier,
-            tokenAddr: this.tokenAddr.toBase58(),
+            tokenAddr: this.tokenAddr,
             amount: this.amount,
         }
     }
@@ -350,15 +350,15 @@ export class GameState implements IGameState {
     @field('string')
     title!: string
     @field(publicKeyExt)
-    bundleKey!: PublicKey
+    bundleKey!: Address
     @field(publicKeyExt)
-    stakeKey!: PublicKey
+    stakeKey!: Address
     @field(publicKeyExt)
-    ownerKey!: PublicKey
+    ownerKey!: Address
     @field(publicKeyExt)
-    tokenKey!: PublicKey
+    tokenKey!: Address
     @field(option(publicKeyExt))
-    transactorKey: PublicKey | undefined
+    transactorKey: Address | undefined
     @field('u64')
     accessVersion!: bigint
     @field('u64')
@@ -382,7 +382,7 @@ export class GameState implements IGameState {
     @field(enums(AEntryType))
     entryType!: AEntryType
     @field(publicKeyExt)
-    recipientAddr!: PublicKey
+    recipientAddr!: Address
     @field('u8-array')
     checkpoint!: Uint8Array
     @field('u8')
@@ -402,19 +402,19 @@ export class GameState implements IGameState {
         return deserialize(GameState, data)
     }
 
-    generalize(addr: PublicKey): RaceCore.GameAccount {
+    generalize(addr: Address): RaceCore.GameAccount {
         let checkpointOnChain = undefined
         if (this.checkpoint.length !== 0) {
             checkpointOnChain = RaceCore.CheckpointOnChain.fromRaw(this.checkpoint)
         }
 
         return {
-            addr: addr.toBase58(),
+            addr: addr,
             title: this.title,
-            bundleAddr: this.bundleKey.toBase58(),
-            ownerAddr: this.ownerKey.toBase58(),
-            tokenAddr: this.tokenKey.toBase58(),
-            transactorAddr: this.transactorKey?.toBase58(),
+            bundleAddr: this.bundleKey,
+            ownerAddr: this.ownerKey,
+            tokenAddr: this.tokenKey,
+            transactorAddr: this.transactorKey,
             accessVersion: this.accessVersion,
             settleVersion: this.settleVersion,
             maxPlayers: this.maxPlayers,
@@ -426,7 +426,7 @@ export class GameState implements IGameState {
             votes: this.votes.map(v => v.generalize()),
             unlockTime: this.unlockTime,
             entryType: this.entryType.generalize(),
-            recipientAddr: this.recipientAddr.toBase58(),
+            recipientAddr: this.recipientAddr,
             checkpointOnChain,
             entryLock: RaceCore.ENTRY_LOCKS[this.entryLock],
             bonuses: this.bonuses.map(b => b.generalize()),
@@ -438,9 +438,9 @@ export class GameReg implements IGameReg {
     @field('string')
     title!: string
     @field(publicKeyExt)
-    gameKey!: PublicKey
+    gameKey!: Address
     @field(publicKeyExt)
-    bundleKey!: PublicKey
+    bundleKey!: Address
     @field('u64')
     regTime!: bigint
     constructor(fields: IGameReg) {
@@ -449,8 +449,8 @@ export class GameReg implements IGameReg {
     generalize(): RaceCore.GameRegistration {
         return {
             title: this.title,
-            addr: this.gameKey.toBase58(),
-            bundleAddr: this.bundleKey.toBase58(),
+            addr: this.gameKey,
+            bundleAddr: this.bundleKey,
             regTime: this.regTime,
         }
     }
@@ -464,7 +464,7 @@ export class RegistryState implements IRegistryState {
     @field('u16')
     size!: number
     @field(publicKeyExt)
-    ownerKey!: PublicKey
+    ownerKey!: Address
     @field(array(struct(GameReg)))
     games!: GameReg[]
     constructor(fields: IRegistryState) {
@@ -479,12 +479,12 @@ export class RegistryState implements IRegistryState {
         return deserialize(RegistryState, data)
     }
 
-    generalize(addr: PublicKey): RaceCore.RegistrationAccount {
+    generalize(addr: Address): RaceCore.RegistrationAccount {
         return {
-            addr: addr.toBase58(),
+            addr,
             isPrivate: this.isPrivate,
             size: this.size,
-            owner: this.ownerKey.toBase58(),
+            owner: this.ownerKey,
             games: this.games.map(g => g.generalize()),
         }
     }
@@ -494,9 +494,9 @@ export class ServerState implements IServerState {
     @field('bool')
     isInitialized!: boolean
     @field(publicKeyExt)
-    key!: PublicKey
+    key!: Address
     @field(publicKeyExt)
-    ownerKey!: PublicKey
+    ownerKey!: Address
     @field('string')
     endpoint!: string
 
@@ -514,7 +514,7 @@ export class ServerState implements IServerState {
 
     generalize(): RaceCore.ServerAccount {
         return {
-            addr: this.ownerKey.toBase58(),
+            addr: this.ownerKey,
             endpoint: this.endpoint,
         }
     }
@@ -535,7 +535,7 @@ export class RecipientSlotOwnerUnassigned extends RecipientSlotOwner {
 @variant(1)
 export class RecipientSlotOwnerAssigned extends RecipientSlotOwner {
     @field(publicKeyExt)
-    addr!: PublicKey
+    addr!: Address
     constructor(fields: any) {
         super()
         Object.assign(this, fields)
@@ -558,7 +558,7 @@ export class RecipientSlotShare implements IRecipientSlotShare {
         if (this.owner instanceof RecipientSlotOwnerAssigned) {
             owner = {
                 kind: 'assigned',
-                addr: this.owner.addr.toBase58(),
+                addr: this.owner.addr,
             }
         } else if (this.owner instanceof RecipientSlotOwnerUnassigned) {
             owner = {
@@ -582,9 +582,9 @@ export class RecipientSlot implements IRecipientSlot {
     @field('u8')
     slotType!: RecipientSlotType
     @field(publicKeyExt)
-    tokenAddr!: PublicKey
+    tokenAddr!: Address
     @field(publicKeyExt)
-    stakeAddr!: PublicKey
+    stakeAddr!: Address
     @field(array(struct(RecipientSlotShare)))
     shares!: RecipientSlotShare[]
     constructor(fields: IRecipientSlot) {
@@ -595,7 +595,7 @@ export class RecipientSlot implements IRecipientSlot {
         return {
             id: this.id,
             slotType: RaceCore.RECIPIENT_SLOT_TYPES[this.slotType],
-            tokenAddr: this.tokenAddr.toBase58(),
+            tokenAddr: this.tokenAddr,
             shares: this.shares.map(s => s.generalize()),
             balance,
         }
@@ -606,7 +606,7 @@ export class RecipientState implements IRecipientState {
     @field('bool')
     isInitialized!: boolean
     @field(option(publicKeyExt))
-    capAddr: PublicKey | undefined
+    capAddr: Address | undefined
     @field(array(struct(RecipientSlot)))
     slots!: RecipientSlot[]
 
@@ -625,7 +625,7 @@ export class RecipientState implements IRecipientState {
     generalize(addr: string, slots: RaceCore.RecipientSlot[]): RaceCore.RecipientAccount {
         return {
             addr,
-            capAddr: this.capAddr?.toBase58(),
+            capAddr: this.capAddr,
             slots,
         }
     }

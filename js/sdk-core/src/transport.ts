@@ -10,7 +10,7 @@ import {
     RegistrationWithGames,
     RecipientAccount,
     EntryType,
-    TokenWithBalance,
+    TokenBalance,
     PlayerProfile,
 } from './accounts'
 import { IStorage } from './storage'
@@ -38,15 +38,16 @@ export type CreateGameAccountParams = {
     maxPlayers: number
     entryType: EntryType
     registrationAddr: string
+    recipientAddr: string
     data: Uint8Array
-} & ({ recipientAddr: string } | { recipientParams: CreateRecipientParams })
+}
 
 export type CreateGameResponse = {
     gameAddr: string
     signature: string
 }
 
-export type CreateGameError = 'invalid-title' | 'invalid-depsoit-range' | CreateRecipientError
+export type CreateGameError = 'invalid-title' | 'invalid-depsoit-range'
 
 export type CloseGameAccountParams = {
     regAddr: string
@@ -249,7 +250,7 @@ export interface ITransport {
 
     listTokens(tokenAddrs: string[]): Promise<Token[]>
 
-    listTokensWithBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<TokenWithBalance[]>
+    listTokenBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<TokenBalance[]>
 
     listNfts(walletAddr: string): Promise<Nft[]>
 
