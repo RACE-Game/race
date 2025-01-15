@@ -13,3 +13,5 @@ mtt-simple:
 ltmtt-simple:
 	zellij --layout layouts/ltmtt-simple.kdl
 
+test-sdk-sui:
+    zellij --layout layouts/test-sdk-sui.kdl

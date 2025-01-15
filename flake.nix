@@ -17,7 +17,7 @@
       in {
         devShell = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
-            (rust-bin.stable."1.77.0".default.override {
+            (rust-bin.stable."1.83.0".default.override {
               extensions = [ "rust-src" ];
               targets = [ "wasm32-unknown-unknown" ];
             })

@@ -1,0 +1,128 @@
+// The layout to run sdk-sui tests
+
+layout {
+
+	pane {
+		command "curl"
+		args "--location" "--request" "POST" "https://faucet.devnet.sui.io/v1/gas" "--header" "Content-Type: application/json" "--data-raw" "{\"FixedAmountRequest\": {\"recipient\": \"0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e\"}}"
+		start_suspended true
+	}
+	pane {
+		name "create player profile"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "createPlayerProfile"
+		start_suspended true
+	}
+
+	pane {
+		name "get player profile"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "getPlayerProfile"
+		start_suspended true
+	}
+	pane {
+		name "create game account"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "createGameAccount"
+		start_suspended true
+	}
+
+	pane {
+		name "create recipient"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "createRecipient"
+		start_suspended true
+	}
+	pane {
+		name "get game account"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "getGameAccount"
+		start_suspended true
+	}
+	pane {
+		name "get game registration"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "getRegistration"
+		start_suspended true
+	}
+	pane {
+		name "get game registration with game"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "getRegistrationWithGames"
+		start_suspended true
+	}
+		pane {
+		name "register Game"
+		focus true
+		cwd "../js/sdk-sui"
+		command "npx"
+		args "ts-node" "bin/cli.ts" "registerGame"
+		start_suspended true
+	}
+	
+//	pane {
+//		name "get ServerAccount"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "getServerAccount"
+//		start_suspended true
+//	}
+//	pane {
+//		name "get token"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "getToken"
+//		start_suspended true
+//	}
+//	pane {
+//		name "get NFT"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "getNFT"
+//		start_suspended true
+//	}
+//	pane {
+//		name "get NFTLIST"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "getNFTLIST"
+//		start_suspended true
+//	}
+//	pane {
+//		name "getListTokens"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "getListTokens"
+//		start_suspended true
+//	}
+//	pane {
+//		name "getListTokensWithBalance"
+//		focus true
+//		cwd "../js/sdk-sui"
+//		command "npx"
+//		args "ts-node" "bin/cli.ts" "getListTokensWithBalance"
+//		start_suspended true
+//	}
+	pane size=1 borderless=true {
+    plugin location="zellij:status-bar"
+  }
+}

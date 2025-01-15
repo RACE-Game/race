@@ -6,7 +6,8 @@
     "./sdk-core",
     "./sdk-solana",
     "./sdk-facade",
-    "./borsh"
+    "./borsh",
+    "./sdk-sui"
   ],
   "version": "0.1.0"
 }
