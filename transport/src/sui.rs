@@ -319,7 +319,6 @@ impl TransportT for SuiTransport {
                 mutable: true
             })?)?,
             add_input(&mut ptb, new_pure_arg(&params.position)?)?,
-            add_input(&mut ptb, new_pure_arg(&params.access_version)?)?,
             add_input(&mut ptb, new_pure_arg(&params.amount)?)?,
             add_input(&mut ptb, new_pure_arg(&params.verify_key)?)?,
             Argument::NestedResult(0, 0)
@@ -1550,10 +1549,10 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0xefdf5f95dd6dc87307e10b18abcafb35e0fdc82077c76edec18469064e4a4e99";
+    const TEST_PACKAGE_ID: &str = "0xa5698c13cdfc969501fc22982838d227cc83a79cf8810037d4b5e74451b569ea";
     const TEST_GAME_ID: &str = "0xca42f1f255ea4d8944ce706bee318d9411d2f2a4ad043f29cc81aadf16f6a061";
     const TEST_SERVER_TABLE_ID: &str = "0x302e13fa8331a2c37345ff053d347dd4e19666afa44ff62dcb6ec84fdc13a86e";
-    const TEST_PROFILE_TABLE_ID: &str = "0x4b4e744f568b7c904e4353f88f7c9a49a46f151493ff25878d9b0e66c2cd1ef3";
+    const TEST_PROFILE_TABLE_ID: &str = "0x302e13fa8331a2c37345ff053d347dd4e19666afa44ff62dcb6ec84fdc13a86e";
     const TEST_RECIPIENT_ID: &str = "0x3bd2cf3a28df3e80779b2e401af54ef24a405fdd7d67f7687145f597d18dbb03";
     const TEST_REGISTRY: &str = "0xcb430f98bd97f8c3697cbdbf0de6b9b59411b2634aeebd07f4434fec30f443c7";
     const TEST_GAME_NFT: &str = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";

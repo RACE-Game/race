@@ -45,7 +45,6 @@ export class SuiTransport implements ITransport {
       transaction.pure.string(params.title), // title string
       transaction.pure.address(params.bundleAddr), // bundle_addr address params
       transaction.pure.address(wallet.walletAddr), // owner address wallet
-
       transaction.pure.address(recipientAddr), // recipient_addr address params
       transaction.pure.string(params.tokenAddr), // token_addr address params "0x2"
       transaction.pure.u16(params.maxPlayers), // max_players u64 params
@@ -88,6 +87,7 @@ export class SuiTransport implements ITransport {
     transaction.moveCall({
       target: `${PACKAGE_ID}::game::create_game`,
       arguments: [...create_game_args, entry_type_result],
+      typeArguments: [params.tokenAddr]
     });
 
     const result = await wallet.send(transaction, suiClient, resp)
@@ -193,8 +193,12 @@ export class SuiTransport implements ITransport {
       createProfileIfNeeded = false
     } = params;
 
+    const suiClient = this.suiClient;
+    coerceWallet(wallet);
+
     if (createProfileIfNeeded) {
-      await createPlayerProfile(wallet, { nick: wallet.addr.slice(0,8) });
+      let res = new ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>;
+      await this.createPlayerProfile(wallet, { nick: 'RacePlayer' }, res);
     }
 
     // get game object for token info and object ref
@@ -225,14 +229,12 @@ export class SuiTransport implements ITransport {
     if (!('initial_shared_version' in shared)) {
       return resp.transactionFailed('game object is not shared')
     }
-    const game_init_version = shared.initial_shared_verison;
+    const game_init_version = shared.initial_shared_version;
 
     const transaction = new Transaction();
-    const suiClient = this.suiClient;
-    coerceWallet(wallet);
 
     // split coin for buyin
-    const [coin] = transaction.splitCoin(transaction.gas, [transaction.pure(params.amount)]);
+    const [coin] = transaction.splitCoins(transaction.gas, [transaction.pure.u64(params.amount)]);
     // join the game
     transaction.moveCall({
       target: `${PACKAGE_ID}::game::join_game`,
@@ -243,12 +245,11 @@ export class SuiTransport implements ITransport {
           mutable: false,
         }),
         transaction.pure.u16(position),
-        transaction.pure.u64(access_version),
         transaction.pure.u64(amount),
         transaction.pure.u64(verifyKey),
         coin
       ],
-      typeArgument: [game.tokenAddr]
+      typeArguments: [game.tokenAddr]
     });
 
     const result = await wallet.send(transaction, suiClient, resp);

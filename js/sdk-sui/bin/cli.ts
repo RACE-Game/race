@@ -8,12 +8,12 @@ import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfilePar
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
 
-const TEST_PACKAGE_ID = "0xf3c857da70fbf7275495e35243e66d628dcac3f7a83a4b094a918811df5b1f99";
+const TEST_PACKAGE_ID = "0xa5698c13cdfc969501fc22982838d227cc83a79cf8810037d4b5e74451b569ea";
 const TEST_GAME_ID = "0xe48c698837045e6296c7cd6d14d809f90192d38fb6651940d2adbaae2d700e1d";
-const TEST_SERVER_TABLE_ID = "0x6b42f9a3c1be90700ca3ebca78ae3d65d360f3e17d52f17ca753cf185557b253";
-const TEST_PROFILE_TABLE_ID = "0x0e93925793634d7aa2d6cf3fff73b171c5bf694f7616485cfee1773c58ff6f0e";
-const TEST_RECIPIENT_ID = "0xc3c6277f5c374139e42d6972b5223e4b4bfbd4cabd7a5af6811af79301aefa66";
-const TEST_REGISTRY = "0xc91df1896e7bfac9f288cdcd239c7aaf0e21a37bc38af4a5b006e066b368c0df";
+const TEST_SERVER_TABLE_ID = "0xdac65117edba713a19b37dac5b7b0c6230eb2e16fc0e729d9fb6541282eca2b3";
+const TEST_PROFILE_TABLE_ID = "0x4b4e744f568b7c904e4353f88f7c9a49a46f151493ff25878d9b0e66c2cd1ef3";
+const TEST_RECIPIENT_ID = "0x3bd2cf3a28df3e80779b2e401af54ef24a405fdd7d67f7687145f597d18dbb03";
+const TEST_REGISTRY_ID = "0xcb430f98bd97f8c3697cbdbf0de6b9b59411b2634aeebd07f4434fec30f443c7";
 const TEST_GAME_NFT = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
 
 function testCreatePlayerProfile() {
@@ -32,7 +32,7 @@ async function testGetPlayerProfile() {
   console.log('res', res)
 }
 
-function testCreateGameAccount() {
+async function testCreateGameAccount() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   // console.log(wallet.walletAddr)
   const params = {
@@ -40,7 +40,7 @@ function testCreateGameAccount() {
     bundleAddr: TEST_GAME_NFT, // bundle_addr address params
     owner: wallet.walletAddr, // owner address wallet
     recipientAddr: randomPublicKey(), // recipient_addr address params
-    tokenAddr: "0x2", // token_addr address params "0x2"
+    tokenAddr: "0x2::sui::SUI", // token_addr address params "0x2"
     maxPlayers: 6, // max_players u64 params
     data_len: 2, // data_len u32 params
     data: Uint8Array.from([1, 2]), // data vector<u8> params
@@ -49,22 +49,22 @@ function testCreateGameAccount() {
     //   minDeposit: BigInt(0),
     //   maxDeposit: BigInt(1000000)
     // },
-    // entryType: {
-    //   kind: 'ticket' as const,
-    //   amount: BigInt(1000000)
-    // },
+    entryType: {
+      kind: 'ticket' as const,
+      amount: BigInt(100_000_000)
+    },
     // entryType: {
     //   kind: 'gating' as const,
     //   collection: 'abc'
     // },
-    entryType: {
-      kind: 'disabled' as const,
-    },
-    registrationAddr: '12',
+    // entryType: {
+    //   kind: 'disabled' as const,
+    // },
+    registrationAddr: TEST_REGISTRY_ID,
   }
 
   let response = new ResponseHandle<CreateGameResponse, CreateGameError>()
-  suiTransport.createGameAccount(wallet, params, response);
+  let result = await suiTransport.createGameAccount(wallet, params, response);
   console.log(response)
 }
 
@@ -145,13 +145,13 @@ async function testRegisterGame() {
 
 async function testJoinGame() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-  const params: JoinGameParams = {
+  const params: JoinParams = {
     gameAddr: TEST_GAME_ID,
-    amount: 100_000_000,
+    amount: BigInt(100_000_000),
     position: 3,
     verifyKey: 'player3',
   };
-  let response = new ResponseHandle<RegisterGameResponse, RegisterGameError>();
+  let response = new ResponseHandle<JoinResponse, JoinError>();
   let res = await suiTransport.join(wallet, params, response);
   console.log('testJoinGame', response);
 }
