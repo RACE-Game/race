@@ -4,7 +4,7 @@ import { SuiTransport } from '../src/sui-transport';
 import { LocalSuiWallet } from '../src/local-wallet'
 import { GAME_OBJECT_TYPE, GAS_BUDGET, MAXIMUM_TITLE_LENGTH, PACKAGE_ID, PROFILE_TABLE_ID } from '../src/constants'
 // import { ResponseHandle } from '../../sdk-core/src/response'
-import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenWithBalance } from "@race-foundation/sdk-core";
+import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, Nft, IStorage, Token, ITransport, IWallet, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegistrationAccount, RegistrationWithGames, ServerAccount, SendTransactionResult, UnregisterGameParams, VoteParams, ResponseHandle, CreateGameResponse, CreateGameError, CreatePlayerProfileError, CreatePlayerProfileResponse, CreateRecipientError, CreateRecipientParams, CreateRecipientResponse, DepositError, DepositResponse, JoinError, JoinResponse, RecipientClaimError, RecipientClaimResponse, RegisterGameError, RegisterGameResponse, TokenBalance } from "@race-foundation/sdk-core";
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
 
@@ -28,7 +28,7 @@ function testCreatePlayerProfile() {
 }
 async function testGetPlayerProfile() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-  let res = await suiTransport.getPlayerProfile(wallet.walletAddr)
+  let res = await suiTransport.getPlayerProfile('0x5b6eb18e764749862726832bf35e37d597975d234ef341fb39770a736879bc7b')
   console.log('res', res)
 }
 
@@ -108,7 +108,7 @@ async function testListTokensWithBalance() {
   ]
   // const walletAddr = '0x5b6eb18e764749862726832bf35e37d597975d234ef341fb39770a736879bc7b'
   const walletAddr = '0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e'
-  let res = await suiTransport.listTokensWithBalance(walletAddr, tokenAddrs);
+  let res = await suiTransport.listTokenBalance(walletAddr, tokenAddrs);
   console.log('tokens', res)
 }
 async function testGetGameAccount() {

@@ -59,16 +59,19 @@ import {
     MoveVariant,
     ObjectOwner,
     PaginatedObjectsResponse,
+    RawData,
     SuiClient,
     SuiMoveObject,
     SuiObjectChange,
     SuiObjectChangeCreated,
+    SuiObjectData,
     SuiObjectResponse,
     SuiTransactionBlock,
 } from '@mysten/sui/client'
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { Transaction, TransactionDataBuilder, TransactionObjectArgument } from '@mysten/sui/transactions'
-import { bcs } from '@mysten/bcs'
+import { bcs, fromBase64 } from '@mysten/bcs'
+import { parseCoin, parsePlayerProfile } from './types'
 import { SuiWallet } from './sui-wallet'
 import { LocalSuiWallet } from './local-wallet'
 import {
@@ -220,46 +223,22 @@ export class SuiTransport implements ITransport {
         const objectChange = resolveObjectCreatedByType(result.ok, GAME_OBJECT_TYPE, resp)
         if (objectChange === undefined) return
     }
+
     async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
-        try {
-            const suiClient = this.suiClient
-            const objectResponse: PaginatedObjectsResponse = await suiClient.getOwnedObjects({
-                owner: addr,
-                filter: {
-                    StructType: `${PACKAGE_ID}::profile::Profile`,
-                },
-                options: {
-                    showContent: true,
-                    showType: true,
-                },
-            })
-            let fields: any
-            objectResponse.data.map((objectResponse: SuiObjectResponse) => {
-                if (!objectResponse.data) {
-                    return undefined
-                }
-                const content = objectResponse.data?.content
-                if (!content || content.dataType !== 'moveObject') {
-                    return undefined
-                }
-                fields = content.fields as any
-            })
-            if (!fields) {
-                return undefined
-            }
-            if ('nick' in fields && 'pfp' in fields) {
-                return {
-                    addr: addr,
-                    nick: fields.nick,
-                    pfp: fields.pfp,
-                }
-            }
-            return undefined
-        } catch (error) {
-            console.error('Error fetching player profile:', error)
-            return undefined
-        }
+
+        const resp = await this.suiClient.getOwnedObjects({
+            owner: addr,
+            filter: {
+                StructType: `${PACKAGE_ID}::profile::PlayerProfile`,
+            },
+            options: {
+                showBcs: true,
+            },
+        })
+
+        return parseObjectData(parseFirstObjectResponse(resp), parsePlayerProfile)
     }
+
     closeGameAccount(
         wallet: IWallet,
         params: CloseGameAccountParams,
@@ -701,64 +680,20 @@ export class SuiTransport implements ITransport {
         }
         return undefined
     }
+
     async listTokens(tokenAddrs: string[]): Promise<Token[]> {
         const promises = tokenAddrs.map(async addr => {
             return await this.getToken(addr)
         })
-        let tokens = await (await Promise.all(promises)).filter((t): t is Token => t !== undefined)
+        let tokens = (await Promise.all(promises)).filter((t): t is Token => t !== undefined)
         return tokens
     }
+
     async listTokenBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<TokenBalance[]> {
-        const that = this
-        const suiClient = this.suiClient
-        const tokenMetadata = await suiClient.getOwnedObjects({ owner: walletAddr })
-        if (!tokenMetadata) {
-            console.error('Error fetching token metadata:', tokenMetadata)
-            return []
-        }
-        let ids = tokenMetadata.data
-            .map((obj: SuiObjectResponse) => obj?.data?.objectId)
-            .filter((id): id is string => id !== undefined)
-        const objectResponses: SuiObjectResponse[] = await suiClient.multiGetObjects({
-            ids,
-            options: {
-                showContent: true,
-                showType: true,
-            },
-        })
-        const tokenBalances: (TokenBalance | undefined)[] = await Promise.all(
-            objectResponses.map(async obj => {
-                try {
-                    const content = obj.data?.content
-                    if (!content || content.dataType !== 'moveObject' || !content.fields) {
-                        return undefined
-                    }
-                    const fields = content.fields
-                    if (Array.isArray(fields) || 'fields' in fields || !('balance' in fields)) {
-                        return undefined
-                    }
-
-                    const list = obj.data?.type?.match(/0x2::coin::Coin<(.+)>/)
-                    if (!list) return undefined
-
-                    const objType = list[1]
-                    if (!tokenAddrs.includes(objType)) return undefined
-
-                    const token = await that.getToken(objType)
-                    if (!token) return undefined
-
-                    return {
-                        addr: objType,
-                        amount: BigInt(fields.balance?.toString() || 0),
-                    }
-                } catch (error) {
-                    console.error('Error processing object:', error)
-                    return undefined
-                }
-            })
-        )
-
-        return tokenBalances.filter((tb): tb is TokenBalance => tb !== undefined)
+        return (await this.suiClient.getAllBalances({owner: walletAddr})).map(b => ({
+            addr: b.coinType,
+            amount: BigInt(b.totalBalance)
+        })).filter(t => tokenAddrs.includes(t.addr))
     }
 
     async listNfts(walletAddr: string): Promise<Nft[]> {
@@ -811,7 +746,11 @@ export class SuiTransport implements ITransport {
         throw new Error('Method not implemented.')
     }
 
-    attachBonus(wallet: IWallet, params: AttachBonusParams, resp: ResponseHandle<AttachBonusResponse, AttachBonusError>): Promise<void> {
+    attachBonus(
+        wallet: IWallet,
+        params: AttachBonusParams,
+        resp: ResponseHandle<AttachBonusResponse, AttachBonusError>
+    ): Promise<void> {
         throw new Error('Method not implemented.')
     }
 }
@@ -833,6 +772,56 @@ function resolveObjectCreatedByType<T, E>(
     }
 
     return objectChange
+}
+
+function parseMultiObjectResponse(resp: PaginatedObjectsResponse): SuiObjectData[] {
+    if ('error' in resp) {
+        console.error(resp.error)
+        return []
+    }
+    const objData = resp.data.map(x => x.data).filter((x): x is SuiObjectData => !!x)
+    return objData
+}
+
+function parseFirstObjectResponse(resp: PaginatedObjectsResponse): SuiObjectData | undefined {
+    if ('error' in resp) {
+        console.error(resp.error)
+        return undefined
+    }
+    const objData = resp.data.at(0)?.data
+    return objData ? objData : undefined
+}
+
+function parseSingleObjectResponse(resp: SuiObjectResponse): SuiObjectData | undefined {
+    if ('error' in resp) {
+        console.error(resp.error)
+        return undefined
+    }
+    const objData = resp.data
+    return objData ? objData : undefined
+}
+
+function parseObjectData<T>(
+    objData: SuiObjectData | undefined,
+    parser: (_: string) => T
+): undefined | T {
+    if (objData === undefined) {
+        return undefined
+    }
+
+    const data = objData.bcs
+
+    if (!data) {
+        console.warn('BCS data is empty')
+        return undefined
+    }
+
+    if (data.dataType === 'package') {
+        console.error('Not a profile object')
+        return undefined
+    }
+
+    return parser(data.bcsBytes)
 }
 
 function randomPublicKey(): string {
