@@ -102,7 +102,7 @@ sdk-facade:
     npm --prefix ./js/sdk-facade run build
 
 # Build all libs under js folder
-sdk: sdk-borsh sdk-core sdk-solana sdk-facade
+sdk: sdk-borsh sdk-core sdk-solana sdk-facade sdk-sui
 
 # Publish js PKG to npmjs
 publish-npmjs pkg:
