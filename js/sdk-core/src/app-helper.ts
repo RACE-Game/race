@@ -206,7 +206,8 @@ export class AppHelper {
      * Get latest checkpoint of a game.
      *
      * @param gameAccount
-     * @returns The latest checkpoint from transactor or undefined when it's not available.
+     * @returns The latest checkpoint from transactor or undefined when it's not a
+       vailable.
      */
     async getLatestCheckpoint(gameAccount: GameAccount): Promise<CheckpointOffChain | undefined> {
         if (gameAccount.transactorAddr === undefined) {
