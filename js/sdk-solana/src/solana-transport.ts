@@ -25,6 +25,12 @@ import {
     createAddressWithSeed,
     Blockhash,
     Transaction,
+    Signature,
+    sendAndConfirmTransactionFactory,
+    SignatureBytes,
+    getBase58Encoder,
+    getBase58Decoder,
+    getSignatureFromTransaction,
 } from '@solana/web3.js'
 import * as SPL from '@solana-program/token'
 import {
@@ -104,6 +110,8 @@ import { SolanaWalletAdapter } from './solana-wallet'
 import { getCreateAccountInstruction, getCreateAccountWithSeedInstruction } from '@solana-program/system'
 import { TOKEN_PROGRAM_ADDRESS } from '@solana-program/token'
 import { createDasRpc, MetaplexDASApi } from './metaplex'
+
+const MAX_CONFIRM_TIMES = 32
 
 type TransactionMessageWithFeePayerAndBlockhashLifetime = TransactionMessage &
     ITransactionMessageWithFeePayer &
@@ -240,16 +248,17 @@ export class SolanaTransport implements ITransport {
 
         const tx = await makeTransaction(this.#rpc, payer, ixs)
         if ('err' in tx) {
-            response.retryRequired(tx.err)
-            return
+            return response.retryRequired(tx.err)
         }
 
         const sig = await sendTransaction(payer, tx.ok, response, { signers })
         if ('err' in sig) {
-            response.transactionFailed(sig.err)
-        } else {
-            response.succeed({ gameAddr: gameAccount.address, signature: sig.ok })
+            return response.transactionFailed(sig.err)
         }
+
+        const signature = sig.ok
+
+        await confirmSignature(this.#rpc, signature, response, { gameAddr: gameAccount.address, signature })
     }
 
     async closeGameAccount(
@@ -317,11 +326,14 @@ export class SolanaTransport implements ITransport {
             return
         }
         const sig = await sendTransaction(payer, tx.ok, response, { commitment: 'confirmed' })
+
         if ('err' in sig) {
-            response.transactionFailed(sig.err)
-        } else {
-            response.succeed({ signature: sig.ok })
+            return response.transactionFailed(sig.err)
         }
+
+        const signature = sig.ok
+
+        await confirmSignature(this.#rpc, signature, response, { signature })
     }
 
     async join(wallet: IWallet, params: JoinParams, response: ResponseHandle<JoinResponse, JoinError>): Promise<void> {
@@ -450,10 +462,12 @@ export class SolanaTransport implements ITransport {
             signers: [tempAccount],
         })
         if ('err' in sig) {
-            response.transactionFailed(sig.err)
-        } else {
-            response.succeed({ signature: sig.ok })
+            return response.transactionFailed(sig.err)
         }
+
+        const signature = sig.ok
+
+        await confirmSignature(this.#rpc, signature, response, { signature })
     }
 
     async deposit(
@@ -556,18 +570,19 @@ export class SolanaTransport implements ITransport {
         ixs.push(depositGameIx)
         const tx = await makeTransaction(this.#rpc, player, ixs)
         if ('err' in tx) {
-            response.retryRequired(tx.err)
-            return
+            return response.retryRequired(tx.err)
         }
         const sig = await sendTransaction(player, tx.ok, response, {
             commitment: 'confirmed',
             signers: [tempAccount],
         })
         if ('err' in sig) {
-            response.transactionFailed(sig.err)
-        } else {
-            response.succeed({ signature: sig.ok })
+            return response.transactionFailed(sig.err)
         }
+
+        const signature = sig.ok
+
+        await confirmSignature(this.#rpc, signature, response, { signature })
     }
 
     async attachBonus(
@@ -633,10 +648,12 @@ export class SolanaTransport implements ITransport {
         }
         const sig = await sendTransaction(payer, tx.ok, response, { signers })
         if ('err' in sig) {
-            response.transactionFailed(sig.err)
-        } else {
-            response.succeed({ signature: sig.ok })
+            return response.transactionFailed(sig.err)
         }
+
+        const signature = sig.ok
+
+        await confirmSignature(this.#rpc, signature, response, { signature })
     }
 
     async publishGame(_wallet: IWallet, _params: PublishGameParams): Promise<void> {
@@ -674,10 +691,12 @@ export class SolanaTransport implements ITransport {
         }
         const sig = await sendTransaction(payer, tx.ok, response)
         if ('err' in sig) {
-            response.transactionFailed(sig.err)
-        } else {
-            response.succeed({ recipientAddr: params.recipientAddr, signature: sig.ok })
+            return response.transactionFailed(sig.err)
         }
+
+        const signature = sig.ok
+
+        await confirmSignature(this.#rpc, signature, response, { recipientAddr: params.recipientAddr, signature })
     }
 
     async _getPlayerProfileAddress(payerKey: Address) {
@@ -751,18 +770,21 @@ export class SolanaTransport implements ITransport {
         }
         const sig = await sendTransaction(payer, tx.ok, response)
         if ('err' in sig) {
-            response.transactionFailed(sig.err)
-        } else {
-            response.succeed({
-                signature: sig.ok,
-                profile: {
-                    nick: params.nick,
-                    pfp: params.pfp,
-                    addr: profileKey,
-                },
-            })
+            return response.transactionFailed(sig.err)
         }
+
+        const signature = sig.ok
+
+        await confirmSignature(this.#rpc, signature, response, {
+            signature,
+            profile: {
+                nick: params.nick,
+                pfp: params.pfp,
+                addr: profileKey,
+            },
+        })
     }
+
     async _prepareCreateTokenAccount(
         payer: TransactionSigner,
         mint: Address
@@ -916,11 +938,14 @@ export class SolanaTransport implements ITransport {
         }
         const transaction = tx.ok
         const sig = await sendTransaction(payer, transaction, response, { signers })
+
         if ('err' in sig) {
-            response.transactionFailed(sig.err)
-        } else {
-            response.succeed({ recipientAddr: recipientAccount.address, signature: sig.ok })
+            return response.transactionFailed(sig.err)
         }
+
+        const signature = sig.ok
+
+        await confirmSignature(this.#rpc, signature, response, { recipientAddr: recipientAccount.address, signature })
     }
     async createRegistration(_wallet: IWallet, _params: CreateRegistrationParams): Promise<void> {
         throw new Error('unimplemented')
@@ -993,10 +1018,9 @@ export class SolanaTransport implements ITransport {
             return undefined
         }
     }
-    async getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {
-        const regAccount = await this.getRegistration(addr)
-        if (regAccount === undefined) return undefined
-        const keys = regAccount.games.map(g => address(g.addr))
+
+    async listGameAccounts(addrs: string[]): Promise<GameAccount[]> {
+        const keys = addrs.map(a => address(a))
         const gameStates = await this._getMultiGameStates(keys)
         let games: Array<GameAccount> = []
         for (let i = 0; i < gameStates.length; i++) {
@@ -1005,11 +1029,9 @@ export class SolanaTransport implements ITransport {
                 games.push(gs.generalize(keys[i]))
             }
         }
-        return {
-            ...regAccount,
-            games,
-        }
+        return games
     }
+
     async getRecipient(addr: string): Promise<RecipientAccount | undefined> {
         const recipientKey = address(addr)
         const recipientState = await this._getRecipientState(recipientKey)
@@ -1279,9 +1301,7 @@ async function sendTransaction<T, E>(
     tx: TransactionMessageWithFeePayerAndBlockhashLifetime,
     response: ResponseHandle<T, E>,
     config?: SendTransactionOptions
-): Promise<SendTransactionResult> {
-    // const getComputeUnitEstimateForTransactionMessage = getComputeUnitEstimateForTransactionMessageFactory({ rpc })
-
+): Promise<SendTransactionResult<Signature>> {
     response.waitingWallet()
 
     let transaction: Transaction = compileTransaction(tx)
@@ -1295,14 +1315,81 @@ async function sendTransaction<T, E>(
             )
         }
 
-        const signature = await signer.signAndSendTransactions([transaction])
-        console.log('Signature:', signature)
-        return { ok: '' }
+        const signatures = await signer.signAndSendTransactions([transaction])
+
+        console.log('Signatures:', signatures)
+
+        const signature = getBase58Decoder().decode(signatures[0]) as Signature
+
+        console.info(`Transaction signature: ${signature}`)
+
+        response.confirming(signature)
+
+        return { ok: signature }
     } catch (e: any) {
         console.error(e)
         response.userRejected(e.toString())
         return { err: e }
     }
+}
+
+async function confirmSignature<T, E>(
+    rpc: Rpc<SolanaRpcApi>,
+    signature: Signature,
+    response: ResponseHandle<T, E>,
+    data: T
+) {
+    let err: string = 'Unknown'
+
+    for (let i = 0;; i++) {
+        await new Promise(r => setTimeout(r, 1000))
+
+        const resp = await rpc.getSignatureStatuses([signature], { searchTransactionHistory: true }).send()
+
+        console.log('Signature response:', resp)
+
+        if (resp.value.length === 0) {
+            if (i === MAX_CONFIRM_TIMES) {
+                err = 'Transaction signature status not found'
+                break
+            } else {
+                continue
+            }
+        }
+
+        const status = resp.value[0]
+
+        if (status === null) {
+            if (i === MAX_CONFIRM_TIMES) {
+                err = 'Transaction signature status not found'
+                break
+            } else {
+                continue
+            }
+        }
+
+        if (status.err !== null) {
+            if (i == MAX_CONFIRM_TIMES) {
+                err = status.err.toString()
+                break
+            } else {
+                continue
+            }
+        }
+
+        if (status.confirmationStatus == null) {
+            if (i == MAX_CONFIRM_TIMES) {
+                err = 'Transaction confirmation status not found'
+                break
+            } else {
+                continue
+            }
+        } else {
+            return response.succeed(data)
+        }
+    }
+
+    return response.transactionFailed(err)
 }
 
 async function makeTransaction(

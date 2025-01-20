@@ -230,6 +230,8 @@ export interface ITransport {
 
     getGameAccount(addr: string): Promise<GameAccount | undefined>
 
+    listGameAccounts(addrs: string[]): Promise<GameAccount[]>
+
     getGameBundle(addr: string): Promise<GameBundle | undefined>
 
     getPlayerProfile(addr: string): Promise<PlayerProfile | undefined>
@@ -237,8 +239,6 @@ export interface ITransport {
     getServerAccount(addr: string): Promise<ServerAccount | undefined>
 
     getRegistration(addr: string): Promise<RegistrationAccount | undefined>
-
-    getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined>
 
     getRecipient(addr: string): Promise<RecipientAccount | undefined>
 

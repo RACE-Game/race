@@ -1,9 +1,6 @@
 import { Result } from './types'
 
-type Signature = string
-type TxError = any
-
-export type SendTransactionResult = Result<Signature, TxError>
+export type SendTransactionResult<Sig> = Result<Sig, any>
 
 export interface IWallet {
     isConnected: boolean

@@ -69,18 +69,16 @@ import {
     SuiTransactionBlock,
 } from '@mysten/sui/client'
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
-import { Transaction, TransactionDataBuilder, TransactionObjectArgument } from '@mysten/sui/transactions'
-import { bcs, fromBase64 } from '@mysten/bcs'
-import { parseCoin, parsePlayerProfile } from './types'
+import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
+import { bcs, BcsType, fromBase64 } from '@mysten/bcs'
+import { Parser, PlayerPorfileParser } from './types'
 import { SuiWallet } from './sui-wallet'
 import { LocalSuiWallet } from './local-wallet'
 import {
     CLOCK_ID,
     GAME_OBJECT_TYPE,
-    GAS_BUDGET,
     MAXIMUM_TITLE_LENGTH,
     PACKAGE_ID,
-    PROFILE_STRUCT_TYPE,
     PROFILE_TABLE_ID,
     SUI_ICON_URL,
 } from './constants'
@@ -236,7 +234,7 @@ export class SuiTransport implements ITransport {
             },
         })
 
-        return parseObjectData(parseFirstObjectResponse(resp), parsePlayerProfile)
+        return parseObjectData(parseFirstObjectResponse(resp), PlayerPorfileParser)
     }
 
     closeGameAccount(
@@ -530,6 +528,11 @@ export class SuiTransport implements ITransport {
             })),
         }
     }
+
+    async listGameAccounts(addrs: string[]): Promise<GameAccount[]> {
+        return []
+    }
+
     // todo sui and contract
     getGameBundle(addr: string): Promise<GameBundle | undefined> {
         throw new Error('Method not implemented.')
@@ -573,53 +576,6 @@ export class SuiTransport implements ITransport {
             size: fields.size as number,
             owner: fields.owner as string,
             games: fields.games as [],
-        }
-    }
-    async getRegistrationWithGames(addr: string): Promise<RegistrationWithGames | undefined> {
-        const suiClient = this.suiClient
-        const resReg: SuiObjectResponse = await suiClient.getObject({
-            id: addr,
-            options: {
-                showContent: true,
-                showType: true,
-            },
-        })
-        const content = resReg.data?.content
-        if (!content || content.dataType !== 'moveObject') {
-            return undefined
-        }
-        if (!content.fields) return undefined
-        let fields: MoveStruct = content.fields
-        if (Array.isArray(fields)) {
-            return undefined
-        }
-        if ('fields' in fields) {
-            return undefined
-        }
-        let gameAccounts: any = []
-        if (!('games' in content.fields)) {
-            return undefined
-        }
-        let games = content.fields.games
-        console.log('games', games)
-        if (Array.isArray(games) && games.length > 0) {
-            const promises: Promise<GameAccount | undefined>[] = games.map(async (game: any) => {
-                if (!game) {
-                    return undefined
-                }
-                if (!('fields' in game)) {
-                    return undefined
-                }
-                return await this.getGameAccount(game.fields.game_id)
-            })
-            gameAccounts = await await Promise.all(promises)
-        }
-        return {
-            addr: addr,
-            isPrivate: fields.is_private as boolean,
-            size: fields.size as number,
-            owner: fields.owner as string,
-            games: gameAccounts,
         }
     }
     getRecipient(addr: string): Promise<RecipientAccount | undefined> {
@@ -801,9 +757,9 @@ function parseSingleObjectResponse(resp: SuiObjectResponse): SuiObjectData | und
     return objData ? objData : undefined
 }
 
-function parseObjectData<T>(
+function parseObjectData<T, S extends BcsType<S['$inferInput']>>(
     objData: SuiObjectData | undefined,
-    parser: (_: string) => T
+    parser: Parser<T, S>,
 ): undefined | T {
     if (objData === undefined) {
         return undefined
@@ -821,9 +777,8 @@ function parseObjectData<T>(
         return undefined
     }
 
-    return parser(data.bcsBytes)
-}
 
-function randomPublicKey(): string {
-    return Ed25519Keypair.generate().getPublicKey().toSuiAddress()
+    const raw = parser.schema.parse(fromBase64(data.bcsBytes))
+
+    return parser.transform(raw)
 }

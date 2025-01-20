@@ -1,10 +1,11 @@
-import { GameAccount, Nft, Token, TokenBalance, RecipientAccount } from './accounts'
-import { GAME_ACCOUNT_CACHE_TTL, NFT_CACHE_TTL, TOKEN_CACHE_TTL } from './common'
+import { GameAccount, Nft, Token, TokenBalance, RecipientAccount, GameBundle } from './accounts'
+import { BUNDLE_CACHE_TTL, GAME_ACCOUNT_CACHE_TTL, NFT_CACHE_TTL, TOKEN_CACHE_TTL } from './common'
 import { CheckpointOffChain } from './checkpoint'
 import { ResponseHandle, ResponseStream } from './response'
 import {
     getTtlCache,
     IStorage,
+    makeBundleCacheKey,
     makeGameAccountCacheKey,
     makeNftCacheKey,
     makeTokenCacheKey,
@@ -246,22 +247,16 @@ export class AppHelper {
      * @return A list of games
      */
     async listGames(registrationAddrs: string[]): Promise<GameAccount[]> {
-        let games: GameAccount[] = []
-        for (const addr of registrationAddrs) {
-            const reg = await this.#transport.getRegistrationWithGames(addr)
-            if (reg !== undefined) {
-                for (const game of reg.games) {
-                    // Save games to cache
-                    if (this.#storage !== undefined) {
-                        const cacheKey = makeGameAccountCacheKey(this.#transport.chain, game.addr)
-                        const gameCache = makeGameAccountCache(game)
-                        setTtlCache(this.#storage, cacheKey, gameCache, GAME_ACCOUNT_CACHE_TTL)
-                    }
-                    games.push(game)
-                }
+        return (await Promise.all(registrationAddrs.map(async regAddr => {
+            const reg = await this.#transport.getRegistration(regAddr)
+            const gameAddrs = reg?.games.map(g => g.addr)
+            if (gameAddrs) {
+                return await this.#transport.listGameAccounts(gameAddrs)
+            } else {
+                console.warn(`No game found in registration: ${regAddr}`)
+                return []
             }
-        }
-        return games
+        }))).flat()
     }
 
     /**
@@ -358,6 +353,32 @@ export class AppHelper {
 
     async getRecipient(recipientAddr: string): Promise<RecipientAccount | undefined> {
         return await this.#transport.getRecipient(recipientAddr)
+    }
+
+
+    /**
+     * Cache a game bundle in storage by its address or a game account.
+     */
+    async cacheGameBundle(bundleAddr: string): Promise<void> {
+        if (this.#storage === undefined) {
+            throw new Error('Cannot cache game bundle without storage')
+        }
+
+        const bundleCacheKey = makeBundleCacheKey(this.#transport.chain, bundleAddr)
+
+        const cached = getTtlCache<GameBundle>(this.#storage, bundleCacheKey)
+
+        if (cached !== undefined) {
+            console.info(`Game bundle cache available: ${bundleAddr}`)
+            return  // game bundle cached already
+        }
+
+        const bundle = await this.#transport.getGameBundle(bundleAddr)
+
+        if (bundle !== undefined) {
+            console.info(`Cache game bundle: ${bundleAddr}`)
+            setTtlCache(this.#storage, bundleCacheKey, bundle, BUNDLE_CACHE_TTL)
+        }
     }
 
     /**

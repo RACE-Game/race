@@ -24,8 +24,7 @@ import {
 import { SubClient } from './sub-client'
 import { Checkpoint, CheckpointOffChain } from './checkpoint'
 import { ResponseHandle, ResponseStream } from './response'
-
-const BUNDLE_CACHE_TTL = 3600 * 365
+import { BUNDLE_CACHE_TTL } from './common'
 
 export type AppClientInitOpts = {
     transport: ITransport

@@ -47,7 +47,7 @@ export class SolanaWalletAdapter implements IWallet {
                 console.log(transactions, 'Sending transactions')
                 console.log(config, "Transaction config")
                 console.log('feature:', this.#wallet.features['solana:signAndSendTransaction'])
-                return await this.#wallet.features['solana:signAndSendTransaction'].signAndSendTransaction(
+                const resps = await this.#wallet.features['solana:signAndSendTransaction'].signAndSendTransaction(
                     {
                         transaction: wireTransactionBytes,
                         chain: this.#chain,
@@ -55,6 +55,7 @@ export class SolanaWalletAdapter implements IWallet {
                         options: {},
                     }
                 )
+                return resps.map((resp: any) => resp.signature)
             },
         }
     }

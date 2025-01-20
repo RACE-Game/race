@@ -246,6 +246,19 @@ export class FacadeTransport implements ITransport {
         if (data === undefined) return undefined
         return deserialize(GameAccount, data).generalize()
     }
+
+    async listGameAccounts(addrs: string[]): Promise<RaceCore.GameAccount[]> {
+        let ret = []
+        for (const addr of addrs) {
+            const gameAccount = await this.getGameAccount(addr)
+            if (gameAccount !== undefined) {
+                ret.push(gameAccount)
+            } else {
+                console.warn(`Game not found: ${addr}`)
+            }
+        }
+        return ret
+    }
     async getGameBundle(addr: string): Promise<GameBundle | undefined> {
         const data: Uint8Array | undefined = await this.fetchState('get_game_bundle', [addr])
         if (data === undefined) return undefined
@@ -269,26 +282,6 @@ export class FacadeTransport implements ITransport {
 
     async getRecipient(_addr: string): Promise<RaceCore.RecipientAccount | undefined> {
         return undefined
-    }
-
-    async getRegistrationWithGames(addr: string): Promise<RaceCore.RegistrationWithGames | undefined> {
-        const data: Uint8Array | undefined = await this.fetchState('get_registration_info', [addr])
-        if (data === undefined) return undefined
-        const regAccount = deserialize(RegistrationAccount, data)
-        const promises = regAccount.games.map(async g => {
-            return await this.getGameAccount(g.addr)
-        })
-        let games: RaceCore.GameAccount[] = []
-        let fetchedGames = await Promise.all(promises)
-        for (let g of fetchedGames) {
-            if (g !== undefined) {
-                games.push(g)
-            }
-        }
-        return {
-            ...regAccount,
-            games,
-        }
     }
 
     async getTokenDecimals(addr: string): Promise<number | undefined> {
