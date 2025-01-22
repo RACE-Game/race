@@ -315,11 +315,15 @@ export class SuiTransport implements ITransport {
         console.log(result)
     }
 
-    deposit(
+    async deposit(
         wallet: IWallet,
         params: DepositParams,
         resp: ResponseHandle<DepositResponse, DepositError>
     ): Promise<void> {
+        const transaction = new Transaction()
+        const suiClient = this.suiClient
+        coerceWallet(wallet)
+
         throw new Error('Method not implemented.')
     }
 
