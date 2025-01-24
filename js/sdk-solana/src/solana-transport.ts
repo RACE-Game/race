@@ -89,6 +89,7 @@ import {
     PLAYER_PROFILE_SEED,
     RECIPIENT_ACCOUNT_LEN,
     NATIVE_MINT,
+    SERVER_PROFILE_SEED,
 } from './constants'
 
 import {
@@ -707,6 +708,14 @@ export class SolanaTransport implements ITransport {
         })
     }
 
+    async _getServerProfileAddress(serverKey: Address) {
+        return await createAddressWithSeed({
+            baseAddress: serverKey,
+            programAddress: PROGRAM_ID,
+            seed: SERVER_PROFILE_SEED,
+        })
+    }
+
     async _prepareCreatePlayerProfile(
         payer: TransactionSendingSigner,
         params: CreatePlayerProfileParams
@@ -969,7 +978,7 @@ export class SolanaTransport implements ITransport {
         const mintKey = address(addr)
         const [metadataKey] = await getProgramDerivedAddress({
             programAddress: METAPLEX_PROGRAM_ID,
-            seeds: ['metadata', METAPLEX_PROGRAM_ID, mintKey],
+            seeds: ['metadata', getBase58Encoder().encode(METAPLEX_PROGRAM_ID), getBase58Encoder().encode(mintKey)],
         })
 
         const metadataAccountData = await this._getFinializedBase64AccountData(metadataKey)
@@ -1002,7 +1011,9 @@ export class SolanaTransport implements ITransport {
     }
     async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
         const serverKey = address(addr)
-        const serverState = await this._getServerState(serverKey)
+
+        const profileKey = await this._getServerProfileAddress(serverKey)
+        const serverState = await this._getServerState(profileKey)
         if (serverState !== undefined) {
             return serverState.generalize()
         } else {
