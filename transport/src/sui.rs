@@ -73,10 +73,8 @@ pub struct SuiTransport {
     active_addr: SuiAddress,
     // on-chain package ID
     package_id: ObjectID,
-    // a global lookup table where each user address maps to their own server
-    server_table_id: ObjectID,
-    // a global lookup table where each user wallet maps to their player profile
-    profile_table_id: ObjectID,
+    // image url used for game bundle cover
+    bundle_cover: String,
     // TODO: use keypair
     keystore: FileBasedKeystore,
     client: SuiClient,
@@ -234,9 +232,14 @@ impl TransportT for SuiTransport {
     async fn register_server(&self, params: RegisterServerParams) -> Result<()> {
         println!("Registering server with endpoint {}", params.endpoint);
 
+        //  Check if the transport already owns a server
+        let owned: bool = self.check_owned_object("server::Server").await?;
+        if owned {
+            return Err(Error::TransportError("Already owned a server".into()));
+        }
+
         let module = new_identifier("server")?;
         let reg_server_fn = new_identifier("register_server")?;
-        let server_table_version = self.get_initial_shared_version(self.server_table_id).await?;
         let coin = self.get_max_coin(None).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_move_call(
@@ -246,12 +249,7 @@ impl TransportT for SuiTransport {
             reg_server_fn,
             vec![],             // no type arguments
             coin.object_ref(),
-            vec![new_pure_arg(&params.endpoint)?,
-                 CallArg::Object(ObjectArg::SharedObject {
-                     id: self.server_table_id,
-                     initial_shared_version: server_table_version,
-                     mutable: true
-                 })],
+            vec![new_pure_arg(&params.endpoint)?],
             coin.balance,
             gas_price)?;
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
@@ -267,12 +265,6 @@ impl TransportT for SuiTransport {
                     if object_type.to_canonical_string(true) == server_path {
                         println!("Created server: {object_id}");
                         println!("Server on-chain version: {version}");
-                    }
-                },
-                ObjectChange::Mutated { object_id, version, previous_version, ..} => {
-                    if *object_id == self.server_table_id {
-                        println!("Server registered in Table {}", obj.object_id());
-                        println!("Table version changed from {previous_version} to {version}");
                     }
                 },
                 _ => ()
@@ -592,8 +584,9 @@ impl TransportT for SuiTransport {
             vec![],                             // no type argument
             gas_coin.object_ref(),
             vec![new_pure_arg(&params.name)?,
-                 new_pure_arg(&params.uri)?,    // wasm bundle url
-                 new_pure_arg(&params.symbol)?, // symbol
+                 new_pure_arg(&params.uri)?,       // wasm bundle url
+                 new_pure_arg(&params.symbol)?,    // symbol
+                 new_pure_arg(&self.bundle_cover)? // bundle cover image url
             ],
             gas_coin.balance,
             gas_price
@@ -1158,13 +1151,9 @@ impl SuiTransport {
     async fn try_new(
         rpc: String,
         pkg_id: &str,
-        stable_id: &str,
-        ptable_id: &str
     ) -> TransportResult<Self> {
         println!("Create Sui transport at RPC: {} for packge: {:?}", rpc, pkg_id);
         let package_id = parse_object_id(pkg_id)?;
-        let server_table_id = parse_object_id(stable_id)?;
-        let profile_table_id = parse_object_id(ptable_id)?;
         let active_addr = parse_sui_addr(PUBLISHER)?;
         let keystore = FileBasedKeystore::new(
             &sui_config_dir()?.join(SUI_KEYSTORE_FILENAME)
@@ -1174,8 +1163,7 @@ impl SuiTransport {
             rpc,
             active_addr,
             package_id,
-            server_table_id,
-            profile_table_id,
+            bundle_cover: BUNDLE_COVER.to_string(),
             keystore,
             client
         })
@@ -1342,6 +1330,32 @@ impl SuiTransport {
             })                  // Some(Ok((id, v)))
             .transpose()        // Ok(Some((id, v)))
             .and_then(|ret| ret.ok_or_else(|| Error::TransportError("Queried owned object not found".into())))
+    }
+
+    /// Check if there is already one such owned object
+    async fn check_owned_object(&self, object_path: &str) -> Result<bool> {
+        let filter = SuiObjectDataFilter::StructType(
+            new_structtag(&format!("{}::{}", self.package_id, object_path), None)?
+        );
+
+        let query = Some(SuiObjectResponseQuery::new(
+            Some(filter),
+            Some(SuiObjectDataOptions::new().with_owner())
+        ));
+
+        let data: Vec<SuiObjectResponse> = self.client
+            .read_api()
+            .get_owned_objects(
+                self.active_addr,
+                query,
+                None,
+                None
+            ).await.map_err(|e| Error::TransportError(e.to_string()))?
+            .data;
+
+        info!("Got reponses data {:?}", data[0]);
+
+        Ok(!data.is_empty())
     }
 
     async fn get_object_ref(&self, object_id: ObjectID) -> Result<ObjectRef> {
@@ -1567,10 +1581,8 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0xa5698c13cdfc969501fc22982838d227cc83a79cf8810037d4b5e74451b569ea";
+    const TEST_PACKAGE_ID: &str = "0x094ab410b77496fc9ddccc9f330e2495583df5e6ea59e4498fff5a6172eac462";
     const TEST_GAME_ID: &str = "0xca42f1f255ea4d8944ce706bee318d9411d2f2a4ad043f29cc81aadf16f6a061";
-    const TEST_SERVER_TABLE_ID: &str = "0x302e13fa8331a2c37345ff053d347dd4e19666afa44ff62dcb6ec84fdc13a86e";
-    const TEST_PROFILE_TABLE_ID: &str = "0x302e13fa8331a2c37345ff053d347dd4e19666afa44ff62dcb6ec84fdc13a86e";
     const TEST_RECIPIENT_ID: &str = "0x3bd2cf3a28df3e80779b2e401af54ef24a405fdd7d67f7687145f597d18dbb03";
     const TEST_REGISTRY: &str = "0xcb430f98bd97f8c3697cbdbf0de6b9b59411b2634aeebd07f4434fec30f443c7";
     const TEST_GAME_NFT: &str = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
@@ -1687,8 +1699,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         let profile = transport.get_player_profile(PUBLISHER).await;
     }
@@ -1699,8 +1709,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         transport.get_object_seqnum(game_id).await?;
 
@@ -1713,8 +1721,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
 
         let res = transport.create_recipient(params).await?;
@@ -1727,8 +1733,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         // get the recipient object
         let recipient_id = parse_object_id(TEST_RECIPIENT_ID)?;
@@ -1768,8 +1772,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         let result = transport.get_recipient(TEST_RECIPIENT_ID).await?;
         assert!(result.is_some());
@@ -1811,8 +1813,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         let object_id = transport.create_registration(params).await?;
 
@@ -1824,8 +1824,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         // create registration
         let reg_str_id = transport.create_registration( CreateRegistrationParams {
@@ -1852,8 +1850,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         let game_addr: String = transport.create_game_account(game_params).await?;
 
@@ -1886,9 +1882,7 @@ mod tests {
         let game_params = make_game_params();
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
-            TEST_SERVER_TABLE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
+            TEST_PACKAGE_ID,
         ).await.unwrap();
         let game_addr: String = transport.create_game_account(game_params).await?;
 
@@ -1938,13 +1932,11 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         let join_params = JoinParams {
             game_addr: TEST_GAME_ID.to_string(),
             access_version: 0,
-            amount: 100_000_000,
+            amount: 400_000_000,
             position: 1,
             verify_key: "player1".to_string()
         };
@@ -1953,14 +1945,12 @@ mod tests {
         Ok(())
     }
 
-        #[tokio::test]
+    #[tokio::test]
     async fn test_create_game() -> Result<()> {
         let params = make_game_params();
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         let game_id = transport.create_game_account(params).await?;
         println!("[Test]: Created game object with id: {}", game_id);
@@ -1974,8 +1964,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         let params = make_game_params();
         let game_id_str = transport.create_game_account(params).await?;
@@ -2005,8 +1993,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         transport.register_server(params).await?;
         Ok(())
@@ -2021,8 +2007,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         transport.register_server(params).await?;
 
@@ -2057,8 +2041,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         transport.serve(params).await?;
 
@@ -2072,8 +2054,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         let game_id: String = transport.create_game_account(params).await?;
 
@@ -2089,8 +2069,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         // attach coin bonus to it
         let bonus_params = AttachBonusParams {
@@ -2110,8 +2088,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
 
         // publish game
@@ -2129,8 +2105,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         // attach coin bonus to it
         let nft_id = "0x1a5b13088a9a5dcafea2f4ae4996b7b6995bc281ecb600ffd8458ed0d6b78e4c";
@@ -2151,8 +2125,6 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
-            TEST_SERVER_TABLE_ID,
-            TEST_PROFILE_TABLE_ID
         ).await.unwrap();
         let params = SettleParams {
             addr: "".to_string(),
