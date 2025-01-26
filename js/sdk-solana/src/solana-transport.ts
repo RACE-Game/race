@@ -206,7 +206,7 @@ export class SolanaTransport implements ITransport {
             // For SOL game, use PDA as stake account
             const [pda, _] = await getProgramDerivedAddress({
                 programAddress: PROGRAM_ID,
-                seeds: [gameAccount.address],
+                seeds: [getBase58Encoder().encode(gameAccount.address)],
             })
             stakeAccountKey = pda
             console.info('Game uses SOL as token, use PDA as stake account:', stakeAccountKey)
@@ -292,7 +292,7 @@ export class SolanaTransport implements ITransport {
             return response.failed('game-not-in-reg')
         }
         const ixs = []
-        const [pda, _] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [gameAccountKey] })
+        const [pda, _] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [getBase58Encoder().encode(gameAccountKey)] })
 
         let receiver
 
@@ -431,7 +431,7 @@ export class SolanaTransport implements ITransport {
             tempAccount = tokenAccount
         }
 
-        let [pda] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [gameAccountKey] })
+        let [pda] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [getBase58Encoder().encode(gameAccountKey)] })
 
         const joinGameIx = instruction.join({
             playerKey: player.address,
@@ -553,7 +553,7 @@ export class SolanaTransport implements ITransport {
             tempAccount = tokenAccount
         }
 
-        const [pda, _] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [gameAccountKey] })
+        const [pda, _] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [getBase58Encoder().encode(gameAccountKey)] })
 
         const depositGameIx = instruction.deposit({
             playerKey: player.address,
@@ -675,7 +675,7 @@ export class SolanaTransport implements ITransport {
             return response.failed('not-found')
         }
 
-        const [pda, _] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [recipientKey] })
+        const [pda, _] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [getBase58Encoder().encode(recipientKey)] })
 
         const recipientClaimIx = await instruction.claim({
             recipientKey,

@@ -212,7 +212,9 @@ export class FacadeTransport implements ITransport {
         const playerAddr = wallet.walletAddr
         const ix: CreatePlayerProfileInstruction = { playerAddr, ...params }
         const signature = await this.sendInstruction('create_profile', ix)
-        response.succeed({ signature, profile: { addr: playerAddr, nick: params.nick, pfp: params.pfp } })
+        const profile = { addr: playerAddr, nick: params.nick, pfp: params.pfp }
+        console.info("Profile:", profile)
+        response.succeed({ signature, profile })
     }
 
     async createRecipient(
