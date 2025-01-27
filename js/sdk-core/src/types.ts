@@ -80,3 +80,5 @@ export type ProfileCallbackFunction = (id: bigint | undefined, profile: PlayerPr
 export type LoadProfileCallbackFunction = (id: bigint, addr: string) => void
 
 export type ErrorCallbackFunction = (error: ErrorKind, arg: any) => void
+
+export type ReadyCallbackFunction = (context: GameContextSnapshot, state: Uint8Array) => void

@@ -85,9 +85,6 @@ pub enum TransportError {
     #[error("Failed to identify {0}")]
     FailedToIdentify(String),
 
-    #[error("BCS serialization error: {0}")]
-    BcsError(#[from] bcs::Error),
-
     #[error("External error: {0}")]
     External(String),
 
@@ -171,6 +168,18 @@ pub enum TransportError {
 
     #[error("Invalid reject deposits: {0}")]
     InvalidRejectDeposits(u64),
+
+    #[error("Cannot get balance: {0}")]
+    GetBalanceError(String),
+
+    #[error("Cannot get gas price: {0}")]
+    GetGasPriceError(String),
+
+    #[error("Cannot get version: {0}")]
+    GetVersionError(String),
+
+    #[error("Cannot get object: {0}")]
+    GetObjectError(String),
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

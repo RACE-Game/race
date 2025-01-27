@@ -27,6 +27,7 @@ import {
     GameInfo,
     LoadProfileCallbackFunction,
     MessageCallbackFunction,
+    ReadyCallbackFunction,
     TxStateCallbackFunction,
 } from './types'
 import {
@@ -63,6 +64,7 @@ export type BaseClientCtorOpts = {
     onConnectionState: ConnectionStateCallbackFunction | undefined
     onError: ErrorCallbackFunction | undefined
     onLoadProfile: LoadProfileCallbackFunction
+    onReady: ReadyCallbackFunction | undefined
     encryptor: IEncryptor
     info: GameInfo
     decryptionCache: DecryptionCache
@@ -80,6 +82,7 @@ export class BaseClient {
     __gameContext: GameContext
     __onEvent: EventCallbackFunction
     __onMessage?: MessageCallbackFunction
+    __onReady?: ReadyCallbackFunction
     __onTxState?: TxStateCallbackFunction
     __onError?: ErrorCallbackFunction
     __onConnectionState?: ConnectionStateCallbackFunction
@@ -237,7 +240,7 @@ export class BaseClient {
         }
     }
 
-    async __invokeEventCallback(event: GameEvent | undefined, options: EventCallbackOptions) {
+    async __invokeEventCallback(event: GameEvent, options: EventCallbackOptions) {
         const snapshot = new GameContextSnapshot(this.__gameContext)
         const state = this.__gameContext.handlerState
         this.__onEvent(snapshot, state, event, options)
@@ -415,10 +418,11 @@ export class BaseClient {
                     }
                 }
                 if (len === 0) {
-                    this.__invokeEventCallback(undefined, {
-                        isCheckpoint: true,
-                        source: { kind: 'backlog', remaining: 0 },
-                    })
+                    if (this.__onReady !== undefined) {
+                        const snapshot = new GameContextSnapshot(this.__gameContext)
+                        const state = this.__gameContext.handlerState
+                        this.__onReady(snapshot, state);
+                    }
                 }
             } finally {
                 console.groupEnd()

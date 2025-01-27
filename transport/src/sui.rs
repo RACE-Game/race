@@ -534,7 +534,11 @@ impl TransportT for SuiTransport {
 
         // 4. get max coin for gas price, then sign, send and execute the transaction
         let gas_coin = self.get_max_coin(None).await?;
-        let gas_price = self.client.read_api().get_reference_gas_price().await?;
+        let gas_price = self.client.read_api()
+            .get_reference_gas_price()
+            .await
+            .map_err(|e| TransportError::GetGasPriceError(e.to_string()))?;
+
         let tx_data = TransactionData::new_programmable(
             self.active_addr,
             vec![gas_coin.object_ref()],
@@ -826,7 +830,7 @@ impl TransportT for SuiTransport {
 
         let complete_settle_fn = new_identifier("complete_settle")?;
         let ckpt: CheckpointOnSui = checkpoint.into();
-        let raw_checkpoint = bcs::to_bytes(&ckpt).map(|_| Error::MalformedCheckpoint)?;
+        let raw_checkpoint = bcs::to_bytes(&ckpt).map_err(|_| Error::MalformedCheckpoint);
         let complete_args = vec![
             add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
             add_input(&mut ptb, new_pure_arg(&accept_deposits)?)?,
@@ -1184,7 +1188,8 @@ impl SuiTransport {
         let coins: CoinPage = self.client
             .coin_read_api()
             .get_coins(self.active_addr, coin_type, None, Some(50))
-            .await?;
+            .await
+            .map_err(|e| TransportError::GetBalanceError(e.to_string()))?;
         coins.data.into_iter()
             .max_by_key(|c| c.balance)
             .ok_or_else(|| Error::TransportError("No max coin found".to_string()))
@@ -1200,7 +1205,8 @@ impl SuiTransport {
         let coins: CoinPage = self.client
             .coin_read_api()
             .get_coins(self.active_addr, coin_type, None, Some(50))
-            .await?;
+            .await
+            .map_err(|e| TransportError::GetBalanceError(e.to_string()))?;
         coins.data.into_iter()
             .filter(|c| c.balance > payment + 100_000) // add a small buffer
             .min_by_key(|c| c.balance)
@@ -1215,7 +1221,8 @@ impl SuiTransport {
         let coins: CoinPage = self.client
             .coin_read_api()
             .get_coins(player_addr, coin_type, None, Some(50))
-            .await?;
+            .await
+            .map_err(|e| TransportError::GetBalanceError(e.to_string()))?;
         coins.data
             .first()
             .and_then(|c| Some(c.object_ref()))
@@ -1223,7 +1230,7 @@ impl SuiTransport {
     }
 
     async fn get_gas_price(&self) -> Result<u64> {
-        Ok(self.client.read_api().get_reference_gas_price().await?)
+        Ok(self.client.read_api().get_reference_gas_price().await.map_err(|e| TransportError::GetGasPriceError(e.to_string()))?)
     }
 
     // Get raw balance availble from all coins in the returned coin page
@@ -1231,7 +1238,8 @@ impl SuiTransport {
         let coin_page: CoinPage = self.client
             .coin_read_api()
             .get_coins(self.active_addr, coin_type, None, Some(50))
-            .await?;
+            .await
+            .map_err(|e| TransportError::GetBalanceError(e.to_string()))?;
         let balance = coin_page.data.into_iter().map(|c: Coin| c.balance).sum();
         Ok(balance)
     }
@@ -1239,7 +1247,8 @@ impl SuiTransport {
     async fn estimate_gas(&self, tx_data: TransactionData) -> Result<u64> {
         let dry_run = self.client.read_api()
             .dry_run_transaction_block(tx_data)
-            .await?;
+            .await
+            .map_err(|e| TransportError::GetGasPriceError(e.to_string()))?;
         let cost_summary = dry_run.effects.gas_cost_summary();
         let net_gas_fees: i64 = cost_summary.net_gas_usage();
         println!("Net gas fees: {} MIST", net_gas_fees);
@@ -1262,7 +1271,8 @@ impl SuiTransport {
                 id,
                 SuiObjectDataOptions::new().with_owner() // seqnum wrapped in `Owner`
             )
-            .await?;
+            .await
+            .map_err(|e| TransportError::GetVersionError(e.to_string()))?;
 
         response.data
             .and_then(|d| d.owner)
@@ -1284,7 +1294,8 @@ impl SuiTransport {
                 id,
                 SuiObjectDataOptions::new()
             )
-            .await?;
+            .await
+            .map_err(|e| TransportError::GetVersionError(e.to_string()))?;
 
         let seqnum = response
             .data
@@ -1336,7 +1347,10 @@ impl SuiTransport {
     async fn get_object_ref(&self, object_id: ObjectID) -> Result<ObjectRef> {
         let response = self.client
             .read_api()
-            .get_object_with_options(object_id, SuiObjectDataOptions::new()).await?;
+            .get_object_with_options(object_id, SuiObjectDataOptions::new())
+            .await
+            .map_err(|e| TransportError::GetObjectError(e.to_string()))?;
+
         response
             .object_ref_if_exists()
             .ok_or_else(|| Error::TransportError("ObjectRef not found".into()))
@@ -1363,7 +1377,8 @@ impl SuiTransport {
                     .with_object_changes(),
                 Some(ExecuteTransactionRequestType::WaitForLocalExecution),
             )
-            .await?;
+            .await
+            .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
 
         Ok(response)
     }
@@ -1513,7 +1528,10 @@ impl SuiTransport {
         &self,
         object_id: ObjectID
     ) -> Result<T> {
-        let raw = self.client.read_api().get_move_object_bcs(object_id).await?;
+        let raw = self.client.read_api()
+            .get_move_object_bcs(object_id)
+            .await
+            .map_err(|e| TransportError::GetObjectError(e.to_string()))?;
         // println!("{:?}", raw);
         bcs::from_bytes::<T>(raw.as_slice())
             .map_err(|e| Error::TransportError(e.to_string()))

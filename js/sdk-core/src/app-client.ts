@@ -20,6 +20,7 @@ import {
     PlayerProfileWithPfp,
     ProfileCallbackFunction,
     ErrorCallbackFunction,
+    ReadyCallbackFunction,
 } from './types'
 import { SubClient } from './sub-client'
 import { Checkpoint, CheckpointOffChain } from './checkpoint'
@@ -35,6 +36,7 @@ export type AppClientInitOpts = {
     onMessage?: MessageCallbackFunction
     onTxState?: TxStateCallbackFunction
     onError?: ErrorCallbackFunction
+    onReady?: ReadyCallbackFunction
     onConnectionState?: ConnectionStateCallbackFunction
     storage?: IStorage
 }
@@ -47,6 +49,7 @@ export type SubClientInitOpts = {
     onTxState?: TxStateCallbackFunction
     onError?: ErrorCallbackFunction
     onConnectionState?: ConnectionStateCallbackFunction
+    onReady?: ReadyCallbackFunction
 }
 
 export type JoinOpts = {
@@ -73,6 +76,7 @@ export type AppClientCtorOpts = {
     onTxState: TxStateCallbackFunction | undefined
     onConnectionState: ConnectionStateCallbackFunction | undefined
     onError: ErrorCallbackFunction | undefined
+    onReady: ReadyCallbackFunction | undefined
     encryptor: IEncryptor
     info: GameInfo
     decryptionCache: DecryptionCache
@@ -112,6 +116,7 @@ export class AppClient extends BaseClient {
             onConnectionState,
             onError,
             onProfile,
+            onReady,
             storage,
         } = opts
 
@@ -207,6 +212,7 @@ export class AppClient extends BaseClient {
                 onTxState,
                 onConnectionState,
                 onError,
+                onReady,
                 encryptor,
                 info,
                 decryptionCache,
@@ -226,7 +232,7 @@ export class AppClient extends BaseClient {
      */
     async subClient(opts: SubClientInitOpts): Promise<SubClient> {
         try {
-            const { gameId, onEvent, onMessage, onTxState, onConnectionState, onError } = opts
+            const { gameId, onEvent, onMessage, onTxState, onConnectionState, onError, onReady } = opts
 
             const addr = `${this.__gameAddr}:${gameId.toString()}`
 
@@ -263,6 +269,7 @@ export class AppClient extends BaseClient {
                 onTxState,
                 onConnectionState,
                 onError,
+                onReady,
                 handler,
                 connection,
                 client,

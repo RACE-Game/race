@@ -13,6 +13,7 @@ import {
     MessageCallbackFunction,
     TxStateCallbackFunction,
     ErrorCallbackFunction,
+    ReadyCallbackFunction,
 } from './types'
 import { IWallet } from './wallet'
 import { CheckpointOnChain } from './checkpoint'
@@ -32,6 +33,7 @@ export type SubClientCtorOpts = {
     onTxState: TxStateCallbackFunction | undefined
     onConnectionState: ConnectionStateCallbackFunction | undefined
     onError: ErrorCallbackFunction | undefined
+    onReady: ReadyCallbackFunction | undefined
     encryptor: IEncryptor
     info: GameInfo
     decryptionCache: DecryptionCache
