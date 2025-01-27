@@ -89,6 +89,7 @@ export class ResponseHandle<T = void, E = void> {
             let queueHead = this.queue.shift()
             if (queueHead !== undefined) {
                 yield queueHead
+                continue
             }
             if (this.resolve === undefined) {
                 // Terminate if we have an error status
