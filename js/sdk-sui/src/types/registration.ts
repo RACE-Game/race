@@ -6,8 +6,8 @@ import { RegistrationAccount } from '@race-foundation/sdk-core'
 const GameRegistrationSchema = bcs.struct('GameRegistration', {
     title: bcs.string(),
     addr: Address,
-    regTime: bcs.u64(),
     bundleAddr: Address,
+    regTime: bcs.u64(),
 })
 
 // Define the RegistrationAccountSchema
@@ -15,7 +15,7 @@ const RegistrationAccountSchema = bcs.struct('RegistrationAccount', {
     addr: Address,
     isPrivate: bcs.bool(),
     size: bcs.u16(),
-    owner: bcs.option(Address),
+    owner: Address,
     games: bcs.vector(GameRegistrationSchema),
 })
 
@@ -27,12 +27,12 @@ export const RegistrationAccountParser: Parser<RegistrationAccount, typeof Regis
             addr: input.addr,
             isPrivate: input.isPrivate,
             size: input.size,
-            owner: input.owner ? input.owner : undefined,
-            games: input.games.map(game => ({
+            owner: input.owner ?? undefined,
+            games: Array.from(input.games).map((game) => ({
                 title: game.title,
                 addr: game.addr,
-                regTime: BigInt(game.regTime),
                 bundleAddr: game.bundleAddr,
+                regTime: BigInt(game.regTime),
             })),
         }
     },

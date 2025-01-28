@@ -1585,7 +1585,7 @@ mod tests {
     const TEST_CASH_GAME_ID: &str = "0x5d5e5b48ba5decc365a46777ad20e4ed926e3b6fb38c5fd06729a999496c0c6a";
     const TEST_TICKET_GAME_ID: &str = "0xcfc82be4212e504a2bc8b9a6b5b66ed0db92be4e2ab0befe5ba7146a59f54665";
     const TEST_RECIPIENT_ID: &str = "0x8b8e76d661080e47d76248cc33b43324b4126a8532d7642ab6c47946857c1e1c";
-    const TEST_REGISTRY: &str = "0xab54b9be8e9662428c4e94400b847d1c5a5608bb22c690898818d73bf548fa0b";
+    const TEST_REGISTRY: &str = "0xad7a5f0ab1dadb7018032e6d74e5aceaa8b208e2b9d3c24e06418f60c3508aaf";
     const TEST_GAME_NFT: &str = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
 
     // helper fns to generate some large structures for tests
@@ -1852,9 +1852,8 @@ mod tests {
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
         ).await.unwrap();
-        let game_addr: String = transport.create_game_account(game_params).await?;
 
-        // register game in the test registry (created before hand)
+        let game_addr = TEST_TICKET_GAME_ID.to_string();
         let reg_params = RegisterGameParams {
             game_addr: game_addr.clone(),
             reg_addr: TEST_REGISTRY.to_string()

@@ -12,7 +12,7 @@ const TEST_PACKAGE_ID = "0x094ab410b77496fc9ddccc9f330e2495583df5e6ea59e4498fff5
 const TEST_CASH_GAME_ID = "0x5d5e5b48ba5decc365a46777ad20e4ed926e3b6fb38c5fd06729a999496c0c6a";
 const TEST_TICKET_GAME_ID = "0xcfc82be4212e504a2bc8b9a6b5b66ed0db92be4e2ab0befe5ba7146a59f54665"
 const TEST_RECIPIENT_ID = "0x8b8e76d661080e47d76248cc33b43324b4126a8532d7642ab6c47946857c1e1c";
-const TEST_REGISTRY_ID = "0xcb430f98bd97f8c3697cbdbf0de6b9b59411b2634aeebd07f4434fec30f443c7";
+const TEST_REGISTRY_ID = "0xad7a5f0ab1dadb7018032e6d74e5aceaa8b208e2b9d3c24e06418f60c3508aaf";
 const TEST_GAME_NFT = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
 
 function testCreatePlayerProfile() {
@@ -113,24 +113,16 @@ async function testListTokensWithBalance() {
 
 async function testGetGameAccount() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-  const objectId = TEST_CASH_GAME_ID;
-  let res = await suiTransport.getGameAccount(objectId);
+  let res = await suiTransport.getGameAccount(TEST_CASH_GAME_ID);
   console.log('testGetGameAccount', res)
 }
 
 async function testGetRegistration() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-  const objectId = '0xedc53aecfdf417d6a57d5c2cbf8ad30f877d39cc67ed77ddf5e0ad7a8827d15c'
-  let res = await suiTransport.getRegistration(objectId);
+  let res = await suiTransport.getRegistration(TEST_REGISTRY_ID);
   console.log('testGetRegistration', res)
 }
 
-// async function testGetRegistrationWithGames() {
-//   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-//   const objectId = '0x65f80e8f4e82f4885c96ccba4da02668428662e975b0a6cd1fa08b61e4e3a2fc'
-//   let res = await suiTransport.getRegistrationWithGames(objectId);
-//   console.log('testGetRegistrationWithGames', res)
-// }
 
 async function testRegisterGame() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');

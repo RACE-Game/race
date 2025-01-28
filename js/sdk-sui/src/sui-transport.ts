@@ -71,7 +71,12 @@ import {
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
 import { bcs, BcsType, fromBase64 } from '@mysten/bcs'
-import { Parser, GameAccountParser, PlayerPorfileParser } from './types'
+import {
+    Parser,
+    GameAccountParser,
+    PlayerPorfileParser,
+    RegistrationAccountParser
+} from './types'
 import { SuiWallet } from './sui-wallet'
 import { LocalSuiWallet } from './local-wallet'
 import {
@@ -486,56 +491,10 @@ export class SuiTransport implements ITransport {
             options: {
                 showBcs: true,
                 showType: true,
-                // showContent: true,
             },
         })
 
         return parseObjectData(parseSingleObjectResponse(resp), GameAccountParser)
-
-        // const content = info.data?.content
-        // if (!content || content.dataType !== 'moveObject') {
-        //     return undefined
-        // }
-        // if (!content.fields) return undefined
-        // let fields: MoveStruct = content.fields
-        // if (Array.isArray(fields)) {
-        //     return undefined
-        // }
-        // if ('fields' in fields) {
-        //     return undefined
-        // }
-        // return {
-        //     addr: addr,
-        //     title: fields?.title as string,
-        //     bundleAddr: fields.bundle_addr as string,
-        //     tokenAddr: fields.token_addr as string,
-        //     ownerAddr: fields.owner as string,
-        //     settleVersion: BigInt(fields.settle_version?.toString() || 0),
-        //     accessVersion: BigInt(fields.access_version?.toString() || 0),
-        //     players: fields.players as [],
-        //     deposits: fields.deposits as [],
-        //     servers: fields.servers as [],
-        //     transactorAddr: fields.transactor_addr as string | undefined,
-        //     votes: fields.votes as [],
-        //     unlockTime: BigInt(fields.unlock_time?.toString() || 0),
-        //     maxPlayers: Number(fields.max_players) || 0,
-        //     dataLen: Number(fields.data_len) || 0,
-        //     data: fields.data ? new Uint8Array(fields.data as number[]) : new Uint8Array(),
-        //     entryType: fields?.entry_type
-        //         ? ((fields.entry_type as MoveVariant).variant as unknown as EntryType)
-        //         : ('None' as unknown as EntryType),
-        //     recipientAddr: fields.recipient_addr as string,
-        //     checkpointOnChain: fields.checkpoint as unknown as CheckpointOnChain | undefined,
-        //     entryLock: fields.entry_lock
-        //         ? ((fields.entry_lock as MoveVariant).variant as 'Closed' | 'Open' | 'JoinOnly' | 'DepositOnly')
-        //         : 'Closed',
-        //     bonuses: (fields.bonuses as any[]).map(b => ({
-        //         identifier: b.identifier,
-        //         tokenAddr: b.tokenAddr,
-        //         amount: BigInt(b.amount),
-        //     })),
-        // }
-
     }
 
     async listGameAccounts(addrs: string[]): Promise<GameAccount[]> {
@@ -558,35 +517,22 @@ export class SuiTransport implements ITransport {
         // const content = info;
         throw new Error('Method not implemented.')
     }
+
     async getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
         const suiClient = this.suiClient
-        const info: SuiObjectResponse = await suiClient.getObject({
+        const resp: SuiObjectResponse = await suiClient.getObject({
             id: addr,
             options: {
-                showContent: true,
+                showBcs: true,
                 showType: true,
             },
         })
-        const content = info.data?.content
-        if (!content || content.dataType !== 'moveObject') {
-            return undefined
-        }
-        if (!content.fields) return undefined
-        let fields: MoveStruct = content.fields
-        if (Array.isArray(fields)) {
-            return undefined
-        }
-        if ('fields' in fields) {
-            return undefined
-        }
-        return {
-            addr: addr,
-            isPrivate: fields.is_private as boolean,
-            size: fields.size as number,
-            owner: fields.owner as string,
-            games: fields.games as [],
-        }
+        return parseObjectData(
+            parseSingleObjectResponse(resp),
+            RegistrationAccountParser
+        )
     }
+
     getRecipient(addr: string): Promise<RecipientAccount | undefined> {
         throw new Error('Method not implemented.')
     }
