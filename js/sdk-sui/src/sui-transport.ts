@@ -498,7 +498,14 @@ export class SuiTransport implements ITransport {
     }
 
     async listGameAccounts(addrs: string[]): Promise<GameAccount[]> {
-        return []
+        let ret = []
+        for (const addr of addrs) {
+            const gameAccount = await this.getGameAccount(addr)
+            if (gameAccount !== undefined) {
+                ret.push(gameAccount)
+            }
+        }
+        return ret
     }
 
     // todo sui and contract

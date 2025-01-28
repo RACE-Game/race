@@ -1180,6 +1180,8 @@ impl TransportT for SolanaTransport {
         let metadata_data = metadata_account_state.data;
         let uri = metadata_data.uri.trim_end_matches('\0').to_string();
 
+        info!("Fetch wasm game bundle from {}", uri);
+
         let data = nft::fetch_wasm_from_game_bundle(&uri)
             .await
             .map_err(|e| TransportError::NetworkError(e.to_string()))?;
