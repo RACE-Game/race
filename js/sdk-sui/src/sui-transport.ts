@@ -71,7 +71,7 @@ import {
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
 import { bcs, BcsType, fromBase64 } from '@mysten/bcs'
-import { Parser, PlayerPorfileParser } from './types'
+import { Parser, GameAccountParser, PlayerPorfileParser } from './types'
 import { SuiWallet } from './sui-wallet'
 import { LocalSuiWallet } from './local-wallet'
 import {
@@ -481,56 +481,61 @@ export class SuiTransport implements ITransport {
     }
     async getGameAccount(addr: string): Promise<GameAccount | undefined> {
         const suiClient = this.suiClient
-        const info: SuiObjectResponse = await suiClient.getObject({
+        const resp: SuiObjectResponse = await suiClient.getObject({
             id: addr,
             options: {
-                showContent: true,
+                showBcs: true,
                 showType: true,
+                // showContent: true,
             },
         })
-        const content = info.data?.content
-        if (!content || content.dataType !== 'moveObject') {
-            return undefined
-        }
-        if (!content.fields) return undefined
-        let fields: MoveStruct = content.fields
-        if (Array.isArray(fields)) {
-            return undefined
-        }
-        if ('fields' in fields) {
-            return undefined
-        }
-        return {
-            addr: addr,
-            title: fields?.title as string,
-            bundleAddr: fields.bundle_addr as string,
-            tokenAddr: fields.token_addr as string,
-            ownerAddr: fields.owner as string,
-            settleVersion: BigInt(fields.settle_version?.toString() || 0),
-            accessVersion: BigInt(fields.access_version?.toString() || 0),
-            players: fields.players as [],
-            deposits: fields.deposits as [],
-            servers: fields.servers as [],
-            transactorAddr: fields.transactor_addr as string | undefined,
-            votes: fields.votes as [],
-            unlockTime: BigInt(fields.unlock_time?.toString() || 0),
-            maxPlayers: Number(fields.max_players) || 0,
-            dataLen: Number(fields.data_len) || 0,
-            data: fields.data ? new Uint8Array(fields.data as number[]) : new Uint8Array(),
-            entryType: fields?.entry_type
-                ? ((fields.entry_type as MoveVariant).variant as unknown as EntryType)
-                : ('None' as unknown as EntryType),
-            recipientAddr: fields.recipient_addr as string,
-            checkpointOnChain: fields.checkpoint as unknown as CheckpointOnChain | undefined,
-            entryLock: fields.entry_lock
-                ? ((fields.entry_lock as MoveVariant).variant as 'Closed' | 'Open' | 'JoinOnly' | 'DepositOnly')
-                : 'Closed',
-            bonuses: (fields.bonuses as any[]).map(b => ({
-                identifier: b.identifier,
-                tokenAddr: b.tokenAddr,
-                amount: BigInt(b.amount),
-            })),
-        }
+
+        return parseObjectData(parseSingleObjectResponse(resp), GameAccountParser)
+
+        // const content = info.data?.content
+        // if (!content || content.dataType !== 'moveObject') {
+        //     return undefined
+        // }
+        // if (!content.fields) return undefined
+        // let fields: MoveStruct = content.fields
+        // if (Array.isArray(fields)) {
+        //     return undefined
+        // }
+        // if ('fields' in fields) {
+        //     return undefined
+        // }
+        // return {
+        //     addr: addr,
+        //     title: fields?.title as string,
+        //     bundleAddr: fields.bundle_addr as string,
+        //     tokenAddr: fields.token_addr as string,
+        //     ownerAddr: fields.owner as string,
+        //     settleVersion: BigInt(fields.settle_version?.toString() || 0),
+        //     accessVersion: BigInt(fields.access_version?.toString() || 0),
+        //     players: fields.players as [],
+        //     deposits: fields.deposits as [],
+        //     servers: fields.servers as [],
+        //     transactorAddr: fields.transactor_addr as string | undefined,
+        //     votes: fields.votes as [],
+        //     unlockTime: BigInt(fields.unlock_time?.toString() || 0),
+        //     maxPlayers: Number(fields.max_players) || 0,
+        //     dataLen: Number(fields.data_len) || 0,
+        //     data: fields.data ? new Uint8Array(fields.data as number[]) : new Uint8Array(),
+        //     entryType: fields?.entry_type
+        //         ? ((fields.entry_type as MoveVariant).variant as unknown as EntryType)
+        //         : ('None' as unknown as EntryType),
+        //     recipientAddr: fields.recipient_addr as string,
+        //     checkpointOnChain: fields.checkpoint as unknown as CheckpointOnChain | undefined,
+        //     entryLock: fields.entry_lock
+        //         ? ((fields.entry_lock as MoveVariant).variant as 'Closed' | 'Open' | 'JoinOnly' | 'DepositOnly')
+        //         : 'Closed',
+        //     bonuses: (fields.bonuses as any[]).map(b => ({
+        //         identifier: b.identifier,
+        //         tokenAddr: b.tokenAddr,
+        //         amount: BigInt(b.amount),
+        //     })),
+        // }
+
     }
 
     async listGameAccounts(addrs: string[]): Promise<GameAccount[]> {
@@ -777,7 +782,7 @@ function parseObjectData<T, S extends BcsType<S['$inferInput']>>(
     }
 
     if (data.dataType === 'package') {
-        console.error('Not a profile object')
+        console.error('Not a move object')
         return undefined
     }
 

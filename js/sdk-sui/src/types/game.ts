@@ -1,18 +1,42 @@
 import { bcs } from '@mysten/bcs'
 import { Address, Parser } from './parser'
 import {
+    Bonus,
+    CheckpointOnChain,
     EntryLock,
-    VoteType,
+    EntryType,
+    GameAccount,
     PlayerJoin,
     PlayerDeposit,
     ServerJoin,
-    Bonus,
-    GameAccount,
-    EntryType,
+    VoteType,
     ENTRY_LOCKS,
     VOTE_TYPES,
     DEPOSIT_STATUS,
 } from '@race-foundation/sdk-core'
+
+const BonusSchema = bcs.struct('BonusSchema', {
+    id: Address,
+    identifier: bcs.string(),
+    tokenAddr: bcs.string(),
+    amount: bcs.u64(),
+})
+
+const BonusParser: Parser<Bonus, typeof BonusSchema> = {
+    schema: BonusSchema,
+    transform: (input: typeof BonusSchema.$inferType): Bonus => {
+        return {
+            identifier: input.identifier,
+            tokenAddr: input.tokenAddr,
+            amount: BigInt(input.amount)
+        }
+    }
+}
+
+// const CheckpointOnSuiSchema = bcs.struct('')
+// const CheckpointOnSuiParser: Parser<CheckpointOnChain, CheckpointOnSuiSchema> = {
+//
+// }
 
 const EntryTypeCashSchema = bcs.struct('EntryTypeCash', {
     min_deposit: bcs.u64(), max_deposit: bcs.u64()
@@ -27,22 +51,51 @@ const EntryTypeGatingSchema = bcs.struct('EntryTypeCash', {
 })
 
 // Define the schema for EntryType
-const EntryTypeSchema = bcs.enum('EntryType', {
+const EntryTypeSchema = bcs.enum('EntryTypeSchema', {
     Cash: EntryTypeCashSchema,
     Ticket: EntryTypeTicketSchema,
     Gating: EntryTypeGatingSchema,
     Disabled: null,
 })
 
+const EntryTypeParser: Parser<EntryType, typeof EntryTypeSchema> = {
+    schema: EntryTypeSchema,
+    transform: (input: typeof EntryTypeSchema.$inferType): EntryType => {
+        if (input.$kind === 'Cash') {
+            return {
+                minDeposit: BigInt(input.Cash.min_deposit),
+                maxDeposit: BigInt(input.Cash.max_deposit),
+                kind: 'cash',
+            }
+        } else if (input.$kind === 'Ticket') {
+            return {
+                amount: BigInt(input.Ticket.amount),
+                kind: 'ticket',
+            }
+        } else if (input.$kind == 'Gating') {
+            return {
+                collection: input.Gating.collection,
+                kind: 'gating',
+            }
+        } else {
+            return { kind: 'disabled' }
+        }
+    }
+}
+
 // Define the schema for Game
 const GameSchema = bcs.struct('Game', {
     addr: Address,
+    version: bcs.string(),
     title: bcs.string(),
     bundleAddr: Address,
     tokenAddr: bcs.string(),
     ownerAddr: Address,
-    settleVersion: bcs.u64(),
+    recipientAddr: Address,
+    transactorAddr: bcs.option(Address),
     accessVersion: bcs.u64(),
+    settleVersion: bcs.u64(),
+    maxPlayers: bcs.u16(),
     players: bcs.vector(bcs.struct('PlayerJoin', {
         addr: Address,
         position: bcs.u16(),
@@ -62,25 +115,19 @@ const GameSchema = bcs.struct('Game', {
         accessVersion: bcs.u64(),
         verifyKey: bcs.string(),
     })),
-    transactorAddr: bcs.option(Address),
+    balance: bcs.u64(),
+    dataLen: bcs.u32(),
+    data: bcs.vector(bcs.u8()),
     votes: bcs.vector(bcs.struct('Vote', {
         voter: Address,
         votee: Address,
         voteType: bcs.u8(), // This should map to VoteType in the transform function
     })),
     unlockTime: bcs.option(bcs.u64()),
-    maxPlayers: bcs.u16(),
-    dataLen: bcs.u32(),
-    data: bcs.vector(bcs.u8()),
     entryType: EntryTypeSchema,
-    recipientAddr: Address,
-    checkpointOnChain: bcs.option(Address), // Adjust depending on actual CheckpointOnChain representation
-    entryLock: bcs.u8(),                      // This should map to EntryLock in the transform function
-    bonuses: bcs.vector(bcs.struct('Bonus', {
-        identifier: bcs.string(),
-        tokenAddr: bcs.string(),
-        amount: bcs.u64(),
-    })),
+    checkpointOnChain: bcs.vector(bcs.u8()),
+    entryLock: bcs.u8(),  // This should map to EntryLock in the transform function
+    bonuses: bcs.vector(BonusSchema),
 })
 
 // Transform function to convert from BCS to the TypeScript type
@@ -95,27 +142,27 @@ export const GameAccountParser: Parser<GameAccount, typeof GameSchema> = {
             ownerAddr: input.ownerAddr,
             settleVersion: BigInt(input.settleVersion),
             accessVersion: BigInt(input.accessVersion),
-            players: input.players.map((player) => ({
+            players: Array.from(input.players).map((player) => ({
                 addr: player.addr,
                 position: player.position,
                 accessVersion: BigInt(player.accessVersion),
                 verifyKey: player.verifyKey,
             })),
-            deposits: input.deposits.map((deposit) => ({
+            deposits: Array.from(input.deposits).map((deposit) => ({
                 addr: deposit.addr,
                 amount: BigInt(deposit.amount),
                 accessVersion: BigInt(deposit.accessVersion),
                 settleVersion: BigInt(deposit.settleVersion),
                 status: DEPOSIT_STATUS[deposit.status],
             })),
-            servers: input.servers.map((server) => ({
+            servers: Array.from(input.servers).map((server) => ({
                 addr: server.addr,
                 endpoint: server.endpoint,
                 accessVersion: BigInt(server.accessVersion),
                 verifyKey: server.verifyKey,
             })),
             transactorAddr: input.transactorAddr ?? undefined,
-            votes: input.votes.map((vote) => ({
+            votes: Array.from(input.votes).map((vote) => ({
                 voter: vote.voter,
                 votee: vote.votee,
                 voteType: VOTE_TYPES[vote.voteType],
@@ -124,15 +171,15 @@ export const GameAccountParser: Parser<GameAccount, typeof GameSchema> = {
             maxPlayers: input.maxPlayers,
             dataLen: input.dataLen,
             data: Uint8Array.from(input.data),
-            entryType: input.entryType, // Process based on the actual EntryTypeKind
+            entryType: EntryTypeParser.transform(input.entryType),
             recipientAddr: input.recipientAddr,
-            checkpointOnChain: input.checkpointOnChain ?? undefined,
+            checkpointOnChain: input.checkpointOnChain.length > 0
+                ? CheckpointOnChain.fromRaw(Uint8Array.from(input.checkpointOnChain))
+                : undefined,
             entryLock: ENTRY_LOCKS[input.entryLock],
-            bonuses: input.bonuses.map((bonus) => ({
-                identifier: bonus.identifier,
-                tokenAddr: bonus.tokenAddr,
-                amount: BigInt(bonus.amount),
-            })),
+            bonuses: Array.from(input.bonuses).map((bonus) => (
+                BonusParser.transform(bonus))
+            ),
         }
     },
 }

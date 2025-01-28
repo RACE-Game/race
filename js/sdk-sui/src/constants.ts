@@ -1,5 +1,5 @@
 export const PROFILE_TABLE_ID = "0x4b4e744f568b7c904e4353f88f7c9a49a46f151493ff25878d9b0e66c2cd1ef3"
-export const PACKAGE_ID = "0xefdf5f95dd6dc87307e10b18abcafb35e0fdc82077c76edec18469064e4a4e99"
+export const PACKAGE_ID = "0x35032bdba017ce9b5f1c00b722bc58037343dc01de639d721c63538519497795"
 
 export const PROFILE_STRUCT_TYPE = `${PACKAGE_ID}::profile::Profile`
 export const GAME_OBJECT_TYPE = `${PACKAGE_ID}::game::Game`

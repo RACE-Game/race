@@ -8,24 +8,24 @@ import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfilePar
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
 
-const TEST_PACKAGE_ID = "0xa5698c13cdfc969501fc22982838d227cc83a79cf8810037d4b5e74451b569ea";
-const TEST_GAME_ID = "0xe48c698837045e6296c7cd6d14d809f90192d38fb6651940d2adbaae2d700e1d";
-const TEST_SERVER_TABLE_ID = "0xdac65117edba713a19b37dac5b7b0c6230eb2e16fc0e729d9fb6541282eca2b3";
-const TEST_PROFILE_TABLE_ID = "0x4b4e744f568b7c904e4353f88f7c9a49a46f151493ff25878d9b0e66c2cd1ef3";
-const TEST_RECIPIENT_ID = "0x3bd2cf3a28df3e80779b2e401af54ef24a405fdd7d67f7687145f597d18dbb03";
+const TEST_PACKAGE_ID = "0x094ab410b77496fc9ddccc9f330e2495583df5e6ea59e4498fff5a6172eac462";
+const TEST_CASH_GAME_ID = "0x5d5e5b48ba5decc365a46777ad20e4ed926e3b6fb38c5fd06729a999496c0c6a";
+const TEST_TICKET_GAME_ID = "0xcfc82be4212e504a2bc8b9a6b5b66ed0db92be4e2ab0befe5ba7146a59f54665"
+const TEST_RECIPIENT_ID = "0x8b8e76d661080e47d76248cc33b43324b4126a8532d7642ab6c47946857c1e1c";
 const TEST_REGISTRY_ID = "0xcb430f98bd97f8c3697cbdbf0de6b9b59411b2634aeebd07f4434fec30f443c7";
 const TEST_GAME_NFT = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
 
 function testCreatePlayerProfile() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   const params = {
-    nick: 'yuumi Game', // nick string
+    nick: 'Race Sui Tester', // nick string
     pfp: undefined, // pfp address params
   }
 
   let response = new ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>()
   suiTransport.createPlayerProfile(wallet, params, response);
 }
+
 async function testGetPlayerProfile() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   let res = await suiTransport.getPlayerProfile('0x5b6eb18e764749862726832bf35e37d597975d234ef341fb39770a736879bc7b')
@@ -98,7 +98,6 @@ async function testListTokens() {
   console.log('tokens', res)
 }
 
-
 async function testListTokensWithBalance() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   // const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
@@ -111,9 +110,10 @@ async function testListTokensWithBalance() {
   let res = await suiTransport.listTokenBalance(walletAddr, tokenAddrs);
   console.log('tokens', res)
 }
+
 async function testGetGameAccount() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-  const objectId = '0x0cb1411ec1ed736640a53acf29b22559efd869429b82915123b600c741fe2add'
+  const objectId = TEST_CASH_GAME_ID;
   let res = await suiTransport.getGameAccount(objectId);
   console.log('testGetGameAccount', res)
 }
@@ -125,12 +125,12 @@ async function testGetRegistration() {
   console.log('testGetRegistration', res)
 }
 
-async function testGetRegistrationWithGames() {
-  const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
-  const objectId = '0x65f80e8f4e82f4885c96ccba4da02668428662e975b0a6cd1fa08b61e4e3a2fc'
-  let res = await suiTransport.getRegistrationWithGames(objectId);
-  console.log('testGetRegistrationWithGames', res)
-}
+// async function testGetRegistrationWithGames() {
+//   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+//   const objectId = '0x65f80e8f4e82f4885c96ccba4da02668428662e975b0a6cd1fa08b61e4e3a2fc'
+//   let res = await suiTransport.getRegistrationWithGames(objectId);
+//   console.log('testGetRegistrationWithGames', res)
+// }
 
 async function testRegisterGame() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
@@ -146,7 +146,7 @@ async function testRegisterGame() {
 async function testJoinGame() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   const params: JoinParams = {
-    gameAddr: TEST_GAME_ID,
+    gameAddr: TEST_CASH_GAME_ID,
     amount: BigInt(100_000_000),
     position: 3,
     verifyKey: 'player3',
@@ -206,9 +206,9 @@ function main() {
     case 'getRegistration':
       testGetRegistration()
       break
-    case 'getRegistrationWithGames':
-      testGetRegistrationWithGames()
-      break
+    // case 'getRegistrationWithGames':
+    //   testGetRegistrationWithGames()
+    //   break
     case 'createGameAccount':
       testCreateGameAccount()
       break

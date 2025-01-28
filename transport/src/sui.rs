@@ -1581,18 +1581,19 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0x094ab410b77496fc9ddccc9f330e2495583df5e6ea59e4498fff5a6172eac462";
-    const TEST_GAME_ID: &str = "0xca42f1f255ea4d8944ce706bee318d9411d2f2a4ad043f29cc81aadf16f6a061";
-    const TEST_RECIPIENT_ID: &str = "0x3bd2cf3a28df3e80779b2e401af54ef24a405fdd7d67f7687145f597d18dbb03";
-    const TEST_REGISTRY: &str = "0xcb430f98bd97f8c3697cbdbf0de6b9b59411b2634aeebd07f4434fec30f443c7";
+    const TEST_PACKAGE_ID: &str = "0x21d4b1cc7436192411883c1fc2e59b4a059c4983311f9e114cb524b303b509fb";
+    const TEST_CASH_GAME_ID: &str = "0x5d5e5b48ba5decc365a46777ad20e4ed926e3b6fb38c5fd06729a999496c0c6a";
+    const TEST_TICKET_GAME_ID: &str = "0xcfc82be4212e504a2bc8b9a6b5b66ed0db92be4e2ab0befe5ba7146a59f54665";
+    const TEST_RECIPIENT_ID: &str = "0x8b8e76d661080e47d76248cc33b43324b4126a8532d7642ab6c47946857c1e1c";
+    const TEST_REGISTRY: &str = "0xab54b9be8e9662428c4e94400b847d1c5a5608bb22c690898818d73bf548fa0b";
     const TEST_GAME_NFT: &str = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
 
     // helper fns to generate some large structures for tests
     fn make_game_params() -> CreateGameAccountParams {
         // update entry type if needed
-        let entry_type = EntryType::Cash {
-            max_deposit: 900_000_000, min_deposit: 300_000_000 }; // 0.1 SUI
-        // let entry_type = EntryType::Ticket { amount: 300_000_000 }; // 0.1 SUI
+        // let entry_type = EntryType::Cash { max_deposit: 900_000_000,
+        //                                    min_deposit: 300_000_000 }; // 0.1 SUI
+        let entry_type = EntryType::Ticket { amount: 300_000_000 }; // 0.1 SUI
         CreateGameAccountParams {
             title: "Race Devnet Test".into(),
             bundle_addr: SuiTransport::rand_account_str_addr(),
@@ -1653,7 +1654,7 @@ mod tests {
     #[test]
     fn ser_game_obj() -> Result<()> {
         let game = GameObject {
-            id: parse_object_id(TEST_GAME_ID)?,
+            id: parse_object_id(TEST_CASH_GAME_ID)?,
             version: "0.1.0".to_string(),
             title: "Race Devnet Test".to_string(),
             bundle_addr: parse_sui_addr(TEST_GAME_NFT)?,
@@ -1705,7 +1706,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_seqnum() -> Result<()> {
-        let game_id = parse_object_id(TEST_GAME_ID)?;
+        let game_id = parse_object_id(TEST_CASH_GAME_ID)?;
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
@@ -1934,7 +1935,7 @@ mod tests {
             TEST_PACKAGE_ID,
         ).await.unwrap();
         let join_params = JoinParams {
-            game_addr: TEST_GAME_ID.to_string(),
+            game_addr: TEST_CASH_GAME_ID.to_string(),
             access_version: 0,
             amount: 400_000_000,
             position: 1,
@@ -2035,7 +2036,7 @@ mod tests {
     #[tokio::test]
     async fn test_serve_game() -> Result<()> {
         let params = ServeParams {
-            game_addr: TEST_GAME_ID.to_string(),
+            game_addr: TEST_CASH_GAME_ID.to_string(),
             verify_key: "RaceTest1".to_string()
         };
         let transport = SuiTransport::try_new(
@@ -2072,7 +2073,7 @@ mod tests {
         ).await.unwrap();
         // attach coin bonus to it
         let bonus_params = AttachBonusParams {
-            game_id: parse_object_id(TEST_GAME_ID)?,
+            game_id: parse_object_id(TEST_CASH_GAME_ID)?,
             token_addr: COIN_SUI_PATH.to_string(),
             identifier: "RaceSuiBonus".to_string(),
             amount: 100_000_000, // 0.1 SUI
@@ -2109,7 +2110,7 @@ mod tests {
         // attach coin bonus to it
         let nft_id = "0x1a5b13088a9a5dcafea2f4ae4996b7b6995bc281ecb600ffd8458ed0d6b78e4c";
         let bonus_params = AttachBonusParams {
-            game_id: parse_object_id(TEST_GAME_ID)?,
+            game_id: parse_object_id(TEST_CASH_GAME_ID)?,
             token_addr: COIN_SUI_PATH.to_string(),
             identifier: "RaceSuiNFT".to_string(),
             amount: 0,
