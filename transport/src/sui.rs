@@ -62,9 +62,9 @@ use race_core::{
 mod constants;
 mod types;
 mod utils;
-use constants::*;
-use types::*;
-use utils::*;
+pub use constants::*;
+pub use types::*;
+pub use utils::*;
 
 pub struct SuiTransport {
     // RPC node endpoint
@@ -1148,15 +1148,17 @@ impl TransportT for SuiTransport {
 }
 
 impl SuiTransport {
-    async fn try_new(
+    pub async fn try_new(
         rpc: String,
         pkg_id: &str,
+        keyfile: Option<PathBuf>
     ) -> TransportResult<Self> {
         println!("Create Sui transport at RPC: {} for packge: {:?}", rpc, pkg_id);
         let package_id = parse_object_id(pkg_id)?;
         let active_addr = parse_sui_addr(PUBLISHER)?;
+
         let keystore = FileBasedKeystore::new(
-            &sui_config_dir()?.join(SUI_KEYSTORE_FILENAME)
+            &keyfile.unwrap_or(sui_config_dir()?.join(SUI_KEYSTORE_FILENAME))
         )?;
         let client = SuiClientBuilder::default().build(rpc.clone()).await?;
         Ok(Self {
@@ -1700,6 +1702,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         let profile = transport.get_player_profile(PUBLISHER).await;
     }
@@ -1710,6 +1713,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         transport.get_object_seqnum(game_id).await?;
 
@@ -1722,6 +1726,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
 
         let res = transport.create_recipient(params).await?;
@@ -1734,6 +1739,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         // get the recipient object
         let recipient_id = parse_object_id(TEST_RECIPIENT_ID)?;
@@ -1773,6 +1779,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         let result = transport.get_recipient(TEST_RECIPIENT_ID).await?;
         assert!(result.is_some());
@@ -1814,6 +1821,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         let object_id = transport.create_registration(params).await?;
 
@@ -1825,6 +1833,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         // create registration
         let reg_str_id = transport.create_registration( CreateRegistrationParams {
@@ -1851,6 +1860,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
 
         let game_addr = TEST_TICKET_GAME_ID.to_string();
@@ -1883,6 +1893,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         let game_addr: String = transport.create_game_account(game_params).await?;
 
@@ -1932,6 +1943,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         let join_params = JoinParams {
             game_addr: TEST_CASH_GAME_ID.to_string(),
@@ -1951,6 +1963,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         let game_id = transport.create_game_account(params).await?;
         println!("[Test]: Created game object with id: {}", game_id);
@@ -1964,6 +1977,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         let params = make_game_params();
         let game_id_str = transport.create_game_account(params).await?;
@@ -1993,6 +2007,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         transport.register_server(params).await?;
         Ok(())
@@ -2007,6 +2022,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         transport.register_server(params).await?;
 
@@ -2041,6 +2057,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         transport.serve(params).await?;
 
@@ -2054,6 +2071,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         let game_id: String = transport.create_game_account(params).await?;
 
@@ -2069,6 +2087,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         // attach coin bonus to it
         let bonus_params = AttachBonusParams {
@@ -2088,6 +2107,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
 
         // publish game
@@ -2105,6 +2125,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         // attach coin bonus to it
         let nft_id = "0x1a5b13088a9a5dcafea2f4ae4996b7b6995bc281ecb600ffd8458ed0d6b78e4c";
@@ -2125,6 +2146,7 @@ mod tests {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
             TEST_PACKAGE_ID,
+            None
         ).await.unwrap();
         let params = SettleParams {
             addr: "".to_string(),

@@ -111,6 +111,12 @@ impl TransportBuilder {
                     let skip_preflight = self.skip_preflight.unwrap_or(false);
                     Ok(Box::new(solana::SolanaTransport::try_new(rpc, keyfile, skip_preflight)?))
                 }
+                ChainType::Sui => {
+                    use crate::sui::{self, PACKAGE_ID};
+                    let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
+                    let keyfile = self.keyfile.ok_or(TransportError::UnspecifiedSigner)?;
+                    Ok(Box::new(sui::SuiTransport::try_new(rpc, PACKAGE_ID, Some(keyfile)).await?))
+                }
                 ChainType::Facade => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
                     let address = self.address.ok_or(TransportError::UnspecifiedSigner)?;
