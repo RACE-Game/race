@@ -454,7 +454,7 @@ impl TransportT for SuiTransport {
                 // prepare inputs for each share
                 let (owner_type, owner_info) = match share.owner {
                     CoreRecipientSlotOwner::Unassigned { identifier } => (0u8, identifier),
-                    CoreRecipientSlotOwner::Assigned { addr } => (1u8, addr),
+                    CoreRecipientSlotOwner::Assigned { addr } => (1u8, trim_prefix(&addr)),
                 };
 
                 let create_share_args = vec![
@@ -1643,7 +1643,7 @@ mod tests {
                         },
                         RecipientSlotShareInit {
                             owner: CoreRecipientSlotOwner::Assigned {
-                                addr: trim_prefix(PUBLISHER)
+                                addr: PUBLISHER.to_string()
                             },
                             weights: 40,
                         }
