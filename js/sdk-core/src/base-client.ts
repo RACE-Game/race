@@ -23,7 +23,6 @@ import {
     ErrorKind,
     EventCallbackFunction,
     EventCallbackOptions,
-    EventCallbackOptionsSource,
     GameInfo,
     LoadProfileCallbackFunction,
     MessageCallbackFunction,
@@ -107,6 +106,7 @@ export class BaseClient {
         this.__onMessage = opts.onMessage
         this.__onTxState = opts.onTxState
         this.__onError = opts.onError
+        this.__onReady = opts.onReady
         this.__onConnectionState = opts.onConnectionState
         this.__encryptor = opts.encryptor
         this.__info = opts.info
@@ -292,7 +292,7 @@ export class BaseClient {
         }
     }
 
-    async __handleEvent(frame: BroadcastFrameEvent, source: EventCallbackOptionsSource) {
+    async __handleEvent(frame: BroadcastFrameEvent) {
         const { event, timestamp, stateSha } = frame
         console.group(this.__logPrefix + 'Handle event: ' + event.kind() + ' at timestamp: ' + timestamp)
         let state: Uint8Array | undefined
@@ -316,7 +316,6 @@ export class BaseClient {
             if (!err) {
                 await this.__invokeEventCallback(event, {
                     isCheckpoint: effects?.checkpoint !== undefined,
-                    source,
                 })
             }
 
@@ -380,7 +379,7 @@ export class BaseClient {
         } else if (frame instanceof BroadcastFrameSync) {
             await this.__handleSync(frame);
         } else if (frame instanceof BroadcastFrameEvent) {
-            await this.__handleEvent(frame,  { kind: 'live' })
+            await this.__handleEvent(frame)
         } else if (frame instanceof BroadcastFrameBacklogs) {
             console.group(`${this.__logPrefix}Receive event backlogs`, frame)
 
@@ -397,32 +396,25 @@ export class BaseClient {
                 this.__gameContext.stateSha = await sha256String(versionedData.data)
             }
 
-            try {
-                await this.__checkStateSha(frame.stateSha, 'checkpoint-state-sha-mismatch')
-            } finally {
-                console.groupEnd()
-            }
+            await this.__checkStateSha(frame.stateSha, 'checkpoint-state-sha-mismatch')
 
             try {
-                let len = frame.backlogs.filter(f => f instanceof BroadcastFrameEvent).length
-                let index = 0
                 for (const backlogFrame of frame.backlogs) {
                     if (backlogFrame instanceof BroadcastFrameEvent) {
-                        index += 1
-                        const remaining = len - index
-                        await this.__handleEvent(backlogFrame, { kind: 'backlog', remaining })
+                        await this.__handleEvent(backlogFrame)
                     } else if (backlogFrame instanceof BroadcastFrameSync) {
                         await this.__handleSync(backlogFrame)
                     } else {
                         console.error('Invalid backlog', backlogFrame)
                     }
                 }
-                if (len === 0) {
-                    if (this.__onReady !== undefined) {
-                        const snapshot = new GameContextSnapshot(this.__gameContext)
-                        const state = this.__gameContext.handlerState
-                        this.__onReady(snapshot, state);
-                    }
+                // Call onReady to indicate all backlogs are consumed
+                if (this.__onReady !== undefined) {
+                    const snapshot = new GameContextSnapshot(this.__gameContext)
+                    const state = this.__gameContext.handlerState
+                    this.__onReady(snapshot, state);
+                } else {
+                    console.warn('Callback onReady is not provided.')
                 }
             } finally {
                 console.groupEnd()
