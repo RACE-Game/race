@@ -75,7 +75,8 @@ import {
     Parser,
     GameAccountParser,
     PlayerPorfileParser,
-    RegistrationAccountParser
+    RegistrationAccountParser,
+    ServerParser
 } from './types'
 import { SuiWallet } from './sui-wallet'
 import { LocalSuiWallet } from './local-wallet'
@@ -125,14 +126,14 @@ export class SuiTransport implements ITransport {
             recipientAddr = params.recipientAddr
         }
         let create_game_args = [
-            transaction.pure.string(params.title), // title string
-            transaction.pure.address(params.bundleAddr), // bundle_addr address params
-            transaction.pure.address(wallet.walletAddr), // owner address wallet
-            transaction.pure.address(recipientAddr), // recipient_addr address params
-            transaction.pure.string(params.tokenAddr), // token_addr address params "0x2"
-            transaction.pure.u16(params.maxPlayers), // max_players u64 params
-            transaction.pure.u32(params.data.length), // data_len u32 params
-            transaction.pure.vector('u8', params.data), // data vector<u8> params
+            transaction.pure.string(params.title),
+            transaction.pure.address(params.bundleAddr),
+            transaction.pure.address(wallet.walletAddr),
+            transaction.pure.address(recipientAddr),
+            transaction.pure.string(params.tokenAddr),
+            transaction.pure.u16(params.maxPlayers),
+            transaction.pure.u32(params.data.length),
+            transaction.pure.vector('u8', params.data),
         ]
         let entryFunction = ''
         let entry_type_args: any = []
@@ -144,20 +145,20 @@ export class SuiTransport implements ITransport {
                 }
                 entryFunction = 'create_cash_entry'
                 entry_type_args = [
-                    transaction.pure.u64(params.entryType.minDeposit), // min_deposit u64 params
-                    transaction.pure.u64(params.entryType.maxDeposit), // max_deposit u64 params
+                    transaction.pure.u64(params.entryType.minDeposit),
+                    transaction.pure.u64(params.entryType.maxDeposit),
                 ]
                 break
             case 'ticket':
                 entryFunction = 'create_ticket_entry'
                 entry_type_args = [
-                    transaction.pure.u64(params.entryType.amount), // amount u64 params
+                    transaction.pure.u64(params.entryType.amount),
                 ]
                 break
             case 'gating':
                 entryFunction = 'create_gating_entry'
                 entry_type_args = [
-                    transaction.pure.string(params.entryType.collection), // collection String params
+                    transaction.pure.string(params.entryType.collection),
                 ]
                 break
             default:
@@ -264,14 +265,15 @@ export class SuiTransport implements ITransport {
         // get game object for token info and object ref
         const game = await this.getGameAccount(gameAddr)
         if (game == undefined) {
-            console.error('Cannot join the game: game not found: ', gameAddr)
+            console.error('Cannot join: game not found: ', gameAddr)
             return
         }
 
         if (game.players.length >= game.maxPlayers) {
-            console.error('Cannot join the game: game already full: ', game.maxPlayers)
+            console.error('Cannot join: game already full: ', game.maxPlayers)
             return
         }
+        // TODO: make this a procedure
         const objRes: SuiObjectResponse = await suiClient.getObject({
             id: gameAddr,
             options: { showOwner: true },
@@ -370,9 +372,9 @@ export class SuiTransport implements ITransport {
                 let result: TransactionObjectArgument = transaction.moveCall({
                     target: `${PACKAGE_ID}::recipient::create_slot_share`,
                     arguments: [
-                        transaction.pure.u8(owner_type), // owner_type u8
-                        transaction.pure.string(owner_info), // owner_info String
-                        transaction.pure.u16(share.weights), // owner_weight u16
+                        transaction.pure.u8(owner_type),
+                        transaction.pure.string(owner_info),
+                        transaction.pure.u16(share.weights),
                     ],
                 })
                 result_shares.push(result)
@@ -390,10 +392,9 @@ export class SuiTransport implements ITransport {
             builder = transaction.moveCall({
                 target: `${PACKAGE_ID}::recipient::create_recipient_slot`,
                 arguments: [
-                    transaction.pure.u8(slot.id), // id u8
-                    transaction.pure.string(slot.tokenAddr), // token_addr address params,
-                    transaction.pure.u8(type_args), // 0 nft, 1 token
-                    // serializeRecipientSlotShares(slot.initShares),
+                    transaction.pure.u8(slot.id),
+                    transaction.pure.string(slot.tokenAddr),
+                    transaction.pure.u8(type_args),
                     shares,
                     builder,
                 ],
@@ -513,16 +514,15 @@ export class SuiTransport implements ITransport {
         throw new Error('Method not implemented.')
     }
     async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
-        // const suiClient = this.suiClient;
-        // const info: SuiObjectResponse = await suiClient.getObject({
-        //   id: addr,
-        //   options: {
-        //     showContent: true,
-        //     showType: true
-        //   }
-        // })
-        // const content = info;
-        throw new Error('Method not implemented.')
+        const suiClient = this.suiClient;
+        const resp: SuiObjectResponse = await suiClient.getObject({
+            id: addr,
+            options: {
+                showBcs: true,
+                showType: true
+            }
+        })
+        return parseObjectData(parseSingleObjectResponse(resp), ServerParser)
     }
 
     async getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
