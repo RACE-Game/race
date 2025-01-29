@@ -28,7 +28,7 @@ pub struct RegistryObject {
     pub id: ObjectID,
     pub is_private: bool,
     pub size: u16, // capacity of the registration center
-    pub owner: SuiAddress,
+    pub owner: Option<SuiAddress>,
     pub games: Vec<GameReg>,
 }
 
@@ -39,7 +39,7 @@ impl RegistryObject {
             addr: id.to_hex_uncompressed(),
             is_private,
             size,
-            owner: Some(owner.to_string()),
+            owner: owner.map(|addr| addr.to_string()),
             games: games.into_iter().map(Into::<GameRegistration>::into).collect()
         }
     }

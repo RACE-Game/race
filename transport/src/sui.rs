@@ -581,11 +581,11 @@ impl TransportT for SuiTransport {
             self.package_id,
             module,
             publish_fn,
-            vec![],                             // no type argument
+            vec![],             // no type argument
             gas_coin.object_ref(),
             vec![new_pure_arg(&params.name)?,
+                 new_pure_arg(&params.symbol)?,
                  new_pure_arg(&params.uri)?,       // wasm bundle url
-                 new_pure_arg(&params.symbol)?,    // symbol
                  new_pure_arg(&self.bundle_cover)? // bundle cover image url
             ],
             gas_coin.balance,
@@ -1583,11 +1583,11 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0x21d4b1cc7436192411883c1fc2e59b4a059c4983311f9e114cb524b303b509fb";
+    const TEST_PACKAGE_ID: &str = "0xe8df1a1cc2a14786ccfc554e47526ef26c7512f827b1760cd70bd490036e277d";
     const TEST_CASH_GAME_ID: &str = "0x5d5e5b48ba5decc365a46777ad20e4ed926e3b6fb38c5fd06729a999496c0c6a";
     const TEST_TICKET_GAME_ID: &str = "0xcfc82be4212e504a2bc8b9a6b5b66ed0db92be4e2ab0befe5ba7146a59f54665";
     const TEST_RECIPIENT_ID: &str = "0x8b8e76d661080e47d76248cc33b43324b4126a8532d7642ab6c47946857c1e1c";
-    const TEST_REGISTRY: &str = "0xad7a5f0ab1dadb7018032e6d74e5aceaa8b208e2b9d3c24e06418f60c3508aaf";
+    const TEST_REGISTRY: &str = "0x6f819d1497313b8e059f6abc29ce726590c2c5a0f4b86497fee344cf0a6810d6";
     const TEST_GAME_NFT: &str = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
 
     // helper fns to generate some large structures for tests
@@ -1836,20 +1836,20 @@ mod tests {
             None
         ).await.unwrap();
         // create registration
-        let reg_str_id = transport.create_registration( CreateRegistrationParams {
-            is_private: false,
-            size: 30
-        }).await?;
+        // let reg_str_id = transport.create_registration( CreateRegistrationParams {
+        //     is_private: false,
+        //     size: 30
+        // }).await?;
         // get the registration
-        let result = transport.get_registration(&reg_str_id).await?;
+        let result = transport.get_registration(TEST_REGISTRY).await?;
         assert!(result.is_some());
 
         let reg_account = result.unwrap();
-        assert_eq!(reg_account.addr, reg_str_id);
+        assert_eq!(reg_account.addr, TEST_REGISTRY);
         assert_eq!(reg_account.is_private, false);
-        assert_eq!(reg_account.size, 30);
+        assert_eq!(reg_account.size, 100);
         assert_eq!(reg_account.games.len(), 0);
-
+        assert!(reg_account.owner.is_none());
         Ok(())
     }
 

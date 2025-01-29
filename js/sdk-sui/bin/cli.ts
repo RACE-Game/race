@@ -8,13 +8,13 @@ import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfilePar
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
 
-const TEST_PACKAGE_ID = "0x094ab410b77496fc9ddccc9f330e2495583df5e6ea59e4498fff5a6172eac462";
-const TEST_CASH_GAME_ID = "0x5d5e5b48ba5decc365a46777ad20e4ed926e3b6fb38c5fd06729a999496c0c6a";
+const TEST_PACKAGE_ID = "0xe8df1a1cc2a14786ccfc554e47526ef26c7512f827b1760cd70bd490036e277d";
+const TEST_CASH_GAME_ID = "0x0c9973588ea53f5a6b983c6b89321a6e9505862dc69d1bbeeb67fb0a6beb7d6c";
 const TEST_TICKET_GAME_ID = "0xcfc82be4212e504a2bc8b9a6b5b66ed0db92be4e2ab0befe5ba7146a59f54665"
-const TEST_RECIPIENT_ID = "0x8b8e76d661080e47d76248cc33b43324b4126a8532d7642ab6c47946857c1e1c";
+const TEST_RECIPIENT_ID = "0x83188ed861867da6fa167d6747c4f2d24be5bac64bc9957de685f1dc2ac88a64";
 const TEST_REGISTRY_ID = "0xad7a5f0ab1dadb7018032e6d74e5aceaa8b208e2b9d3c24e06418f60c3508aaf";
 const TEST_SERVER_ID = "0x780fab91f38e598f501772852f0cdf9e10da97cea9a3b665c9227aa2a42c3f2a";
-const TEST_GAME_NFT = "0x5ebed419309e71c1cd28a3249bbf792d2f2cc8b94b0e21e45a9873642c0a5cdc";
+const TEST_GAME_NFT = "0x6408d029b6f2a8fd0b1981a7ae217412c5809c1b1cef1c4617b4c0b573f0698f";
 
 function testCreatePlayerProfile() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
@@ -118,6 +118,12 @@ async function testGetGameAccount() {
   console.log('testGetGameAccount', res)
 }
 
+async function testGetGameBundle() {
+    const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+    let res = await suiTransport.getGameBundle(TEST_GAME_NFT);
+    console.log('testGetGameBundle: ', res)
+}
+
 async function testGetRegistration() {
   const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
   let res = await suiTransport.getRegistration(TEST_REGISTRY_ID);
@@ -194,7 +200,6 @@ async function testGetRecipientAccount() {
     console.log('testGetRecipientAccount: ', res)
 }
 
-
 function main() {
   const args = process.argv.slice(2, process.argv.length);
     switch (args[0] || '') {
@@ -230,6 +235,9 @@ function main() {
             break
         case 'getGameAccount':
             testGetGameAccount()
+            break
+        case 'getGameBundle':
+            testGetGameBundle()
             break
         case 'getRecipientAccount':
             testGetRecipientAccount()

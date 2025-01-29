@@ -74,6 +74,7 @@ import { bcs, BcsType, fromBase64 } from '@mysten/bcs'
 import {
     Parser,
     GameAccountParser,
+    GameBundleParser,
     PlayerPorfileParser,
     RegistrationAccountParser,
     RecipientAccountParser,
@@ -510,9 +511,16 @@ export class SuiTransport implements ITransport {
         return ret
     }
 
-    // todo sui and contract
-    getGameBundle(addr: string): Promise<GameBundle | undefined> {
-        throw new Error('Method not implemented.')
+    async getGameBundle(addr: string): Promise<GameBundle | undefined> {
+        const suiClient = this.suiClient;
+        const resp: SuiObjectResponse = await suiClient.getObject({
+            id: addr,
+            options: {
+                showBcs: true,
+                showType: true
+            }
+        })
+        return parseObjectData(parseSingleObjectResponse(resp), GameBundleParser)
     }
 
     async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
