@@ -33,11 +33,6 @@ const BonusParser: Parser<Bonus, typeof BonusSchema> = {
     }
 }
 
-// const CheckpointOnSuiSchema = bcs.struct('')
-// const CheckpointOnSuiParser: Parser<CheckpointOnChain, CheckpointOnSuiSchema> = {
-//
-// }
-
 const EntryTypeCashSchema = bcs.struct('EntryTypeCash', {
     min_deposit: bcs.u64(), max_deposit: bcs.u64()
 })

@@ -149,10 +149,10 @@ async function testJoinGame() {
   console.log('testJoinGame', response);
 }
 
-async function testServerAccount() {
+async function testGetServerAccount() {
     const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
     let res = await suiTransport.getServerAccount(TEST_SERVER_ID);
-    console.log('testServerAccount', res)
+    console.log('testGetServerAccount: ', res)
 }
 
 
@@ -188,56 +188,62 @@ async function testCreateRecipient() {
   console.log('testCreateRecipient', res)
 }
 
+async function testGetRecipientAccount() {
+    const suiTransport = new SuiTransport('https://fullnode.devnet.sui.io:443');
+    let res = await suiTransport.getRecipient(TEST_RECIPIENT_ID);
+    console.log('testGetRecipientAccount: ', res)
+}
+
 
 function main() {
   const args = process.argv.slice(2, process.argv.length);
-  switch (args[0] || '') {
-    case 'getServerAccount':
-      testServerAccount()
-      break
-    case 'getRegistration':
-      testGetRegistration()
-      break
-    // case 'getRegistrationWithGames':
-    //   testGetRegistrationWithGames()
-    //   break
-    case 'createGameAccount':
-      testCreateGameAccount()
-      break
-    case 'createPlayerProfile':
-      testCreatePlayerProfile()
-      break
-    case 'getPlayerProfile':
-      testGetPlayerProfile()
-      break
-    case 'getToken':
-      testGetToken()
-      break
-    case 'getNFT':
-      testGetNFT()
-      break
-    case 'getNFTLIST':
-      testGetNFTLIST()
-      break
-    case 'getListTokens':
-      testListTokens()
-      break
-    case 'getListTokensWithBalance':
-      testListTokensWithBalance()
-      break
-    case 'getGameAccount':
-      testGetGameAccount()
-      break
-    case 'registerGame':
-      testRegisterGame()
-      break
-    case 'createRecipient':
-      testCreateRecipient()
-      break
+    switch (args[0] || '') {
+        case 'getServerAccount':
+            testGetServerAccount()
+            break
+        case 'getRegistration':
+            testGetRegistration()
+            break
+        case 'createGameAccount':
+            testCreateGameAccount()
+            break
+        case 'createPlayerProfile':
+            testCreatePlayerProfile()
+            break
+        case 'getPlayerProfile':
+            testGetPlayerProfile()
+            break
+        case 'getToken':
+            testGetToken()
+            break
+        case 'getNFT':
+            testGetNFT()
+            break
+        case 'getNFTLIST':
+            testGetNFTLIST()
+            break
+        case 'getListTokens':
+            testListTokens()
+            break
+        case 'getListTokensWithBalance':
+            testListTokensWithBalance()
+            break
+        case 'getGameAccount':
+            testGetGameAccount()
+            break
+        case 'getRecipientAccount':
+            testGetRecipientAccount()
+            break
+        case 'registerGame':
+            testRegisterGame()
+            break
+        case 'createRecipient':
+            testCreateRecipient()
+            break
 
-    default:
-      console.error('Invalid command')
-  }
+        default:
+            console.error('Invalid command')
+    }
 }
 
 main()

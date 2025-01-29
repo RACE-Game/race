@@ -1,6 +1,13 @@
 import { bcs } from '@mysten/bcs'
 import { Address, Parser } from './parser'
-import { RecipientAccount, RecipientSlot, RecipientSlotShare, RecipientSlotOwner } from '@race-foundation/sdk-core'
+import {
+    RecipientAccount,
+    RecipientSlot,
+    RecipientSlotOwner,
+    RecipientSlotShare,
+    RecipientSlotType,
+    RECIPIENT_SLOT_TYPES,
+} from '@race-foundation/sdk-core'
 
 // Define the schema for RecipientSlotOwner
 const RecipientSlotOwnerSchema = bcs.enum('RecipientSlotOwner', {
@@ -15,13 +22,16 @@ const RecipientSlotShareSchema = bcs.struct('RecipientSlotShare', {
     claimAmount: bcs.u64(),
 })
 
+const SlotTypeSchema = bcs.enum('RecipientSlotType', {
+    Nft: null,
+    Token: null
+})
+
 // Define the schema for RecipientSlot
 const RecipientSlotSchema = bcs.struct('RecipientSlot', {
-    id: bcs.u8(),
-    slotType: bcs.enum('RecipientSlotType', {
-        Nft: null,
-        Token: null
-    }),
+    id: Address,
+    slot_id: bcs.u8(),
+    slotType: bcs.u8(), // should map to RecipientSlotType in the transform below
     tokenAddr: bcs.string(),
     shares: bcs.vector(RecipientSlotShareSchema),
     balance: bcs.u64(),
@@ -41,18 +51,18 @@ export const RecipientAccountParser: Parser<RecipientAccount, typeof RecipientAc
         return {
             addr: input.addr,
             capAddr: input.capAddr ? input.capAddr : undefined,
-            slots: input.slots.map(slot => ({
-                id: slot.id,
-                slotType: slot.slotType,
+            slots: Array.from(input.slots).map(slot => ({
+                id: slot.slot_id,
+                slotType: RECIPIENT_SLOT_TYPES[slot.slotType],
                 tokenAddr: slot.tokenAddr,
-                shares: slot.shares.map(share => ({
-                    owner: 'unassigned' in share.owner
+                shares: Array.from(slot.shares).map(share => ({
+                    owner: 'unassigned' in share.owner && share.owner.unassigned
                         ? { identifier: share.owner.unassigned.identifier, kind: 'unassigned' }
                         : { addr: share.owner.assigned.addr, kind: 'assigned' },
                     weights: share.weights,
-                    claimAmount: share.claimAmount
+                    claimAmount: BigInt(share.claimAmount)
                 })),
-                balance: slot.balance
+                balance: BigInt(slot.balance)
             })),
         }
     },

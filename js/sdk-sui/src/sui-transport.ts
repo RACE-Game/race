@@ -76,6 +76,7 @@ import {
     GameAccountParser,
     PlayerPorfileParser,
     RegistrationAccountParser,
+    RecipientAccountParser,
     ServerParser
 } from './types'
 import { SuiWallet } from './sui-wallet'
@@ -513,6 +514,7 @@ export class SuiTransport implements ITransport {
     getGameBundle(addr: string): Promise<GameBundle | undefined> {
         throw new Error('Method not implemented.')
     }
+
     async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
         const suiClient = this.suiClient;
         const resp: SuiObjectResponse = await suiClient.getObject({
@@ -540,9 +542,21 @@ export class SuiTransport implements ITransport {
         )
     }
 
-    getRecipient(addr: string): Promise<RecipientAccount | undefined> {
-        throw new Error('Method not implemented.')
+    async getRecipient(addr: string): Promise<RecipientAccount | undefined> {
+        const suiClient = this.suiClient
+        const resp: SuiObjectResponse = await suiClient.getObject({
+            id: addr,
+            options: {
+                showBcs: true,
+                showType: true,
+            },
+        })
+        return parseObjectData(
+            parseSingleObjectResponse(resp),
+            RecipientAccountParser
+        )
     }
+
     async getTokenDecimals(addr: string): Promise<number | undefined> {
         return this.getToken(addr).then(token => token?.decimals)
     }
@@ -738,7 +752,6 @@ function parseObjectData<T, S extends BcsType<S['$inferInput']>>(
         console.error('Not a move object')
         return undefined
     }
-
 
     const raw = parser.schema.parse(fromBase64(data.bcsBytes))
 
