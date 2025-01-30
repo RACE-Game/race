@@ -1,6 +1,4 @@
-export const PROFILE_TABLE_ID = "0x4b4e744f568b7c904e4353f88f7c9a49a46f151493ff25878d9b0e66c2cd1ef3"
-export const PACKAGE_ID = "0x35032bdba017ce9b5f1c00b722bc58037343dc01de639d721c63538519497795"
-
+export const PACKAGE_ID = "0xe8df1a1cc2a14786ccfc554e47526ef26c7512f827b1760cd70bd490036e277d"
 export const PROFILE_STRUCT_TYPE = `${PACKAGE_ID}::profile::Profile`
 export const GAME_OBJECT_TYPE = `${PACKAGE_ID}::game::Game`
 export const GAS_BUDGET = 5_000_001
