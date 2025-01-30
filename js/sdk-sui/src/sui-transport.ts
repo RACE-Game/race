@@ -87,7 +87,6 @@ import {
     GAME_OBJECT_TYPE,
     MAXIMUM_TITLE_LENGTH,
     PACKAGE_ID,
-    PROFILE_TABLE_ID,
     SUI_ICON_URL,
 } from './constants'
 import { ISigner, TxResult } from './signer'
@@ -201,23 +200,18 @@ export class SuiTransport implements ITransport {
 
         const suiClient = this.suiClient
 
-        const transaction = new Transaction()
-        // For debugging only
-        try {
-            const object = await suiClient.getObject({
-                id: PROFILE_TABLE_ID,
-                options: { showContent: true },
-            })
-            console.log('Profile table:', object)
-        } catch (error) {
-            console.error('Error while accessing profile table:', error)
+
+        const exist = await this.getPlayerProfile(wallet.walletAddr)
+
+        if (!exist) {
+            throw new Error('Player profile already exists')
         }
+        const transaction = new Transaction()
         transaction.moveCall({
             target: `${PACKAGE_ID}::profile::create_profile`,
             arguments: [
                 transaction.pure.string(params.nick),
                 transaction.pure.option('address', params.pfp),
-                transaction.object(PROFILE_TABLE_ID),
             ],
         })
 
