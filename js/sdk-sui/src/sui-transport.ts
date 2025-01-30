@@ -45,34 +45,17 @@ import {
     RegisterGameError,
     RegisterGameResponse,
     TokenBalance,
-    Result,
-    CheckpointOnChain,
-    EntryType,
     RecipientSlotInit,
     RecipientSlotShareInit,
 } from '@race-foundation/sdk-core'
 import { Chain } from './common'
 import {
-    Balance,
-    getFullnodeUrl,
-    MoveStruct,
-    MoveVariant,
     ObjectOwner,
-    PaginatedObjectsResponse,
-    RawData,
     SuiClient,
-    SuiMoveObject,
-    SuiObjectChange,
-    SuiObjectChangeCreated,
-    SuiObjectData,
     SuiObjectResponse,
-    SuiTransactionBlock,
 } from '@mysten/sui/client'
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
-import { bcs, BcsType, fromBase64 } from '@mysten/bcs'
 import {
-    Parser,
     GameAccountParser,
     GameBundleParser,
     PlayerPorfileParser,
@@ -80,22 +63,16 @@ import {
     RecipientAccountParser,
     ServerParser
 } from './types'
-import { SuiWallet } from './sui-wallet'
-import { LocalSuiWallet } from './local-wallet'
 import {
     CLOCK_ID,
-    GAME_OBJECT_TYPE,
+    GAME_STRUCT_TYPE,
     MAXIMUM_TITLE_LENGTH,
     PACKAGE_ID,
+    PROFILE_STRUCT_TYPE,
+    SERVER_STRUCT_TYPE,
     SUI_ICON_URL,
 } from './constants'
-import { ISigner, TxResult } from './signer'
-
-function coerceWallet(wallet: IWallet): asserts wallet is ISigner {
-    if (!(wallet instanceof LocalSuiWallet) && !(wallet instanceof SuiWallet)) {
-        throw new Error('Invalid wallet instance passed')
-    }
-}
+import { coerceWallet, getOwnedObjectRef, getSharedObjectRef, parseFirstObjectResponse, parseMultiObjectResponse, parseObjectData, parseSingleObjectResponse, resolveObjectCreatedByType, resolveObjectMutatedByType } from './misc'
 
 export class SuiTransport implements ITransport {
     suiClient: SuiClient
@@ -181,7 +158,7 @@ export class SuiTransport implements ITransport {
             return resp.transactionFailed(result.err)
         }
 
-        const objectChange = resolveObjectCreatedByType(result.ok, GAME_OBJECT_TYPE, resp)
+        const objectChange = await resolveObjectCreatedByType(this.suiClient, result.ok, GAME_STRUCT_TYPE)
         if (objectChange === undefined) return
 
         console.log('Transaction Result:', objectChange)
@@ -200,28 +177,58 @@ export class SuiTransport implements ITransport {
 
         const suiClient = this.suiClient
 
-
         const exist = await this.getPlayerProfile(wallet.walletAddr)
 
-        if (exist) {
-            throw new Error('Player profile already exists')
-        }
         const transaction = new Transaction()
-        transaction.moveCall({
-            target: `${PACKAGE_ID}::profile::create_profile`,
-            arguments: [
-                transaction.pure.string(params.nick),
-                transaction.pure.option('address', params.pfp),
-            ],
-        })
 
-        const result = await wallet.send(transaction, suiClient, resp)
-        if ('err' in result) {
-            return resp.transactionFailed(result.err)
+        let objectChange
+
+        if (exist) {
+            const profileObjectRef = await getOwnedObjectRef(this.suiClient, exist.addr, PROFILE_STRUCT_TYPE)
+
+            if (profileObjectRef === undefined) {
+                return resp.retryRequired('Cannot find player profile object ref')
+            }
+
+            transaction.moveCall({
+                target: `${PACKAGE_ID}::profile::update_profile`,
+                arguments: [
+                    transaction.objectRef(profileObjectRef),
+                    transaction.pure.string(params.nick),
+                    transaction.pure.option('address', params.pfp),
+                ],
+            })
+            const result = await wallet.send(transaction, suiClient, resp)
+            if ('err' in result) {
+                return resp.transactionFailed(result.err)
+            }
+
+            objectChange = await resolveObjectMutatedByType(this.suiClient, result.ok, PROFILE_STRUCT_TYPE)
+        } else {
+            transaction.moveCall({
+                target: `${PACKAGE_ID}::profile::create_profile`,
+                arguments: [
+                    transaction.pure.string(params.nick),
+                    transaction.pure.option('address', params.pfp),
+                ],
+            })
+            const result = await wallet.send(transaction, suiClient, resp)
+            if ('err' in result) {
+                return resp.transactionFailed(result.err)
+            }
+
+            objectChange = await resolveObjectCreatedByType(this.suiClient, result.ok, PROFILE_STRUCT_TYPE)
+
         }
 
-        const objectChange = resolveObjectCreatedByType(result.ok, GAME_OBJECT_TYPE, resp)
-        if (objectChange === undefined) return
+        if (objectChange) {
+            return resp.succeed({
+                profile: { nick: params.nick, pfp: params.pfp, addr: wallet.walletAddr },
+                signature: objectChange.digest,
+            })
+        } else {
+            return resp.transactionFailed('Object change not found')
+        }
     }
 
     async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
@@ -253,7 +260,9 @@ export class SuiTransport implements ITransport {
         const suiClient = this.suiClient
         coerceWallet(wallet)
 
-        if (createProfileIfNeeded) {
+        const playerProfile = await this.getPlayerProfile(wallet.walletAddr)
+
+        if (playerProfile === undefined && createProfileIfNeeded) {
             let res = new ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>()
             await this.createPlayerProfile(wallet, { nick: wallet.walletAddr.substring(0, 6) }, res)
         }
@@ -269,25 +278,13 @@ export class SuiTransport implements ITransport {
             console.error('Cannot join: game already full: ', game.maxPlayers)
             return
         }
-        // TODO: make this a procedure
-        const objRes: SuiObjectResponse = await suiClient.getObject({
-            id: gameAddr,
-            options: { showOwner: true },
-        })
-        let found = false
-        const owner: ObjectOwner | null = objRes.data?.owner ? objRes.data.owner : null
-        const objectId = objRes.data?.objectId
-        if (!owner || !objectId) {
-            return resp.transactionFailed('get game object failed')
+
+        const gameAccountObjRef = await getSharedObjectRef(this.suiClient, gameAddr, true)
+
+        if (gameAccountObjRef === undefined) {
+            resp.retryRequired(`Cannot find game object: ${gameAddr}`)
+            return
         }
-        if (!(owner instanceof Object && 'Shared' in owner)) {
-            return resp.transactionFailed('get game object onwer failed')
-        }
-        const shared = owner.Shared
-        if (!('initial_shared_version' in shared)) {
-            return resp.transactionFailed('game object is not shared')
-        }
-        const game_init_version = shared.initial_shared_version
 
         const transaction = new Transaction()
 
@@ -297,11 +294,7 @@ export class SuiTransport implements ITransport {
         transaction.moveCall({
             target: `${PACKAGE_ID}::game::join_game`,
             arguments: [
-                transaction.sharedObjectRef({
-                    objectId: gameAddr,
-                    initialSharedVersion: game_init_version,
-                    mutable: false,
-                }),
+                transaction.sharedObjectRef(gameAccountObjRef),
                 transaction.pure.u16(position),
                 transaction.pure.u64(amount),
                 transaction.pure.u64(verifyKey),
@@ -518,15 +511,8 @@ export class SuiTransport implements ITransport {
     }
 
     async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
-        const suiClient = this.suiClient;
-        const resp: SuiObjectResponse = await suiClient.getObject({
-            id: addr,
-            options: {
-                showBcs: true,
-                showType: true
-            }
-        })
-        return parseObjectData(parseSingleObjectResponse(resp), ServerParser)
+        const resp = await this.suiClient.getOwnedObjects({ owner: addr, filter: { StructType: SERVER_STRUCT_TYPE}})
+        return parseObjectData(parseFirstObjectResponse(resp), ServerParser)
     }
 
     async getRegistration(addr: string): Promise<RegistrationAccount | undefined> {
@@ -687,75 +673,4 @@ export class SuiTransport implements ITransport {
     ): Promise<void> {
         throw new Error('Method not implemented.')
     }
-}
-
-function resolveObjectCreatedByType<T, E>(
-    result: TxResult,
-    objectType: string,
-    resp: ResponseHandle<T, E>
-): SuiObjectChangeCreated | undefined {
-    if (!('objectChanges' in result)) {
-        resp.transactionFailed('Object changes not found in transaction result')
-        return undefined
-    }
-
-    const objectChange = result.objectChanges?.find(c => c.type == 'created' && c.objectType == objectType)
-    if (objectChange === undefined || objectChange.type !== 'created') {
-        resp.transactionFailed('Game object is missing')
-        return undefined
-    }
-
-    return objectChange
-}
-
-function parseMultiObjectResponse(resp: PaginatedObjectsResponse): SuiObjectData[] {
-    if ('error' in resp) {
-        console.error(resp.error)
-        return []
-    }
-    const objData = resp.data.map(x => x.data).filter((x): x is SuiObjectData => !!x)
-    return objData
-}
-
-function parseFirstObjectResponse(resp: PaginatedObjectsResponse): SuiObjectData | undefined {
-    if ('error' in resp) {
-        console.error(resp.error)
-        return undefined
-    }
-    const objData = resp.data.at(0)?.data
-    return objData ? objData : undefined
-}
-
-function parseSingleObjectResponse(resp: SuiObjectResponse): SuiObjectData | undefined {
-    if ('error' in resp) {
-        console.error(resp.error)
-        return undefined
-    }
-    const objData = resp.data
-    return objData ? objData : undefined
-}
-
-function parseObjectData<T, S extends BcsType<S['$inferInput']>>(
-    objData: SuiObjectData | undefined,
-    parser: Parser<T, S>,
-): undefined | T {
-    if (objData === undefined) {
-        return undefined
-    }
-
-    const data = objData.bcs
-
-    if (!data) {
-        console.warn('BCS data is empty')
-        return undefined
-    }
-
-    if (data.dataType === 'package') {
-        console.error('Not a move object')
-        return undefined
-    }
-
-    const raw = parser.schema.parse(fromBase64(data.bcsBytes))
-
-    return parser.transform(raw)
 }
