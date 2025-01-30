@@ -212,7 +212,7 @@ async fn publish(
         .await
         .expect("Arweave uploading wasm bundle failed");
 
-    let uri = match chain => {
+    let uri = match chain {
         "solana" => {
             let metadata = make_metadata(
                 chain,
@@ -229,9 +229,9 @@ async fn publish(
             println!("Metadata URL(on Arweave): {}", meta_addr);
             meta_addr
         },
-        "sui" => bundle_addr // moved here and reassigned to uri
+        "sui" => bundle_addr.clone(), // moved here and reassigned to uri
         _ => unimplemented!()
-    }
+    };
 
     let params = PublishGameParams {
         uri,

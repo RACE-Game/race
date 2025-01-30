@@ -15,7 +15,7 @@ const RegistrationAccountSchema = bcs.struct('RegistrationAccount', {
     addr: Address,
     isPrivate: bcs.bool(),
     size: bcs.u16(),
-    owner: Address,
+    owner: bcs.option(Address),
     games: bcs.vector(GameRegistrationSchema),
 })
 
