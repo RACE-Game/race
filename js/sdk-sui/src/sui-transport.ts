@@ -255,7 +255,7 @@ export class SuiTransport implements ITransport {
 
         if (createProfileIfNeeded) {
             let res = new ResponseHandle<CreatePlayerProfileResponse, CreatePlayerProfileError>()
-            await this.createPlayerProfile(wallet, { nick: 'RacePlayer' }, res)
+            await this.createPlayerProfile(wallet, { nick: wallet.walletAddr.substring(0, 6) }, res)
         }
 
         // get game object for token info and object ref
