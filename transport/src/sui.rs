@@ -1124,9 +1124,17 @@ impl TransportT for SuiTransport {
         }))
     }
 
+    // The param `address` is the one stored as `transactor_addr` in
+    // the on-chain Game Object, thus the server should be one and only one server
+    // object owned by this `address`
     async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>> {
-        let server_id = parse_object_id(addr)?;
-        let server_obj = self.get_move_object::<ServerObject>(server_id).await?;
+        let server_ref = self.get_owned_object_ref(
+            self.active_addr,
+            SuiObjectDataFilter::StructType(
+                new_structtag(&format!("{}::server::Server", self.package_id), None)?
+            )
+        ).await?;
+        let server_obj = self.get_move_object::<ServerObject>(server_ref.0).await?;
 
         Ok(Some(server_obj.into_account()))
     }
@@ -1223,17 +1231,6 @@ impl SuiTransport {
         Ok(self.client.read_api().get_reference_gas_price().await.map_err(|e| TransportError::GetGasPriceError(e.to_string()))?)
     }
 
-    // Get raw balance availble from all coins in the returned coin page
-    async fn get_raw_balance(&self, coin_type: Option<String>) -> Result<u64> {
-        let coin_page: CoinPage = self.client
-            .coin_read_api()
-            .get_coins(self.active_addr, coin_type, None, Some(50))
-            .await
-            .map_err(|e| TransportError::GetBalanceError(e.to_string()))?;
-        let balance = coin_page.data.into_iter().map(|c: Coin| c.balance).sum();
-        Ok(balance)
-    }
-
     async fn estimate_gas(&self, tx_data: TransactionData) -> Result<u64> {
         let dry_run = self.client.read_api()
             .dry_run_transaction_block(tx_data)
@@ -1314,8 +1311,8 @@ impl SuiTransport {
             .get_owned_objects(
                 owner,
                 query,
-                None,
-                None
+                None,           // cursor
+                Some(1)         // limit
             ).await.map_err(|e| Error::TransportError(e.to_string()))?
             .data;
 
@@ -1360,6 +1357,7 @@ impl SuiTransport {
         Ok(!data.is_empty())
     }
 
+    // Get the object ref for a shared object
     async fn get_object_ref(&self, object_id: ObjectID) -> Result<ObjectRef> {
         let response = self.client
             .read_api()
@@ -1593,17 +1591,16 @@ mod tests {
     // helper fns to generate some large structures for tests
     fn make_game_params() -> CreateGameAccountParams {
         // update entry type if needed
-        // let entry_type = EntryType::Cash { max_deposit: 900_000_000,
-        //                                    min_deposit: 300_000_000 }; // 0.1 SUI
-        let entry_type = EntryType::Ticket { amount: 300_000_000 }; // 0.1 SUI
+        let entry_type = EntryType::Cash { max_deposit: 200_000_000,
+                                           min_deposit: 100_000_000 }; // 0.1 SUI
         CreateGameAccountParams {
             title: "Race Devnet Test".into(),
             bundle_addr: SuiTransport::rand_account_str_addr(),
             token_addr: COIN_SUI_PATH.into(),
-            max_players: 10,
+            max_players: 9,
             entry_type,
             recipient_addr: TEST_RECIPIENT_ID.to_string(),
-            data: vec![8u8, 1u8, 2u8, 3u8, 4u8],
+            data: vec![128,150,152,0,0,0,0,0,0,45,49,1,0,0,0,0,0,0,0,0,0,0,0,0,30,0,1,0,94,208,178,0,0,0,0,0],
         }
     }
 
@@ -1863,7 +1860,7 @@ mod tests {
             None
         ).await.unwrap();
 
-        let game_addr = TEST_TICKET_GAME_ID.to_string();
+        let game_addr = TEST_CASH_GAME_ID.to_string();
         let reg_params = RegisterGameParams {
             game_addr: game_addr.clone(),
             reg_addr: TEST_REGISTRY.to_string()
