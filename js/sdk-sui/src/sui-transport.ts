@@ -203,7 +203,7 @@ export class SuiTransport implements ITransport {
 
         const exist = await this.getPlayerProfile(wallet.walletAddr)
 
-        if (!exist) {
+        if (exist) {
             throw new Error('Player profile already exists')
         }
         const transaction = new Transaction()
