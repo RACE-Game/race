@@ -826,10 +826,10 @@ impl TransportT for SuiTransport {
             entry_lock_create_arg
         );
 
-        let complete_settle_fn = new_identifier("complete_settle")?;
-        let ckpt: CheckpointOnSui = checkpoint.into();
-        let raw_checkpoint = bcs::to_bytes(&ckpt).map_err(|_| Error::MalformedCheckpoint)?;
-        let complete_args = vec![
+        let complete_settle_fn = new_identifier("finish_settle")?;
+        let sui_checkpoint: CheckpointOnSui = checkpoint.into();
+        let raw_checkpoint = bcs::to_bytes(&sui_checkpoint).map_err(|_| Error::MalformedCheckpoint)?;
+        let finish_args = vec![
             add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
             add_input(&mut ptb, new_pure_arg(&accept_deposits)?)?,
             add_input(&mut ptb, new_pure_arg(&next_settle_version)?)?,
@@ -843,7 +843,7 @@ impl TransportT for SuiTransport {
             module.clone(),
             complete_settle_fn,
             vec![new_typetag(&game_obj.token_addr, None)?],
-            complete_args
+            finish_args
         );
 
         // actually send the transaction
@@ -1126,7 +1126,7 @@ impl TransportT for SuiTransport {
     // object owned by this `address`
     async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>> {
         let server_ref = self.get_owned_object_ref(
-            self.active_addr,
+            parse_sui_addr(addr)?,
             SuiObjectDataFilter::StructType(
                 new_structtag(&format!("{}::server::Server", self.package_id), None)?
             )
