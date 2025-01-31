@@ -2,6 +2,7 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 /// Transport for Sui blockchain
+use async_stream::stream;
 use async_trait::async_trait;
 use futures::{Stream, StreamExt};
 use bcs;
@@ -38,7 +39,8 @@ use sui_sdk::{
     SuiClient, SuiClientBuilder, SUI_COIN_TYPE, SUI_DEVNET_URL
 };
 use tracing::{error, info, warn};
-
+use tokio::time;
+use std::time::Duration;
 use std::{path::PathBuf, pin::Pin};
 use std::str::FromStr;
 use std::collections::BTreeMap;
@@ -674,48 +676,50 @@ impl TransportT for SuiTransport {
         );                      // this returns the needed `checks_passed` input
 
         // prepare settles
-        let mut result_settles: Vec<Argument> = Vec::new();
-        for Settle { player_id, amount, eject } in settles {
-            println!("Prepare settle for {}, amoutn = {}, eject: {}",
-                     player_id, amount, eject);
-            let args = vec![
-                add_input(&mut ptb, new_pure_arg(&player_id)?)?,
-                add_input(&mut ptb, new_pure_arg(&amount)?)?,
-                add_input(&mut ptb, new_pure_arg(&eject)?)?,
+        if !settles.is_empty() {
+            let mut result_settles: Vec<Argument> = Vec::new();
+            for Settle { player_id, amount, eject } in settles {
+                println!("Prepare settle for {}, amoutn = {}, eject: {}",
+                         player_id, amount, eject);
+                let args = vec![
+                    add_input(&mut ptb, new_pure_arg(&player_id)?)?,
+                    add_input(&mut ptb, new_pure_arg(&amount)?)?,
+                    add_input(&mut ptb, new_pure_arg(&eject)?)?,
+                ];
+                let settle_ret = ptb.programmable_move_call(
+                    self.package_id,
+                    module.clone(),
+                    new_identifier("create_settle")?,
+                    vec![],         // no type argument
+                    args
+                );
+                result_settles.push(settle_ret);
+            }
+
+            // process settles in batch
+            let path = format!(
+                "{}::settle::Settle",
+                self.package_id.to_hex_uncompressed()
+            );
+            let settles_arg = ptb.command(Command::make_move_vec(
+                Some(new_typetag(&path, None)?),
+                result_settles,
+            ));
+            let coins_arg = ptb.make_obj_vec(settle_coins)?;
+            let handle_settle_args = vec![
+                add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
+                settles_arg,
+                coins_arg,
+                checks_passed
             ];
-            let settle_ret = ptb.programmable_move_call(
+            ptb.programmable_move_call(
                 self.package_id,
                 module.clone(),
-                new_identifier("create_settle")?,
-                vec![],         // no type argument
-                args
+                new_identifier("handle_settle")?,
+                vec![new_typetag(&game_obj.token_addr, None)?],
+                handle_settle_args
             );
-            result_settles.push(settle_ret);
         }
-
-        // process settles in batch
-        let path = format!(
-            "{}::settle::Settle",
-            self.package_id.to_hex_uncompressed()
-        );
-        let settles_arg = ptb.command(Command::make_move_vec(
-            Some(new_typetag(&path, None)?),
-            result_settles,
-        ));
-        let coins_arg = ptb.make_obj_vec(settle_coins)?;
-        let handle_settle_args = vec![
-            add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
-            settles_arg,
-            coins_arg,
-            checks_passed
-        ];
-        ptb.programmable_move_call(
-            self.package_id,
-            module.clone(),
-            new_identifier("handle_settle")?,
-            vec![new_typetag(&game_obj.token_addr, None)?],
-            handle_settle_args
-        );
 
         // prepare transfers
         let handle_transfer_fn = new_identifier("handle_transfer")?;
@@ -852,9 +856,9 @@ impl TransportT for SuiTransport {
             gas_coin.balance,
             gas_price
         );
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Needed gase fees {gas_fees} and transport has balance: {}",
-                 gas_coin.balance);
+        // let gas_fees = self.estimate_gas(tx_data.clone()).await?;
+        // println!("Needed gase fees {gas_fees} and transport has balance: {}",
+        //          gas_coin.balance);
 
         let response = self.send_transaction(tx_data).await?;
         println!("Game settlement tx digest: {}", response.digest.to_string());
@@ -1066,7 +1070,23 @@ impl TransportT for SuiTransport {
     }
 
     async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>> {
-        todo!()
+        Ok(Box::pin(stream! {
+            let mut access_version = 0;
+            loop {
+                match self.get_game_account(addr).await {
+                    Ok(game_account_opt) => {
+                        if let Some(game_account) = game_account_opt {
+                            if game_account.access_version > access_version {
+                                access_version = game_account.access_version;
+                                yield Ok(game_account);
+                            }
+                        }
+                    }
+                    Err(e) => yield Err(Error::TransportError(e.to_string())),
+                }
+                time::sleep(Duration::from_secs(5)).await;
+            }
+        }))
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
@@ -1224,7 +1244,6 @@ impl SuiTransport {
             // add a small buffer to the estimated gas fees
             Ok(net_gas_fees as u64 + 50)
         }
-
     }
 
     // The `initial_shared_version` is needed for mutating an on-chain object

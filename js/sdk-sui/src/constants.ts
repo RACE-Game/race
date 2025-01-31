@@ -1,4 +1,4 @@
-export const PACKAGE_ID = "0xe8df1a1cc2a14786ccfc554e47526ef26c7512f827b1760cd70bd490036e277d"
+export const PACKAGE_ID = "0xd867e50728e319a23d2972895f50448b1386c8bd4e21c669236a5b37fc45c2c3"
 export const PROFILE_STRUCT_TYPE = `${PACKAGE_ID}::profile::PlayerProfile`
 export const SERVER_STRUCT_TYPE = `${PACKAGE_ID}::server::Server`
 export const GAME_STRUCT_TYPE = `${PACKAGE_ID}::game::Game`

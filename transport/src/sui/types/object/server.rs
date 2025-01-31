@@ -10,9 +10,9 @@ pub struct ServerObject {
 
 impl ServerObject {
     pub fn into_account(self) -> ServerAccount {
-        let ServerObject { addr, endpoint, .. } = self;
+        let ServerObject { owner, endpoint, .. } = self;
         ServerAccount {
-            addr: addr.to_string(),
+            addr: owner.to_string(),
             endpoint
         }
     }
