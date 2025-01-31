@@ -828,7 +828,7 @@ impl TransportT for SuiTransport {
 
         let complete_settle_fn = new_identifier("complete_settle")?;
         let ckpt: CheckpointOnSui = checkpoint.into();
-        let raw_checkpoint = bcs::to_bytes(&ckpt).map_err(|_| Error::MalformedCheckpoint);
+        let raw_checkpoint = bcs::to_bytes(&ckpt).map_err(|_| Error::MalformedCheckpoint)?;
         let complete_args = vec![
             add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
             add_input(&mut ptb, new_pure_arg(&accept_deposits)?)?,

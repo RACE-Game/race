@@ -85,7 +85,7 @@ export function parseFirstObjectResponse(resp: PaginatedObjectsResponse): SuiObj
         return undefined
     }
     const objData = resp.data.at(0)?.data
-    return objData ? objData : undefined
+    return objData ?? undefined
 }
 
 export function parseSingleObjectResponse(resp: SuiObjectResponse): SuiObjectData | undefined {

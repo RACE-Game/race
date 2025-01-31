@@ -129,6 +129,10 @@ const GameSchema = bcs.struct('Game', {
 export const GameAccountParser: Parser<GameAccount, typeof GameSchema> = {
     schema: GameSchema,
     transform: (input: typeof GameSchema.$inferType): GameAccount => {
+
+        console.info('input.checkpointOnChain =>', input.checkpointOnChain)
+        console.info('input.transactorAddr =>', input.transactorAddr)
+
         return {
             addr: input.addr,
             title: input.title,

@@ -511,7 +511,11 @@ export class SuiTransport implements ITransport {
     }
 
     async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
-        const resp = await this.suiClient.getOwnedObjects({ owner: addr, filter: { StructType: SERVER_STRUCT_TYPE}})
+        const resp = await this.suiClient.getOwnedObjects({
+            owner: addr,
+            filter: { StructType: SERVER_STRUCT_TYPE},
+            options: { showBcs: true },
+        })
         return parseObjectData(parseFirstObjectResponse(resp), ServerParser)
     }
 

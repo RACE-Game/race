@@ -17,7 +17,7 @@ export const GameBundleParser: Parser<GameBundle, typeof GameBundleSchema> = {
             addr: input.addr,
             uri: input.uri,
             name: input.name,
-            data: Uint8Array.of(0)
+            data: new Uint8Array(),
         }
     }
 }

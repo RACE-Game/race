@@ -134,6 +134,7 @@ export class AppClient extends BaseClient {
             const bundleCacheKey = makeBundleCacheKey(transport.chain, gameAccount.bundleAddr)
 
             const gameBundle = await getGameBundle(transport, storage, bundleCacheKey, gameAccount.bundleAddr)
+            console.info('Game bundle:', gameBundle)
 
             const transactorAddr = gameAccount.transactorAddr
             if (transactorAddr === undefined || gameAccount.checkpointOnChain === undefined) {
