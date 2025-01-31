@@ -62,6 +62,7 @@ use race_core::{
 mod constants;
 mod types;
 mod utils;
+mod nft;
 pub use constants::*;
 pub use types::*;
 pub use utils::*;
@@ -1069,7 +1070,16 @@ impl TransportT for SuiTransport {
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
-        todo!()
+        let bundle_id = parse_object_id(addr)?;
+        let bundle_obj = self.get_move_object::<nft::BundleObject>(bundle_id).await?;
+        let uri: &str = bundle_obj.uri.trim_end_matches('\0');
+
+        info!("Fetch wasm game bundle from {}", uri);
+        let data = nft::fetch_wasm_from_game_bundle(uri)
+            .await
+            .map_err(|e| TransportError::NetworkError(e.to_string()))?;
+
+        Ok(Some(bundle_obj.into_bundle(data)))
     }
 
     async fn get_player_profile(&self, addr: &str) -> Result<Option<PlayerProfile>> {
