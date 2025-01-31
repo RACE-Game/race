@@ -297,7 +297,7 @@ export class SuiTransport implements ITransport {
                 transaction.sharedObjectRef(gameAccountObjRef),
                 transaction.pure.u16(position),
                 transaction.pure.u64(amount),
-                transaction.pure.u64(verifyKey),
+                transaction.pure.string(verifyKey),
                 coin,
             ],
             typeArguments: [game.tokenAddr],
