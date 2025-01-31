@@ -869,10 +869,10 @@ impl TransportT for SuiTransport {
 
     async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
         let game_id = parse_object_id(&params.addr)?;
-        let game_version = self.get_initial_shared_version(game_id).await?;
-        let game_obj = self.get_move_object::<GameObject>(game_id).await?;
         let module = new_identifier("game")?;
         let reject_fn = new_identifier("reject_deposits")?;
+        let game_version = self.get_initial_shared_version(game_id).await?;
+        let game_obj = self.get_move_object::<GameObject>(game_id).await?;
         let gas_coin = self.get_max_coin(None).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_move_call(
@@ -969,12 +969,12 @@ impl TransportT for SuiTransport {
         let game_id = parse_object_id(&params.game_addr)?;
         let registry_id = parse_object_id(&params.reg_addr)?;
         let clock_id = parse_object_id(CLOCK_ID)?;
+        let module = new_identifier("registry")?;
+        let reg_game_fn = new_identifier("register_game")?;
         let game_version = self.get_initial_shared_version(game_id).await?;
         let registry_version = self.get_initial_shared_version(registry_id).await?;
         let clock_version = self.get_initial_shared_version(clock_id).await?;
         let game_obj = self.get_move_object::<GameObject>(game_id).await?;
-        let module = new_identifier("registry")?;
-        let reg_game_fn = new_identifier("register_game")?;
         let coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_move_call(
@@ -1022,10 +1022,10 @@ impl TransportT for SuiTransport {
         println!("From registery: {}", params.reg_addr);
 
         let game_id = parse_object_id(&params.game_addr)?;
-        let registry_id = parse_object_id(&params.reg_addr)?;
-        let registry_version = self.get_initial_shared_version(registry_id).await?;
         let module = new_identifier("registry")?;
         let unreg_game_fn = new_identifier("unregister_game")?;
+        let registry_id = parse_object_id(&params.reg_addr)?;
+        let registry_version = self.get_initial_shared_version(registry_id).await?;
         let coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_move_call(
@@ -1078,50 +1078,17 @@ impl TransportT for SuiTransport {
 
         println!("Addr: {:?}", addr);
 
-        let package = parse_account_addr(&self.package_id.to_hex_uncompressed())?;
-
-        let filter_opts = Some(SuiObjectDataFilter::StructType(
-            // 0xxxxx::profile::PlayerProfile
-            StructTag {
-                address: package,
-                module: new_identifier("profile")?,
-                name: new_identifier("PlayerProfile")?,
-                type_params: Default::default(),
-            }
-        ));
-        let query = {
-            Some(SuiObjectResponseQuery::new(
-                filter_opts,
-                None,
-            ))
-        };
-        let data: Vec<SuiObjectResponse> = self.client.read_api().get_owned_objects(
+        let profile_ref = self.get_owned_object_ref(
             addr,
-            query,
-            None,
-            None
-        ).await.map_err(|e| Error::TransportError(e.to_string()))?.data;
+            SuiObjectDataFilter::StructType(
+                new_structtag(&format!("{}::profile::PlayerProfile",
+                                       self.package_id), None)?
+            )
+        ).await?;
+        let profile_obj = self.get_move_object::<PlayerProfileObject>(profile_ref.0)
+            .await?;
 
-        let content = data.first()
-            .and_then(|first_item| first_item.data.clone())
-            .and_then(|data| data.content)
-            .ok_or(Error::PlayerProfileNotFound)?;
-
-        let fields = match content {
-            SuiParsedData::MoveObject(
-                SuiParsedMoveObject {
-                    fields: SuiMoveStruct::WithFields(fields) | SuiMoveStruct::WithTypes { fields, .. },
-                    ..
-                },
-            ) => fields,
-            _ => return Err(Error::PlayerProfileNotFound),
-        };
-
-        return Ok(Some(PlayerProfile {
-            nick: fields.get("nick").map(|mv| mv.to_string()).unwrap_or("UNKNOWN".to_string()),
-            pfp: fields.get("pfp").map(|mv| mv.to_string()),
-            addr: addr.to_string(),
-        }))
+        Ok(Some(profile_obj.into_profile()))
     }
 
     // The param `address` is the one stored as `transactor_addr` in
@@ -1351,8 +1318,6 @@ impl SuiTransport {
                 None
             ).await.map_err(|e| Error::TransportError(e.to_string()))?
             .data;
-
-        info!("Got reponses data {:?}", data[0]);
 
         Ok(!data.is_empty())
     }
