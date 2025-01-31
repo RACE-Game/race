@@ -83,6 +83,14 @@ impl TransportBuilder {
                             .rpc
                             .clone(),
                     );
+                    self.keyfile = Some(
+                        config
+                            .sui
+                            .as_ref()
+                            .ok_or(TransportError::InvalidConfig("Keyfile not found".into()))?
+                            .keyfile
+                            .clone(),
+                    );
                 }
                 ChainType::Facade => {
                     self.address = Some(config.facade.as_ref().ok_or(TransportError::InvalidConfig("Address unspecified".into()))?.address.clone());

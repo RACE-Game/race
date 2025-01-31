@@ -27,6 +27,7 @@ pub struct BnbConfig {
 #[derive(Deserialize, Clone)]
 pub struct SuiConfig {
     pub rpc: String,
+    pub keyfile: PathBuf,
 }
 
 #[derive(Deserialize, Clone)]
