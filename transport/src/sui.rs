@@ -279,7 +279,7 @@ impl TransportT for SuiTransport {
     }
 
     async fn join(&self, params: JoinParams) -> Result<()> {
-        println!("{} joining game {}", self.active_addr, params.game_addr);
+        println!("Player {} joining game {}", self.active_addr, params.game_addr);
 
         let module = new_identifier("game")?;
         let join_fn = new_identifier("join_game")?;
@@ -480,7 +480,7 @@ impl TransportT for SuiTransport {
             // 2.2. add slot id, token_addr and slot type info
             let path = format!(
                 "{}::recipient::RecipientSlotShare",
-                self.package_id.to_hex_uncompressed(),
+                self.package_id,
             );
             let shares = ptb.command(Command::make_move_vec(
                 Some(new_typetag(&path, None)?),
@@ -627,6 +627,7 @@ impl TransportT for SuiTransport {
             accept_deposits
         } = params;
         println!("Settling for game: {}", addr);
+        println!("Need to process {} settles", settles.len());
         if settles.len() + transfers.len() + awards.len() + 10 > 1024 {
             return Err(Error::TransportError("Settles exceed the 1024 limit".into()));
         }
@@ -635,25 +636,6 @@ impl TransportT for SuiTransport {
         let game_ref = self.get_object_ref(game_id).await?;
         let game_version = self.get_initial_shared_version(game_id).await?;
         let game_obj = self.get_move_object::<GameObject>(game_id).await?;
-        // get coins from settle players
-        let mut settle_players: Vec<SuiAddress> = Vec::with_capacity(settles.len());
-        for settle in settles.iter() {
-            game_obj.players.iter()
-                .find(|p| p.access_version == settle.player_id)
-                .map(|p| settle_players.push(p.addr));
-        }
-        let mut settle_coins: Vec<ObjectArg> = Vec::with_capacity(settles.len());
-        for player in settle_players {
-            let coin_ref = self.get_settle_coin_ref(
-                player, Some(game_obj.token_addr.clone())).await?;
-            settle_coins.push(ObjectArg::ImmOrOwnedObject(coin_ref));
-        }
-        println!("Expected {} settle coins, got {}",
-                 settles.len(), settle_coins.len());
-        if settles.len() != settle_coins.len() {
-            return Err(Error::InvalidSettle("Settles didn't match settle coins".into()))
-        }
-
         let mut ptb = PTB::new();
         // run prechecks for settlemenet
         let game_obj_arg = ObjectArg::SharedObject {
@@ -667,15 +649,15 @@ impl TransportT for SuiTransport {
             add_input(&mut ptb, new_pure_arg(&settle_version)?)?,
             add_input(&mut ptb, new_pure_arg(&next_settle_version)?)?,
         ];
+        // this returns the needed `checks_passed` input
         let checks_passed = ptb.programmable_move_call(
             self.package_id,
             module.clone(),
             new_identifier("pre_settle_checks")?,
             vec![new_typetag(&game_obj.token_addr, None)?],
             pre_check_args
-        );                      // this returns the needed `checks_passed` input
-
-        // prepare settles
+        );
+        // process settles but skip when there is none
         if !settles.is_empty() {
             let mut result_settles: Vec<Argument> = Vec::new();
             for Settle { player_id, amount, eject } in settles {
@@ -696,20 +678,14 @@ impl TransportT for SuiTransport {
                 result_settles.push(settle_ret);
             }
 
-            // process settles in batch
-            let path = format!(
-                "{}::settle::Settle",
-                self.package_id.to_hex_uncompressed()
-            );
-            let settles_arg = ptb.command(Command::make_move_vec(
+            let path = format!("{}::settle::Settle", self.package_id);
+            let settles_vec = ptb.command(Command::make_move_vec(
                 Some(new_typetag(&path, None)?),
                 result_settles,
             ));
-            let coins_arg = ptb.make_obj_vec(settle_coins)?;
             let handle_settle_args = vec![
                 add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
-                settles_arg,
-                coins_arg,
+                settles_vec,
                 checks_passed
             ];
             ptb.programmable_move_call(
@@ -777,10 +753,7 @@ impl TransportT for SuiTransport {
                 if identifier.eq(bonus_identifier) {
                     let bonus_init_version = self.get_initial_shared_version(*id).await?;
                     let bonus_type_arg = if *amount == 0 { // NFT
-                        let path = format!(
-                            "{}::game::GameNFT",
-                            self.package_id.to_hex_uncompressed()
-                        );
+                        let path = format!("{}::game::GameNFT", self.package_id);
                         vec![new_typetag(&path, None)?]
                     } else { // Coin
                         vec![new_typetag(COIN_TYPE_PATH, Some(token_addr))?]
@@ -856,9 +829,6 @@ impl TransportT for SuiTransport {
             gas_coin.balance,
             gas_price
         );
-        // let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        // println!("Needed gase fees {gas_fees} and transport has balance: {}",
-        //          gas_coin.balance);
 
         let response = self.send_transaction(tx_data).await?;
         println!("Game settlement tx digest: {}", response.digest.to_string());
@@ -1547,8 +1517,7 @@ impl SuiTransport {
 
     // get a canonical string representation of the format: 0xpackage_id::module::name
     fn get_canonical_path(&self, module: &str, name: &str) -> String {
-        format!("{}::{}::{}",
-                &self.package_id.to_hex_uncompressed(), module, name)
+        format!("{}::{}::{}", &self.package_id, module, name)
     }
 
     // generate a random address for some testing cases
