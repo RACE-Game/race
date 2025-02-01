@@ -65,7 +65,6 @@ mod constants;
 mod types;
 mod utils;
 mod nft;
-mod payment;
 pub use constants::*;
 pub use types::*;
 pub use utils::*;

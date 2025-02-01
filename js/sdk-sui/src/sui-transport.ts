@@ -49,11 +49,7 @@ import {
     RecipientSlotShareInit,
 } from '@race-foundation/sdk-core'
 import { Chain } from './common'
-import {
-    ObjectOwner,
-    SuiClient,
-    SuiObjectResponse,
-} from '@mysten/sui/client'
+import { ObjectOwner, SuiClient, SuiObjectResponse } from '@mysten/sui/client'
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
 import {
     GameAccountParser,
@@ -61,7 +57,7 @@ import {
     PlayerPorfileParser,
     RegistrationAccountParser,
     RecipientAccountParser,
-    ServerParser
+    ServerParser,
 } from './types'
 import {
     CLOCK_ID,
@@ -72,7 +68,17 @@ import {
     SERVER_STRUCT_TYPE,
     SUI_ICON_URL,
 } from './constants'
-import { coerceWallet, getOwnedObjectRef, getSharedObjectRef, parseFirstObjectResponse, parseMultiObjectResponse, parseObjectData, parseSingleObjectResponse, resolveObjectCreatedByType, resolveObjectMutatedByType } from './misc'
+import {
+    coerceWallet,
+    getOwnedObjectRef,
+    getSharedObjectRef,
+    parseFirstObjectResponse,
+    parseMultiObjectResponse,
+    parseObjectData,
+    parseSingleObjectResponse,
+    resolveObjectCreatedByType,
+    resolveObjectMutatedByType,
+} from './misc'
 
 export class SuiTransport implements ITransport {
     suiClient: SuiClient
@@ -129,15 +135,11 @@ export class SuiTransport implements ITransport {
                 break
             case 'ticket':
                 entryFunction = 'create_ticket_entry'
-                entry_type_args = [
-                    transaction.pure.u64(params.entryType.amount),
-                ]
+                entry_type_args = [transaction.pure.u64(params.entryType.amount)]
                 break
             case 'gating':
                 entryFunction = 'create_gating_entry'
-                entry_type_args = [
-                    transaction.pure.string(params.entryType.collection),
-                ]
+                entry_type_args = [transaction.pure.string(params.entryType.collection)]
                 break
             default:
                 entryFunction = 'create_disabled_entry'
@@ -207,10 +209,7 @@ export class SuiTransport implements ITransport {
         } else {
             transaction.moveCall({
                 target: `${PACKAGE_ID}::profile::create_profile`,
-                arguments: [
-                    transaction.pure.string(params.nick),
-                    transaction.pure.option('address', params.pfp),
-                ],
+                arguments: [transaction.pure.string(params.nick), transaction.pure.option('address', params.pfp)],
             })
             const result = await wallet.send(transaction, suiClient, resp)
             if ('err' in result) {
@@ -218,7 +217,6 @@ export class SuiTransport implements ITransport {
             }
 
             objectChange = await resolveObjectCreatedByType(this.suiClient, result.ok, PROFILE_STRUCT_TYPE)
-
         }
 
         if (objectChange) {
@@ -232,7 +230,6 @@ export class SuiTransport implements ITransport {
     }
 
     async getPlayerProfile(addr: string): Promise<PlayerProfile | undefined> {
-
         const resp = await this.suiClient.getOwnedObjects({
             owner: addr,
             filter: {
@@ -288,8 +285,43 @@ export class SuiTransport implements ITransport {
 
         const transaction = new Transaction()
 
-        // split coin for buyin
-        const [coin] = transaction.splitCoins(transaction.gas, [transaction.pure.u64(params.amount)])
+        const coinsResp = await suiClient.getCoins({ owner: wallet.walletAddr, coinType: game.tokenAddr })
+
+        let coins = coinsResp.data
+
+        const gasCoin = coins[coins.length - 1]
+
+        transaction.setGasPayment([{ objectId: gasCoin.coinObjectId, ...gasCoin }])
+        transaction.setGasBudget(1000000000n)
+
+        console.log('coins:', coins)
+
+        let amountToPay = 0n
+        let coinsToPay = []
+
+        for (let i = 0; i < coins.length; i++) {
+            const coin = coins[i]
+            amountToPay += BigInt(coin.balance)
+            if (amountToPay > amount) {
+                const split = amount - amountToPay + BigInt(coin.balance)
+                const coinToSplit = i == coins.length - 1 ? transaction.gas : coin.coinObjectId
+                console.log('coin to split:', coinToSplit, ', split amount: ', split)
+                const [pay] = transaction.splitCoins(coinToSplit, [split])
+                coinsToPay.push(pay)
+                break
+            } else {
+                coinsToPay.push(coin.coinObjectId)
+            }
+        }
+
+        if (amountToPay < amount) {
+            return resp.failed('insufficient-funds')
+        }
+
+        const payment = transaction.makeMoveVec({ elements: coinsToPay })
+
+        console.log('payment:', payment)
+
         // join the game
         transaction.moveCall({
             target: `${PACKAGE_ID}::game::join_game`,
@@ -298,7 +330,7 @@ export class SuiTransport implements ITransport {
                 transaction.pure.u16(position),
                 transaction.pure.u64(amount),
                 transaction.pure.string(verifyKey),
-                coin,
+                payment,
             ],
             typeArguments: [game.tokenAddr],
         })
@@ -499,13 +531,13 @@ export class SuiTransport implements ITransport {
     }
 
     async getGameBundle(addr: string): Promise<GameBundle | undefined> {
-        const suiClient = this.suiClient;
+        const suiClient = this.suiClient
         const resp: SuiObjectResponse = await suiClient.getObject({
             id: addr,
             options: {
                 showBcs: true,
-                showType: true
-            }
+                showType: true,
+            },
         })
         return parseObjectData(parseSingleObjectResponse(resp), GameBundleParser)
     }
@@ -513,7 +545,7 @@ export class SuiTransport implements ITransport {
     async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
         const resp = await this.suiClient.getOwnedObjects({
             owner: addr,
-            filter: { StructType: SERVER_STRUCT_TYPE},
+            filter: { StructType: SERVER_STRUCT_TYPE },
             options: { showBcs: true },
         })
         return parseObjectData(parseFirstObjectResponse(resp), ServerParser)
@@ -528,10 +560,7 @@ export class SuiTransport implements ITransport {
                 showType: true,
             },
         })
-        return parseObjectData(
-            parseSingleObjectResponse(resp),
-            RegistrationAccountParser
-        )
+        return parseObjectData(parseSingleObjectResponse(resp), RegistrationAccountParser)
     }
 
     async getRecipient(addr: string): Promise<RecipientAccount | undefined> {
@@ -543,10 +572,7 @@ export class SuiTransport implements ITransport {
                 showType: true,
             },
         })
-        return parseObjectData(
-            parseSingleObjectResponse(resp),
-            RecipientAccountParser
-        )
+        return parseObjectData(parseSingleObjectResponse(resp), RecipientAccountParser)
     }
 
     async getTokenDecimals(addr: string): Promise<number | undefined> {
@@ -614,10 +640,12 @@ export class SuiTransport implements ITransport {
     }
 
     async listTokenBalance(walletAddr: string, tokenAddrs: string[], storage?: IStorage): Promise<TokenBalance[]> {
-        return (await this.suiClient.getAllBalances({owner: walletAddr})).map(b => ({
-            addr: b.coinType,
-            amount: BigInt(b.totalBalance)
-        })).filter(t => tokenAddrs.includes(t.addr))
+        return (await this.suiClient.getAllBalances({ owner: walletAddr }))
+            .map(b => ({
+                addr: b.coinType,
+                amount: BigInt(b.totalBalance),
+            }))
+            .filter(t => tokenAddrs.includes(t.addr))
     }
 
     async listNfts(walletAddr: string): Promise<Nft[]> {
