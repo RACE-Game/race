@@ -65,9 +65,11 @@ mod constants;
 mod types;
 mod utils;
 mod nft;
+mod payment;
 pub use constants::*;
 pub use types::*;
 pub use utils::*;
+
 
 pub struct SuiTransport {
     // RPC node endpoint
@@ -286,26 +288,26 @@ impl TransportT for SuiTransport {
         let game_id = parse_object_id(&params.game_addr)?;
         let game_init_version = self.get_initial_shared_version(game_id).await?;
         let game_obj = self.get_move_object::<GameObject>(game_id).await?;
-
+        let token_addr = game_obj.token_addr.clone();
         if game_obj.players.len() >= game_obj.max_players as usize {
             return Err(Error::TransportError("Game is already full".into()));
         }
 
-        // split coin for deposit
         let mut ptb = PTB::new();
-        let token_addr = game_obj.token_addr.clone();
-        let coin_arg = if token_addr.eq(COIN_SUI_PATH) {
-            Argument::GasCoin
-        } else {
-            let payer_coin = self.get_payment_coin(
-                Some(token_addr.clone()), params.amount).await?;
-            add_input(
-                &mut ptb,
-                new_obj_arg(ObjectArg::ImmOrOwnedObject(payer_coin.object_ref()))?
-            )?
-        };
-        let amt_arg = vec![add_input(&mut ptb, new_pure_arg(&params.amount)?)?];
-        ptb.command(Command::SplitCoins(coin_arg, amt_arg));
+
+        // get player coins and merge them if there are more than one, then
+        // use the merged one for both payment and gas fees
+        let player_coins = self.prepare_payment_coin(
+            self.active_addr,
+            token_addr.clone(),
+            params.amount,
+            &mut ptb
+        ).await?;
+        let player_coins_arg = ptb.command(Command::make_move_vec(
+                Some(new_typetag(&token_addr, None)?),
+                player_coins,
+        ));
+
         // join game
         let join_args = vec![
             add_input(&mut ptb, new_obj_arg(ObjectArg::SharedObject {
@@ -316,7 +318,7 @@ impl TransportT for SuiTransport {
             add_input(&mut ptb, new_pure_arg(&params.position)?)?,
             add_input(&mut ptb, new_pure_arg(&params.amount)?)?,
             add_input(&mut ptb, new_pure_arg(&params.verify_key)?)?,
-            Argument::NestedResult(0, 0)
+            player_coins_arg
         ];
         ptb.command(Command::move_call(
             self.package_id,
@@ -332,7 +334,7 @@ impl TransportT for SuiTransport {
             self.active_addr,
             vec![gas_coin.object_ref()],
             ptb.finish(),
-            3_000_000,           // usually this costs 1,853,024 MIST
+            3_000_000,           // usually this costs ? MIST
             gas_price
         );
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
@@ -1160,42 +1162,74 @@ impl SuiTransport {
             .ok_or_else(|| Error::TransportError("No max coin found".to_string()))
     }
 
-    // Get the coin that has at least the given amount of balance for payment
-    // purposes such as bonus or deposits
-    async fn get_payment_coin(
+    // Get up to 50 coins and check if the total balance is equal to or bigger than
+    // the given amount.  Merge and split coins accordingly or abort upon any errors
+    async fn prepare_payment_coin(
         &self,
-        coin_type: Option<String>,
-        payment: u64
-    ) -> Result<Coin> {
-        let coins: CoinPage = self.client
+        addr: SuiAddress,
+        coin_type: String,
+        amount: u64,
+        ptb: &mut PTB,
+    ) -> Result<Vec<Argument>> {
+        let coin_page: CoinPage = self.client
             .coin_read_api()
-            .get_coins(self.active_addr, coin_type, None, Some(50))
+            .get_coins(addr, Some(coin_type.clone()), None, Some(50))
             .await
             .map_err(|e| TransportError::GetBalanceError(e.to_string()))?;
-        coins.data.into_iter()
-            .filter(|c| c.balance > payment + 100_000) // add a small buffer
-            .min_by_key(|c| c.balance)
-            .ok_or_else(|| Error::TransportError("No bonus coin found".to_string()))
-    }
 
-    async fn get_settle_coin_ref(
-        &self,
-        player_addr: SuiAddress,
-        coin_type: Option<String>
-    ) -> Result<ObjectRef> {
-        let coins: CoinPage = self.client
-            .coin_read_api()
-            .get_coins(player_addr, coin_type, None, Some(50))
-            .await
-            .map_err(|e| TransportError::GetBalanceError(e.to_string()))?;
-        coins.data
-            .first()
-            .and_then(|c| Some(c.object_ref()))
-            .ok_or_else(|| Error::TransportError("No settle coin found".to_string()))
+        if coin_page.data.is_empty() {
+            return Err(Error::TransportError(
+                format!("Failed to get coins from {}", addr))
+            );
+        }
+        let coins = coin_page.data;
+        // add a small buffer roughly equal to the estimated net gas for simple tx
+        // see https://docs.sui.io/concepts/tokenomics/gas-in-sui#gas-budget-examples
+        let total_balance = coins.iter().fold(0u64, |acc, c| acc + c.balance);
+        if total_balance < amount + 500_000u64 {
+            return Err(Error::TransportError(
+                format!("{} has insufficient balance for payment and gas", addr))
+            );
+        }
+
+        // coins used for payment (buyin, bouns, etc)
+        let mut payment_coins: Vec<Argument> = Vec::new();
+        let mut payment: u64 = 0;
+        for coin in coins.iter() {
+            payment += coin.balance;
+            if payment >= amount {
+                let amt = coin.balance - (payment - amount);
+                let split_amt_arg = vec![add_input(ptb, new_pure_arg(&amt)?)?];
+                if coin_type.eq(SUI_COIN_TYPE) {
+                    let result = ptb.command(Command::SplitCoins(
+                        Argument::GasCoin,
+                        split_amt_arg
+                    ));
+                    println!("Split coin result: {:?}", result);
+                } else {
+                    let split_coin_arg = add_input(
+                        ptb,
+                        CallArg::Object(ObjectArg::ImmOrOwnedObject(coin.object_ref()))
+                    )?;
+                    ptb.command(Command::SplitCoins(split_coin_arg, split_amt_arg));
+                }
+                payment_coins.push(Argument::NestedResult(0,0));
+                break;
+            } // else
+            payment_coins.push(add_input(
+                ptb,
+                CallArg::Object(ObjectArg::ImmOrOwnedObject(coin.object_ref()))
+            )?);
+        }
+        Ok(payment_coins)
     }
 
     async fn get_gas_price(&self) -> Result<u64> {
-        Ok(self.client.read_api().get_reference_gas_price().await.map_err(|e| TransportError::GetGasPriceError(e.to_string()))?)
+        Ok(self.client.read_api()
+           .get_reference_gas_price()
+           .await
+           .map_err(|e| TransportError::GetGasPriceError(e.to_string()))?
+        )
     }
 
     async fn estimate_gas(&self, tx_data: TransactionData) -> Result<u64> {
@@ -1381,26 +1415,21 @@ impl SuiTransport {
         let mut ptb = PTB::new();
         let bonus_id: Argument = match params.bonus_type {
             BonusType::Coin(coin_type) => {
-                let payer_coin = self.get_payment_coin(
-                    Some(coin_type.clone()),
+                // get and prepare the coin used for bonus
+                let palyer_coins_arg = self.prepare_payment_coin(
+                    self.active_addr,
+                    coin_type.clone(),
                     params.amount,
+                    &mut ptb
                 ).await?;
-                // split the payer coin for bonus
-                let coin_arg = add_input(
-                    &mut ptb,
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(payer_coin.object_ref()))
-                )?;
-                let amt_arg = vec![
-                    add_input(&mut ptb, new_pure_arg(&params.amount)?)?];
-                ptb.command(Command::SplitCoins(coin_arg, amt_arg));
-                // create coin bonus
+
+                // acutally create the coin bonus
                 let coin_bonus_fn = new_identifier("create_coin_bonus")?;
                 let args = vec![
                     add_input(&mut ptb, new_pure_arg(&params.identifier)?)?,
                     add_input(&mut ptb, new_pure_arg(&coin_type)?)?,
                     add_input(&mut ptb, new_pure_arg(&params.amount)?)?,
-                    // coin_arg
-                    Argument::NestedResult(0,0)
+                    Argument::NestedResult(0,0) // coin arg
                 ];
                 ptb.programmable_move_call(
                     self.package_id,
@@ -1544,8 +1573,8 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0xe8df1a1cc2a14786ccfc554e47526ef26c7512f827b1760cd70bd490036e277d";
-    const TEST_CASH_GAME_ID: &str = "0x5d5e5b48ba5decc365a46777ad20e4ed926e3b6fb38c5fd06729a999496c0c6a";
+    const TEST_PACKAGE_ID: &str = "0x598a36928abb11489a6091c01cf0cf2135aa8b076ed5e4bd3bfebd1f56395f96";
+    const TEST_CASH_GAME_ID: &str = "0x52024e2eef4b8f02b1b2c566bc8863148877f228d07802d984fe7057cd8fe54f";
     const TEST_TICKET_GAME_ID: &str = "0xcfc82be4212e504a2bc8b9a6b5b66ed0db92be4e2ab0befe5ba7146a59f54665";
     const TEST_RECIPIENT_ID: &str = "0x8b8e76d661080e47d76248cc33b43324b4126a8532d7642ab6c47946857c1e1c";
     const TEST_REGISTRY: &str = "0x6f819d1497313b8e059f6abc29ce726590c2c5a0f4b86497fee344cf0a6810d6";
@@ -1908,7 +1937,7 @@ mod tests {
         let join_params = JoinParams {
             game_addr: TEST_CASH_GAME_ID.to_string(),
             access_version: 0,
-            amount: 400_000_000,
+            amount: 150_000_000,
             position: 1,
             verify_key: "player1".to_string()
         };
