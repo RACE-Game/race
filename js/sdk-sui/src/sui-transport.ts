@@ -83,10 +83,12 @@ import {
 
 export class SuiTransport implements ITransport {
     suiClient: SuiClient
+    packageId: string
 
-    constructor(url: string) {
+    constructor(url: string, packageId: string = PACKAGE_ID) {
         console.log('SuiTransport', url)
         this.suiClient = new SuiClient({ url })
+        this.packageId = packageId
     }
 
     get chain(): Chain {
@@ -146,11 +148,11 @@ export class SuiTransport implements ITransport {
                 entryFunction = 'create_disabled_entry'
         }
         let entry_type_result = transaction.moveCall({
-            target: `${PACKAGE_ID}::game::${entryFunction}`,
+            target: `${this.packageId}::game::${entryFunction}`,
             arguments: entry_type_args,
         })
         transaction.moveCall({
-            target: `${PACKAGE_ID}::game::create_game`,
+            target: `${this.packageId}::game::create_game`,
             arguments: [...create_game_args, entry_type_result],
             typeArguments: [params.tokenAddr],
         })
@@ -194,7 +196,7 @@ export class SuiTransport implements ITransport {
             }
 
             transaction.moveCall({
-                target: `${PACKAGE_ID}::profile::update_profile`,
+                target: `${this.packageId}::profile::update_profile`,
                 arguments: [
                     transaction.objectRef(profileObjectRef),
                     transaction.pure.string(params.nick),
@@ -209,7 +211,7 @@ export class SuiTransport implements ITransport {
             objectChange = await resolveObjectMutatedByType(this.suiClient, result.ok, PROFILE_STRUCT_TYPE)
         } else {
             transaction.moveCall({
-                target: `${PACKAGE_ID}::profile::create_profile`,
+                target: `${this.packageId}::profile::create_profile`,
                 arguments: [transaction.pure.string(params.nick), transaction.pure.option('address', params.pfp)],
             })
             const result = await wallet.send(transaction, suiClient, resp)
@@ -234,7 +236,7 @@ export class SuiTransport implements ITransport {
         const resp = await this.suiClient.getOwnedObjects({
             owner: addr,
             filter: {
-                StructType: `${PACKAGE_ID}::profile::PlayerProfile`,
+                StructType: `${this.packageId}::profile::PlayerProfile`,
             },
             options: {
                 showBcs: true,
@@ -328,7 +330,7 @@ export class SuiTransport implements ITransport {
 
         // join the game
         transaction.moveCall({
-            target: `${PACKAGE_ID}::game::join_game`,
+            target: `${this.packageId}::game::join_game`,
             arguments: [
                 transaction.sharedObjectRef(gameAccountObjRef),
                 transaction.pure.u16(position),
@@ -369,7 +371,7 @@ export class SuiTransport implements ITransport {
         coerceWallet(wallet)
         // 1. make move call to `new_recipient_builder` to get a hot potato
         let builder = transaction.moveCall({
-            target: `${PACKAGE_ID}::recipient::new_recipient_builder`,
+            target: `${this.packageId}::recipient::new_recipient_builder`,
         })
         // 2. make a series of move calls to build recipient slots one by one
         let used_ids: number[] = []
@@ -395,7 +397,7 @@ export class SuiTransport implements ITransport {
                     owner_info = share.owner.identifier
                 }
                 let result: TransactionObjectArgument = transaction.moveCall({
-                    target: `${PACKAGE_ID}::recipient::create_slot_share`,
+                    target: `${this.packageId}::recipient::create_slot_share`,
                     arguments: [
                         transaction.pure.u8(owner_type),
                         transaction.pure.string(owner_info),
@@ -405,7 +407,7 @@ export class SuiTransport implements ITransport {
                 result_shares.push(result)
             })
             let shares = transaction.makeMoveVec({
-                type: `${PACKAGE_ID}::recipient::RecipientSlotShare`,
+                type: `${this.packageId}::recipient::RecipientSlotShare`,
                 elements: result_shares,
             })
             let type_args
@@ -415,7 +417,7 @@ export class SuiTransport implements ITransport {
                 type_args = 1
             }
             builder = transaction.moveCall({
-                target: `${PACKAGE_ID}::recipient::create_recipient_slot`,
+                target: `${this.packageId}::recipient::create_recipient_slot`,
                 arguments: [
                     transaction.pure.u8(slot.id),
                     transaction.pure.string(slot.tokenAddr),
@@ -427,7 +429,7 @@ export class SuiTransport implements ITransport {
             })
         })
         transaction.moveCall({
-            target: `${PACKAGE_ID}::recipient::create_recipient`,
+            target: `${this.packageId}::recipient::create_recipient`,
             arguments: [transaction.pure.option('address', wallet.walletAddr), builder],
         })
         const result = await wallet.send(transaction, suiClient, resp)
@@ -478,7 +480,7 @@ export class SuiTransport implements ITransport {
             return resp.transactionFailed('get initial_shared_version failed')
         }
         transaction.moveCall({
-            target: `${PACKAGE_ID}::registry::register_game`,
+            target: `${this.packageId}::registry::register_game`,
             arguments: [
                 transaction.sharedObjectRef({
                     initialSharedVersion: objVersions[params.gameAddr],
