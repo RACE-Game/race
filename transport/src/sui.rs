@@ -16,7 +16,7 @@ use sui_config::{sui_config_dir, SUI_KEYSTORE_FILENAME};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use sui_types::{
     base_types::ObjectRef,
-    digests::ObjectDigest,
+    digests::{ObjectDigest, TransactionDigest},
     object::Owner,
 };
 use sui_json_rpc_types::{
@@ -832,15 +832,29 @@ impl TransportT for SuiTransport {
         );
 
         let response = self.send_transaction(tx_data).await?;
-        println!("Game settlement tx digest: {}", response.digest.to_string());
+        let digest = response.digest;
+        info!("Game settlement tx digest: {}", digest.to_string());
 
         let signature = response.digest.to_string();
-        let updated_game = self.get_move_object::<GameObject>(game_id).await?;
-        let game_account = updated_game.into_account()?;
-        Ok(SettleResult {
-            signature,
-            game_account
-        })
+
+        let status = self.confirm_settle_status(digest.clone())
+            .await
+            .map_err(|e| Error::TransportError(e.to_string()))?;
+
+        if status  {
+            let updated_game = self.get_move_object::<GameObject>(game_id).await?;
+            let game_account = updated_game.into_account()?;
+
+            return Ok(SettleResult {
+                signature,
+                game_account
+            });
+        } else {
+            return Err(Error::TransportError(format!(
+                "Transaction {} failed",
+                digest.to_string()
+            )));
+        }
     }
 
     async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
@@ -1395,6 +1409,28 @@ impl SuiTransport {
             .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
 
         Ok(response)
+    }
+
+    // confirm the status of a settlement transaction
+    async fn confirm_settle_status(
+        &self,
+        digest: TransactionDigest
+    ) -> TransportResult<bool> {
+        const MAX_RETRIES: u8 = 30;
+        let mut i = 0u8;
+        while i < MAX_RETRIES {
+            let tx_resp = self.client.read_api().get_transaction_with_options(
+                digest,
+                SuiTransactionBlockResponseOptions::new().with_effects()
+            ).await?;
+            if tx_resp.status_ok().unwrap_or(false) {
+                return Ok(true);
+            }
+            i += 1;
+            // sleep here
+            time::sleep(Duration::from_millis(500)).await;
+        }
+        Ok(false)
     }
 
     // prepare a Command for move call
