@@ -662,7 +662,7 @@ impl TransportT for SuiTransport {
         if !settles.is_empty() {
             let mut result_settles: Vec<Argument> = Vec::new();
             for Settle { player_id, amount, eject } in settles {
-                println!("Prepare settle for {}, amoutn = {}, eject: {}",
+                println!("Prepare settle for {}, amount = {}, eject: {}",
                          player_id, amount, eject);
                 let args = vec![
                     add_input(&mut ptb, new_pure_arg(&player_id)?)?,
@@ -692,7 +692,7 @@ impl TransportT for SuiTransport {
             ptb.programmable_move_call(
                 self.package_id,
                 module.clone(),
-                new_identifier("handle_settle")?,
+                new_identifier("handle_settles")?,
                 vec![new_typetag(&game_obj.token_addr, None)?],
                 handle_settle_args
             );
@@ -827,7 +827,7 @@ impl TransportT for SuiTransport {
             self.active_addr,
             vec![gas_coin.object_ref()],
             ptb.finish(),
-            gas_coin.balance,
+            100_000_000,
             gas_price
         );
 
@@ -1611,7 +1611,7 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0x404d5d51dc8f8d608433e813ee6f203b6ed6a8a85d422c3041596fdf96ba1f2a";
+    const TEST_PACKAGE_ID: &str = "0xd79d61f6a93be36eae3b91ebea6c966b4df8242107860336b6a24c5970d81f25";
     const TEST_CASH_GAME_ID: &str = "0x6ba1817f72aea249b6d1ca5bf01fceef91e2704e944141acfc7013f129a90847";
     const TEST_TICKET_GAME_ID: &str = "0xcfc82be4212e504a2bc8b9a6b5b66ed0db92be4e2ab0befe5ba7146a59f54665";
     const TEST_RECIPIENT_ID: &str = "0x8b8e76d661080e47d76248cc33b43324b4126a8532d7642ab6c47946857c1e1c";
