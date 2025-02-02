@@ -120,35 +120,6 @@ impl From<Bonus> for race_core::types::Bonus {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CheckpointOnSui {
-    pub root: Vec<u8>,
-    pub size: usize,
-    pub access_version: u64,
-}
-
-impl From<CheckpointOnSui> for race_core::checkpoint::CheckpointOnChain {
-    fn from(value: CheckpointOnSui) -> Self {
-        Self {
-            root: value.root,
-            size: value.size,
-            access_version: value.access_version
-        }
-    }
-}
-
-impl From<race_core::checkpoint::CheckpointOnChain> for CheckpointOnSui {
-    fn from(value: race_core::checkpoint::CheckpointOnChain) -> Self {
-        Self {
-            root: value.root,
-            size: value.size,
-            access_version: value.access_version
-        }
-    }
-}
-
 // On-chain object that represents a game
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(Serialize, Deserialize, Debug)]
@@ -231,9 +202,10 @@ impl GameObject {
         let servers = servers.into_iter().map(Into::into).collect();
         let deposits = deposits.into_iter().map(Into::into).collect();
         let checkpoint_onchain = if !checkpoint.is_empty() {
-            let chpt = bcs::from_bytes::<CheckpointOnChain>(&checkpoint)
-                 .map_err(|_| Error::MalformedCheckpoint)?;
-            Some(chpt.into())
+            Some(
+                CheckpointOnChain::try_from_slice(&checkpoint)
+                    .map_err(|_| Error::MalformedCheckpoint)?,
+            )
         } else {
             None
         };

@@ -1,11 +1,12 @@
-#![allow(unused_variables)]
 #![allow(unused_imports)]
+#![allow(unused_variables)]
 #![allow(dead_code)]
 /// Transport for Sui blockchain
 use async_stream::stream;
 use async_trait::async_trait;
-use futures::{Stream, StreamExt};
 use bcs;
+use borsh::BorshDeserialize;
+use futures::{Stream, StreamExt};
 use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
 use serde::{
     Serialize, Deserialize,
@@ -724,7 +725,7 @@ impl TransportT for SuiTransport {
                         mutable: true
                     }))?,
                     add_input(&mut ptb, new_pure_arg(&amount)?)?,
-                    add_input(&mut ptb, new_pure_arg(&checks_passed)?)?
+                    checks_passed
                 ];
                 ptb.programmable_move_call(
                     self.package_id,
@@ -769,7 +770,7 @@ impl TransportT for SuiTransport {
                         add_input(&mut ptb, new_pure_arg(&identifier)?)?,
                         add_input(&mut ptb, new_pure_arg(&player_id)?)?,
                         add_input(&mut ptb, new_pure_arg(&player.addr)?)?,
-                        add_input(&mut ptb, new_pure_arg(&checks_passed)?)?,
+                        checks_passed
                     ];
                     ptb.programmable_move_call(
                         self.package_id,
@@ -801,8 +802,7 @@ impl TransportT for SuiTransport {
         );
 
         let complete_settle_fn = new_identifier("finish_settle")?;
-        let sui_checkpoint: CheckpointOnSui = checkpoint.into();
-        let raw_checkpoint = bcs::to_bytes(&sui_checkpoint).map_err(|_| Error::MalformedCheckpoint)?;
+        let raw_checkpoint = borsh::to_vec(&checkpoint)?;
         let finish_args = vec![
             add_input(&mut ptb, CallArg::Object(game_obj_arg))?,
             add_input(&mut ptb, new_pure_arg(&accept_deposits)?)?,
@@ -1214,7 +1214,6 @@ impl SuiTransport {
         let mut payment: u64 = 0;
         let mut gas_start: usize = 0;
         for (i, coin) in coins.iter().enumerate() {
-            let last_coin = i == coins.len() - 1;
             payment += coin.balance;
             if payment >= amount {
                 let amt = coin.balance - (payment - amount);

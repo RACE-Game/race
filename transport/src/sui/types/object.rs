@@ -1,5 +1,6 @@
 //! Structs that represent Sui on-chain objects (those with UID or capabilities)
 use bcs;
+use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::{
     error::{Error, Result},
     checkpoint::CheckpointOnChain,
