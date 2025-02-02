@@ -49,7 +49,7 @@ import {
     RecipientSlotShareInit,
 } from '@race-foundation/sdk-core'
 import { Chain } from './common'
-import { ObjectOwner, SuiClient, SuiObjectResponse } from '@mysten/sui/client'
+import { CoinStruct, ObjectOwner, SuiClient, SuiObjectResponse } from '@mysten/sui/client'
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions'
 import {
     GameAccountParser,
@@ -292,26 +292,31 @@ export class SuiTransport implements ITransport {
 
         const gasCoin = coins[coins.length - 1]
 
-        transaction.setGasPayment([{ objectId: gasCoin.coinObjectId, ...gasCoin }])
         transaction.setGasBudget(GAS_BUDGET)
 
         let amountToPay = 0n
         let coinsToPay = []
+        let coinsToGas: CoinStruct[] = []
 
-        for (let i = 0; i < coins.length; i++) {
+        let i = 0
+        for (; i < coins.length; i++) {
             const coin = coins[i]
             amountToPay += BigInt(coin.balance)
             if (amountToPay > amount) {
                 const split = amount - amountToPay + BigInt(coin.balance)
-                const coinToSplit = i == coins.length - 1 ? transaction.gas : coin.coinObjectId
-                console.log('coin to split:', coinToSplit, ', split amount: ', split)
-                const [pay] = transaction.splitCoins(coinToSplit, [split])
+                const [pay] = transaction.splitCoins(transaction.gas, [split])
                 coinsToPay.push(pay)
+                coinsToGas.push(coin)
                 break
             } else {
                 coinsToPay.push(coin.coinObjectId)
             }
         }
+
+        coinsToGas.push(...coins.slice(i+1))
+        console.log('Coins to gas:', coinsToGas)
+
+        transaction.setGasPayment(coinsToGas.map(coin => ({ objectId: coin.coinObjectId, ...coin })))
 
         if (amountToPay < amount) {
             return resp.failed('insufficient-funds')
