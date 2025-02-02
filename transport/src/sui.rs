@@ -1053,9 +1053,9 @@ impl TransportT for SuiTransport {
                             }
                         }
                     }
-                    Err(e) => yield Err(Error::TransportError(e.to_string())),
+                    Err(e) => ()
                 }
-                time::sleep(Duration::from_secs(5)).await;
+                time::sleep(Duration::from_secs(8)).await;
             }
         }))
     }
