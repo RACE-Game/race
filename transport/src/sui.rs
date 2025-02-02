@@ -296,15 +296,15 @@ impl TransportT for SuiTransport {
 
         // get player coins and merge them if there are more than one, then
         // use the merged one for both payment and gas fees
-        let player_coins = self.prepare_payment_coin(
+        let (arg_coins, gas_coins) = self.prepare_payment_coin(
             self.active_addr,
             token_addr.clone(),
             params.amount,
             &mut ptb
         ).await?;
-        let player_coins_arg = ptb.command(Command::make_move_vec(
-                Some(new_typetag(&token_addr, None)?),
-                player_coins,
+        let arg_coins_vec = ptb.command(Command::make_move_vec(
+            Some(new_typetag("0x2::coin::Coin", Some("0x2::sui::SUI"))?),
+                arg_coins,
         ));
 
         // join game
@@ -317,7 +317,7 @@ impl TransportT for SuiTransport {
             add_input(&mut ptb, new_pure_arg(&params.position)?)?,
             add_input(&mut ptb, new_pure_arg(&params.amount)?)?,
             add_input(&mut ptb, new_pure_arg(&params.verify_key)?)?,
-            player_coins_arg
+            arg_coins_vec
         ];
         ptb.command(Command::move_call(
             self.package_id,
@@ -327,13 +327,13 @@ impl TransportT for SuiTransport {
             join_args
         ));
 
-        let gas_coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
+        // let gas_coin = self.get_max_coin(Some(COIN_SUI_PATH.into())).await?;
         let gas_price = self.get_gas_price().await?;
         let tx_data = TransactionData::new_programmable(
             self.active_addr,
-            vec![gas_coin.object_ref()],
+            gas_coins,
             ptb.finish(),
-            3_000_000,           // usually this costs ? MIST
+            5_000_000,
             gas_price
         );
         let gas_fees = self.estimate_gas(tx_data.clone()).await?;
@@ -1162,14 +1162,17 @@ impl SuiTransport {
     }
 
     // Get up to 50 coins and check if the total balance is equal to or bigger than
-    // the given amount.  Merge and split coins accordingly or abort upon any errors
+    // the given amount and abort upon any errors.  If everything goes well, the
+    // coins will be categorized into two groups: one as `Argument` to be passed to
+    // the `join_game` move call; the other to be used as gas payments. The second
+    // return value must contain at least one coin reference
     async fn prepare_payment_coin(
         &self,
         addr: SuiAddress,
         coin_type: String,
         amount: u64,
         ptb: &mut PTB,
-    ) -> Result<Vec<Argument>> {
+    ) -> Result<(Vec<Argument>, Vec<ObjectRef>)> {
         let coin_page: CoinPage = self.client
             .coin_read_api()
             .get_coins(addr, Some(coin_type.clone()), None, Some(50))
@@ -1192,35 +1195,35 @@ impl SuiTransport {
         }
 
         // coins used for payment (buyin, bouns, etc)
-        let mut payment_coins: Vec<Argument> = Vec::new();
+        let mut arg_coins: Vec<Argument> = Vec::new();
+        let mut gas_coins: Vec<ObjectRef> = Vec::new();
         let mut payment: u64 = 0;
-        for coin in coins.iter() {
+        let mut gas_start: usize = 0;
+        for (i, coin) in coins.iter().enumerate() {
+            let last_coin = i == coins.len() - 1;
             payment += coin.balance;
             if payment >= amount {
                 let amt = coin.balance - (payment - amount);
                 let split_amt_arg = vec![add_input(ptb, new_pure_arg(&amt)?)?];
-                if coin_type.eq(SUI_COIN_TYPE) {
-                    let result = ptb.command(Command::SplitCoins(
-                        Argument::GasCoin,
-                        split_amt_arg
-                    ));
-                    println!("Split coin result: {:?}", result);
-                } else {
-                    let split_coin_arg = add_input(
-                        ptb,
-                        CallArg::Object(ObjectArg::ImmOrOwnedObject(coin.object_ref()))
-                    )?;
-                    ptb.command(Command::SplitCoins(split_coin_arg, split_amt_arg));
-                }
-                payment_coins.push(Argument::NestedResult(0,0));
+                ptb.command(Command::SplitCoins(
+                    Argument::GasCoin,
+                    split_amt_arg
+                ));
+                // record the this coin ref in gas
+                gas_coins.push(coin.object_ref());
+                arg_coins.push(Argument::NestedResult(0,0));
+                gas_start = i + 1;
                 break;
-            } // else
-            payment_coins.push(add_input(
-                ptb,
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(coin.object_ref()))
-            )?);
+            } else {
+                arg_coins.push(add_input(
+                    ptb,
+                    new_obj_arg(ObjectArg::ImmOrOwnedObject(coin.object_ref()))?
+                )?);
+            }
         }
-        Ok(payment_coins)
+
+        coins.iter().skip(gas_start).for_each(|c| gas_coins.push(c.object_ref()));
+        Ok((arg_coins, gas_coins))
     }
 
     async fn get_gas_price(&self) -> Result<u64> {
@@ -1572,8 +1575,8 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0x598a36928abb11489a6091c01cf0cf2135aa8b076ed5e4bd3bfebd1f56395f96";
-    const TEST_CASH_GAME_ID: &str = "0x52024e2eef4b8f02b1b2c566bc8863148877f228d07802d984fe7057cd8fe54f";
+    const TEST_PACKAGE_ID: &str = "0x404d5d51dc8f8d608433e813ee6f203b6ed6a8a85d422c3041596fdf96ba1f2a";
+    const TEST_CASH_GAME_ID: &str = "0x6ba1817f72aea249b6d1ca5bf01fceef91e2704e944141acfc7013f129a90847";
     const TEST_TICKET_GAME_ID: &str = "0xcfc82be4212e504a2bc8b9a6b5b66ed0db92be4e2ab0befe5ba7146a59f54665";
     const TEST_RECIPIENT_ID: &str = "0x8b8e76d661080e47d76248cc33b43324b4126a8532d7642ab6c47946857c1e1c";
     const TEST_REGISTRY: &str = "0x6f819d1497313b8e059f6abc29ce726590c2c5a0f4b86497fee344cf0a6810d6";
@@ -1936,7 +1939,7 @@ mod tests {
         let join_params = JoinParams {
             game_addr: TEST_CASH_GAME_ID.to_string(),
             access_version: 0,
-            amount: 150_000_000,
+            amount: 1_500_000_000,
             position: 1,
             verify_key: "player1".to_string()
         };

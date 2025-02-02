@@ -7,7 +7,7 @@ pub const MAX_GAME_NAME_LEN: usize = 50;
 pub const BUNDLE_COVER: &str = "https://ar-io.net/RxxOQizlpeUfLJzDmNYSCrBRtIWibkAUC-VhO2coFbE";
 
 // Common Coin/Objects addresses
-pub const PACKAGE_ID: &str = "0x598a36928abb11489a6091c01cf0cf2135aa8b076ed5e4bd3bfebd1f56395f96";
+pub const PACKAGE_ID: &str = "0x404d5d51dc8f8d608433e813ee6f203b6ed6a8a85d422c3041596fdf96ba1f2a";
 pub const SUI_ACCOUNT: &str = "0xd1204296954a3db409ecd2fd35c2ee750f12dafb1088cb1656566078fc46ad6e";
 pub const PUBLISHER: &str = "0x7a1f6dc139d351b41066ea726d9b53670b6d827a0745d504dc93e61a581f7192";
 pub const COIN_SUI_PATH: &str = "0x2::sui::SUI";
