@@ -62,6 +62,7 @@ import {
 import {
     CLOCK_ID,
     GAME_STRUCT_TYPE,
+    GAS_BUDGET,
     MAXIMUM_TITLE_LENGTH,
     PACKAGE_ID,
     PROFILE_STRUCT_TYPE,
@@ -292,9 +293,7 @@ export class SuiTransport implements ITransport {
         const gasCoin = coins[coins.length - 1]
 
         transaction.setGasPayment([{ objectId: gasCoin.coinObjectId, ...gasCoin }])
-        transaction.setGasBudget(1000000000n)
-
-        console.log('coins:', coins)
+        transaction.setGasBudget(GAS_BUDGET)
 
         let amountToPay = 0n
         let coinsToPay = []
