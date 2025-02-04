@@ -171,7 +171,7 @@ pub struct GameObject {
     // game servers (max: 10)
     pub servers: Vec<ServerJoin>,
     // game total deposits
-    pub balance: u64,
+    pub stake: u64,
     // length of game-specific data
     pub data_len: u32,
     // serialized data of game-specific data such as sb/bb in Texas Holdem

@@ -51,7 +51,7 @@ use race_core::{
     error::{Error, Result},
     transport::TransportT,
     types::{
-        Award, AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
+        Award, AssignRecipientParams, BalanceChange, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
         CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle,
         GameRegistration, JoinParams, PlayerProfile, PublishGameParams, EntryType, EntryLock,
         RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
@@ -164,9 +164,7 @@ impl TransportT for SuiTransport {
             coin.balance,
             gas_price
         );
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Need gas fees {gas_fees} and transport has balance: {}",
-                 coin.balance);
+        let _ = self.estimate_gas(tx_data.clone()).await?;
 
         // send the tx with the calcualted balance
         let response = self.send_transaction(tx_data).await?;
@@ -203,7 +201,7 @@ impl TransportT for SuiTransport {
         if game_obj.bonuses.len() > 0 {
             return Err(Error::TransportError("Game bonuses not claimed".into()));
         }
-        if game_obj.balance > 0 {
+        if game_obj.stake > 0 {
             return Err(Error::TransportError("Game stake is not 0".into()));
         }
 
@@ -224,10 +222,7 @@ impl TransportT for SuiTransport {
                 })],
             gas_coin.balance,
             gas_price)?;
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Need gase fees {gas_fees} and transport has balance: {}",
-                 gas_coin.balance);
-
+        let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
         println!("Closing game tx digest: {}", response.digest.to_string());
 
@@ -257,9 +252,7 @@ impl TransportT for SuiTransport {
             vec![new_pure_arg(&params.endpoint)?],
             coin.balance,
             gas_price)?;
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Need gase fees {gas_fees} and transport has balance: {}", coin.balance);
-
+        let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
         println!("Registering server tx digset: {}", response.digest.to_string());
 
@@ -337,9 +330,7 @@ impl TransportT for SuiTransport {
             5_000_000,
             gas_price
         );
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Need gase fees: {gas_fees}");
-
+        let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
 
         println!("Joining game tx digest: {}", response.digest.to_string());
@@ -394,10 +385,7 @@ impl TransportT for SuiTransport {
             gas_price
         )?;
 
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Needed gase fees {} and transport has balance: {}",
-                 gas_fees, gas_coin.balance);
-
+        let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
 
         // Print all mutated objects including the game, server, and coin(sui)
@@ -544,11 +532,7 @@ impl TransportT for SuiTransport {
             gas_price,
         );
 
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-
-        println!("Needed gase fees {gas_fees} and transport has balance: {}",
-                 gas_coin.balance);
-
+        let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
         println!("Creating recipient tx digest: {}", response.digest.to_string());
 
@@ -596,10 +580,7 @@ impl TransportT for SuiTransport {
             gas_coin.balance,
             gas_price
         )?;
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Need gase fees {} and transport has balance: {}",
-                 gas_fees, gas_coin.balance);
-
+        let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
         println!("Publishing game tx digest: {}", response.digest.to_string());
 
@@ -627,10 +608,9 @@ impl TransportT for SuiTransport {
             entry_lock,
             accept_deposits
         } = params;
-        println!("Settling for game: {}", addr);
-        println!("Need to process {} settles", settles.len());
+        info!("Need to handle {} settles for game: {}", settles.len(), addr);
         if settles.len() + transfers.len() + awards.len() + 10 > 1024 {
-            return Err(Error::TransportError("Settles exceed the 1024 limit".into()));
+            return Err(Error::TransportError("Total settle number exceeds the 1024 limit".into()));
         }
         let module = new_identifier("settle")?;
         let game_id = parse_object_id(&addr)?;
@@ -658,15 +638,26 @@ impl TransportT for SuiTransport {
             vec![new_typetag(&game_obj.token_addr, None)?],
             pre_check_args
         );
-        // process settles but skip when there is none
+        // handle settles but skip when there is none
         if !settles.is_empty() {
             let mut result_settles: Vec<Argument> = Vec::new();
-            for Settle { player_id, amount, eject, .. } in settles {
-                println!("Prepare settle for {}, amount = {}, eject: {}",
+            for Settle { player_id, amount, eject, change } in settles {
+                info!("Prepare settle for {}, amount = {}, eject: {}",
                          player_id, amount, eject);
+                let (change_type, change_amt) = match change {
+                    Some(bc) => {
+                        match bc {
+                            BalanceChange::Add(amt) => (1u8, amt),
+                            BalanceChange::Sub(amt) => (2u8, amt),
+                        }
+                    },
+                    None => (0u8, 0u64)
+                };
                 let args = vec![
                     add_input(&mut ptb, new_pure_arg(&player_id)?)?,
                     add_input(&mut ptb, new_pure_arg(&amount)?)?,
+                    add_input(&mut ptb, new_pure_arg(&change_type)?)?,
+                    add_input(&mut ptb, new_pure_arg(&change_amt)?)?,
                     add_input(&mut ptb, new_pure_arg(&eject)?)?,
                 ];
                 let settle_ret = ptb.programmable_move_call(
@@ -704,9 +695,9 @@ impl TransportT for SuiTransport {
             to_account_addr(game_obj.recipient_addr)?
         );
         let recipient_obj = self.get_move_object::<RecipientObject>(recipient_id).await?;
-        // process transfers one by one
+        // handle transfers one by one
         for Transfer { slot_id, amount } in transfers {
-            println!("Tranfer {} for slot id {}", amount, slot_id);
+            info!("Tranfer {} for slot id {}", amount, slot_id);
             // TODO: to use the stake token to match the target slot
             if let Some(slot) = recipient_obj.slots.iter().find(|s| s.slot_id == slot_id) {
                 if game_obj.token_addr.ne(&slot.token_addr) {
@@ -739,7 +730,7 @@ impl TransportT for SuiTransport {
             }
         }
 
-        // process awards one by one
+        // handle awards one by one
         let handle_bonus_fn = new_identifier("handle_bonus")?;
         for Award {player_id, bonus_identifier} in awards.iter() {
             let Some(player) = game_obj.players
@@ -834,7 +825,6 @@ impl TransportT for SuiTransport {
         info!("Game settlement tx digest: {}", digest.to_string());
 
         let signature = response.digest.to_string();
-
         let status = self.confirm_settle_status(digest.clone())
             .await
             .map_err(|e| Error::TransportError(e.to_string()))?;
@@ -849,7 +839,7 @@ impl TransportT for SuiTransport {
             });
         } else {
             return Err(Error::TransportError(format!(
-                "Transaction {} failed",
+                "Settle transaction {} failed",
                 digest.to_string()
             )));
         }
@@ -882,11 +872,7 @@ impl TransportT for SuiTransport {
             gas_price
         )?;
 
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-
-        println!("Need gase fees {gas_fees} and transport has balance: {}",
-                 gas_coin.balance);
-
+        let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
         println!("Rejecting desposits tx digest: {}", response.digest.to_string());
 
@@ -928,13 +914,8 @@ impl TransportT for SuiTransport {
             gas_price
         )?;
 
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-
-        println!("Need gase fees {} and transport has balance: {}",
-                 gas_fees, coin.balance);
-
+        let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
-
         println!("Creating registry tx digest: {}", response.digest.to_string());
 
         let object_changes: Vec<ObjectChange> = response.object_changes
@@ -993,11 +974,7 @@ impl TransportT for SuiTransport {
             gas_price
         )?;
 
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-
-        println!("Needed gase fees {} and transport has balance: {}",
-                 gas_fees, coin.balance);
-
+        let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
         // TODO: check the registry did get mutated or fail the tx otherwise
         println!("Registering game tx digest: {}", response.digest.to_string());
@@ -1034,10 +1011,7 @@ impl TransportT for SuiTransport {
             gas_price
         )?;
 
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-                println!("Needed gase fees {} and transport has balance: {}",
-                 gas_fees, coin.balance);
-
+        let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
 
         println!("Unregistering game tx digest: {}", response.digest.to_string());
@@ -1252,10 +1226,10 @@ impl SuiTransport {
             .map_err(|e| TransportError::GetGasPriceError(e.to_string()))?;
         let cost_summary = dry_run.effects.gas_cost_summary();
         let net_gas_fees: i64 = cost_summary.net_gas_usage();
-        println!("Net gas fees: {} MIST", net_gas_fees);
+        info!("Net gas fees: {} MIST", net_gas_fees);
 
         if net_gas_fees < 0 {
-            println!("Tx sender will get rebate: {} MIST", -net_gas_fees);
+            info!("Tx sender will get rebate: {} MIST", -net_gas_fees);
             Ok(0)
         } else {
             // add a small buffer to the estimated gas fees
@@ -1278,12 +1252,13 @@ impl SuiTransport {
             .and_then(|d| d.owner)
             .and_then(|o| match o {
                 Owner::Shared { initial_shared_version } => {
-                    println!("Initial sequm: {}", initial_shared_version.value());
                     Some(initial_shared_version)
                 },
                 _ => None
             })
-            .ok_or_else(|| Error::TransportError("No initial shared version found".into()))
+            .ok_or_else(|| Error::TransportError(format!(
+                "No initial shared version found for {}", id)
+            ))
     }
 
     // Get the latest on-chain object sequencenumber
@@ -1526,10 +1501,7 @@ impl SuiTransport {
             gas_coin.balance,
             gas_price
         );
-        let gas_fees = self.estimate_gas(tx_data.clone()).await?;
-        println!("Needed gase fees {gas_fees} and transport has balance: {}",
-                 gas_coin.balance);
-
+        let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
 
         println!("Attaching bonus tx digest: {}", response.digest.to_string());
