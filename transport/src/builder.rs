@@ -115,21 +115,18 @@ impl TransportBuilder {
             match chain {
                 ChainType::Solana => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
-                    let keyfile = self.keyfile.ok_or(TransportError::UnspecifiedSigner)?;
                     let skip_preflight = self.skip_preflight.unwrap_or(false);
-                    Ok(Box::new(solana::SolanaTransport::try_new(rpc, keyfile, skip_preflight)?))
+                    Ok(Box::new(solana::SolanaTransport::try_new(rpc, self.keyfile, skip_preflight)?))
                 }
                 ChainType::Sui => {
                     use crate::sui::{self, PACKAGE_ID};
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
-                    let keyfile = self.keyfile.ok_or(TransportError::UnspecifiedSigner)?;
-                    Ok(Box::new(sui::SuiTransport::try_new(rpc, PACKAGE_ID, Some(keyfile)).await?))
+                    Ok(Box::new(sui::SuiTransport::try_new(rpc, PACKAGE_ID, self.keyfile).await?))
                 }
                 ChainType::Facade => {
                     let rpc = self.rpc.ok_or(TransportError::UnspecifiedRpc)?;
-                    let address = self.address.ok_or(TransportError::UnspecifiedSigner)?;
                     info!("Build FacadeTransport for {:?}", rpc);
-                    Ok(Box::new(facade::FacadeTransport::try_new(address.to_owned(), &rpc).await?))
+                    Ok(Box::new(facade::FacadeTransport::try_new(self.address.to_owned(), &rpc).await?))
                 }
                 _ => unimplemented!(),
             }

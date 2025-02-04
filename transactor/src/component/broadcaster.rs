@@ -25,8 +25,6 @@ use super::{CloseReason, ComponentEnv};
 pub struct EventBackup {
     pub event: Event,
     pub timestamp: u64,
-    pub access_version: u64,
-    pub settle_version: u64,
     pub state_sha: String,
 }
 
@@ -36,7 +34,6 @@ pub struct EventBackupGroup {
     pub sync: BroadcastSync,
     pub events: LinkedList<EventBackup>,
     pub settle_version: u64,
-    pub access_version: u64,
     pub checkpoint_off_chain: Option<CheckpointOffChain>,
 }
 
@@ -212,7 +209,6 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         sync: BroadcastSync::new(access_version),
                         state_sha,
                         events: LinkedList::new(),
-                        access_version,
                         settle_version,
                         checkpoint_off_chain: Some(checkpoint.derive_offchain_part()),
                     });
@@ -232,7 +228,6 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     event_backup_groups.push_back(EventBackupGroup {
                         sync: BroadcastSync::new(access_version),
                         events: LinkedList::new(),
-                        access_version,
                         settle_version,
                         checkpoint_off_chain: Some(checkpoint.derive_offchain_part()),
                         state_sha: "".into(),
@@ -263,8 +258,6 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                 },
                 EventFrame::Broadcast {
                     event,
-                    access_version,
-                    settle_version,
                     timestamp,
                     state_sha,
                     ..
@@ -275,8 +268,6 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     if let Some(current) = event_backup_groups.back_mut() {
                         current.events.push_back(EventBackup {
                             event: event.clone(),
-                            settle_version,
-                            access_version,
                             timestamp,
                             state_sha: state_sha.clone(),
                         });

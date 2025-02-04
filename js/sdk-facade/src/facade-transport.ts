@@ -357,7 +357,7 @@ export class FacadeTransport implements ITransport {
         }
         const { result } = await resp.json()
         console.debug('Facade request:', { method, params, result })
-        if (result !== null) {
+        if (result !== undefined) {
             return Uint8Array.from(result)
         } else {
             return undefined

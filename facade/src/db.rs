@@ -11,8 +11,6 @@ use race_core::types::{
 use rusqlite::{params, Connection, OptionalExtension, Result};
 
 #[derive(Clone, BorshSerialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub(crate) struct Nft {
     pub addr: String,
     pub image: String,
@@ -22,8 +20,6 @@ pub(crate) struct Nft {
 }
 
 #[derive(Clone, BorshSerialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub(crate) struct PlayerInfo {
     pub balances: HashMap<String, u64>, // token address to balance
     pub nfts: HashMap<String, Nft>,
@@ -280,9 +276,9 @@ pub fn create_game_account(conn: &Connection, game_account: &GameAccount) -> Res
         "INSERT INTO game_account (
             addr, title, bundle_addr, token_addr, owner_addr, settle_version, access_version,
             transactor_addr, unlock_time, max_players, data_len, data, entry_type, recipient_addr,
-            players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses
+            players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses, balances
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )",
         params![
             game_account.addr,
@@ -306,6 +302,7 @@ pub fn create_game_account(conn: &Connection, game_account: &GameAccount) -> Res
             serde_json::to_string(&game_account.checkpoint_on_chain).unwrap(),
             serde_json::to_string(&game_account.entry_lock).unwrap(),
             serde_json::to_string(&game_account.bonuses).unwrap(),
+            serde_json::to_string(&game_account.balances).unwrap(),
         ],
     )
 }
@@ -315,7 +312,8 @@ pub fn read_game_account(conn: &Connection, addr: &str) -> Result<Option<GameAcc
     let mut stmt = conn.prepare(
         "SELECT addr, title, bundle_addr, token_addr, owner_addr, settle_version, access_version,
         transactor_addr, unlock_time, max_players, data_len, data, entry_type, recipient_addr,
-        players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses FROM game_account WHERE addr = ?",
+        players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses, balances
+        FROM game_account WHERE addr = ?",
     )?;
 
     let game_account = stmt
@@ -343,6 +341,7 @@ pub fn read_game_account(conn: &Connection, addr: &str) -> Result<Option<GameAcc
                     .unwrap(),
                 entry_lock: serde_json::from_str(row.get::<_, String>(19)?.as_str()).unwrap(),
                 bonuses: serde_json::from_str(row.get::<_, String>(20)?.as_str()).unwrap(),
+                balances: serde_json::from_str(row.get::<_, String>(21)?.as_str()).unwrap(),
             })
         })
         .optional()?;
@@ -354,7 +353,8 @@ pub fn list_game_accounts(conn: &Connection) -> Result<Vec<GameAccount>> {
     let mut stmt = conn.prepare(
         "SELECT addr, title, bundle_addr, token_addr, owner_addr, settle_version, access_version,
         transactor_addr, unlock_time, max_players, data_len, data, entry_type, recipient_addr,
-        players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses FROM game_account",
+        players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses, balances
+        FROM game_account",
     )?;
 
     let game_account_iter = stmt.query_map([], |row| {
@@ -380,6 +380,7 @@ pub fn list_game_accounts(conn: &Connection) -> Result<Vec<GameAccount>> {
             checkpoint_on_chain: serde_json::from_str(row.get::<_, String>(18)?.as_str()).unwrap(),
             entry_lock: serde_json::from_str(row.get::<_, String>(19)?.as_str()).unwrap(),
             bonuses: serde_json::from_str(row.get::<_, String>(20)?.as_str()).unwrap(),
+            balances: serde_json::from_str(row.get::<_, String>(21)?.as_str()).unwrap(),
         })
     })?;
 
@@ -398,7 +399,7 @@ pub fn update_game_account(conn: &Connection, game_account: &GameAccount) -> Res
             title = ?, bundle_addr = ?, token_addr = ?, owner_addr = ?, settle_version = ?,
             access_version = ?, transactor_addr = ?, unlock_time = ?, max_players = ?, data_len = ?,
             data = ?, entry_type = ?, recipient_addr = ?, players = ?, deposits = ?, servers = ?,
-            votes = ?, checkpoint_on_chain = ?, entry_lock = ?
+            votes = ?, checkpoint_on_chain = ?, entry_lock = ?, balances = ?
         WHERE addr = ?",
         params![
             game_account.title,
@@ -420,6 +421,7 @@ pub fn update_game_account(conn: &Connection, game_account: &GameAccount) -> Res
             serde_json::to_string(&game_account.votes).unwrap(),
             serde_json::to_string(&game_account.checkpoint_on_chain).unwrap(),
             serde_json::to_string(&game_account.entry_lock).unwrap(),
+            serde_json::to_string(&game_account.balances).unwrap(),
             game_account.addr,
         ],
     )
@@ -455,7 +457,8 @@ pub fn create_game_account_table(conn: &Connection) -> Result<()> {
             votes TEXT NOT NULL,               -- JSON serialized
             checkpoint_on_chain TEXT,          -- JSON serialized
             entry_lock INTEGER NOT NULL,
-            bonuses TEXT NOT NULL              -- JSON serialized
+            bonuses TEXT NOT NULL,             -- JSON serialized
+            balances TEXT NOT NULL             -- JSON serialized
         )",
         [],
     )?;

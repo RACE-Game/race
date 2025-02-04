@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use race_api::{prelude::InitAccount, types::EntryLock};
+use race_api::{prelude::InitAccount, types::{EntryLock, PlayerBalance}};
 use crate::checkpoint::CheckpointOnChain;
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -244,8 +244,9 @@ pub struct Bonus {
 ///
 /// # Checkpoint
 ///
-/// The checkpoint is the state of the game when the settlement is
-/// made.  We only save the root of checkpoint merkle tree on chain.
+/// The checkpoint is the state of the game when the settlement is made.  We only save the root of
+/// checkpoint merkle tree on chain.  The balance of each player is stored in `balances`, which does
+/// not equal to the balance balance in `players` and `deposits`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -271,6 +272,7 @@ pub struct GameAccount {
     pub checkpoint_on_chain: Option<CheckpointOnChain>,
     pub entry_lock: EntryLock,
     pub bonuses: Vec<Bonus>,
+    pub balances: Vec<PlayerBalance>,
 }
 
 impl GameAccount {

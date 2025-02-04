@@ -36,12 +36,12 @@ pub struct RegisterServerInstruction {
 }
 
 pub struct FacadeTransport {
-    addr: String,
+    addr: Option<String>,
     client: Client<HttpBackend>,
 }
 
 impl FacadeTransport {
-    pub async fn try_new(addr: String, url: &str) -> TransportResult<Self> {
+    pub async fn try_new(addr: Option<String>, url: &str) -> TransportResult<Self> {
         let client = ClientBuilder::default()
             .max_request_size(64_000_000)
             .build(url)
@@ -84,7 +84,7 @@ impl TransportT for FacadeTransport {
             .request(
                 "register_server",
                 rpc_params![RegisterServerInstruction {
-                    server_addr: self.addr.clone(),
+                    server_addr: self.addr(),
                     endpoint: params.endpoint
                 }],
             )
@@ -102,7 +102,7 @@ impl TransportT for FacadeTransport {
                 "serve",
                 rpc_params![ServeInstruction {
                     game_addr: params.game_addr,
-                    server_addr: self.addr.clone(),
+                    server_addr: self.addr(),
                     verify_key: params.verify_key,
                 }],
             )
@@ -233,5 +233,10 @@ impl TransportT for FacadeTransport {
             signature,
         })
     }
+}
 
+impl FacadeTransport {
+    fn addr(&self) -> String {
+        self.addr.clone().expect("Address not specified, facade transport need an address to mock its identity. It can be either in config file or command line arguments.")
+    }
 }

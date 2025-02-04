@@ -14,7 +14,7 @@ import {
     WaitingTimeout,
 } from './events'
 import { InitAccount } from './init-account'
-import { Effect, EmitBridgeEvent, SubGame, Settle, Transfer } from './effect'
+import { Effect, EmitBridgeEvent, SubGame, Settle, Transfer, PlayerBalance, BalanceChange, BalanceChangeAdd } from './effect'
 import { EntryType, GameAccount } from './accounts'
 import { Ciphertext, Digest, Fields } from './types'
 import { sha256String } from './encryptor'
@@ -74,6 +74,7 @@ export class GameContext {
     nodes: INode[]
     dispatch: DispatchEvent | undefined
     handlerState: Uint8Array
+    balances: PlayerBalance[]
     timestamp: bigint
     randomStates: RandomState[]
     decisionStates: DecisionState[]
@@ -164,6 +165,8 @@ export class GameContext {
             )
         }
 
+        const balances = gameAccount.balances.map(x => new PlayerBalance(x))
+
         this.spec = spec
         this.versions = versions
         this.status = 'idle'
@@ -179,6 +182,7 @@ export class GameContext {
         this.players = players
         this.entryType = gameAccount.entryType
         this.stateSha = stateSha
+        this.balances = balances
     }
 
     subContext(subGame: SubGame): GameContext {
@@ -479,8 +483,8 @@ export class GameContext {
                 this.decisionStates = []
 
                 // Sort settles and track player states
-                settles.push(...effect.settles)
-                settles = effect.settles
+                settles = this.makeSettlesFromEffect(effect)
+                this.balances = effect.balances
             } else if (effect.isInit) {
                 this.bumpSettleVersion()
                 this.checkpoint.initData(this.spec.gameId, effect.handlerState, this.spec)
@@ -550,5 +554,64 @@ export class GameContext {
 
     get settleVersion(): bigint {
         return this.versions.settleVersion
+    }
+
+    makeSettlesFromEffect(effect: Effect): Settle[] {
+        let settlesMap: Map<bigint, Settle> = new Map<bigint, Settle>();
+
+        for (let withdraw of effect.withdraws) {
+            const existing = settlesMap.get(withdraw.playerId);
+            if (existing) {
+                existing.amount += withdraw.amount;
+            } else {
+                settlesMap.set(withdraw.playerId, new Settle({
+                    id: withdraw.playerId,
+                    amount: withdraw.amount,
+                    change: undefined,
+                    eject: false
+                }));
+            }
+        }
+
+        for (let eject of effect.ejects) {
+            const existing = settlesMap.get(eject);
+            if (existing) {
+                existing.eject = true;
+            } else {
+                settlesMap.set(eject, new Settle({ id: eject, amount: 0n, change: undefined, eject: true }));
+            }
+        }
+
+        let balancesChange: Map<bigint, bigint> = new Map<bigint, bigint>();
+        for (let origBalance of this.balances) {
+            balancesChange.set(origBalance.playerId, - origBalance.balance);
+        }
+
+        for (let balance of effect.balances) {
+            const existing = balancesChange.get(balance.playerId);
+            if (existing !== undefined) {
+                balancesChange.set(balance.playerId, existing + balance.balance);
+            } else {
+                balancesChange.set(balance.playerId, balance.balance);
+            }
+        }
+
+        for (let [playerId, chg] of balancesChange) {
+            let change: BalanceChange | undefined = undefined;
+            if (chg > 0) {
+                change = new BalanceChangeAdd({ amount: chg });
+            } else if (chg < 0) {
+                change = new BalanceChangeAdd({ amount: -chg });
+            }
+
+            const existing = settlesMap.get(playerId);
+            if (existing) {
+                existing.change = change;
+            } else {
+                settlesMap.set(playerId, { id: playerId, amount: 0n, change: change, eject: false });
+            }
+        }
+
+        return [...settlesMap.values()]
     }
 }

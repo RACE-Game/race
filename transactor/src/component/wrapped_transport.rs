@@ -309,7 +309,6 @@ mod tests {
                 accept_deposits: vec![],
                 awards: vec![],
                 entry_lock: None,
-                reset: false,
                 next_settle_version: 2,
             })
             .await;
@@ -338,7 +337,6 @@ mod tests {
                 accept_deposits: vec![],
                 awards: vec![],
                 entry_lock: None,
-                reset: false,
                 next_settle_version: 2,
             })
             .await;

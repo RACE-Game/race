@@ -10,12 +10,18 @@ use crate::{
     event::BridgeEvent,
     prelude::InitAccount,
     random::RandomSpec,
-    types::{Award, DecisionId, EntryLock, GameDeposit, GamePlayer, RandomId, GameId, Settle, Transfer},
+    types::{Award, DecisionId, EntryLock, GameDeposit, GameId, GamePlayer, PlayerBalance, RandomId, Transfer},
 };
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Ask {
     pub player_id: u64,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+pub struct Withdraw {
+    pub player_id: u64,
+    pub amount: u64,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -191,12 +197,6 @@ pub struct Log {
 /// effect.settle(0 /* player_id */, 100 /* amount */, true /* eject */);
 /// effect.checkpoint();
 /// ```
-///
-/// # Reset
-///
-/// The game can be reset when there's no funds and pending deposit.
-///
-/// By resetting the game, all players will be removed and a new
 /// checkpoint will be made.
 
 #[derive(Default, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -218,21 +218,21 @@ pub struct Effect {
     pub revealed: HashMap<RandomId, HashMap<usize, String>>,
     pub answered: HashMap<DecisionId, String>,
     pub is_checkpoint: bool,
-    pub settles: Vec<Settle>,
+    pub withdraws: Vec<Withdraw>,
+    pub ejects: Vec<u64>,
     pub handler_state: Option<Vec<u8>>,
     pub error: Option<HandleError>,
     pub transfers: Vec<Transfer>,
     pub launch_sub_games: Vec<SubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
-    pub valid_players: Vec<u64>,
     pub is_init: bool,
     pub entry_lock: Option<EntryLock>,
-    pub reset: bool,
     pub logs: Vec<Log>,
     pub awards: Vec<Award>,
     pub reject_deposits: Vec<u64>,
     pub accept_deposits: Vec<u64>,
     pub curr_sub_game_id: GameId,
+    pub balances: Vec<PlayerBalance>,
 }
 
 impl Effect {
@@ -353,12 +353,14 @@ impl Effect {
         self.entry_lock = Some(entry_lock);
     }
 
-    /// Submit settlements.
-    /// This will set current state as checkpoint automatically.
-    pub fn settle(&mut self, player_id: u64, amount: u64, eject: bool) -> HandleResult<()> {
+    pub fn withdraw(&mut self, player_id: u64, amount: u64) {
         self.checkpoint();
-        self.settles.push(Settle::new(player_id, amount, eject));
-        Ok(())
+        self.withdraws.push(Withdraw { player_id, amount });
+    }
+
+    pub fn eject(&mut self, player_id: u64) {
+        self.checkpoint();
+        self.ejects.push(player_id);
     }
 
     /// Transfer the assets to a recipient slot
@@ -423,9 +425,13 @@ impl Effect {
     /// Set handler state.
     ///
     /// This is an internal function, DO NOT use in game handler.
-    pub fn __set_handler_state<S: BorshSerialize>(&mut self, handler_state: S) {
-        if let Ok(state) = borsh::to_vec(&handler_state) {
+    pub fn __set_handler_result<S: GameHandler>(&mut self, handler: S) {
+        if let Ok(state) = borsh::to_vec(&handler) {
             self.handler_state = Some(state);
+            if self.is_checkpoint {
+                let balances = handler.balances();
+                self.balances = balances;
+            }
         } else {
             self.error = Some(HandleError::SerializationError);
         }
@@ -486,14 +492,6 @@ impl Effect {
             self.accept_deposits.push(deposit.access_version);
         }
         Ok(())
-    }
-
-    /// Reset the game to remove all players.  Be careful on usage,
-    /// it only works when there's no funds left in game.
-    /// A checkpoint will be made.
-    pub fn reset(&mut self) {
-        self.checkpoint();
-        self.reset = true;
     }
 
     pub fn log<S: Into<String>>(&mut self, level: LogLevel, message: S) {

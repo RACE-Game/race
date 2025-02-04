@@ -249,6 +249,23 @@ export class Vote {
 
 export type EntryLock = Indices<typeof ENTRY_LOCKS>
 
+
+export class PlayerBalance {
+    @field('u64')
+    readonly playerId!: bigint
+    @field('u64')
+    readonly balance!: bigint
+    constructor(fields: Fields<PlayerBalance>) {
+        Object.assign(this, fields)
+    }
+    generalize(): RaceCore.PlayerBalance {
+        return {
+            playerId: this.playerId,
+            balance: this.balance,
+        }
+    }
+}
+
 export class GameAccount {
     @field('string')
     readonly addr!: string
@@ -292,6 +309,8 @@ export class GameAccount {
     readonly entryLock!: EntryLock
     @field(array(struct(Bonus)))
     readonly bonuses!: Bonus[]
+    @field(array(struct(PlayerBalance)))
+    readonly balances!: PlayerBalance[]
     constructor(fields: Fields<GameAccount>) {
         Object.assign(this, fields)
     }
@@ -318,6 +337,7 @@ export class GameAccount {
             checkpointOnChain: this.checkpointOnChain,
             entryLock: RaceCore.ENTRY_LOCKS[this.entryLock],
             bonuses: this.bonuses,
+            balances: this.balances,
         }
     }
 }

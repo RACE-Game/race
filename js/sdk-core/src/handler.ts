@@ -166,6 +166,18 @@ export class Handler implements IHandler {
 
         const initState = exports.init_state as Function
         const newEffectSize: number = initState(effectSize, initAccountSize)
+
+        switch (newEffectSize) {
+            case 0:
+                throw new Error('GameBundle: Serializing effect failed')
+            case 1:
+                console.warn('Effect:', effect)
+                throw new Error('GameBundle: Deserializing effect failed')
+            case 2:
+                console.warn('Event:', initAccount)
+                throw new Error('GameBundle: Deserializing init account failed')
+        }
+
         const data = new Uint8Array(mem.buffer)
         const newEffectBytes = data.slice(1, newEffectSize + 1)
         const newEffect = deserialize(Effect, newEffectBytes)
@@ -206,11 +218,13 @@ export class Handler implements IHandler {
         const newEffectSize: number = handleEvent(effectSize, eventSize)
         switch (newEffectSize) {
             case 0:
-                throw new Error('Serializing effect failed')
+                throw new Error('GameBundle: Serializing effect failed')
             case 1:
-                throw new Error('Deserializing effect failed')
+                console.warn('Effect:', effect)
+                throw new Error('GameBundle: Deserializing effect failed')
             case 2:
-                throw new Error('Deserializing event failed')
+                console.warn('Effect:', event)
+                throw new Error('GameBundle: Deserializing event failed')
         }
         const data = new Uint8Array(mem.buffer)
         const newEffectBytes = data.slice(1, newEffectSize + 1)

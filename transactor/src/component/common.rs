@@ -226,6 +226,7 @@ impl Ports for PipelinePorts {
     }
 }
 
+#[allow(unused)]
 pub struct ComponentEnv {
     pub addr: String,
     pub addr_shorthand: String,

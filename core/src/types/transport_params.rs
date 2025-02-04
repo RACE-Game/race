@@ -208,7 +208,6 @@ pub struct SettleParams {
     pub settle_version: u64,
     pub next_settle_version: u64,
     pub entry_lock: Option<EntryLock>,
-    pub reset: bool,
     pub accept_deposits: Vec<u64>,
 }
 

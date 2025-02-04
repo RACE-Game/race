@@ -51,6 +51,11 @@ export interface GameRegistration {
     readonly bundleAddr: string
 }
 
+export interface PlayerBalance {
+    readonly playerId: bigint
+    readonly balance: bigint
+}
+
 export interface GameAccount {
     readonly addr: string
     readonly title: string
@@ -73,6 +78,7 @@ export interface GameAccount {
     readonly checkpointOnChain: CheckpointOnChain | undefined
     readonly entryLock: EntryLock
     readonly bonuses: Bonus[]
+    readonly balances: PlayerBalance[]
 }
 
 export interface ServerAccount {

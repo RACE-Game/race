@@ -10,7 +10,7 @@ use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
 use race_api::random::RandomSpec;
 use race_api::types::{
-    Award, Ciphertext, DecisionId, EntryLock, GamePlayer, GameStatus, RandomId, SecretDigest, SecretShare, Settle, Transfer, GameId
+    Award, BalanceChange, Ciphertext, DecisionId, EntryLock, GameId, GamePlayer, GameStatus, PlayerBalance, RandomId, SecretDigest, SecretShare, Settle, Transfer
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -155,7 +155,6 @@ pub struct EventEffects {
     pub bridge_events: Vec<EmitBridgeEvent>,
     pub start_game: bool,
     pub entry_lock: Option<EntryLock>,
-    pub reset: bool,
     pub logs: Vec<Log>,
     pub reject_deposits: Vec<u64>,
 }
@@ -198,6 +197,9 @@ pub struct GameContext {
     pub(crate) nodes: Vec<Node>,
     pub(crate) dispatch: Option<DispatchEvent>,
     pub(crate) handler_state: Vec<u8>,
+    /// The balances reported from game bundle
+    pub(crate) balances: Vec<PlayerBalance>,
+    /// The timestamp for event handling
     pub(crate) timestamp: u64,
     /// All runtime random states, each stores the ciphers and assignments.
     pub(crate) random_states: Vec<RandomState>,
@@ -324,6 +326,7 @@ impl GameContext {
             versions: Versions::new(checkpoint.access_version, game_account.settle_version),
             status: GameStatus::Idle,
             nodes,
+            balances: vec![],
             dispatch: None,
             timestamp: 0,
             random_states: vec![],
@@ -809,21 +812,21 @@ impl GameContext {
             revealed,
             answered,
             is_checkpoint: false,
-            settles: Vec::new(),
+            withdraws: Vec::new(),
+            ejects: Vec::new(),
             handler_state: Some(self.handler_state.clone()),
             error: None,
             transfers: Vec::new(),
             launch_sub_games: Vec::new(),
             bridge_events: Vec::new(),
             is_init,
-            valid_players: vec![],
             entry_lock: None,
-            reset: false,
             logs: Vec::new(),
             awards: Vec::new(),
             reject_deposits: Vec::new(),
             accept_deposits: Vec::new(),
             curr_sub_game_id,
+            balances: Vec::new(),
         }
     }
 
@@ -839,7 +842,8 @@ impl GameContext {
             reveals,
             releases,
             init_random_states,
-            settles,
+            withdraws,
+            ejects,
             transfers,
             handler_state,
             is_checkpoint,
@@ -850,6 +854,7 @@ impl GameContext {
             awards,
             reject_deposits,
             mut accept_deposits,
+            balances,
             ..
         } = effect;
 
@@ -918,16 +923,58 @@ impl GameContext {
                 self.sub_games.push(sub_game);
             }
 
+            let mut settles = vec![];
+            if is_checkpoint {
+                // Build settles
+                // Settle is a combination of Withdraw, Balance Diff, and Eject
+                let mut settles_map: HashMap<u64, Settle> = HashMap::new();
+
+                for withdraw in withdraws {
+                    settles_map.entry(withdraw.player_id)
+                        .and_modify(|e| e.amount += withdraw.amount)
+                        .or_insert_with(|| Settle::new(withdraw.player_id, withdraw.amount, None, false));
+                }
+
+                for eject in ejects {
+                    settles_map.entry(eject)
+                        .and_modify(|e| e.eject = true)
+                        .or_insert_with(|| Settle::new(eject, 0, None, true));
+                }
+
+                let mut balances_change: HashMap<u64, i128> = self.balances.iter()
+                    .map(|orig_balance| (orig_balance.player_id, -(orig_balance.balance as i128)))
+                    .collect();
+
+                for balance in balances.iter() {
+                    balances_change.entry(balance.player_id)
+                        .and_modify(|e| *e += balance.balance as i128)
+                        .or_insert(balance.balance as i128);
+                }
+
+                for (player_id, chg) in balances_change {
+                    let change = match chg {
+                        _ if chg > 0 => Some(BalanceChange::Add(chg as u64)),
+                        _ if chg < 0 => Some(BalanceChange::Sub(-chg as u64)),
+                        _ => None,
+                    };
+                    settles_map.entry(player_id)
+                        .and_modify(|e| e.change = change)
+                        .or_insert_with(|| Settle::new(player_id, 0, change, false));
+                }
+
+                self.balances = balances;
+                settles = settles_map.into_values().collect();
+            }
+
             return Ok(EventEffects {
-                settles,
                 transfers,
                 awards,
+                settles,
                 checkpoint: (is_checkpoint || is_init).then(|| self.checkpoint.clone()),
                 launch_sub_games,
                 bridge_events,
                 start_game,
                 entry_lock: effect.entry_lock,
-                reset: effect.reset,
                 logs: effect.logs,
                 reject_deposits,
             });
@@ -987,6 +1034,7 @@ impl Default for GameContext {
             versions: Default::default(),
             status: GameStatus::Idle,
             nodes: Vec::new(),
+            balances: Vec::new(),
             dispatch: None,
             handler_state: "".into(),
             timestamp: 0,

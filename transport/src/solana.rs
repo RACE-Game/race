@@ -76,7 +76,7 @@ pub struct SolanaTransport {
     rpc: String,
     program_id: Pubkey,
     client: RpcClient,
-    keypair: Keypair,
+    keypair: Option<Keypair>,
     debug: bool,
 }
 
@@ -91,8 +91,7 @@ impl TransportT for SolanaTransport {
         // Save all used keys for later fee calculation
         let mut used_keys = vec![];
 
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
         let bundle_pubkey = Self::parse_pubkey(&params.bundle_addr)?;
         used_keys.push(payer_pubkey.clone());
 
@@ -192,8 +191,8 @@ impl TransportT for SolanaTransport {
     }
 
     async fn close_game_account(&self, params: CloseGameAccountParams) -> Result<()> {
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
+
         let game_account_pubkey = Self::parse_pubkey(&params.addr)?;
         let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
         let stake_account_pubkey = game_state.stake_account;
@@ -242,8 +241,7 @@ impl TransportT for SolanaTransport {
         if params.endpoint.len() > 50 {
             return Err(TransportError::EndpointTooLong)?;
         }
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
 
         let server_account_pubkey =
             Pubkey::create_with_seed(&payer_pubkey, SERVER_PROFILE_SEED, &self.program_id)
@@ -298,8 +296,7 @@ impl TransportT for SolanaTransport {
     }
 
     async fn join(&self, params: JoinParams) -> Result<()> {
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
 
         let player_account_pubkey =
             Pubkey::create_with_seed(&payer_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
@@ -395,8 +392,7 @@ impl TransportT for SolanaTransport {
     }
 
     async fn serve(&self, params: ServeParams) -> Result<()> {
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
 
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
         let server_account_pubkey =
@@ -437,8 +433,7 @@ impl TransportT for SolanaTransport {
             return Err(TransportError::InvalidNameLength(params.nick))?;
         }
 
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
 
         let profile_account_pubkey =
             Pubkey::create_with_seed(&payer_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
@@ -507,8 +502,7 @@ impl TransportT for SolanaTransport {
             return Err(TransportError::InvalidMetadataSymbolLength)?;
         }
 
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
 
         let new_mint = Keypair::new();
         let mint_pubkey = new_mint.pubkey();
@@ -610,13 +604,11 @@ impl TransportT for SolanaTransport {
             settle_version,
             next_settle_version,
             entry_lock,
-            reset,
             accept_deposits,
         } = params;
         info!("Settle game {}", addr);
 
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
         let game_account_pubkey = Self::parse_pubkey(&addr)?;
         let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
 
@@ -735,7 +727,6 @@ impl TransportT for SolanaTransport {
                 settle_version,
                 next_settle_version,
                 entry_lock,
-                reset,
                 accept_deposits,
             },
         };
@@ -764,8 +755,7 @@ impl TransportT for SolanaTransport {
     }
 
     async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
 
         let game_account_pubkey = Self::parse_pubkey(&params.addr)?;
         let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
@@ -828,8 +818,7 @@ impl TransportT for SolanaTransport {
     }
 
     async fn create_registration(&self, params: CreateRegistrationParams) -> Result<String> {
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
         let registry_account = Keypair::new();
         let registry_account_pubkey = registry_account.pubkey();
         let lamports = self.get_min_lamports(REGISTRY_INITIAL_ACCOUNT_LEN)?;
@@ -868,8 +857,7 @@ impl TransportT for SolanaTransport {
     }
 
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
         let recipient_account = Keypair::new();
         let recipient_account_pubkey = recipient_account.pubkey();
         let cap_pubkey = if let Some(addr) = params.cap_addr.as_ref() {
@@ -995,8 +983,7 @@ impl TransportT for SolanaTransport {
     }
 
     async fn register_game(&self, params: RegisterGameParams) -> Result<()> {
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
         let reg_account_pubkey = Self::parse_pubkey(&params.reg_addr)?;
         let reg_state = self
@@ -1039,8 +1026,7 @@ impl TransportT for SolanaTransport {
     }
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
         let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
         let reg_account_pubkey = Self::parse_pubkey(&params.reg_addr)?;
         // let reg_state = self.get_registry_state(&reg_account_pubkey).await?;
@@ -1276,8 +1262,7 @@ impl TransportT for SolanaTransport {
     }
 
     async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
-        let payer = &self.keypair;
-        let payer_pubkey = payer.pubkey();
+        let (payer, payer_pubkey) = self.payer()?;
         let recipient_pubkey = Self::parse_pubkey(&params.recipient_addr)?;
         let recipient_state = self.internal_get_recipient_state(&recipient_pubkey).await?;
 
@@ -1325,7 +1310,7 @@ impl TransportT for SolanaTransport {
             account_metas,
         );
 
-        let message = Message::new(&[recipient_claim_ix], Some(&payer.pubkey()));
+        let message = Message::new(&[recipient_claim_ix], Some(&payer_pubkey));
 
         let blockhash = self.get_blockhash()?;
         let mut tx = Transaction::new_unsigned(message);
@@ -1337,20 +1322,23 @@ impl TransportT for SolanaTransport {
 }
 
 impl SolanaTransport {
-    pub fn try_new(rpc: String, keyfile: PathBuf, skip_preflight: bool) -> TransportResult<Self> {
-        let keypair = read_keypair(keyfile)?;
+    pub fn try_new(rpc: String, keyfile: Option<PathBuf>, skip_preflight: bool) -> TransportResult<Self> {
+        let keypair = keyfile.map(read_keypair).transpose()?;
         let program_id = Pubkey::from_str(PROGRAM_ID)?;
         SolanaTransport::try_new_with_program_id(rpc, keypair, program_id, skip_preflight)
     }
 
-    #[allow(unused)]
-    pub(crate) fn wallet_pubkey(&self) -> Pubkey {
-        self.keypair.pubkey()
+    pub(crate) fn payer(&self) -> TransportResult<(&Keypair, Pubkey)> {
+        if let Some(ref keypair) = self.keypair {
+            Ok((keypair, keypair.pubkey()))
+        } else {
+            Err(TransportError::UnspecifiedSigner)
+        }
     }
 
     pub(crate) fn try_new_with_program_id(
         rpc: String,
-        keypair: Keypair,
+        keypair: Option<Keypair>,
         program_id: Pubkey,
         skip_preflight: bool,
     ) -> TransportResult<Self> {

@@ -11,6 +11,7 @@ use hyper::Method;
 use jsonrpsee::server::{AllowHosts, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error as RpcError, RpcModule};
+use race_api::types::{BalanceChange, PlayerBalance};
 use race_core::error::Error;
 use race_core::types::{DepositStatus, RecipientSlotInit, RejectDepositsParams};
 use race_core::types::RecipientSlotShare;
@@ -225,7 +226,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                         amount,
                         access_version: game_account.access_version,
                         settle_version: game_account.settle_version,
-                        status: DepositStatus::Accepted,
+                        status: DepositStatus::Pending,
                     };
                     game_account.players.push(player_join);
                     game_account.deposits.push(player_deposit);
@@ -705,12 +706,11 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         settle_version,
         next_settle_version,
         entry_lock,
-        reset,
         accept_deposits,
     } = params.one()?;
     println!(
-        "! Handle settlements {}, settles: {:?}, transfers: {:?}, reset: {} ",
-        addr, settles, transfers, reset
+        "! Handle settlements {}, settles: {:?}, transfers: {:?}",
+        addr, settles, transfers
     );
 
     // Simulate the finality time
@@ -756,6 +756,33 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
 
     // Handle settles
     for s in settles.into_iter() {
+
+        // Handle balance changes
+        if let Some(player_balance) = game.balances.iter_mut().find(|pb| pb.player_id == s.player_id) {
+            match s.change {
+                Some(BalanceChange::Add(amount)) => {
+                    player_balance.balance += amount;
+                }
+                Some(BalanceChange::Sub(amount)) => {
+                    player_balance.balance = player_balance.balance.checked_sub(amount).ok_or(custom_error(Error::InvalidSettle("Cannot sub balance".into())))?;
+                }
+                None => ()
+            }
+        } else {
+            match s.change {
+                Some(BalanceChange::Add(amount)) => {
+                    game.balances.push(PlayerBalance {
+                        player_id: s.player_id, balance: amount
+                    })
+                }
+                Some(BalanceChange::Sub(amount)) => {
+                    println!("E Cannot initiate balance with Sub({})", amount);
+                    return Err(custom_error(Error::InvalidSettle("Cannot sub balance".into())));
+                }
+                None => ()
+            }
+        }
+
         if let Some(index) = game
             .players
             .iter()
@@ -790,12 +817,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         );
     }
 
-    if reset {
-        game.players.clear();
-        game.deposits.clear();
-    }
-
-    println!("{} players remain in game", game.players.len());
+    game.balances.retain(|pb| pb.balance != 0);
     context.update_game_account(&game)?;
     Ok(format!("facade_settle_{}", settle_version))
 }

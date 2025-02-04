@@ -64,13 +64,10 @@ pub enum EventFrame {
         previous_settle_version: u64,
         state_sha: String,
         entry_lock: Option<EntryLock>,
-        reset: bool,
         accept_deposits: Vec<u64>,
     },
     Broadcast {
         event: Event,
-        access_version: u64,
-        settle_version: u64,
         timestamp: u64,
         state_sha: String,
     },
@@ -100,6 +97,7 @@ pub enum EventFrame {
         from: GameId,
         dest: GameId,
         event: Event,
+        #[allow(unused)]
         access_version: u64,
         settle_version: u64,
         checkpoint_state: VersionedData,
@@ -123,9 +121,6 @@ pub enum EventFrame {
         game_id: GameId,
         checkpoint_state: VersionedData,
     },
-
-    /// Reset, close all subgames.
-    Reset,
 
     /// Reject a deposit
     RejectDeposits {
@@ -189,9 +184,6 @@ impl std::fmt::Display for EventFrame {
             }
             EventFrame::SubGameReady { game_id, .. } => {
                 write!(f, "SubGameReady, game_id: {}", game_id)
-            }
-            EventFrame::Reset => {
-                write!(f, "Reset")
             }
             EventFrame::RejectDeposits { reject_deposits } => {
                 write!(f, "Reject deposits, {:?}", reject_deposits)

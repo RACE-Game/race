@@ -24,6 +24,10 @@ use syn::{parse_macro_input, ItemStruct};
 ///     fn handle_event(&mut self, effect: &mut Effect, event: Event) -> HandleResult<()> {
 ///         Ok(())
 ///     }
+///
+///     fn balances() -> Vec<PlayerBalance> {
+///         vec![]
+///     }
 /// }
 /// ```
 #[proc_macro_attribute]
@@ -70,7 +74,7 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
 
             let mut handler: #s_idt = effect.__handler_state();
             match handler.handle_event(&mut effect, event) {
-                Ok(_) => effect.__set_handler_state(&handler),
+                Ok(_) => effect.__set_handler_result(handler),
                 Err(e) => effect.__set_error(e),
             }
 
@@ -92,7 +96,7 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
                 return 2
             };
             match #s_idt::init_state(init_account) {
-                Ok(handler) => effect.__set_handler_state(&handler),
+                Ok(handler) => effect.__set_handler_result(handler),
                 Err(e) => effect.__set_error(e),
             }
             let mut ptr = 1 as *mut u8;

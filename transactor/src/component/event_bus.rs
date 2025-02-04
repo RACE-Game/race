@@ -111,6 +111,7 @@ impl Default for EventBus {
 #[derive(Debug, Clone)]
 pub enum CloseReason {
     Complete,
+    #[allow(unused)]
     Fault(Error),
 }
 

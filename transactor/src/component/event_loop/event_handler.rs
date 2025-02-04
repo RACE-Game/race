@@ -31,15 +31,12 @@ fn print_logs(logs: &[Log], env: &ComponentEnv) {
 
 async fn broadcast_event(
     event: Event,
-    original_versions: Versions,
     game_context: &GameContext,
     ports: &PipelinePorts,
 ) {
     ports
         .send(EventFrame::Broadcast {
             event,
-            access_version: original_versions.access_version,
-            settle_version: original_versions.settle_version,
             timestamp: game_context.get_timestamp(),
             state_sha: game_context.state_sha(),
         })
@@ -114,7 +111,6 @@ async fn send_settlement(
     settles: Vec<Settle>,
     awards: Vec<Award>,
     entry_lock: Option<EntryLock>,
-    reset: bool,
     original_versions: Versions,
     game_context: &mut GameContext,
     ports: &PipelinePorts,
@@ -142,7 +138,6 @@ async fn send_settlement(
             awards,
             state_sha: game_context.state_sha(),
             entry_lock,
-            reset,
             accept_deposits,
         })
         .await;
@@ -211,7 +206,7 @@ pub async fn init_state(
     };
 
     let EventEffects {
-        checkpoint, reset, ..
+        checkpoint, ..
     } = effects;
 
     info!(
@@ -232,7 +227,6 @@ pub async fn init_state(
         vec![],
         vec![],
         None,
-        reset,
         original_versions,
         &mut game_context,
         ports,
@@ -336,7 +330,6 @@ pub async fn handle_event(
                 bridge_events,
                 start_game,
                 entry_lock,
-                reset,
                 logs,
                 reject_deposits,
             } = effects;
@@ -345,7 +338,7 @@ pub async fn handle_event(
 
             // Broacast the event to clients
             if client_mode == ClientMode::Transactor {
-                broadcast_event(event, original_versions, &game_context, ports).await;
+                broadcast_event(event, &game_context, ports).await;
             }
 
             // Update the local client
@@ -371,17 +364,12 @@ pub async fn handle_event(
                     settles,
                     awards,
                     entry_lock,
-                    reset,
                     original_versions,
                     game_context,
                     ports,
                     env,
                 )
                 .await;
-            }
-
-            if reset {
-                ports.send(EventFrame::Reset).await;
             }
 
             // Emit bridge events

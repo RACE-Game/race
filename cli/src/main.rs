@@ -351,6 +351,10 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             } else {
                 println!("Checkpoint: None");
             }
+            println!("Balances:");
+            for b in game_account.balances.iter() {
+                println!("{} -> {}", b.player_id, b.balance);
+            }
             println!("Data:");
             print_hex(game_account.data);
         }

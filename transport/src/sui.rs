@@ -625,7 +625,6 @@ impl TransportT for SuiTransport {
             settle_version,
             next_settle_version,
             entry_lock,
-            reset,
             accept_deposits
         } = params;
         println!("Settling for game: {}", addr);
@@ -662,7 +661,7 @@ impl TransportT for SuiTransport {
         // process settles but skip when there is none
         if !settles.is_empty() {
             let mut result_settles: Vec<Argument> = Vec::new();
-            for Settle { player_id, amount, eject } in settles {
+            for Settle { player_id, amount, eject, .. } in settles {
                 println!("Prepare settle for {}, amount = {}, eject: {}",
                          player_id, amount, eject);
                 let args = vec![
@@ -809,7 +808,6 @@ impl TransportT for SuiTransport {
             add_input(&mut ptb, new_pure_arg(&next_settle_version)?)?,
             add_input(&mut ptb, new_pure_arg(&raw_checkpoint)?)?,
             entry_lock_arg,
-            add_input(&mut ptb, new_pure_arg(&reset)?)?,
             checks_passed,
         ];
         ptb.programmable_move_call(

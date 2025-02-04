@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use race_api::types::Transfer;
 use race_core::error::Error;
 use race_core::storage::StorageT;
 use race_core::types::{GameAccount, SaveCheckpointParams, SettleParams, SettleResult, TxState};
@@ -22,10 +23,22 @@ use super::common::PipelinePorts;
 const DEFAULT_SUBMITTER_SQUASH_TIME_WINDOW: u64 = 30;
 
 // The default for maximum number of transactions for one squash.
-const DEFAULT_SUBMITTER_SQUASH_LIMIT: usize = 50;
+const DEFAULT_SUBMITTER_SQUASH__COMPLEXITY_LIMIT: usize = 50;
 
 // The default for size of transcation queue.
 const DEFAULT_SUBMITTER_TX_QUEUE_SIZE: usize = 100;
+
+fn merge_transfers(transfers: &mut Vec<Transfer>) {
+    let mut transfer_map = std::collections::HashMap::new();
+
+    for transfer in transfers.iter() {
+        transfer_map.entry(transfer.slot_id)
+            .and_modify(|e| *e += transfer.amount)
+            .or_insert(transfer.amount);
+    }
+
+    *transfers = transfer_map.into_iter().map(|(slot_id, amount)| Transfer { slot_id, amount }).collect();
+}
 
 /// Squash two settles into one.
 fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
@@ -36,14 +49,17 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         awards,
         checkpoint,
         entry_lock,
-        reset,
         accept_deposits,
         ..
     } = next;
+
     prev.settles.extend(settles);
     prev.transfers.extend(transfers);
     prev.awards.extend(awards);
     prev.accept_deposits.extend(accept_deposits);
+
+    merge_transfers(&mut prev.transfers);
+
     let entry_lock = if entry_lock.is_none() {
         prev.entry_lock
     } else {
@@ -62,14 +78,13 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         settle_version: prev.settle_version,
         next_settle_version: prev.next_settle_version + 1,
         entry_lock,
-        reset,
         accept_deposits: prev.accept_deposits,
     }
 }
 
 // Asynchronously reads a limited number of `SettleParams` from a channel,
 // accumulating them into a vector. Stops reading on delivering a certain number
-// of messages, encountering a params with non-empty `settles` or `reset`, or a timeout.
+// of settle complexity, encountering a params with non-empty `settles`, or a timeout.
 async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>, squash_limit: usize, squash_time_window: u64) -> Vec<SettleParams> {
     let mut v = vec![];
     let mut cnt = 0;
@@ -83,10 +98,9 @@ async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>, squash_limit:
             p = rx.recv() => {
                 if let Some(p) = p {
                     cnt += 1;
-
                     // We terminate when there are non-empty settles/awards
                     // or we are making the first checkpoint
-                    let stop_here = (!p.settles.is_empty()) || (!p.awards.is_empty()) || p.reset || p.next_settle_version == 1;
+                    let stop_here = (!p.settles.is_empty()) || (!p.awards.is_empty()) || p.next_settle_version == 1;
                     v.push(p);
                     if stop_here {
                         break;
@@ -127,7 +141,7 @@ impl Submitter {
         config: Option<&SubmitterConfig>,
     ) -> (Self, SubmitterContext) {
         let squash_time_window = config.and_then(|c| c.squash_time_window).unwrap_or(DEFAULT_SUBMITTER_SQUASH_TIME_WINDOW);
-        let squash_limit = config.and_then(|c| c.squash_limit).unwrap_or(DEFAULT_SUBMITTER_SQUASH_LIMIT);
+        let squash_limit = config.and_then(|c| c.squash_limit).unwrap_or(DEFAULT_SUBMITTER_SQUASH__COMPLEXITY_LIMIT);
         let tx_queue_size = config.and_then(|c| c.tx_queue_size).unwrap_or(DEFAULT_SUBMITTER_TX_QUEUE_SIZE);
         (
             Self {},
@@ -197,7 +211,6 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     settle_version,
                     previous_settle_version,
                     entry_lock,
-                    reset,
                     accept_deposits,
                     ..
                 } => {
@@ -231,7 +244,6 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                             settle_version: previous_settle_version,
                             next_settle_version: settle_version,
                             entry_lock,
-                            reset,
                             accept_deposits,
                         })
                         .await;

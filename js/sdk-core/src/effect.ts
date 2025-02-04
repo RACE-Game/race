@@ -1,21 +1,46 @@
 import { RandomSpec } from './random-state'
 import { HandleError } from './error'
 import { GameContext } from './game-context'
-import { enums, field, map, option, struct, array } from '@race-foundation/borsh'
+import { enums, field, map, option, struct, array, variant } from '@race-foundation/borsh'
 import { Fields, Indices } from './types'
 import { InitAccount } from './init-account'
 import { EntryLock } from './accounts'
+
+export abstract class BalanceChange {}
+
+@variant(0)
+export class BalanceChangeAdd extends BalanceChange {
+    @field('u64')
+    amount: bigint
+    constructor(fields: Fields<BalanceChangeAdd>) {
+        super()
+        this.amount = fields.amount;
+    }
+}
+
+@variant(1)
+export class BalanceChangeSub extends BalanceChange {
+    @field('u64')
+    amount: bigint
+    constructor(fields: Fields<BalanceChangeSub>) {
+        super()
+        this.amount = fields.amount;
+    }
+}
 
 export class Settle {
     @field('u64')
     id: bigint
     @field('u64')
     amount: bigint
+    @field(option(enums(BalanceChange)))
+    change: BalanceChange | undefined
     @field('bool')
     eject: boolean
     constructor(fields: Fields<Settle>) {
         this.id = fields.id
         this.amount = fields.amount
+        this.change = fields.change
         this.eject = fields.eject
     }
 }
@@ -38,6 +63,29 @@ export class Award {
     constructor(fields: Fields<Award>) {
         this.id = fields.id
         this.bonusIdentifier = fields.bonusIdentifier
+    }
+}
+
+export class Withdraw {
+    @field('u64')
+    playerId: bigint
+    @field('u64')
+    amount: bigint
+    constructor(fields: Fields<Withdraw>) {
+        this.playerId = fields.playerId
+        this.amount = fields.amount
+    }
+}
+
+
+export class PlayerBalance {
+    @field('u64')
+    playerId: bigint
+    @field('u64')
+    balance: bigint
+    constructor(fields: Fields<PlayerBalance>) {
+        this.playerId = fields.playerId
+        this.balance = fields.balance
     }
 }
 
@@ -162,8 +210,10 @@ export class Effect {
     answered!: Map<number, string>
     @field('bool')
     isCheckpoint!: boolean
-    @field(array(struct(Settle)))
-    settles!: Settle[]
+    @field(array(struct(Withdraw)))
+    withdraws!: Withdraw[]
+    @field(array('u64'))
+    ejects!: bigint[]
     @field(option('u8-array'))
     handlerState!: Uint8Array | undefined
     @field(option(enums(HandleError)))
@@ -174,14 +224,10 @@ export class Effect {
     launchSubGames!: SubGame[]
     @field(array(struct(EmitBridgeEvent)))
     bridgeEvents!: EmitBridgeEvent[]
-    @field(array('u64'))
-    validPlayers!: bigint[]
     @field('bool')
     isInit!: boolean
     @field(option('u8'))
     entryLock!: EntryLock | undefined
-    @field('bool')
-    reset!: boolean
     @field(array(struct(Log)))
     logs!: Log[]
     @field(array(struct(Award)))
@@ -192,6 +238,8 @@ export class Effect {
     acceptDeposits!: bigint[]
     @field('usize')
     currSubGameId!: number
+    @field(array(struct(PlayerBalance)))
+    balances!: PlayerBalance[]
 
     constructor(fields: Fields<Effect>) {
         Object.assign(this, fields)
@@ -221,13 +269,13 @@ export class Effect {
         const reveals: Reveal[] = []
         const initRandomStates: RandomSpec[] = []
         const isCheckpoint = false
-        const settles: Settle[] = []
+        const withdraws: Withdraw[] = []
+        const ejects: bigint[] = []
         const handlerState = context.handlerState
         const error = undefined
         const transfers: Transfer[] = []
         const launchSubGames: SubGame[] = []
         const bridgeEvents: EmitBridgeEvent[] = []
-        const validPlayers = context.players.map(p => p.id)
         const entryLock = undefined
         const reset = false
         const logs: Log[] = []
@@ -235,6 +283,7 @@ export class Effect {
         const rejectDeposits: bigint[] = []
         const acceptDeposits: bigint[] = []
         const currSubGameId = context.subGames.length + 1
+        const balances: PlayerBalance[] = []
         return new Effect({
             actionTimeout,
             waitTimeout,
@@ -253,21 +302,21 @@ export class Effect {
             revealed,
             answered,
             isCheckpoint,
-            settles,
+            withdraws,
+            ejects,
             handlerState,
             error,
             transfers,
             launchSubGames,
             bridgeEvents,
-            validPlayers,
             isInit,
             entryLock,
-            reset,
             logs,
             awards,
             rejectDeposits,
             acceptDeposits,
             currSubGameId,
+            balances,
         })
     }
 }

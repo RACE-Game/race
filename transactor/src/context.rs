@@ -18,6 +18,7 @@ use tracing::{error, info};
 /// Transactor runtime context
 pub struct ApplicationContext {
     pub config: TransactorConfig,
+    #[allow(unused)]
     pub chain: ChainType,
     pub account: ServerAccount,
     pub transport: Arc<WrappedTransport>,

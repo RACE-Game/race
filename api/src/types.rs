@@ -13,18 +13,27 @@ pub enum EntryLock {
     Closed,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub enum BalanceChange {
+    Add(u64),
+    Sub(u64),
+}
+
 #[derive(Clone, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Settle {
     pub player_id: u64,
     pub amount: u64,
+    pub change: Option<BalanceChange>,
     pub eject: bool,
 }
 
 impl Settle {
-    pub fn new(player_id: u64, amount: u64, eject: bool) -> Self {
-        Self { player_id, amount, eject }
+    pub fn new(player_id: u64, amount: u64, change: Option<BalanceChange>, eject: bool) -> Self {
+        Self { player_id, amount, change, eject }
     }
 }
 
@@ -260,5 +269,19 @@ impl GameDeposit {
 
     pub fn balance(&self) -> u64 {
         self.balance
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct PlayerBalance {
+    pub player_id: u64,
+    pub balance: u64,
+}
+
+impl PlayerBalance {
+    pub fn new(player_id: u64, balance: u64) -> Self {
+        Self { player_id, balance }
     }
 }

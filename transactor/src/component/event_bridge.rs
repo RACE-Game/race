@@ -36,6 +36,7 @@ pub struct EventBridgeChildContext {
 }
 
 pub struct EventBridgeChild {
+    #[allow(unused)]
     pub game_id: GameId,
 }
 
@@ -146,9 +147,6 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         }
 
                         ports.send(event_frame).await;
-                    }
-                    EventFrame::Reset => {
-                        ports.send(EventFrame::Shutdown).await;
                     }
                     _ => (),
                 }

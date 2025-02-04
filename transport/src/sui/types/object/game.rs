@@ -231,7 +231,8 @@ impl GameObject {
             entry_type,
             checkpoint_on_chain: checkpoint_onchain,
             entry_lock,
-            bonuses
+            bonuses,
+            balances: vec![],
         })
     }
 }
