@@ -467,7 +467,7 @@ pub fn create_game_account_table(conn: &Connection) -> Result<()> {
 
 pub fn create_game_bundle(conn: &Connection, game_bundle: &GameBundle) -> Result<usize> {
     conn.execute(
-        "INSERT INTO game_bundle (addr, uri, name, data) VALUES (?, ?, ?, ?)",
+        "INSERT OR IGNORE INTO game_bundle (addr, uri, name, data) VALUES (?, ?, ?, ?)",
         params![
             game_bundle.addr,
             game_bundle.uri,
