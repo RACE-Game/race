@@ -52,7 +52,7 @@ export interface IdAddrPair {
 
 export interface EventEffects {
     settles: Settle[]
-    transfers: Transfer[]
+    transfer: Transfer | undefined
     checkpoint: Uint8Array | undefined
     launchSubGames: SubGame[]
     bridgeEvents: EmitBridgeEvent[]
@@ -498,7 +498,7 @@ export class GameContext {
         return {
             checkpoint: effect.isCheckpoint ? effect.handlerState : undefined,
             settles,
-            transfers: effect.transfers,
+            transfer: effect.transfer,
             startGame: effect.startGame,
             launchSubGames: effect.launchSubGames,
             bridgeEvents: effect.bridgeEvents,

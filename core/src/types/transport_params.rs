@@ -201,7 +201,7 @@ pub struct RejectDepositsResult {
 pub struct SettleParams {
     pub addr: String,
     pub settles: Vec<Settle>,
-    pub transfers: Vec<Transfer>,
+    pub transfer: Option<Transfer>,
     pub awards: Vec<Award>,
     pub checkpoint: CheckpointOnChain,
     pub access_version: u64,

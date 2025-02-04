@@ -56,7 +56,7 @@ pub enum EventFrame {
     },
     Checkpoint {
         settles: Vec<Settle>,
-        transfers: Vec<Transfer>,
+        transfer: Option<Transfer>,
         awards: Vec<Award>,
         checkpoint: Checkpoint,
         access_version: u64,

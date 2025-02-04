@@ -218,8 +218,8 @@ export class Effect {
     handlerState!: Uint8Array | undefined
     @field(option(enums(HandleError)))
     error: HandleError | undefined
-    @field(array(struct(Transfer)))
-    transfers!: Transfer[]
+    @field(option(struct(Transfer)))
+    transfer!: Transfer | undefined
     @field(array(struct(SubGame)))
     launchSubGames!: SubGame[]
     @field(array(struct(EmitBridgeEvent)))
@@ -273,7 +273,7 @@ export class Effect {
         const ejects: bigint[] = []
         const handlerState = context.handlerState
         const error = undefined
-        const transfers: Transfer[] = []
+        const transfer: Transfer | undefined = undefined
         const launchSubGames: SubGame[] = []
         const bridgeEvents: EmitBridgeEvent[] = []
         const entryLock = undefined
@@ -306,7 +306,7 @@ export class Effect {
             ejects,
             handlerState,
             error,
-            transfers,
+            transfer,
             launchSubGames,
             bridgeEvents,
             isInit,

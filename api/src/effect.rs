@@ -222,7 +222,7 @@ pub struct Effect {
     pub ejects: Vec<u64>,
     pub handler_state: Option<Vec<u8>>,
     pub error: Option<HandleError>,
-    pub transfers: Vec<Transfer>,
+    pub transfer: Option<Transfer>,
     pub launch_sub_games: Vec<SubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
     pub is_init: bool,
@@ -365,9 +365,13 @@ impl Effect {
 
     /// Transfer the assets to a recipient slot
     /// This will set current state as checkpoint automatically.
-    pub fn transfer(&mut self, slot_id: u8, amount: u64) {
+    pub fn transfer(&mut self, amount: u64) {
         self.checkpoint();
-        self.transfers.push(Transfer { slot_id, amount });
+        if let Some(ref mut transfer) = self.transfer {
+            transfer.amount += amount;
+        } else {
+            self.transfer = Some(Transfer { amount });
+        }
     }
 
     /// Award a list of bonus to a player

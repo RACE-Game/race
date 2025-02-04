@@ -107,7 +107,7 @@ async fn send_reject_deposits(
 }
 
 async fn send_settlement(
-    transfers: Vec<Transfer>,
+    transfer: Option<Transfer>,
     settles: Vec<Settle>,
     awards: Vec<Award>,
     entry_lock: Option<EntryLock>,
@@ -134,7 +134,7 @@ async fn send_settlement(
             previous_settle_version: original_versions.settle_version,
             checkpoint: checkpoint.clone(),
             settles,
-            transfers,
+            transfer,
             awards,
             state_sha: game_context.state_sha(),
             entry_lock,
@@ -223,7 +223,7 @@ pub async fn init_state(
     };
 
     send_settlement(
-        vec![],
+        None,
         vec![],
         vec![],
         None,
@@ -323,7 +323,7 @@ pub async fn handle_event(
         Ok(effects) => {
             let EventEffects {
                 settles,
-                transfers,
+                transfer,
                 awards,
                 checkpoint,
                 launch_sub_games,
@@ -360,7 +360,7 @@ pub async fn handle_event(
 
             if checkpoint.is_some() {
                 send_settlement(
-                    transfers,
+                    transfer,
                     settles,
                     awards,
                     entry_lock,

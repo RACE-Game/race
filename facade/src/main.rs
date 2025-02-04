@@ -699,7 +699,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
     let SettleParams {
         addr,
         settles,
-        transfers,
+        transfer,
         awards,
         checkpoint,
         access_version,
@@ -709,8 +709,8 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         accept_deposits,
     } = params.one()?;
     println!(
-        "! Handle settlements {}, settles: {:?}, transfers: {:?}",
-        addr, settles, transfers
+        "! Handle settlements {}, settles: {:?}, transfer: {:?}",
+        addr, settles, transfer
     );
 
     // Simulate the finality time

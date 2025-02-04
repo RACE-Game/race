@@ -144,7 +144,7 @@ pub struct IxSettle {
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct IxSettleParams {
     pub settles: Vec<IxSettle>,
-    pub transfers: Vec<Transfer>,
+    pub transfer: Option<Transfer>,
     pub awards: Vec<Award>,
     pub checkpoint: Vec<u8>,
     pub access_version: u64,

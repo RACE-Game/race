@@ -28,16 +28,12 @@ const DEFAULT_SUBMITTER_SQUASH__COMPLEXITY_LIMIT: usize = 50;
 // The default for size of transcation queue.
 const DEFAULT_SUBMITTER_TX_QUEUE_SIZE: usize = 100;
 
-fn merge_transfers(transfers: &mut Vec<Transfer>) {
-    let mut transfer_map = std::collections::HashMap::new();
-
-    for transfer in transfers.iter() {
-        transfer_map.entry(transfer.slot_id)
-            .and_modify(|e| *e += transfer.amount)
-            .or_insert(transfer.amount);
+fn merge_transfers(a: Option<Transfer>, b: Option<Transfer>) -> Option<Transfer> {
+    match (a, b) {
+        (Some(x1), Some(x2)) => Some(Transfer { amount: x1.amount + x2.amount }),
+        (Some(x), None) | (None, Some(x)) => Some(x),
+        (None, None) => None,
     }
-
-    *transfers = transfer_map.into_iter().map(|(slot_id, amount)| Transfer { slot_id, amount }).collect();
 }
 
 /// Squash two settles into one.
@@ -45,7 +41,7 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
     let SettleParams {
         addr,
         settles,
-        transfers,
+        transfer,
         awards,
         checkpoint,
         entry_lock,
@@ -54,11 +50,9 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
     } = next;
 
     prev.settles.extend(settles);
-    prev.transfers.extend(transfers);
+    prev.transfer = merge_transfers(prev.transfer.clone(), transfer);
     prev.awards.extend(awards);
     prev.accept_deposits.extend(accept_deposits);
-
-    merge_transfers(&mut prev.transfers);
 
     let entry_lock = if entry_lock.is_none() {
         prev.entry_lock
@@ -68,7 +62,7 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
     SettleParams {
         addr,
         settles: prev.settles,
-        transfers: prev.transfers,
+        transfer: prev.transfer,
         awards: prev.awards,
         // Use the latest checkpoint
         checkpoint,
@@ -204,7 +198,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
 
                 EventFrame::Checkpoint {
                     settles,
-                    transfers,
+                    transfer,
                     checkpoint,
                     awards,
                     access_version,
@@ -237,7 +231,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                         .send(SettleParams {
                             addr: ctx.addr.clone(),
                             settles,
-                            transfers,
+                            transfer,
                             awards,
                             checkpoint: checkpoint_onchain,
                             access_version,

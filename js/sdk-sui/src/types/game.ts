@@ -2,6 +2,7 @@ import { bcs } from '@mysten/bcs'
 import { Address, Parser } from './parser'
 import {
     Bonus,
+    PlayerBalance,
     CheckpointOnChain,
     EntryLock,
     EntryType,
@@ -29,6 +30,21 @@ const BonusParser: Parser<Bonus, typeof BonusSchema> = {
             identifier: input.identifier,
             tokenAddr: input.tokenAddr,
             amount: BigInt(input.amount)
+        }
+    }
+}
+
+const PlayerBalanceSchema = bcs.struct('PlayerBalance', {
+    playerId: bcs.u64(),
+    balance: bcs.u64(),
+})
+
+const PlayerBalanceParser: Parser<PlayerBalance, typeof PlayerBalanceSchema> = {
+    schema: PlayerBalanceSchema,
+    transform: (input: typeof PlayerBalanceSchema.$inferType): PlayerBalance => {
+        return {
+            playerId: BigInt(input.playerId),
+            balance: BigInt(input.balance),
         }
     }
 }
@@ -123,6 +139,7 @@ const GameSchema = bcs.struct('Game', {
     checkpointOnChain: bcs.vector(bcs.u8()),
     entryLock: bcs.u8(),  // This should map to EntryLock in the transform function
     bonuses: bcs.vector(BonusSchema),
+    balances: bcs.vector(PlayerBalanceSchema),
 })
 
 // Transform function to convert from BCS to the TypeScript type
@@ -179,6 +196,9 @@ export const GameAccountParser: Parser<GameAccount, typeof GameSchema> = {
             bonuses: Array.from(input.bonuses).map((bonus) => (
                 BonusParser.transform(bonus))
             ),
+            balances: Array.from(input.balances).map((balance) => (
+                PlayerBalanceParser.transform(balance)
+            ))
         }
     },
 }

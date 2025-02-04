@@ -22,7 +22,7 @@ use race_core::{
         GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams,
         RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
         RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams,
-        ServerAccount, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams,
+        ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams,
     },
 };
 
@@ -597,7 +597,7 @@ impl TransportT for SolanaTransport {
         let SettleParams {
             addr,
             settles,
-            transfers,
+            transfer,
             awards,
             checkpoint,
             access_version,
@@ -638,7 +638,6 @@ impl TransportT for SolanaTransport {
         ];
 
         let mut ix_settles: Vec<IxSettle> = Vec::new();
-        let mut ix_transfers: Vec<Transfer> = Vec::new();
         let mut calc_cu_prize_addrs =
             vec![Pubkey::from_str(&addr).unwrap(), game_state.stake_account];
 
@@ -671,11 +670,10 @@ impl TransportT for SolanaTransport {
             });
         }
 
-        for t @ Transfer { slot_id, .. } in transfers.iter() {
-            if let Some(slot) = recipient_state.slots.iter().find(|s| s.id == *slot_id) {
+        if transfer.is_some() {
+            if let Some(slot) = recipient_state.slots.iter().find(|s| s.token_addr.eq(&game_state.token_mint)) {
                 accounts.push(AccountMeta::new(slot.stake_addr, false));
                 calc_cu_prize_addrs.push(slot.stake_addr);
-                ix_transfers.push(t.clone());
             }
         }
 
@@ -708,12 +706,12 @@ impl TransportT for SolanaTransport {
             }
         }
 
-        info!("Solana transport settle game: {}\n  - Settle Version: {} -> {}\n  - Settles: {:?}\n  - Transfers: {:?}\n  - Awards: {:?}\n  - Checkpoint: {:?}",
+        info!("Solana transport settle game: {}\n  - Settle Version: {} -> {}\n  - Settles: {:?}\n  - Transfer: {:?}\n  - Awards: {:?}\n  - Checkpoint: {:?}",
             addr,
             settle_version,
             next_settle_version,
             ix_settles,
-            transfers,
+            transfer,
             awards,
             checkpoint
         );
@@ -721,7 +719,7 @@ impl TransportT for SolanaTransport {
         let params = RaceInstruction::Settle {
             params: IxSettleParams {
                 settles: ix_settles,
-                transfers: ix_transfers,
+                transfer,
                 awards,
                 checkpoint: borsh::to_vec(&checkpoint)?,
                 access_version,

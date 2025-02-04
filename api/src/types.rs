@@ -198,7 +198,6 @@ impl SecretShare {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Transfer {
-    pub slot_id: u8,
     pub amount: u64,
 }
 

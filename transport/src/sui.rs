@@ -599,7 +599,7 @@ impl TransportT for SuiTransport {
         let SettleParams {
             addr,
             settles,
-            transfers,
+            transfer,
             awards,
             checkpoint,
             access_version,
@@ -608,9 +608,8 @@ impl TransportT for SuiTransport {
             entry_lock,
             accept_deposits
         } = params;
-        info!("Need to handle {} settles for game: {}", settles.len(), addr);
-        if settles.len() + transfers.len() + awards.len() + 10 > 1024 {
-            return Err(Error::TransportError("Total settle number exceeds the 1024 limit".into()));
+        if settles.len() + awards.len() + 10 > 1024 {
+            return Err(Error::TransportError("Settles exceed the 1024 limit".into()));
         }
         let module = new_identifier("settle")?;
         let game_id = parse_object_id(&addr)?;
@@ -695,11 +694,10 @@ impl TransportT for SuiTransport {
             to_account_addr(game_obj.recipient_addr)?
         );
         let recipient_obj = self.get_move_object::<RecipientObject>(recipient_id).await?;
-        // handle transfers one by one
-        for Transfer { slot_id, amount } in transfers {
-            info!("Tranfer {} for slot id {}", amount, slot_id);
+        // process transfers one by one
+        if let Some(Transfer { amount }) = transfer {
             // TODO: to use the stake token to match the target slot
-            if let Some(slot) = recipient_obj.slots.iter().find(|s| s.slot_id == slot_id) {
+            if let Some(slot) = recipient_obj.slots.iter().find(|s| s.token_addr.eq(&game_obj.token_addr)) {
                 if game_obj.token_addr.ne(&slot.token_addr) {
                     return Err(Error::TransportError(format!(
                         "Expected token {} but got {}",
@@ -725,8 +723,7 @@ impl TransportT for SuiTransport {
                     handle_transfer_args
                 );
             } else {
-                return Err(Error::InvalidSettle(format!(
-                    "Failed to find slot: {}", slot_id)));
+                return Err(Error::InvalidSettle("Failed to find slot".to_string()));
             }
         }
 

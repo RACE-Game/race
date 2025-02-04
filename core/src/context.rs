@@ -148,7 +148,7 @@ pub struct SubGameInit {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct EventEffects {
     pub settles: Vec<Settle>,
-    pub transfers: Vec<Transfer>,
+    pub transfer: Option<Transfer>,
     pub awards: Vec<Award>,
     pub checkpoint: Option<Checkpoint>,
     pub launch_sub_games: Vec<SubGame>,
@@ -816,7 +816,7 @@ impl GameContext {
             ejects: Vec::new(),
             handler_state: Some(self.handler_state.clone()),
             error: None,
-            transfers: Vec::new(),
+            transfer: None,
             launch_sub_games: Vec::new(),
             bridge_events: Vec::new(),
             is_init,
@@ -844,7 +844,7 @@ impl GameContext {
             init_random_states,
             withdraws,
             ejects,
-            transfers,
+            transfer,
             handler_state,
             is_checkpoint,
             launch_sub_games,
@@ -967,7 +967,7 @@ impl GameContext {
             }
 
             return Ok(EventEffects {
-                transfers,
+                transfer,
                 awards,
                 settles,
                 checkpoint: (is_checkpoint || is_init).then(|| self.checkpoint.clone()),

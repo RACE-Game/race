@@ -341,6 +341,16 @@ export class EntryTypeDisabled extends AEntryType {
     }
 }
 
+export class PlayerBalance {
+    @field('u64')
+    playerId!: bigint
+    @field('u64')
+    balance!: bigint
+    constructor(fields: RaceCore.Fields<PlayerBalance>) {
+        Object.assign(this, fields)
+    }
+}
+
 export class GameState implements IGameState {
     @field('bool')
     isInitialized!: boolean
@@ -388,6 +398,8 @@ export class GameState implements IGameState {
     entryLock!: EntryLock
     @field(array(struct(Bonus)))
     bonuses!: Bonus[]
+    @field(array(struct(PlayerBalance)))
+    balances!: PlayerBalance[]
 
     constructor(fields: IGameState) {
         Object.assign(this, fields)
@@ -429,6 +441,7 @@ export class GameState implements IGameState {
             checkpointOnChain,
             entryLock: RaceCore.ENTRY_LOCKS[this.entryLock],
             bonuses: this.bonuses.map(b => b.generalize()),
+            balances: this.balances,
         }
     }
 }
