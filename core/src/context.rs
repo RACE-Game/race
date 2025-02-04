@@ -326,7 +326,7 @@ impl GameContext {
             versions: Versions::new(checkpoint.access_version, game_account.settle_version),
             status: GameStatus::Idle,
             nodes,
-            balances: vec![],
+            balances: game_account.balances.clone(),
             dispatch: None,
             timestamp: 0,
             random_states: vec![],
