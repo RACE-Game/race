@@ -1,5 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::types::EntryLock;
+use race_api::types::{BalanceChange, EntryLock};
 use race_core::types::{
     AssignRecipientParams, CreateGameAccountParams, CreatePlayerProfileParams,
     CreateRegistrationParams, EntryType, JoinParams, PublishGameParams,
@@ -137,6 +137,7 @@ pub enum AssetChange {
 pub struct IxSettle {
     pub access_version: u64,
     pub amount: u64,
+    pub change: Option<BalanceChange>,
     pub eject: bool,
 }
 

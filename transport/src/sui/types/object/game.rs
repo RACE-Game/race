@@ -120,6 +120,23 @@ impl From<Bonus> for race_core::types::Bonus {
     }
 }
 
+#[cfg_attr(test, derive(PartialEq, Clone))]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerBalance {
+    player_id: u64,
+    balance: u64,
+}
+
+impl From<PlayerBalance> for race_core::types::PlayerBalance {
+    fn from(value: PlayerBalance) -> Self {
+        Self {
+            player_id: value.player_id,
+            balance: value.balance,
+        }
+    }
+}
+
 // On-chain object that represents a game
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(Serialize, Deserialize, Debug)]
@@ -170,7 +187,9 @@ pub struct GameObject {
     // the lock for entry
     pub entry_lock: EntryLock,
     // prizes for this game, the actual bonus stored in the onchain bonus objects
-    pub bonuses: Vec<Bonus>
+    pub bonuses: Vec<Bonus>,
+    // the snapshot for checkpoint balances
+    pub balances: Vec<PlayerBalance>,
 }
 
 impl GameObject {
@@ -195,12 +214,15 @@ impl GameObject {
             entry_lock,
             deposits,
             bonuses,
+            balances,
             ..
         } = self;
 
         let players = players.into_iter().map(Into::into).collect();
         let servers = servers.into_iter().map(Into::into).collect();
         let deposits = deposits.into_iter().map(Into::into).collect();
+        let balances = balances.into_iter().map(Into::into).collect();
+
         let checkpoint_onchain = if !checkpoint.is_empty() {
             Some(
                 CheckpointOnChain::try_from_slice(&checkpoint)
@@ -232,7 +254,7 @@ impl GameObject {
             checkpoint_on_chain: checkpoint_onchain,
             entry_lock,
             bonuses,
-            balances: vec![],
+            balances,
         })
     }
 }

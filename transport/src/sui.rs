@@ -2182,7 +2182,6 @@ mod tests {
             settle_version: 0,
             next_settle_version: 0,
             entry_lock: Some(EntryLock::Closed),
-            reset: true,
             accept_deposits: vec![0, 1],
         };
         let result = transport.settle_game(params).await?;

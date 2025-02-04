@@ -96,6 +96,22 @@ impl From<Bonus> for race_core::types::Bonus {
     }
 }
 
+#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(BorshDeserialize, BorshSerialize, Clone, Debug)]
+pub struct PlayerBalance {
+    pub player_id: u64,
+    pub balance: u64,
+}
+
+impl From<PlayerBalance> for race_core::types::PlayerBalance {
+    fn from(value: PlayerBalance) -> Self {
+        Self {
+            player_id: value.player_id,
+            balance: value.balance,
+        }
+    }
+}
+
 // State of on-chain GameAccount
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Debug)]
@@ -145,6 +161,8 @@ pub struct GameState {
     pub entry_lock: EntryLock,
     // a list of bonuses that can be awarded in game
     pub bonuses: Vec<Bonus>,
+    // the snapshot for checkpoint balances
+    pub balances: Vec<PlayerBalance>,
 }
 
 impl GameState {
@@ -168,6 +186,7 @@ impl GameState {
             entry_lock,
             deposits,
             bonuses,
+            balances,
             ..
         } = self;
 
@@ -175,6 +194,7 @@ impl GameState {
         let servers = servers.into_iter().map(Into::into).collect();
         let deposits = deposits.into_iter().map(Into::into).collect();
         let bonuses = bonuses.into_iter().map(Into::into).collect();
+        let balances = balances.into_iter().map(Into::into).collect();
 
         let checkpoint_onchain = if !checkpoint.is_empty() {
             Some(
@@ -207,7 +227,7 @@ impl GameState {
             checkpoint_on_chain: checkpoint_onchain,
             entry_lock,
             bonuses,
-            balances: vec![],
+            balances,
         })
     }
 }
