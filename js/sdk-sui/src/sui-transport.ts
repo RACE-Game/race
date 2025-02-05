@@ -61,12 +61,12 @@ import {
 } from './types'
 import {
     CLOCK_ID,
-    GAME_STRUCT_TYPE,
+    GAME_MODULE_STRUCT,
     GAS_BUDGET,
     MAXIMUM_TITLE_LENGTH,
     PACKAGE_ID,
-    PROFILE_STRUCT_TYPE,
-    SERVER_STRUCT_TYPE,
+    PROFILE_MODULE_STRUCT,
+    SERVER_MODULE_STRUCT,
     SUI_ICON_URL,
 } from './constants'
 import {
@@ -80,6 +80,18 @@ import {
     resolveObjectCreatedByType,
     resolveObjectMutatedByType,
 } from './misc'
+
+function getProfileStructType(packageId: string): string {
+    return `${packageId}::${PROFILE_MODULE_STRUCT}`
+}
+
+function getGameStructType(packageId: string): string {
+    return `${packageId}::${GAME_MODULE_STRUCT}`
+}
+
+function getServerStructType(packageId: string): string {
+    return `${packageId}::${SERVER_MODULE_STRUCT}`
+}
 
 export class SuiTransport implements ITransport {
     suiClient: SuiClient
@@ -163,7 +175,7 @@ export class SuiTransport implements ITransport {
             return resp.transactionFailed(result.err)
         }
 
-        const objectChange = await resolveObjectCreatedByType(this.suiClient, result.ok, GAME_STRUCT_TYPE)
+        const objectChange = await resolveObjectCreatedByType(this.suiClient, result.ok, getGameStructType(this.packageId))
         if (objectChange === undefined) return
 
         console.log('Transaction Result:', objectChange)
@@ -189,7 +201,7 @@ export class SuiTransport implements ITransport {
         let objectChange
 
         if (exist) {
-            const profileObjectRef = await getOwnedObjectRef(this.suiClient, exist.addr, PROFILE_STRUCT_TYPE)
+            const profileObjectRef = await getOwnedObjectRef(this.suiClient, exist.addr, getProfileStructType(this.packageId))
 
             if (profileObjectRef === undefined) {
                 return resp.retryRequired('Cannot find player profile object ref')
@@ -208,7 +220,7 @@ export class SuiTransport implements ITransport {
                 return resp.transactionFailed(result.err)
             }
 
-            objectChange = await resolveObjectMutatedByType(this.suiClient, result.ok, PROFILE_STRUCT_TYPE)
+            objectChange = await resolveObjectMutatedByType(this.suiClient, result.ok, getProfileStructType(this.packageId))
         } else {
             transaction.moveCall({
                 target: `${this.packageId}::profile::create_profile`,
@@ -219,7 +231,7 @@ export class SuiTransport implements ITransport {
                 return resp.transactionFailed(result.err)
             }
 
-            objectChange = await resolveObjectCreatedByType(this.suiClient, result.ok, PROFILE_STRUCT_TYPE)
+            objectChange = await resolveObjectCreatedByType(this.suiClient, result.ok, getProfileStructType(this.packageId))
         }
 
         if (objectChange) {
@@ -291,8 +303,6 @@ export class SuiTransport implements ITransport {
         const coinsResp = await suiClient.getCoins({ owner: wallet.walletAddr, coinType: game.tokenAddr })
 
         let coins = coinsResp.data
-
-        const gasCoin = coins[coins.length - 1]
 
         transaction.setGasBudget(GAS_BUDGET)
 
@@ -551,7 +561,7 @@ export class SuiTransport implements ITransport {
     async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
         const resp = await this.suiClient.getOwnedObjects({
             owner: addr,
-            filter: { StructType: SERVER_STRUCT_TYPE },
+            filter: { StructType: getServerStructType(this.packageId) },
             options: { showBcs: true },
         })
         return parseObjectData(parseFirstObjectResponse(resp), ServerParser)
