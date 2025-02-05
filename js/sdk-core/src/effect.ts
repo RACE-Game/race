@@ -46,8 +46,6 @@ export class Settle {
 }
 
 export class Transfer {
-    @field('u8')
-    slotId!: number
     @field('u64')
     amount!: bigint
     constructor(fields: Fields<Transfer>) {
