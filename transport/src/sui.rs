@@ -691,9 +691,9 @@ impl TransportT for SuiTransport {
             to_account_addr(game_obj.recipient_addr)?
         );
         let recipient_obj = self.get_move_object::<RecipientObject>(recipient_id).await?;
+        let recipient_version = self.get_initial_shared_version(recipient_id).await?;
         // process transfers one by one
         if let Some(Transfer { amount }) = transfer {
-            // TODO: to use the stake token to match the target slot
             if let Some(slot) = recipient_obj.slots.iter().find(|s| s.token_addr.eq(&game_obj.token_addr)) {
                 if game_obj.token_addr.ne(&slot.token_addr) {
                     return Err(Error::TransportError(format!(
@@ -707,6 +707,11 @@ impl TransportT for SuiTransport {
                     add_input(&mut ptb, CallArg::Object(ObjectArg::SharedObject{
                         id: slot.id,
                         initial_shared_version: slot_version,
+                        mutable: true
+                    }))?,
+                    add_input(&mut ptb, CallArg::Object(ObjectArg::SharedObject{
+                        id: recipient_id,
+                        initial_shared_version: recipient_version,
                         mutable: true
                     }))?,
                     add_input(&mut ptb, new_pure_arg(&amount)?)?,
