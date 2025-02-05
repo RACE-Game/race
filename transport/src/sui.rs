@@ -195,10 +195,7 @@ impl TransportT for SuiTransport {
         let game_version = self.get_initial_shared_version(game_id).await?;
         let game_obj = self.get_move_object::<GameObject>(game_id).await?;
 
-        if game_obj.players.len() > 0 {
-            return Err(Error::TransportError("Game still has players".into()));
-        }
-        if game_obj.bonuses.len() > 0 {
+        if !game_obj.bonuses.is_empty() {
             return Err(Error::TransportError("Game bonuses not claimed".into()));
         }
         if game_obj.stake > 0 {
@@ -256,7 +253,7 @@ impl TransportT for SuiTransport {
         let response = self.send_transaction(tx_data).await?;
         println!("Registering server tx digset: {}", response.digest.to_string());
 
-        response.object_changes .map(|chs| {
+        response.object_changes.map(|chs| {
             chs.iter().for_each(|obj| match obj {
                 ObjectChange::Created { object_id, version, object_type, .. } => {
                     let server_path = self.get_canonical_path("server", "Server");
