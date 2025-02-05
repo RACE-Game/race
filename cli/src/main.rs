@@ -63,7 +63,7 @@ fn cli() -> Command {
         .arg_required_else_help(true)
         .arg(arg!(-c <chain> "The chain to interact").required(true))
         .arg(arg!(-r <rpc> "The endpoint of RPC service").required(true))
-        .arg(arg!(-k <keyfile> "The path to keyfile"))
+        .arg(arg!(-k <keyfile> "The path to keyfile, use \"default\" for default location"))
         .arg(arg!(-a <arweave_keyfile> "The path to Arweave JWK keyfile"))
         .subcommand(
             Command::new("publish")
@@ -172,9 +172,16 @@ async fn create_transport(chain: &str, rpc: &str, keyfile: Option<String>) -> Ar
         .expect("Invalid chain")
         .with_rpc(rpc);
 
-    if let Some(keyfile) = keyfile.or(default_keyfile(chain)) {
-        println!("Use keyfile: {}", keyfile);
-        builder = builder.with_keyfile(keyfile);
+    if let Some(keyfile) = keyfile {
+        if keyfile.eq("default") {
+            if let Some(default_keyfile) = default_keyfile(chain) {
+                builder = builder.with_keyfile(default_keyfile);
+            } else {
+                panic!("Default keyfile is not supported");
+            }
+        } else {
+            builder = builder.with_keyfile(keyfile);
+        }
     }
 
     let transport = builder.build().await.expect("Failed to create transport");
