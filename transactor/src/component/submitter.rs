@@ -92,9 +92,10 @@ async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>, squash_limit:
             p = rx.recv() => {
                 if let Some(p) = p {
                     cnt += 1;
+                    let has_payment = p.settles.iter().find(|s| s.eject || s.amount != 0).is_some();
                     // We terminate when there are non-empty settles/awards
                     // or we are making the first checkpoint
-                    let stop_here = (!p.settles.is_empty()) || (!p.awards.is_empty()) || p.next_settle_version == 1;
+                    let stop_here = has_payment || (!p.awards.is_empty()) || p.next_settle_version == 1;
                     v.push(p);
                     if stop_here {
                         break;
