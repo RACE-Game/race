@@ -982,8 +982,8 @@ impl TransportT for SuiTransport {
     }
 
     async fn unregister_game(&self, params: UnregisterGameParams) -> Result<()> {
-        println!("Unregistering game: {}", params.game_addr);
-        println!("From registery: {}", params.reg_addr);
+        info!("Unregistering game: {}", params.game_addr);
+        info!("From registery: {}", params.reg_addr);
 
         let game_id = parse_object_id(&params.game_addr)?;
         let module = new_identifier("registry")?;
@@ -1013,7 +1013,7 @@ impl TransportT for SuiTransport {
         let _ = self.estimate_gas(tx_data.clone()).await?;
         let response = self.send_transaction(tx_data).await?;
 
-        println!("Unregistering game tx digest: {}", response.digest.to_string());
+        info!("Unregistering game tx digest: {}", response.digest.to_string());
 
         Ok(())
     }
@@ -1059,10 +1059,10 @@ impl TransportT for SuiTransport {
     }
 
     async fn get_player_profile(&self, addr: &str) -> Result<Option<PlayerProfile>> {
-        println!("Get player profile for {}", addr);
+        info!("Get player profile for {}", addr);
         let addr = parse_sui_addr(addr)?;
 
-        println!("Addr: {:?}", addr);
+        info!("Addr: {:?}", addr);
 
         let profile_ref = self.get_owned_object_ref(
             addr,
@@ -1102,7 +1102,7 @@ impl TransportT for SuiTransport {
         let recipient_id = parse_object_id(addr)?;
         let recipient_obj = self.get_move_object::<RecipientObject>(recipient_id).await?;
 
-        println!("Recipient has {} slots", recipient_obj.slots.len());
+        info!("Recipient has {} slots", recipient_obj.slots.len());
 
         Ok(Some(recipient_obj.into()))
     }
@@ -1114,7 +1114,7 @@ impl SuiTransport {
         pkg_id: &str,
         keyfile: Option<PathBuf>
     ) -> TransportResult<Self> {
-        println!("Create Sui transport at RPC: {} for packge: {:?}", rpc, pkg_id);
+        info!("Create Sui transport at RPC: {} for packge: {:?}", rpc, pkg_id);
         let package_id = parse_object_id(pkg_id)?;
         let active_addr = parse_sui_addr(PUBLISHER)?;
 
@@ -1260,6 +1260,7 @@ impl SuiTransport {
             ))
     }
 
+    // TODO: drop this function
     // Get the latest on-chain object sequencenumber
     async fn get_object_seqnum(&self, id: ObjectID) -> Result<SequenceNumber> {
         let response = self.client
