@@ -873,6 +873,8 @@ impl GameContext {
         }
 
         self.accept_deposits.append(&mut accept_deposits);
+        self.accept_deposits.sort();
+        self.accept_deposits.dedup();
 
         for Assign {
             random_id,
