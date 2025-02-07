@@ -7,8 +7,9 @@ use futures::Stream;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::rpc_params;
-
 use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBuilder};
+use tokio::time;
+use std::time::Duration;
 
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
@@ -147,6 +148,7 @@ impl TransportT for FacadeTransport {
                     }
                     Err(e) => yield Err(Error::TransportError(e.to_string())),
                 }
+                time::sleep(Duration::from_secs(5)).await;
             }
         }))
     }
