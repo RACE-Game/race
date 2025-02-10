@@ -157,7 +157,7 @@ async fn get_registration_info(
             owner: None,
             games,
         })
-        .unwrap(),
+            .unwrap(),
     ))
 }
 
@@ -783,30 +783,31 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
             }
         }
 
-        if let Some(index) = game
-            .players
-            .iter()
-            .position(|p| p.access_version.eq(&s.player_id))
-        {
-            let p = &game.players[index];
-            let mut player =
-                context
-                    .get_player_info(&p.addr)?
-                    .ok_or(custom_error(Error::InvalidSettle(format!(
-                        "Invalid player address: {}",
-                        p.addr
-                    ))))?;
-            player
-                .balances
-                .entry(game.token_addr.to_owned())
-                .and_modify(|b| *b += s.amount);
-            context.update_player_info(&player)?;
-            if s.eject {
-                println!("! Eject player at {index} from game");
-                game.players.remove(index);
-            }
-        } else {
-            return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
+        if s.player_id != 0 {
+            if let Some(index) = game
+                .players
+                .iter()
+                .position(|p| p.access_version.eq(&s.player_id)) {
+                    let p = &game.players[index];
+                    let mut player =
+                        context
+                            .get_player_info(&p.addr)?
+                            .ok_or(custom_error(Error::InvalidSettle(format!(
+                                "Invalid player address: {}",
+                                p.addr
+                            ))))?;
+                    player
+                        .balances
+                        .entry(game.token_addr.to_owned())
+                        .and_modify(|b| *b += s.amount);
+                    context.update_player_info(&player)?;
+                    if s.eject {
+                        println!("! Eject player at {index} from game");
+                        game.players.remove(index);
+                    }
+                } else {
+                    return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
+                }
         }
     }
 
