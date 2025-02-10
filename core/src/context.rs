@@ -959,9 +959,11 @@ impl GameContext {
                         _ if chg < 0 => Some(BalanceChange::Sub(-chg as u64)),
                         _ => None,
                     };
-                    settles_map.entry(player_id)
-                        .and_modify(|e| e.change = change)
-                        .or_insert_with(|| Settle::new(player_id, 0, change, false));
+                    if change.is_some() {
+                        settles_map.entry(player_id)
+                            .and_modify(|e| e.change = change)
+                            .or_insert_with(|| Settle::new(player_id, 0, change, false));
+                    }
                 }
 
                 self.balances = balances;
