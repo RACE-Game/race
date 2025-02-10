@@ -148,7 +148,7 @@ impl TransportT for FacadeTransport {
                     }
                     Err(e) => yield Err(Error::TransportError(e.to_string())),
                 }
-                time::sleep(Duration::from_secs(5)).await;
+                time::sleep(Duration::from_secs(1)).await;
             }
         }))
     }
