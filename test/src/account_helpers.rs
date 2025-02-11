@@ -30,6 +30,7 @@ impl Default for TestGameAccountBuilder {
             checkpoint_on_chain: None,
             entry_lock: EntryLock::default(),
             bonuses: vec![],
+            balances: vec![],
         };
         TestGameAccountBuilder { account }
     }

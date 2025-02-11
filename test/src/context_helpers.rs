@@ -116,6 +116,7 @@ impl Default for TestContextBuilder {
             checkpoint_on_chain: None,
             entry_lock: EntryLock::Open,
             bonuses: vec![],
+            balances: vec![],
         };
         TestContextBuilder { account }
     }
