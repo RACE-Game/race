@@ -1580,7 +1580,7 @@ mod tests {
     use super::*;
 
     // temporary IDs for quick tests
-    const TEST_PACKAGE_ID: &str = "0xd79d61f6a93be36eae3b91ebea6c966b4df8242107860336b6a24c5970d81f25";
+    const TEST_PACKAGE_ID: &str = "0x1d69af8651c81c19eeca3411f276177f3627ffb5a3da6851a3f9257f210f3d4b";
     const TEST_CASH_GAME_ID: &str = "0x6ba1817f72aea249b6d1ca5bf01fceef91e2704e944141acfc7013f129a90847";
     const TEST_TICKET_GAME_ID: &str = "0xcfc82be4212e504a2bc8b9a6b5b66ed0db92be4e2ab0befe5ba7146a59f54665";
     const TEST_RECIPIENT_ID: &str = "0x8b8e76d661080e47d76248cc33b43324b4126a8532d7642ab6c47946857c1e1c";

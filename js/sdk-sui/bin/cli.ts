@@ -8,7 +8,7 @@ import { CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfilePar
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 const wallet = new LocalSuiWallet('suiprivkey1qqds4vhlnm38pma946w5ke4g2846wpkgfygu88auscspswd5d4hl6fvc4q2');
 
-const TEST_PACKAGE_ID = "0xe8df1a1cc2a14786ccfc554e47526ef26c7512f827b1760cd70bd490036e277d";
+const TEST_PACKAGE_ID = "0x1d69af8651c81c19eeca3411f276177f3627ffb5a3da6851a3f9257f210f3d4b";
 const TEST_CASH_GAME_ID = "0x0c9973588ea53f5a6b983c6b89321a6e9505862dc69d1bbeeb67fb0a6beb7d6c";
 const TEST_TICKET_GAME_ID = "0xcfc82be4212e504a2bc8b9a6b5b66ed0db92be4e2ab0befe5ba7146a59f54665"
 const TEST_RECIPIENT_ID = "0x83188ed861867da6fa167d6747c4f2d24be5bac64bc9957de685f1dc2ac88a64";
