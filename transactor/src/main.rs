@@ -68,10 +68,10 @@ pub async fn main() {
             let (mut context, signal_loop) = ApplicationContext::try_new_and_start_signal_loop(config)
                 .await
                 .expect("Failed to initalize");
-            let keyboard_listener = setup_keyboard_handler(&mut context);
+            // let keyboard_listener = setup_keyboard_handler(&mut context);
             let reg_task = start_reg_task(&context).await;
             let server_handle = run_server(context).await.expect("Unexpected error occured");
-            if let Err(e) = try_join!(signal_loop, keyboard_listener, reg_task, server_handle) {
+            if let Err(e) = try_join!(signal_loop, reg_task, server_handle) {
                 error!("Error: {:?}", e);
             }
             info!("Transactor stopped");
