@@ -13,7 +13,6 @@ use tracing::error;
 use crate::server::run_server;
 use clap::{arg, Command};
 use context::ApplicationContext;
-use keyboard::setup_keyboard_handler;
 use race_env::Config;
 use reg::{register_server, start_reg_task};
 use tokio::try_join;
@@ -65,10 +64,9 @@ pub async fn main() {
     match matches.subcommand() {
         Some(("run", _)) => {
             info!("Starting transactor.");
-            let (mut context, signal_loop) = ApplicationContext::try_new_and_start_signal_loop(config)
+            let (context, signal_loop) = ApplicationContext::try_new_and_start_signal_loop(config)
                 .await
                 .expect("Failed to initalize");
-            // let keyboard_listener = setup_keyboard_handler(&mut context);
             let reg_task = start_reg_task(&context).await;
             let server_handle = run_server(context).await.expect("Unexpected error occured");
             if let Err(e) = try_join!(signal_loop, reg_task, server_handle) {

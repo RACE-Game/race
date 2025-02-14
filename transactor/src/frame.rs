@@ -14,6 +14,7 @@ pub enum SignalFrame {
         sub_game_init: SubGameInit,
         bridge_to_parent: BridgeToParent,
     },
+    #[allow(unused)]
     Shutdown,
     RemoveGame { game_addr: String },
 }

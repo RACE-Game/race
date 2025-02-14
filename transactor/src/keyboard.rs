@@ -4,6 +4,7 @@ use tokio::{signal, task::JoinHandle};
 
 use crate::context::ApplicationContext;
 
+#[allow(unused)]
 pub fn setup_keyboard_handler(context: &mut ApplicationContext) -> JoinHandle<()> {
 
     let signal_tx = context.get_signal_sender();
