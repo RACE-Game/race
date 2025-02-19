@@ -34,7 +34,7 @@ type RpcResult<T> = std::result::Result<T, RpcError>;
 const DEFAULT_MAX_SERVERS: usize = 3;
 const DEFAULT_VOTES_THRESHOLD: usize = 2;
 
-const DEFAULT_BALANCE: u64 = 10000000;
+const DEFAULT_BALANCE: u64 = 1000000000;
 
 const HTTP_HOST: &str = "0.0.0.0:12002";
 
