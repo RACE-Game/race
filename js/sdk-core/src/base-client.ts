@@ -149,7 +149,7 @@ export class BaseClient {
      * better to cache the result somewhere instead of calling this
      * function frequently.
      */
-    async getRevealed(randomId: number): Promise<Map<number, string>> {
+    getRevealed(randomId: number): Map<number, string> {
         return this.__decryptionCache.get(randomId) || new Map()
     }
 
