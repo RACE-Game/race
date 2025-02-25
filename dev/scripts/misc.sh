@@ -78,7 +78,7 @@ function make_ltmtt {
 			  -u64 "$SETTLE_TIME" \
 			  -u8 "$TABLE_SIZE" \
 			  -u32 0 \
-			  -u64 10000 \
+			  -u16 10 \
 			  -s "raceholdemtargetraceholdemmtttablewasm")
 
     local json=$(cat <<EOF
