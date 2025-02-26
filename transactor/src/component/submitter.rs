@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use race_api::types::Transfer;
+use race_api::types::{Settle, Transfer};
 use race_core::error::Error;
 use race_core::storage::StorageT;
 use race_core::types::{GameAccount, SaveCheckpointParams, SettleParams, SettleResult, TxState};
@@ -36,6 +36,27 @@ fn merge_transfers(a: Option<Transfer>, b: Option<Transfer>) -> Option<Transfer>
     }
 }
 
+fn merge_settle_with_same_player_id(a: &mut Settle, b: Settle) {
+    a.eject = a.eject || b.eject;
+    a.amount = a.amount + b.amount;
+    a.change = match (a.change, b.change) {
+        (None, None) => None,
+        (None, Some(change_b)) => Some(change_b),
+        (Some(change_a), None) => Some(change_a),
+        (Some(change_a), Some(change_b)) => Some(change_a + change_b),
+    };
+}
+
+fn merge_settles(a: &mut Vec<Settle>, mut b: Vec<Settle>) {
+    for settle_from_a in a.iter_mut() {
+        let (drained, v) = b.into_iter().partition(|s| s.player_id == settle_from_a.player_id);
+        b = v;
+        for s in drained {
+            merge_settle_with_same_player_id(settle_from_a, s);
+        }
+    }
+}
+
 /// Squash two settles into one.
 fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
     let SettleParams {
@@ -49,7 +70,7 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
         ..
     } = next;
 
-    prev.settles.extend(settles);
+    merge_settles(&mut prev.settles, settles);
     prev.transfer = merge_transfers(prev.transfer.clone(), transfer);
     prev.awards.extend(awards);
     prev.accept_deposits.extend(accept_deposits);

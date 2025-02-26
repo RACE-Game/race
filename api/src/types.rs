@@ -1,3 +1,5 @@
+use std::ops;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Serialize, Deserialize};
@@ -19,6 +21,30 @@ pub enum EntryLock {
 pub enum BalanceChange {
     Add(u64),
     Sub(u64),
+}
+
+impl BalanceChange {
+    fn amount(&self) -> i128 {
+        match self {
+            BalanceChange::Add(a) => *a as i128,
+            BalanceChange::Sub(b) => -(*b as i128),
+        }
+    }
+}
+
+impl ops::Add<BalanceChange> for BalanceChange {
+    type Output = BalanceChange;
+
+    fn add(self, rhs: BalanceChange) -> BalanceChange {
+        let mut sum: i128 = 0;
+        sum += self.amount();
+        sum += rhs.amount();
+        if sum > 0 {
+            BalanceChange::Add(sum as u64)
+        } else {
+            BalanceChange::Sub(-sum as u64)
+        }
+    }
 }
 
 #[derive(Clone, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
