@@ -687,12 +687,16 @@ async fn reject_deposits(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rp
 
     println!("! Reject deposits {:?}", reject_deposits);
 
-    // TODO, do refund
     game.deposits.iter_mut().for_each(|d| d.status = DepositStatus::Refunded);
+
+    for reject_deposit in reject_deposits {
+        // TODO, do refund
+        game.players.retain(|p| p.access_version != reject_deposit);
+    }
 
     let settle_version = game.settle_version;
     context.update_game_account(&game)?;
-    Ok(format!("facade_settle_{}", settle_version))
+    Ok(format!("facade_reject_deposit_{}", settle_version))
 }
 
 async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<String> {
