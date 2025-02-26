@@ -89,7 +89,7 @@ function make_ltmtt {
   "maxPlayers": 10,
   "entryType": {
     "cash": {
-      "minDeposit": 10,
+      "minDeposit": 0,
       "maxDeposit": 300000000
     }
   },
