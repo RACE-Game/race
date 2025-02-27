@@ -122,26 +122,34 @@ export class AppClient extends BaseClient {
 
         console.group(`Initialize AppClient, gameAddr = ${gameAddr}`)
         try {
+            let startTime = new Date().getTime()
             const playerAddr = wallet.walletAddr
             console.info(`Player address: ${playerAddr}`)
-            const encryptor = await Encryptor.create(playerAddr, storage)
             const gameAccount = await transport.getGameAccount(gameAddr)
             console.info('Game Account:', gameAccount)
             if (gameAccount === undefined) {
                 throw SdkError.gameAccountNotFound(gameAddr)
             }
 
-            const bundleCacheKey = makeBundleCacheKey(transport.chain, gameAccount.bundleAddr)
-
-            const gameBundle = await getGameBundle(transport, storage, bundleCacheKey, gameAccount.bundleAddr)
-            console.info('Game bundle:', gameBundle)
-
             const transactorAddr = gameAccount.transactorAddr
+            console.info(`Transactor address: ${transactorAddr}`)
             if (transactorAddr === undefined || gameAccount.checkpointOnChain === undefined) {
                 throw SdkError.gameNotServed(gameAddr)
             }
-            console.info(`Transactor address: ${transactorAddr}`)
-            const transactorAccount = await transport.getServerAccount(transactorAddr)
+
+            const bundleCacheKey = makeBundleCacheKey(transport.chain, gameAccount.bundleAddr)
+            let token: Token | undefined = await transport.getToken(gameAccount.tokenAddr)
+
+            const [encryptor, gameBundle, transactorAccount] = await Promise.all([
+                Encryptor.create(playerAddr, storage),
+                getGameBundle(transport, storage, bundleCacheKey, gameAccount.bundleAddr),
+                transport.getServerAccount(transactorAddr),
+                transport.getToken(gameAccount.tokenAddr),
+            ])
+
+            if (transactorAddr === undefined || gameAccount.checkpointOnChain === undefined) {
+                throw SdkError.gameNotServed(gameAddr)
+            }
             if (transactorAccount === undefined) {
                 throw SdkError.transactorAccountNotFound(transactorAddr)
             }
@@ -150,15 +158,17 @@ export class AppClient extends BaseClient {
             console.info(`Transactor endpoint: ${endpoint}`)
             const connection = Connection.initialize(gameAddr, playerAddr, endpoint, encryptor)
             const client = new Client(playerAddr, encryptor, connection)
-            const handler = await Handler.initialize(gameBundle, encryptor, client, decryptionCache)
 
-            const getCheckpointParams = new GetCheckpointParams({
+            const getCheckpointParams: GetCheckpointParams = new GetCheckpointParams({
                 settleVersion: gameAccount.settleVersion,
             })
 
-            let checkpointOffChain: CheckpointOffChain | undefined
+            const [handler, checkpointOffChain] = await Promise.all([
+                Handler.initialize(gameBundle, encryptor, client, decryptionCache),
+                await connection.getCheckpoint(getCheckpointParams),
+            ])
+
             if (gameAccount.checkpointOnChain !== undefined) {
-                checkpointOffChain = await connection.getCheckpoint(getCheckpointParams)
                 if (checkpointOffChain === undefined) {
                     throw new Error('No checkpoint from transactor.')
                 }
@@ -170,17 +180,16 @@ export class AppClient extends BaseClient {
             if (checkpointOffChain !== undefined && gameAccount.checkpointOnChain !== undefined) {
                 checkpoint = Checkpoint.fromParts(checkpointOffChain, gameAccount.checkpointOnChain)
             } else {
-                throw new Error('Game not served')
+                throw SdkError.gameNotServed(gameAddr)
             }
             const handlerState = checkpoint.getData(0)
             if (handlerState === undefined) {
-                throw new Error('Malformed checkpoint')
+                throw SdkError.malformedCheckpoint()
             }
             const stateSha = await sha256String(handlerState)
 
             const gameContext = new GameContext(gameAccount, checkpoint, handlerState, stateSha)
 
-            let token: Token | undefined = await transport.getToken(gameAccount.tokenAddr)
             if (token === undefined) {
                 const decimals = await transport.getTokenDecimals(gameAccount.tokenAddr)
                 if (decimals === undefined) {
@@ -198,6 +207,9 @@ export class AppClient extends BaseClient {
             const info = makeGameInfo(gameAccount, token)
             const profileLoader = new ProfileLoader(transport, storage, onProfile)
             profileLoader.start()
+
+            const cost = new Date().getTime() - startTime;
+            console.info(`Initialize cost ${cost} ms`)
 
             return new AppClient({
                 gameAddr,
@@ -258,6 +270,7 @@ export class AppClient extends BaseClient {
             const client = new Client(playerAddr, this.__encryptor, connection)
             const gameBundle = await getGameBundle(this.__transport, this.__storage, bundleCacheKey, bundleAddr)
             const handler = await Handler.initialize(gameBundle, this.__encryptor, client, decryptionCache)
+
             const gameContext = this.__gameContext.subContext(subGame)
 
             return new SubClient({

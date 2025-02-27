@@ -134,4 +134,8 @@ export class SdkError extends Error {
     static invalidSubId(gameId: number) {
         return new SdkError(`Invalid gameId: ${gameId}`)
     }
+
+    static malformedCheckpoint() {
+        return new SdkError('Malformed checkpoint')
+    }
 }
