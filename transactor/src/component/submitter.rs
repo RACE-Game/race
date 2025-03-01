@@ -16,21 +16,23 @@ use crate::component::event_bus::CloseReason;
 use crate::frame::EventFrame;
 use race_core::transport::TransportT;
 
-use super::ComponentEnv;
 use super::common::PipelinePorts;
+use super::ComponentEnv;
 
 // The default for time window opened for accepting a new settlement to be squashed.
 const DEFAULT_SUBMITTER_SQUASH_TIME_WINDOW: u64 = 30;
 
 // The default for maximum number of transactions for one squash.
-const DEFAULT_SUBMITTER_SQUASH__COMPLEXITY_LIMIT: usize = 50;
+const DEFAULT_SUBMITTER_SQUASH_COMPLEXITY_LIMIT: usize = 50;
 
 // The default for size of transcation queue.
 const DEFAULT_SUBMITTER_TX_QUEUE_SIZE: usize = 100;
 
 fn merge_transfers(a: Option<Transfer>, b: Option<Transfer>) -> Option<Transfer> {
     match (a, b) {
-        (Some(x1), Some(x2)) => Some(Transfer { amount: x1.amount + x2.amount }),
+        (Some(x1), Some(x2)) => Some(Transfer {
+            amount: x1.amount + x2.amount,
+        }),
         (Some(x), None) | (None, Some(x)) => Some(x),
         (None, None) => None,
     }
@@ -48,13 +50,20 @@ fn merge_settle_with_same_player_id(a: &mut Settle, b: Settle) {
 }
 
 fn merge_settles(a: &mut Vec<Settle>, mut b: Vec<Settle>) {
+
     for settle_from_a in a.iter_mut() {
-        let (drained, v) = b.into_iter().partition(|s| s.player_id == settle_from_a.player_id);
+        let (drained, v) = b
+            .into_iter()
+            .partition(|s| s.player_id == settle_from_a.player_id);
         b = v;
         for s in drained {
             merge_settle_with_same_player_id(settle_from_a, s);
         }
     }
+    // Append the remaining settles
+    a.extend(b);
+    // Remove the useless settles
+    a.retain(|s| !s.is_empty());
 }
 
 /// Squash two settles into one.
@@ -100,7 +109,11 @@ fn squash_settles(mut prev: SettleParams, next: SettleParams) -> SettleParams {
 // Asynchronously reads a limited number of `SettleParams` from a channel,
 // accumulating them into a vector. Stops reading on delivering a certain number
 // of settle complexity, encountering a params with non-empty `settles`, or a timeout.
-async fn read_settle_params(rx: &mut mpsc::Receiver<SettleParams>, squash_limit: usize, squash_time_window: u64) -> Vec<SettleParams> {
+async fn read_settle_params(
+    rx: &mut mpsc::Receiver<SettleParams>,
+    squash_limit: usize,
+    squash_time_window: u64,
+) -> Vec<SettleParams> {
     let mut v = vec![];
     let mut cnt = 0;
 
@@ -156,9 +169,15 @@ impl Submitter {
         storage: Arc<dyn StorageT>,
         config: Option<&SubmitterConfig>,
     ) -> (Self, SubmitterContext) {
-        let squash_time_window = config.and_then(|c| c.squash_time_window).unwrap_or(DEFAULT_SUBMITTER_SQUASH_TIME_WINDOW);
-        let squash_limit = config.and_then(|c| c.squash_limit).unwrap_or(DEFAULT_SUBMITTER_SQUASH__COMPLEXITY_LIMIT);
-        let tx_queue_size = config.and_then(|c| c.tx_queue_size).unwrap_or(DEFAULT_SUBMITTER_TX_QUEUE_SIZE);
+        let squash_time_window = config
+            .and_then(|c| c.squash_time_window)
+            .unwrap_or(DEFAULT_SUBMITTER_SQUASH_TIME_WINDOW);
+        let squash_limit = config
+            .and_then(|c| c.squash_limit)
+            .unwrap_or(DEFAULT_SUBMITTER_SQUASH_COMPLEXITY_LIMIT);
+        let tx_queue_size = config
+            .and_then(|c| c.tx_queue_size)
+            .unwrap_or(DEFAULT_SUBMITTER_TX_QUEUE_SIZE);
         (
             Self {},
             SubmitterContext {
@@ -179,7 +198,11 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
         "Submitter"
     }
 
-    async fn run(mut ports: PipelinePorts, ctx: SubmitterContext, env: ComponentEnv) -> CloseReason {
+    async fn run(
+        mut ports: PipelinePorts,
+        ctx: SubmitterContext,
+        env: ComponentEnv,
+    ) -> CloseReason {
         let (queue_tx, mut queue_rx) = mpsc::channel::<SettleParams>(ctx.tx_queue_size);
         let p = ports.clone_as_producer();
         let log_prefix = env.log_prefix.clone();
@@ -187,13 +210,15 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
         // Prevent the blocking from pending transactions
         let join_handle = tokio::spawn(async move {
             loop {
-                let ps = read_settle_params(&mut queue_rx, ctx.squash_limit, ctx.squash_time_window).await;
+                let ps =
+                    read_settle_params(&mut queue_rx, ctx.squash_limit, ctx.squash_time_window)
+                        .await;
                 info!("{} Squash {} transactions", log_prefix, ps.len());
                 if let Some(params) = ps.into_iter().reduce(squash_settles) {
                     let settle_version = params.settle_version;
                     let res = ctx.transport.settle_game(params).await;
                     match res {
-                        Ok(SettleResult{ signature, .. }) => {
+                        Ok(SettleResult { signature, .. }) => {
                             let tx_state = TxState::SettleSucceed {
                                 signature: if signature.is_empty() {
                                     None
@@ -217,7 +242,6 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
 
         while let Some(event) = ports.recv().await {
             match event {
-
                 EventFrame::Checkpoint {
                     settles,
                     transfer,
@@ -230,22 +254,28 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                     accept_deposits,
                     ..
                 } => {
-
                     let checkpoint_onchain = checkpoint.derive_onchain_part();
                     let checkpoint_offchain = checkpoint.derive_offchain_part();
 
-                    info!("{} Submitter save checkpoint to storage, settle_version = {}",
+                    info!(
+                        "{} Submitter save checkpoint to storage, settle_version = {}",
                         env.log_prefix, settle_version
                     );
-                    let save_checkpoint_result = ctx.storage.save_checkpoint(SaveCheckpointParams {
-                        game_addr: ctx.addr.clone(),
-                        settle_version,
-                        checkpoint: checkpoint_offchain,
-                    }).await;
+                    let save_checkpoint_result = ctx
+                        .storage
+                        .save_checkpoint(SaveCheckpointParams {
+                            game_addr: ctx.addr.clone(),
+                            settle_version,
+                            checkpoint: checkpoint_offchain,
+                        })
+                        .await;
 
                     if let Err(e) = save_checkpoint_result {
-                        error!("{} Submitter failed to save checkpoint offchain: {}",
-                            env.log_prefix, e.to_string());
+                        error!(
+                            "{} Submitter failed to save checkpoint offchain: {}",
+                            env.log_prefix,
+                            e.to_string()
+                        );
                         break;
                     }
 
@@ -286,5 +316,52 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                 e
             )))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_merge_settle() {
+        let mut settles1 = vec![Settle {
+            player_id: 0,
+            amount: 200,
+            change: Some(race_api::types::BalanceChange::Add(50)),
+            eject: false,
+        }];
+        let settles2 = vec![
+            Settle {
+                player_id: 0,
+                amount: 200,
+                change: Some(race_api::types::BalanceChange::Add(50)),
+                eject: false,
+            },
+            Settle {
+                player_id: 1,
+                amount: 0,
+                change: Some(race_api::types::BalanceChange::Add(500)),
+                eject: false,
+            },
+        ];
+
+        merge_settles(&mut settles1, settles2);
+        assert_eq!(
+            settles1,
+            vec![Settle {
+                player_id: 0,
+                amount: 400,
+                change: Some(race_api::types::BalanceChange::Add(100)),
+                eject: false
+            },
+            Settle {
+                player_id: 1,
+                amount: 0,
+                change: Some(race_api::types::BalanceChange::Add(500)),
+                eject: false
+            }]
+        )
     }
 }

@@ -39,7 +39,7 @@ impl ops::Add<BalanceChange> for BalanceChange {
         let mut sum: i128 = 0;
         sum += self.amount();
         sum += rhs.amount();
-        if sum > 0 {
+        if sum >= 0 {
             BalanceChange::Add(sum as u64)
         } else {
             BalanceChange::Sub(-sum as u64)
@@ -60,6 +60,9 @@ pub struct Settle {
 impl Settle {
     pub fn new(player_id: u64, amount: u64, change: Option<BalanceChange>, eject: bool) -> Self {
         Self { player_id, amount, change, eject }
+    }
+    pub fn is_empty(&self) -> bool {
+        self.amount == 0 && self.change.is_none() && !self.eject
     }
 }
 

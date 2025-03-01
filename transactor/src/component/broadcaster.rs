@@ -378,8 +378,6 @@ mod tests {
         // BroadcastFrame::Event
         {
             let event_frame = EventFrame::Broadcast {
-                access_version: 10,
-                settle_version: 10,
                 timestamp: 0,
                 event: Event::Custom {
                     sender: alice.id(),

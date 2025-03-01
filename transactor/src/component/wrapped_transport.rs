@@ -302,7 +302,7 @@ mod tests {
             .settle_game(SettleParams {
                 addr: test_game_addr(),
                 settles: vec![],
-                transfers: vec![],
+                transfer: None,
                 checkpoint: CheckpointOnChain::default(),
                 settle_version: 1,
                 access_version: 1,
@@ -329,7 +329,7 @@ mod tests {
         let r = wt
             .settle_game(SettleParams {
                 addr: test_game_addr(),
-                transfers: vec![],
+                transfer: None,
                 settles: vec![],
                 checkpoint: CheckpointOnChain::default(),
                 settle_version: 0,
