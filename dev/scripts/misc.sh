@@ -79,6 +79,10 @@ function make_ltmtt {
 			  -u8 "$TABLE_SIZE" \
 			  -u32 0 \
 			  -u16 10 \
+			  -u32 3 \
+			  -u8 50 \
+			  -u8 30 \
+			  -u8 20 \
 			  -s "raceholdemtargetraceholdemmtttablewasm")
 
     local json=$(cat <<EOF
