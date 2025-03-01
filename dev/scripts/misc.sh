@@ -68,8 +68,8 @@ EOF
 # Make a JSON specification for long-term tournament
 # TITLE TOKEN START_TIME
 function make_ltmtt {
-    local CLOSE_TIME=$(expr $3 + 432000000)
-    local SETTLE_TIME=$(expr $3 + 435600000)
+    local CLOSE_TIME=$(expr $3 + 600000)
+    local SETTLE_TIME=$(expr $3 + 720000)
     local TABLE_SIZE=8
 
     local data=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
