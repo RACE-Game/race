@@ -261,7 +261,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     game_id,
                 } => {
                     if ctx.game_mode == GameMode::Main {
-                        info!("Update checkpoint for sub game: {}", game_id);
+                        info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
                         if let Err(e) = game_context
                             .checkpoint_mut()
                             .init_versioned_data(checkpoint_state)
@@ -302,7 +302,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     let timestamp = current_timestamp();
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
-                        info!("Update checkpoint for sub game: {}", from);
+                        info!("BridgeEvent: Update checkpoint for sub game: {}", from);
                         if let Err(e) = game_context
                             .checkpoint_mut()
                             .update_versioned_data(checkpoint_state)

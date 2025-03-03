@@ -16,7 +16,7 @@ use race_core::{
     transport::TransportT,
     types::{GameAccount, PlayerDeposit, PlayerJoin, ServerJoin},
 };
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 use crate::component::{common::Component, event_bus::CloseReason};
 
@@ -69,15 +69,33 @@ async fn maybe_send_sync(
         .collect();
 
     if !new_players.is_empty() {
-        info!("{} New players: {:?}", env.log_prefix, new_players);
+        info!(
+            "{} New players: {:?}",
+            env.log_prefix,
+            new_players
+                .iter()
+                .map(|p| format!("{}@{}#A{}", p.addr, p.position, p.access_version))
+                .collect::<Vec<String>>()
+                .join(",")
+        );
     }
 
     if !new_deposits.is_empty() {
-        info!("{} New deposits: {:?}", env.log_prefix, new_deposits);
+        info!("{} New deposits: {:?}", env.log_prefix,
+            new_deposits
+            .iter()
+            .map(|d| format!("{}${}#A{}#S{}", d.addr, d.amount, d.access_version, d.settle_version))
+            .collect::<Vec<String>>()
+            .join(","));
     }
 
     if !new_servers.is_empty() {
-        info!("{} New servers: {:?}", env.log_prefix, new_servers);
+        info!("{} New servers: {:?}", env.log_prefix,
+            new_servers
+            .iter()
+            .map(|s| format!("{}#A{}", s.addr, s.access_version))
+            .collect::<Vec<String>>()
+            .join(","));
     }
 
     if !new_players.is_empty() || !new_servers.is_empty() || !new_deposits.is_empty() {
@@ -112,11 +130,7 @@ impl GameSynchronizer {
             Self {},
             GameSynchronizerContext {
                 transport,
-                access_version: game_account
-                    .checkpoint_on_chain
-                    .as_ref()
-                    .and_then(|c| Some(c.access_version))
-                    .unwrap_or(0),
+                access_version: game_account.access_version,
                 game_addr: game_account.addr.clone(),
             },
         )
@@ -193,140 +207,6 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
 
         return CloseReason::Complete;
     }
-
-    // async fn run(
-    //     ports: ProducerPorts,
-    //     ctx: GameSynchronizerContext,
-    //     env: ComponentEnv,
-    // ) -> CloseReason {
-    //     let mut prev_access_version = ctx.access_version;
-    //     let mut access_version = ctx.access_version;
-    //     let mut mode = ctx.mode;
-    //     let mut num_of_retries = 0;
-
-    //     loop {
-    //         let state = ctx.transport.get_game_account(&ctx.game_addr, mode).await;
-
-    //         if ports.is_tx_closed() {
-    //             return CloseReason::Complete;
-    //         }
-
-    //         match mode {
-    //             QueryMode::Confirming => {
-    //                 if let Ok(Some(state)) = state {
-    //                     if access_version < state.access_version {
-    //                         info!(
-    //                             "{} Synchronizer found confirming state, access_version = {}, settle_version = {}",
-    //                             env.log_prefix,
-    //                             state.access_version,
-    //                             state.settle_version,
-    //                         );
-    //                         let GameAccount {
-    //                             access_version: av,
-    //                             players,
-    //                             deposits: _,
-    //                             ..
-    //                         } = state;
-
-    //                         let confirm_players: Vec<ConfirmingPlayer> = players
-    //                             .into_iter()
-    //                             .filter(|p| p.access_version > access_version)
-    //                             .map(Into::into)
-    //                             .collect();
-
-    //                         if !confirm_players.is_empty() {
-    //                             let tx_state = TxState::PlayerConfirming {
-    //                                 confirm_players,
-    //                                 access_version: state.access_version,
-    //                             };
-    //                             let frame = EventFrame::TxState { tx_state };
-
-    //                             // When other channels are closed
-    //                             if ports.try_send(frame).await.is_err() {
-    //                                 return CloseReason::Complete;
-    //                             }
-    //                         }
-    //                         prev_access_version = access_version;
-    //                         access_version = av;
-    //                         mode = QueryMode::Finalized;
-    //                     } else {
-    //                         sleep(Duration::from_secs(5)).await;
-    //                     }
-    //                 }
-    //             }
-
-    //             QueryMode::Finalized => {
-    //                 if let Ok(Some(state)) = state {
-    //                     let GameAccount {
-    //                         access_version: av,
-    //                         players,
-    //                         deposits: _,
-    //                         servers,
-    //                         transactor_addr,
-    //                         ..
-    //                     } = state;
-
-    //                     if access_version <= state.access_version {
-    //                         info!(
-    //                             "{} Synchronizer found a finalized state, access_version = {}, settle_version = {}",
-    //                             env.log_prefix,
-    //                             state.access_version,
-    //                             state.settle_version,
-    //                         );
-    //                         let new_players: Vec<PlayerJoin> = players
-    //                             .into_iter()
-    //                             .filter(|p| p.access_version > prev_access_version)
-    //                             .collect();
-
-    //                         let new_servers: Vec<ServerJoin> = servers
-    //                             .into_iter()
-    //                             .filter(|s| s.access_version > prev_access_version)
-    //                             .collect();
-
-    //                         if !new_players.is_empty() || !new_servers.is_empty() {
-    //                             let frame = EventFrame::Sync {
-    //                                 new_players,
-    //                                 new_servers,
-    //                                 // TODO: Handle transactor addr change
-    //                                 transactor_addr: transactor_addr.unwrap().clone(),
-    //                                 access_version: state.access_version,
-    //                             };
-
-    //                             // When other channels are closed
-    //                             if ports.try_send(frame).await.is_err() {
-    //                                 return CloseReason::Complete;
-    //                             }
-    //                         }
-    //                         num_of_retries = 0;
-    //                         access_version = av;
-    //                         mode = QueryMode::Confirming;
-    //                         sleep(Duration::from_secs(5)).await;
-    //                     } else if num_of_retries < MAX_RETRIES {
-    //                         num_of_retries += 1;
-    //                         sleep(Duration::from_secs(2)).await;
-    //                     } else {
-    //                         // Signal absence of a new game state
-    //                         let tx_state = TxState::PlayerConfirmingFailed(access_version);
-
-    //                         let frame = EventFrame::TxState { tx_state };
-
-    //                         // When other channels are closed
-    //                         if ports.try_send(frame).await.is_err() {
-    //                             return CloseReason::Complete;
-    //                         }
-    //                         mode = QueryMode::Confirming;
-    //                         num_of_retries = 0;
-    //                         access_version = prev_access_version;
-    //                         sleep(Duration::from_secs(5)).await;
-    //                     }
-    //                 } else {
-    //                     warn!("Game account not found, shutdown synchronizer");
-    //                     return CloseReason::Complete;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
 }
 
 #[cfg(test)]

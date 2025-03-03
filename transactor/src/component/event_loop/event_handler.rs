@@ -269,7 +269,7 @@ pub async fn resume_from_checkpoint(
     if game_mode == GameMode::Main {
         let versioned_data_list = game_context.checkpoint().list_versioned_data();
         info!(
-            "{} Launch {} subgames",
+            "{} Resume from checkpoint with {} subgames",
             env.log_prefix,
             versioned_data_list.len() - 1
         ); // except the master game

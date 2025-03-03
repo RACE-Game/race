@@ -8,6 +8,7 @@ use futures::pin_mut;
 use futures::StreamExt;
 use race_core::types::BroadcastFrame;
 use race_core::types::BroadcastSync;
+use race_core::types::DepositStatus;
 use race_core::types::VoteType;
 use race_core::types::{GameAccount, ServerAccount};
 use tokio::select;
@@ -77,7 +78,7 @@ async fn handle_frame(frame: BroadcastFrame, ports: &mut PipelinePorts, env: &Co
             let BroadcastSync {
                 new_players,
                 new_servers,
-                new_deposits,
+                mut new_deposits,
                 access_version,
                 transactor_addr,
             } = sync;
@@ -85,6 +86,7 @@ async fn handle_frame(frame: BroadcastFrame, ports: &mut PipelinePorts, env: &Co
                 "{} Receive Sync broadcast, new_players: {:?}, new_servers: {:?}",
                 env.log_prefix, new_players, new_servers
             );
+            new_deposits.retain(|d| d.status == DepositStatus::Pending);
             if let Err(e) = ports
                 .try_send(EventFrame::Sync {
                     new_players,

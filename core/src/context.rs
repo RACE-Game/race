@@ -236,8 +236,6 @@ impl GameContext {
             }
         };
 
-        println!("Versions: {}", versions);
-
         Ok(Self {
             spec,
             nodes: nodes.clone(),
@@ -622,6 +620,10 @@ impl GameContext {
         }
         self.dispatch = Some(DispatchEvent::new(event, timeout));
         Ok(())
+    }
+
+    pub fn has_sub_game(&self, game_id: GameId) -> bool {
+        self.sub_games.iter().find(|sub_game| sub_game.id == game_id).is_some()
     }
 
     pub fn init_random_state(&mut self, spec: RandomSpec) -> Result<RandomId> {

@@ -642,36 +642,50 @@ impl TransportT for SolanaTransport {
             vec![Pubkey::from_str(&addr).unwrap(), game_state.stake_account];
 
         for settle in settles.iter() {
-            let Some(player) = game_state
-                .players
-                .iter()
-                .find(|p| p.access_version == settle.player_id)
-            else {
-                return Err(Error::InvalidSettle(format!(
-                    "Player id {} in settle is invalid",
-                    settle.player_id
-                )));
-            };
-
-            if is_native_mint(&game_state.token_mint) {
-                accounts.push(AccountMeta::new(player.addr, false));
-                calc_cu_prize_addrs.push(player.addr);
-            } else {
-                let ata = get_associated_token_address(&player.addr, &game_state.token_mint);
-                accounts.push(AccountMeta::new(ata, false));
-                calc_cu_prize_addrs.push(ata);
-            }
-
             ix_settles.push(IxSettle {
                 access_version: settle.player_id,
                 amount: settle.amount,
                 change: settle.change,
                 eject: settle.eject,
             });
+
+            let Some(player) = game_state
+                .players
+                .iter()
+                .find(|p| p.access_version == settle.player_id)
+            else {
+                if settle.player_id == 0 && settle.amount == 0 {
+                    continue;
+                } else {
+                    return Err(Error::InvalidSettle(format!(
+                        "Player id {} in settle is invalid",
+                        settle.player_id
+                    )));
+                }
+            };
+
+            // Append ATA when there's a payment
+            if settle.amount > 0 {
+                if is_native_mint(&game_state.token_mint) {
+                    info!("Settle: add payment receiver wallet: {}", player.addr);
+                    accounts.push(AccountMeta::new(player.addr, false));
+                    calc_cu_prize_addrs.push(player.addr);
+                } else {
+                    let ata = get_associated_token_address(&player.addr, &game_state.token_mint);
+                    info!("Settle: add payment receiver ATA: {}", ata);
+                    accounts.push(AccountMeta::new(ata, false));
+                    calc_cu_prize_addrs.push(ata);
+                }
+            }
         }
 
         if transfer.is_some() {
-            if let Some(slot) = recipient_state.slots.iter().find(|s| s.token_addr.eq(&game_state.token_mint)) {
+            if let Some(slot) = recipient_state
+                .slots
+                .iter()
+                .find(|s| s.token_addr.eq(&game_state.token_mint))
+            {
+                info!("Settle: add slot stake account for transfer: {}", slot.stake_addr);
                 accounts.push(AccountMeta::new(slot.stake_addr, false));
                 calc_cu_prize_addrs.push(slot.stake_addr);
             }
@@ -698,8 +712,10 @@ impl TransportT for SolanaTransport {
                     let bonus_addr = bonus.stake_addr.clone();
                     let receiver_addr =
                         get_associated_token_address(&player.addr, &bonus.token_addr);
+                    info!("Settle: add bonus account: {}", bonus_addr);
                     accounts.push(AccountMeta::new(bonus_addr, false));
                     calc_cu_prize_addrs.push(bonus_addr);
+                    info!("Settle: add bonus receiver: {}", receiver_addr);
                     accounts.push(AccountMeta::new(receiver_addr, false));
                     calc_cu_prize_addrs.push(receiver_addr);
                 }
@@ -1321,7 +1337,11 @@ impl TransportT for SolanaTransport {
 }
 
 impl SolanaTransport {
-    pub fn try_new(rpc: String, keyfile: Option<PathBuf>, skip_preflight: bool) -> TransportResult<Self> {
+    pub fn try_new(
+        rpc: String,
+        keyfile: Option<PathBuf>,
+        skip_preflight: bool,
+    ) -> TransportResult<Self> {
         let keypair = keyfile.map(read_keypair).transpose()?;
         let program_id = Pubkey::from_str(PROGRAM_ID)?;
         SolanaTransport::try_new_with_program_id(rpc, keypair, program_id, skip_preflight)

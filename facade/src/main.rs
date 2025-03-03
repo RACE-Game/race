@@ -226,7 +226,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                         amount,
                         access_version: game_account.access_version,
                         settle_version: game_account.settle_version,
-                        status: DepositStatus::Pending,
+                        status: DepositStatus::Accepted,
                     };
                     game_account.players.push(player_join);
                     game_account.deposits.push(player_deposit);

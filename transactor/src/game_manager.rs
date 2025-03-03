@@ -1,7 +1,7 @@
 use race_api::event::{Event, Message};
+use race_core::checkpoint::CheckpointOffChain;
 use race_core::context::SubGameInit;
 use race_core::error::{Error, Result};
-use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::{BroadcastFrame, ClientMode, ServerAccount};
 use race_encryptor::Encryptor;
 use race_env::TransactorConfig;
@@ -45,8 +45,31 @@ impl GameManager {
     ) -> Option<JoinHandle<CloseReason>> {
         let game_addr = sub_game_init.spec.game_addr.clone();
         let game_id = sub_game_init.spec.game_id;
-        info!("LaunchSubGame with bundle: {}", sub_game_init.spec.bundle_addr);
-        match Handle::try_new_sub_game(sub_game_init, bridge_to_parent, transport, encryptor, storage, server_account, config).await {
+        match &sub_game_init.source {
+            race_core::context::SubGameInitSource::FromCheckpoint(ref versioned_data) => {
+                info!(
+                    "LaunchSubGame with Checkpoint: version = {}, bundle = {}",
+                    versioned_data.versions, sub_game_init.spec.bundle_addr
+                );
+            }
+            race_core::context::SubGameInitSource::FromInitAccount(_, ref versions) => {
+                info!(
+                    "LaunchSubGame with InitAccount: version = {}, bundle = {}",
+                    versions, sub_game_init.spec.bundle_addr
+                );
+            }
+        }
+        match Handle::try_new_sub_game(
+            sub_game_init,
+            bridge_to_parent,
+            transport,
+            encryptor,
+            storage,
+            server_account,
+            config,
+        )
+        .await
+        {
             Ok(mut handle) => {
                 let mut games = self.games.lock().await;
                 let addr = format!("{}:{}", game_addr, game_id);
@@ -82,9 +105,27 @@ impl GameManager {
         let mut games = self.games.lock().await;
         if let Entry::Vacant(e) = games.entry(game_addr.clone()) {
             let handle = if mode == ClientMode::Transactor {
-                Handle::try_new_transactor(transport, storage, encryptor, server_account, e.key(), signal_tx.clone(), &config).await
+                Handle::try_new_transactor(
+                    transport,
+                    storage,
+                    encryptor,
+                    server_account,
+                    e.key(),
+                    signal_tx.clone(),
+                    &config,
+                )
+                .await
             } else {
-                Handle::try_new_validator(transport, storage, encryptor, server_account, e.key(), signal_tx.clone(), config).await
+                Handle::try_new_validator(
+                    transport,
+                    storage,
+                    encryptor,
+                    server_account,
+                    e.key(),
+                    signal_tx.clone(),
+                    config,
+                )
+                .await
             };
 
             match handle {
@@ -158,7 +199,11 @@ impl GameManager {
         }
     }
 
-    pub async fn get_checkpoint(&self, game_addr: &str, settle_version: u64) -> Result<Option<CheckpointOffChain>> {
+    pub async fn get_checkpoint(
+        &self,
+        game_addr: &str,
+        settle_version: u64,
+    ) -> Result<Option<CheckpointOffChain>> {
         let games = self.games.lock().await;
         let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
         let broadcaster = handle.broadcaster()?;
@@ -166,7 +211,10 @@ impl GameManager {
         Ok(checkpoint)
     }
 
-    pub async fn get_latest_checkpoint(&self, game_addr: &str) -> Result<Option<CheckpointOffChain>> {
+    pub async fn get_latest_checkpoint(
+        &self,
+        game_addr: &str,
+    ) -> Result<Option<CheckpointOffChain>> {
         let games = self.games.lock().await;
         let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
         let broadcaster = handle.broadcaster()?;

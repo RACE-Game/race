@@ -5,7 +5,10 @@ use futures::Stream;
 use jsonrpsee::core::async_trait;
 use race_core::error::{Error, Result};
 use race_core::types::{
-    AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, DepositStatus, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RejectDepositsParams, RejectDepositsResult, ServeParams, SettleResult, UnregisterGameParams, VoteParams
+    AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams,
+    CreateRegistrationParams, DepositParams, DepositStatus, PublishGameParams, RecipientAccount,
+    RecipientClaimParams, RegisterGameParams, RejectDepositsParams, RejectDepositsResult,
+    ServeParams, SettleResult, UnregisterGameParams, VoteParams,
 };
 use race_core::{
     transport::TransportT,
@@ -16,18 +19,42 @@ use race_core::{
 };
 use race_env::Config;
 use race_transport::TransportBuilder;
-use tokio_stream::StreamExt;
+use tokio::sync::Mutex;
+use std::collections::HashMap;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio_stream::StreamExt;
 use tracing::{error, info};
 
 const DEFAULT_RETRY_INTERVAL: u64 = 10;
 const DEFAULT_RESUB_INTERVAL: u64 = 5;
 
+pub struct BundleCache {
+    bundles: Arc<Mutex<HashMap<String, GameBundle>>>,
+}
+
+impl BundleCache {
+    pub fn new() -> Self {
+        Self {
+            bundles: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    pub async fn add_cache(&self, bundle: GameBundle) {
+        self.bundles.lock().await.insert(bundle.addr.clone(), bundle);
+    }
+
+    pub async fn get_cache(&self, addr: &str) -> Option<GameBundle> {
+        self.bundles.lock().await.get(addr).map(ToOwned::to_owned)
+    }
+}
+
 pub struct WrappedTransport {
     pub(crate) inner: Box<dyn TransportT>,
     retry_interval: u64,
     resub_interval: u64,
+    bundle_cache: BundleCache,
 }
 
 impl WrappedTransport {
@@ -42,13 +69,22 @@ impl WrappedTransport {
             .try_with_config(config)?
             .build()
             .await?;
-        Ok(Self { inner: transport, retry_interval: DEFAULT_RETRY_INTERVAL, resub_interval: DEFAULT_RESUB_INTERVAL })
+        let bundle_cache = BundleCache::new();
+        Ok(Self {
+            inner: transport,
+            bundle_cache,
+            retry_interval: DEFAULT_RETRY_INTERVAL,
+            resub_interval: DEFAULT_RESUB_INTERVAL,
+        })
     }
 }
 
 #[async_trait]
 impl TransportT for WrappedTransport {
-    async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>> {
+    async fn subscribe_game_account<'a>(
+        &'a self,
+        addr: &'a str,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>> {
         let interval = self.resub_interval;
         Ok(Box::pin(stream! {
             let sub = self.inner.subscribe_game_account(addr).await;
@@ -122,7 +158,18 @@ impl TransportT for WrappedTransport {
     }
 
     async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
-        self.inner.get_game_bundle(addr).await
+        if let Some(game_bundle) = self.bundle_cache.get_cache(addr).await {
+            info!("Use game bundle from cache: {}", addr);
+            return Ok(Some(game_bundle));
+        } else {
+            let r = self.inner.get_game_bundle(addr).await;
+            if let Ok(Some(game_bundle)) = r {
+                self.bundle_cache.add_cache(game_bundle.clone()).await;
+                return Ok(Some(game_bundle))
+            } else {
+                return r
+            }
+        }
     }
 
     async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>> {
@@ -142,10 +189,7 @@ impl TransportT for WrappedTransport {
     async fn settle_game(&self, params: SettleParams) -> Result<SettleResult> {
         let mut curr_settle_version: Option<u64> = None;
         loop {
-            let game_account = self
-                .inner
-                .get_game_account(&params.addr)
-                .await;
+            let game_account = self.inner.get_game_account(&params.addr).await;
             if let Ok(Some(game_account)) = game_account {
                 // We got an old state, which has a smaller `settle_version`
                 if game_account.settle_version < params.settle_version {
@@ -197,10 +241,7 @@ impl TransportT for WrappedTransport {
         };
 
         loop {
-            let game_account = self
-                .inner
-                .get_game_account(&params.addr)
-                .await;
+            let game_account = self.inner.get_game_account(&params.addr).await;
 
             if let Ok(Some(game_account)) = game_account {
                 // We got an old state, because the access_version is too small
@@ -216,7 +257,11 @@ impl TransportT for WrappedTransport {
                 // If we see the deposits are marked as rejected/refunded, we should skip
 
                 for d in game_account.deposits.iter() {
-                    if params.reject_deposits.iter().any(|rd| *rd == d.access_version && (d.status == DepositStatus::Rejected || d.status == DepositStatus::Refunded)) {
+                    if params.reject_deposits.iter().any(|rd| {
+                        *rd == d.access_version
+                            && (d.status == DepositStatus::Rejected
+                                || d.status == DepositStatus::Refunded)
+                    }) {
                         return Ok(RejectDepositsResult {
                             signature: "".to_string(),
                         });
@@ -297,7 +342,12 @@ mod tests {
         let mut ga1 = TestGameAccountBuilder::new().build();
         ga1.settle_version = 1;
         t.simulate_states(vec![ga0, ga1]);
-        let wt = WrappedTransport { inner: Box::new(t), retry_interval: 1, resub_interval: 1 };
+        let wt = WrappedTransport {
+            inner: Box::new(t),
+            retry_interval: 1,
+            resub_interval: 1,
+            bundle_cache: BundleCache::new(),
+        };
         let r = wt
             .settle_game(SettleParams {
                 addr: test_game_addr(),
@@ -325,7 +375,12 @@ mod tests {
         let mut ga1 = TestGameAccountBuilder::new().build();
         ga1.settle_version = 1;
         t.simulate_states(vec![ga0, ga1]);
-        let wt = WrappedTransport { inner: Box::new(t), retry_interval: 1, resub_interval: 1 };
+        let wt = WrappedTransport {
+            inner: Box::new(t),
+            retry_interval: 1,
+            resub_interval: 1,
+            bundle_cache: BundleCache::new(),
+        };
         let r = wt
             .settle_game(SettleParams {
                 addr: test_game_addr(),
