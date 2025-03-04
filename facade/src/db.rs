@@ -26,6 +26,58 @@ pub(crate) struct PlayerInfo {
     pub profile: PlayerProfile,
 }
 
+#[derive(Clone, BorshSerialize)]
+pub(crate) struct Stake {
+    pub addr: String,
+    pub amount: u64,
+}
+
+// CRUD functions for Stake
+
+pub fn create_stake_table(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS stake (
+            addr TEXT PRIMARY KEY,
+            amount INTEGER NOT NULL
+        )",
+        [],
+    )?;
+    Ok(())
+}
+
+// Function to create a new stake entry
+pub fn create_stake(conn: &Connection, stake: &Stake) -> Result<()> {
+    conn.execute(
+        "INSERT INTO stake (addr, amount) VALUES (?1, ?2)",
+        params![stake.addr, stake.amount],
+    )?;
+    Ok(())
+}
+
+// Function to update an existing stake entry
+pub fn update_stake(conn: &Connection, stake: &Stake) -> Result<()> {
+    conn.execute(
+        "UPDATE stake SET amount = ?1 WHERE addr = ?2",
+        params![stake.amount, stake.addr],
+    )?;
+    Ok(())
+}
+
+pub fn read_stake(conn: &Connection, addr: &str) -> Result<Option<Stake>> {
+    let mut stmt = conn.prepare("SELECT addr, amount FROM stake WHERE addr = ?1")?;
+    let mut rows = stmt.query(params![addr])?;
+
+    if let Some(row) = rows.next()? {
+        let stake = Stake {
+            addr: row.get(0)?,
+            amount: row.get(1)?,
+        };
+        Ok(Some(stake))
+    } else {
+        Ok(None)
+    }
+}
+
 // CRUD functions for PlayerInfo
 
 pub fn create_player_info(conn: &Connection, player_info: &PlayerInfo) -> Result<()> {
@@ -879,6 +931,7 @@ pub fn prepare_all_tables(conn: &Connection) -> Result<()> {
     create_token_account_table(conn)?;
     create_recipient_account_table(conn)?;
     create_server_account_table(conn)?;
+    create_stake_table(conn)?;
     Ok(())
 }
 

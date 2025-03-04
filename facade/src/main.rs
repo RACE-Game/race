@@ -13,13 +13,13 @@ use jsonrpsee::types::Params;
 use jsonrpsee::{core::Error as RpcError, RpcModule};
 use race_api::types::{BalanceChange, PlayerBalance};
 use race_core::error::Error;
-use race_core::types::{DepositStatus, RecipientSlotInit, RejectDepositsParams};
 use race_core::types::RecipientSlotShare;
 use race_core::types::{
     DepositParams, EntryType, GameAccount, GameRegistration, PlayerDeposit, PlayerJoin,
-    PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount,
-    ServerAccount, ServerJoin, SettleParams, TokenAccount, Vote, VoteParams, VoteType,
+    PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin,
+    SettleParams, TokenAccount, Vote, VoteParams, VoteType,
 };
+use race_core::types::{DepositStatus, RecipientSlotInit, RejectDepositsParams};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -157,7 +157,7 @@ async fn get_registration_info(
             owner: None,
             games,
         })
-            .unwrap(),
+        .unwrap(),
     ))
 }
 
@@ -172,6 +172,8 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
     } = params.one()?;
     let context = context.lock().await;
     if let Some(mut game_account) = context.get_game_account(&game_addr)? {
+        let mut stake = context.get_stake(&game_addr)?;
+
         if access_version != game_account.access_version {
             return Err(custom_error(Error::TransactionExpired));
         }
@@ -214,6 +216,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                     return Err(custom_error(Error::InvalidAmount));
                 } else {
                     game_account.access_version += 1;
+                    stake.amount += amount;
 
                     let player_join = PlayerJoin {
                         addr: player_addr.clone(),
@@ -247,6 +250,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                     return Err(custom_error(Error::InvalidAmount));
                 } else {
                     game_account.access_version += 1;
+                    stake.amount += amount;
 
                     let player_join = PlayerJoin {
                         addr: player_addr.clone(),
@@ -279,6 +283,7 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
             EntryType::Disabled => todo!(),
         }
         context.update_game_account(&game_account)?;
+        context.update_stake(&stake)?;
         Ok(())
     } else {
         return Err(custom_error(Error::GameAccountNotFound));
@@ -298,6 +303,8 @@ async fn deposit(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<
     );
     let context = context.lock().await;
     if let Some(mut game_account) = context.get_game_account(&game_addr)? {
+        let mut stake = context.get_stake(&game_addr)?;
+
         if settle_version != game_account.settle_version {
             return Err(custom_error(Error::TransactionExpired));
         }
@@ -307,6 +314,7 @@ async fn deposit(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<
             )));
         } else {
             game_account.access_version += 1;
+            stake.amount += amount;
             let deposit = PlayerDeposit {
                 addr: player_addr.clone(),
                 amount,
@@ -317,6 +325,7 @@ async fn deposit(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<
             };
             game_account.deposits.push(deposit);
             context.update_game_account(&game_account)?;
+            context.update_stake(&stake)?;
             Ok(())
         }
     } else {
@@ -685,9 +694,14 @@ async fn reject_deposits(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rp
         .get_game_account(&addr)?
         .ok_or(custom_error(Error::GameAccountNotFound))?;
 
+    let mut stake = context.get_stake(&addr)?;
+
     println!("! Reject deposits {:?}", reject_deposits);
 
-    game.deposits.iter_mut().for_each(|d| d.status = DepositStatus::Refunded);
+    game.deposits.iter_mut().for_each(|d| {
+        d.status = DepositStatus::Refunded;
+        stake.amount -= d.amount;
+    });
 
     for reject_deposit in reject_deposits {
         // TODO, do refund
@@ -696,6 +710,7 @@ async fn reject_deposits(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rp
 
     let settle_version = game.settle_version;
     context.update_game_account(&game)?;
+    context.update_stake(&stake)?;
     Ok(format!("facade_reject_deposit_{}", settle_version))
 }
 
@@ -729,6 +744,8 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         .get_game_account(&addr)?
         .ok_or(custom_error(Error::GameAccountNotFound))?;
 
+    let mut stake = context.get_stake(&addr)?;
+
     for d in game.deposits.iter_mut() {
         if accept_deposits.contains(&d.access_version) {
             println!("! Mark deposit accepted: {}", d.access_version);
@@ -758,32 +775,46 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
     println!("! Bump settle version to {}", game.settle_version);
     game.checkpoint_on_chain = Some(checkpoint);
 
+    if let Some(transfer) = transfer {
+        stake.amount -= transfer.amount;
+    }
+
     // Handle settles
     for s in settles.into_iter() {
-
         // Handle balance changes
-        if let Some(player_balance) = game.balances.iter_mut().find(|pb| pb.player_id == s.player_id) {
+        if let Some(player_balance) = game
+            .balances
+            .iter_mut()
+            .find(|pb| pb.player_id == s.player_id)
+        {
             match s.change {
                 Some(BalanceChange::Add(amount)) => {
                     player_balance.balance += amount;
                 }
                 Some(BalanceChange::Sub(amount)) => {
-                    player_balance.balance = player_balance.balance.checked_sub(amount).ok_or(custom_error(Error::InvalidSettle("Cannot sub balance".into())))?;
+                    player_balance.balance =
+                        player_balance
+                            .balance
+                            .checked_sub(amount)
+                            .ok_or(custom_error(Error::InvalidSettle(
+                                "Cannot sub balance".into(),
+                            )))?;
                 }
-                None => ()
+                None => (),
             }
         } else {
             match s.change {
-                Some(BalanceChange::Add(amount)) => {
-                    game.balances.push(PlayerBalance {
-                        player_id: s.player_id, balance: amount
-                    })
-                }
+                Some(BalanceChange::Add(amount)) => game.balances.push(PlayerBalance {
+                    player_id: s.player_id,
+                    balance: amount,
+                }),
                 Some(BalanceChange::Sub(amount)) => {
                     println!("E Cannot initiate balance with Sub({})", amount);
-                    return Err(custom_error(Error::InvalidSettle("Cannot sub balance".into())));
+                    return Err(custom_error(Error::InvalidSettle(
+                        "Cannot sub balance".into(),
+                    )));
                 }
-                None => ()
+                None => (),
             }
         }
 
@@ -791,27 +822,29 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
             if let Some(index) = game
                 .players
                 .iter()
-                .position(|p| p.access_version.eq(&s.player_id)) {
-                    let p = &game.players[index];
-                    let mut player =
-                        context
-                            .get_player_info(&p.addr)?
-                            .ok_or(custom_error(Error::InvalidSettle(format!(
-                                "Invalid player address: {}",
-                                p.addr
-                            ))))?;
-                    player
-                        .balances
-                        .entry(game.token_addr.to_owned())
-                        .and_modify(|b| *b += s.amount);
-                    context.update_player_info(&player)?;
-                    if s.eject {
-                        println!("! Eject player at {index} from game");
-                        game.players.remove(index);
-                    }
-                } else {
-                    return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
+                .position(|p| p.access_version.eq(&s.player_id))
+            {
+                let p = &game.players[index];
+                let mut player =
+                    context
+                        .get_player_info(&p.addr)?
+                        .ok_or(custom_error(Error::InvalidSettle(format!(
+                            "Invalid player address: {}",
+                            p.addr
+                        ))))?;
+                player
+                    .balances
+                    .entry(game.token_addr.to_owned())
+                    .and_modify(|b| *b += s.amount);
+                stake.amount -= s.amount;
+                context.update_player_info(&player)?;
+                if s.eject {
+                    println!("! Eject player at {index} from game");
+                    game.players.remove(index);
                 }
+            } else {
+                return Err(custom_error(Error::InvalidSettle("Math overflow".into())));
+            }
         }
     }
 
@@ -823,7 +856,34 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
     }
 
     game.balances.retain(|pb| pb.balance != 0);
+
+    // Validate stake and balances
+
+    let player_balance_sum = game.balances.iter().map(|p| p.balance).sum::<u64>();
+    let unhandled_deposits_sum = game
+        .deposits
+        .iter()
+        .filter_map(|d| {
+            if d.status == DepositStatus::Pending {
+                Some(d.amount)
+            } else {
+                None
+            }
+        })
+        .sum::<u64>();
+
+    if stake.amount == player_balance_sum + unhandled_deposits_sum {
+        println!("! Balance validation passed!");
+    } else {
+        println!(
+            "E Balance validation failed: stake {} != balance {} + pending_deposit {}",
+            stake.amount, player_balance_sum, unhandled_deposits_sum
+        );
+    }
+
     context.update_game_account(&game)?;
+    context.update_stake(&stake)?;
+
     Ok(format!("facade_settle_{}", settle_version))
 }
 

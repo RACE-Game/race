@@ -1,10 +1,21 @@
 use std::{fs::File, io::Read};
 
-use race_core::types::{GameAccount, GameBundle, RecipientAccount, RegistrationAccount, ServerAccount, TokenAccount};
+use crate::{
+    db::{
+        create_game_account, create_game_bundle, create_player_info, create_recipient_account,
+        create_server_account, create_stake, create_token_account, list_game_accounts,
+        list_token_accounts, prepare_all_tables, read_game_account, read_game_bundle,
+        read_player_info, read_recipient_account, read_registration_account, read_server_account,
+        read_token_account, update_game_account, update_player_info, update_recipient_account,
+        update_stake, read_stake, PlayerInfo, Stake,
+    },
+    GameSpec,
+};
+use race_core::types::{
+    GameAccount, GameBundle, RecipientAccount, RegistrationAccount, ServerAccount, TokenAccount,
+};
 use regex::Regex;
 use rusqlite::Connection;
-use crate::{db::{create_game_account, create_game_bundle, create_player_info, create_recipient_account, create_server_account, create_token_account, list_game_accounts, list_token_accounts, prepare_all_tables, read_game_account, read_game_bundle, read_player_info, read_recipient_account, read_registration_account, read_server_account, read_token_account, update_game_account, update_player_info, update_recipient_account, PlayerInfo}, GameSpec};
-
 
 pub struct Context {
     conn: Connection,
@@ -14,9 +25,7 @@ impl Default for Context {
     fn default() -> Self {
         let conn = Connection::open_in_memory().unwrap();
         prepare_all_tables(&conn).unwrap();
-        Context {
-            conn
-        }
+        Context { conn }
     }
 }
 
@@ -131,12 +140,17 @@ impl Context {
             entry_type,
             ..Default::default()
         };
+        let stake = Stake {
+            addr: game_addr.clone(),
+            amount: 0,
+        };
         let recipient = RecipientAccount {
             addr: recipient_addr.clone(),
             ..Default::default()
         };
         create_game_bundle(&self.conn, &bundle)?;
         create_game_account(&self.conn, &game)?;
+        create_stake(&self.conn, &stake)?;
         create_recipient_account(&self.conn, &recipient)?;
         println!("! Load game from `{}`", spec_path);
         println!("+ Game: {}", game_addr);
@@ -145,14 +159,16 @@ impl Context {
         Ok(())
     }
 
-
     pub fn create_game_account(&self, game_account: &GameAccount) -> anyhow::Result<()> {
         create_game_account(&self.conn, &game_account)?;
         println!("+ Game: {}", game_account.addr);
         Ok(())
     }
 
-    pub fn create_recipient_account(&self, recipient_account: &RecipientAccount) -> anyhow::Result<()> {
+    pub fn create_recipient_account(
+        &self,
+        recipient_account: &RecipientAccount,
+    ) -> anyhow::Result<()> {
         create_recipient_account(&self.conn, &recipient_account)?;
         println!("+ Recipient: {}", recipient_account.addr);
         Ok(())
@@ -166,6 +182,10 @@ impl Context {
 
     pub fn get_game_bundle(&self, addr: &str) -> anyhow::Result<Option<GameBundle>> {
         Ok(read_game_bundle(&self.conn, addr)?)
+    }
+
+    pub fn get_stake(&self, addr: &str) -> anyhow::Result<Stake> {
+        Ok(read_stake(&self.conn, addr).unwrap().unwrap())
     }
 
     pub fn get_game_account(&self, addr: &str) -> anyhow::Result<Option<GameAccount>> {
@@ -185,7 +205,10 @@ impl Context {
     }
 
     #[allow(unused)]
-    pub fn get_registration_account(&self, addr: &str) -> anyhow::Result<Option<RegistrationAccount>> {
+    pub fn get_registration_account(
+        &self,
+        addr: &str,
+    ) -> anyhow::Result<Option<RegistrationAccount>> {
         Ok(read_registration_account(&self.conn, addr)?)
     }
 
@@ -207,13 +230,21 @@ impl Context {
         Ok(())
     }
 
+    pub fn update_stake(&self, stake: &Stake) -> anyhow::Result<()> {
+        update_stake(&self.conn, &stake)?;
+        Ok(())
+    }
+
     pub fn update_player_info(&self, player_info: &PlayerInfo) -> anyhow::Result<()> {
         update_player_info(&self.conn, &player_info)?;
         Ok(())
     }
 
     #[allow(unused)]
-    pub fn update_recipient_account(&self, recipient_account: &RecipientAccount) -> anyhow::Result<()> {
+    pub fn update_recipient_account(
+        &self,
+        recipient_account: &RecipientAccount,
+    ) -> anyhow::Result<()> {
         update_recipient_account(&self.conn, &recipient_account)?;
         Ok(())
     }
