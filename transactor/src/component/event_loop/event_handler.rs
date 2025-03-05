@@ -150,7 +150,7 @@ async fn launch_sub_game(
     env: &ComponentEnv,
 ) {
     for sub_game in sub_games {
-        info!("{} Launch child game: {}", env.log_prefix, sub_game.id);
+        info!("{} Launch subgame: {}", env.log_prefix, sub_game.id);
         let SubGame {
             bundle_addr,
             id,

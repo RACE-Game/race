@@ -319,6 +319,21 @@ impl GameContext {
             max_players: game_account.max_players,
         };
 
+        let mut sub_games = vec![];
+
+        for checkpoint_data in checkpoint.data.values() {
+            if checkpoint_data.id != 0 {
+                sub_games.push(SubGame {
+                    id: checkpoint_data.id,
+                    bundle_addr: checkpoint_data.game_spec.bundle_addr.clone(),
+                    init_account: InitAccount {
+                        max_players: checkpoint_data.game_spec.max_players,
+                        data: vec![], // Not necessary?
+                    }
+                });
+            }
+        }
+
         Ok(Self {
             spec,
             versions: Versions::new(checkpoint.access_version, game_account.settle_version),
@@ -331,7 +346,7 @@ impl GameContext {
             decision_states: vec![],
             handler_state,
             checkpoint,
-            sub_games: vec![],
+            sub_games,
             init_data: game_account.data.clone(),
             entry_type: game_account.entry_type.clone(),
             state_sha,

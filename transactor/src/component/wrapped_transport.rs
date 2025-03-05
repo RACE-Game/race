@@ -191,20 +191,20 @@ impl TransportT for WrappedTransport {
         loop {
             let game_account = self.inner.get_game_account(&params.addr).await;
             if let Ok(Some(game_account)) = game_account {
-                // We got an old state, which has a smaller `settle_version`
+                // We got an old state, which has a smaller settle_version.
+                // It means either the previous settle was failed, or RPC gave a outdated account.
+                // We should retry the query to get the latest account.
                 if game_account.settle_version < params.settle_version {
                     error!(
-                        "Got invalid settle_version: {} != {}, will retry in {} secs",
+                        "Got invalid settle_version: on-chain version {} != required version {}, will retry in {} secs",
                         game_account.settle_version, params.settle_version, self.retry_interval
                     );
                     tokio::time::sleep(Duration::from_secs(self.retry_interval)).await;
                     continue;
                 }
-                // The `settle_version` had been bumped, which
-                // indicates the transaction was succeed
-
-                //NOTE: The transaction may success with error result
-                // due to unstable network
+                // We got a settle_version which is greater than the current one.  It means that the
+                // settle_version has been bumped. There's no need to retry.
+                // NOTE: The transaction // may success with error result due to unstable network
                 if curr_settle_version.is_some_and(|v| v < game_account.settle_version) {
                     return Ok(SettleResult {
                         signature: "".into(),
@@ -212,8 +212,12 @@ impl TransportT for WrappedTransport {
                     });
                 }
                 curr_settle_version = Some(game_account.settle_version);
+
                 match self.inner.settle_game(params.clone()).await {
-                    Ok(rst) => return Ok(rst),
+                    Ok(rst) => {
+                        info!("Settlement succeed, signature: {}", rst.signature);
+                        return Ok(rst);
+                    }
                     Err(e) => {
                         error!(
                             "Error in settlement: {:?}, will retry in {} secs",

@@ -1454,9 +1454,11 @@ impl SolanaTransport {
                 }
             })?;
 
-        self.client
+        let num_confirmed = self.client
             .poll_for_signature_confirmation(&sig, confirm_num)
             .map_err(|e| TransportError::ClientSendTransactionFailed(e.to_string()))?;
+
+        info!("Transaction confirmed. {} confirmations passed.", num_confirmed);
 
         match self
             .client
