@@ -385,6 +385,10 @@ impl GameContext {
         self.timestamp = timestamp;
     }
 
+    pub fn handler_is_initialized(&self) -> bool {
+        !self.handler_state.is_empty()
+    }
+
     pub fn get_handler_state_raw(&self) -> &Vec<u8> {
         &self.handler_state
     }

@@ -416,6 +416,10 @@ export class Bridge extends GameEvent implements IEventKind {
 export class SubGameReady extends GameEvent implements IEventKind {
     @field('usize')
     gameId!: number
+    @field('u16')
+    maxPlayers!: number
+    @field('u8-array')
+    initData!: Uint8Array
 
     constructor(fields: Fields<SubGameReady>) {
         super()

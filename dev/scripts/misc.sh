@@ -19,6 +19,7 @@ function make_tourney {
                              -u8 50 \
                              -u8 30 \
                              -u8 20 \
+                             -u16 0 \
                              -u8 0 \
                              -s "raceholdemtargetraceholdemmtttablewasm")
 

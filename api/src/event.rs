@@ -1,6 +1,5 @@
 use crate::{
-    error::HandleError,
-    types::{Ciphertext, DecisionId, GameDeposit, GamePlayer, RandomId, SecretDigest, SecretShare, GameId},
+    error::HandleError, types::{Ciphertext, DecisionId, GameDeposit, GameId, GamePlayer, RandomId, SecretDigest, SecretShare}
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
@@ -140,6 +139,8 @@ pub enum Event {
     /// A subgame is ready
     SubGameReady {
         game_id: GameId,
+        max_players: u16,
+        init_data: Vec<u8>,
     },
 }
 
@@ -223,7 +224,7 @@ impl std::fmt::Display for Event {
             Event::Shutdown => {
                 write!(f, "Shutdown")
             }
-            Event::SubGameReady { game_id } => {
+            Event::SubGameReady { game_id, .. } => {
                 write!(f, "SubGameReady from {:?}", game_id)
             }
         }

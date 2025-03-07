@@ -121,6 +121,8 @@ pub enum EventFrame {
     SubGameReady {
         game_id: GameId,
         checkpoint_state: VersionedData,
+        max_players: u16,
+        init_data: Vec<u8>,
     },
 
     /// Reject a deposit

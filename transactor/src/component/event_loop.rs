@@ -50,7 +50,15 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     settle_version,
                     ..
                 } => {
-                    if game_context.get_handler_state_raw().is_empty() {
+                    // There are two scenarios for game handler initialization.
+                    //
+                    // Initialize a empty new handler. This is required when we have no checkpoint available.
+                    // An init account is created during the process and is passed to the init_state
+                    // function of the game handler.
+                    //
+                    // Recover from chcekpoint. When the checkpoint is available, there's no need to call
+                    // init_state from the game handler.
+                    if !game_context.handler_is_initialized() {
                         if let Some(close_reason) = event_handler::init_state(
                             access_version,
                             settle_version,
@@ -66,7 +74,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             return close_reason;
                         }
                     } else {
-                        if let Some(close_reason) = event_handler::resume_from_checkpoint(
+                        if let Some(close_reason) = event_handler::recover_from_checkpoint(
                             &mut game_context,
                             &ports,
                             ctx.client_mode,
@@ -259,6 +267,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 EventFrame::SubGameReady {
                     checkpoint_state,
                     game_id,
+                    init_data,
+                    max_players,
                 } => {
                     if ctx.game_mode == GameMode::Main {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
@@ -270,7 +280,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ports.send(EventFrame::Shutdown).await;
                         }
                         let timestamp = current_timestamp();
-                        let event = Event::SubGameReady { game_id };
+                        let event = Event::SubGameReady { game_id, max_players, init_data };
                         if let Some(close_reason) = event_handler::handle_event(
                             &mut handler,
                             &mut game_context,

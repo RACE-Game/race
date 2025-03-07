@@ -248,6 +248,8 @@ pub async fn init_state(
                 .send(EventFrame::SubGameReady {
                     checkpoint_state: checkpoint_state.clone(),
                     game_id: game_context.game_id(),
+                    max_players: game_context.max_players(),
+                    init_data: init_account.data,
                 })
                 .await;
         } else {
@@ -259,7 +261,7 @@ pub async fn init_state(
     return None;
 }
 
-pub async fn resume_from_checkpoint(
+pub async fn recover_from_checkpoint(
     game_context: &mut GameContext,
     ports: &PipelinePorts,
     client_mode: ClientMode,
@@ -272,7 +274,7 @@ pub async fn resume_from_checkpoint(
             "{} Resume from checkpoint with {} subgames",
             env.log_prefix,
             versioned_data_list.len() - 1
-        ); // except the master game
+        ); // counting excludes the master game
 
         for versioned_data in versioned_data_list {
             if versioned_data.id == 0 {
