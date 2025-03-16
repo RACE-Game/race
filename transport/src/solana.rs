@@ -1231,19 +1231,15 @@ impl TransportT for SolanaTransport {
                     "[Unreachable] Cannot get recipient".into(),
                 ))?;
             if is_native_mint(&parse_pubkey(&slot.token_addr)?) {
-                let stake_account =
-                    self.client
-                        .get_account(stake_addr)
-                        .or(Err(Error::TransportError(
-                            "Cannot get the state of stake account".into(),
-                        )))?;
-                slot.balance = stake_account.lamports;
+                println!("stake addr: {}", stake_addr);
+                slot.balance = self.client.get_balance(stake_addr)
+                    .or(Err(Error::TransportError("Cannot get the state of stake account(SOL)".into())))?;
             } else {
                 let stake_account =
                     self.client
                         .get_account_data(stake_addr)
                         .or(Err(Error::TransportError(
-                            "Cannot get the state of stake account".into(),
+                            "Cannot get the state of stake account(SPL)".into(),
                         )))?;
                 let stake_account_state = Account::unpack(&stake_account).or(Err(
                     Error::TransportError("Cannot parse data of stake account".into()),
