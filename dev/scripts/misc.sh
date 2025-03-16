@@ -12,7 +12,6 @@ function make_tourney {
                              -u64 $TICKET \
                              -u8 $TABLE_SIZE \
                              -u64 $START_CHIPS \
-                             -u64 10 \
                              -u64 60000 \
                              -u32 0 \
                              -u32 3 \
