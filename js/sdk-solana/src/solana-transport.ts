@@ -540,7 +540,7 @@ export class SolanaTransport implements ITransport {
             const [playerAta] = await SPL.findAssociatedTokenPda({
                 owner: player.address,
                 mint: mintKey,
-                tokenProgram: SPL.ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+                tokenProgram: SPL.TOKEN_PROGRAM_ADDRESS,
             })
             const transferIx = SPL.getTransferInstruction({
                 amount,
@@ -612,14 +612,14 @@ export class SolanaTransport implements ITransport {
             ixs.push(...createTempAccountIxs)
             const [playerAta] = await SPL.findAssociatedTokenPda({
                 owner: payer.address,
-                tokenProgram: SPL.ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-                mint: gameState.tokenKey,
+                tokenProgram: SPL.TOKEN_PROGRAM_ADDRESS,
+                mint: mintKey,
             })
 
             const transferIx = SPL.getTransferCheckedInstruction({
                 source: playerAta,
-                mint: tokenAccount.address,
-                destination: playerAta,
+                mint: mintKey,
+                destination: tokenAccount.address,
                 amount,
                 decimals: mint.data.decimals,
                 authority: payer.address,
