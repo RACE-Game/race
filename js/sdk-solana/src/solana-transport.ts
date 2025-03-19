@@ -288,7 +288,7 @@ export class SolanaTransport implements ITransport {
             return response.failed('reg-not-found')
         }
 
-        if (regState.games.find(g => g.gameKey != gameAccountKey) === undefined) {
+        if (regState.games.find(g => g.gameKey == gameAccountKey) === undefined) {
             return response.failed('game-not-in-reg')
         }
         const ixs = []
