@@ -358,6 +358,10 @@ async fn game_info(addr: &str, transport: Arc<dyn TransportT>) {
             } else {
                 println!("Checkpoint: None");
             }
+            println!("Bonuses:");
+            for b in game_account.bonuses.iter() {
+                println!("Bonus[{}] token: {}, amount: {}", b.identifier, b.token_addr, b.amount);
+            }
             println!("Balances:");
             for b in game_account.balances.iter() {
                 println!("{} -> {}", b.player_id, b.balance);
