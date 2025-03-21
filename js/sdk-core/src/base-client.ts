@@ -412,7 +412,8 @@ export class BaseClient {
                 if (this.__onReady !== undefined) {
                     const snapshot = new GameContextSnapshot(this.__gameContext)
                     const state = this.__gameContext.handlerState
-                    this.__onReady(snapshot, state);
+                    this.__onReady(snapshot, state)
+                    this.__connection.startKeepAlive()
                 } else {
                     console.warn('Callback onReady is not provided.')
                 }

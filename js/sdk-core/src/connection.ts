@@ -5,6 +5,8 @@ import { arrayBufferToBase64, base64ToUint8Array } from './utils'
 import { BroadcastFrame } from './broadcast-frames'
 import { CheckpointOffChain } from './checkpoint'
 
+const PING_TIMEOUT = 6000
+
 export type ConnectionState = 'disconnected' | 'connected' | 'reconnected' | 'closed'
 
 export type AttachResponse = 'success' | 'game-not-loaded'
@@ -95,6 +97,8 @@ export class GetCheckpointParams {
 
 export interface IConnection {
     attachGame(params: AttachGameParams): Promise<AttachResponse>
+
+    startKeepAlive(): void
 
     getState(): Promise<Uint8Array>
 
@@ -210,20 +214,6 @@ export class Connection implements IConnection {
                 frame = 'reconnected'
             }
 
-            // Start times for alive checking
-            this.lastPong = new Date().getTime()
-            this.checkTimer = setInterval(() => {
-                const t = new Date().getTime()
-                if (this.lastPong + 6000 < t) {
-                    console.info('Websocket keep alive check failed, no reply for %s ms', t - this.lastPong)
-                    this.onDisconnected()
-                    return
-                }
-                if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
-                    this.socket.send(makeReqNoSig(this.target, 'ping', {}))
-                }
-            }, 3000)
-
             if (this.streamResolve !== undefined) {
                 let r = this.streamResolve
                 this.streamResolve = undefined
@@ -247,6 +237,23 @@ export class Connection implements IConnection {
         // Call JSONRPC subscribe_event
         const req = makeReqNoSig(this.target, 'subscribe_event', params)
         await this.requestWs(req)
+    }
+
+    startKeepAlive() {
+        console.info("Start keep alive task")
+        this.clearCheckTimer()
+        this.lastPong = new Date().getTime()
+        this.checkTimer = setInterval(() => {
+            const t = new Date().getTime()
+            if (this.lastPong + PING_TIMEOUT < t) {
+                console.info('Websocket keep alive check failed, no reply for %s ms', t - this.lastPong)
+                this.onDisconnected()
+                return
+            }
+            if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
+                this.socket.send(makeReqNoSig(this.target, 'ping', {}))
+            }
+        }, 3000)
     }
 
     async attachGame(params: AttachGameParams): Promise<AttachResponse> {
