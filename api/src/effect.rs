@@ -68,7 +68,7 @@ pub struct SubGameLeave {
 }
 
 impl SubGame {
-    pub fn try_new<S: BorshSerialize, T: BorshSerialize>(
+    pub fn try_new<S: BorshSerialize>(
         id: GameId,
         bundle_addr: String,
         max_players: u16,
@@ -106,6 +106,17 @@ pub enum LogLevel {
     Info,
     Warn,
     Error,
+}
+
+impl std::fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogLevel::Debug => write!(f, "DEBUG"),
+            LogLevel::Info => write!(f, "INFO"),
+            LogLevel::Warn => write!(f, "WARN"),
+            LogLevel::Error => write!(f, "ERROR"),
+        }
+    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
@@ -519,6 +530,12 @@ impl Effect {
 
     pub fn debug<S: Into<String>>(&mut self, message: S) {
         self.log(LogLevel::Debug, message);
+    }
+
+    pub fn print_logs(&self) {
+        for log in self.logs.iter() {
+            println!("[{}] {}", log.level, log.message);
+        }
     }
 }
 
