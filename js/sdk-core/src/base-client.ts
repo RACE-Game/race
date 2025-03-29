@@ -91,6 +91,7 @@ export class BaseClient {
     __decryptionCache: DecryptionCache
     __logPrefix: string
     __latestCheckpointOnChain: CheckpointOnChain | undefined
+    __sub: ConnectionSubscription | undefined
 
     constructor(opts: BaseClientCtorOpts) {
         this.__gameAddr = opts.gameAddr
@@ -113,6 +114,7 @@ export class BaseClient {
         this.__decryptionCache = opts.decryptionCache
         this.__onLoadProfile = opts.onLoadProfile
         this.__logPrefix = opts.logPrefix
+        this.__sub == undefined
     }
 
     get playerAddr(): string {
@@ -269,14 +271,29 @@ export class BaseClient {
         }
     }
 
-    async __processSubscription(sub: ConnectionSubscription) {
-        for await (const item of sub) {
-            if (item === undefined) {
-                break
-            } else if (item instanceof BroadcastFrame) {
-                await this.__handleBroadcastFrame(item)
-            } else {
-                await this.__handleConnectionState(item)
+    async __processSubscription() {
+        if (this.__sub !== undefined) {
+            for await (const item of this.__sub) {
+                if (item === undefined) {
+                    break
+                } else if (item instanceof BroadcastFrame) {
+                    await this.__handleBroadcastFrame(item)
+                } else {
+                    await this.__handleConnectionState(item)
+                }
+
+                // Reconnect if sub is lost
+                while (this.__sub === undefined) {
+                    try {
+                        console.info('Try to reconnect.')
+                        this.__sub = this.__connection.subscribeEvents()
+                        await this.__startSubscribe()
+                    } catch (e) {
+                        console.warn('Reconnect failed, will try again in 1 secs')
+                        await new Promise(r => setTimeout(r, 1000))
+                        this.__sub = undefined
+                    }
+                }
             }
         }
     }
@@ -413,7 +430,7 @@ export class BaseClient {
                     const snapshot = new GameContextSnapshot(this.__gameContext)
                     const state = this.__gameContext.handlerState
                     this.__onReady(snapshot, state)
-                    this.__connection.startKeepAlive()
+                    // this.__connection.startKeepAlive()
                 } else {
                     console.warn('Callback onReady is not provided.')
                 }
@@ -436,8 +453,7 @@ export class BaseClient {
             if (this.__onConnectionState !== undefined) {
                 this.__onConnectionState('disconnected')
             }
-            console.warn('Disconnected, try reset state and context')
-            await this.__startSubscribe()
+            this.__sub = undefined
         } else if (state === 'connected') {
             if (this.__onConnectionState !== undefined) {
                 this.__onConnectionState('connected')

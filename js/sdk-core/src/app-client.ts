@@ -305,7 +305,7 @@ export class AppClient extends BaseClient {
         let sub
         try {
             await this.__attachGameWithRetry()
-            sub = this.__connection.subscribeEvents()
+            this.__sub = this.__connection.subscribeEvents()
             await this.__startSubscribe()
             for (const p of this.__latestGameAccount.players) {
                 console.log('Load profile for', p.addr)
@@ -318,7 +318,7 @@ export class AppClient extends BaseClient {
         } finally {
             console.groupEnd()
         }
-        if (sub !== undefined) await this.__processSubscription(sub)
+        await this.__processSubscription()
     }
 
     /**

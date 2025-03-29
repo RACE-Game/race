@@ -5,7 +5,7 @@ import { arrayBufferToBase64, base64ToUint8Array } from './utils'
 import { BroadcastFrame } from './broadcast-frames'
 import { CheckpointOffChain } from './checkpoint'
 
-const PING_TIMEOUT = 6000
+const PING_TIMEOUT = 4500
 
 export type ConnectionState = 'disconnected' | 'connected' | 'reconnected' | 'closed'
 
@@ -155,17 +155,18 @@ export class Connection implements IConnection {
         this.isFirstOpen = true
     }
 
+    closeSocket() {
+        if (this.socket !== undefined) {
+            console.warn('Close websocket')
+            this.socket.close()
+            this.socket = undefined
+        }
+    }
+
     onDisconnected() {
         console.warn('Clean up the connection with transactor')
 
         this.clearCheckTimer()
-
-        if (this.socket === undefined) {
-            return
-        } else {
-            this.socket.close()
-            this.socket = undefined
-        }
 
         if (this.streamMessageQueue.find(x => x === 'disconnected') === undefined) {
             if (this.streamResolve !== undefined) {
@@ -180,6 +181,7 @@ export class Connection implements IConnection {
 
     clearCheckTimer() {
         if (this.checkTimer !== undefined) {
+            console.warn('Stop keep alive timer')
             clearInterval(this.checkTimer)
             this.checkTimer = undefined
         }
@@ -206,6 +208,7 @@ export class Connection implements IConnection {
 
         this.socket.onopen = () => {
             console.info('Websocket connected')
+            this.closed = false
             let frame: ConnectionState
             if (this.isFirstOpen) {
                 frame = 'connected'
@@ -225,13 +228,15 @@ export class Connection implements IConnection {
 
         this.socket.onclose = () => {
             console.info('Websocket closed')
-            this.closed = true
-            this.onDisconnected()
+            if (!this.closed) {
+                this.closed = true
+                this.onDisconnected()
+            }
         }
 
         this.socket.onerror = e => {
-            console.error(e)
-            this.onDisconnected()
+            console.error(e, 'Close websocket due to this error')
+            this.closeSocket()
         }
 
         // Call JSONRPC subscribe_event
@@ -247,7 +252,7 @@ export class Connection implements IConnection {
             const t = new Date().getTime()
             if (this.lastPong + PING_TIMEOUT < t) {
                 console.info('Websocket keep alive check failed, no reply for %s ms', t - this.lastPong)
-                this.onDisconnected()
+                this.closeSocket()
                 return
             }
             if (this.socket !== undefined && this.socket.readyState === this.socket.OPEN) {
