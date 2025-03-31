@@ -31,7 +31,7 @@ import {
 } from './transport'
 import { PlayerProfileWithPfp } from './types'
 import { IWallet } from './wallet'
-import { getLatestCheckpoint } from './connection'
+import { getLatestCheckpoints } from './connection'
 
 export type AppHelperInitOpts = {
     transport: ITransport
@@ -204,23 +204,53 @@ export class AppHelper {
     }
 
     /**
-     * Get latest checkpoint of a game.
+     * Get a list of latest checkpoints by game accounts.
+     * The returned CheckpointOffChain will be in the same order as given gameAccounts.
      *
-     * @param gameAccount
-     * @returns The latest checkpoint from transactor or undefined when it's not a
-       vailable.
+     * @param gameAccounts
+     * @returns The latest checkpoint from transactor or undefined when it's not available.
      */
-    async getLatestCheckpoint(gameAccount: GameAccount): Promise<CheckpointOffChain | undefined> {
-        if (gameAccount.transactorAddr === undefined) {
-            return undefined
-        }
-        const transactor = gameAccount.servers.find(s => s.addr == gameAccount.transactorAddr)
-        if (transactor === undefined) {
-            return undefined
-        }
+    async fetchLatestCheckpoints(gameAccounts: GameAccount[]): Promise<(CheckpointOffChain | undefined)[]> {
+        const endpointToAddrs = new Map<string, string[]>();
+        const addrToGameAccountIndex = new Map<string, number>();
 
-        const checkpointOffChain = await getLatestCheckpoint(transactor.endpoint, gameAccount.addr);
-        return checkpointOffChain;
+        gameAccounts.forEach((gameAccount, index) => {
+            const { addr, transactorAddr, servers } = gameAccount;
+
+            if (transactorAddr) {
+                const server = servers.find(s => s.addr === transactorAddr);
+                if (server) {
+                    const endpoint = server.endpoint;
+                    if (!endpointToAddrs.has(endpoint)) {
+                        endpointToAddrs.set(endpoint, []);
+                    }
+                    endpointToAddrs.get(endpoint)!.push(addr);
+                    addrToGameAccountIndex.set(addr, index);
+                }
+            }
+        });
+
+        const results = new Array<CheckpointOffChain | undefined>(gameAccounts.length);
+
+        // Request checkpoints for each unique endpoint
+        await Promise.all(Array.from(endpointToAddrs.entries()).map(async ([endpoint, addrs]) => {
+            try {
+                const checkpoints = await getLatestCheckpoints(endpoint, addrs);
+
+                // Match the received checkpoints to the original gameAccounts order
+                checkpoints.forEach((checkpoint, idx) => {
+                    const addr = addrs[idx];
+                    const index = addrToGameAccountIndex.get(addr);
+                    if (index !== undefined) {
+                        results[index] = checkpoint;
+                    }
+                });
+            } catch (error) {
+                console.error(`Failed to fetch checkpoints for endpoint ${endpoint}:`, error);
+            }
+        }));
+
+        return results;
     }
 
     /**

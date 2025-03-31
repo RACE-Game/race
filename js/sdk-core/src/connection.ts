@@ -3,7 +3,7 @@ import { GameEvent } from './events'
 import { deserialize, enums, field, serialize, struct } from '@race-foundation/borsh'
 import { arrayBufferToBase64, base64ToUint8Array } from './utils'
 import { BroadcastFrame } from './broadcast-frames'
-import { CheckpointOffChain } from './checkpoint'
+import { CheckpointOffChain, CheckpointOffChainList } from './checkpoint'
 
 const PING_TIMEOUT = 4500
 
@@ -20,7 +20,7 @@ type Method =
     | 'get_state'
     | 'ping'
     | 'get_checkpoint'
-    | 'get_latest_checkpoint'
+    | 'get_latest_checkpoints'
 
 interface IAttachGameParams {
     signer: string
@@ -382,7 +382,7 @@ export class Connection implements IConnection {
                 this.socket.send(req)
             }
         } catch (err) {
-            console.error('Failed to connect to current transactor: ' + this.endpoint)
+            console.error(err, 'Failed to connect to current transactor: ' + this.endpoint)
             throw err
         }
     }
@@ -440,11 +440,21 @@ function makeReqNoSig<P>(target: string, method: Method, params: P): string {
     })
 }
 
-export async function getLatestCheckpoint(
+function makeReqAddrs(method: Method, addrs: string[]): string {
+    console.debug(`Connection request[Addrs], method: ${method}, addrs:`, addrs)
+    return JSON.stringify({
+        jsonrpc: '2.0',
+        method,
+        id: crypto.randomUUID(),
+        params: addrs,
+    })
+}
+
+export async function getLatestCheckpoints(
     transactorEndpoint: string,
-    addr: string,
-): Promise<CheckpointOffChain | undefined> {
-    const req = makeReqNoSig(addr, 'get_latest_checkpoint', {})
+    addrs: string[],
+): Promise<(CheckpointOffChain | undefined)[]> {
+    const req = makeReqAddrs('get_latest_checkpoints', addrs)
     try {
         const resp = await fetch(transactorEndpoint.replace(/^ws/, 'http'), {
             method: 'POST',
@@ -455,8 +465,8 @@ export async function getLatestCheckpoint(
         })
         if (resp.ok) {
             const ret = await resp.json()
-            if (!ret.result) return undefined
-            return CheckpointOffChain.deserialize(Uint8Array.from(ret.result))
+            if (!ret.result) throw Error(`Failed to get latest checkpoints from endpoint: ${transactorEndpoint}`)
+            return CheckpointOffChainList.deserialize(Uint8Array.from(ret.result)).checkpoints
         } else {
             throw Error('Transactor request failed:' + resp.json())
         }

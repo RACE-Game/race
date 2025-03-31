@@ -16,7 +16,7 @@ use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
     AttachGameParams, CheckpointParams, ExitGameParams, Signature, SubmitEventParams,
-    SubscribeEventParams, LatestCheckpointParams
+    SubscribeEventParams,
 };
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
@@ -133,22 +133,20 @@ async fn get_checkpoint(
     Ok(bs)
 }
 
-async fn get_latest_checkpoint(
-    params: Params<'_>,
-    context: Arc<ApplicationContext>,
-) -> Result<Option<Vec<u8>>, RpcError> {
-    let (game_addr, LatestCheckpointParams {} ) = parse_params_no_sig(params)?;
+async fn get_latest_checkpoints(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<Vec<u8>, RpcError> {
 
+    let game_addrs = params.parse::<Vec<String>>()?;
+    let mut result = Vec::with_capacity(game_addrs.len());
+
+    for addr in game_addrs {
     let checkpoint: Option<CheckpointOffChain> = context
         .game_manager
-        .get_latest_checkpoint(&game_addr)
+        .get_latest_checkpoint(&addr)
         .await
         .map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
-
-    let bs = checkpoint
-        .map(|c| borsh::to_vec(&c).map_err(|e| RpcError::Call(CallError::Failed(e.into()))))
-        .transpose()?;
-
+        result.push(checkpoint);
+    }
+    let bs = borsh::to_vec(&result).map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
     Ok(bs)
 }
 
@@ -266,7 +264,7 @@ pub async fn run_server(
 
     module.register_method("ping", ping)?;
     module.register_async_method("get_checkpoint", get_checkpoint)?;
-    module.register_async_method("get_latest_checkpoint", get_latest_checkpoint)?;
+    module.register_async_method("get_latest_checkpoints", get_latest_checkpoints)?;
     module.register_async_method("attach_game", attach_game)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;

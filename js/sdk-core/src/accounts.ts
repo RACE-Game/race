@@ -194,3 +194,15 @@ export interface RegistrationWithGames {
     readonly owner: string | undefined
     readonly games: GameAccount[]
 }
+
+function getEndpointFromGameAccount(gameAccount: GameAccount): string | undefined {
+    const { transactorAddr, servers } = gameAccount;
+
+    if (!transactorAddr) {
+        return undefined;
+    }
+
+    const server = servers.find(s => s.addr === transactorAddr);
+
+    return server ? server.endpoint : undefined;
+}

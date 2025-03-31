@@ -1,4 +1,4 @@
-import { deserialize, field, map, struct } from '@race-foundation/borsh'
+import { array, deserialize, field, map, option, struct } from '@race-foundation/borsh'
 import { sha256 } from './encryptor'
 import { Fields } from './types'
 
@@ -89,6 +89,20 @@ export class CheckpointOffChain {
 
     static deserialize(raw: Uint8Array): CheckpointOffChain {
         return deserialize(CheckpointOffChain, raw)
+    }
+}
+
+export class CheckpointOffChainList {
+
+    @field(array(option(struct(CheckpointOffChain))))
+    checkpoints!: (CheckpointOffChain | undefined)[]
+
+    constructor(fields: any) {
+        Object.assign(this, fields)
+    }
+
+    static deserialize(raw: Uint8Array): CheckpointOffChainList {
+        return deserialize(CheckpointOffChainList, raw)
     }
 }
 

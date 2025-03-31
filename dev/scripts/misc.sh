@@ -53,7 +53,7 @@ function make_cash {
     "title": "$1",
     "bundle": "../race-holdem/target/race_holdem_cash.wasm",
     "token": "$2",
-    "maxPlayers": 6,
+    "maxPlayers": $3,
     "entryType": {
         "cash": {
             "minDeposit": 100000000,
