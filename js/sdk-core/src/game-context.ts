@@ -85,7 +85,7 @@ export class GameContext {
     entryType: EntryType
     stateSha: string
 
-    constructor(gameAccount: GameAccount, checkpoint: Checkpoint, handlerState: Uint8Array, stateSha: string) {
+    constructor(gameAccount: GameAccount, checkpoint: Checkpoint) {
         if (checkpoint === undefined) {
             throw new Error('Missing checkpoint')
         }
@@ -175,13 +175,13 @@ export class GameContext {
         this.timestamp = 0n
         this.randomStates = []
         this.decisionStates = []
-        this.handlerState = handlerState
+        this.handlerState = Uint8Array.of()
         this.checkpoint = checkpoint
         this.subGames = subGames
         this.initData = gameAccount.data
         this.players = players
         this.entryType = gameAccount.entryType
-        this.stateSha = stateSha
+        this.stateSha = ''
         this.balances = balances
     }
 

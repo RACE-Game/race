@@ -39,6 +39,7 @@ import {
 } from './broadcast-frames'
 import { InitAccount } from './init-account'
 import { CheckpointOnChain } from './checkpoint'
+import { SdkError } from './error'
 
 const MAX_RETRIES = 3
 
@@ -284,15 +285,8 @@ export class BaseClient {
 
                 // Reconnect if sub is lost
                 while (this.__sub === undefined) {
-                    try {
-                        console.info('Try to reconnect.')
-                        this.__sub = this.__connection.subscribeEvents()
-                        await this.__startSubscribe()
-                    } catch (e) {
-                        console.warn('Reconnect failed, will try again in 1 secs')
-                        await new Promise(r => setTimeout(r, 1000))
-                        this.__sub = undefined
-                    }
+                    console.info('Try to reconnect.')
+                    this.__startSubscribe()
                 }
             }
         }
@@ -411,6 +405,13 @@ export class BaseClient {
                 this.__gameContext.setHandlerState(versionedData.data)
                 this.__gameContext.versions = versionedData.versions
                 this.__gameContext.stateSha = await sha256String(versionedData.data)
+            } else {
+                const handlerState = this.__gameContext.checkpoint.getData(0)
+                if (handlerState === undefined) {
+                    throw SdkError.malformedCheckpoint()
+                }
+                this.__gameContext.setHandlerState(handlerState)
+                this.__gameContext.stateSha = await sha256String(handlerState)
             }
 
             await this.__checkStateSha(frame.stateSha, 'checkpoint-state-sha-mismatch')
@@ -430,7 +431,6 @@ export class BaseClient {
                     const snapshot = new GameContextSnapshot(this.__gameContext)
                     const state = this.__gameContext.handlerState
                     this.__onReady(snapshot, state)
-                    // this.__connection.startKeepAlive()
                 } else {
                     console.warn('Callback onReady is not provided.')
                 }
@@ -440,8 +440,8 @@ export class BaseClient {
         }
     }
 
-    async __startSubscribe(): Promise<void> {
-        await this.__connection.connect(
+    __startSubscribe() {
+        this.__sub = this.__connection.connect(
             new SubscribeEventParams({
                 settleVersion: this.__gameContext.versions.settleVersion,
             })

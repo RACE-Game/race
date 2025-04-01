@@ -182,13 +182,8 @@ export class AppClient extends BaseClient {
             } else {
                 throw SdkError.gameNotServed(gameAddr)
             }
-            const handlerState = checkpoint.getData(0)
-            if (handlerState === undefined) {
-                throw SdkError.malformedCheckpoint()
-            }
-            const stateSha = await sha256String(handlerState)
 
-            const gameContext = new GameContext(gameAccount, checkpoint, handlerState, stateSha)
+            const gameContext = new GameContext(gameAccount, checkpoint)
 
             if (token === undefined) {
                 const decimals = await transport.getTokenDecimals(gameAccount.tokenAddr)
@@ -305,8 +300,7 @@ export class AppClient extends BaseClient {
         let sub
         try {
             await this.__attachGameWithRetry()
-            this.__sub = this.__connection.subscribeEvents()
-            await this.__startSubscribe()
+            this.__startSubscribe()
             for (const p of this.__latestGameAccount.players) {
                 console.log('Load profile for', p.addr)
                 this.__onLoadProfile(p.accessVersion, p.addr)

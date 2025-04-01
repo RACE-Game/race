@@ -48,9 +48,9 @@ export class SubClient extends BaseClient {
         })
     }
 
-    async __startSubscribe(): Promise<void> {
+    __startSubscribe() {
         const settleVersion = this.__gameContext.checkpointVersion() || 0n
-        await this.__connection.connect(new SubscribeEventParams({ settleVersion }))
+        this.__sub = this.__connection.connect(new SubscribeEventParams({ settleVersion }))
     }
 
     /**
@@ -58,11 +58,9 @@ export class SubClient extends BaseClient {
      */
     async attachGame() {
         console.group(`${this.__logPrefix}Attach to game`)
-        let sub
         try {
             await this.__attachGameWithRetry()
-            await this.__startSubscribe()
-            this.__sub = this.__connection.subscribeEvents()
+            this.__startSubscribe()
         } catch (e) {
             console.error('Attaching game failed', e)
             throw e
