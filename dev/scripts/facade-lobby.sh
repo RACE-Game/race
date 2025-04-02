@@ -33,18 +33,12 @@ just dev-facade -g <(make_tourney "A completed one" "FACADE_USDC" ${START_TIMES[
      -g <(make_tourney "Native token" "FACADE_NATIVE" ${START_TIMES[3]}) \
      -g <(make_tourney "See ya tomorrow" "FACADE_USDC" ${START_TIMES[4]}) \
      -g <(make_tourney "Too far to start" "FACADE_USDC" ${START_TIMES[5]}) \
-     -g <(make_cash "USDC 1" "FACADE_USDC" 3) \
-     -g <(make_cash "USDC 2" "FACADE_USDC" 6) \
-     -g <(make_cash "USDC 3" "FACADE_USDC" 8) \
-     -g <(make_cash "USDC 4" "FACADE_USDC" 6) \
-     -g <(make_cash "USDC 5" "FACADE_USDC" 6) \
-     -g <(make_cash "USDC 6" "FACADE_USDC" 6) \
-     -g <(make_cash "NATIVE 1" "FACADE_NATIVE" 6) \
-     -g <(make_cash "NATIVE 2" "FACADE_NATIVE" 6) \
-     -g <(make_cash "NATIVE 3" "FACADE_NATIVE" 6) \
-     -g <(make_cash "NATIVE 4" "FACADE_NATIVE" 6) \
-     -g <(make_cash "NATIVE 5" "FACADE_NATIVE" 6) \
-     -g <(make_cash "NATIVE 6" "FACADE_NATIVE" 6) \
+     -g <(make_cash "USDC 1" "FACADE_USDC" 3 100000 200000 0) \
+     -g <(make_cash "USDC 2" "FACADE_USDC" 6 100000 200000 200000) \
+     -g <(make_cash "USDC 3" "FACADE_USDC" 8 200000 500000 0) \
+     -g <(make_cash "USDC 4" "FACADE_USDC" 6 200000 500000 500000) \
+     -g <(make_cash "USDC 5" "FACADE_USDC" 6 1000000 2000000 0) \
+     -g <(make_cash "USDC 6" "FACADE_USDC" 6 1000000 2000000 2000000) \
      -g <(make_ltmtt "Super Week" "FACADE_USDC" ${START_TIMES[2]}) \
      -b ../race-holdem/target/race_holdem_mtt_table.wasm \
      -b ../race-holdem/target/race_holdem_cash.wasm

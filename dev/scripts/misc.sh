@@ -15,10 +15,9 @@ function make_tourney {
                              -u64 10 \
                              -u64 60000 \
                              -u32 0 \
-                             -u32 3 \
-                             -u8 50 \
+                             -u32 2 \
+                             -u8 70 \
                              -u8 30 \
-                             -u8 20 \
                              -u16 10 \
                              -u16 50 \
                              -u16 10 \
@@ -48,6 +47,19 @@ EOF
 # Make a JSON specification for cash game
 # TITLE TOKEN
 function make_cash {
+
+    local MIN_DEPOSIT=$(($5 * 50))
+    local MAX_DEPOSIT=$(($5 * 100))
+
+    local data=$(cd $ROOT/js/borsh; npx ts-node ./bin/cli.ts \
+                                        -u64 $4 \
+                                        -u64 $5 \
+                                        -u64 $6 \
+                                        -u16 10 \
+                                        -u8 1 \
+                                        -u64 $MAX_DEPOSIT \
+                                        -u8 0)
+
     local json=$(cat <<EOF
 {
     "title": "$1",
@@ -56,15 +68,16 @@ function make_cash {
     "maxPlayers": $3,
     "entryType": {
         "cash": {
-            "minDeposit": 100000000,
-            "maxDeposit": 300000000
+            "minDeposit": $MIN_DEPOSIT,
+            "maxDeposit": $MAX_DEPOSIT
         }
     },
-    "data": [64,66,15,0,0,0,0,0,128,132,30,0,0,0,0,0,0,0,0,0,0,0,0,0,30,0,1,0,163,225,17,0,0,0,0,0]
+    "data": $data
 }
 
 EOF
           )
+
     echo $json
 }
 
