@@ -654,7 +654,7 @@ async fn main() {
             let arweave_url = sub_matches
                 .get_one::<String>("ARWEAVE_URL")
                 .expect("required");
-            let transport = create_transport(&chain, &rpc, None).await;
+            let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
             mint_nft(
                 name.to_owned(),
                 symbol.to_owned(),
