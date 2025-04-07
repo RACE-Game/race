@@ -1277,13 +1277,10 @@ impl TransportT for SolanaTransport {
         let recipient_pubkey = Self::parse_pubkey(&params.recipient_addr)?;
         let recipient_state = self.internal_get_recipient_state(&recipient_pubkey).await?;
 
-        let (pda, _) =
-            Pubkey::find_program_address(&[&recipient_pubkey.to_bytes()], &self.program_id);
 
         let mut account_metas = vec![
             AccountMeta::new_readonly(payer_pubkey, true),
             AccountMeta::new(recipient_pubkey, false),
-            AccountMeta::new_readonly(pda, false),
             AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(system_program::id(), false),
         ];
@@ -1292,6 +1289,10 @@ impl TransportT for SolanaTransport {
             for slot_share in slot.shares.iter() {
                 match slot_share.owner {
                     RecipientSlotOwner::Assigned { ref addr } if addr.eq(&payer_pubkey) => {
+                        let (pda, _) =
+                            Pubkey::find_program_address(&[&recipient_pubkey.to_bytes(), &[slot.id]], &self.program_id);
+
+                        account_metas.push(AccountMeta::new_readonly(pda, false));
                         account_metas.push(AccountMeta::new(slot.stake_addr, false));
                         info!(
                             "Expect to claim tokens from slot {}, token address: {}",

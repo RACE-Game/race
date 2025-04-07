@@ -675,13 +675,10 @@ export class SolanaTransport implements ITransport {
             return response.failed('not-found')
         }
 
-        const [pda, _] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [getBase58Encoder().encode(recipientKey)] })
-
         const recipientClaimIx = await instruction.claim({
             recipientKey,
             payerKey: payer.address,
             recipientState,
-            pda,
         })
         if ('err' in recipientClaimIx) {
             return response.failed(recipientClaimIx.err)

@@ -10,6 +10,8 @@ import {
     address,
     Address,
     IInstruction,
+    getProgramDerivedAddress,
+    getBase58Encoder,
 } from '@solana/web3.js'
 
 type IxParams<T> = Omit<Fields<T>, 'instruction'>
@@ -686,7 +688,6 @@ export type ClaimOpts = {
     payerKey: Address
     recipientKey: Address
     recipientState: RecipientState
-    pda: Address
 }
 
 export async function claim(opts: ClaimOpts): Promise<Result<IInstruction, RecipientClaimError>> {
@@ -704,10 +705,6 @@ export async function claim(opts: ClaimOpts): Promise<Result<IInstruction, Recip
             role: AccountRole.WRITABLE,
         },
         {
-            address: opts.pda,
-            role: AccountRole.READONLY,
-        },
-        {
             address: SPL.TOKEN_PROGRAM_ADDRESS,
             role: AccountRole.READONLY,
         },
@@ -718,17 +715,24 @@ export async function claim(opts: ClaimOpts): Promise<Result<IInstruction, Recip
     ]
 
     for (const slot of opts.recipientState.slots) {
+        const [pda, _] = await getProgramDerivedAddress({ programAddress: PROGRAM_ID, seeds: [getBase58Encoder().encode(opts.recipientKey), Uint8Array.of(slot.id)] })
+
         for (const slotShare of slot.shares) {
             if (slotShare.owner instanceof RecipientSlotOwnerAssigned && slotShare.owner.addr === opts.payerKey) {
                 accounts.push({
-                    address: slot.stakeAddr,
+                    address: pda,
                     role: AccountRole.READONLY,
+                })
+
+                accounts.push({
+                    address: slot.stakeAddr,
+                    role: AccountRole.WRITABLE,
                 })
 
                 if (slot.tokenAddr == NATIVE_MINT) {
                     accounts.push({
                         address: opts.payerKey,
-                        role: AccountRole.READONLY,
+                        role: AccountRole.WRITABLE,
                     })
                 } else {
 
@@ -739,7 +743,7 @@ export async function claim(opts: ClaimOpts): Promise<Result<IInstruction, Recip
                     })
                     accounts.push({
                         address: ata,
-                        role: AccountRole.READONLY,
+                        role: AccountRole.WRITABLE,
                     })
                 }
             }
