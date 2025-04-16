@@ -245,8 +245,8 @@ export class AppHelper {
                         results[index] = checkpoint;
                     }
                 });
-            } catch (error) {
-                console.error(`Failed to fetch checkpoints for endpoint ${endpoint}:`, error);
+            } catch (err) {
+                console.error(err, `Failed to fetch checkpoints from endpoint ${endpoint}`);
             }
         }));
 

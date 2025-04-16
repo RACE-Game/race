@@ -134,16 +134,16 @@ async fn get_checkpoint(
 }
 
 async fn get_latest_checkpoints(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<Vec<u8>, RpcError> {
-
     let game_addrs = params.parse::<Vec<String>>()?;
     let mut result = Vec::with_capacity(game_addrs.len());
 
     for addr in game_addrs {
-    let checkpoint: Option<CheckpointOffChain> = context
-        .game_manager
-        .get_latest_checkpoint(&addr)
-        .await
-        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
+        let checkpoint: Option<CheckpointOffChain> = context
+            .game_manager
+            .get_latest_checkpoint(&addr)
+            .await
+            .ok()
+            .flatten();
         result.push(checkpoint);
     }
     let bs = borsh::to_vec(&result).map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;

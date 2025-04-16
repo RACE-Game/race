@@ -189,8 +189,8 @@ export class Connection implements IConnection {
             }
         }
 
-        this.socket.onerror = e => {
-            console.error(e, 'WebSocket encountered an error')
+        this.socket.onerror = err => {
+            console.error(err, 'WebSocket encountered an error')
         }
 
         return this.subscribeEvents()
@@ -282,9 +282,9 @@ export class Connection implements IConnection {
             } else {
                 return undefined
             }
-        } catch (e) {
-            console.error(`Parse event message error: ${raw}`)
-            throw e
+        } catch (err) {
+            console.error(err, `Parse event message error: ${raw}`)
+            throw err
         }
     }
 
@@ -332,7 +332,7 @@ export class Connection implements IConnection {
                 throw Error('Transactor request failed:' + resp.json())
             }
         } catch (err) {
-            console.error('Failed to connect to current transactor: ' + this.endpoint)
+            console.error(err, 'Failed to connect to current transactor: ' + this.endpoint)
             throw err
         }
     }
@@ -397,13 +397,14 @@ export async function getLatestCheckpoints(
         })
         if (resp.ok) {
             const ret = await resp.json()
+            console.log(ret)
             if (!ret.result) throw Error(`Failed to get latest checkpoints from endpoint: ${transactorEndpoint}`)
             return CheckpointOffChainList.deserialize(Uint8Array.from(ret.result)).checkpoints
         } else {
             throw Error('Transactor request failed:' + resp.json())
         }
     } catch (err) {
-        console.error('Failed to connect to current transactor')
+        console.error(err, 'Failed to connect to current transactor')
         throw err
     }
 }
