@@ -839,7 +839,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
                 stake.amount -= s.withdraw;
                 context.update_player_info(&player)?;
                 if s.eject {
-                    println!("! Eject player at {index} from game");
+                    println!("! Eject player {} from game", s.player_id);
                     game.players.remove(index);
                 }
             } else {
