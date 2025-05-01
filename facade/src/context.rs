@@ -122,7 +122,6 @@ impl Context {
         let mut f = File::open(&bundle).expect(&format!("Bundle {} not found", &bundle));
         let mut data = vec![];
         f.read_to_end(&mut data).unwrap();
-        println!("Game bundle data length: {}", data.len());
         let bundle = GameBundle {
             addr: bundle_addr.clone(),
             name: bundle_addr.clone(),

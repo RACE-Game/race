@@ -4,7 +4,7 @@ use crate::types::{ClientMode, EntryType, GameAccount, GameSpec};
 use crate::decision::DecisionState;
 use crate::error::{Error, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, Log, Release, Reveal, SubGame};
+use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, Log, Release, Reveal, SubGame, Withdraw};
 use race_api::engine::GameHandler;
 use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
@@ -948,45 +948,7 @@ impl GameContext {
 
             let mut settles = vec![];
             if is_checkpoint {
-                // Build settles
-                // Settle is a combination of Withdraw, Balance Diff, and Eject
-                let mut settles_map: HashMap<u64, Settle> = HashMap::new();
-
-                for withdraw in withdraws {
-                    settles_map.entry(withdraw.player_id)
-                        .and_modify(|e| e.amount += withdraw.amount)
-                        .or_insert_with(|| Settle::new(withdraw.player_id, withdraw.amount, None, false));
-                }
-
-                for eject in ejects {
-                    settles_map.entry(eject)
-                        .and_modify(|e| e.eject = true)
-                        .or_insert_with(|| Settle::new(eject, 0, None, true));
-                }
-
-                let mut balances_change: HashMap<u64, i128> = self.balances.iter()
-                    .map(|orig_balance| (orig_balance.player_id, -(orig_balance.balance as i128)))
-                    .collect();
-
-                for balance in balances.iter() {
-                    balances_change.entry(balance.player_id)
-                        .and_modify(|e| *e += balance.balance as i128)
-                        .or_insert(balance.balance as i128);
-                }
-
-                for (player_id, chg) in balances_change {
-                    let change = match chg {
-                        _ if chg > 0 => Some(BalanceChange::Add(chg as u64)),
-                        _ if chg < 0 => Some(BalanceChange::Sub(-chg as u64)),
-                        _ => None,
-                    };
-                    if change.is_some() {
-                        settles_map.entry(player_id)
-                            .and_modify(|e| e.change = change)
-                            .or_insert_with(|| Settle::new(player_id, 0, change, false));
-                    }
-                }
-
+                let settles_map = build_settles_map(&withdraws, &ejects, &self.balances, &balances);
                 self.balances = balances;
                 settles = settles_map.into_values().collect();
             }
@@ -1073,4 +1035,78 @@ impl Default for GameContext {
             accept_deposits: vec![],
         }
     }
+}
+
+fn build_settles_map(withdraws: &[Withdraw], ejects: &[u64], old_balances: &[PlayerBalance], new_balances: &[PlayerBalance]) -> HashMap<u64, Settle> {
+
+    println!("Withdraws: {:?}", withdraws);
+    println!("Ejects: {:?}", ejects);
+    println!("Old balances: {:?}", old_balances);
+    println!("New Balances: {:?}", new_balances);
+
+    // Build settles
+    // Settle is a combination of Withdraw, Balance Diff, and Eject
+    let mut settles_map: HashMap<u64, Settle> = HashMap::new();
+
+    for withdraw in withdraws {
+        settles_map.entry(withdraw.player_id)
+            .and_modify(|e| e.withdraw += withdraw.amount)
+            .or_insert_with(|| Settle::new(withdraw.player_id, withdraw.amount, None, false));
+    }
+
+    for eject in ejects.iter() {
+        settles_map.entry(*eject)
+            .and_modify(|e| e.eject = true)
+            .or_insert_with(|| Settle::new(*eject, 0, None, true));
+    }
+
+    let mut balances_change: HashMap<u64, i128> = old_balances.iter()
+        .map(|orig_balance| (orig_balance.player_id, -(orig_balance.balance as i128)))
+        .collect();
+
+    for balance in new_balances.iter() {
+        balances_change.entry(balance.player_id)
+            .and_modify(|e| *e += balance.balance as i128)
+            .or_insert(balance.balance as i128);
+    }
+
+    for (player_id, chg) in balances_change {
+        let change = match chg {
+            _ if chg > 0 => Some(BalanceChange::Add(chg as u64)),
+            _ if chg < 0 => Some(BalanceChange::Sub(-chg as u64)),
+            _ => None,
+        };
+        if change.is_some() {
+            settles_map.entry(player_id)
+                .and_modify(|e| e.change = change)
+                .or_insert_with(|| Settle::new(player_id, 0, change, false));
+        }
+    }
+
+    return settles_map;
+}
+
+#[cfg(test)]
+mod tests {
+
+    use race_api::effect::Withdraw;
+
+    use super::*;
+
+    // #[test]
+    // fn test_build_settle_map() {
+    //     let withdraws = vec![
+    //         Withdraw::new(1, 100000)
+    //     ];
+    //     let ejects = vec![1];
+    //     let old_balances = vec![];
+    //     let new_balances = vec![PlayerBalance::new(2, 100000)];
+    //     let settles_map = build_settles_map(&withdraws, &ejects, &old_balances, &new_balances);
+    //     assert_eq!(settles_map,
+    //         HashMap::from([(
+    //             1, Settle::new(1, 100000, Some(BalanceChange::Add(100000)), true)
+    //         ), (
+    //             2, Settle::new(2, 0, Some(BalanceChange::Add(100000)), false)
+    //         )]));
+    // }
 }

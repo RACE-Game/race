@@ -835,8 +835,8 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
                 player
                     .balances
                     .entry(game.token_addr.to_owned())
-                    .and_modify(|b| *b += s.amount);
-                stake.amount -= s.amount;
+                    .and_modify(|b| *b += s.withdraw);
+                stake.amount -= s.withdraw;
                 context.update_player_info(&player)?;
                 if s.eject {
                     println!("! Eject player at {index} from game");
@@ -876,7 +876,7 @@ async fn settle(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<S
         println!("! Balance validation passed!");
     } else {
         println!(
-            "E Balance validation failed: stake {} != balance {} + pending_deposit {}",
+            "E Balance validation failed: stake ({}) != balance ({}) + pending_deposit ({})",
             stake.amount, player_balance_sum, unhandled_deposits_sum
         );
     }

@@ -644,7 +644,7 @@ impl TransportT for SolanaTransport {
         for settle in settles.iter() {
             ix_settles.push(IxSettle {
                 access_version: settle.player_id,
-                amount: settle.amount,
+                amount: settle.withdraw,
                 change: settle.change,
                 eject: settle.eject,
             });
@@ -654,7 +654,7 @@ impl TransportT for SolanaTransport {
                 .iter()
                 .find(|p| p.access_version == settle.player_id)
             else {
-                if settle.player_id == 0 && settle.amount == 0 {
+                if settle.player_id == 0 && settle.withdraw == 0 {
                     continue;
                 } else {
                     return Err(Error::InvalidSettle(format!(
@@ -665,7 +665,7 @@ impl TransportT for SolanaTransport {
             };
 
             // Append ATA when there's a payment
-            if settle.amount > 0 {
+            if settle.withdraw > 0 {
                 if is_native_mint(&game_state.token_mint) {
                     info!("Settle: add payment receiver wallet: {}", player.addr);
                     accounts.push(AccountMeta::new(player.addr, false));

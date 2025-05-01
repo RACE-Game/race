@@ -52,17 +52,17 @@ impl ops::Add<BalanceChange> for BalanceChange {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Settle {
     pub player_id: u64,
-    pub amount: u64,
+    pub withdraw: u64,
     pub change: Option<BalanceChange>,
     pub eject: bool,
 }
 
 impl Settle {
-    pub fn new(player_id: u64, amount: u64, change: Option<BalanceChange>, eject: bool) -> Self {
-        Self { player_id, amount, change, eject }
+    pub fn new(player_id: u64, withdraw: u64, change: Option<BalanceChange>, eject: bool) -> Self {
+        Self { player_id, withdraw, change, eject }
     }
     pub fn is_empty(&self) -> bool {
-        self.amount == 0 && self.change.is_none() && !self.eject
+        self.withdraw == 0 && self.change.is_none() && !self.eject
     }
 }
 

@@ -24,6 +24,12 @@ pub struct Withdraw {
     pub amount: u64,
 }
 
+impl Withdraw {
+    pub fn new(player_id: u64, amount: u64) -> Self {
+        Self { player_id, amount }
+    }
+}
+
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Assign {
     pub random_id: RandomId,

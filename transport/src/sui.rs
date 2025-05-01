@@ -637,9 +637,9 @@ impl TransportT for SuiTransport {
         // handle settles but skip when there is none
         if !settles.is_empty() {
             let mut result_settles: Vec<Argument> = Vec::new();
-            for Settle { player_id, amount, eject, change } in settles {
+            for Settle { player_id, withdraw, eject, change } in settles {
                 info!("Prepare settle for {}, amount = {}, eject: {}",
-                         player_id, amount, eject);
+                         player_id, withdraw, eject);
                 let (change_type, change_amt) = match change {
                     Some(bc) => {
                         match bc {
@@ -651,7 +651,7 @@ impl TransportT for SuiTransport {
                 };
                 let args = vec![
                     add_input(&mut ptb, new_pure_arg(&player_id)?)?,
-                    add_input(&mut ptb, new_pure_arg(&amount)?)?,
+                    add_input(&mut ptb, new_pure_arg(&withdraw)?)?,
                     add_input(&mut ptb, new_pure_arg(&change_type)?)?,
                     add_input(&mut ptb, new_pure_arg(&change_amt)?)?,
                     add_input(&mut ptb, new_pure_arg(&eject)?)?,

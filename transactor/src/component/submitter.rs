@@ -40,7 +40,7 @@ fn merge_transfers(a: Option<Transfer>, b: Option<Transfer>) -> Option<Transfer>
 
 fn merge_settle_with_same_player_id(a: &mut Settle, b: Settle) {
     a.eject = a.eject || b.eject;
-    a.amount = a.amount + b.amount;
+    a.withdraw = a.withdraw + b.withdraw;
     a.change = match (a.change, b.change) {
         (None, None) => None,
         (None, Some(change_b)) => Some(change_b),
@@ -126,7 +126,7 @@ async fn read_settle_params(
             p = rx.recv() => {
                 if let Some(p) = p {
                     cnt += 1;
-                    let has_payment = p.settles.iter().find(|s| s.eject || s.amount != 0).is_some();
+                    let has_payment = p.settles.iter().find(|s| s.eject || s.withdraw != 0).is_some();
                     // We terminate when there are non-empty settles/awards
                     // or we are making the first checkpoint
                     let stop_here = has_payment || (!p.awards.is_empty()) || p.next_settle_version == 1;
@@ -328,20 +328,20 @@ mod tests {
     fn test_merge_settle() {
         let mut settles1 = vec![Settle {
             player_id: 0,
-            amount: 200,
+            withdraw: 200,
             change: Some(race_api::types::BalanceChange::Add(50)),
             eject: false,
         }];
         let settles2 = vec![
             Settle {
                 player_id: 0,
-                amount: 200,
+                withdraw: 200,
                 change: Some(race_api::types::BalanceChange::Add(50)),
                 eject: false,
             },
             Settle {
                 player_id: 1,
-                amount: 0,
+                withdraw: 0,
                 change: Some(race_api::types::BalanceChange::Add(500)),
                 eject: false,
             },
@@ -352,13 +352,13 @@ mod tests {
             settles1,
             vec![Settle {
                 player_id: 0,
-                amount: 400,
+                withdraw: 400,
                 change: Some(race_api::types::BalanceChange::Add(100)),
                 eject: false
             },
             Settle {
                 player_id: 1,
-                amount: 0,
+                withdraw: 0,
                 change: Some(race_api::types::BalanceChange::Add(500)),
                 eject: false
             }]
