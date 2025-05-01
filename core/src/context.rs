@@ -1039,11 +1039,6 @@ impl Default for GameContext {
 
 fn build_settles_map(withdraws: &[Withdraw], ejects: &[u64], old_balances: &[PlayerBalance], new_balances: &[PlayerBalance]) -> HashMap<u64, Settle> {
 
-    println!("Withdraws: {:?}", withdraws);
-    println!("Ejects: {:?}", ejects);
-    println!("Old balances: {:?}", old_balances);
-    println!("New Balances: {:?}", new_balances);
-
     // Build settles
     // Settle is a combination of Withdraw, Balance Diff, and Eject
     let mut settles_map: HashMap<u64, Settle> = HashMap::new();
