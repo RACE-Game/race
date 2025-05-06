@@ -313,12 +313,13 @@ export class SolanaTransport implements ITransport {
         })
         ixs.push(unregisterGameIx)
         const stakeKey = gameState.stakeKey
-        const closeGameAccountIx = instruction.closeGame({
+        const closeGameAccountIx = await instruction.closeGame({
             payerKey: payer.address,
             gameAccountKey,
             stakeKey,
             pda,
             receiver,
+            gameState,
         })
         ixs.push(closeGameAccountIx)
         const tx = await makeTransaction(this.#rpc, payer, ixs)

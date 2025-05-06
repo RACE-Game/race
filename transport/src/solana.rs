@@ -211,10 +211,7 @@ impl TransportT for SolanaTransport {
             ata_account_pubkey
         };
 
-        let close_game_ix = Instruction::new_with_borsh(
-            self.program_id,
-            &RaceInstruction::CloseGameAccount,
-            vec![
+        let mut keys = vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new(game_account_pubkey, false),
                 AccountMeta::new(stake_account_pubkey, false),
@@ -222,7 +219,20 @@ impl TransportT for SolanaTransport {
                 AccountMeta::new(receiver_pubkey, false),
                 AccountMeta::new_readonly(spl_token::id(), false),
                 AccountMeta::new_readonly(system_program::id(), false),
-            ],
+        ];
+
+        // We need bonus and ATAs for all bonuses
+        for bonus in game_state.bonuses.iter() {
+            let bonus_ata_pubkey =
+                get_associated_token_address(&payer_pubkey, &bonus.token_addr);
+            keys.push(AccountMeta::new(bonus.stake_addr, false));
+            keys.push(AccountMeta::new(bonus_ata_pubkey, false));
+        }
+
+        let close_game_ix = Instruction::new_with_borsh(
+            self.program_id,
+            &RaceInstruction::CloseGameAccount,
+            keys,
         );
 
         let fee =

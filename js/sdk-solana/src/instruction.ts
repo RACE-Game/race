@@ -4,7 +4,7 @@ import { publicKeyExt } from './utils'
 import { PROGRAM_ID, METAPLEX_PROGRAM_ID, SYSVAR_RENT, NATIVE_MINT } from './constants'
 import { array, enums, field, serialize, struct } from '@race-foundation/borsh'
 import { EntryType, Fields, RecipientClaimError, AttachBonusError, Result } from '@race-foundation/sdk-core'
-import { AEntryType, RecipientSlotOwner, RecipientSlotOwnerAssigned, RecipientState } from './accounts'
+import { AEntryType, GameState, RecipientSlotOwner, RecipientSlotOwnerAssigned, RecipientState } from './accounts'
 import {
     AccountRole,
     address,
@@ -798,38 +798,57 @@ export type CloseGameAccountOpts = {
     stakeKey: Address
     pda: Address
     receiver: Address
+    gameState: GameState
 }
 
-export function closeGame(opts: CloseGameAccountOpts): IInstruction {
-    const { payerKey, gameAccountKey, stakeKey, pda, receiver } = opts
+export async function closeGame(opts: CloseGameAccountOpts): Promise<IInstruction> {
+    const { payerKey, gameAccountKey, stakeKey, pda, receiver, gameState } = opts
+
+    let accounts = [
+        {
+            address: payerKey,
+            role: AccountRole.READONLY_SIGNER,
+        },
+        {
+            address: gameAccountKey,
+            role: AccountRole.WRITABLE,
+        },
+        {
+            address: stakeKey,
+            role: AccountRole.WRITABLE,
+        },
+        {
+            address: pda,
+            role: AccountRole.READONLY,
+        },
+        {
+            address: receiver,
+            role: AccountRole.WRITABLE,
+        },
+        {
+            address: SPL.TOKEN_PROGRAM_ADDRESS,
+            role: AccountRole.READONLY,
+        },
+    ]
+
+    for (const bonus of gameState.bonuses) {
+        const [ata] = await SPL.findAssociatedTokenPda({
+            mint: address(bonus.tokenAddr),
+            owner: address(payerKey),
+            tokenProgram: SPL.TOKEN_PROGRAM_ADDRESS
+        })
+
+        accounts.push({
+            address: bonus.stakeAddr,
+            role: AccountRole.WRITABLE,
+        }, {
+            address: ata,
+            role: AccountRole.WRITABLE
+        })
+    }
 
     return {
-        accounts: [
-            {
-                address: payerKey,
-                role: AccountRole.READONLY_SIGNER,
-            },
-            {
-                address: gameAccountKey,
-                role: AccountRole.WRITABLE,
-            },
-            {
-                address: stakeKey,
-                role: AccountRole.WRITABLE,
-            },
-            {
-                address: pda,
-                role: AccountRole.READONLY,
-            },
-            {
-                address: receiver,
-                role: AccountRole.WRITABLE,
-            },
-            {
-                address: SPL.TOKEN_PROGRAM_ADDRESS,
-                role: AccountRole.READONLY,
-            },
-        ],
+        accounts,
         data: Uint8Array.of(Instruction.CloseGameAccount),
         programAddress: PROGRAM_ID,
     }
