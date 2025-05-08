@@ -12,4 +12,8 @@ export class DecryptionCache {
     add(randomId: number, cache: Map<number, string>) {
         this.#caches.set(randomId, cache)
     }
+
+    clear() {
+        this.#caches.clear()
+    }
 }
