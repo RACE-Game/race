@@ -829,6 +829,10 @@ export async function closeGame(opts: CloseGameAccountOpts): Promise<IInstructio
             address: SPL.TOKEN_PROGRAM_ADDRESS,
             role: AccountRole.READONLY,
         },
+        {
+            address: SYSTEM.SYSTEM_PROGRAM_ADDRESS,
+            role: AccountRole.READONLY,
+        },
     ]
 
     for (const bonus of gameState.bonuses) {
