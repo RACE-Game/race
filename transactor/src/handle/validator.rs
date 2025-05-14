@@ -49,7 +49,7 @@ impl ValidatorHandle {
             .await?;
 
         let game_context = GameContext::try_new(&game_account, checkpoint_off_chain)?;
-        let checkpoint = game_context.checkpoint().clone();
+        let checkpoint = game_context.checkpoints().last().unwrap().clone();
 
         let Some(bundle_account) = transport.get_game_bundle(&game_account.bundle_addr).await? else {
             return Err(Error::GameBundleNotFound);

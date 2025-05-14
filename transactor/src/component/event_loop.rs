@@ -272,13 +272,18 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 } => {
                     if ctx.game_mode == GameMode::Main {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
-                        if let Err(e) = game_context
-                            .checkpoint_mut()
-                            .init_versioned_data(checkpoint_state)
-                        {
-                            error!("{} Failed to init checkpoint data: {:?}", env.log_prefix, e);
-                            ports.send(EventFrame::Shutdown).await;
-                        }
+                        let _ = game_context
+                            .checkpoints_mut()
+                            .iter_mut()
+                            .map(|cp| cp.init_versioned_data(checkpoint_state.clone()));
+                        
+                        // if let Err(e) = game_context
+                        //     .checkpoint_mut()
+                        //     .init_versioned_data(checkpoint_state)
+                        // {
+                        //     error!("{} Failed to init checkpoint data: {:?}", env.log_prefix, e);
+                        //     ports.send(EventFrame::Shutdown).await;
+                        // }
                         let timestamp = current_timestamp();
                         let event = Event::SubGameReady { game_id, max_players, init_data };
                         if let Some(close_reason) = event_handler::handle_event(
@@ -313,13 +318,20 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("BridgeEvent: Update checkpoint for sub game: {}", from);
-                        if let Err(e) = game_context
-                            .checkpoint_mut()
-                            .update_versioned_data(checkpoint_state)
-                        {
-                            error!("{} Failed to set checkpoint data: {:?}", env.log_prefix, e);
-                            ports.send(EventFrame::Shutdown).await;
-                        }
+                        game_context.remove_settle_lock(from, settle_version);
+
+                        let _ = game_context
+                            .checkpoints_mut()
+                            .iter_mut()
+                            .map(|cp| cp.update_versioned_data(checkpoint_state.clone()));
+
+                        // if let Err(e) = game_context
+                        //     .checkpoint_mut()
+                        //     .update_versioned_data(checkpoint_state)
+                        // {
+                        //     error!("{} Failed to set checkpoint data: {:?}", env.log_prefix, e);
+                        //     ports.send(EventFrame::Shutdown).await;
+                        // }
                     }
 
                     if let Some(close_reason) = event_handler::handle_event(

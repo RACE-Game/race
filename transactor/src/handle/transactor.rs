@@ -96,9 +96,9 @@ impl TransactorHandle {
             .await?;
 
         let game_context = GameContext::try_new(&game_account, checkpoint_off_chain)?;
-        let checkpoint = game_context.checkpoint().clone();
+        let checkpoint = game_context.checkpoints().last().unwrap().clone();
 
-        info!("Use checkpoint: {}", !game_context.checkpoint_is_empty());
+        info!("Use checkpoint: {}", !game_context.is_checkpoints_empty());
 
         let Some(bundle_account) = transport.get_game_bundle(&game_account.bundle_addr).await? else {
             return Err(Error::GameBundleNotFound);

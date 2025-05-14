@@ -2,12 +2,9 @@ use super::misc::log_execution_context;
 use race_api::{
     effect::{EmitBridgeEvent, Log, SubGame},
     event::Event,
-    types::{Award, EntryLock, Settle, Transfer},
 };
 use race_core::{
-    context::{EventEffects, GameContext, SubGameInit, SubGameInitSource, Versions},
-    error::Error,
-    types::{ClientMode, GameMode, GameSpec},
+    checkpoint::Checkpoint, context::{EventEffects, GameContext, SubGameInit, SubGameInitSource, Versions}, error::Error, types::{ClientMode, GameMode, GameSpec}
 };
 
 use crate::{
@@ -68,7 +65,9 @@ async fn send_bridge_event(
     for be in bridge_events {
         info!("{} Send bridge event, dest: {}", env.log_prefix, be.dest);
         let checkpoint_state = game_context
-            .checkpoint()
+            .checkpoints()
+            .last()
+            .unwrap()
             .get_versioned_data(game_context.game_id());
         let Some(checkpoint_state) = checkpoint_state else {
             error!(
@@ -107,40 +106,47 @@ async fn send_reject_deposits(
 }
 
 async fn send_settlement(
-    transfer: Option<Transfer>,
-    settles: Vec<Settle>,
-    awards: Vec<Award>,
-    entry_lock: Option<EntryLock>,
     original_versions: Versions,
     game_context: &mut GameContext,
     ports: &PipelinePorts,
     env: &ComponentEnv,
 ) {
-    let checkpoint = game_context.checkpoint().clone();
-    let checkpoint_size = checkpoint.get_data(game_context.game_id()).map(|d| d.len());
-    info!(
-        "{} Create checkpoint, settle_version: {}, size: {:?}",
-        env.log_prefix,
-        game_context.settle_version(),
-        checkpoint_size,
-    );
+    let game_id = game_context.game_id();
+    let mut checkpoints: Vec<Checkpoint> = vec![];
+    let mut stop_flag = false;
 
-    let accept_deposits = game_context.take_accept_deposits();
+    for checkpoint in game_context.checkpoints() {
+        if !stop_flag && checkpoint.settle_locks.is_empty() {
+            let params = checkpoint.checkpoint_params.clone();
+            let checkpoint_size = checkpoint.get_data(game_id).map(|d| d.len());
+            info!(
+                "{} Create checkpoint, settle_version: {}, size: {:?}",
+                env.log_prefix,
+                game_context.settle_version(),
+                checkpoint_size,
+            );
 
-    ports
-        .send(EventFrame::Checkpoint {
-            access_version: game_context.access_version(),
-            settle_version: game_context.settle_version(),
-            previous_settle_version: original_versions.settle_version,
-            checkpoint: checkpoint.clone(),
-            settles,
-            transfer,
-            awards,
-            state_sha: game_context.state_sha(),
-            entry_lock,
-            accept_deposits,
-        })
-        .await;
+            ports
+                .send(EventFrame::Checkpoint {
+                    checkpoint: checkpoint.clone(),
+                    access_version: params.access_version,
+                    settle_version: params.settle_version,
+                    previous_settle_version: original_versions.settle_version,
+                    transfer: params.transfer,
+                    settles: params.settles,
+                    awards: params.awards,
+                    state_sha: game_context.state_sha().clone(),
+                    entry_lock: params.entry_lock,
+                    accept_deposits: params.accept_deposits,
+                })
+                .await;
+        } else {
+            stop_flag = true;
+            checkpoints.push(checkpoint.clone());
+        }
+    }
+
+    game_context.set_checkpoints(checkpoints);
 }
 
 async fn launch_sub_game(
@@ -223,10 +229,6 @@ pub async fn init_state(
     };
 
     send_settlement(
-        None,
-        vec![],
-        vec![],
-        None,
         original_versions,
         &mut game_context,
         ports,
@@ -269,7 +271,7 @@ pub async fn recover_from_checkpoint(
     env: &ComponentEnv,
 ) -> Option<CloseReason> {
     if game_mode == GameMode::Main {
-        let versioned_data_list = game_context.checkpoint().list_versioned_data();
+        let versioned_data_list = game_context.checkpoints().last().unwrap().list_versioned_data();
         info!(
             "{} Resume from checkpoint with {} subgames",
             env.log_prefix,
@@ -324,14 +326,10 @@ pub async fn handle_event(
     match handler.handle_event(game_context, &event) {
         Ok(effects) => {
             let EventEffects {
-                settles,
-                transfer,
-                awards,
                 checkpoint,
                 launch_sub_games,
                 bridge_events,
                 start_game,
-                entry_lock,
                 logs,
                 reject_deposits,
             } = effects;
@@ -362,10 +360,6 @@ pub async fn handle_event(
 
             if checkpoint.is_some() {
                 send_settlement(
-                    transfer,
-                    settles,
-                    awards,
-                    entry_lock,
                     original_versions,
                     game_context,
                     ports,
