@@ -146,7 +146,12 @@ async fn send_settlement(
         }
     }
 
-    game_context.set_checkpoints(checkpoints);
+    if checkpoints.is_empty() {
+        let last_checkpoint = game_context.checkpoints().last().unwrap();
+        game_context.set_checkpoints(vec![last_checkpoint.clone()]);
+    } else {
+        game_context.set_checkpoints(checkpoints);
+    }
 }
 
 async fn launch_sub_game(
