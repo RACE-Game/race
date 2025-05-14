@@ -16,7 +16,7 @@ members = [
   "local-db",
   "examples/minimal",
   # "examples/draw-card",
-  # "examples/raffle",
+  "examples/raffle",
   # "examples/simple-settle",
   # "examples/blackjack",
   # "examples/roshambo",
