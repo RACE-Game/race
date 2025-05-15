@@ -4,7 +4,9 @@ use race_api::{
     event::Event,
 };
 use race_core::{
-    checkpoint::Checkpoint, context::{EventEffects, GameContext, SubGameInit, SubGameInitSource, Versions}, error::Error, types::{ClientMode, GameMode, GameSpec}
+    context::{EventEffects, GameContext, SubGameInit, SubGameInitSource, Versions},
+    error::Error,
+    types::{ClientMode, GameMode, GameSpec},
 };
 
 use crate::{
@@ -26,11 +28,7 @@ fn print_logs(logs: &[Log], env: &ComponentEnv) {
     })
 }
 
-async fn broadcast_event(
-    event: Event,
-    game_context: &GameContext,
-    ports: &PipelinePorts,
-) {
+async fn broadcast_event(event: Event, game_context: &GameContext, ports: &PipelinePorts) {
     ports
         .send(EventFrame::Broadcast {
             event,
@@ -64,18 +62,14 @@ async fn send_bridge_event(
 ) {
     for be in bridge_events {
         info!("{} Send bridge event, dest: {}", env.log_prefix, be.dest);
-        let checkpoint_state = game_context
-            .checkpoints()
-            .last()
-            .unwrap()
-            .get_versioned_data(game_context.game_id());
-        let Some(checkpoint_state) = checkpoint_state else {
-            error!(
-                "{} Checkpoint for current game not found when preparing bridge event",
-                env.log_prefix
-            );
+        let Some(checkpoint_state) = game_context
+            .last_checkpoint()
+            .get_versioned_data(game_context.game_id())
+        else {
+            error!("{} Missing checkpoint", env.log_prefix);
             continue;
         };
+
         let ef = EventFrame::SendBridgeEvent {
             from: game_context.game_id(),
             dest: be.dest,
@@ -97,8 +91,10 @@ async fn send_reject_deposits(
     ports: &PipelinePorts,
     env: &ComponentEnv,
 ) {
-
-    info!("{} Send reject deposits, {:?}", env.log_prefix, reject_deposits);
+    info!(
+        "{} Send reject deposits, {:?}",
+        env.log_prefix, reject_deposits
+    );
 
     let ef = EventFrame::RejectDeposits { reject_deposits };
 
@@ -112,13 +108,12 @@ async fn send_settlement(
     env: &ComponentEnv,
 ) {
     let game_id = game_context.game_id();
-    let mut checkpoints: Vec<Checkpoint> = vec![];
-    let mut stop_flag = false;
 
-    for checkpoint in game_context.checkpoints() {
-        if !stop_flag && checkpoint.settle_locks.is_empty() {
-            let params = checkpoint.checkpoint_params.clone();
-            let checkpoint_size = checkpoint.get_data(game_id).map(|d| d.len());
+    while let Some(checkpoint) = game_context.take_first_ready_checkpoint() {
+        let checkpoint_size = checkpoint.get_data(game_id).map(|d| d.len());
+        if let Some(versions) = checkpoint.get_versions(game_id) {
+            let access_version = checkpoint.access_version;
+            let settle_version = versions.settle_version;
             info!(
                 "{} Create checkpoint, settle_version: {}, size: {:?}",
                 env.log_prefix,
@@ -128,29 +123,19 @@ async fn send_settlement(
 
             ports
                 .send(EventFrame::Checkpoint {
-                    checkpoint: checkpoint.clone(),
-                    access_version: params.access_version,
-                    settle_version: params.settle_version,
+                    checkpoint,
+                    access_version,
+                    settle_version,
                     previous_settle_version: original_versions.settle_version,
-                    transfer: params.transfer,
-                    settles: params.settles,
-                    awards: params.awards,
                     state_sha: game_context.state_sha().clone(),
-                    entry_lock: params.entry_lock,
-                    accept_deposits: params.accept_deposits,
                 })
                 .await;
         } else {
-            stop_flag = true;
-            checkpoints.push(checkpoint.clone());
+            error!(
+                "{} Create checkpoint failed, game_id {} not found",
+                env.log_prefix, game_id,
+            )
         }
-    }
-
-    if checkpoints.is_empty() {
-        let last_checkpoint = game_context.checkpoints().last().unwrap();
-        game_context.set_checkpoints(vec![last_checkpoint.clone()]);
-    } else {
-        game_context.set_checkpoints(checkpoints);
     }
 }
 
@@ -216,9 +201,7 @@ pub async fn init_state(
         }
     };
 
-    let EventEffects {
-        checkpoint, ..
-    } = effects;
+    let EventEffects { checkpoint, .. } = effects;
 
     info!(
         "{} Initialize game state, access_version: {}, settle_version: {}, SHA: {}",
@@ -233,13 +216,7 @@ pub async fn init_state(
         return Some(CloseReason::Fault(Error::CheckpointNotFoundAfterInit));
     };
 
-    send_settlement(
-        original_versions,
-        &mut game_context,
-        ports,
-        env,
-    )
-    .await;
+    send_settlement(original_versions, &mut game_context, ports, env).await;
 
     // Dispatch the initial Ready event if running in Transactor mode.
     if client_mode == ClientMode::Transactor {
@@ -276,7 +253,7 @@ pub async fn recover_from_checkpoint(
     env: &ComponentEnv,
 ) -> Option<CloseReason> {
     if game_mode == GameMode::Main {
-        let versioned_data_list = game_context.checkpoints().last().unwrap().list_versioned_data();
+        let versioned_data_list = game_context.last_checkpoint().list_versioned_data();
         info!(
             "{} Resume from checkpoint with {} subgames",
             env.log_prefix,
@@ -364,13 +341,7 @@ pub async fn handle_event(
             }
 
             if checkpoint.is_some() {
-                send_settlement(
-                    original_versions,
-                    game_context,
-                    ports,
-                    env,
-                )
-                .await;
+                send_settlement(original_versions, game_context, ports, env).await;
             }
 
             // Emit bridge events

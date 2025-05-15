@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use race_api::types::{Settle, Transfer};
+use race_core::checkpoint::CheckpointParams;
 use race_core::error::Error;
 use race_core::storage::StorageT;
 use race_core::types::{GameAccount, SaveCheckpointParams, SettleParams, SettleResult, TxState};
@@ -50,7 +51,6 @@ fn merge_settle_with_same_player_id(a: &mut Settle, b: Settle) {
 }
 
 fn merge_settles(a: &mut Vec<Settle>, mut b: Vec<Settle>) {
-
     for settle_from_a in a.iter_mut() {
         let (drained, v) = b
             .into_iter()
@@ -243,19 +243,21 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
         while let Some(event) = ports.recv().await {
             match event {
                 EventFrame::Checkpoint {
-                    settles,
-                    transfer,
                     checkpoint,
-                    awards,
                     access_version,
                     settle_version,
                     previous_settle_version,
-                    entry_lock,
-                    accept_deposits,
                     ..
                 } => {
                     let checkpoint_onchain = checkpoint.derive_onchain_part();
                     let checkpoint_offchain = checkpoint.derive_offchain_part();
+                    let CheckpointParams {
+                        entry_lock,
+                        transfer,
+                        settles,
+                        awards,
+                        accept_deposits,
+                    } = checkpoint.checkpoint_params;
 
                     info!(
                         "{} Submitter save checkpoint to storage, settle_version = {}",
@@ -350,18 +352,20 @@ mod tests {
         merge_settles(&mut settles1, settles2);
         assert_eq!(
             settles1,
-            vec![Settle {
-                player_id: 0,
-                withdraw: 400,
-                change: Some(race_api::types::BalanceChange::Add(100)),
-                eject: false
-            },
-            Settle {
-                player_id: 1,
-                withdraw: 0,
-                change: Some(race_api::types::BalanceChange::Add(500)),
-                eject: false
-            }]
+            vec![
+                Settle {
+                    player_id: 0,
+                    withdraw: 400,
+                    change: Some(race_api::types::BalanceChange::Add(100)),
+                    eject: false
+                },
+                Settle {
+                    player_id: 1,
+                    withdraw: 0,
+                    change: Some(race_api::types::BalanceChange::Add(500)),
+                    eject: false
+                }
+            ]
         )
     }
 }

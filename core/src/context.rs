@@ -12,8 +12,8 @@ use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
 use race_api::random::RandomSpec;
 use race_api::types::{
-    BalanceChange, Ciphertext, DecisionId, GameId, GamePlayer, GameStatus,
-    PlayerBalance, RandomId, SecretDigest, SecretShare, Settle,
+    BalanceChange, Ciphertext, DecisionId, GameId, GamePlayer, GameStatus, PlayerBalance, RandomId,
+    SecretDigest, SecretShare, Settle,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -211,7 +211,7 @@ pub struct GameContext {
     pub(crate) decision_states: Vec<DecisionState>,
     /// The checkpoint of current game
     /// For master game, it contains all subgames' checkpoint
-    // pub(crate) checkpoint: Checkpoint,
+    pub(crate) last_checkpoint: Checkpoint,
     pub(crate) checkpoints: Vec<Checkpoint>,
     /// The sub games to launch
     pub(crate) sub_games: Vec<SubGame>,
@@ -343,7 +343,7 @@ impl GameContext {
 
         Ok(Self {
             spec,
-            versions: Versions::new(checkpoint.checkpoint_params.access_version, game_account.settle_version),
+            versions: Versions::new(checkpoint.access_version, game_account.settle_version),
             status: GameStatus::Idle,
             nodes,
             balances: game_account.balances.clone(),
@@ -352,7 +352,8 @@ impl GameContext {
             random_states: vec![],
             decision_states: vec![],
             handler_state,
-            checkpoints: vec![checkpoint.clone()],
+            last_checkpoint: checkpoint.clone(),
+            checkpoints: vec![],
             sub_games,
             init_data: game_account.data.clone(),
             entry_type: game_account.entry_type.clone(),
@@ -421,8 +422,18 @@ impl GameContext {
         &mut self.checkpoints
     }
 
-    pub fn set_checkpoints(&mut self, checkpoints: Vec<Checkpoint>) {
-        self.checkpoints = checkpoints
+    pub fn last_checkpoint(&self) -> &Checkpoint {
+        &self.last_checkpoint
+    }
+
+    pub fn take_first_ready_checkpoint(&mut self) -> Option<Checkpoint> {
+        if self.checkpoints.first().is_some_and(Checkpoint::is_ready) {
+            let checkpoint = self.checkpoints.remove(0);
+            self.last_checkpoint = checkpoint.clone();
+            Some(checkpoint)
+        } else {
+            None
+        }
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
@@ -957,30 +968,25 @@ impl GameContext {
             }
 
             if is_checkpoint {
-                if let Some(last_checkpoint) = self.checkpoints.last() {
-                    let settles_map = build_settles_map(&withdraws, &ejects, &self.balances, &balances);
-                    let mut new_checkpoint = Checkpoint {
-                        root: last_checkpoint.root.clone(),
-                        data: last_checkpoint.data.clone(),
-                        proofs: last_checkpoint.proofs.clone(),
-                        checkpoint_params: CheckpointParams {
-                            access_version: self.versions.access_version,
-                            settle_version: self.versions.settle_version,
-                            entry_lock: effect.entry_lock,
-                            transfer,
-                            settles: settles_map.into_values().collect(),
-                            awards,
-                            accept_deposits: self.accept_deposits.clone(),
-                        },
-                        settle_locks: self.next_settle_locks.clone(),
-                    };
-                    new_checkpoint.set_data(self.spec.game_id, state)?;
-                    self.accept_deposits.clear();
-                    self.next_settle_locks.clear();
-                    self.checkpoints.push(new_checkpoint);
-                } else {
-                    return Err(Error::MissingCheckpoint);
-                }
+                let settles_map = build_settles_map(&withdraws, &ejects, &self.balances, &balances);
+                let mut new_checkpoint = Checkpoint {
+                    root: self.last_checkpoint.root.clone(),
+                    access_version: self.versions.access_version,
+                    data: self.last_checkpoint.data.clone(),
+                    proofs: self.last_checkpoint.proofs.clone(),
+                    checkpoint_params: CheckpointParams {
+                        entry_lock: effect.entry_lock,
+                        transfer,
+                        settles: settles_map.into_values().collect(),
+                        awards,
+                        accept_deposits: self.accept_deposits.clone(),
+                    },
+                    settle_locks: self.next_settle_locks.clone(),
+                };
+                new_checkpoint.set_data(self.spec.game_id, state)?;
+                self.accept_deposits.clear();
+                self.next_settle_locks.clear();
+                self.checkpoints.push(new_checkpoint);
 
                 self.balances = balances.clone();
                 self.random_states.clear();
@@ -988,24 +994,11 @@ impl GameContext {
                 self.bump_settle_version()?;
                 self.set_game_status(GameStatus::Idle);
             } else if is_init {
-                if let Some(checkpoint) = self.checkpoints.last_mut() {
-                    checkpoint.init_data(self.spec.game_id, self.spec.clone(), self.versions, state)?;
-                    let checkpoint_params = CheckpointParams {
-                        access_version: self.versions.access_version,
-                        settle_version: self.versions.settle_version,
-                        entry_lock: effect.entry_lock,
-                        transfer,
-                        settles: vec![],
-                        awards,
-                        accept_deposits: self.accept_deposits.clone(),
-                    };
-                    checkpoint.checkpoint_params = checkpoint_params;
-                    checkpoint.settle_locks = self.next_settle_locks.clone();
-                    self.accept_deposits.clear();
-                    self.next_settle_locks.clear();
-                } else {
-                    return Err(Error::MissingCheckpoint);
-                }
+                let checkpoint =
+                    Checkpoint::new(self.spec.game_id, self.spec.clone(), self.versions, state);
+                self.checkpoints.push(checkpoint);
+                self.accept_deposits.clear();
+                self.next_settle_locks.clear();
                 self.bump_settle_version()?;
                 self.set_game_status(GameStatus::Idle);
             }
@@ -1020,7 +1013,8 @@ impl GameContext {
                 bridge_events,
                 start_game,
                 reject_deposits,
-                checkpoint: (is_checkpoint || is_init).then(|| self.checkpoints.last().unwrap().clone()),
+                checkpoint: (is_checkpoint || is_init)
+                    .then(|| self.checkpoints.last().unwrap().clone()),
                 logs: effect.logs,
             });
         } else if let Some(e) = error {
@@ -1102,7 +1096,8 @@ impl Default for GameContext {
             timestamp: 0,
             random_states: Vec::new(),
             decision_states: Vec::new(),
-            checkpoints: vec![Checkpoint::default()],
+            last_checkpoint: Checkpoint::default(),
+            checkpoints: vec![],
             sub_games: Vec::new(),
             init_data: Vec::new(),
             entry_type: EntryType::Disabled,

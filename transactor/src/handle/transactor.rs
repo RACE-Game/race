@@ -96,7 +96,7 @@ impl TransactorHandle {
             .await?;
 
         let game_context = GameContext::try_new(&game_account, checkpoint_off_chain)?;
-        let checkpoint = game_context.checkpoints().last().unwrap().clone();
+        let checkpoint = game_context.last_checkpoint().clone();
 
         info!("Use checkpoint: {}", !game_context.is_checkpoints_empty());
 

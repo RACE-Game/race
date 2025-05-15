@@ -20,10 +20,10 @@ use crate::types::GameSpec;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct CheckpointParams {
-    pub access_version: u64,
+    // pub access_version: u64,
     // settle version is based on game_id,
     // but which settle version should save?
-    pub settle_version: u64,
+    // pub settle_version: u64,
     // pub previous_settle_version: u64,
     pub entry_lock: Option<EntryLock>,
     pub transfer: Option<Transfer>,
@@ -40,6 +40,7 @@ pub struct CheckpointParams {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Checkpoint {
     pub root: Vec<u8>,
+    pub access_version: u64,
     pub data: HashMap<GameId, VersionedData>,
     pub proofs: HashMap<GameId, Vec<u8>>,
     pub checkpoint_params: CheckpointParams,
@@ -90,6 +91,7 @@ impl Checkpoint {
         let sha = Sha256::hash(&root_data);
         let mut ret = Self {
             root: Vec::new(),
+            access_version: versions.access_version,
             data: HashMap::from([(
                 id,
                 VersionedData {
@@ -101,15 +103,7 @@ impl Checkpoint {
                 },
             )]),
             proofs: HashMap::new(),
-            checkpoint_params: CheckpointParams {
-                access_version: versions.access_version,
-                settle_version: versions.settle_version,
-                entry_lock: None,
-                transfer: None,
-                settles: vec![],
-                awards: vec![],
-                accept_deposits: vec![],
-            },
+            checkpoint_params: CheckpointParams::default(),
             settle_locks: HashMap::new(),
         };
         ret.update_root_and_proofs();
@@ -119,12 +113,13 @@ impl Checkpoint {
     pub fn new_from_parts(offchain_part: CheckpointOffChain, onchain_part: CheckpointOnChain) -> Self {
         Self {
             root: onchain_part.root,
+            access_version: onchain_part.access_version,
             data: offchain_part.data,
             proofs: offchain_part.proofs,
             checkpoint_params: CheckpointParams {
-                access_version: onchain_part.access_version,
+                // access_version: onchain_part.access_version,
                 // TODO: how to init settle version
-                settle_version: 0,
+                // settle_version: 0,
                 entry_lock: None,
                 transfer: None,
                 settles: vec![],
@@ -137,6 +132,10 @@ impl Checkpoint {
 
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.settle_locks.is_empty()
     }
 
     pub fn update_root_and_proofs(&mut self) {
@@ -234,7 +233,7 @@ impl Checkpoint {
     }
 
     pub fn set_access_version(&mut self, access_version: u64) {
-        self.checkpoint_params.access_version = access_version;
+        self.access_version = access_version;
     }
 
     pub fn get_versions(&self, id: GameId) -> Option<Versions> {
@@ -265,7 +264,7 @@ impl Checkpoint {
         CheckpointOnChain {
             size: self.data.len(),
             root: self.root.clone(),
-            access_version: self.checkpoint_params.access_version,
+            access_version: self.access_version,
         }
     }
 
