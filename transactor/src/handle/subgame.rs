@@ -45,7 +45,7 @@ impl SubGameHandle {
         let game_context = GameContext::try_new_with_sub_game_spec(sub_game_init)?;
         let access_version = game_context.access_version();
         let settle_version = game_context.settle_version();
-        let checkpoint = game_context.checkpoints().last().unwrap().clone();
+        let checkpoint = game_context.last_checkpoint().clone();
 
         let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 

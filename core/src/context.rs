@@ -253,7 +253,7 @@ impl GameContext {
             init_data,
             entry_type: EntryType::Disabled,
             handler_state,
-            checkpoints: vec![checkpoint.clone()],
+            last_checkpoint: checkpoint.clone(),
             ..Default::default()
         })
     }
@@ -994,12 +994,13 @@ impl GameContext {
                 self.bump_settle_version()?;
                 self.set_game_status(GameStatus::Idle);
             } else if is_init {
-                let checkpoint =
-                    Checkpoint::new(self.spec.game_id, self.spec.clone(), self.versions, state);
-                self.checkpoints.push(checkpoint);
                 self.accept_deposits.clear();
                 self.next_settle_locks.clear();
                 self.bump_settle_version()?;
+
+                let checkpoint =
+                    Checkpoint::new(self.spec.game_id, self.spec.clone(), self.versions, state);
+                self.checkpoints.push(checkpoint);
                 self.set_game_status(GameStatus::Idle);
             }
 
