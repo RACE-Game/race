@@ -3,7 +3,6 @@ use race_api::types::GameDeposit;
 use async_trait::async_trait;
 use race_api::event::Event;
 use race_core::context::GameContext;
-use race_core::error::Error;
 use tracing::{error, info, warn};
 
 use crate::component::common::{Component, PipelinePorts};
@@ -273,15 +272,17 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 } => {
                     if ctx.game_mode == GameMode::Main {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
-                        if let Err(e) = game_context
-                            .checkpoints_mut()
-                            .iter_mut()
-                            .map(|cp| cp.init_versioned_data(checkpoint_state.clone()))
-                            .collect::<Result<Vec<_>, Error>>()
-                        {
-                            error!("{} Failed to set checkpoint data: {:?}", env.log_prefix, e);
-                            ports.send(EventFrame::Shutdown).await;
-                        }
+                        game_context.push_temp_versioned_data(checkpoint_state.clone());
+
+                        // if let Err(e) = game_context
+                        //     .checkpoints_mut()
+                        //     .iter_mut()
+                        //     .map(|cp| cp.init_versioned_data(checkpoint_state.clone()))
+                        //     .collect::<Result<Vec<_>, Error>>()
+                        // {
+                        //     error!("{} Failed to set checkpoint data in SubGameReady: {:?}", env.log_prefix, e);
+                        //     ports.send(EventFrame::Shutdown).await;
+                        // }
 
                         let timestamp = current_timestamp();
                         let event = Event::SubGameReady {
@@ -321,17 +322,18 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("BridgeEvent: Update checkpoint for sub game: {}", from);
+                        game_context.push_temp_versioned_data(checkpoint_state.clone());
                         game_context.remove_settle_lock(from, settle_version);
 
-                        if let Err(e) = game_context
-                            .checkpoints_mut()
-                            .iter_mut()
-                            .map(|cp| cp.update_versioned_data(checkpoint_state.clone()))
-                            .collect::<Result<Vec<_>, Error>>()
-                        {
-                            error!("{} Failed to set checkpoint data: {:?}", env.log_prefix, e);
-                            ports.send(EventFrame::Shutdown).await;
-                        }
+                        // if let Err(e) = game_context
+                        //     .checkpoints_mut()
+                        //     .iter_mut()
+                        //     .map(|cp| cp.update_versioned_data(checkpoint_state.clone()))
+                        //     .collect::<Result<Vec<_>, Error>>()
+                        // {
+                        //     error!("{} Failed to set checkpoint data in RecvBridgeEvent: {:?}", env.log_prefix, e);
+                        //     ports.send(EventFrame::Shutdown).await;
+                        // }
                     }
 
                     if let Some(close_reason) = event_handler::handle_event(

@@ -213,6 +213,7 @@ pub struct GameContext {
     /// For master game, it contains all subgames' checkpoint
     pub(crate) last_checkpoint: Checkpoint,
     pub(crate) checkpoints: Vec<Checkpoint>,
+    pub(crate) temp_versioned_datas: Vec<VersionedData>,
     /// The sub games to launch
     pub(crate) sub_games: Vec<SubGame>,
     /// Init data from `InitAccount`.
@@ -354,6 +355,7 @@ impl GameContext {
             handler_state,
             last_checkpoint: checkpoint.clone(),
             checkpoints: vec![],
+            temp_versioned_datas: vec![],
             sub_games,
             init_data: game_account.data.clone(),
             entry_type: game_account.entry_type.clone(),
@@ -434,6 +436,10 @@ impl GameContext {
         } else {
             None
         }
+    }
+
+    pub fn push_temp_versioned_data(&mut self, data: VersionedData) {
+        self.temp_versioned_datas.push(data);
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
@@ -981,6 +987,14 @@ impl GameContext {
                     },
                     settle_locks: self.next_settle_locks.clone(),
                 };
+
+                for versioned_data in &self.temp_versioned_datas {
+                    if let Err(_) = new_checkpoint.init_versioned_data(versioned_data.clone()) {
+                        new_checkpoint.update_versioned_data(versioned_data.clone())?;
+                    }
+                }
+                self.temp_versioned_datas.clear();
+
                 new_checkpoint.set_data(self.spec.game_id, state)?;
                 self.accept_deposits.clear();
                 self.next_settle_locks.clear();
@@ -996,8 +1010,17 @@ impl GameContext {
                 self.next_settle_locks.clear();
                 self.bump_settle_version()?;
 
-                let checkpoint =
+                let mut checkpoint =
                     Checkpoint::new(self.spec.game_id, self.spec.clone(), self.versions, state);
+
+                for versioned_data in &self.temp_versioned_datas {
+                    if let Err(_) = checkpoint.init_versioned_data(versioned_data.clone()) {
+                        checkpoint.update_versioned_data(versioned_data.clone())?;
+                    }
+                }
+                checkpoint.update_root_and_proofs();
+                self.temp_versioned_datas.clear();
+
                 self.checkpoints.push(checkpoint);
                 self.set_game_status(GameStatus::Idle);
             }
@@ -1097,6 +1120,7 @@ impl Default for GameContext {
             decision_states: Vec::new(),
             last_checkpoint: Checkpoint::default(),
             checkpoints: vec![],
+            temp_versioned_datas: vec![],
             sub_games: Vec::new(),
             init_data: Vec::new(),
             entry_type: EntryType::Disabled,
