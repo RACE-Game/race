@@ -51,13 +51,7 @@ use race_core::{
     error::{Error, Result},
     transport::TransportT,
     types::{
-        Award, AssignRecipientParams, BalanceChange, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams,
-        CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle,
-        GameRegistration, JoinParams, PlayerProfile, PublishGameParams, EntryType, EntryLock,
-        RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams,
-        RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, Settle, SettleParams, SettleResult, Transfer,
-        UnregisterGameParams, VoteParams, RecipientSlotInit, RecipientSlotShareInit, RecipientSlotType, RecipientSlot,
-        RecipientSlotOwner as CoreRecipientSlotOwner
+        AddRecipientSlotParams, AssignRecipientParams, Award, BalanceChange, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, EntryLock, EntryType, GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RecipientSlot, RecipientSlotInit, RecipientSlotOwner as CoreRecipientSlotOwner, RecipientSlotShareInit, RecipientSlotType, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, Settle, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams
     }
 };
 
@@ -547,6 +541,10 @@ impl TransportT for SuiTransport {
                 ch.object_id().to_hex_uncompressed() // return ID in string form
             })
             .ok_or_else(|| Error::TransportError("No recipient created".into()))
+    }
+
+    async fn add_recipient_slot(&self, params: AddRecipientSlotParams) -> Result<String> {
+        unimplemented!()
     }
 
     async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {

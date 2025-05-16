@@ -622,6 +622,10 @@ export function createRecipient(opts: CreateRecipientOpts): IInstruction {
             address: SPL.TOKEN_PROGRAM_ADDRESS,
             role: AccountRole.READONLY,
         },
+        {
+            address: SYSTEM.SYSTEM_PROGRAM_ADDRESS,
+            role: AccountRole.READONLY,
+        }
     ]
 
     slots.forEach(slot => accounts.push({ address: slot.stakeAddr, role: AccountRole.READONLY }))

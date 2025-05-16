@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use async_stream::stream;
 use futures::Stream;
 use base64::prelude::Engine;
-use race_core::types::{AssignRecipientParams, CreateRecipientParams, RecipientAccount, RecipientClaimParams, SettleResult};
+use race_core::types::{AddRecipientSlotParams, AssignRecipientParams, CreateRecipientParams, RecipientAccount, RecipientClaimParams, SettleResult};
 use race_core::error::{Error, Result};
 #[allow(unused_imports)]
 use race_core::{
@@ -178,6 +178,10 @@ impl TransportT for DummyTransport {
     }
 
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
+        Ok("".into())
+    }
+
+    async fn add_recipient_slot(&self, params: AddRecipientSlotParams) -> Result<String> {
         Ok("".into())
     }
 

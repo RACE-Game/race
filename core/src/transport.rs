@@ -1,7 +1,7 @@
 use std::pin::Pin;
 
 use crate::types::{
-    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
+    AddRecipientSlotParams, AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -122,6 +122,14 @@ pub trait TransportT: Send + Sync {
     /// * `slots` - The initial slots for recipient account.
     /// * `cap_addrs` - The addresses with the capibility to approve others' applications.
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String>;
+
+    /// Add a slot to an existing recipient. The address of the signer must be the cap address of
+    /// the recipient.
+    ///
+    /// # Arguments
+    /// * `recipient_addr` - The address of the recipient account to add slot.
+    /// * `slot` - The slot to add.
+    async fn add_recipient_slot(&self, params: AddRecipientSlotParams) -> Result<String>;
 
     /// Claim tokens from recipient account.
     async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()>;
