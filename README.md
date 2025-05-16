@@ -58,7 +58,7 @@ Work in progress, not ready to accept contributions yet.
 
 | Blockchain | Address                                                                                                                 |
 |------------|-------------------------------------------------------------------------------------------------------------------------|
-| Solana     | [8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu](https://solscan.io/account/8ZVzTrut4TMXjRod2QRFBqGeyLzfLNnQEj2jw3q1sBqu) |
+| Solana     | [C3u1cTJGKP5XzPCvLgQydGWE7aR3x3o5KL8YooFfY4RN](https://solscan.io/account/C3u1cTJGKP5XzPCvLgQydGWE7aR3x3o5KL8YooFfY4RN) |
 
 # Core Concepts
 
