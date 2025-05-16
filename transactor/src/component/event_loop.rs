@@ -276,7 +276,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         if let Err(e) = game_context
                             .checkpoints_mut()
                             .iter_mut()
-                            .map(|cp| cp.update_versioned_data(checkpoint_state.clone()))
+                            .map(|cp| cp.init_versioned_data(checkpoint_state.clone()))
                             .collect::<Result<Vec<_>, Error>>()
                         {
                             error!("{} Failed to set checkpoint data: {:?}", env.log_prefix, e);

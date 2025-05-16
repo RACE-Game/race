@@ -956,14 +956,12 @@ impl GameContext {
             // Add `SettleLock` when master game. Handle before checkpoint
             if self.spec.game_id == 0 {
                 for evt in bridge_events.clone() {
-                    let Some(checkpoint) = self.checkpoints.last() else {
-                        return Err(Error::MissingCheckpoint);
-                    };
-                    let Some(data) = checkpoint.get_versioned_data(evt.dest) else {
-                        return Err(Error::GameUninitialized);
-                    };
-                    let settle_version = data.versions.settle_version;
-                    self.next_settle_locks.insert(data.id, settle_version);
+                    let checkpoint = self.last_checkpoint();
+                    let settle_version = checkpoint
+                        .get_versioned_data(evt.dest)
+                        .map(|d| d.versions.settle_version)
+                        .unwrap_or(0);
+                    self.next_settle_locks.insert(evt.dest, settle_version);
                 }
             }
 

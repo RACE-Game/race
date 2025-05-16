@@ -66,7 +66,7 @@ async fn send_bridge_event(
             .last_checkpoint()
             .get_versioned_data(game_context.game_id())
         else {
-            error!("{} Missing checkpoint", env.log_prefix);
+            error!("{} Missing checkpoint in sending bridge event", env.log_prefix);
             continue;
         };
 
