@@ -649,7 +649,7 @@ impl TransportT for SolanaTransport {
         for settle in settles.iter() {
             ix_settles.push(IxSettle {
                 access_version: settle.player_id,
-                amount: settle.withdraw,
+                withdraw: settle.withdraw,
                 change: settle.change,
                 eject: settle.eject,
             });
