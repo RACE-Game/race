@@ -5,12 +5,12 @@ use std::collections::LinkedList;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use race_api::types::GameId;
 use race_api::event::Event;
+use race_api::types::GameId;
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::{BroadcastFrame, BroadcastSync, TxState};
 use tokio::sync::{broadcast, Mutex};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::component::common::{Component, ConsumerPorts};
 use crate::frame::EventFrame;
@@ -63,6 +63,7 @@ pub struct BroadcasterContext {
     id: String,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
+    temp_event_backups: Arc<Mutex<LinkedList<EventBackup>>>,
 }
 
 /// A component that pushes event to clients.
@@ -73,11 +74,13 @@ pub struct Broadcaster {
     game_id: GameId,
     event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
+    temp_event_backups: Arc<Mutex<LinkedList<EventBackup>>>,
 }
 
 impl Broadcaster {
     pub fn init(id: String, game_id: GameId) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
+        let temp_event_backups = Arc::new(Mutex::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);
         (
@@ -86,11 +89,13 @@ impl Broadcaster {
                 game_id,
                 event_backup_groups: event_backup_groups.clone(),
                 broadcast_tx: broadcast_tx.clone(),
+                temp_event_backups: temp_event_backups.clone(),
             },
             BroadcasterContext {
                 id,
                 event_backup_groups,
                 broadcast_tx,
+                temp_event_backups,
             },
         )
     }
@@ -162,6 +167,15 @@ impl Broadcaster {
             }
         }
 
+        let temp_event_backups = self.temp_event_backups.lock().await;
+        for event in temp_event_backups.iter() {
+            backlogs.push(BroadcastFrame::Event {
+                event: event.event.clone(),
+                timestamp: event.timestamp,
+                state_sha: event.state_sha.clone(),
+            });
+        }
+
         BroadcastFrame::Backlogs {
             checkpoint_off_chain,
             backlogs: Box::new(backlogs),
@@ -204,11 +218,22 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         env.log_prefix, access_version, settle_version
                     );
                     let mut event_backup_groups = ctx.event_backup_groups.lock().await;
+                    let mut events: LinkedList<EventBackup> = LinkedList::new();
+                    let mut temp_events = ctx.temp_event_backups.lock().await;
+                    for evt in temp_events.iter() {
+                        events.push_back(EventBackup {
+                            event: evt.event.clone(),
+                            timestamp: evt.timestamp,
+                            state_sha: evt.state_sha.clone(),
+                        })
+                    }
+                    temp_events.clear();
+                    drop(temp_events);
 
                     event_backup_groups.push_back(EventBackupGroup {
                         sync: BroadcastSync::new(access_version),
                         state_sha,
-                        events: LinkedList::new(),
+                        events,
                         settle_version,
                         checkpoint_off_chain: Some(checkpoint.derive_offchain_part()),
                     });
@@ -232,6 +257,11 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         checkpoint_off_chain: Some(checkpoint.derive_offchain_part()),
                         state_sha: "".into(),
                     });
+
+                    if event_backup_groups.len() > 200 {
+                        event_backup_groups.pop_front();
+                    }
+                    drop(event_backup_groups);
                 }
                 EventFrame::TxState { tx_state } => match tx_state {
                     TxState::SettleSucceed { .. } => {
@@ -262,23 +292,32 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     state_sha,
                     ..
                 } => {
-                    // info!("{} Broadcaster receive event: {}", env.log_prefix, event);
-                    let mut event_backup_groups = ctx.event_backup_groups.lock().await;
+                    info!("{} Broadcaster receive event: {}", env.log_prefix, event);
+                    let mut temp_event_backups = ctx.temp_event_backups.lock().await;
 
-                    if let Some(current) = event_backup_groups.back_mut() {
-                        current.events.push_back(EventBackup {
-                            event: event.clone(),
-                            timestamp,
-                            state_sha: state_sha.clone(),
-                        });
-                    } else {
-                        error!("{} Received event without checkpoint", env.log_prefix);
-                    }
+                    temp_event_backups.push_back(EventBackup {
+                        event: event.clone(),
+                        timestamp,
+                        state_sha: state_sha.clone(),
+                    });
+
+                    drop(temp_event_backups);
+
+                    // let mut event_backup_groups = ctx.event_backup_groups.lock().await;
+                    // if let Some(current) = event_backup_groups.back_mut() {
+                    //     current.events.push_back(EventBackup {
+                    //         event: event.clone(),
+                    //         timestamp,
+                    //         state_sha: state_sha.clone(),
+                    //     });
+                    // } else {
+                    //     error!("{} Received event without checkpoint", env.log_prefix);
+                    // }
                     // Keep 10 groups at most
-                    if event_backup_groups.len() > 200 {
-                        event_backup_groups.pop_front();
-                    }
-                    drop(event_backup_groups);
+                    // if event_backup_groups.len() > 200 {
+                    //     event_backup_groups.pop_front();
+                    // }
+                    // drop(event_backup_groups);
 
                     let r = ctx.broadcast_tx.send(BroadcastFrame::Event {
                         event,
@@ -306,7 +345,11 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         transactor_addr,
                     };
 
-                    ctx.event_backup_groups.lock().await.back_mut().map(|g| g.merge_sync(&sync));
+                    ctx.event_backup_groups
+                        .lock()
+                        .await
+                        .back_mut()
+                        .map(|g| g.merge_sync(&sync));
 
                     let broadcast_frame = BroadcastFrame::Sync { sync };
                     let r = ctx.broadcast_tx.send(broadcast_frame);
@@ -332,7 +375,11 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         transactor_addr,
                     };
 
-                    ctx.event_backup_groups.lock().await.back_mut().map(|g| g.merge_sync(&sync));
+                    ctx.event_backup_groups
+                        .lock()
+                        .await
+                        .back_mut()
+                        .map(|g| g.merge_sync(&sync));
 
                     let broadcast_frame = BroadcastFrame::Sync { sync };
                     let r = ctx.broadcast_tx.send(broadcast_frame);
