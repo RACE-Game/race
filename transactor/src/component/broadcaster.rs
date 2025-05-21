@@ -233,7 +233,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     event_backup_groups.push_back(EventBackupGroup {
                         sync: BroadcastSync::new(access_version),
                         state_sha,
-                        events: LinkedList::new(),
+                        events,
                         settle_version,
                         checkpoint_off_chain: Some(checkpoint.derive_offchain_part()),
                     });
@@ -257,6 +257,11 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         checkpoint_off_chain: Some(checkpoint.derive_offchain_part()),
                         state_sha: "".into(),
                     });
+
+                    if event_backup_groups.len() > 200 {
+                        event_backup_groups.pop_front();
+                    }
+                    drop(event_backup_groups);
                 }
                 EventFrame::TxState { tx_state } => match tx_state {
                     TxState::SettleSucceed { .. } => {
