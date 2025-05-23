@@ -5,7 +5,21 @@ import { arrayBufferToBase64, base64ToUint8Array } from './utils'
 import { BroadcastFrame } from './broadcast-frames'
 import { CheckpointOffChain, CheckpointOffChainList } from './checkpoint'
 
-const PING_TIMEOUT = 4500
+let __WebSocket_impl: (new (url: string | URL) => WebSocket) | undefined = undefined
+
+export function __set_WebSocket_impl(ws: (new (url: string | URL) => WebSocket)) {
+    __WebSocket_impl = ws
+}
+
+function createWebSocket(endpoint: string): WebSocket {
+    if (__WebSocket_impl === undefined && typeof window === 'undefined') {
+        throw new Error('No websocket available. Call `setupNodeEnv()` to configure it.')
+    } else if (__WebSocket_impl) {
+        return new __WebSocket_impl(endpoint)
+    } else {
+        return new WebSocket(endpoint)
+    }
+}
 
 export type ConnectionState = 'disconnected' | 'connected' | 'reconnected' | 'closed'
 
@@ -155,7 +169,7 @@ export class Connection implements IConnection {
 
     connect(params: SubscribeEventParams): ConnectionSubscription {
         console.info(`Establishing server connection, target: ${this.target}, settle version: ${params.settleVersion}`)
-        this.socket = new WebSocket(this.endpoint)
+        this.socket = createWebSocket(this.endpoint)
 
         this.socket.onmessage = msg => {
             const frame = this.parseEventMessage(msg.data)

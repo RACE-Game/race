@@ -29,7 +29,7 @@ function make_tourney {
   "title": "$1",
   "bundle": "../race-holdem/target/race_holdem_mtt.wasm",
   "token": "$2",
-  "maxPlayers": 10,
+  "maxPlayers": 100,
   "entryType": {
     "ticket": {
       "slotId": 1,

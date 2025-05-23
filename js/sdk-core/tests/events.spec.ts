@@ -1,6 +1,3 @@
-import { _set_subtle_crypto } from '../src/crypto'
-_set_subtle_crypto(require('crypto').subtle)
-
 import {
     makeCustomEvent,
     ICustomEvent,
