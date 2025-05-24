@@ -37,6 +37,7 @@ export type SubClientCtorOpts = {
     encryptor: IEncryptor
     info: GameInfo
     decryptionCache: DecryptionCache
+    maxRetries: number
 }
 
 export class SubClient extends BaseClient {

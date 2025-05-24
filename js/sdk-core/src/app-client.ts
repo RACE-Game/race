@@ -39,6 +39,7 @@ export type AppClientInitOpts = {
     onReady?: ReadyCallbackFunction
     onConnectionState?: ConnectionStateCallbackFunction
     storage?: IStorage
+    maxRetries?: number
 }
 
 export type SubClientInitOpts = {
@@ -83,6 +84,7 @@ export type AppClientCtorOpts = {
     profileLoader: ProfileLoader
     storage: IStorage | undefined
     endpoint: string
+    maxRetries: number
 }
 
 export class AppClient extends BaseClient {
@@ -118,7 +120,10 @@ export class AppClient extends BaseClient {
             onProfile,
             onReady,
             storage,
+            maxRetries,
         } = opts
+
+        const _maxRetries = maxRetries === undefined ? 10 : maxRetries
 
         console.group(`Initialize AppClient, gameAddr = ${gameAddr}`)
         try {
@@ -227,6 +232,7 @@ export class AppClient extends BaseClient {
                 profileLoader,
                 storage,
                 endpoint,
+                maxRetries: _maxRetries
             })
         } finally {
             console.groupEnd()
@@ -287,6 +293,7 @@ export class AppClient extends BaseClient {
                 gameContext,
                 gameId,
                 latestCheckpointOnChain: undefined,
+                maxRetries: this.__maxRetries,
             })
         } finally {
             console.groupEnd()

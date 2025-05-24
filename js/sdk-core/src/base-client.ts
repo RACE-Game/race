@@ -69,6 +69,7 @@ export type BaseClientCtorOpts = {
     info: GameInfo
     decryptionCache: DecryptionCache
     logPrefix: string
+    maxRetries: number
 }
 
 export class BaseClient {
@@ -94,6 +95,7 @@ export class BaseClient {
     __latestCheckpointOnChain: CheckpointOnChain | undefined
     __sub: ConnectionSubscription | undefined
     __closed: boolean
+    __maxRetries: number
 
     constructor(opts: BaseClientCtorOpts) {
         this.__gameAddr = opts.gameAddr
@@ -118,6 +120,7 @@ export class BaseClient {
         this.__logPrefix = opts.logPrefix
         this.__sub == undefined
         this.__closed = false
+        this.__maxRetries = opts.maxRetries
     }
 
     get playerAddr(): string {
@@ -277,6 +280,7 @@ export class BaseClient {
 
     async __processSubscription() {
         if (this.__sub !== undefined) {
+            let retries = 0
             for await (const item of this.__sub) {
                 if (item === undefined) {
                     break
@@ -286,10 +290,16 @@ export class BaseClient {
                     await this.__handleConnectionState(item)
                 }
 
-                // Reconnect if sub is lost
-                while (this.__sub === undefined && !this.__closed) {
-                    console.info('Try to reconnect.')
+                if (item === 'disconnected' && this.__sub === undefined && !this.__closed) {
+                    retries += 1
+                    if (retries >= this.__maxRetries) {
+                        throw new Error(`Can not connect to transactor after retried ${retries} times`)
+                    }
+                    console.info(`Try reconnect after 1 second, [${retries}/${this.__maxRetries}]`)
+                    await new Promise(r => setTimeout(r, 1000))
                     this.__startSubscribe()
+                } else {
+                    retries = 0
                 }
             }
         }
