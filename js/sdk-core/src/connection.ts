@@ -411,7 +411,6 @@ export async function getLatestCheckpoints(
         })
         if (resp.ok) {
             const ret = await resp.json()
-            console.log(ret)
             if (!ret.result) throw Error(`Failed to get latest checkpoints from endpoint: ${transactorEndpoint}`)
             return CheckpointOffChainList.deserialize(Uint8Array.from(ret.result)).checkpoints
         } else {
