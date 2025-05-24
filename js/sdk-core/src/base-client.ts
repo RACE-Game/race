@@ -93,6 +93,7 @@ export class BaseClient {
     __logPrefix: string
     __latestCheckpointOnChain: CheckpointOnChain | undefined
     __sub: ConnectionSubscription | undefined
+    __closed: boolean
 
     constructor(opts: BaseClientCtorOpts) {
         this.__gameAddr = opts.gameAddr
@@ -116,6 +117,7 @@ export class BaseClient {
         this.__onLoadProfile = opts.onLoadProfile
         this.__logPrefix = opts.logPrefix
         this.__sub == undefined
+        this.__closed = false
     }
 
     get playerAddr(): string {
@@ -170,6 +172,7 @@ export class BaseClient {
      */
     detach() {
         this.__connection.disconnect()
+        this.__closed = true
     }
 
     /**
@@ -284,7 +287,7 @@ export class BaseClient {
                 }
 
                 // Reconnect if sub is lost
-                while (this.__sub === undefined) {
+                while (this.__sub === undefined && !this.__closed) {
                     console.info('Try to reconnect.')
                     this.__startSubscribe()
                 }

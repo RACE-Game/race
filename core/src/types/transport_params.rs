@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::checkpoint::CheckpointOnChain;
 use race_api::types::{Award, Settle, Transfer};
-use crate::types::{EntryType, VoteType, RecipientSlotOwner, RecipientSlotType, RecipientSlot};
+use crate::types::{EntryType, VoteType, RecipientSlotOwner, RecipientSlotType};
 
 use super::{EntryLock, GameAccount};
 
@@ -59,10 +59,9 @@ pub struct RecipientClaimParams {
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct AddRecipientSlotsParams {
-    pub addr: String,
+pub struct AddRecipientSlotParams {
     pub recipient_addr: String,
-    pub slots: Vec<RecipientSlot>,
+    pub slot: RecipientSlotInit,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]

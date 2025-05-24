@@ -23,24 +23,39 @@ where
 }
 
 impl<H: GameHandler> TestContext<H> {
-    pub fn join(&mut self, player: &mut TestClient, deposit: u64) -> Event {
+
+    /// Let a player join this game with a certain deposit.
+    /// Return the Join event and the Deposit event.
+    pub fn join(&mut self, player: &mut TestClient, deposit: u64) -> (Event, Event) {
         self.join_multi(vec![(player, deposit)])
     }
 
-    pub fn join_multi(&mut self, players_and_deposits: Vec<(&mut TestClient, u64)>) -> Event {
+    /// Let multiple players join this game.
+    /// Return the Join event and the Deposit event.
+    pub fn join_multi(&mut self, players_and_deposits: Vec<(&mut TestClient, u64)>) -> (Event, Event) {
         let mut players = vec![];
+        let mut deposits = vec![];
         for (test_client, deposit) in players_and_deposits.into_iter() {
-            players.push(
-                test_client
-                    .join(&mut self.context, &mut self.account, deposit)
-                    .expect("Add player to TestContext"),
-            );
+            let (player, deposit) = test_client
+                .join(&mut self.context, &mut self.account, deposit)
+                .expect("Add player to TestContext");
+
+            players.push(player);
+            deposits.push(deposit);
         }
-        Event::Join { players }
+        (Event::Join { players }, Event::Deposit{ deposits })
     }
 
     pub fn handle_event(&mut self, event: &Event) -> Result<EventEffects> {
         self.handler.handle_event(&mut self.context, event)
+    }
+
+    pub fn handle_multiple_events(&mut self, events: &[Event]) -> Result<EventEffects> {
+        let mut e = EventEffects::default();
+        for event in events {
+            e = self.handle_event(event)?;
+        }
+        Ok(e)
     }
 
     pub fn handle_dispatch_event(&mut self) -> Result<EventEffects> {
@@ -127,7 +142,7 @@ impl TestContextBuilder {
     pub fn build_with_init_state<H: GameHandler>(self) -> Result<(TestContext<H>, EventEffects)> {
         let mut context = GameContext::try_new(&self.account, None)
             .expect("Create game context with initial state api");
-        context.set_node_ready(context.access_version());
+        context.set_node_ready(self.account.access_version);
 
         let (handler, event_effects) = TestHandler::<H>::init_state(&mut context)?;
 

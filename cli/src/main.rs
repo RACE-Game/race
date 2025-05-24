@@ -3,9 +3,7 @@ use prettytable::{row, Table};
 use race_core::{
     transport::TransportT,
     types::{
-        CloseGameAccountParams, CreateGameAccountParams, CreateRecipientParams,
-        CreateRegistrationParams, EntryType, PublishGameParams, RecipientClaimParams,
-        RecipientSlotInit, RegisterGameParams, ServerAccount, UnregisterGameParams,
+        AddRecipientSlotParams, CloseGameAccountParams, CreateGameAccountParams, CreateRecipientParams, CreateRegistrationParams, EntryType, PublishGameParams, RecipientClaimParams, RecipientSlotInit, RegisterGameParams, ServerAccount, UnregisterGameParams
     },
 };
 use race_env::{default_keyfile, parse_with_default_rpc};
@@ -29,7 +27,20 @@ pub enum RecipientSpecs {
     Addr(String),
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecipientSlotsSpecs {
+    slots: Vec<RecipientSlotInit>,
+}
+
 impl RecipientSpecs {
+    pub fn from_file(path: PathBuf) -> Self {
+        let f = File::open(path).expect("Spec file not found");
+        serde_json::from_reader(f).expect("Invalid spec file")
+    }
+}
+
+impl RecipientSlotsSpecs {
     pub fn from_file(path: PathBuf) -> Self {
         let f = File::open(path).expect("Spec file not found");
         serde_json::from_reader(f).expect("Invalid spec file")
@@ -149,6 +160,13 @@ fn cli() -> Command {
         .subcommand(
             Command::new("create-recipient")
                 .about("Create recipient account")
+                .arg(arg!(<SPEC_FILE> "The path to specification file"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
+            Command::new("add-recipient-slot")
+                .about("Add slot to a recipient")
+                .arg(arg!(<ADDRESS> "The address of recipient account"))
                 .arg(arg!(<SPEC_FILE> "The path to specification file"))
                 .arg_required_else_help(true),
         )
@@ -459,6 +477,7 @@ async fn create_recipient(specs: RecipientSpecs, transport: Arc<dyn TransportT>)
                 cap_addr: None,
                 slots,
             };
+
             let addr = transport
                 .create_recipient(params)
                 .await
@@ -470,6 +489,21 @@ async fn create_recipient(specs: RecipientSpecs, transport: Arc<dyn TransportT>)
         }
     };
 }
+
+async fn add_recipient_slot(addr: &str, specs: RecipientSlotsSpecs, transport: Arc<dyn TransportT>) {
+    for slot in specs.slots {
+        println!("Add token slot {}", slot.token_addr);
+        let params = AddRecipientSlotParams {
+            recipient_addr: addr.into(),
+            slot,
+        };
+
+        transport.add_recipient_slot(params).await.expect("Add recipient slot failed");
+        println!("Slot added");
+    }
+}
+
+
 
 async fn create_game(specs: CreateGameSpecs, transport: Arc<dyn TransportT>) {
     // println!("Specs: {:?}", specs);
@@ -734,6 +768,15 @@ async fn main() {
             let specs = RecipientSpecs::from_file(spec_file.into());
             let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
             create_recipient(specs, transport).await;
+        }
+        Some(("add-recipient-slot", sub_matches)) => {
+            let spec_file = sub_matches
+                .get_one::<String>("SPEC_FILE")
+                .expect("required");
+            let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");
+            let specs = RecipientSlotsSpecs::from_file(spec_file.into());
+            let transport = create_transport(&chain, &rpc, keyfile.cloned()).await;
+            add_recipient_slot(addr, specs, transport).await;
         }
         Some(("recipient-info", sub_matches)) => {
             let addr = sub_matches.get_one::<String>("ADDRESS").expect("required");

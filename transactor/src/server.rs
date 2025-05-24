@@ -252,6 +252,7 @@ pub async fn run_server(
     };
 
     let server = ServerBuilder::default()
+        .max_connections(500)
         .set_host_filtering(AllowHosts::Any)
         .set_middleware(middleware)
         .max_request_body_size(100_1000)

@@ -1,13 +1,14 @@
+let __subtle_impl: SubtleCrypto | undefined = undefined
 
-let _subtle: SubtleCrypto | undefined
-
-export function _set_subtle_crypto(s: SubtleCrypto) {
-    _subtle = s
+export function __set_subtle_impl(subtle: SubtleCrypto) {
+    __subtle_impl = subtle
 }
 
 export function subtle(): SubtleCrypto {
-    if (_subtle != undefined) {
-        return _subtle
+    if (__subtle_impl === undefined && (typeof window === 'undefined')) {
+        throw new Error('No subtle crypto available. Call `setupNodeEnv()` to configure it.')
+    } else if (__subtle_impl) {
+        return __subtle_impl
     } else {
         return window.crypto.subtle
     }

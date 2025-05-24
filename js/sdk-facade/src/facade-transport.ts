@@ -335,6 +335,7 @@ export class FacadeTransport implements ITransport {
         if (!resp.ok) {
             throw new Error('Failed to send instruction: ' + reqData)
         }
+        console.log('Facade response:', await resp.json())
         return 'facadesig'
     }
 

@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use race_core::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
-use race_api::types::GamePlayer;
+use race_api::types::{GameDeposit, GamePlayer};
 use race_client::Client;
 use race_core::types::{GameAccount, PlayerJoin};
 use race_core::{
@@ -108,7 +108,7 @@ impl TestClient {
         game_context: &mut GameContext,
         game_account: &mut GameAccount,
         balance: u64,
-    ) -> Result<GamePlayer> {
+    ) -> Result<(GamePlayer, GameDeposit)> {
         if self.client.mode != ClientMode::Player {
             panic!("TestClient can only join with Player mode");
         }
@@ -149,7 +149,7 @@ impl TestClient {
         self.set_id(id);
         game_context.add_node(self.client.addr.clone(), id, ClientMode::Player);
 
-        Ok(GamePlayer::new(id, position))
+        Ok((GamePlayer::new(id, position), GameDeposit::new(id, balance, game_account.access_version)))
     }
 
     pub fn transactor<S: Into<String>>(addr: S) -> Self {

@@ -13,13 +13,12 @@ const DRAW_TIMEOUT: u64 = 30_000;
 #[derive(BorshSerialize, BorshDeserialize)]
 struct Player {
     pub id: u64,
+    pub balance: u64,
 }
 
 impl From<GamePlayer> for Player {
     fn from(value: GamePlayer) -> Self {
-        Self {
-            id: value.id(),
-        }
+        Player { id: value.id(), balance: 0 }
     }
 }
 
@@ -44,7 +43,7 @@ impl Raffle {
 impl GameHandler for Raffle {
 
     /// Initialize handler state with on-chain game account data.
-    fn init_state(_effect: &mut Effect, init_account: InitAccount) -> HandleResult<Self> {
+    fn init_state(_init_account: InitAccount) -> HandleResult<Self> {
         let draw_time = 0;
         Ok(Self {
             last_winner: None,
@@ -53,6 +52,10 @@ impl GameHandler for Raffle {
             draw_time,
             prize_pool: 0,
         })
+    }
+
+    fn balances(&self) -> Vec<PlayerBalance> {
+        self.players.iter().map(|p| PlayerBalance::new(p.id, p.balance)).collect()
     }
 
     /// Handle event.
@@ -79,6 +82,10 @@ impl GameHandler for Raffle {
             Event::Deposit { deposits } => {
                 for d in deposits {
                     self.prize_pool += d.balance();
+                    let Some(player) = self.players.iter_mut().find(|p| p.id == d.id()) else {
+                        return Err(HandleError::InvalidPlayer)
+                    };
+                    player.balance = d.balance();
                 }
             }
 
@@ -109,9 +116,10 @@ impl GameHandler for Raffle {
 
                 for p in self.players.iter() {
                     if p.id != winner {
-                        effect.settle(p.id, 0)?;
+                        effect.eject(p.id);
                     }
-                    effect.settle(p.id, self.prize_pool)?;
+                    effect.withdraw(p.id, self.prize_pool);
+                    effect.eject(p.id);
                 }
                 effect.checkpoint();
                 self.last_winner = Some(winner);

@@ -6,16 +6,16 @@ use borsh::BorshDeserialize;
 use futures::Stream;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::transport::HttpBackend;
-use jsonrpsee::rpc_params;
 use jsonrpsee::http_client::{HttpClient as Client, HttpClientBuilder as ClientBuilder};
-use tokio::time;
+use jsonrpsee::rpc_params;
 use std::time::Duration;
+use tokio::time;
 
 use race_core::error::{Error, Result};
 use race_core::transport::TransportT;
 
 use race_core::types::{
-    AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
+    AddRecipientSlotParams, AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
 };
 use serde::Serialize;
 
@@ -187,7 +187,8 @@ impl TransportT for FacadeTransport {
 
     async fn settle_game(&self, params: SettleParams) -> Result<SettleResult> {
         let game_addr = params.addr.clone();
-        let signature = self.client
+        let signature = self
+            .client
             .request("settle", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))?;
@@ -197,10 +198,14 @@ impl TransportT for FacadeTransport {
         return Ok(SettleResult {
             signature,
             game_account,
-        })
+        });
     }
 
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
+        unimplemented!()
+    }
+
+    async fn add_recipient_slot(&self, params: AddRecipientSlotParams) -> Result<String> {
         unimplemented!()
     }
 
@@ -226,14 +231,13 @@ impl TransportT for FacadeTransport {
 
     async fn reject_deposits(&self, params: RejectDepositsParams) -> Result<RejectDepositsResult> {
         let game_addr = params.addr.clone();
-        let signature = self.client
+        let signature = self
+            .client
             .request("reject_deposits", rpc_params![params])
             .await
             .map_err(|e| Error::RpcError(e.to_string()))?;
 
-        return Ok(RejectDepositsResult {
-            signature,
-        })
+        return Ok(RejectDepositsResult { signature });
     }
 }
 

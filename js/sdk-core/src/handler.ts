@@ -70,7 +70,9 @@ export class Handler implements IHandler {
 
     async handleEvent(context: GameContext, event: GameEvent): Promise<EventEffects> {
         await this.generalPreHandleEvent(context, event, this.#encryptor)
-        return await this.customHandleEvent(context, event)
+        const eventEffects = await this.customHandleEvent(context, event)
+        await this.generalPostHandleEvent(context, event, eventEffects)
+        return eventEffects
     }
 
     async initState(context: GameContext): Promise<EventEffects> {
@@ -83,6 +85,12 @@ export class Handler implements IHandler {
 
     async generalPreInitState(context: GameContext, _initAccount: InitAccount) {
         context.dispatch = undefined
+    }
+
+    async generalPostHandleEvent(_context: GameContext, _event: GameEvent, eventEffects: EventEffects) {
+        if (eventEffects.checkpoint !== undefined) {
+            this.#decryptionCache.clear()
+        }
     }
 
     async generalPreHandleEvent(context: GameContext, event: GameEvent, encryptor: IEncryptor) {

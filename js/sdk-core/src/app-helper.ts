@@ -445,7 +445,7 @@ export class AppHelper {
                     }
                 }
                 const totalAmount = totalClaimed + slot.balance
-                const amountToClaim = BigInt((Number(totalAmount) * weights) / totalWeights) - claimed
+                const amountToClaim = (totalAmount * BigInt(weights) / BigInt(totalWeights)) - claimed
                 if (amountToClaim > 0n) {
                     ret.push({
                         amount: amountToClaim,

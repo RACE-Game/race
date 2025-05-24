@@ -473,8 +473,6 @@ export class GameContext {
         if (effect.handlerState !== undefined) {
             await this.setHandlerState(effect.handlerState)
             if (effect.isCheckpoint) {
-                this.randomStates = []
-                this.decisionStates = []
                 this.bumpSettleVersion()
                 this.checkpoint.setData(this.spec.gameId, effect.handlerState)
 

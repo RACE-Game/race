@@ -1,7 +1,5 @@
-import { _set_subtle_crypto } from '../src/crypto'
-_set_subtle_crypto(require('crypto').subtle)
-
 import { assert } from 'chai';
+import { setupNodeEnv } from '../src/node'
 import {
   encryptAes,
   decryptAes,
@@ -24,6 +22,9 @@ import {
   generateChacha20,
   chacha20Nonce,
 } from '../src/encryptor';
+
+
+setupNodeEnv()
 
 describe('Test utilities', () => {
   it('RSA key creation', async () => {

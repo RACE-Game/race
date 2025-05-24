@@ -5,10 +5,7 @@ use futures::Stream;
 use jsonrpsee::core::async_trait;
 use race_core::error::{Error, Result};
 use race_core::types::{
-    AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams,
-    CreateRegistrationParams, DepositParams, DepositStatus, PublishGameParams, RecipientAccount,
-    RecipientClaimParams, RegisterGameParams, RejectDepositsParams, RejectDepositsResult,
-    ServeParams, SettleResult, UnregisterGameParams, VoteParams,
+    AddRecipientSlotParams, AssignRecipientParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, DepositStatus, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RejectDepositsParams, RejectDepositsResult, ServeParams, SettleResult, UnregisterGameParams, VoteParams
 };
 use race_core::{
     transport::TransportT,
@@ -317,6 +314,10 @@ impl TransportT for WrappedTransport {
 
     async fn create_recipient(&self, params: CreateRecipientParams) -> Result<String> {
         self.inner.create_recipient(params).await
+    }
+
+    async fn add_recipient_slot(&self, params: AddRecipientSlotParams) -> Result<String> {
+        self.inner.add_recipient_slot(params).await
     }
 
     async fn assign_recipient(&self, params: AssignRecipientParams) -> Result<()> {
