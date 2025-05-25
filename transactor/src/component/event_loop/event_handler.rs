@@ -66,7 +66,10 @@ async fn send_bridge_event(
             .last_checkpoint()
             .get_versioned_data(game_context.game_id())
         else {
-            error!("{} Missing checkpoint in sending bridge event", env.log_prefix);
+            error!(
+                "{} Missing checkpoint in sending bridge event",
+                env.log_prefix
+            );
             continue;
         };
 
@@ -108,12 +111,18 @@ async fn send_settlement(
     env: &ComponentEnv,
 ) {
     let game_id = game_context.game_id();
+    game_context.debug_checkpoints_settle_lock("before send settle");
 
     while let Some(checkpoint) = game_context.take_first_ready_checkpoint() {
         let checkpoint_size = checkpoint.get_data(game_id).map(|d| d.len());
         if let Some(versions) = checkpoint.get_versions(game_id) {
             let access_version = checkpoint.access_version;
             let settle_version = versions.settle_version;
+            println!(
+                "debug checkpoint: game_id: {:?}, previous: {:?}, current: {:?}",
+                game_id, original_versions.settle_version, settle_version
+            );
+
             info!(
                 "{} Create checkpoint, settle_version: {}, size: {:?}",
                 env.log_prefix,
@@ -137,6 +146,8 @@ async fn send_settlement(
             )
         }
     }
+
+    game_context.debug_checkpoints_settle_lock("after send settle");
 }
 
 async fn launch_sub_game(

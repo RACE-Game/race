@@ -232,6 +232,10 @@ impl Checkpoint {
         self.data.values().collect()
     }
 
+    pub fn list_versioned_game_id(&self) -> Vec<&GameId> {
+        self.data.keys().collect()
+    }
+
     pub fn set_access_version(&mut self, access_version: u64) {
         self.access_version = access_version;
     }

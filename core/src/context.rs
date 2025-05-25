@@ -955,6 +955,10 @@ impl GameContext {
 
             // Add `SettleLock` when master game. Handle before checkpoint
             if self.spec.game_id == 0 {
+                for sub_game in launch_sub_games.iter().cloned() {
+                    self.next_settle_locks.insert(sub_game.id, 0);
+                }
+
                 for evt in bridge_events.clone() {
                     let checkpoint = self.last_checkpoint();
                     let settle_version = checkpoint
@@ -965,13 +969,14 @@ impl GameContext {
                 }
             }
 
-            if is_checkpoint {
+            if is_checkpoint || (self.spec.game_id == 0 && !launch_sub_games.is_empty()) {
                 let settles_map = build_settles_map(&withdraws, &ejects, &self.balances, &balances);
+                let last_checkpoint = self.checkpoints.last().unwrap_or(&self.last_checkpoint);
                 let mut new_checkpoint = Checkpoint {
-                    root: self.last_checkpoint.root.clone(),
+                    root: last_checkpoint.root.clone(),
                     access_version: self.versions.access_version,
-                    data: self.last_checkpoint.data.clone(),
-                    proofs: self.last_checkpoint.proofs.clone(),
+                    data: last_checkpoint.data.clone(),
+                    proofs: last_checkpoint.proofs.clone(),
                     checkpoint_params: CheckpointParams {
                         entry_lock: effect.entry_lock,
                         transfer,
@@ -1079,6 +1084,27 @@ impl GameContext {
     pub fn reset(&mut self) {
         self.sub_games.clear();
         let _ = self.checkpoints.iter_mut().map(|cp| cp.close_sub_data());
+    }
+
+    pub fn debug_checkpoints_settle_lock(&self, prefix: &str) {
+        let locks: Vec<_> = self
+            .checkpoints
+            .iter()
+            .map(|c| c.settle_locks.clone())
+            .collect();
+        let game_ids: Vec<_> = self
+            .checkpoints
+            .iter()
+            .map(|c| c.list_versioned_game_id())
+            .collect();
+
+        println!(
+            "debug checkpoints {}: game_id: {:?}, locks: {:?}, data.games: {:?}",
+            prefix,
+            self.game_id(),
+            locks,
+            game_ids,
+        );
     }
 }
 

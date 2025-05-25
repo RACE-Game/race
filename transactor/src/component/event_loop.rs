@@ -273,6 +273,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 } => {
                     if ctx.game_mode == GameMode::Main {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
+                        game_context.debug_checkpoints_settle_lock("subgame ready");
+                        game_context
+                            .remove_settle_lock(game_id, checkpoint_state.versions.settle_version);
+
                         if let Err(e) = game_context
                             .checkpoints_mut()
                             .iter_mut()
@@ -321,6 +325,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("BridgeEvent: Update checkpoint for sub game: {}", from);
+                        game_context.debug_checkpoints_settle_lock("recv bridge");
                         game_context.remove_settle_lock(from, settle_version);
 
                         if let Err(e) = game_context
