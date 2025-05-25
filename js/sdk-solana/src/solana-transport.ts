@@ -26,11 +26,8 @@ import {
     Blockhash,
     Transaction,
     Signature,
-    sendAndConfirmTransactionFactory,
-    SignatureBytes,
     getBase58Encoder,
     getBase58Decoder,
-    getSignatureFromTransaction,
 } from '@solana/web3.js'
 import * as SPL from '@solana-program/token'
 import {
@@ -1007,6 +1004,17 @@ export class SolanaTransport implements ITransport {
             return undefined
         }
     }
+    async listPlayerProfiles(addrs: string[]): Promise<Array<PlayerProfile | undefined>> {
+        // We should truncate addresses by 100
+        let results: Array<PlayerProfile | undefined> = []
+        for (let i = 0; i < addrs.length; i += 100) {
+            const addrsChunk = addrs.slice(i, i + 100).map(address)
+            const keys = await Promise.all(addrsChunk.map(addr => this._getPlayerProfileAddress(addr)))
+            const states = await this._getMultiPlayerStates(keys)
+            results.push(...states.map((state, j) => state?.generalize(addrsChunk[j])))
+        }
+        return results
+    }
     async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
         const serverKey = address(addr)
 
@@ -1237,14 +1245,13 @@ export class SolanaTransport implements ITransport {
     async _getMultiGameStates(gameAccountKeys: Address[]): Promise<Array<GameState | undefined>> {
         const accounts = await this.#rpc.getMultipleAccounts(gameAccountKeys).send()
         const ret: Array<GameState | undefined> = []
-        console.info('Get %s games from registry', accounts.value.length)
         for (let i = 0; i < accounts.value.length; i++) {
             const key = gameAccountKeys[i]
             const accountInfo = accounts.value[i]
             if (accountInfo !== null) {
                 try {
                     ret.push(GameState.deserialize(base64ToUint8Array(accountInfo.data[0])))
-                    console.info('Found game account %s', key)
+                    console.debug('Found game account %s', key)
                 } catch (_: any) {
                     ret.push(undefined)
                     console.warn('Skip invalid game account %s', key)
@@ -1252,6 +1259,28 @@ export class SolanaTransport implements ITransport {
             } else {
                 ret.push(undefined)
                 console.warn('Game account %s not exist', key)
+            }
+        }
+        return ret
+    }
+
+    async _getMultiPlayerStates(profileAccountKeys: Address[]): Promise<Array<PlayerState | undefined>> {
+        const accounts = await this.#rpc.getMultipleAccounts(profileAccountKeys).send()
+        const ret: Array<PlayerState | undefined> = []
+        for (let i = 0; i < accounts.value.length; i++) {
+            const key = profileAccountKeys[i]
+            const accountInfo = accounts.value[i]
+            if (accountInfo !== null) {
+                try {
+                    ret.push(PlayerState.deserialize(base64ToUint8Array(accountInfo.data[0])))
+                    console.info('Found player profile %s', key)
+                } catch (_: any) {
+                    ret.push(undefined)
+                    console.warn('Skip invalid player profile %s', key)
+                }
+            } else {
+                ret.push(undefined)
+                console.warn('Player profile %s not exist', key)
             }
         }
         return ret

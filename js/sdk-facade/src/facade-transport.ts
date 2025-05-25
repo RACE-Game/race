@@ -271,6 +271,9 @@ export class FacadeTransport implements ITransport {
         if (data === undefined) return undefined
         return deserialize(PlayerProfile, data)
     }
+    async listPlayerProfiles(addrs: string[]): Promise<Array<PlayerProfile | undefined>> {
+        return await Promise.all(addrs.map(addr => this.getPlayerProfile(addr)))
+    }
     async getServerAccount(addr: string): Promise<ServerAccount | undefined> {
         const data: Uint8Array | undefined = await this.fetchState('get_server_info', [addr])
         if (data === undefined) return undefined

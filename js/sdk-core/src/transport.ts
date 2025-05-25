@@ -236,6 +236,8 @@ export interface ITransport {
 
     getPlayerProfile(addr: string): Promise<PlayerProfile | undefined>
 
+    listPlayerProfiles(addrs: string[]): Promise<Array<PlayerProfile | undefined>>
+
     getServerAccount(addr: string): Promise<ServerAccount | undefined>
 
     getRegistration(addr: string): Promise<RegistrationAccount | undefined>

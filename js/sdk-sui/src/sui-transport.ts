@@ -258,6 +258,10 @@ export class SuiTransport implements ITransport {
         return parseObjectData(parseFirstObjectResponse(resp), PlayerPorfileParser)
     }
 
+    async listPlayerProfiles(addrs: string[]): Promise<Array<PlayerProfile | undefined>> {
+        return await Promise.all(addrs.map(addr => this.getPlayerProfile(addr)))
+    }
+
     closeGameAccount(
         wallet: IWallet,
         params: CloseGameAccountParams,

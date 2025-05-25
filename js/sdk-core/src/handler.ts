@@ -61,7 +61,9 @@ export class Handler implements IHandler {
         let initiatedSource
         if (gameBundle.data.length === 0) {
             console.debug('Initiate handler by streaming:', gameBundle.uri)
-            initiatedSource = await WebAssembly.instantiateStreaming(fetch(gameBundle.uri), importObject)
+            const data = new Uint8Array(await (await fetch(gameBundle.uri)).arrayBuffer())
+            // initiatedSource = await WebAssembly.instantiateStreaming(fetch(gameBundle.uri), importObject)
+            initiatedSource = await WebAssembly.instantiate(data, importObject)
         } else {
             initiatedSource = await WebAssembly.instantiate(gameBundle.data, importObject)
         }

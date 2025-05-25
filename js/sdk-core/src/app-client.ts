@@ -160,14 +160,16 @@ export class AppClient extends BaseClient {
             }
             const decryptionCache = new DecryptionCache()
             const endpoint = transactorAccount.endpoint
-            console.info(`Transactor endpoint: ${endpoint}`)
             const connection = Connection.initialize(gameAddr, playerAddr, endpoint, encryptor)
+            console.info(`Connected with transactor: ${endpoint}`)
             const client = new Client(playerAddr, encryptor, connection)
+            console.info(`Client created`)
 
             const getCheckpointParams: GetCheckpointParams = new GetCheckpointParams({
                 settleVersion: gameAccount.settleVersion,
             })
 
+            console.info('Initialize wasm handler and fetch checkpoint')
             const [handler, checkpointOffChain] = await Promise.all([
                 Handler.initialize(gameBundle, encryptor, client, decryptionCache),
                 await connection.getCheckpoint(getCheckpointParams),
