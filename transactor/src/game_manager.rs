@@ -8,7 +8,7 @@ use race_env::TransactorConfig;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
@@ -19,13 +19,13 @@ use crate::handle::Handle;
 use crate::utils::current_timestamp;
 
 pub struct GameManager {
-    games: Arc<Mutex<HashMap<String, Handle>>>,
+    games: Arc<RwLock<HashMap<String, Handle>>>,
 }
 
 impl Default for GameManager {
     fn default() -> Self {
         Self {
-            games: Arc::new(Mutex::new(HashMap::default())),
+            games: Arc::new(RwLock::new(HashMap::default())),
         }
     }
 }
@@ -71,7 +71,7 @@ impl GameManager {
         .await
         {
             Ok(mut handle) => {
-                let mut games = self.games.lock().await;
+                let mut games = self.games.write().await;
                 let addr = format!("{}:{}", game_addr, game_id);
                 info!("Launch child game {}", addr);
                 let join_handle = handle.wait(signal_tx);
@@ -102,46 +102,48 @@ impl GameManager {
         mode: ClientMode,
         config: &TransactorConfig,
     ) -> Option<JoinHandle<CloseReason>> {
-        let mut games = self.games.lock().await;
-        if let Entry::Vacant(e) = games.entry(game_addr.clone()) {
-            let handle = if mode == ClientMode::Transactor {
-                Handle::try_new_transactor(
-                    transport,
-                    storage,
-                    encryptor,
-                    server_account,
-                    e.key(),
-                    signal_tx.clone(),
-                    &config,
-                )
+        let handle = if mode == ClientMode::Transactor {
+            Handle::try_new_transactor(
+                transport,
+                storage,
+                encryptor,
+                server_account,
+                &game_addr,
+                signal_tx.clone(),
+                &config,
+            )
                 .await
-            } else {
-                Handle::try_new_validator(
-                    transport,
-                    storage,
-                    encryptor,
-                    server_account,
-                    e.key(),
-                    signal_tx.clone(),
-                    config,
-                )
+        } else {
+            Handle::try_new_validator(
+                transport,
+                storage,
+                encryptor,
+                server_account,
+                &game_addr,
+                signal_tx.clone(),
+                config,
+            )
                 .await
-            };
+        };
 
-            match handle {
-                Ok(mut handle) => {
-                    info!("Game handle created: {}", e.key());
-                    let join_handle = handle.wait(signal_tx);
-                    e.insert(handle);
-                    Some(join_handle)
-                }
-                Err(err) => {
-                    warn!("Error loading game: {}", err.to_string());
-                    warn!("Failed to load game: {}", e.key());
-                    blacklist.lock().await.add_addr(&game_addr);
-                    None
-                }
+        let mut handle = match handle {
+            Ok(handle) => {
+                info!("Game handle created: {}", handle.addr());
+                handle
             }
+            Err(err) => {
+                warn!("Error loading game: {}", err.to_string());
+                warn!("Failed to load game: {}", game_addr);
+                blacklist.lock().await.add_addr(&game_addr);
+                return None
+            }
+        };
+
+        let mut games = self.games.write().await;
+        if let Entry::Vacant(e) = games.entry(game_addr.clone()) {
+            let join_handle = handle.wait(signal_tx);
+            e.insert(handle);
+            Some(join_handle)
         } else {
             error!("Game already loaded: {}", game_addr);
             None
@@ -149,12 +151,12 @@ impl GameManager {
     }
 
     pub async fn is_game_loaded(&self, game_addr: &str) -> bool {
-        let games = self.games.lock().await;
+        let games = self.games.read().await;
         games.contains_key(game_addr)
     }
 
     pub async fn send_event(&self, game_addr: &str, event: Event) -> Result<()> {
-        let games = self.games.lock().await;
+        let games = self.games.read().await;
         if let Some(handle) = games.get(game_addr) {
             let timestamp = current_timestamp();
             let event_frame = EventFrame::SendEvent { event, timestamp };
@@ -167,7 +169,7 @@ impl GameManager {
     }
 
     pub async fn send_message(&self, game_addr: &str, message: Message) -> Result<()> {
-        let games = self.games.lock().await;
+        let games = self.games.read().await;
         if let Some(handle) = games.get(game_addr) {
             let event_frame = EventFrame::SendMessage { message };
             handle.event_bus().send(event_frame).await;
@@ -182,7 +184,7 @@ impl GameManager {
     }
 
     pub async fn eject_player(&self, game_addr: &str, player_addr: &str) -> Result<()> {
-        let games = self.games.lock().await;
+        let games = self.games.read().await;
         if let Some(handle) = games.get(game_addr) {
             info!(
                 "Receive leaving request from {:?} for game {:?}",
@@ -204,7 +206,7 @@ impl GameManager {
         game_addr: &str,
         settle_version: u64,
     ) -> Result<Option<CheckpointOffChain>> {
-        let games = self.games.lock().await;
+        let games = self.games.read().await;
         let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
         let broadcaster = handle.broadcaster()?;
         let checkpoint = broadcaster.get_checkpoint(settle_version).await;
@@ -215,7 +217,7 @@ impl GameManager {
         &self,
         game_addr: &str,
     ) -> Result<Option<CheckpointOffChain>> {
-        let games = self.games.lock().await;
+        let games = self.games.read().await;
         let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
         let broadcaster = handle.broadcaster()?;
         let checkpoint = broadcaster.get_latest_checkpoint().await;
@@ -228,7 +230,7 @@ impl GameManager {
         game_addr: &str,
         settle_version: u64,
     ) -> Result<(broadcast::Receiver<BroadcastFrame>, BroadcastFrame)> {
-        let games = self.games.lock().await;
+        let games = self.games.read().await;
         let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
         let broadcaster = handle.broadcaster()?;
         let receiver = broadcaster.get_broadcast_rx();
@@ -237,13 +239,13 @@ impl GameManager {
     }
 
     pub async fn remove_game(&self, addr: &str) {
-        let mut games = self.games.lock().await;
+        let mut games = self.games.write().await;
         games.remove(&addr.to_string());
     }
 
     /// Shutdown all games, and drop their handles.
     pub async fn shutdown(&self) {
-        let mut games = self.games.lock().await;
+        let mut games = self.games.write().await;
         for (addr, game) in games.iter() {
             if !game.is_subgame() {
                 info!("Shutdown game {}", addr);
