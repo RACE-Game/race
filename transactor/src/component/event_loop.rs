@@ -56,7 +56,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     // An init account is created during the process and is passed to the init_state
                     // function of the game handler.
                     //
-                    // Recover from chcekpoint. When the checkpoint is available, there's no need to call
+                    // Recover from checkpoint. When the checkpoint is available, there's no need to call
                     // init_state from the game handler.
                     if !game_context.handler_is_initialized() {
                         if let Some(close_reason) = event_handler::init_state(
@@ -265,7 +265,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
 
                 EventFrame::SubGameReady {
-                    checkpoint_state,
+                    versioned_data,
                     game_id,
                     init_data,
                     max_players,
@@ -273,11 +273,11 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if ctx.game_mode == GameMode::Main {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
                         game_context
-                            .remove_settle_lock(game_id, checkpoint_state.versions.settle_version);
+                            .remove_settle_lock(game_id, versioned_data.versions.settle_version);
 
                         if let Err(e) = game_context
                             .checkpoint_mut()
-                            .init_versioned_data(checkpoint_state)
+                            .init_versioned_data(versioned_data)
                         {
                             error!("{} Failed to init checkpoint data: {:?}", env.log_prefix, e);
                             ports.send(EventFrame::Shutdown).await;

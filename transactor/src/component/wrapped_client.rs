@@ -101,6 +101,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                     }
                 }
                 EventFrame::Checkpoint { .. } => {
+                    info!("{} Flush secrets states", env.log_prefix);
                     client.flush_secret_states();
                 }
                 EventFrame::Shutdown => {

@@ -1,8 +1,8 @@
 use race_api::{
-    event::{Event, Message}, types::{Award, EntryLock, Settle, GameId}
+    event::{Event, Message}, types::GameId
 };
 use race_core::{
-    checkpoint::{Checkpoint, VersionedData}, context::{GameContext, SubGameInit}, types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, Transfer, TxState, VoteType}
+    checkpoint::{Checkpoint, VersionedData}, context::{GameContext, SubGameInit, SettleDetails}, types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, TxState, VoteType}
 };
 
 use crate::component::BridgeToParent;
@@ -56,16 +56,13 @@ pub enum EventFrame {
         timestamp: u64,
     },
     Checkpoint {
-        settles: Vec<Settle>,
-        transfer: Option<Transfer>,
-        awards: Vec<Award>,
         checkpoint: Checkpoint,
         access_version: u64,
         settle_version: u64,
-        previous_settle_version: u64,
         state_sha: String,
-        entry_lock: Option<EntryLock>,
-        accept_deposits: Vec<u64>,
+    },
+    Settle {
+        settle_details: Box<SettleDetails>,
     },
     Broadcast {
         event: Event,
@@ -120,7 +117,7 @@ pub enum EventFrame {
     /// Subgames send this frame after they made their first checkpoint.
     SubGameReady {
         game_id: GameId,
-        checkpoint_state: VersionedData,
+        versioned_data: VersionedData,
         max_players: u16,
         init_data: Vec<u8>,
     },
@@ -165,6 +162,7 @@ impl std::fmt::Display for EventFrame {
             EventFrame::PlayerLeaving { .. } => write!(f, "PlayerLeaving"),
             EventFrame::SendEvent { event, .. } => write!(f, "SendEvent: {}", event),
             EventFrame::SendServerEvent { event, .. } => write!(f, "SendServerEvent: {}", event),
+            EventFrame::Settle { .. } => write!(f, "Settle"),
             EventFrame::Checkpoint { .. } => write!(f, "Checkpoint"),
             EventFrame::Broadcast { event, .. } => write!(f, "Broadcast: {}", event),
             EventFrame::SendMessage { message } => write!(f, "SendMessage: {}", message.sender),

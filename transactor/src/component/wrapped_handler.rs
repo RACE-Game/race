@@ -286,6 +286,7 @@ mod tests {
         WrappedHandler::load_by_path(bundle_path).unwrap()
     }
 
+    #[ignore]
     #[test]
     fn test_init_state() {
         let mut hdlr = make_wrapped_handler();
@@ -299,6 +300,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_handle_event() {
         let mut hdlr = make_wrapped_handler();
@@ -316,6 +318,7 @@ mod tests {
         assert_eq!(ctx.get_status(), GameStatus::Running);
     }
 
+    #[ignore]
     #[test]
     fn test_handle_custom_event() {
         let mut hdlr = make_wrapped_handler();

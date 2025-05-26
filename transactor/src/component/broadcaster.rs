@@ -5,8 +5,8 @@ use std::collections::LinkedList;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use race_api::types::GameId;
 use race_api::event::Event;
+use race_api::types::GameId;
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::{BroadcastFrame, BroadcastSync, TxState};
 use tokio::sync::{broadcast, Mutex};
@@ -142,8 +142,10 @@ impl Broadcaster {
 
         // By default, returns the histories with settle_version
         // greater than the given one
+        info!("Get backlog with settle_version: {}", settle_version);
         if settle_version > 0 {
             for group in event_backup_groups.iter() {
+                info!("group settle version: {:?}", group.settle_version);
                 if group.settle_version == settle_version {
                     checkpoint_off_chain = group.checkpoint_off_chain.clone();
                     state_sha = group.state_sha.clone();
@@ -197,7 +199,6 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     settle_version,
                     checkpoint,
                     state_sha,
-                    ..
                 } => {
                     info!(
                         "{} Create new history group (via Checkpoint) with access_version = {}, settle_version = {}",
@@ -213,6 +214,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         checkpoint_off_chain: Some(checkpoint.derive_offchain_part()),
                     });
                 }
+
                 EventFrame::InitState {
                     access_version,
                     settle_version,
@@ -233,6 +235,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         state_sha: "".into(),
                     });
                 }
+
                 EventFrame::TxState { tx_state } => match tx_state {
                     TxState::SettleSucceed { .. } => {
                         let r = ctx.broadcast_tx.send(BroadcastFrame::TxState { tx_state });
@@ -256,6 +259,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         }
                     }
                 },
+
                 EventFrame::Broadcast {
                     event,
                     timestamp,
@@ -274,7 +278,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     } else {
                         error!("{} Received event without checkpoint", env.log_prefix);
                     }
-                    // Keep 10 groups at most
+                    // Keep 200 groups at most
                     if event_backup_groups.len() > 200 {
                         event_backup_groups.pop_front();
                     }
@@ -291,6 +295,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         debug!("{} Failed to broadcast event: {:?}", env.log_prefix, e);
                     }
                 }
+
                 EventFrame::Sync {
                     new_servers,
                     new_players,
@@ -306,7 +311,11 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         transactor_addr,
                     };
 
-                    ctx.event_backup_groups.lock().await.back_mut().map(|g| g.merge_sync(&sync));
+                    ctx.event_backup_groups
+                        .lock()
+                        .await
+                        .back_mut()
+                        .map(|g| g.merge_sync(&sync));
 
                     let broadcast_frame = BroadcastFrame::Sync { sync };
                     let r = ctx.broadcast_tx.send(broadcast_frame);
@@ -332,7 +341,11 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         transactor_addr,
                     };
 
-                    ctx.event_backup_groups.lock().await.back_mut().map(|g| g.merge_sync(&sync));
+                    ctx.event_backup_groups
+                        .lock()
+                        .await
+                        .back_mut()
+                        .map(|g| g.merge_sync(&sync));
 
                     let broadcast_frame = BroadcastFrame::Sync { sync };
                     let r = ctx.broadcast_tx.send(broadcast_frame);
@@ -359,8 +372,86 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use race_core::types::PlayerJoin;
+    use race_core::{checkpoint::Checkpoint, types::PlayerJoin};
     use race_test::prelude::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn test_event_reorder() {
+        // Test how the events are grouped when the checkpoint is delayed due to settle_lock.
+        // Assume we have the following case, where in event handler, things happen in this order:
+        // InitState, CustomEvent, Checkpoint, CustomEvent
+        // Due to the settle lock, the emitted frames are in this order:
+        // InitState, CustomEvent, CustomEvent, Checkpoint
+
+        tracing_subscriber::fmt::init();
+
+        let mut alice = TestClient::player("alice");
+        let mut bob = TestClient::player("bob");
+        let game_account = TestGameAccountBuilder::default()
+            .add_player(&mut alice, 100)
+            .add_player(&mut bob, 100)
+            .build();
+
+        let (broadcaster, ctx) = Broadcaster::init(game_account.addr.clone(), 0);
+        let handle = broadcaster.start("", ctx);
+
+        {
+            let event_frame = EventFrame::InitState {
+                access_version: 0,
+                settle_version: 1,
+                checkpoint: Checkpoint::default(),
+            };
+            handle.send_unchecked(event_frame).await;
+
+            let event_frame = EventFrame::Broadcast {
+                event: Event::Custom {
+                    sender: 1,
+                    raw: vec![],
+                },
+                state_sha: "1".into(),
+                timestamp: 1,
+            };
+            handle.send_unchecked(event_frame).await;
+
+            let event_frame = EventFrame::Checkpoint {
+                checkpoint: Checkpoint::default(),
+                access_version: 1,
+                settle_version: 2,
+                state_sha: "2".into(),
+            };
+            handle.send_unchecked(event_frame).await;
+
+            let event_frame = EventFrame::Broadcast {
+                event: Event::Custom {
+                    sender: 2,
+                    raw: vec![],
+                },
+                state_sha: "3".into(),
+                timestamp: 1,
+            };
+            handle.send_unchecked(event_frame).await;
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+        let broadcast_frame = broadcaster.get_backlogs(0).await;
+        assert_eq!(
+            broadcast_frame,
+            BroadcastFrame::Backlogs {
+                checkpoint_off_chain: Some(Checkpoint::default().derive_offchain_part()),
+                backlogs: Box::new(vec![BroadcastFrame::Sync {
+                    sync: BroadcastSync {
+                        new_players: vec![],
+                        new_servers: vec![],
+                        new_deposits: vec![],
+                        transactor_addr: "".into(),
+                        access_version: 1
+                    }
+                }]),
+                state_sha: "2".into(),
+            }
+        );
+    }
 
     #[tokio::test]
     async fn test_broadcast_event() {
