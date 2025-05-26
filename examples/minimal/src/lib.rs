@@ -46,4 +46,8 @@ impl GameHandler for Minimal {
             _ => Ok(()),
         }
     }
+
+    fn balances(&self) -> Vec<PlayerBalance> {
+        vec![]
+    }
 }
