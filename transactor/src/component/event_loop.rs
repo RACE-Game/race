@@ -272,6 +272,9 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 } => {
                     if ctx.game_mode == GameMode::Main {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
+                        game_context
+                            .remove_settle_lock(game_id, checkpoint_state.versions.settle_version);
+
                         if let Err(e) = game_context
                             .checkpoint_mut()
                             .init_versioned_data(checkpoint_state)
@@ -280,7 +283,11 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             ports.send(EventFrame::Shutdown).await;
                         }
                         let timestamp = current_timestamp();
-                        let event = Event::SubGameReady { game_id, max_players, init_data };
+                        let event = Event::SubGameReady {
+                            game_id,
+                            max_players,
+                            init_data,
+                        };
                         if let Some(close_reason) = event_handler::handle_event(
                             &mut handler,
                             &mut game_context,
@@ -313,6 +320,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("BridgeEvent: Update checkpoint for sub game: {}", from);
+                        game_context.remove_settle_lock(from, settle_version);
+
                         if let Err(e) = game_context
                             .checkpoint_mut()
                             .update_versioned_data(checkpoint_state)

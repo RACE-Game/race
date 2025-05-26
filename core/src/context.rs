@@ -1,16 +1,19 @@
 use crate::checkpoint::{Checkpoint, CheckpointOffChain, VersionedData};
-use crate::random::{RandomState, RandomStatus};
-use crate::types::{ClientMode, EntryType, GameAccount, GameSpec};
 use crate::decision::DecisionState;
 use crate::error::{Error, Result};
+use crate::random::{RandomState, RandomStatus};
+use crate::types::{ClientMode, EntryType, GameAccount, GameSpec};
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, Log, Release, Reveal, SubGame, Withdraw};
+use race_api::effect::{
+    Ask, Assign, Effect, EmitBridgeEvent, Log, Release, Reveal, SubGame, Withdraw,
+};
 use race_api::engine::GameHandler;
 use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
 use race_api::random::RandomSpec;
 use race_api::types::{
-    Award, BalanceChange, Ciphertext, DecisionId, EntryLock, GameId, GamePlayer, GameStatus, PlayerBalance, RandomId, SecretDigest, SecretShare, Settle, Transfer
+    Award, BalanceChange, Ciphertext, DecisionId, EntryLock, GameId, GamePlayer, GameStatus,
+    PlayerBalance, RandomId, SecretDigest, SecretShare, Settle, Transfer,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -29,7 +32,10 @@ pub struct Versions {
 
 impl Versions {
     pub fn new(access_version: u64, settle_version: u64) -> Self {
-        Self { access_version, settle_version }
+        Self {
+            access_version,
+            settle_version,
+        }
     }
 }
 
@@ -123,7 +129,6 @@ impl ContextPlayer {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub enum SubGameInitSource {
     FromCheckpoint(VersionedData),
@@ -136,7 +141,6 @@ pub struct SubGameInit {
     pub nodes: Vec<Node>,
     pub source: SubGameInitSource,
 }
-
 
 /// The effects of an event, indicates what actions should be taken
 /// after the event handling.
@@ -157,6 +161,22 @@ pub struct EventEffects {
     pub entry_lock: Option<EntryLock>,
     pub logs: Vec<Log>,
     pub reject_deposits: Vec<u64>,
+}
+
+#[derive(Clone, Debug)]
+pub struct CheckpointParams {
+    pub game_id: GameId,
+    pub settles: Vec<Settle>,
+    pub transfer: Option<Transfer>,
+    pub awards: Vec<Award>,
+    pub checkpoint: Checkpoint,
+    pub access_version: u64,
+    pub settle_version: u64,
+    pub previous_settle_version: u64,
+    pub state_sha: String,
+    pub entry_lock: Option<EntryLock>,
+    pub accept_deposits: Vec<u64>,
+    pub settle_locks: HashMap<GameId, u64>,
 }
 
 /// The context for public data.
@@ -217,11 +237,17 @@ pub struct GameContext {
     pub(crate) state_sha: String,
     /// Accepted deposits, saved for later use in settlement
     pub(crate) accept_deposits: Vec<u64>,
+    pub(crate) pending_checkpoints: Vec<CheckpointParams>,
+    pub(crate) next_settle_locks: HashMap<GameId, u64>,
 }
 
 impl GameContext {
     pub fn try_new_with_sub_game_spec(init: SubGameInit) -> Result<Self> {
-        let SubGameInit { spec, nodes, source } = init;
+        let SubGameInit {
+            spec,
+            nodes,
+            source,
+        } = init;
 
         let (handler_state, versions, init_data, checkpoint) = match source {
             SubGameInitSource::FromCheckpoint(versioned_data) => {
@@ -283,10 +309,7 @@ impl GameContext {
         game_account.players.iter().for_each(|p| {
             // Only include those players joined before last checkpoint
             if p.access_version <= access_version {
-                players.push(ContextPlayer::new(
-                    p.access_version,
-                    p.position,
-                ));
+                players.push(ContextPlayer::new(p.access_version, p.position));
             }
 
             nodes.push(Node::new_pending(
@@ -329,7 +352,7 @@ impl GameContext {
                     init_account: InitAccount {
                         max_players: checkpoint_data.game_spec.max_players,
                         data: vec![], // Not necessary?
-                    }
+                    },
                 });
             }
         }
@@ -351,6 +374,8 @@ impl GameContext {
             entry_type: game_account.entry_type.clone(),
             state_sha,
             accept_deposits: vec![],
+            pending_checkpoints: vec![],
+            next_settle_locks: HashMap::new(),
         })
     }
 
@@ -411,6 +436,48 @@ impl GameContext {
 
     pub fn checkpoint_mut(&mut self) -> &mut Checkpoint {
         &mut self.checkpoint
+    }
+
+    pub fn pending_checkpoints_mut(&mut self) -> &mut Vec<CheckpointParams> {
+        &mut self.pending_checkpoints
+    }
+
+    pub fn take_first_ready_checkpoint(&mut self) -> Option<CheckpointParams> {
+        if self
+            .pending_checkpoints
+            .first()
+            .is_some_and(|cp| cp.settle_locks.is_empty())
+        {
+            let cp = self.pending_checkpoints.remove(0);
+            Some(cp)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_settle_locks(&self) -> HashMap<GameId, u64> {
+        self.next_settle_locks.clone()
+    }
+
+    pub fn reset_settle_locks(&mut self) {
+        self.next_settle_locks.clear();
+    }
+
+    pub fn remove_settle_lock(&mut self, game_id: GameId, settle_version: u64) {
+        // remove from next_settle_lock
+        if let Some(&val) = self.next_settle_locks.get(&game_id) {
+            if settle_version > val {
+                self.next_settle_locks.remove(&game_id);
+            }
+        }
+        // remove from Checkpoints
+        for checkpoint in &mut self.pending_checkpoints {
+            if let Some(&val) = checkpoint.settle_locks.get(&game_id) {
+                if settle_version > val {
+                    checkpoint.settle_locks.remove(&game_id);
+                }
+            }
+        }
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
@@ -642,7 +709,10 @@ impl GameContext {
     }
 
     pub fn has_sub_game(&self, game_id: GameId) -> bool {
-        self.sub_games.iter().find(|sub_game| sub_game.id == game_id).is_some()
+        self.sub_games
+            .iter()
+            .find(|sub_game| sub_game.id == game_id)
+            .is_some()
     }
 
     pub fn init_random_state(&mut self, spec: RandomSpec) -> Result<RandomId> {
@@ -932,12 +1002,19 @@ impl GameContext {
                 self.decision_states.clear();
                 self.bump_settle_version()?;
                 self.checkpoint.set_data(self.spec.game_id, state)?;
-                self.checkpoint.set_access_version(self.versions.access_version);
+                self.checkpoint
+                    .set_access_version(self.versions.access_version);
                 self.set_game_status(GameStatus::Idle);
             } else if is_init {
                 self.bump_settle_version()?;
-                self.checkpoint.init_data(self.spec.game_id, self.spec.clone(), self.versions, state)?;
-                self.checkpoint.set_access_version(self.versions.access_version);
+                self.checkpoint.init_data(
+                    self.spec.game_id,
+                    self.spec.clone(),
+                    self.versions,
+                    state,
+                )?;
+                self.checkpoint
+                    .set_access_version(self.versions.access_version);
                 self.set_game_status(GameStatus::Idle);
             }
 
@@ -951,6 +1028,21 @@ impl GameContext {
                 let settles_map = build_settles_map(&withdraws, &ejects, &self.balances, &balances);
                 self.balances = balances;
                 settles = settles_map.into_values().collect();
+            }
+
+            if self.spec.game_id == 0 {
+                for sub_game in launch_sub_games.iter().cloned() {
+                    self.next_settle_locks.insert(sub_game.id, 0);
+                }
+
+                for evt in bridge_events.clone() {
+                    let settle_version = self
+                        .checkpoint
+                        .get_versioned_data(evt.dest)
+                        .map(|d| d.versions.settle_version)
+                        .unwrap_or(0);
+                    self.next_settle_locks.insert(evt.dest, settle_version);
+                }
             }
 
             return Ok(EventEffects {
@@ -1033,34 +1125,44 @@ impl Default for GameContext {
             entry_type: EntryType::Disabled,
             state_sha: "".into(),
             accept_deposits: vec![],
+            pending_checkpoints: vec![],
+            next_settle_locks: HashMap::new(),
         }
     }
 }
 
-fn build_settles_map(withdraws: &[Withdraw], ejects: &[u64], old_balances: &[PlayerBalance], new_balances: &[PlayerBalance]) -> HashMap<u64, Settle> {
-
+fn build_settles_map(
+    withdraws: &[Withdraw],
+    ejects: &[u64],
+    old_balances: &[PlayerBalance],
+    new_balances: &[PlayerBalance],
+) -> HashMap<u64, Settle> {
     // Build settles
     // Settle is a combination of Withdraw, Balance Diff, and Eject
     let mut settles_map: HashMap<u64, Settle> = HashMap::new();
 
     for withdraw in withdraws {
-        settles_map.entry(withdraw.player_id)
+        settles_map
+            .entry(withdraw.player_id)
             .and_modify(|e| e.withdraw += withdraw.amount)
             .or_insert_with(|| Settle::new(withdraw.player_id, withdraw.amount, None, false));
     }
 
     for eject in ejects.iter() {
-        settles_map.entry(*eject)
+        settles_map
+            .entry(*eject)
             .and_modify(|e| e.eject = true)
             .or_insert_with(|| Settle::new(*eject, 0, None, true));
     }
 
-    let mut balances_change: HashMap<u64, i128> = old_balances.iter()
+    let mut balances_change: HashMap<u64, i128> = old_balances
+        .iter()
         .map(|orig_balance| (orig_balance.player_id, -(orig_balance.balance as i128)))
         .collect();
 
     for balance in new_balances.iter() {
-        balances_change.entry(balance.player_id)
+        balances_change
+            .entry(balance.player_id)
             .and_modify(|e| *e += balance.balance as i128)
             .or_insert(balance.balance as i128);
     }
@@ -1072,7 +1174,8 @@ fn build_settles_map(withdraws: &[Withdraw], ejects: &[u64], old_balances: &[Pla
             _ => None,
         };
         if change.is_some() {
-            settles_map.entry(player_id)
+            settles_map
+                .entry(player_id)
                 .and_modify(|e| e.change = change)
                 .or_insert_with(|| Settle::new(player_id, 0, change, false));
         }
