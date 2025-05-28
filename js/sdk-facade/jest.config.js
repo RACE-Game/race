@@ -1,1 +1,0 @@
-../config/jest.config.js
