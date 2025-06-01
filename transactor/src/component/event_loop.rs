@@ -271,7 +271,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     init_data,
                     max_players,
                 } => {
-                    if ctx.game_mode == GameMode::Main {
+                    if ctx.game_mode == GameMode::Main && ctx.client_mode == ClientMode::Transactor {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
                         game_context
                             .remove_settle_lock(game_id, versioned_data.versions.settle_version);
