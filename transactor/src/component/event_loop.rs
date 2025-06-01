@@ -3,6 +3,7 @@ use race_api::types::GameDeposit;
 use async_trait::async_trait;
 use race_api::event::Event;
 use race_core::context::GameContext;
+use race_core::error::Error;
 use tracing::{error, info, warn};
 
 use crate::component::common::{Component, PipelinePorts};
@@ -56,7 +57,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     // An init account is created during the process and is passed to the init_state
                     // function of the game handler.
                     //
-                    // Recover from chcekpoint. When the checkpoint is available, there's no need to call
+                    // Recover from checkpoint. When the checkpoint is available, there's no need to call
                     // init_state from the game handler.
                     if !game_context.handler_is_initialized() {
                         if let Some(close_reason) = event_handler::init_state(
@@ -265,22 +266,42 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
 
                 EventFrame::SubGameReady {
-                    checkpoint_state,
+                    versioned_data,
                     game_id,
                     init_data,
                     max_players,
                 } => {
-                    if ctx.game_mode == GameMode::Main {
+                    if ctx.game_mode == GameMode::Main && ctx.client_mode == ClientMode::Transactor {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
+                        game_context
+                            .remove_settle_lock(game_id, versioned_data.versions.settle_version);
+
+                        if let Err(e) = game_context
+                            .pending_settle_details_mut()
+                            .iter_mut()
+                            .map(|sd| sd.checkpoint.init_versioned_data(versioned_data.clone()))
+                            .collect::<Result<Vec<_>, Error>>()
+                        {
+                            error!(
+                                "{} Failed to init checkpoint data for pending settles: {:?}",
+                                env.log_prefix, e
+                            );
+                            ports.send(EventFrame::Shutdown).await;
+                        }
+
                         if let Err(e) = game_context
                             .checkpoint_mut()
-                            .init_versioned_data(checkpoint_state)
+                            .init_versioned_data(versioned_data)
                         {
                             error!("{} Failed to init checkpoint data: {:?}", env.log_prefix, e);
                             ports.send(EventFrame::Shutdown).await;
                         }
                         let timestamp = current_timestamp();
-                        let event = Event::SubGameReady { game_id, max_players, init_data };
+                        let event = Event::SubGameReady {
+                            game_id,
+                            max_players,
+                            init_data,
+                        };
                         if let Some(close_reason) = event_handler::handle_event(
                             &mut handler,
                             &mut game_context,
@@ -313,6 +334,24 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("BridgeEvent: Update checkpoint for sub game: {}", from);
+                        game_context.remove_settle_lock(from, settle_version);
+
+                        if let Err(e) = game_context
+                            .pending_settle_details_mut()
+                            .iter_mut()
+                            .map(|sd| {
+                                sd.checkpoint
+                                    .update_versioned_data(checkpoint_state.clone())
+                            })
+                            .collect::<Result<Vec<_>, Error>>()
+                        {
+                            error!(
+                                "{} Failed to set checkpoint data for pending settles: {:?}",
+                                env.log_prefix, e
+                            );
+                            ports.send(EventFrame::Shutdown).await;
+                        }
+
                         if let Err(e) = game_context
                             .checkpoint_mut()
                             .update_versioned_data(checkpoint_state)

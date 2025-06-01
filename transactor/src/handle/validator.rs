@@ -5,11 +5,11 @@ use crate::component::{
     Voter, WrappedClient, WrappedHandler,
 };
 use crate::frame::{EventFrame, SignalFrame};
-use race_core::error::{Error, Result};
 use race_core::context::GameContext;
+use race_core::error::{Error, Result};
 use race_core::storage::StorageT;
 use race_core::transport::TransportT;
-use race_core::types::{ClientMode, GameMode, GetCheckpointParams, ServerAccount};
+use race_core::types::{CheckpointParams, ClientMode, GameMode, ServerAccount};
 use race_encryptor::Encryptor;
 use race_env::TransactorConfig;
 use tokio::sync::mpsc;
@@ -29,33 +29,14 @@ impl ValidatorHandle {
         server_account: &ServerAccount,
         encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
-        storage: Arc<dyn StorageT + Send + Sync>,
+        _storage: Arc<dyn StorageT + Send + Sync>,
         signal_tx: mpsc::Sender<SignalFrame>,
         _config: &TransactorConfig,
     ) -> Result<Self> {
-        info!(
-            "Start game handle for {} with Validator mode",
-            game_addr,
-        );
+        info!("Start game handle for {} with Validator mode", game_addr,);
         let Some(game_account) = transport.get_game_account(game_addr).await? else {
             return Err(Error::GameAccountNotFound);
         };
-
-        let checkpoint_off_chain = storage
-            .get_checkpoint(GetCheckpointParams {
-                game_addr: game_addr.to_owned(),
-                settle_version: game_account.settle_version,
-            })
-            .await?;
-
-        let game_context = GameContext::try_new(&game_account, checkpoint_off_chain)?;
-        let checkpoint = game_context.checkpoint().clone();
-
-        let Some(bundle_account) = transport.get_game_bundle(&game_account.bundle_addr).await? else {
-            return Err(Error::GameBundleNotFound);
-        };
-
-        let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 
         let transactor_addr = game_account
             .transactor_addr
@@ -65,6 +46,39 @@ impl ValidatorHandle {
             .get_server_account(transactor_addr)
             .await?
             .ok_or(Error::CantFindTransactor)?;
+
+        let connection = Arc::new(
+            RemoteConnection::try_new(
+                &server_account.addr,
+                &transactor_account.endpoint,
+                encryptor.clone(),
+            )
+            .await?,
+        );
+
+        let checkpoint_off_chain = connection.get_checkpoint_off_chain(
+            game_addr,
+            CheckpointParams {
+                settle_version: game_account.settle_version,
+            },
+        ).await?;
+
+        // let checkpoint_off_chain = storage
+        //     .get_checkpoint(GetCheckpointParams {
+        //         game_addr: game_addr.to_owned(),
+        //         settle_version: game_account.settle_version,
+        //     })
+        //     .await?;
+
+        let game_context = GameContext::try_new(&game_account, checkpoint_off_chain)?;
+        let checkpoint = game_context.checkpoint().clone();
+
+        let Some(bundle_account) = transport.get_game_bundle(&game_account.bundle_addr).await?
+        else {
+            return Err(Error::GameBundleNotFound);
+        };
+
+        let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
 
         info!("Creating components");
         let event_bus = EventBus::new(game_account.addr.clone());
@@ -76,14 +90,6 @@ impl ValidatorHandle {
             EventLoop::init(handler, game_context, ClientMode::Validator, GameMode::Main);
         let mut event_loop_handle = event_loop.start(&game_account.addr, event_loop_ctx);
 
-        let connection = Arc::new(
-            RemoteConnection::try_new(
-                &server_account.addr,
-                &transactor_account.endpoint,
-                encryptor.clone(),
-            )
-            .await?,
-        );
         let (subscriber, subscriber_context) =
             Subscriber::init(&game_account, server_account, connection.clone());
         let mut subscriber_handle = subscriber.start(&game_account.addr, subscriber_context);

@@ -2,10 +2,11 @@ use super::misc::log_execution_context;
 use race_api::{
     effect::{EmitBridgeEvent, Log, SubGame},
     event::Event,
-    types::{Award, EntryLock, Settle, Transfer},
+    prelude::InitAccount,
 };
 use race_core::{
-    context::{EventEffects, GameContext, SubGameInit, SubGameInitSource, Versions},
+    checkpoint::{Checkpoint, VersionedData},
+    context::{EventEffects, GameContext, SubGameInit, SubGameInitSource},
     error::Error,
     types::{ClientMode, GameMode, GameSpec},
 };
@@ -29,11 +30,7 @@ fn print_logs(logs: &[Log], env: &ComponentEnv) {
     })
 }
 
-async fn broadcast_event(
-    event: Event,
-    game_context: &GameContext,
-    ports: &PipelinePorts,
-) {
+async fn broadcast_event(event: Event, game_context: &GameContext, ports: &PipelinePorts) {
     ports
         .send(EventFrame::Broadcast {
             event,
@@ -41,6 +38,23 @@ async fn broadcast_event(
             state_sha: game_context.state_sha(),
         })
         .await;
+}
+
+async fn send_checkpoint(
+    checkpoint: Option<Checkpoint>,
+    game_context: &GameContext,
+    ports: &PipelinePorts,
+) {
+    if let Some(checkpoint) = checkpoint {
+        ports
+            .send(EventFrame::Checkpoint {
+                checkpoint,
+                access_version: game_context.access_version(),
+                settle_version: game_context.settle_version(),
+                state_sha: game_context.state_sha(),
+            })
+            .await;
+    }
 }
 
 async fn update_local_client(game_context: &GameContext, ports: &PipelinePorts) {
@@ -55,6 +69,22 @@ async fn send_start_game(game_context: &GameContext, ports: &PipelinePorts) {
     ports
         .send(EventFrame::GameStart {
             access_version: game_context.access_version(),
+        })
+        .await;
+}
+
+async fn send_subgame_ready(
+    versioned_data: VersionedData,
+    game_context: &GameContext,
+    init_account: InitAccount,
+    ports: &PipelinePorts,
+) {
+    ports
+        .send(EventFrame::SubGameReady {
+            versioned_data,
+            game_id: game_context.game_id(),
+            max_players: game_context.max_players(),
+            init_data: init_account.data,
         })
         .await;
 }
@@ -98,49 +128,34 @@ async fn send_reject_deposits(
     ports: &PipelinePorts,
     env: &ComponentEnv,
 ) {
-
-    info!("{} Send reject deposits, {:?}", env.log_prefix, reject_deposits);
+    info!(
+        "{} Send reject deposits, {:?}",
+        env.log_prefix, reject_deposits
+    );
 
     let ef = EventFrame::RejectDeposits { reject_deposits };
 
     ports.send(ef).await;
 }
 
-async fn send_settlement(
-    transfer: Option<Transfer>,
-    settles: Vec<Settle>,
-    awards: Vec<Award>,
-    entry_lock: Option<EntryLock>,
-    original_versions: Versions,
+async fn do_send_settlements(
     game_context: &mut GameContext,
     ports: &PipelinePorts,
     env: &ComponentEnv,
 ) {
-    let checkpoint = game_context.checkpoint().clone();
-    let checkpoint_size = checkpoint.get_data(game_context.game_id()).map(|d| d.len());
-    info!(
-        "{} Create checkpoint, settle_version: {}, size: {:?}",
-        env.log_prefix,
-        game_context.settle_version(),
-        checkpoint_size,
-    );
+    while let Some(settle_details) = game_context.take_first_ready_settle_details() {
+        info!(
+            "{} Send settlement, settle_version: {}",
+            env.log_prefix,
+            game_context.settle_version(),
+        );
 
-    let accept_deposits = game_context.take_accept_deposits();
-
-    ports
-        .send(EventFrame::Checkpoint {
-            access_version: game_context.access_version(),
-            settle_version: game_context.settle_version(),
-            previous_settle_version: original_versions.settle_version,
-            checkpoint: checkpoint.clone(),
-            settles,
-            transfer,
-            awards,
-            state_sha: game_context.state_sha(),
-            entry_lock,
-            accept_deposits,
-        })
-        .await;
+        ports
+            .send(EventFrame::Settle {
+                settle_details: Box::new(settle_details),
+            })
+            .await;
+    }
 }
 
 async fn launch_sub_game(
@@ -185,12 +200,7 @@ pub async fn init_state(
     game_mode: GameMode,
     env: &ComponentEnv,
 ) -> Option<CloseReason> {
-    let init_account = match game_context.init_account() {
-        Ok(init_account) => init_account,
-        Err(e) => return Some(CloseReason::Fault(e)),
-    };
-
-    let original_versions = game_context.versions();
+    let init_account = game_context.init_account();
 
     let effects = match handler.init_state(&mut game_context, &init_account) {
         Ok(effects) => {
@@ -205,10 +215,6 @@ pub async fn init_state(
         }
     };
 
-    let EventEffects {
-        checkpoint, ..
-    } = effects;
-
     info!(
         "{} Initialize game state, access_version: {}, settle_version: {}, SHA: {}",
         env.log_prefix,
@@ -217,22 +223,14 @@ pub async fn init_state(
         game_context.state_sha()
     );
 
-    let Some(checkpoint) = checkpoint else {
+    let Some(checkpoint) = effects.checkpoint else {
         ports.send(EventFrame::Shutdown).await;
         return Some(CloseReason::Fault(Error::CheckpointNotFoundAfterInit));
     };
 
-    send_settlement(
-        None,
-        vec![],
-        vec![],
-        None,
-        original_versions,
-        &mut game_context,
-        ports,
-        env,
-    )
-    .await;
+    send_checkpoint(Some(checkpoint.clone()), game_context, ports).await;
+
+    do_send_settlements(game_context, ports, env).await;
 
     // Dispatch the initial Ready event if running in Transactor mode.
     if client_mode == ClientMode::Transactor {
@@ -242,16 +240,8 @@ pub async fn init_state(
     // Tell master game the subgame is successfully created.
     if game_mode == GameMode::Sub {
         let game_id = game_context.game_id();
-        let checkpoint_state = checkpoint.get_versioned_data(game_id);
-        if let Some(checkpoint_state) = checkpoint_state {
-            ports
-                .send(EventFrame::SubGameReady {
-                    checkpoint_state: checkpoint_state.clone(),
-                    game_id: game_context.game_id(),
-                    max_players: game_context.max_players(),
-                    init_data: init_account.data,
-                })
-                .await;
+        if let Some(versioned_data) = checkpoint.get_versioned_data(game_id) {
+            send_subgame_ready(versioned_data.clone(), game_context, init_account, ports).await;
         } else {
             ports.send(EventFrame::Shutdown).await;
             return Some(CloseReason::Fault(Error::CheckpointNotFoundAfterInit));
@@ -300,6 +290,17 @@ pub async fn recover_from_checkpoint(
         game_context.dispatch_safe(Event::Ready, 0);
     }
 
+    // Tell master game the subgame is successfully created.
+    if game_mode == GameMode::Sub {
+        let game_id = game_context.game_id();
+        if let Some(versioned_data) = game_context.checkpoint().get_versioned_data(game_id) {
+            send_subgame_ready(versioned_data.clone(), game_context, game_context.init_account(), ports).await;
+        } else {
+            ports.send(EventFrame::Shutdown).await;
+            return Some(CloseReason::Fault(Error::CheckpointNotFoundAfterInit));
+        }
+    }
+
     None
 }
 
@@ -319,21 +320,16 @@ pub async fn handle_event(
     );
 
     game_context.set_timestamp(timestamp);
-    let original_versions = game_context.versions();
 
     match handler.handle_event(game_context, &event) {
         Ok(effects) => {
             let EventEffects {
-                settles,
-                transfer,
-                awards,
-                checkpoint,
                 launch_sub_games,
                 bridge_events,
                 start_game,
-                entry_lock,
                 logs,
                 reject_deposits,
+                checkpoint,
             } = effects;
 
             print_logs(&logs, env);
@@ -342,6 +338,8 @@ pub async fn handle_event(
             if client_mode == ClientMode::Transactor {
                 broadcast_event(event, &game_context, ports).await;
             }
+
+            send_checkpoint(checkpoint, game_context, ports).await;
 
             // Update the local client
             update_local_client(&game_context, ports).await;
@@ -360,19 +358,7 @@ pub async fn handle_event(
                 send_reject_deposits(reject_deposits, ports, env).await;
             }
 
-            if checkpoint.is_some() {
-                send_settlement(
-                    transfer,
-                    settles,
-                    awards,
-                    entry_lock,
-                    original_versions,
-                    game_context,
-                    ports,
-                    env,
-                )
-                .await;
-            }
+            do_send_settlements(game_context, ports, env).await;
 
             // Emit bridge events
             if client_mode == ClientMode::Transactor {
