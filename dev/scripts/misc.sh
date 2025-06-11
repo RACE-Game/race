@@ -5,7 +5,7 @@ BORSH="$ROOT/../race-sdk/packages/borsh"
 function make_tourney {
     local ENTRY_CLOSE_TIME=$(expr $3 + 300000)
     local TICKET=100000000
-    local TABLE_SIZE=4
+    local TABLE_SIZE=$4
     local START_CHIPS=100000
 
     local data=$(cd $BORSH; npx ts-node ./bin/cli.ts \

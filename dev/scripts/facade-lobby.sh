@@ -27,12 +27,12 @@ START_TIMES=($(expr $TIME)
 
 echo "Start facade server"
 
-just dev-facade -g <(make_tourney "A completed one" "FACADE_USDC" ${START_TIMES[0]}) \
-     -g <(make_tourney "Another completed" "FACADE_NATIVE" ${START_TIMES[1]}) \
-     -g <(make_tourney "Upcoming" "FACADE_USDC" ${START_TIMES[2]}) \
-     -g <(make_tourney "Native token" "FACADE_NATIVE" ${START_TIMES[3]}) \
-     -g <(make_tourney "See ya tomorrow" "FACADE_USDC" ${START_TIMES[4]}) \
-     -g <(make_tourney "Too far to start" "FACADE_USDC" ${START_TIMES[5]}) \
+just dev-facade -g <(make_tourney "A completed one" "FACADE_USDC" ${START_TIMES[0]} 3) \
+     -g <(make_tourney "Another completed" "FACADE_NATIVE" ${START_TIMES[1]} 3) \
+     -g <(make_tourney "Upcoming" "FACADE_USDC" ${START_TIMES[2]} 3) \
+     -g <(make_tourney "Native token" "FACADE_NATIVE" ${START_TIMES[3]} 3) \
+     -g <(make_tourney "See ya tomorrow" "FACADE_USDC" ${START_TIMES[4]} 3) \
+     -g <(make_tourney "Too far to start" "FACADE_USDC" ${START_TIMES[5]} 3) \
      -g <(make_cash "USDC 1" "FACADE_USDC" 3 100000 200000 0) \
      -g <(make_cash "USDC 2" "FACADE_USDC" 6 100000 200000 200000) \
      -g <(make_cash "USDC 3" "FACADE_USDC" 8 200000 500000 0) \

@@ -1,5 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
+use std::time::Instant;
 use crate::context::ApplicationContext;
 use crate::utils;
 use borsh::BorshDeserialize;
@@ -137,6 +138,8 @@ async fn get_latest_checkpoints(params: Params<'_>, context: Arc<ApplicationCont
     let game_addrs = params.parse::<Vec<String>>()?;
     let mut result = Vec::with_capacity(game_addrs.len());
 
+    let start = Instant::now();
+
     for addr in game_addrs {
         let checkpoint: Option<CheckpointOffChain> = context
             .game_manager
@@ -146,6 +149,10 @@ async fn get_latest_checkpoints(params: Params<'_>, context: Arc<ApplicationCont
             .flatten();
         result.push(checkpoint);
     }
+
+    let duration = start.elapsed();
+    info!("Time elapsed in get_lastest_checkpoints: {:?}", duration.as_millis());
+
     let bs = borsh::to_vec(&result).map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
     Ok(bs)
 }
@@ -166,6 +173,9 @@ async fn subscribe_event(
     context: Arc<ApplicationContext>,
 ) -> Result<(), StringError> {
     {
+        let start = Instant::now();
+
+
         let (game_addr, SubscribeEventParams { settle_version }) = match parse_params_no_sig(params)
         {
             Ok(p) => p,
@@ -185,11 +195,15 @@ async fn subscribe_event(
                 }
             };
 
+
         drop(context);
         info!(
             "Subscribe event stream, game: {:?}, settle version: {}",
             game_addr, settle_version,
         );
+        let duration = start.elapsed();
+        info!("Time elapsed in subscribe events: {:?}", duration.as_millis());
+
 
         let mut sink = pending.accept().await?;
 
