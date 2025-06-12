@@ -115,8 +115,8 @@ async fn send_bridge_event(
                 from_game_id: game_context.game_id(),
                 raw: be.raw,
             },
-            access_version: game_context.access_version(),
-            settle_version: game_context.settle_version(),
+            // access_version: game_context.access_version(),
+            // settle_version: game_context.settle_version(),
             checkpoint_state: checkpoint_state.clone(),
         };
         ports.send(ef).await;
@@ -241,6 +241,7 @@ pub async fn init_state(
     if game_mode == GameMode::Sub {
         let game_id = game_context.game_id();
         if let Some(versioned_data) = checkpoint.get_versioned_data(game_id) {
+            println!("init sub game state");
             send_subgame_ready(versioned_data.clone(), game_context, init_account, ports).await;
         } else {
             ports.send(EventFrame::Shutdown).await;
@@ -291,10 +292,22 @@ pub async fn recover_from_checkpoint(
     }
 
     // Tell master game the subgame is successfully created.
-    if game_mode == GameMode::Sub {
+    if game_mode == GameMode::Sub && client_mode == ClientMode::Transactor {
         let game_id = game_context.game_id();
+
         if let Some(versioned_data) = game_context.checkpoint().get_versioned_data(game_id) {
-            send_subgame_ready(versioned_data.clone(), game_context, game_context.init_account(), ports).await;
+            println!("recover from checkpoint {:?}", versioned_data);
+            if let Some(event) = &versioned_data.event {
+                let frame = EventFrame::SendBridgeEvent {
+                    from: game_id,
+                    dest: 0,
+                    event: event.clone(),
+                    checkpoint_state: versioned_data.clone(),
+                };
+                ports.send(frame).await;
+            }
+
+            // send_subgame_ready(versioned_data.clone(), game_context, game_context.init_account(), ports).await;
         } else {
             ports.send(EventFrame::Shutdown).await;
             return Some(CloseReason::Fault(Error::CheckpointNotFoundAfterInit));

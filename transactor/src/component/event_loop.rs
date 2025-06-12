@@ -271,7 +271,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     init_data,
                     max_players,
                 } => {
-                    if ctx.game_mode == GameMode::Main && ctx.client_mode == ClientMode::Transactor {
+                    if ctx.game_mode == GameMode::Main && ctx.client_mode == ClientMode::Transactor
+                    {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
                         game_context
                             .remove_settle_lock(game_id, versioned_data.versions.settle_version);
@@ -324,13 +325,12 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     dest,
                     from,
                     checkpoint_state,
-                    settle_version,
                     ..
                 } => {
-                    // In the case of parent, update the child game's
-                    // checkpoint value.
+                    // In the case of parent, update the child game' checkpoint value.
 
                     let timestamp = current_timestamp();
+                    let settle_version = checkpoint_state.versions.settle_version;
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("BridgeEvent: Update checkpoint for sub game: {}", from);

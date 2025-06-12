@@ -111,8 +111,8 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         from,
                         dest,
                         event,
-                        access_version,
-                        settle_version,
+                        // access_version,
+                        // settle_version,
                         checkpoint_state,
                     } => {
                         info!("{} Receives event: {}", env.log_prefix, event);
@@ -121,8 +121,8 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                                 from,
                                 dest,
                                 event,
-                                access_version,
-                                settle_version,
+                                // access_version,
+                                // settle_version,
                                 checkpoint_state,
                             })
                             .await;
@@ -277,8 +277,8 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         from,
                         dest,
                         event,
-                        access_version,
-                        settle_version,
+                        // access_version,
+                        // settle_version,
                         checkpoint_state,
                     } if dest == ctx.game_id => {
                         info!("{} Receives {}", env.log_prefix, event);
@@ -287,8 +287,8 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                                 from,
                                 dest,
                                 event,
-                                access_version,
-                                settle_version,
+                                // access_version,
+                                // settle_version,
                                 checkpoint_state,
                             })
                             .await;

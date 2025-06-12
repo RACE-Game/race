@@ -10,7 +10,7 @@ use crate::{context::Versions, error::Error};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use race_api::types::GameId;
+use race_api::{event::Event, types::GameId};
 use crate::types::GameSpec;
 
 /// Checkpoint represents the state snapshot of game.
@@ -50,6 +50,7 @@ pub struct VersionedData {
     pub data: Vec<u8>,
     pub sha: Vec<u8>,
     pub game_spec: GameSpec,
+    pub event: Option<Event>,
 }
 
 impl Display for Checkpoint {
@@ -77,6 +78,7 @@ impl Checkpoint {
                     versions,
                     data: root_data,
                     sha: sha.into(),
+                    event: None,
                 },
             )]),
             proofs: HashMap::new(),
@@ -156,6 +158,7 @@ impl Checkpoint {
                     sha: sha.into(),
                     game_spec,
                     versions,
+                    event: None,
                 };
                 v.insert(versioned_data);
                 self.update_root_and_proofs();
@@ -185,6 +188,15 @@ impl Checkpoint {
             Ok(())
         } else {
             Err(Error::MissingCheckpoint)
+        }
+    }
+
+    pub fn set_event_in_versinoed_data(&mut self, id: GameId, event: Option<Event>) -> Result<(), Error> {
+        if let Some(versioned_data) = self.data.get_mut(&id) {
+            versioned_data.event = event;
+            Ok(())
+        } else {
+            Ok(())
         }
     }
 

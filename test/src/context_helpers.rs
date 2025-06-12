@@ -71,7 +71,7 @@ impl<H: GameHandler> TestContext<H> {
     }
 
     pub fn init_account(&self) -> Result<InitAccount> {
-        self.context.init_account()
+        Ok(self.context.init_account())
     }
 
     pub fn state(&self) -> &H {

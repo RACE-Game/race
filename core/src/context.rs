@@ -1021,7 +1021,6 @@ impl GameContext {
                 settles.sort_by_key(|s| s.player_id);
             }
 
-
             if self.spec.game_id == 0 {
                 for sub_game in launch_sub_games.iter().cloned() {
                     self.next_settle_locks.insert(sub_game.id, 0);
@@ -1261,6 +1260,9 @@ mod tests {
                 PlayerBalance::new(2, 2000),
             ],
         };
+
+        // prepare event
+        let event = Event::Bridge { dest_game_id: 0, from_game_id: 1, raw: vec![] };
 
         // Apply the effect
         let event_effects = game_context.apply_effect(effect).unwrap();
