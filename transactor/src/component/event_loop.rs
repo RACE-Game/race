@@ -274,8 +274,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if ctx.game_mode == GameMode::Main && ctx.client_mode == ClientMode::Transactor
                     {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
-                        game_context
-                            .remove_settle_lock(game_id, versioned_data.versions.settle_version);
+                        game_context.remove_settle_lock(game_id, versioned_data.clone());
 
                         if let Err(e) = game_context
                             .pending_settle_details_mut()
@@ -334,7 +333,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("BridgeEvent: Update checkpoint for sub game: {}", from);
-                        game_context.remove_settle_lock(from, settle_version);
+                        game_context.remove_settle_lock(from, checkpoint_state.clone());
 
                         if let Err(e) = game_context
                             .pending_settle_details_mut()

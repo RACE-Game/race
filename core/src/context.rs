@@ -170,7 +170,13 @@ pub struct SettleDetails {
     pub previous_settle_version: u64,
     pub entry_lock: Option<EntryLock>,
     pub accept_deposits: Vec<u64>,
-    pub settle_locks: HashMap<GameId, u64>,
+    pub settle_locks: HashMap<GameId, SettleLock>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SettleLock {
+    Locked(u64),
+    Unlocked(VersionedData),
 }
 
 /// The context for public data.
@@ -233,7 +239,7 @@ pub struct GameContext {
     pub(crate) accept_deposits: Vec<u64>,
     /// The pending settle details. They are here because the settle is blocked by the settle locks.
     pub(crate) pending_settle_details: Vec<SettleDetails>,
-    pub(crate) next_settle_locks: HashMap<GameId, u64>,
+    pub(crate) next_settle_locks: HashMap<GameId, SettleLock>,
 }
 
 impl GameContext {
@@ -450,19 +456,23 @@ impl GameContext {
         }
     }
 
-    pub fn remove_settle_lock(&mut self, game_id: GameId, settle_version: u64) {
+    pub fn remove_settle_lock(&mut self, game_id: GameId, versioned_data: VersionedData) {
         // remove from next_settle_lock
-        if let Some(&val) = self.next_settle_locks.get(&game_id) {
-            if settle_version > val {
-                self.next_settle_locks.remove(&game_id);
+        match self.next_settle_locks.entry(game_id) {
+            std::collections::hash_map::Entry::Occupied(mut occupied_entry) => {
+                occupied_entry.insert(SettleLock::Unlocked(versioned_data.clone()));
+            }
+            std::collections::hash_map::Entry::Vacant(vacant_entry) => {
+                vacant_entry.insert(SettleLock::Unlocked(versioned_data.clone()));
             }
         }
         // remove from Checkpoints
-        for checkpoint in &mut self.pending_settle_details {
-            if let Some(&val) = checkpoint.settle_locks.get(&game_id) {
-                if settle_version > val {
-                    checkpoint.settle_locks.remove(&game_id);
+        for checkpoint in self.pending_settle_details.iter_mut() {
+            match checkpoint.settle_locks.entry(game_id) {
+                std::collections::hash_map::Entry::Occupied(occupied_entry) => {
+                    occupied_entry.remove();
                 }
+                std::collections::hash_map::Entry::Vacant(_vacant_entry) => {}
             }
         }
     }
@@ -908,7 +918,7 @@ impl GameContext {
         }
     }
 
-    pub fn apply_effect(&mut self, effect: Effect) -> Result<EventEffects> {
+    pub fn apply_effect(&mut self, effect: Effect, event: Option<Event>) -> Result<EventEffects> {
         let Effect {
             action_timeout,
             wait_timeout,
@@ -1021,9 +1031,14 @@ impl GameContext {
                 settles.sort_by_key(|s| s.player_id);
             }
 
+            let game_id = self.game_id();
+            self.checkpoint_mut()
+                .set_event_in_versioned_data(game_id, event)?;
+
             if self.spec.game_id == 0 {
                 for sub_game in launch_sub_games.iter().cloned() {
-                    self.next_settle_locks.insert(sub_game.id, 0);
+                    self.next_settle_locks
+                        .insert(sub_game.id, SettleLock::Locked(0));
                 }
 
                 for evt in bridge_events.clone() {
@@ -1032,7 +1047,25 @@ impl GameContext {
                         .get_versioned_data(evt.dest)
                         .map(|d| d.versions.settle_version)
                         .unwrap_or(0);
-                    self.next_settle_locks.insert(evt.dest, settle_version);
+                    self.next_settle_locks
+                        .insert(evt.dest, SettleLock::Locked(settle_version));
+                }
+            }
+
+            println!("settle locks: {:?}", self.next_settle_locks);
+
+            let settle_locks: Vec<_> = self.next_settle_locks.drain().collect();
+            let mut locked_settle_locks: HashMap<GameId, SettleLock> = HashMap::new();
+
+            for (game_id, settle_lock) in settle_locks {
+                match settle_lock {
+                    SettleLock::Locked(_) => {
+                        locked_settle_locks.insert(game_id, settle_lock);
+                    }
+                    SettleLock::Unlocked(versioned_data) => {
+                        self.checkpoint_mut()
+                            .update_versioned_data(versioned_data)?;
+                    }
                 }
             }
 
@@ -1047,7 +1080,7 @@ impl GameContext {
                     previous_settle_version,
                     entry_lock,
                     accept_deposits: self.accept_deposits.drain(..).collect(),
-                    settle_locks: self.next_settle_locks.drain().collect(),
+                    settle_locks: locked_settle_locks,
                 };
                 self.pending_settle_details.push(settle_details);
             }
@@ -1134,7 +1167,6 @@ impl Default for GameContext {
     }
 }
 
-
 fn build_settles_map(
     withdraws: &[Withdraw],
     ejects: &[u64],
@@ -1188,19 +1220,19 @@ fn build_settles_map(
     return settles_map;
 }
 
-
 #[cfg(test)]
 mod tests {
 
-    use race_api::effect::{EmitBridgeEvent, SubGame, Withdraw};
     use super::*;
+    use race_api::effect::{EmitBridgeEvent, SubGame, Withdraw};
 
     #[test]
     fn test_apply_effect_with_all_fields() {
         // Setting up a GameContext
         let mut game_context = GameContext::default();
         game_context.versions = Versions::new(10, 10);
-        game_context.checkpoint = Checkpoint::new(0, GameSpec::default(), game_context.versions(), vec![1]);
+        game_context.checkpoint =
+            Checkpoint::new(0, GameSpec::default(), game_context.versions(), vec![1]);
         game_context.add_node("server".into(), 0, ClientMode::Transactor);
         game_context.add_node("alice".into(), 1, ClientMode::Player);
         game_context.add_node("bob".into(), 2, ClientMode::Player);
@@ -1255,17 +1287,20 @@ mod tests {
             reject_deposits: vec![1, 2, 3],
             accept_deposits: vec![4, 5, 6],
             curr_sub_game_id: 1,
-            balances: vec![
-                PlayerBalance::new(1, 1000),
-                PlayerBalance::new(2, 2000),
-            ],
+            balances: vec![PlayerBalance::new(1, 1000), PlayerBalance::new(2, 2000)],
         };
 
         // prepare event
-        let event = Event::Bridge { dest_game_id: 0, from_game_id: 1, raw: vec![] };
+        let event = Event::Bridge {
+            dest_game_id: 0,
+            from_game_id: 1,
+            raw: vec![],
+        };
 
         // Apply the effect
-        let event_effects = game_context.apply_effect(effect).unwrap();
+        let event_effects = game_context
+            .apply_effect(effect, Some(event.clone()))
+            .unwrap();
 
         assert_eq!(event_effects.launch_sub_games.len(), 1);
         assert_eq!(event_effects.bridge_events.len(), 1);
@@ -1275,10 +1310,23 @@ mod tests {
         assert_eq!(game_context.settle_version(), 11);
         assert_eq!(game_context.pending_settle_details.len(), 1);
         let settle_details = game_context.pending_settle_details[0].clone();
-        assert_eq!(settle_details.settles, [
-            Settle { player_id: 1, withdraw: 1000, change: Some(BalanceChange::Add(1000)), eject: true },
-            Settle { player_id: 2, withdraw: 0, change: Some(BalanceChange::Add(2000)), eject: false },
-        ]);
+        assert_eq!(
+            settle_details.settles,
+            [
+                Settle {
+                    player_id: 1,
+                    withdraw: 1000,
+                    change: Some(BalanceChange::Add(1000)),
+                    eject: true
+                },
+                Settle {
+                    player_id: 2,
+                    withdraw: 0,
+                    change: Some(BalanceChange::Add(2000)),
+                    eject: false
+                },
+            ]
+        );
         assert_eq!(settle_details.transfer, Some(Transfer { amount: 200 }));
         assert_eq!(settle_details.awards, vec![Award::new(1, "bonus".into())]);
         assert!(!settle_details.checkpoint.root.is_empty());
@@ -1287,7 +1335,15 @@ mod tests {
         assert_eq!(settle_details.previous_settle_version, 10);
         assert_eq!(settle_details.entry_lock, Some(EntryLock::Closed));
         assert_eq!(settle_details.accept_deposits, vec![4, 5, 6]);
-        assert_eq!(settle_details.settle_locks, HashMap::from([(1, 0)]));
+        assert_eq!(settle_details.settle_locks, HashMap::from([(1, SettleLock::Locked(0))]));
+
+        let evt_in_checkpoint = game_context
+            .checkpoint()
+            .get_versioned_data(game_context.game_id())
+            .unwrap()
+            .event
+            .clone();
+        assert_eq!(evt_in_checkpoint, Some(event.clone()));
     }
 
     // #[test]

@@ -138,7 +138,7 @@ impl WrappedHandler {
         if let Some(e) = effect.__take_error() {
             Err(e.into())
         } else {
-            context.apply_effect(effect)
+            context.apply_effect(effect, None)
         }
     }
 
@@ -213,7 +213,7 @@ impl WrappedHandler {
             error!("Effect: {:?}", effect_bs);
             Err(e.into())
         } else {
-            context.apply_effect(effect)
+            context.apply_effect(effect, Some(event.clone()))
         }
     }
 

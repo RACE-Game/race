@@ -191,11 +191,13 @@ impl Checkpoint {
         }
     }
 
-    pub fn set_event_in_versinoed_data(&mut self, id: GameId, event: Option<Event>) -> Result<(), Error> {
+    pub fn set_event_in_versioned_data(&mut self, id: GameId, event: Option<Event>) -> Result<(), Error> {
         if let Some(versioned_data) = self.data.get_mut(&id) {
             versioned_data.event = event;
+            println!("set event in versioned data: {:?} {:?}", id, versioned_data.event);
             Ok(())
         } else {
+            println!("set event in versioned data no versioned data");
             Ok(())
         }
     }
