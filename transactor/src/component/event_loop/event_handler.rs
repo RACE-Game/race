@@ -289,23 +289,49 @@ pub async fn recover_from_checkpoint(
 
     if client_mode == ClientMode::Transactor {
         game_context.dispatch_safe(Event::Ready, 0);
+
+        for versioned_data in game_context.checkpoint().list_versioned_data() {
+            if !versioned_data.bridge_events.is_empty() {
+                send_bridge_event(
+                    versioned_data.bridge_events.clone(),
+                    game_context,
+                    ports,
+                    env,
+                ).await;
+            }
+
+            if let Some(dispatch) = versioned_data.dispatch.as_ref() {
+                let server_event = EventFrame::SendServerEvent {
+                    event: dispatch.event.clone(),
+                    timestamp: dispatch.timeout,
+                };
+                ports.send(server_event).await;
+            }
+        }
     }
 
     // Tell master game the subgame is successfully created.
     if game_mode == GameMode::Sub && client_mode == ClientMode::Transactor {
         let game_id = game_context.game_id();
 
-        if let Some(versioned_data) = game_context.checkpoint().get_versioned_data(game_id) {
-            println!("recover from checkpoint {:?}", versioned_data);
-            if let Some(event) = &versioned_data.event {
-                let frame = EventFrame::SendBridgeEvent {
-                    from: game_id,
-                    dest: 0,
-                    event: event.clone(),
-                    checkpoint_state: versioned_data.clone(),
-                };
-                ports.send(frame).await;
-            }
+        if let Some(_versioned_data) = game_context.checkpoint().get_versioned_data(game_id) {
+            // if let Some(event) = &versioned_data.event {
+            //     let frame = EventFrame::SendBridgeEvent {
+            //         from: game_id,
+            //         dest: 0,
+            //         event: event.clone(),
+            //         checkpoint_state: versioned_data.clone(),
+            //     };
+            //     ports.send(frame).await;
+            // }
+
+            // let frame = EventFrame::SendBridgeEvent {
+            //     from: game_id,
+            //     dest: 0,
+            //     event: Event::WaitingTimeout,
+            //     checkpoint_state: versioned_data.clone(),
+            // };
+            // ports.send(frame).await;
 
             // send_subgame_ready(versioned_data.clone(), game_context, game_context.init_account(), ports).await;
         } else {

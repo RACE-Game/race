@@ -1,17 +1,17 @@
 use std::{collections::HashMap, fmt::Display};
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use rs_merkle::{
-    algorithms::Sha256, proof_serializers::ReverseHashesOrder, Hasher,
-    MerkleTree,
+use crate::{
+    context::{DispatchEvent, Versions},
+    error::Error,
 };
-use crate::{context::Versions, error::Error};
+use borsh::{BorshDeserialize, BorshSerialize};
+use rs_merkle::{algorithms::Sha256, proof_serializers::ReverseHashesOrder, Hasher, MerkleTree};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use race_api::{event::Event, types::GameId};
 use crate::types::GameSpec;
+use race_api::{effect::EmitBridgeEvent, event::Event, types::GameId};
 
 /// Checkpoint represents the state snapshot of game.
 /// It is used as a submission to the blockchain.
@@ -51,6 +51,8 @@ pub struct VersionedData {
     pub sha: Vec<u8>,
     pub game_spec: GameSpec,
     pub event: Option<Event>,
+    pub dispatch: Option<DispatchEvent>,
+    pub bridge_events: Vec<EmitBridgeEvent>,
 }
 
 impl Display for Checkpoint {
@@ -79,6 +81,8 @@ impl Checkpoint {
                     data: root_data,
                     sha: sha.into(),
                     event: None,
+                    dispatch: None,
+                    bridge_events: vec![],
                 },
             )]),
             proofs: HashMap::new(),
@@ -87,7 +91,10 @@ impl Checkpoint {
         ret
     }
 
-    pub fn new_from_parts(offchain_part: CheckpointOffChain, onchain_part: CheckpointOnChain) -> Self {
+    pub fn new_from_parts(
+        offchain_part: CheckpointOffChain,
+        onchain_part: CheckpointOnChain,
+    ) -> Self {
         Self {
             proofs: offchain_part.proofs,
             data: offchain_part.data,
@@ -105,7 +112,7 @@ impl Checkpoint {
             return;
         }
         let merkle_tree = self.to_merkle_tree();
-        let Some(root) = merkle_tree.root()  else {
+        let Some(root) = merkle_tree.root() else {
             // Skip root update as this is not a master checkpoint
             return;
         };
@@ -144,7 +151,13 @@ impl Checkpoint {
         }
     }
 
-    pub fn init_data(&mut self, id: GameId, game_spec: GameSpec, versions: Versions, data: Vec<u8>) -> Result<(), Error> {
+    pub fn init_data(
+        &mut self,
+        id: GameId,
+        game_spec: GameSpec,
+        versions: Versions,
+        data: Vec<u8>,
+    ) -> Result<(), Error> {
         match self.data.entry(id) {
             std::collections::hash_map::Entry::Occupied(_) => {
                 return Err(Error::CheckpointAlreadyExists);
@@ -159,6 +172,8 @@ impl Checkpoint {
                     game_spec,
                     versions,
                     event: None,
+                    dispatch: None,
+                    bridge_events: vec![],
                 };
                 v.insert(versioned_data);
                 self.update_root_and_proofs();
@@ -191,14 +206,42 @@ impl Checkpoint {
         }
     }
 
-    pub fn set_event_in_versioned_data(&mut self, id: GameId, event: Option<Event>) -> Result<(), Error> {
+    pub fn set_event_in_versioned_data(
+        &mut self,
+        id: GameId,
+        event: Option<Event>,
+    ) -> Result<(), Error> {
         if let Some(versioned_data) = self.data.get_mut(&id) {
             versioned_data.event = event;
-            println!("set event in versioned data: {:?} {:?}", id, versioned_data.event);
             Ok(())
         } else {
-            println!("set event in versioned data no versioned data");
+            Err(Error::MissingCheckpoint)
+        }
+    }
+
+    pub fn set_dispatch_in_versioned_data(
+        &mut self,
+        id: GameId,
+        dispatch: Option<DispatchEvent>,
+    ) -> Result<(), Error> {
+        if let Some(versioned_data) = self.data.get_mut(&id) {
+            versioned_data.dispatch = dispatch;
             Ok(())
+        } else {
+            Err(Error::MissingCheckpoint)
+        }
+    }
+
+    pub fn set_bridge_in_versioned_data(
+        &mut self,
+        id: GameId,
+        bridge_events: Vec<EmitBridgeEvent>,
+    ) -> Result<(), Error> {
+        if let Some(versioned_data) = self.data.get_mut(&id) {
+            versioned_data.bridge_events = bridge_events;
+            Ok(())
+        } else {
+            Err(Error::MissingCheckpoint)
         }
     }
 

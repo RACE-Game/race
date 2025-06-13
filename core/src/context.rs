@@ -97,6 +97,7 @@ impl Node {
 }
 
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DispatchEvent {
     pub timeout: u64,
     pub event: Event,
@@ -458,22 +459,15 @@ impl GameContext {
 
     pub fn remove_settle_lock(&mut self, game_id: GameId, versioned_data: VersionedData) {
         // remove from next_settle_lock
-        match self.next_settle_locks.entry(game_id) {
-            std::collections::hash_map::Entry::Occupied(mut occupied_entry) => {
-                occupied_entry.insert(SettleLock::Unlocked(versioned_data.clone()));
-            }
-            std::collections::hash_map::Entry::Vacant(vacant_entry) => {
-                vacant_entry.insert(SettleLock::Unlocked(versioned_data.clone()));
-            }
-        }
+        self.next_settle_locks
+            .insert(game_id, SettleLock::Unlocked(versioned_data));
+        // clear emitbridgeevent.
+        let _ = self
+            .checkpoint_mut()
+            .set_bridge_in_versioned_data(game_id, vec![]);
         // remove from Checkpoints
         for checkpoint in self.pending_settle_details.iter_mut() {
-            match checkpoint.settle_locks.entry(game_id) {
-                std::collections::hash_map::Entry::Occupied(occupied_entry) => {
-                    occupied_entry.remove();
-                }
-                std::collections::hash_map::Entry::Vacant(_vacant_entry) => {}
-            }
+            checkpoint.settle_locks.remove(&game_id);
         }
     }
 
@@ -1032,8 +1026,16 @@ impl GameContext {
             }
 
             let game_id = self.game_id();
+            let dispatch = self.dispatch.clone();
+            // todo: remove after debug
+            println!("apply_effect: {}, {:?}", game_id, event);
+
             self.checkpoint_mut()
                 .set_event_in_versioned_data(game_id, event)?;
+            self.checkpoint_mut()
+                .set_dispatch_in_versioned_data(game_id, dispatch)?;
+            self.checkpoint_mut()
+                .set_bridge_in_versioned_data(game_id, bridge_events.clone())?;
 
             if self.spec.game_id == 0 {
                 for sub_game in launch_sub_games.iter().cloned() {
@@ -1052,7 +1054,12 @@ impl GameContext {
                 }
             }
 
-            println!("settle locks: {:?}", self.next_settle_locks);
+            // todo: remove after debug
+            println!(
+                "settle locks: game_id[{}], {:?}",
+                self.game_id(),
+                self.next_settle_locks
+            );
 
             let settle_locks: Vec<_> = self.next_settle_locks.drain().collect();
             let mut locked_settle_locks: HashMap<GameId, SettleLock> = HashMap::new();
@@ -1335,7 +1342,10 @@ mod tests {
         assert_eq!(settle_details.previous_settle_version, 10);
         assert_eq!(settle_details.entry_lock, Some(EntryLock::Closed));
         assert_eq!(settle_details.accept_deposits, vec![4, 5, 6]);
-        assert_eq!(settle_details.settle_locks, HashMap::from([(1, SettleLock::Locked(0))]));
+        assert_eq!(
+            settle_details.settle_locks,
+            HashMap::from([(1, SettleLock::Locked(0))])
+        );
 
         let evt_in_checkpoint = game_context
             .checkpoint()

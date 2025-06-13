@@ -334,6 +334,8 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("BridgeEvent: Update checkpoint for sub game: {}", from);
                         game_context.remove_settle_lock(from, checkpoint_state.clone());
+                        // todo: remove after debug
+                        println!("recv bridge event: {} {:?}", from, checkpoint_state.event);
 
                         if let Err(e) = game_context
                             .pending_settle_details_mut()

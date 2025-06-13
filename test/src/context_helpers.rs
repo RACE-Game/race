@@ -181,6 +181,7 @@ impl TestContextBuilder {
                 data: borsh::to_vec(checkpoint).expect("Failed to serialize checkpoint"),
                 sha: vec![],
                 game_spec: spec,
+                event: None
             },
         );
 

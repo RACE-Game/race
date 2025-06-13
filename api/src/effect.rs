@@ -3,6 +3,8 @@
 use std::collections::HashMap;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use crate::{
     engine::GameHandler,
@@ -10,7 +12,10 @@ use crate::{
     event::BridgeEvent,
     prelude::InitAccount,
     random::RandomSpec,
-    types::{Award, DecisionId, EntryLock, GameDeposit, GameId, GamePlayer, PlayerBalance, RandomId, Transfer},
+    types::{
+        Award, DecisionId, EntryLock, GameDeposit, GameId, GamePlayer, PlayerBalance, RandomId,
+        Transfer,
+    },
 };
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -92,6 +97,7 @@ impl SubGame {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct EmitBridgeEvent {
     pub dest: GameId,
     pub raw: Vec<u8>,
