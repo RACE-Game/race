@@ -912,7 +912,7 @@ impl GameContext {
         }
     }
 
-    pub fn apply_effect(&mut self, effect: Effect, event: Option<Event>) -> Result<EventEffects> {
+    pub fn apply_effect(&mut self, effect: Effect) -> Result<EventEffects> {
         let Effect {
             action_timeout,
             wait_timeout,
@@ -1028,10 +1028,7 @@ impl GameContext {
             let game_id = self.game_id();
             let dispatch = self.dispatch.clone();
             // todo: remove after debug
-            println!("apply_effect: {}, {:?}", game_id, event);
 
-            self.checkpoint_mut()
-                .set_event_in_versioned_data(game_id, event)?;
             self.checkpoint_mut()
                 .set_dispatch_in_versioned_data(game_id, dispatch)?;
             self.checkpoint_mut()

@@ -93,9 +93,6 @@ export class VersionedData {
   @field(struct(GameSpec))
   spec!: GameSpec
 
-  @field(option(enums(GameEvent)))
-  event!: GameEvent | undefined
-
   @field(option(enums(DispatchEvent)))
   dispatch!: DispatchEvent | undefined
 

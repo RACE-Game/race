@@ -313,28 +313,7 @@ pub async fn recover_from_checkpoint(
     // Tell master game the subgame is successfully created.
     if game_mode == GameMode::Sub && client_mode == ClientMode::Transactor {
         let game_id = game_context.game_id();
-
-        if let Some(_versioned_data) = game_context.checkpoint().get_versioned_data(game_id) {
-            // if let Some(event) = &versioned_data.event {
-            //     let frame = EventFrame::SendBridgeEvent {
-            //         from: game_id,
-            //         dest: 0,
-            //         event: event.clone(),
-            //         checkpoint_state: versioned_data.clone(),
-            //     };
-            //     ports.send(frame).await;
-            // }
-
-            // let frame = EventFrame::SendBridgeEvent {
-            //     from: game_id,
-            //     dest: 0,
-            //     event: Event::WaitingTimeout,
-            //     checkpoint_state: versioned_data.clone(),
-            // };
-            // ports.send(frame).await;
-
-            // send_subgame_ready(versioned_data.clone(), game_context, game_context.init_account(), ports).await;
-        } else {
+        if game_context.checkpoint().get_versioned_data(game_id).is_none() {
             ports.send(EventFrame::Shutdown).await;
             return Some(CloseReason::Fault(Error::CheckpointNotFoundAfterInit));
         }

@@ -32,7 +32,7 @@ impl<H: GameHandler> TestHandler<H> {
         let init_account = new_context.init_account();
         let effect = new_context.derive_effect(true);
         let handler = H::init_state(init_account)?;
-        let event_effects = new_context.apply_effect(effect, None)?;
+        let event_effects = new_context.apply_effect(effect)?;
         patch_handle_event_effects(&mut new_context, &event_effects);
         swap(context, &mut new_context);
         Ok((Self { handler }, event_effects))
@@ -44,7 +44,7 @@ impl<H: GameHandler> TestHandler<H> {
         general_handle_event(&mut new_context, event, &encryptor)?;
         let mut effect = new_context.derive_effect(false);
         self.handler.handle_event(&mut effect, event.to_owned())?;
-        let event_effects = new_context.apply_effect(effect, Some(event.clone()))?;
+        let event_effects = new_context.apply_effect(effect)?;
         patch_handle_event_effects(&mut new_context, &event_effects);
         swap(context, &mut new_context);
         Ok(event_effects)

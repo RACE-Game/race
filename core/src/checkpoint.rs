@@ -11,7 +11,7 @@ use rs_merkle::{algorithms::Sha256, proof_serializers::ReverseHashesOrder, Hashe
 use serde::{Deserialize, Serialize};
 
 use crate::types::GameSpec;
-use race_api::{effect::EmitBridgeEvent, event::Event, types::GameId};
+use race_api::{effect::EmitBridgeEvent, types::GameId};
 
 /// Checkpoint represents the state snapshot of game.
 /// It is used as a submission to the blockchain.
@@ -50,7 +50,6 @@ pub struct VersionedData {
     pub data: Vec<u8>,
     pub sha: Vec<u8>,
     pub game_spec: GameSpec,
-    pub event: Option<Event>,
     pub dispatch: Option<DispatchEvent>,
     pub bridge_events: Vec<EmitBridgeEvent>,
 }
@@ -80,7 +79,6 @@ impl Checkpoint {
                     versions,
                     data: root_data,
                     sha: sha.into(),
-                    event: None,
                     dispatch: None,
                     bridge_events: vec![],
                 },
@@ -171,7 +169,6 @@ impl Checkpoint {
                     sha: sha.into(),
                     game_spec,
                     versions,
-                    event: None,
                     dispatch: None,
                     bridge_events: vec![],
                 };
@@ -200,19 +197,6 @@ impl Checkpoint {
     pub fn update_versioned_data(&mut self, versioned_data: VersionedData) -> Result<(), Error> {
         if let Some(old) = self.data.get_mut(&versioned_data.id) {
             *old = versioned_data;
-            Ok(())
-        } else {
-            Err(Error::MissingCheckpoint)
-        }
-    }
-
-    pub fn set_event_in_versioned_data(
-        &mut self,
-        id: GameId,
-        event: Option<Event>,
-    ) -> Result<(), Error> {
-        if let Some(versioned_data) = self.data.get_mut(&id) {
-            versioned_data.event = event;
             Ok(())
         } else {
             Err(Error::MissingCheckpoint)
