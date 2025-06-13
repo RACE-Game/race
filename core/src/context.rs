@@ -1286,17 +1286,10 @@ mod tests {
             balances: vec![PlayerBalance::new(1, 1000), PlayerBalance::new(2, 2000)],
         };
 
-        // prepare event
-        let event = Event::Bridge {
-            dest_game_id: 0,
-            from_game_id: 1,
-            raw: vec![],
-        };
+        let effect_bridge_events = effect.bridge_events.clone();
 
         // Apply the effect
-        let event_effects = game_context
-            .apply_effect(effect, Some(event.clone()))
-            .unwrap();
+        let event_effects = game_context.apply_effect(effect).unwrap();
 
         assert_eq!(event_effects.launch_sub_games.len(), 1);
         assert_eq!(event_effects.bridge_events.len(), 1);
@@ -1336,13 +1329,15 @@ mod tests {
             HashMap::from([(1, SettleLock::Locked(0))])
         );
 
-        let evt_in_checkpoint = game_context
+        let game_id = game_context.game_id();
+        let bridge_events = game_context
             .checkpoint()
-            .get_versioned_data(game_context.game_id())
+            .get_versioned_data(game_id)
             .unwrap()
-            .event
+            .bridge_events
             .clone();
-        assert_eq!(evt_in_checkpoint, Some(event.clone()));
+        assert_eq!(bridge_events, effect_bridge_events);
+        assert_eq!(game_context.dispatch, None);
     }
 
     // #[test]
