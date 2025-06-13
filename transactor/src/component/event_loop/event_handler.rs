@@ -288,8 +288,6 @@ pub async fn recover_from_checkpoint(
     }
 
     if client_mode == ClientMode::Transactor {
-        game_context.dispatch_safe(Event::Ready, 0);
-
         for versioned_data in game_context.checkpoint().list_versioned_data() {
             if !versioned_data.bridge_events.is_empty() {
                 send_bridge_event(

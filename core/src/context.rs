@@ -1027,7 +1027,6 @@ impl GameContext {
 
             let game_id = self.game_id();
             let dispatch = self.dispatch.clone();
-            // todo: remove after debug
 
             self.checkpoint_mut()
                 .set_dispatch_in_versioned_data(game_id, dispatch)?;
@@ -1050,13 +1049,6 @@ impl GameContext {
                         .insert(evt.dest, SettleLock::Locked(settle_version));
                 }
             }
-
-            // todo: remove after debug
-            println!(
-                "settle locks: game_id[{}], {:?}",
-                self.game_id(),
-                self.next_settle_locks
-            );
 
             let settle_locks: Vec<_> = self.next_settle_locks.drain().collect();
             let mut locked_settle_locks: HashMap<GameId, SettleLock> = HashMap::new();

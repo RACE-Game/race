@@ -20,7 +20,6 @@ pub struct LocalDbStorage {
 impl StorageT for LocalDbStorage {
     async fn save_checkpoint(&self, params: SaveCheckpointParams) -> Result<()> {
         let conn = self.conn.lock().await;
-        println!("save_checkpoint: {:?}", params.checkpoint);
         let checkpoint_bs = borsh::to_vec(&params.checkpoint).or(Err(Error::MalformedCheckpoint))?;
         let sha = digest(&checkpoint_bs);
         conn.execute(
@@ -52,6 +51,7 @@ impl StorageT for LocalDbStorage {
             let checkpoint = CheckpointOffChain::try_from_slice(&checkpoint_bs)
                 .map_err(|e| Error::StorageError(e.to_string()))?;
 
+            // todo: remove after debug
             println!("get_checkpoint: {:?}", checkpoint);
 
             Ok(Some(checkpoint))
