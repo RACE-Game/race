@@ -1,3 +1,5 @@
+use std::{thread, time};
+
 use super::misc::log_execution_context;
 use race_api::{
     effect::{EmitBridgeEvent, Log, SubGame},
@@ -96,7 +98,12 @@ async fn send_bridge_event(
     env: &ComponentEnv,
 ) {
     for be in bridge_events {
-        info!("{} Send bridge event, dest: {}", env.log_prefix, be.dest);
+        info!(
+            "{} Send bridge event, dest: {}, from: {}",
+            env.log_prefix,
+            be.dest,
+            game_context.game_id()
+        );
         let checkpoint_state = game_context
             .checkpoint()
             .get_versioned_data(game_context.game_id());
@@ -287,23 +294,38 @@ pub async fn recover_from_checkpoint(
         }
     }
 
+    if client_mode == ClientMode::Transactor && game_context.game_id() != 0 {
+        game_context.dispatch_safe(Event::Ready, 0);
+    }
+
+    let time = time::Duration::from_secs(3);
+    thread::sleep(time);
+
     if client_mode == ClientMode::Transactor {
         for versioned_data in game_context.checkpoint().list_versioned_data() {
-            if !versioned_data.bridge_events.is_empty() {
-                send_bridge_event(
-                    versioned_data.bridge_events.clone(),
-                    game_context,
-                    ports,
-                    env,
-                ).await;
-            }
+            if game_context.game_id() == versioned_data.id {
+                println!(
+                    "recover_from_checkpoint: game_id[{}], {}",
+                    versioned_data.id,
+                    versioned_data.bridge_events.clone().len()
+                );
+                if !versioned_data.bridge_events.is_empty() {
+                    send_bridge_event(
+                        versioned_data.bridge_events.clone(),
+                        game_context,
+                        ports,
+                        env,
+                    )
+                    .await;
+                }
 
-            if let Some(dispatch) = versioned_data.dispatch.as_ref() {
-                let server_event = EventFrame::SendServerEvent {
-                    event: dispatch.event.clone(),
-                    timestamp: dispatch.timeout,
-                };
-                ports.send(server_event).await;
+                if let Some(dispatch) = versioned_data.dispatch.as_ref() {
+                    let server_event = EventFrame::SendServerEvent {
+                        event: dispatch.event.clone(),
+                        timestamp: dispatch.timeout,
+                    };
+                    ports.send(server_event).await;
+                }
             }
         }
     }
@@ -311,7 +333,11 @@ pub async fn recover_from_checkpoint(
     // Tell master game the subgame is successfully created.
     if game_mode == GameMode::Sub && client_mode == ClientMode::Transactor {
         let game_id = game_context.game_id();
-        if game_context.checkpoint().get_versioned_data(game_id).is_none() {
+        if game_context
+            .checkpoint()
+            .get_versioned_data(game_id)
+            .is_none()
+        {
             ports.send(EventFrame::Shutdown).await;
             return Some(CloseReason::Fault(Error::CheckpointNotFoundAfterInit));
         }

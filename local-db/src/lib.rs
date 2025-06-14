@@ -52,7 +52,7 @@ impl StorageT for LocalDbStorage {
                 .map_err(|e| Error::StorageError(e.to_string()))?;
 
             // todo: remove after debug
-            println!("get_checkpoint: {:?}", checkpoint);
+            println!("get_checkpoint: version: {}, {:?}", params.settle_version, checkpoint);
 
             Ok(Some(checkpoint))
         } else {

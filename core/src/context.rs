@@ -1081,6 +1081,8 @@ impl GameContext {
                 self.pending_settle_details.push(settle_details);
             }
 
+            println!("apply_effect: {}, {}", is_checkpoint, self.pending_settle_details.len());
+
             return Ok(EventEffects {
                 launch_sub_games,
                 bridge_events,
