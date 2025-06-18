@@ -148,6 +148,27 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
 
                         ports.send(event_frame).await;
                     }
+
+                    EventFrame::SubGameRecovered { game_id } => {
+                        info!("{} Receives subgame recovered: {}", env.log_prefix, game_id);
+                        // Remove the launching game's ID
+                        launching_game_ids.retain(|id| *id != game_id);
+                        // Send the pending events, for print log reason, not combine with SubGameReady
+                        let mut i = 0;
+                        while i < pending_events.len() {
+                            if pending_events[i].0 == game_id {
+                                let (_, event_frame) = pending_events.remove(i);
+                                info!("{} Send pending event: {}", env.log_prefix, event_frame);
+                                if let Err(e) = ctx.tx.send(event_frame) {
+                                    error!("{} Failed to send: {}", env.log_prefix, e);
+                                }
+                            } else {
+                                i += 1;
+                            }
+                        }
+
+                        ports.send(event_frame).await;
+                    }
                     _ => (),
                 }
             } else {            // Bridge parent receives event from event bus
@@ -301,6 +322,13 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
 
                     EventFrame::SubGameReady { .. } => {
                         info!("{} Send SubGameReady to parent", env.log_prefix);
+                        if let Err(e) = ctx.tx.send(event_frame).await {
+                            error!("{} Failed to send: {}", env.log_prefix, e);
+                        }
+                    }
+
+                    EventFrame::SubGameRecovered { .. } => {
+                        info!("{} Send SubGameRecovered to parent", env.log_prefix);
                         if let Err(e) = ctx.tx.send(event_frame).await {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }

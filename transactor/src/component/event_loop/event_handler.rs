@@ -1,10 +1,9 @@
-use std::{thread, time};
-
 use super::misc::log_execution_context;
 use race_api::{
     effect::{EmitBridgeEvent, Log, SubGame},
     event::Event,
     prelude::InitAccount,
+    types::GameId,
 };
 use race_core::{
     checkpoint::{Checkpoint, VersionedData},
@@ -88,6 +87,12 @@ async fn send_subgame_ready(
             max_players: game_context.max_players(),
             init_data: init_account.data,
         })
+        .await;
+}
+
+async fn send_subgame_recovered(game_id: GameId, ports: &PipelinePorts) {
+    ports
+        .send(EventFrame::SubGameRecovered { game_id: game_id })
         .await;
 }
 
@@ -294,21 +299,13 @@ pub async fn recover_from_checkpoint(
         }
     }
 
-    if client_mode == ClientMode::Transactor && game_context.game_id() != 0 {
-        game_context.dispatch_safe(Event::Ready, 0);
-    }
-
-    let time = time::Duration::from_secs(3);
-    thread::sleep(time);
-
     if client_mode == ClientMode::Transactor {
+        if game_mode == GameMode::Sub {
+            send_subgame_recovered(game_context.game_id(), ports).await;
+        }
+
         for versioned_data in game_context.checkpoint().list_versioned_data() {
             if game_context.game_id() == versioned_data.id {
-                println!(
-                    "recover_from_checkpoint: game_id[{}], {}",
-                    versioned_data.id,
-                    versioned_data.bridge_events.clone().len()
-                );
                 if !versioned_data.bridge_events.is_empty() {
                     send_bridge_event(
                         versioned_data.bridge_events.clone(),
@@ -327,19 +324,6 @@ pub async fn recover_from_checkpoint(
                     ports.send(server_event).await;
                 }
             }
-        }
-    }
-
-    // Tell master game the subgame is successfully created.
-    if game_mode == GameMode::Sub && client_mode == ClientMode::Transactor {
-        let game_id = game_context.game_id();
-        if game_context
-            .checkpoint()
-            .get_versioned_data(game_id)
-            .is_none()
-        {
-            ports.send(EventFrame::Shutdown).await;
-            return Some(CloseReason::Fault(Error::CheckpointNotFoundAfterInit));
         }
     }
 
