@@ -113,11 +113,13 @@ impl<H: GameHandler> TestHandler<H> {
                     context.cancel_dispatch();
                 }
             }
-            // Handle events (responses) from Clients/transactor(s) after they see updated ctx
-            for i in 0..clients.len() {
-                let c = clients.get_mut(i).unwrap();
+
+            for c in clients.iter_mut() {
                 let cli_evts = c.handle_updated_context(context)?;
                 evts.extend_from_slice(&cli_evts);
+                if event_effects.checkpoint.is_some() {
+                    c.flush_secret_state();
+                }
             }
 
             if let Some(dispatch) = context.get_dispatch() {

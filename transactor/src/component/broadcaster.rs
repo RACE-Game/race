@@ -9,7 +9,7 @@ use race_api::event::Event;
 use race_api::types::GameId;
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::{BroadcastFrame, BroadcastSync, TxState};
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, error, info, warn};
 
 use crate::component::common::{Component, ConsumerPorts};
@@ -61,7 +61,7 @@ impl EventBackupGroup {
 pub struct BroadcasterContext {
     #[allow(unused)]
     id: String,
-    event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
+    event_backup_groups: Arc<RwLock<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
@@ -71,13 +71,13 @@ pub struct Broadcaster {
     id: String,
     #[allow(unused)]
     game_id: GameId,
-    event_backup_groups: Arc<Mutex<LinkedList<EventBackupGroup>>>,
+    event_backup_groups: Arc<RwLock<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
 }
 
 impl Broadcaster {
     pub fn init(id: String, game_id: GameId) -> (Self, BroadcasterContext) {
-        let event_backup_groups = Arc::new(Mutex::new(LinkedList::new()));
+        let event_backup_groups = Arc::new(RwLock::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         drop(broadcast_rx);
         (
@@ -100,7 +100,7 @@ impl Broadcaster {
     }
 
     pub async fn get_latest_checkpoint(&self) -> Option<CheckpointOffChain> {
-        let event_backup_groups = self.event_backup_groups.lock().await;
+        let event_backup_groups = self.event_backup_groups.read().await;
 
         if let Some(latest_group) = event_backup_groups.iter().last() {
             return latest_group.checkpoint_off_chain.clone();
@@ -110,7 +110,7 @@ impl Broadcaster {
     }
 
     pub async fn get_checkpoint(&self, settle_version: u64) -> Option<CheckpointOffChain> {
-        let event_backup_groups = self.event_backup_groups.lock().await;
+        let event_backup_groups = self.event_backup_groups.read().await;
         info!("Get checkpoint with settle_version = {}", settle_version);
 
         for group in event_backup_groups.iter() {
@@ -134,7 +134,7 @@ impl Broadcaster {
     /// is provided, just return the events after the latest
     /// checkpoint.
     pub async fn get_backlogs(&self, settle_version: u64) -> BroadcastFrame {
-        let event_backup_groups = self.event_backup_groups.lock().await;
+        let event_backup_groups = self.event_backup_groups.read().await;
 
         let mut checkpoint_off_chain: Option<CheckpointOffChain> = None;
         let mut backlogs: Vec<BroadcastFrame> = vec![];
@@ -204,7 +204,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         "{} Create new history group (via Checkpoint) with access_version = {}, settle_version = {}",
                         env.log_prefix, access_version, settle_version
                     );
-                    let mut event_backup_groups = ctx.event_backup_groups.lock().await;
+                    let mut event_backup_groups = ctx.event_backup_groups.write().await;
 
                     event_backup_groups.push_back(EventBackupGroup {
                         sync: BroadcastSync::new(access_version),
@@ -225,7 +225,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         "{} Create new history group (via InitState) with access_version = {}, settle_version = {}",
                         env.log_prefix, access_version, settle_version
                     );
-                    let mut event_backup_groups = ctx.event_backup_groups.lock().await;
+                    let mut event_backup_groups = ctx.event_backup_groups.write().await;
 
                     event_backup_groups.push_back(EventBackupGroup {
                         sync: BroadcastSync::new(access_version),
@@ -267,7 +267,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     ..
                 } => {
                     // info!("{} Broadcaster receive event: {}", env.log_prefix, event);
-                    let mut event_backup_groups = ctx.event_backup_groups.lock().await;
+                    let mut event_backup_groups = ctx.event_backup_groups.write().await;
 
                     if let Some(current) = event_backup_groups.back_mut() {
                         current.events.push_back(EventBackup {
@@ -312,7 +312,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     };
 
                     ctx.event_backup_groups
-                        .lock()
+                        .write()
                         .await
                         .back_mut()
                         .map(|g| g.merge_sync(&sync));
@@ -342,7 +342,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     };
 
                     ctx.event_backup_groups
-                        .lock()
+                        .write()
                         .await
                         .back_mut()
                         .map(|g| g.merge_sync(&sync));

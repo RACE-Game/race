@@ -203,6 +203,10 @@ impl TestClient {
     pub fn answer(&mut self, decision_id: DecisionId, answer: String) -> Result<Event> {
         self.client.answer_event(decision_id, answer)
     }
+
+    pub fn flush_secret_state(&mut self) {
+        self.client.flush_secret_states();
+    }
 }
 
 #[cfg(test)]

@@ -86,32 +86,6 @@ dev-run-transactor conf:
 # Start transactor dev build, read CONF configuration, register and run
 dev-transactor conf: (dev-reg-transactor conf) (dev-run-transactor conf)
 
-sdk-borsh:
-    npm --prefix ./js/borsh run build
-
-sdk-core:
-    npm --prefix ./js/sdk-core run build
-
-sdk-solana:
-    npm --prefix ./js/sdk-solana run build
-
-sdk-sui:
-    npm --prefix ./js/sdk-sui run build
-
-sdk-facade:
-    npm --prefix ./js/sdk-facade run build
-
-# Build all libs under js folder
-sdk: sdk-borsh sdk-core sdk-solana sdk-facade sdk-sui
-
-# Publish js PKG to npmjs
-publish-npmjs pkg:
-    npm --prefix ./js/{{pkg}} run build
-    (cd js/{{pkg}}; npm publish --access=public)
-
-# Publish all js pacakges
-publish-npmjs-all: (publish-npmjs "borsh") (publish-npmjs "sdk-core") (publish-npmjs "sdk-facade") (publish-npmjs "sdk-solana")
-
 # Publish rust PKG to crates.io
 publish-crates pkg:
     cargo check -p {{pkg}}

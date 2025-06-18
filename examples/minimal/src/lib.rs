@@ -8,7 +8,7 @@ enum MinimalEvent {
 
 impl CustomEvent for MinimalEvent {}
 
-#[derive(BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 struct MinimalAccountData {
     init_n: u64,
 }
@@ -49,5 +49,39 @@ impl GameHandler for Minimal {
 
     fn balances(&self) -> Vec<PlayerBalance> {
         vec![]
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+
+    use race_test::prelude::*;
+    use super::*;
+
+    #[test]
+    fn test_random_state() {
+
+        let mut transactor = TestClient::transactor("tx");
+        let mut alice = TestClient::player("alice");
+
+        let (mut ctx, _) = TestContextBuilder::default()
+            .with_max_players(10)
+            .with_deposit_range(100, 200)
+            .with_data(MinimalAccountData { init_n: 1 })
+            .set_transactor(&mut transactor)
+            .add_player(&mut alice, 100)
+            .build_with_init_state::<Minimal>().unwrap();
+
+        {
+            assert_eq!(ctx.state().n, 1);
+        }
+
+        let e = alice.custom_event(MinimalEvent::Increment(10));
+        ctx.handle_event(&e).unwrap();
+
+        {
+            assert_eq!(ctx.state().n, 11);
+        }
     }
 }

@@ -1,12 +1,14 @@
+BORSH="$ROOT/../race-sdk/packages/borsh"
+
 # Make a JSON specification for tourney game
 # TITLE TOKEN START_TIME
 function make_tourney {
     local ENTRY_CLOSE_TIME=$(expr $3 + 300000)
     local TICKET=100000000
-    local TABLE_SIZE=4
+    local TABLE_SIZE=$4
     local START_CHIPS=100000
 
-    local data=$(cd $ROOT/js/borsh; npx ts-node ./bin/cli.ts \
+    local data=$(cd $BORSH; npx ts-node ./bin/cli.ts \
                              -u64 $3 \
                              -u64 $ENTRY_CLOSE_TIME \
                              -u64 $TICKET \
@@ -51,7 +53,7 @@ function make_cash {
     local MIN_DEPOSIT=$(($5 * 50))
     local MAX_DEPOSIT=$(($5 * 100))
 
-    local data=$(cd $ROOT/js/borsh; npx ts-node ./bin/cli.ts \
+    local data=$(cd $BORSH; npx ts-node ./bin/cli.ts \
                                         -u64 $4 \
                                         -u64 $5 \
                                         -u64 $6 \
@@ -88,7 +90,7 @@ function make_ltmtt {
     local SETTLE_TIME=$(expr $3 + 720000)
     local TABLE_SIZE=8
 
-    local data=$(cd ./js/borsh; npx ts-node ./bin/cli.ts \
+    local data=$(cd $BORSH; npx ts-node ./bin/cli.ts \
 			  -u64 "$3" \
 			  -u64 "$CLOSE_TIME" \
 			  -u64 "$SETTLE_TIME" \
