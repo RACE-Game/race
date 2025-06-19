@@ -24,5 +24,5 @@ START_TIMES=($(expr $TIME)
 
 echo "Start facade server"
 
-just dev-facade -g <(make_tourney "TableSize 2" "FACADE_USDC" ${START_TIMES[2]} 3) \
+just dev-facade -g <(make_tourney "TableSize 4" "FACADE_USDC" ${START_TIMES[2]} 6) \
      -b ../race-holdem/target/race_holdem_mtt_table.wasm
