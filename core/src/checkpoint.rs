@@ -54,6 +54,13 @@ pub struct VersionedData {
     pub bridge_events: Vec<EmitBridgeEvent>,
 }
 
+impl VersionedData {
+    fn clear_future_events(&mut self) {
+        self.dispatch = None;
+        self.bridge_events.clear();
+    }
+}
+
 impl Display for Checkpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = self
@@ -229,6 +236,10 @@ impl Checkpoint {
         }
     }
 
+    pub fn clear_future_events(&mut self) {
+        self.data.values_mut().for_each(VersionedData::clear_future_events);
+    }
+
     pub fn list_versioned_data(&self) -> Vec<&VersionedData> {
         self.data.values().collect()
     }
@@ -244,14 +255,14 @@ impl Checkpoint {
     pub fn get_sha(&self, id: GameId) -> Option<[u8; 32]> {
         self.data
             .get(&id)
-            .map(|d| d.sha.clone().try_into().unwrap())
+            .map(|d| d.sha.clone().try_into().expect("Failed to get SHA"))
     }
 
     pub fn to_merkle_tree(&self) -> MerkleTree<Sha256> {
         let mut leaves: Vec<[u8; 32]> = vec![];
         let mut i = 0;
         while let Some(vd) = self.data.get(&i) {
-            leaves.push(vd.sha.clone().try_into().unwrap());
+            leaves.push(vd.sha.clone().try_into().expect("Failed to build merkle tree"));
             i += 1;
         }
         MerkleTree::from_leaves(&leaves)

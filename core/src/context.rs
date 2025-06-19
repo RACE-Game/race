@@ -160,7 +160,7 @@ pub struct EventEffects {
     pub checkpoint: Option<Checkpoint>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SettleDetails {
     pub settles: Vec<Settle>,
     pub transfer: Option<Transfer>,
@@ -171,7 +171,31 @@ pub struct SettleDetails {
     pub previous_settle_version: u64,
     pub entry_lock: Option<EntryLock>,
     pub accept_deposits: Vec<u64>,
-    pub settle_locks: HashMap<GameId, SettleLock>,
+    pub settle_locks: HashMap<GameId, u64>,
+}
+
+impl SettleDetails {
+    pub fn handle_versioned_data(&mut self, versioned_data: VersionedData) -> Result<()> {
+        self.settle_locks.remove(&versioned_data.id);
+        if self.checkpoint.data.contains_key(&versioned_data.id) {
+            self.checkpoint.update_versioned_data(versioned_data)?;
+        } else {
+            self.checkpoint.init_versioned_data(versioned_data)?;
+        }
+        Ok(())
+    }
+
+    pub fn print(&self) {
+        println!("Settles: {:?}", self.settles);
+        println!("Transfer: {:?}", self.transfer);
+        println!("Awards: {:?}", self.awards);
+        println!("Checkpoint:");
+        for data in self.checkpoint.data.iter() {
+            println!("- Id: {}", data.1.id);
+            println!("  Dispatch: {:?}", data.1.dispatch);
+            println!("  Bridge Events: {:?}", data.1.bridge_events);
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -240,6 +264,7 @@ pub struct GameContext {
     pub(crate) accept_deposits: Vec<u64>,
     /// The pending settle details. They are here because the settle is blocked by the settle locks.
     pub(crate) pending_settle_details: Vec<SettleDetails>,
+    /// The locks for the under construction settle
     pub(crate) next_settle_locks: HashMap<GameId, SettleLock>,
 }
 
@@ -454,20 +479,6 @@ impl GameContext {
             Some(cp)
         } else {
             None
-        }
-    }
-
-    pub fn remove_settle_lock(&mut self, game_id: GameId, versioned_data: VersionedData) {
-        // remove from next_settle_lock
-        self.next_settle_locks
-            .insert(game_id, SettleLock::Unlocked(versioned_data));
-        // clear emitbridgeevent.
-        let _ = self
-            .checkpoint_mut()
-            .set_bridge_in_versioned_data(game_id, vec![]);
-        // remove from Checkpoints
-        for checkpoint in self.pending_settle_details.iter_mut() {
-            checkpoint.settle_locks.remove(&game_id);
         }
     }
 
@@ -823,6 +834,43 @@ impl GameContext {
         Ok(())
     }
 
+    pub fn handle_versioned_data(
+        &mut self,
+        game_id: GameId,
+        mut versioned_data: VersionedData,
+        is_init: bool,
+    ) -> Result<()> {
+        match self.next_settle_locks.entry(game_id) {
+            // Update
+            std::collections::hash_map::Entry::Occupied(mut occupied_entry) => {
+                match occupied_entry.get() {
+                    SettleLock::Locked(_) => {
+                        versioned_data.bridge_events = vec![];
+                        occupied_entry.insert(SettleLock::Unlocked(versioned_data.clone()));
+                        self.checkpoint_mut().update_versioned_data(versioned_data.clone())?;
+                        println!("locked");
+                    }
+                    SettleLock::Unlocked(_) => {
+                        return Err(Error::InvalidCheckpoint);
+                    }
+                }
+            }
+            // Initialize
+            std::collections::hash_map::Entry::Vacant(_) => {
+                if is_init {
+                    self.checkpoint_mut().init_versioned_data(versioned_data.clone())?;
+                } else {
+                    self.checkpoint_mut().update_versioned_data(versioned_data.clone())?;
+                    self.pending_settle_details
+                        .iter_mut()
+                        .map(|sd| sd.handle_versioned_data(versioned_data.clone()))
+                        .collect::<Result<Vec<_>>>()?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn add_revealed_random(
         &mut self,
         random_id: RandomId,
@@ -1051,12 +1099,12 @@ impl GameContext {
             }
 
             let settle_locks: Vec<_> = self.next_settle_locks.drain().collect();
-            let mut locked_settle_locks: HashMap<GameId, SettleLock> = HashMap::new();
+            let mut locked_settle_locks: HashMap<GameId, u64> = HashMap::new();
 
             for (game_id, settle_lock) in settle_locks {
                 match settle_lock {
-                    SettleLock::Locked(_) => {
-                        locked_settle_locks.insert(game_id, settle_lock);
+                    SettleLock::Locked(settle_version) => {
+                        locked_settle_locks.insert(game_id, settle_version);
                     }
                     SettleLock::Unlocked(versioned_data) => {
                         self.checkpoint_mut()
@@ -1078,6 +1126,8 @@ impl GameContext {
                     accept_deposits: self.accept_deposits.drain(..).collect(),
                     settle_locks: locked_settle_locks,
                 };
+                settle_details.print();
+                self.checkpoint.clear_future_events();
                 self.pending_settle_details.push(settle_details);
             }
 
@@ -1222,6 +1272,91 @@ mod tests {
     use super::*;
     use race_api::effect::{EmitBridgeEvent, SubGame, Withdraw};
 
+
+    #[test]
+    fn given_effect_with_bridge_event_do_apply_effect() -> anyhow::Result<()> {
+        let mut ctx = GameContext::default();
+        let mut ef = Effect::default();
+        let mut cp = Checkpoint::new(0, GameSpec::default(), Versions::default(), vec![]);
+        cp.init_data(1, GameSpec::default(), Versions::default(), vec![])?;
+        ctx.checkpoint = cp;
+        ef.handler_state = Some(vec![1]);
+        ef.bridge_events = vec![EmitBridgeEvent::new_empty(1)];
+        ef.is_checkpoint = true;
+        ctx.apply_effect(ef)?;
+        assert!(ctx.next_settle_locks.is_empty());
+        assert_eq!(ctx.pending_settle_details.len(), 1);
+        assert_eq!(ctx.checkpoint().data.get(&0).unwrap().bridge_events.len(), 1);
+
+        // A future call on handle_versioned_data should remove the lock for SettleDetails
+        let mut vd = VersionedData::default();
+        vd.id = 1;
+        vd.versions.settle_version = 1;
+        ctx.handle_versioned_data(1, vd, false)?;
+        assert!(ctx.pending_settle_details[0].checkpoint.data.get(&1).unwrap().bridge_events.is_empty());
+        assert_eq!(ctx.pending_settle_details[0].settle_locks, HashMap::default());
+        Ok(())
+    }
+
+    #[test]
+    fn given_init_sub_checkpoint_do_handle_versioned_data() {
+
+    }
+
+    #[test]
+    fn given_sub_checkpoint_before_main_checkpoint_do_handle_versioned_data() -> anyhow::Result<()> {
+        let mut ctx = GameContext::default();
+        let mut vd = VersionedData::default();
+        let mut cp = Checkpoint::default();
+        cp.data.insert(0, VersionedData::default());
+        cp.data.insert(1, VersionedData::default());
+        vd.id = 1;
+        vd.bridge_events = vec![EmitBridgeEvent::new_empty(0)];
+        ctx.next_settle_locks.insert(1, SettleLock::Locked(0));
+        ctx.checkpoint = cp;
+        ctx.handle_versioned_data(1, vd.clone(), false)?;
+        vd.bridge_events = vec![];
+        assert_eq!(
+            ctx.next_settle_locks.get(&1),
+            Some(&SettleLock::Unlocked(vd))
+        );
+        assert_eq!(ctx.checkpoint().data.get(&1).unwrap().bridge_events, vec![]);
+        match ctx.next_settle_locks.get(&1) {
+            Some(SettleLock::Unlocked(vd)) => {
+                assert_eq!(vd.bridge_events, vec![]);
+            }
+            _ => panic!("not a settle lock"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn given_sub_checkpoint_after_main_checkpoint_do_handle_versioned_data() {
+        let mut ctx = GameContext::default();
+        let mut vd = VersionedData::default();
+        let mut cp = Checkpoint::default();
+        let mut sd = SettleDetails::default();
+        sd.settle_locks.insert(1, 0);
+
+        cp.data.insert(0, VersionedData::default());
+        cp.data.insert(1, VersionedData::default());
+        sd.checkpoint = cp.clone();
+        let e = EmitBridgeEvent::new_empty(0);
+        vd.id = 1;
+        vd.bridge_events = vec![e.clone()];
+        ctx.pending_settle_details_mut().push(sd);
+        ctx.checkpoint = cp;
+        ctx
+            .handle_versioned_data(1, vd.clone(), false)
+            .unwrap();
+        assert_eq!(
+            ctx.next_settle_locks.get(&1),
+            None,
+        );
+        assert_eq!(ctx.next_settle_locks.len(), 0);
+        assert_eq!(ctx.pending_settle_details[0].settle_locks.len(), 0);
+    }
+
     #[test]
     fn test_apply_effect_with_all_fields() {
         // Setting up a GameContext
@@ -1326,7 +1461,7 @@ mod tests {
         assert_eq!(settle_details.accept_deposits, vec![4, 5, 6]);
         assert_eq!(
             settle_details.settle_locks,
-            HashMap::from([(1, SettleLock::Locked(0))])
+            HashMap::from([(1, 0)])
         );
 
         let game_id = game_context.game_id();

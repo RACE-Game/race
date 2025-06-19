@@ -110,6 +110,13 @@ impl EmitBridgeEvent {
             raw: borsh::to_vec(&bridge_event)?,
         })
     }
+
+    pub fn new_empty(dest: GameId) -> Self {
+        Self {
+            dest,
+            raw: vec![]
+        }
+    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]

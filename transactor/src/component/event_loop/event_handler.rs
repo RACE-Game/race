@@ -129,7 +129,7 @@ async fn send_bridge_event(
             },
             // access_version: game_context.access_version(),
             // settle_version: game_context.settle_version(),
-            checkpoint_state: checkpoint_state.clone(),
+            versioned_data: checkpoint_state.clone(),
         };
         ports.send(ef).await;
     }
@@ -161,6 +161,8 @@ async fn do_send_settlements(
             env.log_prefix,
             game_context.settle_version(),
         );
+
+        settle_details.print();
 
         ports
             .send(EventFrame::Settle {

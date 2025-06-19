@@ -96,7 +96,7 @@ pub enum EventFrame {
         event: Event,
         // access_version: u64,
         // settle_version: u64,
-        checkpoint_state: VersionedData,
+        versioned_data: VersionedData,
     },
     /// Similar to `SendBridgeEvent`, but for receiver's event bus.
     RecvBridgeEvent {
@@ -106,7 +106,7 @@ pub enum EventFrame {
         // #[allow(unused)]
         // access_version: u64,
         // settle_version: u64,
-        checkpoint_state: VersionedData,
+        versioned_data: VersionedData,
     },
 
     /// Launch a subgame.
