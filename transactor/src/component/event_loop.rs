@@ -7,18 +7,18 @@ use tracing::{error, info, warn};
 
 use crate::component::common::{Component, PipelinePorts};
 use crate::component::event_bus::CloseReason;
-use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
 use crate::utils::current_timestamp;
 use race_core::types::{ClientMode, GameMode, GamePlayer};
 
+use super::handler::HandlerT;
 use super::ComponentEnv;
 
 mod event_handler;
 mod misc;
 
 pub struct EventLoopContext {
-    handler: WrappedHandler,
+    handler: Box<dyn HandlerT>,
     game_context: GameContext,
     client_mode: ClientMode,
     game_mode: GameMode,
@@ -62,7 +62,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         if let Some(close_reason) = event_handler::init_state(
                             access_version,
                             settle_version,
-                            &mut handler,
+                            &mut *handler,
                             &mut game_context,
                             &ports,
                             ctx.client_mode,
@@ -93,7 +93,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if ctx.client_mode == ClientMode::Transactor {
                         let event = Event::GameStart;
                         if let Some(close_reason) = event_handler::handle_event(
-                            &mut handler,
+                            &mut *handler,
                             &mut game_context,
                             event,
                             &ports,
@@ -204,7 +204,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         if !players.is_empty() {
                             let event = Event::Join { players };
                             if let Some(close_reason) = event_handler::handle_event(
-                                &mut handler,
+                                &mut *handler,
                                 &mut game_context,
                                 event,
                                 &ports,
@@ -222,7 +222,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         if !deposits.is_empty() {
                             let event = Event::Deposit { deposits };
                             if let Some(close_reason) = event_handler::handle_event(
-                                &mut handler,
+                                &mut *handler,
                                 &mut game_context,
                                 event,
                                 &ports,
@@ -243,7 +243,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if let Ok(player_id) = game_context.addr_to_id(&player_addr) {
                         let event = Event::Leave { player_id };
                         if let Some(close_reason) = event_handler::handle_event(
-                            &mut handler,
+                            &mut *handler,
                             &mut game_context,
                             event,
                             &ports,
@@ -286,7 +286,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             init_data,
                         };
                         if let Some(close_reason) = event_handler::handle_event(
-                            &mut handler,
+                            &mut *handler,
                             &mut game_context,
                             event,
                             &ports,
@@ -315,7 +315,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     let settle_version = versioned_data.versions.settle_version;
 
                     if let Some(close_reason) = event_handler::handle_event(
-                        &mut handler,
+                        &mut *handler,
                         &mut game_context,
                         event,
                         &ports,
@@ -340,7 +340,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
                 EventFrame::SendEvent { event, timestamp } => {
                     if let Some(close_reason) = event_handler::handle_event(
-                        &mut handler,
+                        &mut *handler,
                         &mut game_context,
                         event,
                         &ports,
@@ -361,7 +361,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
 
                     if let Some(close_reason) = event_handler::handle_event(
-                        &mut handler,
+                        &mut *handler,
                         &mut game_context,
                         event,
                         &ports,
@@ -389,7 +389,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
 impl EventLoop {
     pub fn init(
-        handler: WrappedHandler,
+        handler: Box<dyn HandlerT + Send>,
         game_context: GameContext,
         client_mode: ClientMode,
         game_mode: GameMode,
@@ -404,4 +404,14 @@ impl EventLoop {
             },
         )
     }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+
 }

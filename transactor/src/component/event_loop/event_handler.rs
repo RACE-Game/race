@@ -13,7 +13,7 @@ use race_core::{
 };
 
 use crate::{
-    component::{common::PipelinePorts, CloseReason, ComponentEnv, WrappedHandler},
+    component::{common::PipelinePorts, handler::HandlerT, CloseReason, ComponentEnv},
     frame::EventFrame,
 };
 use tracing::{debug, error, info, warn};
@@ -92,7 +92,7 @@ async fn send_subgame_ready(
 
 async fn send_subgame_recovered(game_id: GameId, ports: &PipelinePorts) {
     ports
-        .send(EventFrame::SubGameRecovered { game_id: game_id })
+        .send(EventFrame::SubGameRecovered { game_id })
         .await;
 }
 
@@ -207,7 +207,7 @@ async fn launch_sub_game(
 pub async fn init_state(
     access_version: u64,
     settle_version: u64,
-    handler: &mut WrappedHandler,
+    handler: &mut dyn HandlerT,
     mut game_context: &mut GameContext,
     ports: &PipelinePorts,
     client_mode: ClientMode,
@@ -333,7 +333,7 @@ pub async fn recover_from_checkpoint(
 }
 
 pub async fn handle_event(
-    handler: &mut WrappedHandler,
+    handler: &mut dyn HandlerT,
     game_context: &mut GameContext,
     event: Event,
     ports: &PipelinePorts,

@@ -47,7 +47,7 @@ impl SubGameHandle {
         let settle_version = game_context.settle_version();
         let checkpoint = game_context.checkpoint().clone();
 
-        let handler = WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?;
+        let handler = Box::new(WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?);
 
         let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone(), game_id);
         let mut broadcaster_handle = broadcaster.start(&addr, broadcaster_ctx);

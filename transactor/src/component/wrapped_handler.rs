@@ -16,6 +16,8 @@ use tracing::info;
 use tracing::log::error;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
 
+use super::HandlerT;
+
 fn log_execution_context(effect_bs: &Vec<u8>, event_bs: &Vec<u8>) {
     info!("Execution context");
     info!("===== Effect Bytes =====");
@@ -29,6 +31,33 @@ pub struct WrappedHandler {
     store: Store,
     instance: Instance,
     encryptor: Arc<dyn EncryptorT>,
+}
+
+impl HandlerT for WrappedHandler {
+    fn handle_event(
+        &mut self,
+        context: &mut GameContext,
+        event: &Event,
+    ) -> Result<EventEffects> {
+        let mut new_context = context.clone();
+        general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
+        let event_effects = self.custom_handle_event(&mut new_context, event)?;
+        swap(context, &mut new_context);
+        Ok(event_effects)
+    }
+
+    // Initialize game state
+    fn init_state(
+        &mut self,
+        context: &mut GameContext,
+        init_account: &InitAccount,
+    ) -> Result<EventEffects> {
+        let mut new_context = context.clone();
+        new_context.set_timestamp(0);
+        let event_effects = self.custom_init_state(&mut new_context, init_account)?;
+        swap(context, &mut new_context);
+        Ok(event_effects)
+    }
 }
 
 impl WrappedHandler {
@@ -215,31 +244,6 @@ impl WrappedHandler {
         } else {
             context.apply_effect(effect)
         }
-    }
-
-    pub fn handle_event(
-        &mut self,
-        context: &mut GameContext,
-        event: &Event,
-    ) -> Result<EventEffects> {
-        let mut new_context = context.clone();
-        general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
-        let event_effects = self.custom_handle_event(&mut new_context, event)?;
-        swap(context, &mut new_context);
-        Ok(event_effects)
-    }
-
-    // Initialize game state
-    pub fn init_state(
-        &mut self,
-        context: &mut GameContext,
-        init_account: &InitAccount,
-    ) -> Result<EventEffects> {
-        let mut new_context = context.clone();
-        new_context.set_timestamp(0);
-        let event_effects = self.custom_init_state(&mut new_context, init_account)?;
-        swap(context, &mut new_context);
-        Ok(event_effects)
     }
 }
 

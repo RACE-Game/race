@@ -847,8 +847,7 @@ impl GameContext {
                     SettleLock::Locked(_) => {
                         versioned_data.bridge_events = vec![];
                         occupied_entry.insert(SettleLock::Unlocked(versioned_data.clone()));
-                        self.checkpoint_mut().update_versioned_data(versioned_data.clone())?;
-                        println!("locked");
+                        self.checkpoint_mut().update_versioned_data(versioned_data)?;
                     }
                     SettleLock::Unlocked(_) => {
                         return Err(Error::InvalidCheckpoint);
