@@ -419,7 +419,58 @@ impl EventLoop {
 #[cfg(test)]
 mod tests {
 
+    use borsh::{BorshDeserialize, BorshSerialize};
+    use race_api::{event::BridgeEvent, prelude::InitAccount};
+    use race_core::checkpoint::Checkpoint;
+    use race_core::{checkpoint::VersionedData, context::EventEffects};
+    use race_core::error::Result;
+
     use super::*;
 
+    #[derive(BorshSerialize, BorshDeserialize)]
+    struct EmptyBridgeEvent {}
 
+    impl BridgeEvent for EmptyBridgeEvent {}
+
+    struct TestHandlerForBridgeEvent {}
+
+    impl HandlerT for TestHandlerForBridgeEvent  {
+        fn init_state(&mut self, _context: &mut GameContext, _init_account: &InitAccount) -> Result<EventEffects> {
+            Ok(EventEffects::default())
+        }
+
+        fn handle_event(&mut self, context: &mut GameContext, _event: &Event) -> Result<EventEffects> {
+            let mut ef = context.derive_effect(false);
+            ef.checkpoint();
+            ef.bridge_event(0, EmptyBridgeEvent {})?;
+            let ee = context.apply_effect(ef);
+            ee
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
+    async fn test_event_loop_receive_bridge_event() {
+        let handler = TestHandlerForBridgeEvent {};
+        let game_context = GameContext::default();
+
+        let (event_loop, event_loop_ctx) = EventLoop::init(
+            Box::new(handler),
+            game_context,
+            ClientMode::Transactor,
+            GameMode::Main,
+        );
+        let mut event_loop_handle = event_loop.start("fake addresses", event_loop_ctx);
+        let mut vd1 = VersionedData::default();
+        vd1.id = 1;
+        event_loop_handle.send_unchecked(EventFrame::RecvBridgeEvent {
+            from: 1,
+            dest: 0,
+            event: Event::Bridge { dest_game_id: 0, from_game_id: 1, raw: vec![] },
+            versioned_data: vd1,
+        }).await;
+        println!("Sent!");
+        let recv = event_loop_handle.recv_unchecked().await;
+        println!("{recv:?}");
+        assert!(false);
+    }
 }

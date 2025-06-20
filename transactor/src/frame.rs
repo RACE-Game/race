@@ -94,8 +94,6 @@ pub enum EventFrame {
         from: GameId,
         dest: GameId,
         event: Event,
-        // access_version: u64,
-        // settle_version: u64,
         versioned_data: VersionedData,
     },
     /// Similar to `SendBridgeEvent`, but for receiver's event bus.
@@ -103,9 +101,6 @@ pub enum EventFrame {
         from: GameId,
         dest: GameId,
         event: Event,
-        // #[allow(unused)]
-        // access_version: u64,
-        // settle_version: u64,
         versioned_data: VersionedData,
     },
 
