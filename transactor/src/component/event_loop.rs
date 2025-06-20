@@ -272,10 +272,14 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 } => {
                     if ctx.game_mode == GameMode::Main && ctx.client_mode == ClientMode::Transactor
                     {
-
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
-                        if let Err(e) = game_context.handle_versioned_data(game_id, versioned_data, true) {
-                            error!("{} Failed in handling new sub game's versioned data: {:?}", env.log_prefix, e);
+                        if let Err(e) =
+                            game_context.handle_versioned_data(game_id, versioned_data, true)
+                        {
+                            error!(
+                                "{} Failed in handling new sub game's versioned data: {:?}",
+                                env.log_prefix, e
+                            );
                             ports.send(EventFrame::Shutdown).await;
                             return CloseReason::Fault(e);
                         }
@@ -310,9 +314,22 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     ..
                 } => {
                     // In the case of parent, update the child game' checkpoint value.
-
                     let timestamp = current_timestamp();
                     let settle_version = versioned_data.versions.settle_version;
+
+                    if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
+                        info!("BridgeEvent: Update checkpoint for sub game: {}", from);
+                        if let Err(e) =
+                            game_context.handle_versioned_data(from, versioned_data, false)
+                        {
+                            error!(
+                                "{} Failed in handling new sub game's versioned data: {:?}",
+                                env.log_prefix, e
+                            );
+                            ports.send(EventFrame::Shutdown).await;
+                            return CloseReason::Fault(e);
+                        }
+                    }
 
                     if let Some(close_reason) = event_handler::handle_event(
                         &mut *handler,
@@ -327,15 +344,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     .await
                     {
                         return close_reason;
-                    }
-
-                    if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
-                        info!("BridgeEvent: Update checkpoint for sub game: {}", from);
-                        if let Err(e) = game_context.handle_versioned_data(from, versioned_data, false) {
-                            error!("{} Failed in handling new sub game's versioned data: {:?}", env.log_prefix, e);
-                            ports.send(EventFrame::Shutdown).await;
-                            return CloseReason::Fault(e);
-                        }
                     }
                 }
                 EventFrame::SendEvent { event, timestamp } => {
