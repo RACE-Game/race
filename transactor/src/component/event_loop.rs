@@ -410,14 +410,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
                 EventFrame::Shutdown => {
                     info!("{} Stopped", env.log_prefix);
-
-                    let game_id = game_context.game_id();
-                    if game_id != 0 {
-                        if let Some(vd) = game_context.checkpoint().get_versioned_data(game_id) {
-                            event_handler::send_subgame_shutdown(game_id, vd, &ports).await;
-                        }
-                    }
-
                     return CloseReason::Complete;
                 }
                 _ => (),

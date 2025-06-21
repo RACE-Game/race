@@ -364,6 +364,7 @@ pub async fn handle_event(
                 launch_sub_games,
                 bridge_events,
                 start_game,
+                stop_game,
                 logs,
                 reject_deposits,
                 checkpoint,
@@ -384,6 +385,13 @@ pub async fn handle_event(
             // Start game
             if client_mode == ClientMode::Transactor && start_game {
                 send_start_game(&game_context, ports).await;
+            }
+
+            if client_mode == ClientMode::Transactor && stop_game {
+                let game_id = game_context.game_id();
+                if let Some(vd) = game_context.checkpoint().get_versioned_data(game_id) {
+                    send_subgame_shutdown(game_id, vd, ports).await;
+                }
             }
 
             // Launch sub games
