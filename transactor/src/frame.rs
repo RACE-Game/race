@@ -130,6 +130,12 @@ pub enum EventFrame {
         game_id: GameId,
     },
 
+    /// Subgame send this frame when it will be shutdown.
+    SubGameShutdown {
+        game_id: GameId,
+        versioned_data: VersionedData,
+    },
+
     /// Reject a deposit
     RejectDeposits {
         reject_deposits: Vec<u64>,
@@ -213,6 +219,9 @@ impl std::fmt::Display for EventFrame {
             }
             EventFrame::SubGameRecovered { game_id } => {
                 write!(f, "SubGameRecovered, game_id: {}", game_id)
+            }
+            EventFrame::SubGameShutdown { game_id, .. } => {
+                write!(f, "SubGameShutdown, game_id: {}", game_id)
             }
             EventFrame::RejectDeposits { reject_deposits } => {
                 write!(f, "Reject deposits, {:?}", reject_deposits)

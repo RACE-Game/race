@@ -883,7 +883,6 @@ impl GameContext {
         }
 
         let cur_id = self.game_id();
-        // remove from Checkpoints
         for settle_detail in self.pending_settle_details.iter_mut() {
             settle_detail.settle_locks.remove(&game_id);
             if settle_detail.settle_locks.is_empty() {

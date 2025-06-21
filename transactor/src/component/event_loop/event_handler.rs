@@ -91,8 +91,19 @@ async fn send_subgame_ready(
 }
 
 async fn send_subgame_recovered(game_id: GameId, ports: &PipelinePorts) {
+    ports.send(EventFrame::SubGameRecovered { game_id }).await;
+}
+
+pub async fn send_subgame_shutdown(
+    game_id: GameId,
+    versioned_data: &VersionedData,
+    ports: &PipelinePorts,
+) {
     ports
-        .send(EventFrame::SubGameRecovered { game_id })
+        .send(EventFrame::SubGameShutdown {
+            game_id,
+            versioned_data: versioned_data.clone(),
+        })
         .await;
 }
 
@@ -127,8 +138,6 @@ async fn send_bridge_event(
                 from_game_id: game_context.game_id(),
                 raw: be.raw,
             },
-            // access_version: game_context.access_version(),
-            // settle_version: game_context.settle_version(),
             versioned_data: checkpoint_state.clone(),
         };
         ports.send(ef).await;

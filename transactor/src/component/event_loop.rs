@@ -306,6 +306,31 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
 
+                EventFrame::SubGameShutdown {
+                    game_id,
+                    versioned_data,
+                } => {
+                    if ctx.game_mode == GameMode::Main
+                        && ctx.client_mode == ClientMode::Transactor
+                        && game_context.game_id() == 0
+                    {
+                        info!(
+                            "SubGameShutdown: Update checkpoint for sub game: {}",
+                            game_id
+                        );
+                        if let Err(e) =
+                            game_context.handle_versioned_data(game_id, versioned_data, false)
+                        {
+                            error!(
+                                "{} SubGameShutdown: Failed in handling new sub game's versioned data: {:?}",
+                                env.log_prefix, e
+                            );
+                            ports.send(EventFrame::Shutdown).await;
+                            return CloseReason::Fault(e);
+                        }
+                    }
+                }
+
                 EventFrame::RecvBridgeEvent {
                     event,
                     dest,
@@ -385,6 +410,14 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
                 EventFrame::Shutdown => {
                     info!("{} Stopped", env.log_prefix);
+
+                    let game_id = game_context.game_id();
+                    if game_id != 0 {
+                        if let Some(vd) = game_context.checkpoint().get_versioned_data(game_id) {
+                            event_handler::send_subgame_shutdown(game_id, vd, &ports).await;
+                        }
+                    }
+
                     return CloseReason::Complete;
                 }
                 _ => (),
@@ -414,16 +447,13 @@ impl EventLoop {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
 
     use borsh::{BorshDeserialize, BorshSerialize};
     use race_api::{event::BridgeEvent, prelude::InitAccount};
-    use race_core::checkpoint::Checkpoint;
-    use race_core::{checkpoint::VersionedData, context::EventEffects};
     use race_core::error::Result;
+    use race_core::{checkpoint::VersionedData, context::EventEffects};
 
     use super::*;
 
@@ -434,12 +464,20 @@ mod tests {
 
     struct TestHandlerForBridgeEvent {}
 
-    impl HandlerT for TestHandlerForBridgeEvent  {
-        fn init_state(&mut self, _context: &mut GameContext, _init_account: &InitAccount) -> Result<EventEffects> {
+    impl HandlerT for TestHandlerForBridgeEvent {
+        fn init_state(
+            &mut self,
+            _context: &mut GameContext,
+            _init_account: &InitAccount,
+        ) -> Result<EventEffects> {
             Ok(EventEffects::default())
         }
 
-        fn handle_event(&mut self, context: &mut GameContext, _event: &Event) -> Result<EventEffects> {
+        fn handle_event(
+            &mut self,
+            context: &mut GameContext,
+            _event: &Event,
+        ) -> Result<EventEffects> {
             let mut ef = context.derive_effect(false);
             ef.checkpoint();
             ef.bridge_event(0, EmptyBridgeEvent {})?;
@@ -462,12 +500,18 @@ mod tests {
         let mut event_loop_handle = event_loop.start("fake addresses", event_loop_ctx);
         let mut vd1 = VersionedData::default();
         vd1.id = 1;
-        event_loop_handle.send_unchecked(EventFrame::RecvBridgeEvent {
-            from: 1,
-            dest: 0,
-            event: Event::Bridge { dest_game_id: 0, from_game_id: 1, raw: vec![] },
-            versioned_data: vd1,
-        }).await;
+        event_loop_handle
+            .send_unchecked(EventFrame::RecvBridgeEvent {
+                from: 1,
+                dest: 0,
+                event: Event::Bridge {
+                    dest_game_id: 0,
+                    from_game_id: 1,
+                    raw: vec![],
+                },
+                versioned_data: vd1,
+            })
+            .await;
         println!("Sent!");
         let recv = event_loop_handle.recv_unchecked().await;
         println!("{recv:?}");
