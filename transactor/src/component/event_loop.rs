@@ -7,18 +7,18 @@ use tracing::{error, info, warn};
 
 use crate::component::common::{Component, PipelinePorts};
 use crate::component::event_bus::CloseReason;
-use crate::component::wrapped_handler::WrappedHandler;
 use crate::frame::EventFrame;
 use crate::utils::current_timestamp;
 use race_core::types::{ClientMode, GameMode, GamePlayer};
 
+use super::handler::HandlerT;
 use super::ComponentEnv;
 
 mod event_handler;
 mod misc;
 
 pub struct EventLoopContext {
-    handler: WrappedHandler,
+    handler: Box<dyn HandlerT>,
     game_context: GameContext,
     client_mode: ClientMode,
     game_mode: GameMode,
@@ -56,13 +56,13 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     // An init account is created during the process and is passed to the init_state
                     // function of the game handler.
                     //
-                    // Recover from chcekpoint. When the checkpoint is available, there's no need to call
+                    // Recover from checkpoint. When the checkpoint is available, there's no need to call
                     // init_state from the game handler.
                     if !game_context.handler_is_initialized() {
                         if let Some(close_reason) = event_handler::init_state(
                             access_version,
                             settle_version,
-                            &mut handler,
+                            &mut *handler,
                             &mut game_context,
                             &ports,
                             ctx.client_mode,
@@ -93,7 +93,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if ctx.client_mode == ClientMode::Transactor {
                         let event = Event::GameStart;
                         if let Some(close_reason) = event_handler::handle_event(
-                            &mut handler,
+                            &mut *handler,
                             &mut game_context,
                             event,
                             &ports,
@@ -204,7 +204,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         if !players.is_empty() {
                             let event = Event::Join { players };
                             if let Some(close_reason) = event_handler::handle_event(
-                                &mut handler,
+                                &mut *handler,
                                 &mut game_context,
                                 event,
                                 &ports,
@@ -222,7 +222,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         if !deposits.is_empty() {
                             let event = Event::Deposit { deposits };
                             if let Some(close_reason) = event_handler::handle_event(
-                                &mut handler,
+                                &mut *handler,
                                 &mut game_context,
                                 event,
                                 &ports,
@@ -243,7 +243,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if let Ok(player_id) = game_context.addr_to_id(&player_addr) {
                         let event = Event::Leave { player_id };
                         if let Some(close_reason) = event_handler::handle_event(
-                            &mut handler,
+                            &mut *handler,
                             &mut game_context,
                             event,
                             &ports,
@@ -265,24 +265,32 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
 
                 EventFrame::SubGameReady {
-                    checkpoint_state,
+                    versioned_data,
                     game_id,
                     init_data,
                     max_players,
                 } => {
-                    if ctx.game_mode == GameMode::Main {
+                    if ctx.game_mode == GameMode::Main && ctx.client_mode == ClientMode::Transactor
+                    {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
-                        if let Err(e) = game_context
-                            .checkpoint_mut()
-                            .init_versioned_data(checkpoint_state)
+                        if let Err(e) =
+                            game_context.handle_versioned_data(game_id, versioned_data, true)
                         {
-                            error!("{} Failed to init checkpoint data: {:?}", env.log_prefix, e);
+                            error!(
+                                "{} Failed in handling new sub game's versioned data: {:?}",
+                                env.log_prefix, e
+                            );
                             ports.send(EventFrame::Shutdown).await;
+                            return CloseReason::Fault(e);
                         }
                         let timestamp = current_timestamp();
-                        let event = Event::SubGameReady { game_id, max_players, init_data };
+                        let event = Event::SubGameReady {
+                            game_id,
+                            max_players,
+                            init_data,
+                        };
                         if let Some(close_reason) = event_handler::handle_event(
-                            &mut handler,
+                            &mut *handler,
                             &mut game_context,
                             event,
                             &ports,
@@ -298,32 +306,58 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
 
+                EventFrame::SubGameShutdown {
+                    game_id,
+                    versioned_data,
+                } => {
+                    if ctx.game_mode == GameMode::Main
+                        && ctx.client_mode == ClientMode::Transactor
+                        && game_context.game_id() == 0
+                    {
+                        info!(
+                            "SubGameShutdown: Update checkpoint for sub game: {}",
+                            game_id
+                        );
+                        if let Err(e) =
+                            game_context.handle_versioned_data(game_id, versioned_data, false)
+                        {
+                            error!(
+                                "{} SubGameShutdown: Failed in handling new sub game's versioned data: {:?}",
+                                env.log_prefix, e
+                            );
+                            ports.send(EventFrame::Shutdown).await;
+                            return CloseReason::Fault(e);
+                        }
+                    }
+                }
+
                 EventFrame::RecvBridgeEvent {
                     event,
                     dest,
                     from,
-                    checkpoint_state,
-                    settle_version,
+                    versioned_data,
                     ..
                 } => {
-                    // In the case of parent, update the child game's
-                    // checkpoint value.
-
+                    // In the case of parent, update the child game' checkpoint value.
                     let timestamp = current_timestamp();
+                    let settle_version = versioned_data.versions.settle_version;
 
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("BridgeEvent: Update checkpoint for sub game: {}", from);
-                        if let Err(e) = game_context
-                            .checkpoint_mut()
-                            .update_versioned_data(checkpoint_state)
+                        if let Err(e) =
+                            game_context.handle_versioned_data(from, versioned_data, false)
                         {
-                            error!("{} Failed to set checkpoint data: {:?}", env.log_prefix, e);
+                            error!(
+                                "{} Failed in handling new sub game's versioned data: {:?}",
+                                env.log_prefix, e
+                            );
                             ports.send(EventFrame::Shutdown).await;
+                            return CloseReason::Fault(e);
                         }
                     }
 
                     if let Some(close_reason) = event_handler::handle_event(
-                        &mut handler,
+                        &mut *handler,
                         &mut game_context,
                         event,
                         &ports,
@@ -339,7 +373,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
                 EventFrame::SendEvent { event, timestamp } => {
                     if let Some(close_reason) = event_handler::handle_event(
-                        &mut handler,
+                        &mut *handler,
                         &mut game_context,
                         event,
                         &ports,
@@ -360,7 +394,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
 
                     if let Some(close_reason) = event_handler::handle_event(
-                        &mut handler,
+                        &mut *handler,
                         &mut game_context,
                         event,
                         &ports,
@@ -388,7 +422,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
 impl EventLoop {
     pub fn init(
-        handler: WrappedHandler,
+        handler: Box<dyn HandlerT + Send>,
         game_context: GameContext,
         client_mode: ClientMode,
         game_mode: GameMode,
@@ -402,5 +436,77 @@ impl EventLoop {
                 game_mode,
             },
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use borsh::{BorshDeserialize, BorshSerialize};
+    use race_api::{event::BridgeEvent, prelude::InitAccount};
+    use race_core::error::Result;
+    use race_core::{checkpoint::VersionedData, context::EventEffects};
+
+    use super::*;
+
+    #[derive(BorshSerialize, BorshDeserialize)]
+    struct EmptyBridgeEvent {}
+
+    impl BridgeEvent for EmptyBridgeEvent {}
+
+    struct TestHandlerForBridgeEvent {}
+
+    impl HandlerT for TestHandlerForBridgeEvent {
+        fn init_state(
+            &mut self,
+            _context: &mut GameContext,
+            _init_account: &InitAccount,
+        ) -> Result<EventEffects> {
+            Ok(EventEffects::default())
+        }
+
+        fn handle_event(
+            &mut self,
+            context: &mut GameContext,
+            _event: &Event,
+        ) -> Result<EventEffects> {
+            let mut ef = context.derive_effect(false);
+            ef.checkpoint();
+            ef.bridge_event(0, EmptyBridgeEvent {})?;
+            let ee = context.apply_effect(ef);
+            ee
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
+    async fn test_event_loop_receive_bridge_event() {
+        let handler = TestHandlerForBridgeEvent {};
+        let game_context = GameContext::default();
+
+        let (event_loop, event_loop_ctx) = EventLoop::init(
+            Box::new(handler),
+            game_context,
+            ClientMode::Transactor,
+            GameMode::Main,
+        );
+        let mut event_loop_handle = event_loop.start("fake addresses", event_loop_ctx);
+        let mut vd1 = VersionedData::default();
+        vd1.id = 1;
+        event_loop_handle
+            .send_unchecked(EventFrame::RecvBridgeEvent {
+                from: 1,
+                dest: 0,
+                event: Event::Bridge {
+                    dest_game_id: 0,
+                    from_game_id: 1,
+                    raw: vec![],
+                },
+                versioned_data: vd1,
+            })
+            .await;
+        println!("Sent!");
+        let recv = event_loop_handle.recv_unchecked().await;
+        println!("{recv:?}");
+        assert!(false);
     }
 }

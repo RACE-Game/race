@@ -20,17 +20,21 @@ use jsonrpsee::{
     rpc_params,
     ws_client::{WsClient, WsClientBuilder},
 };
-use race_core::error::{Error, Result};
 use race_core::types::{BroadcastFrame, SubscribeEventParams};
+use race_core::{
+    checkpoint::CheckpointOffChain,
+    error::{Error, Result},
+    types::CheckpointParams,
+};
 use race_core::{
     connection::ConnectionT,
     encryptor::EncryptorT,
     types::{AttachGameParams, ExitGameParams, SubmitEventParams},
 };
 
-use crate::{frame::EventFrame, utils::current_timestamp};
 use crate::utils::base64_decode;
 use crate::{component::common::Attachable, utils::base64_encode};
+use crate::{frame::EventFrame, utils::current_timestamp};
 
 /// A connection to local event bus, for transactor loopback.
 #[allow(dead_code)]
@@ -187,7 +191,7 @@ impl RemoteConnection {
                 }
                 Err(e) => {
                     warn!("Error in request[{}]: {:?}", method, e);
-                },
+                }
             }
 
             if retries < self.max_retries {
@@ -196,6 +200,22 @@ impl RemoteConnection {
             } else {
                 return Err(Error::RpcError("Max retries has been reached".into()));
             }
+        }
+    }
+
+    pub async fn get_checkpoint_off_chain(
+        &self,
+        game_addr: &str,
+        params: CheckpointParams,
+    ) -> Result<Option<CheckpointOffChain>> {
+        let req = self.make_request_no_sig(game_addr, &params)?;
+
+        match self.request::<Option<Vec<u8>>>("get_checkpoint", req).await {
+            Ok(Some(res)) => {
+                let checkpoint_off_chain = CheckpointOffChain::try_from_slice(&res)?;
+                Ok(Some(checkpoint_off_chain))
+            }
+            _ => Ok(None),
         }
     }
 

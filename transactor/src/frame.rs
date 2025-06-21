@@ -1,22 +1,30 @@
 use race_api::{
-    event::{Event, Message}, types::{Award, EntryLock, Settle, GameId}
+    event::{Event, Message},
+    types::GameId,
 };
 use race_core::{
-    checkpoint::{Checkpoint, VersionedData}, context::{GameContext, SubGameInit}, types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, Transfer, TxState, VoteType}
+    checkpoint::{Checkpoint, VersionedData},
+    context::{GameContext, SettleDetails, SubGameInit},
+    types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, TxState, VoteType},
 };
 
 use crate::component::BridgeToParent;
 
 #[derive(Debug)]
 pub enum SignalFrame {
-    StartGame { game_addr: String, mode: ClientMode },
+    StartGame {
+        game_addr: String,
+        mode: ClientMode,
+    },
     LaunchSubGame {
         sub_game_init: SubGameInit,
         bridge_to_parent: BridgeToParent,
     },
     #[allow(unused)]
     Shutdown,
-    RemoveGame { game_addr: String },
+    RemoveGame {
+        game_addr: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -56,16 +64,13 @@ pub enum EventFrame {
         timestamp: u64,
     },
     Checkpoint {
-        settles: Vec<Settle>,
-        transfer: Option<Transfer>,
-        awards: Vec<Award>,
         checkpoint: Checkpoint,
         access_version: u64,
         settle_version: u64,
-        previous_settle_version: u64,
         state_sha: String,
-        entry_lock: Option<EntryLock>,
-        accept_deposits: Vec<u64>,
+    },
+    Settle {
+        settle_details: Box<SettleDetails>,
     },
     Broadcast {
         event: Event,
@@ -89,19 +94,14 @@ pub enum EventFrame {
         from: GameId,
         dest: GameId,
         event: Event,
-        access_version: u64,
-        settle_version: u64,
-        checkpoint_state: VersionedData,
+        versioned_data: VersionedData,
     },
     /// Similar to `SendBridgeEvent`, but for receiver's event bus.
     RecvBridgeEvent {
         from: GameId,
         dest: GameId,
         event: Event,
-        #[allow(unused)]
-        access_version: u64,
-        settle_version: u64,
-        checkpoint_state: VersionedData,
+        versioned_data: VersionedData,
     },
 
     /// Launch a subgame.
@@ -120,15 +120,26 @@ pub enum EventFrame {
     /// Subgames send this frame after they made their first checkpoint.
     SubGameReady {
         game_id: GameId,
-        checkpoint_state: VersionedData,
+        versioned_data: VersionedData,
         max_players: u16,
         init_data: Vec<u8>,
+    },
+
+    /// Subgames send this frame when start via recovering from checkpoint.
+    SubGameRecovered {
+        game_id: GameId,
+    },
+
+    /// Subgame send this frame when it will be shutdown.
+    SubGameShutdown {
+        game_id: GameId,
+        versioned_data: VersionedData,
     },
 
     /// Reject a deposit
     RejectDeposits {
         reject_deposits: Vec<u64>,
-    }
+    },
 }
 
 impl std::fmt::Display for EventFrame {
@@ -138,7 +149,11 @@ impl std::fmt::Display for EventFrame {
             EventFrame::GameStart { access_version } => {
                 write!(f, "GameStart, access_version = {}", access_version)
             }
-            EventFrame::InitState { access_version, settle_version, .. } => write!(
+            EventFrame::InitState {
+                access_version,
+                settle_version,
+                ..
+            } => write!(
                 f,
                 "InitState, access_version = {}, settle_version = {}",
                 access_version, settle_version
@@ -165,6 +180,7 @@ impl std::fmt::Display for EventFrame {
             EventFrame::PlayerLeaving { .. } => write!(f, "PlayerLeaving"),
             EventFrame::SendEvent { event, .. } => write!(f, "SendEvent: {}", event),
             EventFrame::SendServerEvent { event, .. } => write!(f, "SendServerEvent: {}", event),
+            EventFrame::Settle { .. } => write!(f, "Settle"),
             EventFrame::Checkpoint { .. } => write!(f, "Checkpoint"),
             EventFrame::Broadcast { event, .. } => write!(f, "Broadcast: {}", event),
             EventFrame::SendMessage { message } => write!(f, "SendMessage: {}", message.sender),
@@ -173,20 +189,39 @@ impl std::fmt::Display for EventFrame {
             EventFrame::Vote { votee, vote_type } => {
                 write!(f, "Vote: to {} for {:?}", votee, vote_type)
             }
-            EventFrame::SendBridgeEvent { dest, event, settle_version, .. } => {
-                write!(f, "SendBridgeEvent: dest {}, settle_version: {}, event: {}", dest, settle_version, event)
+            EventFrame::SendBridgeEvent { dest, event, .. } => {
+                write!(f, "SendBridgeEvent: dest {}, event: {}", dest, event)
             }
-            EventFrame::RecvBridgeEvent { dest, event, settle_version, .. } => {
-                write!(f, "RecvBridgeEvent: dest {}, settle_version: {}, event: {}", dest, settle_version, event)
+            EventFrame::RecvBridgeEvent { dest, event, .. } => {
+                write!(f, "RecvBridgeEvent: dest {}, event: {}", dest, event)
             }
             EventFrame::LaunchSubGame { sub_game_init } => {
-                write!(f, "LaunchSubGame: {}#{}", sub_game_init.spec.game_addr, sub_game_init.spec.game_id)
+                write!(
+                    f,
+                    "LaunchSubGame: {}#{}",
+                    sub_game_init.spec.game_addr, sub_game_init.spec.game_id
+                )
             }
-            EventFrame::SubSync { new_players, new_servers, .. } => {
-                write!(f, "SyncNodes: new_players: {}, new_servers: {}", new_players.len(), new_servers.len())
+            EventFrame::SubSync {
+                new_players,
+                new_servers,
+                ..
+            } => {
+                write!(
+                    f,
+                    "SyncNodes: new_players: {}, new_servers: {}",
+                    new_players.len(),
+                    new_servers.len()
+                )
             }
             EventFrame::SubGameReady { game_id, .. } => {
                 write!(f, "SubGameReady, game_id: {}", game_id)
+            }
+            EventFrame::SubGameRecovered { game_id } => {
+                write!(f, "SubGameRecovered, game_id: {}", game_id)
+            }
+            EventFrame::SubGameShutdown { game_id, .. } => {
+                write!(f, "SubGameShutdown, game_id: {}", game_id)
             }
             EventFrame::RejectDeposits { reject_deposits } => {
                 write!(f, "Reject deposits, {:?}", reject_deposits)

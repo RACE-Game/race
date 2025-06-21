@@ -1,8 +1,8 @@
 use crate::frame::{EventFrame, SignalFrame};
 use async_trait::async_trait;
-use tokio::sync::{broadcast, mpsc};
-use tracing::{info, warn, log::error};
 use race_api::types::GameId;
+use tokio::sync::{broadcast, mpsc};
+use tracing::{info, log::error, warn};
 
 use super::{common::PipelinePorts, CloseReason, Component, ComponentEnv};
 
@@ -45,9 +45,7 @@ impl EventBridgeParent {
         let (mpsc_tx, mpsc_rx) = mpsc::channel(10);
         let (bc_tx, _bc_rx) = broadcast::channel(10);
         (
-            Self {
-                bc: bc_tx.clone(),
-            },
+            Self { bc: bc_tx.clone() },
             EventBridgeParentContext {
                 tx: bc_tx,
                 rx: mpsc_rx,
@@ -96,7 +94,6 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
         mut ctx: EventBridgeParentContext,
         env: ComponentEnv,
     ) -> CloseReason {
-
         // We save the pending events here.
         let mut pending_events: Vec<(GameId, EventFrame)> = Vec::with_capacity(10);
 
@@ -105,15 +102,14 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
 
         while let Some((from_bridge, event_frame)) = Self::read_event(&mut ports, &mut ctx.rx).await
         {
-            if from_bridge {    // Bridge parent receives event from bridge child
+            if from_bridge {
+                // Bridge parent receives event from bridge child
                 match event_frame {
                     EventFrame::SendBridgeEvent {
                         from,
                         dest,
                         event,
-                        access_version,
-                        settle_version,
-                        checkpoint_state,
+                        versioned_data,
                     } => {
                         info!("{} Receives event: {}", env.log_prefix, event);
                         ports
@@ -121,9 +117,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                                 from,
                                 dest,
                                 event,
-                                access_version,
-                                settle_version,
-                                checkpoint_state,
+                                versioned_data,
                             })
                             .await;
                     }
@@ -148,9 +142,37 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
 
                         ports.send(event_frame).await;
                     }
+
+                    EventFrame::SubGameRecovered { game_id } => {
+                        info!("{} Receives subgame recovered: {}", env.log_prefix, game_id);
+                        // Remove the launching game's ID
+                        launching_game_ids.retain(|id| *id != game_id);
+                        // Send the pending events, for print log reason, not combine with SubGameReady
+                        let mut i = 0;
+                        while i < pending_events.len() {
+                            if pending_events[i].0 == game_id {
+                                let (_, event_frame) = pending_events.remove(i);
+                                info!("{} Send pending event: {}", env.log_prefix, event_frame);
+                                if let Err(e) = ctx.tx.send(event_frame) {
+                                    error!("{} Failed to send: {}", env.log_prefix, e);
+                                }
+                            } else {
+                                i += 1;
+                            }
+                        }
+
+                        ports.send(event_frame).await;
+                    }
+
+                    EventFrame::SubGameShutdown { game_id, .. } => {
+                        info!("{} Receives subgame shutdown: {}", env.log_prefix, game_id);
+                        ports.send(event_frame).await;
+                    }
+
                     _ => (),
                 }
-            } else {            // Bridge parent receives event from event bus
+            } else {
+                // Bridge parent receives event from event bus
                 match event_frame {
                     EventFrame::LaunchSubGame { sub_game_init } => {
                         let game_id = sub_game_init.spec.game_id;
@@ -188,10 +210,19 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                             }
                         }
                     }
-                    EventFrame::Sync { new_players, new_servers, transactor_addr, access_version, .. } => {
+                    EventFrame::Sync {
+                        new_players,
+                        new_servers,
+                        transactor_addr,
+                        access_version,
+                        ..
+                    } => {
                         if ctx.tx.receiver_count() > 0 {
                             let sub_sync = EventFrame::SubSync {
-                                new_players, new_servers, transactor_addr, access_version
+                                new_players,
+                                new_servers,
+                                transactor_addr,
+                                access_version,
                             };
                             info!("{} Broadcast sync: {}", env.log_prefix, sub_sync);
                             if let Err(e) = ctx.tx.send(sub_sync) {
@@ -209,8 +240,10 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
 }
 
 impl EventBridgeChild {
-
-    pub fn init(game_id: GameId, bridge_to_parent: BridgeToParent) -> (EventBridgeChild, EventBridgeChildContext) {
+    pub fn init(
+        game_id: GameId,
+        bridge_to_parent: BridgeToParent,
+    ) -> (EventBridgeChild, EventBridgeChildContext) {
         (
             EventBridgeChild {
                 game_id: game_id.clone(),
@@ -262,7 +295,8 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
     ) -> CloseReason {
         while let Some((from_bridge, event_frame)) = Self::read_event(&mut ports, &mut ctx.rx).await
         {
-            if from_bridge { // Bridge child receives event from event parent
+            if from_bridge {
+                // Bridge child receives event from event parent
                 match event_frame {
                     EventFrame::Shutdown => {
                         info!("{} Stopped", env.log_prefix);
@@ -277,9 +311,9 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         from,
                         dest,
                         event,
-                        access_version,
-                        settle_version,
-                        checkpoint_state,
+                        // access_version,
+                        // settle_version,
+                        versioned_data,
                     } if dest == ctx.game_id => {
                         info!("{} Receives {}", env.log_prefix, event);
                         ports
@@ -287,20 +321,35 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                                 from,
                                 dest,
                                 event,
-                                access_version,
-                                settle_version,
-                                checkpoint_state,
+                                // access_version,
+                                // settle_version,
+                                versioned_data,
                             })
                             .await;
                     }
                     _ => {}
                 }
-            } else { // Bridge child receives event from event bus
+            } else {
+                // Bridge child receives event from event bus
                 match event_frame {
                     EventFrame::Shutdown => break,
 
                     EventFrame::SubGameReady { .. } => {
                         info!("{} Send SubGameReady to parent", env.log_prefix);
+                        if let Err(e) = ctx.tx.send(event_frame).await {
+                            error!("{} Failed to send: {}", env.log_prefix, e);
+                        }
+                    }
+
+                    EventFrame::SubGameRecovered { .. } => {
+                        info!("{} Send SubGameRecovered to parent", env.log_prefix);
+                        if let Err(e) = ctx.tx.send(event_frame).await {
+                            error!("{} Failed to send: {}", env.log_prefix, e);
+                        }
+                    }
+
+                    EventFrame::SubGameShutdown { .. } => {
+                        info!("{} Send SubGameShutdown to parent", env.log_prefix);
                         if let Err(e) = ctx.tx.send(event_frame).await {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }
@@ -312,6 +361,7 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }
                     }
+
                     _ => continue,
                 }
             }
