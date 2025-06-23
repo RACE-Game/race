@@ -10,6 +10,9 @@ demo-app:
 mtt-simple:
     zellij --layout layouts/mtt-simple.kdl
 
+mtt-multi:
+    zellij --layout layouts/mtt-multi.kdl
+
 ltmtt-simple:
 	zellij --layout layouts/ltmtt-simple.kdl
 

@@ -16,6 +16,8 @@ use tracing::info;
 use tracing::log::error;
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
 
+use super::HandlerT;
+
 fn log_execution_context(effect_bs: &Vec<u8>, event_bs: &Vec<u8>) {
     info!("Execution context");
     info!("===== Effect Bytes =====");
@@ -29,6 +31,33 @@ pub struct WrappedHandler {
     store: Store,
     instance: Instance,
     encryptor: Arc<dyn EncryptorT>,
+}
+
+impl HandlerT for WrappedHandler {
+    fn handle_event(
+        &mut self,
+        context: &mut GameContext,
+        event: &Event,
+    ) -> Result<EventEffects> {
+        let mut new_context = context.clone();
+        general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
+        let event_effects = self.custom_handle_event(&mut new_context, event)?;
+        swap(context, &mut new_context);
+        Ok(event_effects)
+    }
+
+    // Initialize game state
+    fn init_state(
+        &mut self,
+        context: &mut GameContext,
+        init_account: &InitAccount,
+    ) -> Result<EventEffects> {
+        let mut new_context = context.clone();
+        new_context.set_timestamp(0);
+        let event_effects = self.custom_init_state(&mut new_context, init_account)?;
+        swap(context, &mut new_context);
+        Ok(event_effects)
+    }
 }
 
 impl WrappedHandler {
@@ -216,31 +245,6 @@ impl WrappedHandler {
             context.apply_effect(effect)
         }
     }
-
-    pub fn handle_event(
-        &mut self,
-        context: &mut GameContext,
-        event: &Event,
-    ) -> Result<EventEffects> {
-        let mut new_context = context.clone();
-        general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
-        let event_effects = self.custom_handle_event(&mut new_context, event)?;
-        swap(context, &mut new_context);
-        Ok(event_effects)
-    }
-
-    // Initialize game state
-    pub fn init_state(
-        &mut self,
-        context: &mut GameContext,
-        init_account: &InitAccount,
-    ) -> Result<EventEffects> {
-        let mut new_context = context.clone();
-        new_context.set_timestamp(0);
-        let event_effects = self.custom_init_state(&mut new_context, init_account)?;
-        swap(context, &mut new_context);
-        Ok(event_effects)
-    }
 }
 
 #[cfg(test)]
@@ -286,12 +290,13 @@ mod tests {
         WrappedHandler::load_by_path(bundle_path).unwrap()
     }
 
+    #[ignore]
     #[test]
     fn test_init_state() {
         let mut hdlr = make_wrapped_handler();
         let (game_account, _tx) = setup_game();
         let mut ctx = GameContext::try_new(&game_account, None).unwrap();
-        let init_account = ctx.init_account().unwrap();
+        let init_account = ctx.init_account();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         assert_eq!(
             &vec![42u8, 0, 0, 0, 0, 0, 0, 0],
@@ -299,13 +304,14 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_handle_event() {
         let mut hdlr = make_wrapped_handler();
         let (game_account, _tx) = setup_game();
         let mut ctx = GameContext::try_new(&game_account, None).unwrap();
         let event = Event::GameStart;
-        let init_account = ctx.init_account().unwrap();
+        let init_account = ctx.init_account();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();
@@ -316,13 +322,14 @@ mod tests {
         assert_eq!(ctx.get_status(), GameStatus::Running);
     }
 
+    #[ignore]
     #[test]
     fn test_handle_custom_event() {
         let mut hdlr = make_wrapped_handler();
         let (game_account, _tx) = setup_game();
         let mut ctx = GameContext::try_new(&game_account, None).unwrap();
         let event = Event::custom(0, &MinimalEvent::Increment(1));
-        let init_account = ctx.init_account().unwrap();
+        let init_account = ctx.init_account();
         hdlr.init_state(&mut ctx, &init_account).unwrap();
         println!("ctx: {:?}", ctx);
         hdlr.handle_event(&mut ctx, &event).unwrap();

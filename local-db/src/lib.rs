@@ -50,7 +50,6 @@ impl StorageT for LocalDbStorage {
         if let Some(checkpoint_bs) = checkpoint_bs {
             let checkpoint = CheckpointOffChain::try_from_slice(&checkpoint_bs)
                 .map_err(|e| Error::StorageError(e.to_string()))?;
-
             Ok(Some(checkpoint))
         } else {
             Ok(None)

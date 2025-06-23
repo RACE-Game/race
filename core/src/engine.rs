@@ -11,8 +11,6 @@ pub fn general_handle_event(
 ) -> Result<(), Error> {
     // General event handling
     match event {
-        Event::Ready => Ok(()),
-
         Event::ShareSecrets { sender, shares } => {
             let addr = context.id_to_addr(*sender)?;
             context.add_shared_secrets(addr, shares.clone())?;

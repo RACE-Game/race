@@ -30,10 +30,6 @@ pub enum Event {
         raw: Vec<u8>,
     },
 
-    /// A event sent by system, the first event sent by transactor
-    /// when game is loaded.
-    Ready,
-
     /// Transactor shares its secert to specific player.
     /// The `secret_data` is encrypted with the receiver's public key.
     ShareSecrets {
@@ -159,7 +155,6 @@ impl std::fmt::Display for Event {
                     dest_game_id, from_game_id, raw[0]
                 )
             }
-            Event::Ready => write!(f, "Ready"),
             Event::ShareSecrets { sender, shares } => {
                 let repr = shares
                     .iter()

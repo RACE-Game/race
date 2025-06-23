@@ -1,16 +1,19 @@
 use crate::checkpoint::{Checkpoint, CheckpointOffChain, VersionedData};
-use crate::random::{RandomState, RandomStatus};
-use crate::types::{ClientMode, EntryType, GameAccount, GameSpec};
 use crate::decision::DecisionState;
 use crate::error::{Error, Result};
+use crate::random::{RandomState, RandomStatus};
+use crate::types::{ClientMode, EntryType, GameAccount, GameSpec};
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::effect::{Ask, Assign, Effect, EmitBridgeEvent, Log, Release, Reveal, SubGame, Withdraw};
+use race_api::effect::{
+    Ask, Assign, Effect, EmitBridgeEvent, Log, Release, Reveal, SubGame, Withdraw,
+};
 use race_api::engine::GameHandler;
 use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
 use race_api::random::RandomSpec;
 use race_api::types::{
-    Award, BalanceChange, Ciphertext, DecisionId, EntryLock, GameId, GamePlayer, GameStatus, PlayerBalance, RandomId, SecretDigest, SecretShare, Settle, Transfer
+    Award, BalanceChange, Ciphertext, DecisionId, EntryLock, GameId, GamePlayer, GameStatus,
+    PlayerBalance, RandomId, SecretDigest, SecretShare, Settle, Transfer,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -29,7 +32,10 @@ pub struct Versions {
 
 impl Versions {
     pub fn new(access_version: u64, settle_version: u64) -> Self {
-        Self { access_version, settle_version }
+        Self {
+            access_version,
+            settle_version,
+        }
     }
 }
 
@@ -91,6 +97,7 @@ impl Node {
 }
 
 #[derive(Clone, Debug, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DispatchEvent {
     pub timeout: u64,
     pub event: Event,
@@ -123,7 +130,6 @@ impl ContextPlayer {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub enum SubGameInitSource {
     FromCheckpoint(VersionedData),
@@ -137,7 +143,6 @@ pub struct SubGameInit {
     pub source: SubGameInitSource,
 }
 
-
 /// The effects of an event, indicates what actions should be taken
 /// after the event handling.
 ///
@@ -147,16 +152,54 @@ pub struct SubGameInit {
 /// - start_game: to start game.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct EventEffects {
-    pub settles: Vec<Settle>,
-    pub transfer: Option<Transfer>,
-    pub awards: Vec<Award>,
-    pub checkpoint: Option<Checkpoint>,
     pub launch_sub_games: Vec<SubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
     pub start_game: bool,
-    pub entry_lock: Option<EntryLock>,
+    pub stop_game: bool,
     pub logs: Vec<Log>,
     pub reject_deposits: Vec<u64>,
+    pub checkpoint: Option<Checkpoint>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SettleDetails {
+    pub settles: Vec<Settle>,
+    pub transfer: Option<Transfer>,
+    pub awards: Vec<Award>,
+    pub checkpoint: Checkpoint,
+    pub access_version: u64,
+    pub settle_version: u64,
+    pub previous_settle_version: u64,
+    pub entry_lock: Option<EntryLock>,
+    pub accept_deposits: Vec<u64>,
+    pub settle_locks: HashMap<GameId, u64>,
+}
+
+impl SettleDetails {
+    pub fn handle_versioned_data(&mut self, versioned_data: VersionedData) -> Result<()> {
+        self.settle_locks.remove(&versioned_data.id);
+        if self.checkpoint.data.contains_key(&versioned_data.id) {
+            self.checkpoint.update_versioned_data(versioned_data)?;
+        } else {
+            self.checkpoint.init_versioned_data(versioned_data)?;
+        }
+        Ok(())
+    }
+
+    pub fn print(&self, prefix: String) {
+        println!("-------- {} --------", prefix);
+        println!("Version: {}", self.settle_version);
+        println!("Locks: {:?}", self.settle_locks);
+        println!("Settles: {:?}", self.settles);
+        println!("Transfer: {:?}", self.transfer);
+        println!("Awards: {:?}", self.awards);
+        println!("Checkpoint:");
+        for data in self.checkpoint.data.iter() {
+            println!("- Id: {}", data.1.id);
+            println!("  Dispatch: {:?}", data.1.dispatch);
+            println!("  Bridge Events: {:?}", data.1.bridge_events);
+        }
+    }
 }
 
 /// The context for public data.
@@ -217,11 +260,19 @@ pub struct GameContext {
     pub(crate) state_sha: String,
     /// Accepted deposits, saved for later use in settlement
     pub(crate) accept_deposits: Vec<u64>,
+    /// The pending settle details. They are here because the settle is blocked by the settle locks.
+    pub(crate) pending_settle_details: Vec<SettleDetails>,
+    /// The locks for the under construction settle
+    pub(crate) next_settle_locks: HashMap<GameId, u64>,
 }
 
 impl GameContext {
     pub fn try_new_with_sub_game_spec(init: SubGameInit) -> Result<Self> {
-        let SubGameInit { spec, nodes, source } = init;
+        let SubGameInit {
+            spec,
+            nodes,
+            source,
+        } = init;
 
         let (handler_state, versions, init_data, checkpoint) = match source {
             SubGameInitSource::FromCheckpoint(versioned_data) => {
@@ -283,10 +334,7 @@ impl GameContext {
         game_account.players.iter().for_each(|p| {
             // Only include those players joined before last checkpoint
             if p.access_version <= access_version {
-                players.push(ContextPlayer::new(
-                    p.access_version,
-                    p.position,
-                ));
+                players.push(ContextPlayer::new(p.access_version, p.position));
             }
 
             nodes.push(Node::new_pending(
@@ -329,7 +377,7 @@ impl GameContext {
                     init_account: InitAccount {
                         max_players: checkpoint_data.game_spec.max_players,
                         data: vec![], // Not necessary?
-                    }
+                    },
                 });
             }
         }
@@ -351,14 +399,16 @@ impl GameContext {
             entry_type: game_account.entry_type.clone(),
             state_sha,
             accept_deposits: vec![],
+            pending_settle_details: vec![],
+            next_settle_locks: HashMap::new(),
         })
     }
 
-    pub fn init_account(&self) -> Result<InitAccount> {
-        Ok(InitAccount {
+    pub fn init_account(&self) -> InitAccount {
+        InitAccount {
             max_players: self.spec.max_players,
             data: self.init_data.clone(),
-        })
+        }
     }
 
     pub fn checkpoint_is_empty(&self) -> bool {
@@ -411,6 +461,23 @@ impl GameContext {
 
     pub fn checkpoint_mut(&mut self) -> &mut Checkpoint {
         &mut self.checkpoint
+    }
+
+    pub fn pending_settle_details_mut(&mut self) -> &mut Vec<SettleDetails> {
+        &mut self.pending_settle_details
+    }
+
+    pub fn take_first_ready_settle_details(&mut self) -> Option<SettleDetails> {
+        if self
+            .pending_settle_details
+            .first()
+            .is_some_and(|cp| cp.settle_locks.is_empty())
+        {
+            let cp = self.pending_settle_details.remove(0);
+            Some(cp)
+        } else {
+            None
+        }
     }
 
     pub fn set_handler_state<H>(&mut self, handler: &H)
@@ -626,9 +693,9 @@ impl GameContext {
     }
 
     /// Dispatch an event if there's none
-    pub fn dispatch_safe(&mut self, event: Event, timeout: u64) {
+    pub fn set_dispatch(&mut self, event: Option<DispatchEvent>) {
         if self.dispatch.is_none() {
-            self.dispatch = Some(DispatchEvent::new(event, timeout + self.timestamp));
+            self.dispatch = event;
         }
     }
 
@@ -642,7 +709,10 @@ impl GameContext {
     }
 
     pub fn has_sub_game(&self, game_id: GameId) -> bool {
-        self.sub_games.iter().find(|sub_game| sub_game.id == game_id).is_some()
+        self.sub_games
+            .iter()
+            .find(|sub_game| sub_game.id == game_id)
+            .is_some()
     }
 
     pub fn init_random_state(&mut self, spec: RandomSpec) -> Result<RandomId> {
@@ -762,6 +832,52 @@ impl GameContext {
         Ok(())
     }
 
+    pub fn handle_versioned_data(
+        &mut self,
+        game_id: GameId,
+        versioned_data: VersionedData,
+        is_init: bool,
+    ) -> Result<()> {
+        if let Some(&old_version) = self.next_settle_locks.get(&game_id) {
+            if old_version < versioned_data.versions.settle_version {
+                self.next_settle_locks.remove(&game_id);
+            }
+        }
+
+        if is_init {
+            self.checkpoint_mut()
+                .init_versioned_data(versioned_data.clone())?;
+            self.checkpoint_mut().delete_launch_subgames(game_id);
+        } else {
+            self.checkpoint_mut()
+                .update_versioned_data(versioned_data.clone())?;
+        }
+
+        let cur_id = self.game_id();
+        for settle_detail in self.pending_settle_details.iter_mut() {
+            if let Some(&old_version) = settle_detail.settle_locks.get(&game_id) {
+                if old_version < versioned_data.versions.settle_version {
+                    settle_detail.settle_locks.remove(&game_id);
+                }
+            }
+
+            if settle_detail.settle_locks.is_empty() {
+                if let Some(master_cp) = settle_detail.checkpoint.get_versioned_data(0) {
+                    for be in master_cp.bridge_events.clone() {
+                        settle_detail
+                            .checkpoint
+                            .set_bridge_in_versioned_data(be.dest, vec![])?;
+                    }
+                }
+            }
+            if cur_id == 0 {
+                settle_detail.print("handle_versioned_data".to_string());
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn add_revealed_random(
         &mut self,
         random_id: RandomId,
@@ -876,6 +992,7 @@ impl GameContext {
             reject_deposits,
             mut accept_deposits,
             balances,
+            entry_lock,
             ..
         } = effect;
 
@@ -924,46 +1041,86 @@ impl GameContext {
             self.init_random_state(spec)?;
         }
 
+        let previous_settle_version = self.settle_version();
+
         if let Some(state) = handler_state {
             self.set_handler_state_raw(state.clone());
-
-            if is_checkpoint {
-                self.random_states.clear();
-                self.decision_states.clear();
-                self.bump_settle_version()?;
-                self.checkpoint.set_data(self.spec.game_id, state)?;
-                self.checkpoint.set_access_version(self.versions.access_version);
-                self.set_game_status(GameStatus::Idle);
-            } else if is_init {
-                self.bump_settle_version()?;
-                self.checkpoint.init_data(self.spec.game_id, self.spec.clone(), self.versions, state)?;
-                self.checkpoint.set_access_version(self.versions.access_version);
-                self.set_game_status(GameStatus::Idle);
-            }
-
-            // Append SubGame to context
-            for sub_game in launch_sub_games.iter().cloned() {
-                self.sub_games.push(sub_game);
-            }
-
             let mut settles = vec![];
+
             if is_checkpoint {
                 let settles_map = build_settles_map(&withdraws, &ejects, &self.balances, &balances);
                 self.balances = balances;
                 settles = settles_map.into_values().collect();
+                settles.sort_by_key(|s| s.player_id);
+
+                self.random_states.clear();
+                self.decision_states.clear();
+                self.bump_settle_version()?;
+                self.checkpoint.set_data(self.spec.game_id, state)?;
+                self.checkpoint
+                    .set_access_version(self.versions.access_version);
+                self.set_game_status(GameStatus::Idle);
+            } else if is_init {
+                self.bump_settle_version()?;
+                self.checkpoint.init_data(
+                    self.spec.game_id,
+                    self.spec.clone(),
+                    self.versions,
+                    state,
+                )?;
+                self.checkpoint
+                    .set_access_version(self.versions.access_version);
+                self.set_game_status(GameStatus::Idle);
+            }
+
+            let game_id = self.game_id();
+            let dispatch = self.dispatch.clone();
+            // Append SubGame to context
+            for sub_game in launch_sub_games.iter().cloned() {
+                self.sub_games.push(sub_game.clone());
+                self.checkpoint_mut().append_launch_subgames(sub_game);
+            }
+            self.checkpoint_mut()
+                .set_dispatch_in_versioned_data(game_id, dispatch)?;
+            self.checkpoint_mut()
+                .set_bridge_in_versioned_data(game_id, bridge_events.clone())?;
+
+            if is_checkpoint || is_init {
+                let settle_details = SettleDetails {
+                    settles,
+                    transfer,
+                    awards,
+                    checkpoint: self.checkpoint.clone(),
+                    access_version: self.access_version(),
+                    settle_version: self.settle_version(),
+                    previous_settle_version,
+                    entry_lock,
+                    accept_deposits: self.accept_deposits.drain(..).collect(),
+                    settle_locks: self.next_settle_locks.clone(),
+                };
+                self.pending_settle_details.push(settle_details);
+            }
+
+            if self.spec.game_id == 0 {
+                // Add lock into next_settle_locks
+                for evt in bridge_events.clone() {
+                    let settle_version = self
+                        .checkpoint
+                        .get_versioned_data(evt.dest)
+                        .map(|d| d.versions.settle_version)
+                        .unwrap_or(0);
+                    self.next_settle_locks.insert(evt.dest, settle_version);
+                }
             }
 
             return Ok(EventEffects {
-                transfer,
-                awards,
-                settles,
-                checkpoint: (is_checkpoint || is_init).then(|| self.checkpoint.clone()),
                 launch_sub_games,
                 bridge_events,
                 start_game,
-                entry_lock: effect.entry_lock,
+                stop_game,
                 logs: effect.logs,
                 reject_deposits,
+                checkpoint: (is_checkpoint || is_init).then(|| self.checkpoint.clone()),
             });
         } else if let Some(e) = error {
             return Err(Error::HandleError(e));
@@ -1033,34 +1190,44 @@ impl Default for GameContext {
             entry_type: EntryType::Disabled,
             state_sha: "".into(),
             accept_deposits: vec![],
+            pending_settle_details: vec![],
+            next_settle_locks: HashMap::new(),
         }
     }
 }
 
-fn build_settles_map(withdraws: &[Withdraw], ejects: &[u64], old_balances: &[PlayerBalance], new_balances: &[PlayerBalance]) -> HashMap<u64, Settle> {
-
+fn build_settles_map(
+    withdraws: &[Withdraw],
+    ejects: &[u64],
+    old_balances: &[PlayerBalance],
+    new_balances: &[PlayerBalance],
+) -> HashMap<u64, Settle> {
     // Build settles
     // Settle is a combination of Withdraw, Balance Diff, and Eject
     let mut settles_map: HashMap<u64, Settle> = HashMap::new();
 
     for withdraw in withdraws {
-        settles_map.entry(withdraw.player_id)
+        settles_map
+            .entry(withdraw.player_id)
             .and_modify(|e| e.withdraw += withdraw.amount)
             .or_insert_with(|| Settle::new(withdraw.player_id, withdraw.amount, None, false));
     }
 
     for eject in ejects.iter() {
-        settles_map.entry(*eject)
+        settles_map
+            .entry(*eject)
             .and_modify(|e| e.eject = true)
             .or_insert_with(|| Settle::new(*eject, 0, None, true));
     }
 
-    let mut balances_change: HashMap<u64, i128> = old_balances.iter()
+    let mut balances_change: HashMap<u64, i128> = old_balances
+        .iter()
         .map(|orig_balance| (orig_balance.player_id, -(orig_balance.balance as i128)))
         .collect();
 
     for balance in new_balances.iter() {
-        balances_change.entry(balance.player_id)
+        balances_change
+            .entry(balance.player_id)
             .and_modify(|e| *e += balance.balance as i128)
             .or_insert(balance.balance as i128);
     }
@@ -1072,7 +1239,8 @@ fn build_settles_map(withdraws: &[Withdraw], ejects: &[u64], old_balances: &[Pla
             _ => None,
         };
         if change.is_some() {
-            settles_map.entry(player_id)
+            settles_map
+                .entry(player_id)
                 .and_modify(|e| e.change = change)
                 .or_insert_with(|| Settle::new(player_id, 0, change, false));
         }
@@ -1084,9 +1252,213 @@ fn build_settles_map(withdraws: &[Withdraw], ejects: &[u64], old_balances: &[Pla
 #[cfg(test)]
 mod tests {
 
-    use race_api::effect::Withdraw;
-
     use super::*;
+    use race_api::effect::{EmitBridgeEvent, SubGame, Withdraw};
+
+    #[test]
+    fn given_effect_with_bridge_event_do_apply_effect() -> anyhow::Result<()> {
+        let mut ctx = GameContext::default();
+        let mut ef = Effect::default();
+        let mut cp = Checkpoint::new(0, GameSpec::default(), Versions::default(), vec![]);
+        cp.init_data(1, GameSpec::default(), Versions::default(), vec![])?;
+        ctx.checkpoint = cp;
+        ef.handler_state = Some(vec![1]);
+        ef.bridge_events = vec![EmitBridgeEvent::new_empty(1)];
+        ef.is_checkpoint = true;
+        ctx.apply_effect(ef)?;
+        assert!(ctx.next_settle_locks.is_empty());
+        assert_eq!(ctx.pending_settle_details.len(), 1);
+        assert_eq!(
+            ctx.checkpoint().data.get(&0).unwrap().bridge_events.len(),
+            1
+        );
+
+        // A future call on handle_versioned_data should remove the lock for SettleDetails
+        let mut vd = VersionedData::default();
+        vd.id = 1;
+        vd.versions.settle_version = 1;
+        ctx.handle_versioned_data(1, vd, false)?;
+        assert!(ctx.pending_settle_details[0]
+            .checkpoint
+            .data
+            .get(&1)
+            .unwrap()
+            .bridge_events
+            .is_empty());
+        assert_eq!(
+            ctx.pending_settle_details[0].settle_locks,
+            HashMap::default()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn given_init_sub_checkpoint_do_handle_versioned_data() {}
+
+    #[test]
+    fn given_sub_checkpoint_before_main_checkpoint_do_handle_versioned_data() -> anyhow::Result<()>
+    {
+        let mut ctx = GameContext::default();
+        let mut vd = VersionedData::default();
+        let mut cp = Checkpoint::default();
+        cp.data.insert(0, VersionedData::default());
+        cp.data.insert(1, VersionedData::default());
+        vd.id = 1;
+        vd.bridge_events = vec![EmitBridgeEvent::new_empty(0)];
+        ctx.next_settle_locks.insert(1, SettleLock::Locked(0));
+        ctx.checkpoint = cp;
+        ctx.handle_versioned_data(1, vd.clone(), false)?;
+        vd.bridge_events = vec![];
+        assert_eq!(
+            ctx.next_settle_locks.get(&1),
+            Some(&SettleLock::Unlocked(vd))
+        );
+        assert_eq!(ctx.checkpoint().data.get(&1).unwrap().bridge_events, vec![]);
+        match ctx.next_settle_locks.get(&1) {
+            Some(SettleLock::Unlocked(vd)) => {
+                assert_eq!(vd.bridge_events, vec![]);
+            }
+            _ => panic!("not a settle lock"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn given_sub_checkpoint_after_main_checkpoint_do_handle_versioned_data() {
+        let mut ctx = GameContext::default();
+        let mut vd = VersionedData::default();
+        let mut cp = Checkpoint::default();
+        let mut sd = SettleDetails::default();
+        sd.settle_locks.insert(1, 0);
+
+        cp.data.insert(0, VersionedData::default());
+        cp.data.insert(1, VersionedData::default());
+        sd.checkpoint = cp.clone();
+        let e = EmitBridgeEvent::new_empty(0);
+        vd.id = 1;
+        vd.bridge_events = vec![e.clone()];
+        ctx.pending_settle_details_mut().push(sd);
+        ctx.checkpoint = cp;
+        ctx.handle_versioned_data(1, vd.clone(), false).unwrap();
+        assert_eq!(ctx.next_settle_locks.get(&1), None,);
+        assert_eq!(ctx.next_settle_locks.len(), 0);
+        assert_eq!(ctx.pending_settle_details[0].settle_locks.len(), 0);
+    }
+
+    #[test]
+    fn test_apply_effect_with_all_fields() {
+        // Setting up a GameContext
+        let mut game_context = GameContext::default();
+        game_context.versions = Versions::new(10, 10);
+        game_context.checkpoint =
+            Checkpoint::new(0, GameSpec::default(), game_context.versions(), vec![1]);
+        game_context.add_node("server".into(), 0, ClientMode::Transactor);
+        game_context.add_node("alice".into(), 1, ClientMode::Player);
+        game_context.add_node("bob".into(), 2, ClientMode::Player);
+        game_context.set_node_ready(10);
+
+        // Defining handler state
+        let handler_state = vec![1, 2, 3, 4, 5];
+
+        // Creating Effect with non-empty fields
+        let effect = Effect {
+            start_game: true,
+            stop_game: false,
+            cancel_dispatch: true,
+            action_timeout: None,
+            wait_timeout: Some(1000),
+            timestamp: 1234567890,
+            curr_random_id: 1,
+            curr_decision_id: 1,
+            nodes_count: 2,
+            asks: vec![],
+            assigns: vec![],
+            reveals: vec![],
+            releases: vec![],
+            init_random_states: vec![RandomSpec::deck_of_cards()],
+            revealed: HashMap::new(),
+            answered: HashMap::new(),
+            is_checkpoint: true,
+            withdraws: vec![Withdraw {
+                player_id: 1,
+                amount: 1000,
+            }],
+            ejects: vec![1],
+            handler_state: Some(handler_state.clone()),
+            error: None,
+            transfer: Some(Transfer { amount: 200 }),
+            launch_sub_games: vec![SubGame {
+                id: 1,
+                bundle_addr: String::from("address"),
+                init_account: InitAccount {
+                    max_players: 4,
+                    data: vec![],
+                },
+            }],
+            bridge_events: vec![EmitBridgeEvent {
+                dest: 1,
+                raw: vec![1],
+            }],
+            is_init: false,
+            entry_lock: Some(EntryLock::Closed),
+            logs: vec![],
+            awards: vec![Award::new(1, String::from("bonus"))],
+            reject_deposits: vec![1, 2, 3],
+            accept_deposits: vec![4, 5, 6],
+            curr_sub_game_id: 1,
+            balances: vec![PlayerBalance::new(1, 1000), PlayerBalance::new(2, 2000)],
+        };
+
+        let effect_bridge_events = effect.bridge_events.clone();
+
+        // Apply the effect
+        let event_effects = game_context.apply_effect(effect).unwrap();
+
+        assert_eq!(event_effects.launch_sub_games.len(), 1);
+        assert_eq!(event_effects.bridge_events.len(), 1);
+        assert!(event_effects.start_game);
+        assert!(event_effects.checkpoint.is_some());
+        assert_eq!(event_effects.reject_deposits, vec![1, 2, 3]);
+        assert_eq!(game_context.settle_version(), 11);
+        assert_eq!(game_context.pending_settle_details.len(), 1);
+        let settle_details = game_context.pending_settle_details[0].clone();
+        assert_eq!(
+            settle_details.settles,
+            [
+                Settle {
+                    player_id: 1,
+                    withdraw: 1000,
+                    change: Some(BalanceChange::Add(1000)),
+                    eject: true
+                },
+                Settle {
+                    player_id: 2,
+                    withdraw: 0,
+                    change: Some(BalanceChange::Add(2000)),
+                    eject: false
+                },
+            ]
+        );
+        assert_eq!(settle_details.transfer, Some(Transfer { amount: 200 }));
+        assert_eq!(settle_details.awards, vec![Award::new(1, "bonus".into())]);
+        assert!(!settle_details.checkpoint.root.is_empty());
+        assert_eq!(settle_details.access_version, 10);
+        assert_eq!(settle_details.settle_version, 11);
+        assert_eq!(settle_details.previous_settle_version, 10);
+        assert_eq!(settle_details.entry_lock, Some(EntryLock::Closed));
+        assert_eq!(settle_details.accept_deposits, vec![4, 5, 6]);
+        assert_eq!(settle_details.settle_locks, HashMap::from([(1, 0)]));
+
+        let game_id = game_context.game_id();
+        let bridge_events = game_context
+            .checkpoint()
+            .get_versioned_data(game_id)
+            .unwrap()
+            .bridge_events
+            .clone();
+        assert_eq!(bridge_events, effect_bridge_events);
+        assert_eq!(game_context.dispatch, None);
+    }
 
     // #[test]
     // fn test_build_settle_map() {

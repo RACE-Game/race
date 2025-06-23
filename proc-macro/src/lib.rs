@@ -95,7 +95,7 @@ pub fn game_handler(_metadata: TokenStream, input: TokenStream) -> TokenStream {
             } else {
                 return 2
             };
-            match #s_idt::init_state(init_account) {
+            match #s_idt::init_state(&mut effect, init_account) {
                 Ok(handler) => effect.__set_handler_result(handler),
                 Err(e) => effect.__set_error(e),
             }

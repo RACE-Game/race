@@ -66,7 +66,7 @@ impl Settle {
     }
 }
 
-#[derive(Clone, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Award {
