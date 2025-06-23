@@ -57,6 +57,8 @@ mod nft;
 
 const METAPLEX_PROGRAM_ID: &str = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s";
 
+const FEE_CAP: u64 = 20000;
+
 fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
     let keypair = solana_sdk::signature::read_keypair_file(path)
         .map_err(|e| TransportError::InvalidKeyfile(e.to_string()))?;
@@ -1512,8 +1514,11 @@ impl SolanaTransport {
             fee += f.prioritization_fee;
         }
         info!("Estimate fee: {} in lamports", fee);
-        // XXX: We add a fixed amount to recommended fee
-        Ok(fee + 10000)
+        if fee > FEE_CAP {
+            info!("Use {} fee cap", FEE_CAP);
+            fee = FEE_CAP;
+        }
+        Ok(fee)
     }
 
     fn get_min_lamports(&self, account_len: usize) -> TransportResult<u64> {
