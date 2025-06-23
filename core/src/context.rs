@@ -698,9 +698,9 @@ impl GameContext {
     }
 
     /// Dispatch an event if there's none
-    pub fn dispatch_safe(&mut self, event: Event, timeout: u64) {
+    pub fn set_dispatch(&mut self, event: Option<DispatchEvent>) {
         if self.dispatch.is_none() {
-            self.dispatch = Some(DispatchEvent::new(event, timeout + self.timestamp));
+            self.dispatch = event;
         }
     }
 

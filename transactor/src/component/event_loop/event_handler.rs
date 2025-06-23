@@ -310,26 +310,23 @@ pub async fn recover_from_checkpoint(
             send_subgame_recovered(game_context.game_id(), ports).await;
         }
 
-        for versioned_data in game_context.checkpoint().list_versioned_data() {
-            if game_context.game_id() == versioned_data.id {
-                if !versioned_data.bridge_events.is_empty() {
-                    send_bridge_event(
-                        versioned_data.bridge_events.clone(),
-                        game_context,
-                        ports,
-                        env,
-                    )
-                    .await;
-                }
-
-                if let Some(dispatch) = versioned_data.dispatch.as_ref() {
-                    let server_event = EventFrame::SendServerEvent {
-                        event: dispatch.event.clone(),
-                        timestamp: dispatch.timeout,
-                    };
-                    ports.send(server_event).await;
-                }
+        if let Some(versioned_data) = game_context
+            .checkpoint()
+            .list_versioned_data()
+            .iter()
+            .find(|vd| vd.id == game_context.game_id())
+        {
+            if !versioned_data.bridge_events.is_empty() {
+                send_bridge_event(
+                    versioned_data.bridge_events.clone(),
+                    game_context,
+                    ports,
+                    env,
+                )
+                .await;
             }
+
+            game_context.set_dispatch(versioned_data.dispatch.clone());
         }
     }
 
