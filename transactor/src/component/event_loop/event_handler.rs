@@ -219,7 +219,7 @@ pub async fn init_state(
     handler: &mut dyn HandlerT,
     mut game_context: &mut GameContext,
     ports: &PipelinePorts,
-    client_mode: ClientMode,
+    _client_mode: ClientMode,
     game_mode: GameMode,
     env: &ComponentEnv,
 ) -> Option<CloseReason> {
@@ -254,11 +254,6 @@ pub async fn init_state(
     send_checkpoint(Some(checkpoint.clone()), game_context, ports).await;
 
     do_send_settlements(game_context, ports, env).await;
-
-    // Dispatch the initial Ready event if running in Transactor mode.
-    if client_mode == ClientMode::Transactor {
-        game_context.dispatch_safe(Event::Ready, 0);
-    }
 
     // Tell master game the subgame is successfully created.
     if game_mode == GameMode::Sub {
