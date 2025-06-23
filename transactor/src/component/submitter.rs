@@ -24,7 +24,7 @@ use super::ComponentEnv;
 const DEFAULT_SUBMITTER_SQUASH_TIME_WINDOW: u64 = 30;
 
 // The default for maximum number of transactions for one squash.
-const DEFAULT_SUBMITTER_SQUASH_COMPLEXITY_LIMIT: usize = 1;
+const DEFAULT_SUBMITTER_SQUASH_COMPLEXITY_LIMIT: usize = 50;
 
 // The default for size of transcation queue.
 const DEFAULT_SUBMITTER_TX_QUEUE_SIZE: usize = 100;
