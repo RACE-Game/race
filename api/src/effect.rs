@@ -60,6 +60,7 @@ pub struct ActionTimeout {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SubGame {
     pub id: GameId,
     pub bundle_addr: String,

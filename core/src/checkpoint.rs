@@ -11,7 +11,7 @@ use rs_merkle::{algorithms::Sha256, proof_serializers::ReverseHashesOrder, Hashe
 use serde::{Deserialize, Serialize};
 
 use crate::types::GameSpec;
-use race_api::{effect::EmitBridgeEvent, types::GameId};
+use race_api::{effect::{EmitBridgeEvent, SubGame}, types::GameId};
 
 /// Checkpoint represents the state snapshot of game.
 /// It is used as a submission to the blockchain.
@@ -23,6 +23,7 @@ pub struct Checkpoint {
     pub access_version: u64,
     pub data: HashMap<GameId, VersionedData>,
     pub proofs: HashMap<GameId, Vec<u8>>,
+    pub launch_subgames: Vec<SubGame>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -40,6 +41,7 @@ pub struct CheckpointOnChain {
 pub struct CheckpointOffChain {
     pub data: HashMap<GameId, VersionedData>,
     pub proofs: HashMap<GameId, Vec<u8>>,
+    pub launch_subgames: Vec<SubGame>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -91,6 +93,7 @@ impl Checkpoint {
                 },
             )]),
             proofs: HashMap::new(),
+            launch_subgames: vec![],
         };
         ret.update_root_and_proofs();
         ret
@@ -105,6 +108,7 @@ impl Checkpoint {
             data: offchain_part.data,
             access_version: onchain_part.access_version,
             root: onchain_part.root,
+            launch_subgames: offchain_part.launch_subgames,
         }
     }
 
@@ -236,6 +240,18 @@ impl Checkpoint {
         }
     }
 
+    pub fn append_launch_subgames(&mut self, subgame: SubGame) {
+        self.launch_subgames.push(subgame);
+    }
+
+    pub fn delete_launch_subgames(&mut self, id: GameId) {
+        self.launch_subgames.retain(|subgame| subgame.id != id);
+    }
+
+    pub fn get_launch_subgames(&self) -> Vec<SubGame> {
+        self.launch_subgames.clone()
+    }
+
     pub fn clear_future_events(&mut self) {
         self.data.values_mut().for_each(VersionedData::clear_future_events);
     }
@@ -284,6 +300,7 @@ impl Checkpoint {
         CheckpointOffChain {
             proofs: self.proofs.clone(),
             data: self.data.clone(),
+            launch_subgames: self.launch_subgames.clone(),
         }
     }
 

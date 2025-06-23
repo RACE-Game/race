@@ -186,7 +186,8 @@ impl SettleDetails {
         Ok(())
     }
 
-    pub fn print(&self) {
+    pub fn print(&self, prefix: String) {
+        println!("-------- {} --------", prefix);
         println!("Version: {}", self.settle_version);
         println!("Locks: {:?}", self.settle_locks);
         println!("Settles: {:?}", self.settles);
@@ -199,12 +200,6 @@ impl SettleDetails {
             println!("  Bridge Events: {:?}", data.1.bridge_events);
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SettleLock {
-    Locked(u64),
-    Unlocked(VersionedData),
 }
 
 /// The context for public data.
@@ -268,7 +263,7 @@ pub struct GameContext {
     /// The pending settle details. They are here because the settle is blocked by the settle locks.
     pub(crate) pending_settle_details: Vec<SettleDetails>,
     /// The locks for the under construction settle
-    pub(crate) next_settle_locks: HashMap<GameId, SettleLock>,
+    pub(crate) next_settle_locks: HashMap<GameId, u64>,
 }
 
 impl GameContext {
@@ -843,41 +838,16 @@ impl GameContext {
         versioned_data: VersionedData,
         is_init: bool,
     ) -> Result<()> {
-        // match self.next_settle_locks.entry(game_id) {
-        //     // Update
-        //     std::collections::hash_map::Entry::Occupied(mut occupied_entry) => {
-        //         match occupied_entry.get() {
-        //             SettleLock::Locked(_) => {
-        //                 versioned_data.bridge_events = vec![];
-        //                 occupied_entry.insert(SettleLock::Unlocked(versioned_data.clone()));
-        //                 self.checkpoint_mut().update_versioned_data(versioned_data.clone())?;
-        //                 println!("locked");
-        //             }
-        //             SettleLock::Unlocked(_) => {
-        //                 return Err(Error::InvalidCheckpoint);
-        //             }
-        //         }
-        //     }
-        //     // Initialize
-        //     std::collections::hash_map::Entry::Vacant(_) => {
-        //         if is_init {
-        //             self.checkpoint_mut().init_versioned_data(versioned_data.clone())?;
-        //         } else {
-        //             self.checkpoint_mut().update_versioned_data(versioned_data.clone())?;
-        //             self.pending_settle_details
-        //                 .iter_mut()
-        //                 .map(|sd| sd.handle_versioned_data(versioned_data.clone()))
-        //                 .collect::<Result<Vec<_>>>()?;
-        //         }
-        //     }
-        // }
-
-        self.next_settle_locks
-            .insert(game_id, SettleLock::Unlocked(versioned_data.clone()));
+        if let Some(&old_version) = self.next_settle_locks.get(&game_id) {
+            if old_version < versioned_data.versions.settle_version {
+                self.next_settle_locks.remove(&game_id);
+            }
+        }
 
         if is_init {
             self.checkpoint_mut()
                 .init_versioned_data(versioned_data.clone())?;
+            self.checkpoint_mut().delete_launch_subgames(game_id);
         } else {
             self.checkpoint_mut()
                 .update_versioned_data(versioned_data.clone())?;
@@ -885,7 +855,12 @@ impl GameContext {
 
         let cur_id = self.game_id();
         for settle_detail in self.pending_settle_details.iter_mut() {
-            settle_detail.settle_locks.remove(&game_id);
+            if let Some(&old_version) = settle_detail.settle_locks.get(&game_id) {
+                if old_version < versioned_data.versions.settle_version {
+                    settle_detail.settle_locks.remove(&game_id);
+                }
+            }
+
             if settle_detail.settle_locks.is_empty() {
                 if let Some(master_cp) = settle_detail.checkpoint.get_versioned_data(0) {
                     for be in master_cp.bridge_events.clone() {
@@ -896,7 +871,7 @@ impl GameContext {
                 }
             }
             if cur_id == 0 {
-                settle_detail.print();
+                settle_detail.print("handle_versioned_data".to_string());
             }
         }
 
@@ -1070,8 +1045,14 @@ impl GameContext {
 
         if let Some(state) = handler_state {
             self.set_handler_state_raw(state.clone());
+            let mut settles = vec![];
 
             if is_checkpoint {
+                let settles_map = build_settles_map(&withdraws, &ejects, &self.balances, &balances);
+                self.balances = balances;
+                settles = settles_map.into_values().collect();
+                settles.sort_by_key(|s| s.player_id);
+
                 self.random_states.clear();
                 self.decision_states.clear();
                 self.bump_settle_version()?;
@@ -1092,58 +1073,17 @@ impl GameContext {
                 self.set_game_status(GameStatus::Idle);
             }
 
-            // Append SubGame to context
-            for sub_game in launch_sub_games.iter().cloned() {
-                self.sub_games.push(sub_game);
-            }
-
-            let mut settles = vec![];
-            if is_checkpoint {
-                let settles_map = build_settles_map(&withdraws, &ejects, &self.balances, &balances);
-                self.balances = balances;
-                settles = settles_map.into_values().collect();
-                settles.sort_by_key(|s| s.player_id);
-            }
-
             let game_id = self.game_id();
             let dispatch = self.dispatch.clone();
-
+            // Append SubGame to context
+            for sub_game in launch_sub_games.iter().cloned() {
+                self.sub_games.push(sub_game.clone());
+                self.checkpoint_mut().append_launch_subgames(sub_game);
+            }
             self.checkpoint_mut()
                 .set_dispatch_in_versioned_data(game_id, dispatch)?;
             self.checkpoint_mut()
                 .set_bridge_in_versioned_data(game_id, bridge_events.clone())?;
-
-            if self.spec.game_id == 0 {
-                for sub_game in launch_sub_games.iter().cloned() {
-                    self.next_settle_locks
-                        .insert(sub_game.id, SettleLock::Locked(0));
-                }
-
-                for evt in bridge_events.clone() {
-                    let settle_version = self
-                        .checkpoint
-                        .get_versioned_data(evt.dest)
-                        .map(|d| d.versions.settle_version)
-                        .unwrap_or(0);
-                    self.next_settle_locks
-                        .insert(evt.dest, SettleLock::Locked(settle_version));
-                }
-            }
-
-            let settle_locks: Vec<_> = self.next_settle_locks.drain().collect();
-            let mut locked_settle_locks: HashMap<GameId, u64> = HashMap::new();
-
-            for (game_id, settle_lock) in settle_locks {
-                match settle_lock {
-                    SettleLock::Locked(settle_version) => {
-                        locked_settle_locks.insert(game_id, settle_version);
-                    }
-                    SettleLock::Unlocked(versioned_data) => {
-                        self.checkpoint_mut()
-                            .update_versioned_data(versioned_data)?;
-                    }
-                }
-            }
 
             if is_checkpoint || is_init {
                 let settle_details = SettleDetails {
@@ -1156,9 +1096,21 @@ impl GameContext {
                     previous_settle_version,
                     entry_lock,
                     accept_deposits: self.accept_deposits.drain(..).collect(),
-                    settle_locks: locked_settle_locks,
+                    settle_locks: self.next_settle_locks.clone(),
                 };
                 self.pending_settle_details.push(settle_details);
+            }
+
+            if self.spec.game_id == 0 {
+                // Add lock into next_settle_locks
+                for evt in bridge_events.clone() {
+                    let settle_version = self
+                        .checkpoint
+                        .get_versioned_data(evt.dest)
+                        .map(|d| d.versions.settle_version)
+                        .unwrap_or(0);
+                    self.next_settle_locks.insert(evt.dest, settle_version);
+                }
             }
 
             return Ok(EventEffects {

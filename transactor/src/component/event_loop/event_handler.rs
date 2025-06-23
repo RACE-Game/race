@@ -171,7 +171,9 @@ async fn do_send_settlements(
             game_context.settle_version(),
         );
 
-        settle_details.print();
+        if game_context.game_id() == 0 {
+            settle_details.print("do_send_settlements".to_string());
+        }
 
         ports
             .send(EventFrame::Settle {
@@ -308,6 +310,16 @@ pub async fn recover_from_checkpoint(
     if client_mode == ClientMode::Transactor {
         if game_mode == GameMode::Sub {
             send_subgame_recovered(game_context.game_id(), ports).await;
+        }
+
+        if game_mode == GameMode::Main {
+            launch_sub_game(
+                game_context.checkpoint().get_launch_subgames(),
+                game_context,
+                ports,
+                env,
+            )
+            .await;
         }
 
         if let Some(versioned_data) = game_context
