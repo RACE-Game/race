@@ -208,6 +208,8 @@ impl TransportT for DummyTransport {
 mod tests {
 
     use race_core::checkpoint::CheckpointOnChain;
+    use race_api::types::*;
+    use crate::transport_helpers::tests::BalanceChange::{Add, Sub};
 
     use crate::prelude::{test_game_addr, TestClient, TestGameAccountBuilder};
 
@@ -251,11 +253,14 @@ mod tests {
     #[tokio::test]
     async fn test_settle() {
         let transport = DummyTransport::default();
-        let settles = vec![Settle::new(0, 100), Settle::new(1, 100)];
+        let settles = vec![Settle::new(0, 100, Some(Add(100)), false), Settle::new(1, 100, Some(Sub(100)), false)];
         let params = SettleParams {
+            accept_deposits: vec![],
+            awards: vec![],
+            access_version: 1,
             addr: test_game_addr(),
             settles: settles.clone(),
-            transfers: vec![],
+            transfer: None,
             checkpoint: CheckpointOnChain::default(),
             settle_version: 0,
             next_settle_version: 1,
@@ -276,9 +281,12 @@ mod tests {
         let mut transport = DummyTransport::default();
         transport.fail_next_settle();
         let params = SettleParams {
+            accept_deposits: vec![],
+            awards: vec![],
+            access_version: 1,
             addr: test_game_addr(),
             settles: vec![],
-            transfers: vec![],
+            transfer: None,
             checkpoint: CheckpointOnChain::default(),
             settle_version: 0,
             next_settle_version: 1,

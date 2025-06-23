@@ -1265,8 +1265,9 @@ mod tests {
         ef.handler_state = Some(vec![1]);
         ef.bridge_events = vec![EmitBridgeEvent::new_empty(1)];
         ef.is_checkpoint = true;
+
         ctx.apply_effect(ef)?;
-        assert!(ctx.next_settle_locks.is_empty());
+        assert_eq!(ctx.next_settle_locks.len(), 1);
         assert_eq!(ctx.pending_settle_details.len(), 1);
         assert_eq!(
             ctx.checkpoint().data.get(&0).unwrap().bridge_events.len(),
@@ -1277,6 +1278,7 @@ mod tests {
         let mut vd = VersionedData::default();
         vd.id = 1;
         vd.versions.settle_version = 1;
+
         ctx.handle_versioned_data(1, vd, false)?;
         assert!(ctx.pending_settle_details[0]
             .checkpoint
@@ -1304,22 +1306,14 @@ mod tests {
         cp.data.insert(0, VersionedData::default());
         cp.data.insert(1, VersionedData::default());
         vd.id = 1;
-        vd.bridge_events = vec![EmitBridgeEvent::new_empty(0)];
-        ctx.next_settle_locks.insert(1, SettleLock::Locked(0));
+        vd.versions.settle_version = 1;
+        ctx.next_settle_locks.insert(1, 0);
         ctx.checkpoint = cp;
+
         ctx.handle_versioned_data(1, vd.clone(), false)?;
         vd.bridge_events = vec![];
-        assert_eq!(
-            ctx.next_settle_locks.get(&1),
-            Some(&SettleLock::Unlocked(vd))
-        );
-        assert_eq!(ctx.checkpoint().data.get(&1).unwrap().bridge_events, vec![]);
-        match ctx.next_settle_locks.get(&1) {
-            Some(SettleLock::Unlocked(vd)) => {
-                assert_eq!(vd.bridge_events, vec![]);
-            }
-            _ => panic!("not a settle lock"),
-        }
+        assert_eq!(ctx.next_settle_locks.get(&1), None);
+
         Ok(())
     }
 
@@ -1334,13 +1328,13 @@ mod tests {
         cp.data.insert(0, VersionedData::default());
         cp.data.insert(1, VersionedData::default());
         sd.checkpoint = cp.clone();
-        let e = EmitBridgeEvent::new_empty(0);
         vd.id = 1;
-        vd.bridge_events = vec![e.clone()];
+        vd.versions.settle_version = 1;
         ctx.pending_settle_details_mut().push(sd);
         ctx.checkpoint = cp;
+
         ctx.handle_versioned_data(1, vd.clone(), false).unwrap();
-        assert_eq!(ctx.next_settle_locks.get(&1), None,);
+        assert_eq!(ctx.next_settle_locks.get(&1), None);
         assert_eq!(ctx.next_settle_locks.len(), 0);
         assert_eq!(ctx.pending_settle_details[0].settle_locks.len(), 0);
     }
@@ -1447,7 +1441,8 @@ mod tests {
         assert_eq!(settle_details.previous_settle_version, 10);
         assert_eq!(settle_details.entry_lock, Some(EntryLock::Closed));
         assert_eq!(settle_details.accept_deposits, vec![4, 5, 6]);
-        assert_eq!(settle_details.settle_locks, HashMap::from([(1, 0)]));
+        assert_eq!(settle_details.settle_locks, HashMap::default());
+        assert_eq!(game_context.next_settle_locks, HashMap::from([(1, 0)]));
 
         let game_id = game_context.game_id();
         let bridge_events = game_context

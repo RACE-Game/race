@@ -13,7 +13,7 @@ use crate::client_helpers::TestClient;
 // Some event has special handling in event loop.
 fn patch_handle_event_effects(context: &mut GameContext, event_effects: &EventEffects) {
     if event_effects.start_game {
-        context.dispatch_safe(Event::GameStart, 0);
+        let _ = context.dispatch(Event::GameStart, 0);
     }
 }
 
@@ -30,8 +30,8 @@ impl<H: GameHandler> TestHandler<H> {
     pub fn init_state(context: &mut GameContext) -> Result<(Self, EventEffects)> {
         let mut new_context = context.clone();
         let init_account = new_context.init_account();
-        let effect = new_context.derive_effect(true);
-        let handler = H::init_state(init_account)?;
+        let mut effect = new_context.derive_effect(true);
+        let handler = H::init_state(&mut effect, init_account)?;
         let event_effects = new_context.apply_effect(effect)?;
         patch_handle_event_effects(&mut new_context, &event_effects);
         swap(context, &mut new_context);
