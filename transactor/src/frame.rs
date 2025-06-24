@@ -31,9 +31,6 @@ pub enum SignalFrame {
 pub enum EventFrame {
     #[allow(unused)]
     Empty,
-    GameStart {
-        access_version: u64,
-    },
     Sync {
         new_players: Vec<PlayerJoin>,
         new_servers: Vec<ServerJoin>,
@@ -146,9 +143,6 @@ impl std::fmt::Display for EventFrame {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EventFrame::Empty => write!(f, "Empty"),
-            EventFrame::GameStart { access_version } => {
-                write!(f, "GameStart, access_version = {}", access_version)
-            }
             EventFrame::InitState {
                 access_version,
                 settle_version,

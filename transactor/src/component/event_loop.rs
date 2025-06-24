@@ -88,27 +88,6 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
 
-                EventFrame::GameStart { .. } => {
-                    let timestamp = current_timestamp();
-                    if ctx.client_mode == ClientMode::Transactor {
-                        let event = Event::GameStart;
-                        if let Some(close_reason) = event_handler::handle_event(
-                            &mut *handler,
-                            &mut game_context,
-                            event,
-                            &ports,
-                            ctx.client_mode,
-                            ctx.game_mode,
-                            timestamp,
-                            &env,
-                        )
-                        .await
-                        {
-                            return close_reason;
-                        }
-                    }
-                }
-
                 EventFrame::SubSync {
                     access_version,
                     new_players,

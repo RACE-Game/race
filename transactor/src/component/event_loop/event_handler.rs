@@ -66,14 +66,6 @@ async fn update_local_client(game_context: &GameContext, ports: &PipelinePorts) 
         .await;
 }
 
-async fn send_start_game(game_context: &GameContext, ports: &PipelinePorts) {
-    ports
-        .send(EventFrame::GameStart {
-            access_version: game_context.access_version(),
-        })
-        .await;
-}
-
 async fn send_subgame_ready(
     versioned_data: VersionedData,
     game_context: &GameContext,
@@ -367,11 +359,11 @@ pub async fn handle_event(
             let EventEffects {
                 launch_sub_games,
                 bridge_events,
-                start_game,
                 stop_game,
                 logs,
                 reject_deposits,
                 checkpoint,
+                ..
             } = effects;
 
             print_logs(&logs, env);
@@ -385,11 +377,6 @@ pub async fn handle_event(
 
             // Update the local client
             update_local_client(&game_context, ports).await;
-
-            // Start game
-            if client_mode == ClientMode::Transactor && start_game {
-                send_start_game(&game_context, ports).await;
-            }
 
             if client_mode == ClientMode::Transactor && stop_game {
                 let game_id = game_context.game_id();

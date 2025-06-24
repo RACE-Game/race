@@ -531,6 +531,13 @@ impl GameContext {
         self.dispatch_event(event, 0);
     }
 
+    pub fn start_game(&mut self) {
+        self.dispatch = Some(DispatchEvent::new(
+            Event::GameStart,
+            0,
+        ))
+    }
+
     pub fn wait_timeout(&mut self, timeout: u64) {
         self.dispatch = Some(DispatchEvent::new(
             Event::WaitingTimeout,
@@ -998,8 +1005,7 @@ impl GameContext {
 
         // Handle dispatching
         if start_game {
-            // self.random_states.clear();
-            // self.decision_states.clear();
+            self.start_game();
         } else if stop_game {
             self.shutdown_game();
         } else if let Some(t) = action_timeout {
