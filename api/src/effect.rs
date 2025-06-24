@@ -365,6 +365,7 @@ impl Effect {
     /// Stop the game.
     pub fn stop_game(&mut self) {
         self.stop_game = true;
+        self.is_checkpoint = true;
     }
 
     /// Set current state as the checkpoint.

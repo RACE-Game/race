@@ -845,11 +845,6 @@ impl GameContext {
         versioned_data: VersionedData,
         is_init: bool,
     ) -> Result<()> {
-        if let Some(&old_version) = self.next_settle_locks.get(&game_id) {
-            if old_version < versioned_data.versions.settle_version {
-                self.next_settle_locks.remove(&game_id);
-            }
-        }
 
         if is_init {
             self.checkpoint_mut()
@@ -858,6 +853,17 @@ impl GameContext {
         } else {
             self.checkpoint_mut()
                 .update_versioned_data(versioned_data.clone())?;
+        }
+
+        if let Some(&old_version) = self.next_settle_locks.get(&game_id) {
+            if old_version < versioned_data.versions.settle_version {
+                self.next_settle_locks.remove(&game_id);
+            }
+
+            if self.next_settle_locks.is_empty() {
+                self.checkpoint_mut()
+                    .set_bridge_in_versioned_data(game_id, vec![])?;
+            }
         }
 
         let cur_id = self.game_id();
