@@ -20,7 +20,6 @@ function make_tourney {
                              -u32 1 \
                              -u16 2 \
                              -u32 2 \
-                             -u32 2 \
                              -u8 70 \
                              -u8 30 \
                              -u16 2 \
