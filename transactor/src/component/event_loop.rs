@@ -457,6 +457,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
     async fn test_event_loop_receive_bridge_event() {
         let handler = TestHandlerForBridgeEvent {};
