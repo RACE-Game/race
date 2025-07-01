@@ -18,3 +18,4 @@ publish = true
 [dependencies]
 race-api = { workspace = true }
 race-core = { workspace = true }
+rand = { workspace = true }

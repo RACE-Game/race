@@ -21,10 +21,9 @@ use openssl::{
     pkey::{Private, Public},
     rsa::{Padding, Rsa},
 };
-use race_core::types::{Ciphertext, SecretDigest, SecretKey};
+use race_core::types::{SecretDigest, SecretKey};
 use race_core::encryptor::{EncryptorError, EncryptorResult, EncryptorT, NodePublicKeyRaw};
 use race_core::types::Signature;
-use rand::seq::SliceRandom;
 use sha2::{Digest, Sha256};
 
 // Since we use different secrets for each encryption,
@@ -339,11 +338,6 @@ impl EncryptorT for Encryptor {
         for secret in secrets.into_iter() {
             self.apply(secret.as_ref(), buffer);
         }
-    }
-
-    fn shuffle(&self, items: &mut Vec<Ciphertext>) {
-        let mut rng = rand::thread_rng();
-        items.shuffle(&mut rng);
     }
 
     fn add_public_key(&self, addr: String, raw: &NodePublicKeyRaw) -> EncryptorResult<()> {

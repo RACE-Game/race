@@ -111,8 +111,6 @@ pub trait EncryptorT: std::fmt::Debug + Send + Sync {
 
     fn verify(&self, message: &[u8], signature: &Signature) -> EncryptorResult<()>;
 
-    fn shuffle(&self, items: &mut Vec<Ciphertext>);
-
     fn digest(&self, text: &[u8]) -> SecretDigest;
 
     fn decrypt_with_secrets(

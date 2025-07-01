@@ -20,6 +20,7 @@ use race_core::{
 };
 
 use race_core::transport::TransportT;
+use rand::{rngs::OsRng, seq::SliceRandom};
 
 /// Operation Ident
 ///
@@ -114,13 +115,6 @@ impl Client {
             .submit_event(&self.game_addr, SubmitEventParams { event })
             .await
     }
-
-    // pub async fn submit_custom_event<S: CustomEvent>(&self, custom_event: S) -> Result<()> {
-    //     let event = Event::custom(&self.game_addr, &custom_event);
-    //     self.connection
-    //         .submit_event(&self.addr, SubmitEventParams { event })
-    //         .await
-    // }
 
     pub fn load_random_states(&mut self, game_context: &GameContext) -> Result<()> {
         for random_state in game_context.list_random_states().iter() {
@@ -250,7 +244,7 @@ impl Client {
             .mask(random_state.id, origin)
             .map_err(|e| Error::RandomizationError(e.to_string()))?;
 
-        self.encryptor.shuffle(&mut masked);
+        self.shuffle(&mut masked);
 
         let event = Event::Mask {
             sender: self.id,
@@ -348,6 +342,10 @@ impl Client {
     pub fn flush_secret_states(&mut self) {
         self.secret_state.clear();
         self.op_hist.clear();
+    }
+
+    fn shuffle(&mut self, items: &mut Vec<Ciphertext>) {
+        items.shuffle(&mut OsRng::default());
     }
 
     /// Decrypt the ciphertexts with shared secrets.
