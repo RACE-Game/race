@@ -142,10 +142,8 @@ impl Broadcaster {
 
         // By default, returns the histories with settle_version
         // greater than the given one
-        info!("Get backlog with settle_version: {}", settle_version);
         if settle_version > 0 {
             for group in event_backup_groups.iter() {
-                info!("group settle version: {:?}", group.settle_version);
                 if group.settle_version == settle_version {
                     checkpoint_off_chain = group.checkpoint_off_chain.clone();
                     state_sha = group.state_sha.clone();
