@@ -43,7 +43,7 @@ impl Raffle {
 impl GameHandler for Raffle {
 
     /// Initialize handler state with on-chain game account data.
-    fn init_state(_init_account: InitAccount) -> HandleResult<Self> {
+    fn init_state(_effect: &mut Effect, _init_account: InitAccount) -> HandleResult<Self> {
         let draw_time = 0;
         Ok(Self {
             last_winner: None,

@@ -1,14 +1,13 @@
 use std::mem::swap;
 
 use race_api::engine::GameHandler;
-use race_core::error::Result;
 use race_api::event::Event;
 use race_core::context::{EventEffects, GameContext};
 use race_core::engine::general_handle_event;
+use race_core::error::Result;
 use race_encryptor::Encryptor;
 
 use crate::client_helpers::TestClient;
-
 
 // Some event has special handling in event loop.
 fn patch_handle_event_effects(context: &mut GameContext, event_effects: &EventEffects) {
@@ -38,7 +37,11 @@ impl<H: GameHandler> TestHandler<H> {
         Ok((Self { handler }, event_effects))
     }
 
-    pub fn handle_event(&mut self, context: &mut GameContext, event: &Event) -> Result<EventEffects> {
+    pub fn handle_event(
+        &mut self,
+        context: &mut GameContext,
+        event: &Event,
+    ) -> Result<EventEffects> {
         let mut new_context = context.clone();
         let encryptor = Encryptor::default();
         general_handle_event(&mut new_context, event, &encryptor)?;
@@ -78,13 +81,47 @@ impl<H: GameHandler> TestHandler<H> {
             .clone();
         context.cancel_dispatch();
         println!("* Dispatch event: {}", evt);
-        self.handle_until_no_events(context, &evt, clients)
+        self.handle_event_until_no_events(context, &evt, clients)
+    }
+
+    // Handle both client events and dispatch event, until there's no more.
+    pub fn handle_until_no_events(
+        &mut self,
+        context: &mut GameContext,
+        mut clients: Vec<&mut TestClient>,
+    ) -> Result<EventEffects> {
+        let mut evts: Vec<Event> = vec![];
+        let mut event_effects = EventEffects::default();
+
+        loop {
+            if let Some(ctx_evt) = context.get_dispatch() {
+                if ctx_evt.timeout == context.get_timestamp() {
+                    evts.push(ctx_evt.event.clone());
+                    context.cancel_dispatch();
+                }
+            }
+
+            for c in clients.iter_mut() {
+                let cli_evts = c.handle_updated_context(context)?;
+                evts.extend_from_slice(&cli_evts);
+                if event_effects.checkpoint.is_some() {
+                    c.flush_secret_state();
+                }
+            }
+
+            if let Some(evt) = evts.first() {
+                event_effects = self.handle_event(context, evt)?;
+            } else {
+                break;
+            }
+        }
+        Ok(event_effects)
     }
 
     /// This fn keeps handling events of the following two types, until there is none:
     /// 1. Event dispatched from within the (updated) context: context.dispatch
     /// 2. Event dispatched by clients after they see the updated context
-    pub fn handle_until_no_events(
+    pub fn handle_event_until_no_events(
         &mut self,
         context: &mut GameContext,
         event: &Event,

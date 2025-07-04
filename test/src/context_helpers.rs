@@ -62,6 +62,10 @@ impl<H: GameHandler> TestContext<H> {
         self.handler.handle_dispatch_event(&mut self.context)
     }
 
+    pub fn handle_until_no_events(&mut self, clients: Vec<&mut TestClient>) -> Result<EventEffects> {
+        self.handler.handle_until_no_events(&mut self.context, clients)
+    }
+
     pub fn handle_dispatch_until_no_events(
         &mut self,
         clients: Vec<&mut TestClient>,
