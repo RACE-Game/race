@@ -111,6 +111,7 @@ impl<H: GameHandler> TestHandler<H> {
 
             if let Some(evt) = evts.first() {
                 event_effects = self.handle_event(context, evt)?;
+                evts.remove(0);
             } else {
                 break;
             }
