@@ -1059,7 +1059,18 @@ impl GameContext {
             self.set_handler_state_raw(state.clone());
             let mut settles = vec![];
 
-            if is_checkpoint {
+            if is_init {
+                self.bump_settle_version()?;
+                self.checkpoint.init_data(
+                    self.spec.game_id,
+                    self.spec.clone(),
+                    self.versions,
+                    state,
+                )?;
+                self.checkpoint
+                    .set_access_version(self.versions.access_version);
+                self.set_game_status(GameStatus::Idle);
+            } else if is_checkpoint {
                 let settles_map = build_settles_map(&withdraws, &ejects, &self.balances, &balances);
                 self.balances = balances;
                 settles = settles_map.into_values().collect();
@@ -1069,17 +1080,6 @@ impl GameContext {
                 self.decision_states.clear();
                 self.bump_settle_version()?;
                 self.checkpoint.set_data(self.spec.game_id, state)?;
-                self.checkpoint
-                    .set_access_version(self.versions.access_version);
-                self.set_game_status(GameStatus::Idle);
-            } else if is_init {
-                self.bump_settle_version()?;
-                self.checkpoint.init_data(
-                    self.spec.game_id,
-                    self.spec.clone(),
-                    self.versions,
-                    state,
-                )?;
                 self.checkpoint
                     .set_access_version(self.versions.access_version);
                 self.set_game_status(GameStatus::Idle);
