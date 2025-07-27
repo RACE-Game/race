@@ -180,6 +180,9 @@ pub enum TransportError {
 
     #[error("Cannot get object: {0}")]
     GetObjectError(String),
+
+    #[error("Game account players not found")]
+    GameAccountPlayersNotFound,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;
