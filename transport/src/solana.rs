@@ -65,7 +65,7 @@ const METAPLEX_PROGRAM_ID: &str = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s";
 
 const FEE_CAP: u64 = 20000;
 
-const PLAYERS_REG_HEAD_LEN: usize = 136;
+const PLAYERS_REG_HEAD_LEN: usize = 152;
 
 const MAX_RETRIES_FOR_GET_PLAYERS_REG: usize = 5;
 
