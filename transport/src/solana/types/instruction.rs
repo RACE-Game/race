@@ -13,12 +13,13 @@ pub enum RaceInstruction {
     /// Accounts expected:
     /// 0. `[signer]` The account of transactor
     /// 1. `[writable]` The game account, hold all necessary info about the game
-    /// 2. `[writable]` The temp stake account
-    /// 3. `[]` The mint account
-    /// 4. `[]` The token program
-    /// 5. `[]` The bundled data account
-    /// 6. `[]` The recipient account
-    /// 7. `[]` The system program
+    /// 2. `[writable]` The players account, hold all player registrations
+    /// 3. `[writable]` The temp stake account
+    /// 4. `[]` The mint account
+    /// 5. `[]` The token program
+    /// 6. `[]` The bundled data account
+    /// 7. `[]` The recipient account
+    /// 8. `[]` The system program
     CreateGameAccount { params: IxCreateGameAccountParams },
 
     /// # [1] Close a game
@@ -26,11 +27,12 @@ pub enum RaceInstruction {
     /// Accounts expected:
     /// 0. `[signer]` The account of game owner
     /// 1. `[writable]` The account of game account
-    /// 2. `[writable]` The stake account of game
-    /// 3. `[]` PDA account
-    /// 4. `[]` The account to receive tokens
-    /// 5. `[]` Token program
-    /// 6. `[]` The system program
+    /// 2. `[writable]` The players account, hold all player registrations
+    /// 3. `[writable]` The stake account of game
+    /// 4. `[]` PDA account
+    /// 5. `[]` The account to receive tokens
+    /// 6. `[]` Token program
+    /// 7. `[]` The system program
     /// Rest are the bonus stake account and receiver(owner)'s ATA
     CloseGameAccount,
 

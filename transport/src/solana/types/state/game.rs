@@ -6,26 +6,7 @@ use race_core::{
     types::{EntryLock, EntryType, GameAccount, VoteType},
 };
 use solana_sdk::pubkey::Pubkey;
-
-#[cfg_attr(test, derive(PartialEq, Eq))]
-#[derive(Default, BorshDeserialize, BorshSerialize, Clone, Debug)]
-pub struct PlayerJoin {
-    pub addr: Pubkey,
-    pub position: u16,
-    pub access_version: u64,
-    pub verify_key: String,
-}
-
-impl From<PlayerJoin> for race_core::types::PlayerJoin {
-    fn from(value: PlayerJoin) -> Self {
-        Self {
-            addr: value.addr.to_string(),
-            position: value.position,
-            access_version: value.access_version,
-            verify_key: value.verify_key,
-        }
-    }
-}
+use crate::solana::types::state::players::PlayerJoin;
 
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Clone, Debug)]
@@ -137,8 +118,8 @@ pub struct GameState {
     pub settle_version: u64,
     // game size
     pub max_players: u16,
-    // game players
-    pub players: Vec<PlayerJoin>,
+    // the address to players reg account
+    pub players_reg_account: Pubkey,
     // player deposits
     pub deposits: Vec<PlayerDeposit>,
     // game servers (max: 10)
@@ -166,7 +147,7 @@ pub struct GameState {
 }
 
 impl GameState {
-    pub fn into_account<S: Into<String>>(self, addr: S) -> Result<GameAccount, Error> {
+    pub fn into_account<S: Into<String>>(self, addr: S, players: Vec<PlayerJoin>) -> Result<GameAccount, Error> {
         let GameState {
             title,
             bundle_addr,
@@ -176,7 +157,6 @@ impl GameState {
             access_version,
             settle_version,
             max_players,
-            players,
             servers,
             data_len,
             data,

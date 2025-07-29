@@ -163,9 +163,9 @@ async fn do_send_settlements(
             game_context.settle_version(),
         );
 
-        if game_context.game_id() == 0 {
-            settle_details.print("do_send_settlements".to_string());
-        }
+        // if game_context.game_id() == 0 {
+        //     settle_details.print("do_send_settlements".to_string());
+        // }
 
         ports
             .send(EventFrame::Settle {

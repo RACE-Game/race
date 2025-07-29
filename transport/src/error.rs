@@ -180,6 +180,12 @@ pub enum TransportError {
 
     #[error("Cannot get object: {0}")]
     GetObjectError(String),
+
+    #[error("Game account players not found")]
+    GameAccountPlayersNotFound,
+
+    #[error("Failed to deserialize players reg")]
+    PlayersRegDeserializationError,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;
