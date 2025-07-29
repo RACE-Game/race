@@ -326,6 +326,8 @@ impl TransportT for SolanaTransport {
     }
 
     async fn join(&self, params: JoinParams) -> Result<()> {
+        // XXX join is broken now,
+        // but we don't actually need this function
         let (payer, payer_pubkey) = self.payer()?;
 
         let player_account_pubkey =
@@ -429,6 +431,8 @@ impl TransportT for SolanaTransport {
             Pubkey::create_with_seed(&payer_pubkey, SERVER_PROFILE_SEED, &self.program_id)
                 .map_err(|_| TransportError::AddressCreationFailed)?;
 
+        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
+
         let serve_game_ix = Instruction::new_with_borsh(
             self.program_id,
             &RaceInstruction::ServeGame {
@@ -437,6 +441,7 @@ impl TransportT for SolanaTransport {
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new(game_account_pubkey, false),
+                AccountMeta::new(game_state.players_reg_account, false),
                 AccountMeta::new_readonly(server_account_pubkey, false),
                 AccountMeta::new_readonly(system_program::id(), false),
             ],
@@ -668,6 +673,7 @@ impl TransportT for SolanaTransport {
         let mut accounts = vec![
             AccountMeta::new_readonly(payer_pubkey, true),
             AccountMeta::new(Pubkey::from_str(&addr).unwrap(), false),
+            AccountMeta::new(game_state.players_reg_account, false),
             AccountMeta::new(game_state.stake_account, false),
             AccountMeta::new_readonly(pda, false),
             AccountMeta::new_readonly(recipient_account_pubkey, false),
@@ -828,6 +834,7 @@ impl TransportT for SolanaTransport {
         let mut accounts = vec![
             AccountMeta::new_readonly(payer_pubkey, true),
             AccountMeta::new(game_account_pubkey, false),
+            AccountMeta::new(game_state.players_reg_account.clone(), false),
             AccountMeta::new(game_state.stake_account.clone(), false),
             AccountMeta::new_readonly(pda, false),
             AccountMeta::new_readonly(spl_token::id(), false),
@@ -1696,6 +1703,9 @@ impl SolanaTransport {
             {
                 return Ok(players_reg);
             }
+            println!("Versions mismatches, PlayersReg: A {} S {}, GameAccount: A {} S {}",
+                     players_reg.access_version, players_reg.settle_version,
+                     access_version, settle_version);
             retries += 1;
         }
         error!(
