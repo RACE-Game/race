@@ -30,3 +30,25 @@ pub struct PlayersReg {
     pub position_flags: [u8; 128],
     pub players: Vec<PlayerJoin>,
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(BorshDeserialize, BorshSerialize)]
+    struct S {
+        s: usize,
+        ns: [u8; 8],
+    }
+
+    #[test]
+    fn test_deser_fixed_array() {
+        let s = S {
+            s: 1,
+            ns: [0, 1, 2, 3, 4, 5, 6, 7]
+        };
+        let v = borsh::to_vec(&s).unwrap();
+        assert_eq!(v, vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7]);
+    }
+}

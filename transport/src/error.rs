@@ -183,6 +183,9 @@ pub enum TransportError {
 
     #[error("Game account players not found")]
     GameAccountPlayersNotFound,
+
+    #[error("Failed to deserialize players reg")]
+    PlayersRegDeserializationError,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;

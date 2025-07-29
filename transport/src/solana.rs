@@ -66,6 +66,7 @@ const METAPLEX_PROGRAM_ID: &str = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s";
 const FEE_CAP: u64 = 20000;
 
 const PLAYERS_REG_HEAD_LEN: usize = 152;
+const PLAYERS_REG_INIT_LEN: usize = PLAYERS_REG_HEAD_LEN + 4;
 
 const MAX_RETRIES_FOR_GET_PLAYERS_REG: usize = 5;
 
@@ -121,7 +122,7 @@ impl TransportT for SolanaTransport {
         used_keys.push(recipient_pubkey.clone());
         let token_mint_pubkey = Self::parse_pubkey(&params.token_addr)?;
 
-        let players_reg_account_len = PLAYERS_REG_HEAD_LEN;
+        let players_reg_account_len = PLAYERS_REG_INIT_LEN;
         let players_reg_lamports = self.get_min_lamports(players_reg_account_len)?;
         let players_reg_account = Keypair::new();
         let players_reg_account_pubkey = players_reg_account.pubkey();
@@ -202,9 +203,9 @@ impl TransportT for SolanaTransport {
         let blockhash = self.get_blockhash()?;
 
         if let Some(stake_account) = stake_account {
-            tx.sign(&[payer, &game_account, &stake_account], blockhash);
+            tx.sign(&[payer, &game_account, &players_reg_account, &stake_account], blockhash);
         } else {
-            tx.sign(&[payer, &game_account], blockhash);
+            tx.sign(&[payer, &game_account, &players_reg_account], blockhash);
         }
 
         self.send_transaction(tx)?;
@@ -1684,10 +1685,11 @@ impl SolanaTransport {
                 )
                 .map_err(|e| TransportError::AccountNotFound(e.to_string()))?
                 .value
-                .ok_or(TransportError::AccountNotFound("".to_string()))?;
+                .ok_or(TransportError::AccountNotFound(players_reg_account_pubkey.to_string()))?;
 
-            let players_reg = PlayersReg::deserialize(&mut players_reg_account.data.as_slice())
-                .map_err(|_| TransportError::GameStateDeserializeError)?;
+            println!("data: {:?}", &players_reg_account.data.as_slice());
+            let players_reg = PlayersReg::try_from_slice(&players_reg_account.data.as_slice())
+                .map_err(|_| TransportError::PlayersRegDeserializationError)?;
 
             if players_reg.access_version == access_version
                 && players_reg.settle_version == settle_version
@@ -1785,6 +1787,14 @@ impl SolanaTransport {
         RegistryState::deserialize(&mut data.as_slice())
             .map_err(|_| TransportError::RegistryStateDeserializeError)
     }
+
+    pub fn wallet_pubkey(&self) -> Pubkey {
+        if let Some(keypair) = self.keypair.as_ref() {
+            keypair.pubkey()
+        } else {
+            panic!("No keypair")
+        }
+    }
 }
 
 impl From<ParsePubkeyError> for TransportError {
@@ -1831,7 +1841,7 @@ mod tests {
         let pubkey = keypair.pubkey();
         let transport = SolanaTransport::try_new_with_program_id(
             "http://localhost:8899".into(),
-            keypair,
+            Some(keypair),
             read_program_id()?,
             true,
         )?;

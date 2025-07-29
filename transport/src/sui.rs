@@ -1674,8 +1674,9 @@ mod tests {
                 settle_version: 0,
                 status: DepositStatus::Accepted
             }],
+            stake: 0,
             servers: vec![],
-            balance: 100,
+            balances: vec![],
             data_len: 5,
             data: vec![8,1,2,3,4],
             votes: vec![],
@@ -1985,7 +1986,6 @@ mod tests {
         assert_eq!(game_obj.max_players, 10);
         assert_eq!(game_obj.transactor_addr, None);
         assert_eq!(game_obj.players, vec![]);
-        assert_eq!(game_obj.balance, 0);
         assert_eq!(game_obj.entry_type, EntryType::Ticket {amount: 100});
         assert_eq!(game_obj.entry_lock, EntryLock::Open);
 
@@ -2145,7 +2145,7 @@ mod tests {
         let params = SettleParams {
             addr: "".to_string(),
             settles: vec![],
-            transfers: vec![],
+            transfer: None,
             awards: vec![],
             checkpoint: CheckpointOnChain { root: vec![], size: 0, access_version: 0 },
             access_version: 0,
