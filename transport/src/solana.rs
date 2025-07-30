@@ -1695,12 +1695,14 @@ impl SolanaTransport {
                 .ok_or(TransportError::AccountNotFound(players_reg_account_pubkey.to_string()))?;
 
             println!("data: {:?}", &players_reg_account.data.as_slice());
-            let players_reg = PlayersReg::try_from_slice(&players_reg_account.data.as_slice())
+            let mut players_reg = PlayersReg::try_from_slice(&players_reg_account.data.as_slice())
                 .map_err(|_| TransportError::PlayersRegDeserializationError)?;
 
             if players_reg.access_version == access_version
                 && players_reg.settle_version == settle_version
             {
+                players_reg.players.retain(|p| p.access_version != 0);
+
                 return Ok(players_reg);
             }
             println!("Versions mismatches, PlayersReg: A {} S {}, GameAccount: A {} S {}",
