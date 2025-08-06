@@ -151,8 +151,6 @@ async fn get_latest_checkpoints(params: Params<'_>, context: Arc<ApplicationCont
     }
 
     let duration = start.elapsed();
-    info!("Time elapsed in get_lastest_checkpoints: {:?}", duration.as_millis());
-
     let bs = borsh::to_vec(&result).map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
     Ok(bs)
 }
