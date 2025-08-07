@@ -286,6 +286,9 @@ pub enum Error {
     #[error("Game uninitialized")]
     GameUninitialized,
 
+    #[error("Game closed")]
+    GameClosed,
+
     #[error("Invalid bridge event")]
     InvalidBridgeEvent,
 

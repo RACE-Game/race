@@ -97,6 +97,11 @@ impl TransportT for WrappedTransport {
             loop {
                 let item = sub.next().await;
                 match item {
+                    Some(Ok(item)) if item.data_len == 1 => {
+                        info!("Game closed, quit sub loop");
+                        yield Err(Error::GameClosed);
+                        return;
+                    }
                     Some(Ok(item)) => {
                         yield Ok(item);
                     },

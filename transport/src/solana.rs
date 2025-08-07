@@ -1293,6 +1293,12 @@ impl TransportT for SolanaTransport {
                     return;
                 };
                 let state = match GameState::deserialize(&mut data.as_slice()) {
+                    Ok(x) if x.game_status == GameStatus::Closed => {
+                        info!("Game closed, quit sub loop");
+                        yield Err(Error::GameClosed);
+                        unsub().await;
+                        return;
+                    },
                     Ok(x) => x,
                     Err(e) => {
                         error!("Game state deserialization error: {}", e.to_string());
