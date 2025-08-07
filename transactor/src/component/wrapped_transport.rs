@@ -97,11 +97,6 @@ impl TransportT for WrappedTransport {
             loop {
                 let item = sub.next().await;
                 match item {
-                    Some(Ok(item)) if item.data_len == 1 => {
-                        info!("Game closed, quit sub loop");
-                        yield Err(Error::GameClosed);
-                        return;
-                    }
                     Some(Ok(item)) => {
                         yield Ok(item);
                     },
@@ -111,14 +106,16 @@ impl TransportT for WrappedTransport {
                         return;
                     }
                     None => {
-                        info!("Restart subscription after {} seconds", interval);
-                        tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
-                        let new_sub = self.inner.subscribe_game_account(addr).await;
-                        sub = match new_sub {
-                            Ok(new_sub) => new_sub,
-                            Err(e) => {
-                                yield Err(e);
-                                return;
+                        sub = loop {
+                            info!("Restart subscription after {} seconds", interval);
+                            tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
+                            let new_sub = self.inner.subscribe_game_account(addr).await;
+                            match new_sub {
+                                Ok(new_sub) => break new_sub,
+                                Err(e) => {
+                                    error!("Subscribe game account err: {}", e.to_string());
+                                    continue;
+                                }
                             }
                         };
                     }
