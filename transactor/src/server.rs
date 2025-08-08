@@ -83,6 +83,11 @@ fn ping(_: Params<'_>, _: &ApplicationContext) -> Result<String, RpcError> {
     Ok("pong".to_string())
 }
 
+
+async fn get_serving_addrs(_: Params<'_>, context: Arc<ApplicationContext>) -> Result<Vec<String>, RpcError> {
+    Ok(context.get_serving_addrs().await)
+}
+
 async fn submit_message(
     params: Params<'_>,
     context: Arc<ApplicationContext>,
@@ -276,6 +281,7 @@ pub async fn run_server(
     module.register_async_method("get_checkpoint", get_checkpoint)?;
     module.register_async_method("get_latest_checkpoints", get_latest_checkpoints)?;
     module.register_async_method("attach_game", attach_game)?;
+    module.register_async_method("get_serving_addrs", get_serving_addrs)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;
     module.register_async_method("exit_game", exit_game)?;

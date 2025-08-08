@@ -197,6 +197,10 @@ impl ApplicationContext {
         self.game_manager.send_message(game_addr, message).await
     }
 
+    pub async fn get_serving_addrs(&self) -> Vec<String> {
+        self.game_manager.get_serving_addrs().await
+    }
+
     pub async fn get_broadcast(
         &self,
         game_addr: &str,

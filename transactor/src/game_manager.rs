@@ -150,6 +150,11 @@ impl GameManager {
         }
     }
 
+    pub async fn get_serving_addrs(&self) -> Vec<String> {
+        let games = self.games.read().await;
+        games.keys().cloned().collect()
+    }
+
     pub async fn is_game_loaded(&self, game_addr: &str) -> bool {
         let games = self.games.read().await;
         games.contains_key(game_addr)
