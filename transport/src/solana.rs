@@ -1709,7 +1709,6 @@ impl SolanaTransport {
                 .value
                 .ok_or(TransportError::AccountNotFound(players_reg_account_pubkey.to_string()))?;
 
-            println!("data: {:?}", &players_reg_account.data.as_slice());
             let mut players_reg = PlayersReg::try_from_slice(&players_reg_account.data.as_slice())
                 .map_err(|_| TransportError::PlayersRegDeserializationError)?;
 
