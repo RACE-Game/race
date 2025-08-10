@@ -30,7 +30,7 @@ use race_core::{
 use std::str::FromStr;
 use std::{path::PathBuf, pin::Pin};
 
-use solana_account_decoder::UiAccountEncoding;
+use solana_account_decoder::{UiAccount, UiAccountEncoding};
 use solana_pubsub_client::nonblocking::pubsub_client::PubsubClient;
 use solana_rpc_client::rpc_client::RpcClient;
 use solana_rpc_client_api::config::{RpcAccountInfoConfig, RpcSendTransactionConfig};
@@ -1278,20 +1278,27 @@ impl TransportT for SolanaTransport {
             .await
             {
                 Ok((stream, unsub)) => (stream, unsub),
-                Err(e) => {
+                Err(_) => {
                     error!("Failed on calling account_subscribe");
-                    yield Err(Error::TransportError(e.to_string()));
                     return;
                 }
             };
 
             while let Some(rpc_response) = stream.next().await {
-                let ui_account = rpc_response.value;
+                let ui_account: UiAccount = rpc_response.value;
+
                 let Some(data) = ui_account.data.decode() else {
                     error!("Found an empty account data");
                     unsub().await;
                     return;
                 };
+                if data.as_slice().len() == 1 {
+                    info!("Game closed, quit sub loop");
+                    unsub().await;
+                    yield Err(Error::GameClosed);
+                    return;
+                }
+
                 let state = match GameState::deserialize(&mut data.as_slice()) {
                     Ok(x) => x,
                     Err(e) => {
@@ -1302,11 +1309,19 @@ impl TransportT for SolanaTransport {
                     }
                 };
 
-                let players = self.internal_get_players_reg_state(
+                let players = match self.internal_get_players_reg_state(
                     &state.players_reg_account,
                     state.access_version,
                     state.settle_version,
-                ).await?.players;
+                ).await {
+                    Ok(players_reg) => players_reg.players,
+                    Err(e) => {
+                        error!("Get players reg error: {}", e.to_string());
+                        unsub().await;
+                        yield Err(Error::TransportError(e.to_string()));
+                        return;
+                    }
+                };
 
                 let acc = match state.into_account(addr.clone(), players) {
                     Ok(x) => x,

@@ -93,11 +93,19 @@ impl From<PlayerBalance> for race_core::types::PlayerBalance {
     }
 }
 
+#[derive(Default, BorshDeserialize, BorshSerialize, Debug, PartialEq, Eq, Clone)]
+pub enum GameStatus {
+    #[default]
+    Initializing,
+    Initialized,
+    Closed,
+}
+
 // State of on-chain GameAccount
 #[cfg_attr(test, derive(PartialEq, Clone))]
 #[derive(Default, BorshDeserialize, BorshSerialize, Debug)]
 pub struct GameState {
-    pub is_initialized: bool,
+    pub game_status: GameStatus,
     // the contract version, used for upgrade
     pub version: String,
     // game name displayed on chain
