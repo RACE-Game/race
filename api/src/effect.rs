@@ -498,6 +498,14 @@ impl Effect {
         Ok(())
     }
 
+    /// List the sub games to launch, deserialize the , 
+    pub fn list_sub_game_data<D: BorshDeserialize>(&self) -> HandleResult<Vec<D>> {
+        self.launch_sub_games.iter().map(|sub_game| {
+            let data = D::try_from_slice(&sub_game.init_account.data)?;
+            Ok(data)
+        }).collect()
+    }
+
     /// List bridge events, deserialize raw to event type E.
     pub fn list_bridge_events<E: BridgeEvent>(&self) -> HandleResult<Vec<(GameId, E)>> {
         self.bridge_events
