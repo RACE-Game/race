@@ -78,3 +78,9 @@ impl Display for SubscribeEventParams {
         write!(f, "SubscribeEventParams")
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct SubscribeCheckpointParams {
+}

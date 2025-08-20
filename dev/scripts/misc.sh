@@ -3,7 +3,7 @@ BORSH="$ROOT/../race-sdk/packages/borsh"
 # Make a JSON specification for tourney game
 # TITLE TOKEN START_TIME
 function make_tourney {
-    local ENTRY_CLOSE_TIME=$(expr $3 + 50000)
+    local ENTRY_CLOSE_TIME=$(expr $3 + 360000)
     local TICKET=100000000
     local TABLE_SIZE=$4
     local START_CHIPS=100000

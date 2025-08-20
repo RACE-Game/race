@@ -1,5 +1,5 @@
 use crate::blacklist::Blacklist;
-use crate::component::{CloseReason, WrappedStorage, WrappedTransport};
+use crate::component::{CheckpointBroadcastFrame, CloseReason, WrappedStorage, WrappedTransport};
 use crate::frame::SignalFrame;
 use crate::game_manager::GameManager;
 use race_api::event::{Event, Message};
@@ -201,13 +201,22 @@ impl ApplicationContext {
         self.game_manager.get_serving_addrs().await
     }
 
-    pub async fn get_broadcast(
+    pub async fn get_broadcast_and_backlogs(
         &self,
         game_addr: &str,
         settle_version: u64,
     ) -> Result<(broadcast::Receiver<BroadcastFrame>, BroadcastFrame)> {
         self.game_manager
-            .get_broadcast(game_addr, settle_version)
+            .get_broadcast_and_backlogs(game_addr, settle_version)
+            .await
+    }
+
+    pub async fn get_broadcast_and_checkpoint(
+        &self,
+        game_addr: &str,
+    ) -> Result<(broadcast::Receiver<CheckpointBroadcastFrame>, CheckpointBroadcastFrame)> {
+        self.game_manager
+            .get_broadcast_and_checkpoint(game_addr)
             .await
     }
 

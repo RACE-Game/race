@@ -4,11 +4,13 @@
 use std::collections::LinkedList;
 use std::sync::Arc;
 
+use borsh::{BorshSerialize, BorshDeserialize};
 use async_trait::async_trait;
 use race_api::event::Event;
 use race_api::types::GameId;
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::{BroadcastFrame, BroadcastSync, TxState};
+use race_core::context::Node;
 use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, error, info, warn};
 
@@ -35,6 +37,13 @@ pub struct EventBackupGroup {
     pub events: LinkedList<EventBackup>,
     pub settle_version: u64,
     pub checkpoint_off_chain: Option<CheckpointOffChain>,
+    pub nodes: Vec<Node>,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct CheckpointBroadcastFrame {
+    pub data: Vec<u8>,
+    pub nodes: Vec<Node>,
 }
 
 impl EventBackupGroup {
@@ -61,8 +70,10 @@ impl EventBackupGroup {
 pub struct BroadcasterContext {
     #[allow(unused)]
     id: String,
+    game_id: GameId,
     event_backup_groups: Arc<RwLock<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
+    checkpoint_tx: broadcast::Sender<CheckpointBroadcastFrame>,
 }
 
 /// A component that pushes event to clients.
@@ -73,30 +84,50 @@ pub struct Broadcaster {
     game_id: GameId,
     event_backup_groups: Arc<RwLock<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
+    checkpoint_tx: broadcast::Sender<CheckpointBroadcastFrame>,
 }
 
 impl Broadcaster {
     pub fn init(id: String, game_id: GameId) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(RwLock::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
+        let (checkpoint_tx, checkpoint_rx) = broadcast::channel(10);
         drop(broadcast_rx);
+        drop(checkpoint_rx);
         (
             Self {
                 id: id.clone(),
                 game_id,
                 event_backup_groups: event_backup_groups.clone(),
                 broadcast_tx: broadcast_tx.clone(),
+                checkpoint_tx: checkpoint_tx.clone(),
             },
             BroadcasterContext {
                 id,
+                game_id,
                 event_backup_groups,
                 broadcast_tx,
+                checkpoint_tx,
             },
         )
     }
 
+    pub fn get_checkpoint_rx(&self) -> broadcast::Receiver<CheckpointBroadcastFrame> {
+        self.checkpoint_tx.subscribe()
+    }
+
     pub fn get_broadcast_rx(&self) -> broadcast::Receiver<BroadcastFrame> {
         self.broadcast_tx.subscribe()
+    }
+
+    pub async fn get_latest_checkpoint_broadcast_frame(&self) -> Option<CheckpointBroadcastFrame> {
+        let event_backup_groups = self.event_backup_groups.read().await;
+        let latest_group = event_backup_groups.iter().last()?;
+        let vd = latest_group.checkpoint_off_chain.as_ref()?.data.get(&self.game_id)?;
+        return Some(CheckpointBroadcastFrame {
+            data: vd.data.clone(),
+            nodes: latest_group.nodes.clone(),
+        });
     }
 
     pub async fn get_latest_checkpoint(&self) -> Option<CheckpointOffChain> {
@@ -106,7 +137,7 @@ impl Broadcaster {
             return latest_group.checkpoint_off_chain.clone();
         }
 
-        return None;
+        None
     }
 
     pub async fn get_checkpoint(&self, settle_version: u64) -> Option<CheckpointOffChain> {
@@ -197,20 +228,37 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     settle_version,
                     checkpoint,
                     state_sha,
+                    nodes,
                 } => {
                     info!(
                         "{} Create new history group (via Checkpoint) with access_version = {}, settle_version = {}",
                         env.log_prefix, access_version, settle_version
                     );
                     let mut event_backup_groups = ctx.event_backup_groups.write().await;
+                    let checkpoint_off_chain = checkpoint.derive_offchain_part();
+
+                    if let Some(vd) = checkpoint_off_chain.data.get(&ctx.game_id) {
+                        let r = ctx.checkpoint_tx.send(CheckpointBroadcastFrame {
+                            nodes: nodes.clone(),
+                            data: vd.data.to_owned(),
+                        });
+                        if let Err(e) = r {
+                            // Usually it means no receivers
+                            debug!("{} Failed to broadcast checkpoint: {:?}", env.log_prefix, e);
+                        }
+                    }
+
 
                     event_backup_groups.push_back(EventBackupGroup {
                         sync: BroadcastSync::new(access_version),
                         state_sha,
                         events: LinkedList::new(),
                         settle_version,
-                        checkpoint_off_chain: Some(checkpoint.derive_offchain_part()),
+                        checkpoint_off_chain: Some(checkpoint_off_chain),
+                        nodes,
                     });
+
+
                 }
 
                 EventFrame::InitState {
@@ -231,6 +279,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                         settle_version,
                         checkpoint_off_chain: Some(checkpoint.derive_offchain_part()),
                         state_sha: "".into(),
+                        nodes: Vec::default(),
                     });
                 }
 

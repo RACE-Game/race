@@ -13,7 +13,7 @@ use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
 use crate::blacklist::Blacklist;
-use crate::component::{BridgeToParent, CloseReason, WrappedStorage, WrappedTransport};
+use crate::component::{CheckpointBroadcastFrame, BridgeToParent, CloseReason, WrappedStorage, WrappedTransport};
 use crate::frame::{EventFrame, SignalFrame};
 use crate::handle::Handle;
 use crate::utils::current_timestamp;
@@ -230,7 +230,7 @@ impl GameManager {
     }
 
     /// Get the broadcast channel of game, and its event histories
-    pub async fn get_broadcast(
+    pub async fn get_broadcast_and_backlogs(
         &self,
         game_addr: &str,
         settle_version: u64,
@@ -241,6 +241,22 @@ impl GameManager {
         let receiver = broadcaster.get_broadcast_rx();
         let backlogs = broadcaster.get_backlogs(settle_version).await;
         Ok((receiver, backlogs))
+    }
+
+    /// Get the checkopint channel of game and its latest checkpoint
+    pub async fn get_broadcast_and_checkpoint(
+        &self,
+        game_addr: &str,
+    ) -> Result<(broadcast::Receiver<CheckpointBroadcastFrame>, CheckpointBroadcastFrame)> {
+        let games = self.games.read().await;
+        let handle = games.get(game_addr).ok_or(Error::GameNotLoaded)?;
+        let broadcaster = handle.broadcaster()?;
+        let receiver = broadcaster.get_checkpoint_rx();
+        let Some(frame) = broadcaster.get_latest_checkpoint_broadcast_frame().await else {
+            return Err(Error::MissingCheckpoint);
+        };
+
+        Ok((receiver, frame))
     }
 
     pub async fn remove_game(&self, addr: &str) {

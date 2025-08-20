@@ -1,6 +1,5 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use std::time::Instant;
 use crate::context::ApplicationContext;
 use crate::utils;
 use borsh::BorshDeserialize;
@@ -17,7 +16,7 @@ use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
     AttachGameParams, CheckpointParams, ExitGameParams, Signature, SubmitEventParams,
-    SubscribeEventParams,
+    SubscribeEventParams, SubscribeCheckpointParams
 };
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
@@ -172,82 +171,146 @@ async fn subscribe_event(
     pending: PendingSubscriptionSink,
     context: Arc<ApplicationContext>,
 ) -> Result<(), StringError> {
-    {
-        let start = Instant::now();
 
+    let (game_addr, SubscribeEventParams { settle_version }) = match parse_params_no_sig(params) {
+        Ok(p) => p,
+        Err(e) => {
+            let _ = pending.reject(ErrorObjectOwned::from(e)).await;
+            return Ok(());
+        }
+    };
 
-        let (game_addr, SubscribeEventParams { settle_version }) = match parse_params_no_sig(params)
-        {
-            Ok(p) => p,
+    let (receiver, backlogs_frame) =
+        match context.get_broadcast_and_backlogs(&game_addr, settle_version).await {
+            Ok(x) => x,
             Err(e) => {
-                let _ = pending.reject(ErrorObjectOwned::from(e)).await;
+                warn!("Game not found: {}", game_addr);
+                let _ = pending.reject(CallError::Failed(e.into())).await;
                 return Ok(());
             }
         };
 
-        let (receiver, backlogs_frame) =
-            match context.get_broadcast(&game_addr, settle_version).await {
-                Ok(x) => x,
-                Err(e) => {
-                    warn!("Game not found: {}", game_addr);
-                    let _ = pending.reject(CallError::Failed(e.into())).await;
-                    return Ok(());
-                }
-            };
+    drop(context);
+    info!(
+        "Subscribe event stream, game: {:?}, settle version: {}",
+        game_addr, settle_version,
+    );
 
+    let mut sink = pending.accept().await?;
 
-        drop(context);
-        info!(
-            "Subscribe event stream, game: {:?}, settle version: {}",
-            game_addr, settle_version,
-        );
-        let duration = start.elapsed();
-        info!("Time elapsed in subscribe events: {:?}", duration.as_millis());
+    let v = borsh::to_vec(&backlogs_frame).unwrap();
+    let s = utils::base64_encode(&v);
+    sink.send(SubscriptionMessage::from(&s))
+        .await
+        .map_err(|e| {
+            error!("Error occurred when broadcasting historical frame: {:?}", e);
+            e
+        })
+        .unwrap();
 
+    let rx = BroadcastStream::new(receiver);
+    let mut serialized_rx = rx.map(|f| match f {
+        Ok(x) => {
+            let v = borsh::to_vec(&x).unwrap();
+            let s = utils::base64_encode(&v);
+            Ok(s)
+        }
+        Err(e) => Err(e),
+    });
 
-        let mut sink = pending.accept().await?;
-
-        let v = borsh::to_vec(&backlogs_frame).unwrap();
-        let s = utils::base64_encode(&v);
-        sink.send(SubscriptionMessage::from(&s))
-            .await
-            .map_err(|e| {
-                error!("Error occurred when broadcasting historical frame: {:?}", e);
-                e
-            })
-            .unwrap();
-
-        let rx = BroadcastStream::new(receiver);
-        let mut serialized_rx = rx.map(|f| match f {
-            Ok(x) => {
-                let v = borsh::to_vec(&x).unwrap();
-                let s = utils::base64_encode(&v);
-                Ok(s)
-            }
-            Err(e) => Err(e),
-        });
-
-        loop {
-            tokio::select! {
-                _ = sink.closed() => break Err(anyhow::anyhow!("Subscription was closed")),
-                maybe_item = serialized_rx.next() => {
-                    let item = match maybe_item {
-                        Some(Ok(item)) => item,
-                        _ => break Err(anyhow::anyhow!("Event stream ended")),
-                    };
-                    let msg = SubscriptionMessage::from(&item);
-                    match sink.try_send(msg) {
-                        Ok(_) => (),
-                        Err(TrySendError::Closed(_)) => break Err(anyhow::anyhow!("Client disconnected, subscription closed")),
-                        Err(TrySendError::Full(_)) => {
-                            warn!("TrySendError::Full");
-                        }
+    loop {
+        tokio::select! {
+            _ = sink.closed() => break Err(anyhow::anyhow!("Subscription was closed")),
+            maybe_item = serialized_rx.next() => {
+                let item = match maybe_item {
+                    Some(Ok(item)) => item,
+                    _ => break Err(anyhow::anyhow!("Event stream ended")),
+                };
+                let msg = SubscriptionMessage::from(&item);
+                match sink.try_send(msg) {
+                    Ok(_) => (),
+                    Err(TrySendError::Closed(_)) => break Err(anyhow::anyhow!("Client disconnected, subscription closed")),
+                    Err(TrySendError::Full(_)) => {
+                        warn!("TrySendError::Full");
                     }
-                },
+                }
+            },
+        }
+    }?;
+    Ok(())
+}
+
+async fn subscribe_checkpoint(
+    params: Params<'_>,
+    pending: PendingSubscriptionSink,
+    context: Arc<ApplicationContext>,
+) -> Result<(), StringError> {
+    let (game_addr, SubscribeCheckpointParams { }) = match parse_params_no_sig(params) {
+        Ok(p) => p,
+        Err(e) => {
+            let _ = pending.reject(ErrorObjectOwned::from(e)).await;
+            return Ok(());
+        }
+    };
+
+    let (receiver, frame) =
+        match context.get_broadcast_and_checkpoint(&game_addr).await {
+            Ok(x) => x,
+            Err(e) => {
+                warn!("Game not found: {}", game_addr);
+                let _ = pending.reject(CallError::Failed(e.into())).await;
+                return Ok(());
             }
-        }?;
-        Ok(())
-    }
+        };
+
+    drop(context);
+    info!(
+        "Subscribe checkpoint, game: {:?}",
+        game_addr,
+    );
+
+    let mut sink = pending.accept().await?;
+
+    let v = borsh::to_vec(&frame).unwrap();
+    let s = utils::base64_encode(&v);
+    sink.send(SubscriptionMessage::from(&s))
+        .await
+        .map_err(|e| {
+            error!("Error occurred when broadcasting current checkpoint: {:?}", e);
+            e
+        })
+        .unwrap();
+
+    let rx = BroadcastStream::new(receiver);
+    let mut serialized_rx = rx.map(|f| match f {
+        Ok(x) => {
+            let v = borsh::to_vec(&x).unwrap();
+            let s = utils::base64_encode(&v);
+            Ok(s)
+        }
+        Err(e) => Err(e),
+    });
+
+    loop {
+        tokio::select! {
+            _ = sink.closed() => break Err(anyhow::anyhow!("Subscription was closed")),
+            maybe_item = serialized_rx.next() => {
+                let item = match maybe_item {
+                    Some(Ok(item)) => item,
+                    _ => break Err(anyhow::anyhow!("Event stream ended")),
+                };
+                let msg = SubscriptionMessage::from(&item);
+                match sink.try_send(msg) {
+                    Ok(_) => (),
+                    Err(TrySendError::Closed(_)) => break Err(anyhow::anyhow!("Client disconnected, subscription closed")),
+                    Err(TrySendError::Full(_)) => {
+                        warn!("TrySendError::Full");
+                    }
+                }
+            },
+        }
+    }?;
+    Ok(())
 }
 
 pub async fn run_server(
@@ -290,6 +353,12 @@ pub async fn run_server(
         "s_event",
         "unsubscribe_event",
         subscribe_event,
+    )?;
+    module.register_subscription(
+        "subscribe_checkpoint",
+        "s_checkpoint",
+        "unsubscribe_checkpoint",
+        subscribe_checkpoint,
     )?;
     let handle = server.start(module)?;
     info!("Server started at {:?}", host);
