@@ -1,7 +1,7 @@
 use crate::blacklist::Blacklist;
 use crate::component::{CheckpointBroadcastFrame, CloseReason, WrappedStorage, WrappedTransport};
 use crate::frame::SignalFrame;
-use crate::game_manager::GameManager;
+use crate::game_manager::{ServingGame, GameManager};
 use race_api::event::{Event, Message};
 use race_core::error::{Error, Result};
 use race_core::encryptor::{EncryptorT, NodePublicKeyRaw};
@@ -197,8 +197,8 @@ impl ApplicationContext {
         self.game_manager.send_message(game_addr, message).await
     }
 
-    pub async fn get_serving_addrs(&self) -> Vec<String> {
-        self.game_manager.get_serving_addrs().await
+    pub async fn get_serving_games(&self) -> Vec<ServingGame> {
+        self.game_manager.get_serving_games().await
     }
 
     pub async fn get_broadcast_and_backlogs(

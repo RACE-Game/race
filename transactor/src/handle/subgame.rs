@@ -15,6 +15,7 @@ use race_env::TransactorConfig;
 #[allow(dead_code)]
 pub struct SubGameHandle {
     pub(crate) addr: String,
+    pub(crate) bundle_addr: String,
     pub(crate) event_bus: EventBus,
     pub(crate) handles: Vec<PortsHandle>,
     pub(crate) broadcaster: Broadcaster,
@@ -40,6 +41,8 @@ impl SubGameHandle {
             .get_game_bundle(&sub_game_init.spec.bundle_addr)
             .await?
             .ok_or(Error::GameBundleNotFound)?;
+
+        let bundle_addr = sub_game_init.spec.bundle_addr.clone();
 
         // Build an InitAccount
         let game_context = GameContext::try_new_with_sub_game_spec(sub_game_init)?;
@@ -86,6 +89,7 @@ impl SubGameHandle {
 
         Ok(Self {
             addr: format!("{}:{}", game_addr, game_id),
+            bundle_addr,
             event_bus,
             handles: vec![broadcaster_handle, bridge_handle, event_loop_handle],
             broadcaster,

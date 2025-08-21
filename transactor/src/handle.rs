@@ -124,6 +124,14 @@ impl Handle {
         }
     }
 
+    pub fn bundle_addr(&self) -> String {
+        match self {
+            Handle::Transactor(h) => h.bundle_addr.clone(),
+            Handle::Validator(h) => h.bundle_addr.clone(),
+            Handle::SubGame(h) => h.bundle_addr.clone(),
+        }
+    }
+
     /// Wait handle until it's shutted down.  A
     /// [SignalFrame::RemoveGame] will be sent through `signal_tx`.
     pub fn wait(&mut self, signal_tx: mpsc::Sender<SignalFrame>) -> JoinHandle<CloseReason> {

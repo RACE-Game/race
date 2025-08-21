@@ -11,12 +11,26 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
+use serde::Serialize;
 
 use crate::blacklist::Blacklist;
 use crate::component::{CheckpointBroadcastFrame, BridgeToParent, CloseReason, WrappedStorage, WrappedTransport};
 use crate::frame::{EventFrame, SignalFrame};
 use crate::handle::Handle;
 use crate::utils::current_timestamp;
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ServingGame {
+    addr: String,
+    bundle_addr: String,
+}
+
+impl ServingGame {
+    pub fn new(addr: String, bundle_addr: String) -> Self {
+        Self { addr, bundle_addr }
+    }
+}
 
 pub struct GameManager {
     games: Arc<RwLock<HashMap<String, Handle>>>,
@@ -29,6 +43,7 @@ impl Default for GameManager {
         }
     }
 }
+
 
 impl GameManager {
     /// Load a child game
@@ -150,9 +165,10 @@ impl GameManager {
         }
     }
 
-    pub async fn get_serving_addrs(&self) -> Vec<String> {
+    pub async fn get_serving_games(&self) -> Vec<ServingGame> {
         let games = self.games.read().await;
-        games.keys().cloned().collect()
+
+        games.iter().map(|(addr, handle)| ServingGame::new(addr.to_owned(), handle.bundle_addr())).collect()
     }
 
     pub async fn is_game_loaded(&self, game_addr: &str) -> bool {

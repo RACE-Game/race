@@ -2,6 +2,7 @@ use std::{net::SocketAddr, sync::Arc};
 
 use crate::context::ApplicationContext;
 use crate::utils;
+use crate::game_manager::ServingGame;
 use borsh::BorshDeserialize;
 use hyper::Method;
 use jsonrpsee::core::error::Error as RpcError;
@@ -82,9 +83,8 @@ fn ping(_: Params<'_>, _: &ApplicationContext) -> Result<String, RpcError> {
     Ok("pong".to_string())
 }
 
-
-async fn get_serving_addrs(_: Params<'_>, context: Arc<ApplicationContext>) -> Result<Vec<String>, RpcError> {
-    Ok(context.get_serving_addrs().await)
+async fn get_serving_games(_: Params<'_>, context: Arc<ApplicationContext>) -> Result<Vec<ServingGame>, RpcError> {
+    Ok(context.get_serving_games().await)
 }
 
 async fn submit_message(
@@ -344,7 +344,7 @@ pub async fn run_server(
     module.register_async_method("get_checkpoint", get_checkpoint)?;
     module.register_async_method("get_latest_checkpoints", get_latest_checkpoints)?;
     module.register_async_method("attach_game", attach_game)?;
-    module.register_async_method("get_serving_addrs", get_serving_addrs)?;
+    module.register_async_method("get_serving_games", get_serving_games)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;
     module.register_async_method("exit_game", exit_game)?;

@@ -18,6 +18,7 @@ use tracing::info;
 #[allow(dead_code)]
 pub struct TransactorHandle {
     pub(crate) addr: String,
+    pub(crate) bundle_addr: String,
     pub(crate) handles: Vec<PortsHandle>,
     pub(crate) event_bus: EventBus,
     pub(crate) broadcaster: Broadcaster,
@@ -169,6 +170,7 @@ impl TransactorHandle {
 
         Ok(Self {
             addr: game_account.addr.clone(),
+            bundle_addr: game_account.bundle_addr.clone(),
             event_bus,
             handles: vec![
                 broadcaster_handle,

@@ -18,6 +18,7 @@ use tracing::info;
 #[allow(dead_code)]
 pub struct ValidatorHandle {
     pub(crate) addr: String,
+    pub(crate) bundle_addr: String,
     pub(crate) event_bus: EventBus,
     pub(crate) handles: Vec<PortsHandle>,
     pub(crate) bridge_parent: EventBridgeParent,
@@ -124,6 +125,7 @@ impl ValidatorHandle {
         event_bus.attach(&mut subscriber_handle).await;
         Ok(Self {
             addr: game_account.addr.clone(),
+            bundle_addr: game_account.bundle_addr.clone(),
             event_bus,
             handles: vec![
                 subscriber_handle,
