@@ -6187,6 +6187,7 @@ dependencies = [
 name = "race-example-raffle"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "borsh 1.5.4",
  "race-api",
  "race-proc-macro",

@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 race-api.workspace = true
 race-proc-macro.workspace = true
 borsh.workspace = true
+anyhow.workspace = true
 
 [dev-dependencies]
 race-test.workspace = true

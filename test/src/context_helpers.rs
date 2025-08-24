@@ -213,6 +213,13 @@ impl TestContextBuilder {
         self
     }
 
+    pub fn with_deposit_amount(mut self, amount: u64) -> Self {
+        self.account.entry_type = EntryType::Ticket {
+            amount,
+        };
+        self
+    }
+
     pub fn with_deposit_range(mut self, min: u64, max: u64) -> Self {
         if max < min {
             panic!("Invalid deposit value, the max must be greater than the min");
