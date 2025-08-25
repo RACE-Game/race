@@ -40,7 +40,7 @@ struct Player {
     /// The deposit, since the ticket is fixed in this game
     /// Every player has the same `balance`.
     pub balance: u64,
-    /// Wether this player is eligible for raffle.
+    /// whether this player is eligible for raffle.
     pub status: PlayerStatus,
 }
 
@@ -224,6 +224,7 @@ impl Raffle {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use race_test::prelude::*;
     use super::*;
 
@@ -250,14 +251,20 @@ mod tests {
         // After enough players joined, we expect there's a waiting timeout event being dispatched
         assert_eq!(dispatch, Some(DispatchEvent::new(Event::WaitingTimeout, DRAW_TIMEOUT)));
 
-        ctx.handle_dispatch_until_no_events(vec![&mut alice, &mut bob, &mut tx])?;
+        // We handle the dispatched event and all events after it, stop right before the SecretsReady
+        let (secrets_ready, _) = ctx.handle_dispatch_until(vec![&mut alice, &mut bob, &mut tx], |e| matches!(e, Some(&Event::SecretsReady {..})))?;
 
+        let random_id = ctx.state().random_id;
+
+        // Before process the dispatching events, we set a faked random result
+        // We select bob as the winner.
+        ctx.set_random_result(random_id, HashMap::from([(0, alice.id().to_string())]));
+
+        ctx.handle_event_until_no_events(&secrets_ready.unwrap(), vec![&mut alice, &mut bob, &mut tx])?;
         {
             let state = ctx.state();
-
-            assert!(state.winner_player_id.is_some());
+            assert_eq!(state.winner_player_id, Some(alice.id()));
         }
-
 
         Ok(())
     }

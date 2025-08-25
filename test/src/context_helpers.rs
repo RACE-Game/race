@@ -46,32 +46,96 @@ impl<H: GameHandler> TestContext<H> {
         (Event::Join { players }, Event::Deposit{ deposits })
     }
 
+    /// Handle one event and return the effects.
     pub fn handle_event(&mut self, event: &Event) -> Result<EventEffects> {
         self.handler.handle_event(&mut self.context, event)
     }
 
+    /// Handle one event and all events generated after it, until the next event satisfies
+    /// the prediction.  Return the next event and the last effects.
+    pub fn handle_event_until(
+        &mut self,
+        event: &Event,
+        mut clients: Vec<&mut TestClient>,
+        event_pred: impl for<'a> Fn(Option<&'a Event>) -> bool,
+    ) -> Result<(Option<Event>, EventEffects)> {
+        let mut events_queue = vec![event.clone()];
+        let mut effects = EventEffects::default();
+
+        while !event_pred(events_queue.first()) {
+            let this_event = &events_queue.remove(0);
+            println!("* Handle event: {}", this_event);
+
+            effects = self.handler.handle_event(&mut self.context, this_event)?;
+
+            // Handle the following dispatched event and clients events.
+            if let Some(dispatch) = self.take_dispatch() {
+                if dispatch.timeout == self.context.get_timestamp() {
+                    events_queue.push(dispatch.event);
+                }
+            }
+
+            // Handle the following clients event.
+            for client in clients.iter_mut() {
+                let client_events = client.handle_updated_context(&mut self.context)?;
+                events_queue.extend_from_slice(&client_events);
+                if effects.checkpoint.is_some() {
+                    client.flush_secret_state();
+                }
+            }
+        }
+
+        let next_event = if events_queue.is_empty() {
+            None
+        } else {
+            Some(events_queue.remove(0))
+        };
+        Ok((next_event, effects))
+    }
+
+    /// Handle one event and all events generated after it, until there's no more event.
+    /// Return the last effects.
+    pub fn handle_event_until_no_events(
+        &mut self,
+        event: &Event,
+        clients: Vec<&mut TestClient>,
+    ) -> Result<EventEffects> {
+        let (_, effects) = self.handle_event_until(&event, clients, |e|{ e.is_none() })?;
+        Ok(effects)
+    }
+
+    /// Like `handle_event` but pass in the current dispatched event.
+    pub fn handle_dispatch(&mut self) -> Result<EventEffects> {
+        let event = &self.take_dispatch().expect("No dispatch event").event;
+        self.handle_event(event)
+    }
+
+    /// Like `handle_event_until_no_events` but start with the current dispatched event.
+    pub fn handle_dispatch_until_no_events(
+        &mut self,
+        clients: Vec<&mut TestClient>,
+    ) -> Result<EventEffects> {
+        let event = &self.take_dispatch().expect("No dispatch event").event;
+        self.handle_event_until_no_events(event, clients)
+    }
+
+    /// Like `handle_event_until` but start with the current dispatched event.
+    pub fn handle_dispatch_until(
+        &mut self,
+        clients: Vec<&mut TestClient>,
+        event_pred: impl for<'a> Fn(Option<&'a Event>) -> bool,
+    ) -> Result<(Option<Event>, EventEffects)> {
+        let event = &self.take_dispatch().expect("No dispatch event").event;
+        self.handle_event_until(event, clients, event_pred)
+    }
+
+    /// Handle multiple events and return the effects of the last event.
     pub fn handle_multiple_events(&mut self, events: &[Event]) -> Result<EventEffects> {
         let mut e = EventEffects::default();
         for event in events {
             e = self.handle_event(event)?;
         }
         Ok(e)
-    }
-
-    pub fn handle_dispatch_event(&mut self) -> Result<EventEffects> {
-        self.handler.handle_dispatch_event(&mut self.context)
-    }
-
-    pub fn handle_until_no_events(&mut self, clients: Vec<&mut TestClient>) -> Result<EventEffects> {
-        self.handler.handle_until_no_events(&mut self.context, clients)
-    }
-
-    pub fn handle_dispatch_until_no_events(
-        &mut self,
-        clients: Vec<&mut TestClient>,
-    ) -> Result<EventEffects> {
-        self.handler
-            .handle_dispatch_until_no_events(&mut self.context, clients)
     }
 
     pub fn init_account(&self) -> Result<InitAccount> {
@@ -92,6 +156,14 @@ impl<H: GameHandler> TestContext<H> {
 
     pub fn random_state_mut(&mut self, random_id: usize) -> Result<&mut RandomState> {
         self.context.get_random_state_mut(random_id)
+    }
+
+    pub fn set_random_result(&mut self, random_id: usize, result: HashMap<usize, String>) {
+        self.handler.set_random_result(random_id, result);
+    }
+
+    pub fn take_dispatch(&mut self) -> Option<DispatchEvent> {
+        self.context.take_dispatch()
     }
 
     pub fn current_dispatch(&self) -> Option<DispatchEvent> {

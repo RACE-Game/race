@@ -590,6 +590,12 @@ impl GameContext {
         &self.dispatch
     }
 
+    pub fn take_dispatch(&mut self) -> Option<DispatchEvent> {
+        let mut dispatch = None;
+        std::mem::swap(&mut dispatch, &mut self.dispatch);
+        dispatch
+    }
+
     pub fn cancel_dispatch(&mut self) {
         self.dispatch = None;
     }
