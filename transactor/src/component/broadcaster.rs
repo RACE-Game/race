@@ -465,6 +465,7 @@ mod tests {
                 access_version: 1,
                 settle_version: 2,
                 state_sha: "2".into(),
+                nodes: vec![],
             };
             handle.send_unchecked(event_frame).await;
 

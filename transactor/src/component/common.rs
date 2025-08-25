@@ -23,10 +23,30 @@ pub trait Attachable {
     fn output(&mut self) -> Option<mpsc::Receiver<EventFrame>>;
 }
 
-/// The group of channels to be attached to an event bus.
-pub struct PortsHandleInner {
+/// Represent the input/output of the ports
+pub struct PortsIO {
     input_tx: Option<mpsc::Sender<EventFrame>>,
     output_rx: Option<mpsc::Receiver<EventFrame>>,
+}
+
+impl PortsIO {
+    #[allow(unused)]
+    pub async fn send(&self, frame: EventFrame) -> Result<(), SendError<EventFrame>> {
+        if let Some(ref input_tx) = self.input_tx {
+            input_tx.send(frame).await
+        } else {
+            panic!("Input is not supported");
+        }
+    }
+
+    #[allow(unused)]
+    pub async fn recv(&mut self) -> Option<EventFrame> {
+        if let Some(ref mut output_rx) = self.output_rx {
+            output_rx.recv().await
+        } else {
+            panic!("Output is not supported");
+        }
+    }
 }
 
 pub struct PortsHandle {
@@ -37,9 +57,9 @@ pub struct PortsHandle {
 }
 
 impl PortsHandle {
-    fn from_inner<S: Into<String>>(
+    fn from_io<S: Into<String>>(
         id: S,
-        value: PortsHandleInner,
+        value: PortsIO,
         join_handle: JoinHandle<CloseReason>,
     ) -> Self {
         Self {
@@ -103,7 +123,7 @@ impl Attachable for PortsHandle {
 }
 
 pub trait Ports: Send {
-    fn create() -> (Self, PortsHandleInner)
+    fn create() -> (Self, PortsIO)
     where
         Self: Sized;
 }
@@ -119,14 +139,14 @@ impl ConsumerPorts {
 }
 
 impl Ports for ConsumerPorts {
-    fn create() -> (Self, PortsHandleInner)
+    fn create() -> (Self, PortsIO)
     where
         Self: Sized,
     {
         let (input_tx, input_rx) = mpsc::channel(100);
         (
             Self { rx: input_rx },
-            PortsHandleInner {
+            PortsIO {
                 input_tx: Some(input_tx),
                 output_rx: None,
             },
@@ -160,14 +180,14 @@ impl ProducerPorts {
 }
 
 impl Ports for ProducerPorts {
-    fn create() -> (Self, PortsHandleInner)
+    fn create() -> (Self, PortsIO)
     where
         Self: Sized,
     {
         let (output_tx, output_rx) = mpsc::channel(10);
         (
             Self { tx: output_tx },
-            PortsHandleInner {
+            PortsIO {
                 input_tx: None,
                 output_rx: Some(output_rx),
             },
@@ -207,7 +227,7 @@ impl PipelinePorts {
 }
 
 impl Ports for PipelinePorts {
-    fn create() -> (Self, PortsHandleInner)
+    fn create() -> (Self, PortsIO)
     where
         Self: Sized,
     {
@@ -218,7 +238,7 @@ impl Ports for PipelinePorts {
                 rx: input_rx,
                 tx: output_tx,
             },
-            PortsHandleInner {
+            PortsIO {
                 input_tx: Some(input_tx),
                 output_rx: Some(output_rx),
             },
@@ -254,12 +274,19 @@ where
 {
     fn name() -> &'static str;
 
+    fn prepare(&self, addr: &str) -> (P, PortsIO, ComponentEnv) {
+        let (ports, io) = P::create();
+        let env = ComponentEnv::new(addr, Self::name());
+        (ports, io, env)
+    }
+
     fn start(&self, addr: &str, context: C) -> PortsHandle {
         info!("Starting component: {}", Self::name());
-        let (ports, ports_handle_inner) = P::create();
-        let env = ComponentEnv::new(addr, Self::name());
+        let (ports, io, env) = self.prepare(addr);
         let join_handle = tokio::spawn(async move { Self::run(ports, context, env).await });
-        PortsHandle::from_inner(Self::name(), ports_handle_inner, join_handle)
+        PortsHandle::from_io(Self::name(), io, join_handle)
     }
+
+
     async fn run(ports: P, context: C, env: ComponentEnv) -> CloseReason;
 }

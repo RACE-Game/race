@@ -14,6 +14,7 @@ mod wrapped_handler;
 mod wrapped_transport;
 mod wrapped_storage;
 mod event_bridge;
+mod recorder;
 
 pub use event_bus::CloseReason;
 pub use broadcaster::{Broadcaster, CheckpointBroadcastFrame};
@@ -26,6 +27,8 @@ pub use event_loop::EventLoop;
 pub use submitter::Submitter;
 pub use subscriber::Subscriber;
 pub use synchronizer::GameSynchronizer;
+#[allow(unused)]
+pub use recorder::Recorder;
 pub use voter::Voter;
 pub use wrapped_client::WrappedClient;
 pub use wrapped_handler::WrappedHandler;
