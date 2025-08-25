@@ -6319,6 +6319,8 @@ dependencies = [
  "race-env",
  "race-local-db",
  "race-test",
+ "race-transactor-components",
+ "race-transactor-frames",
  "race-transport",
  "serde",
  "serde_json",
@@ -6334,6 +6336,57 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "wasmer",
+]
+
+[[package]]
+name = "race-transactor-components"
+version = "0.2.6"
+dependencies = [
+ "anyhow",
+ "arrayref",
+ "async-stream",
+ "async-trait",
+ "base64 0.21.7",
+ "borsh 1.5.4",
+ "clap",
+ "futures",
+ "hyper 0.14.32",
+ "jsonrpsee 0.17.1",
+ "project-root",
+ "race-api",
+ "race-client",
+ "race-core",
+ "race-encryptor",
+ "race-env",
+ "race-local-db",
+ "race-test",
+ "race-transactor-frames",
+ "serde",
+ "serde_json",
+ "sha256",
+ "thiserror 1.0.69",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "tower 0.4.13",
+ "tower-http 0.4.4",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "uuid",
+ "wasmer",
+]
+
+[[package]]
+name = "race-transactor-frames"
+version = "0.2.6"
+dependencies = [
+ "project-root",
+ "race-api",
+ "race-core",
+ "race-test",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]

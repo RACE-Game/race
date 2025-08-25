@@ -1,6 +1,6 @@
 [package]
-name = "race-transactor"
-description = "RACE Transactor"
+name = "race-transactor-components"
+description = "RACE Transactor components"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -18,9 +18,7 @@ publish = true
 [dependencies]
 race-api = { workspace = true, features = ["serde"] }
 race-core = { workspace = true, features = ["serde"] }
-race-transactor-components.workspace = true
 race-transactor-frames.workspace = true
-race-transport.workspace = true
 race-encryptor.workspace = true
 race-client.workspace = true
 race-env.workspace = true

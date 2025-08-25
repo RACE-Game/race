@@ -17,7 +17,7 @@ use syn::{parse_macro_input, ItemStruct};
 ///
 /// impl GameHandler for S {
 ///
-///     fn init_state(init_account: InitAccount) -> HandleResult<Self> {
+///     fn init_state(effect: &mut Effect, init_account: InitAccount) -> HandleResult<Self> {
 ///         Ok(Self {})
 ///     }
 ///
@@ -25,7 +25,7 @@ use syn::{parse_macro_input, ItemStruct};
 ///         Ok(())
 ///     }
 ///
-///     fn balances() -> Vec<PlayerBalance> {
+///     fn balances(&self) -> Vec<PlayerBalance> {
 ///         vec![]
 ///     }
 /// }

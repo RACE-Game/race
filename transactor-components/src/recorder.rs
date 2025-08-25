@@ -2,9 +2,9 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use async_trait::async_trait;
 
-use crate::component::common::Component;
-use crate::component::event_bus::CloseReason;
-use crate::frame::EventFrame;
+use crate::common::Component;
+use crate::event_bus::CloseReason;
+use race_transactor_frames::EventFrame;
 
 use tracing::info;
 
@@ -14,6 +14,7 @@ use super::ComponentEnv;
 trait RecordWriter {
     fn write(&mut self, event_frame: EventFrame);
 
+    #[allow(unused)]
     fn dump_records(&self) -> Vec<EventFrame>;
 }
 
@@ -40,6 +41,7 @@ impl RecordWriter for InMemoryRecordWriter {
 pub struct Recorder {
     #[allow(unused)]
     addr: String,
+    #[allow(unused)]
     writer: Arc<Mutex<dyn RecordWriter + Send + Sync>>,
 }
 

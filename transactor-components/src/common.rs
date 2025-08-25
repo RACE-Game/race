@@ -5,7 +5,8 @@ use tokio::{
 };
 use tracing::{info, warn};
 
-use crate::{frame::EventFrame, utils::addr_shorthand};
+use crate::utils::addr_shorthand;
+use race_transactor_frames::EventFrame;
 
 use super::event_bus::CloseReason;
 

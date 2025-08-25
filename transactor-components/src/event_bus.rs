@@ -4,8 +4,8 @@ use race_core::error::Error;
 use tokio::sync::{mpsc, watch, Mutex};
 use tracing::{error, warn};
 
-use crate::component::common::Attachable;
-use crate::frame::EventFrame;
+use crate::common::Attachable;
+use race_transactor_frames::EventFrame;
 use crate::utils::addr_shorthand;
 
 /// An event bus that passes the events between different components.
@@ -118,7 +118,7 @@ pub enum CloseReason {
 #[cfg(test)]
 mod tests {
 
-    use crate::component::{common::{Component, ConsumerPorts, ProducerPorts}, ComponentEnv};
+    use crate::{common::{Component, ConsumerPorts, ProducerPorts}, ComponentEnv};
 
     use super::*;
     use async_trait::async_trait;

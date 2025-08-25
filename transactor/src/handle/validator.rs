@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use crate::component::{
+use race_transactor_components::{
     Component, EventBridgeParent, EventBus, EventLoop, PortsHandle, RemoteConnection, Subscriber,
     Voter, WrappedClient, WrappedHandler,
 };
-use crate::frame::{EventFrame, SignalFrame};
+use race_transactor_frames::{EventFrame, SignalFrame};
 use race_core::context::GameContext;
 use race_core::error::{Error, Result};
 use race_core::storage::StorageT;

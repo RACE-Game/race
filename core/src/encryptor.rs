@@ -138,7 +138,7 @@ pub trait EncryptorT: std::fmt::Debug + Send + Sync {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::types::{Ciphertext, SecretDigest, SecretKey, Signature};
+    use crate::types::{SecretDigest, SecretKey, Signature};
 
     use super::{EncryptorResult, EncryptorT, NodePublicKeyRaw};
 
@@ -198,8 +198,6 @@ pub mod tests {
         fn verify(&self, message: &[u8], signature: &Signature) -> EncryptorResult<()> {
             Ok(())
         }
-
-        fn shuffle(&self, items: &mut Vec<Ciphertext>) {}
 
         fn digest(&self, text: &[u8]) -> SecretDigest {
             vec![0, 1, 2, 3]

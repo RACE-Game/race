@@ -16,7 +16,7 @@ use tracing::error;
 use tracing::info;
 use tracing::warn;
 
-use crate::frame::EventFrame;
+use race_transactor_frames::EventFrame;
 
 use super::common::Component;
 use super::common::PipelinePorts;

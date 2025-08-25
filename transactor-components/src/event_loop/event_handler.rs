@@ -11,11 +11,8 @@ use race_core::{
     error::Error,
     types::{ClientMode, GameMode, GameSpec},
 };
-
-use crate::{
-    component::{common::PipelinePorts, handler::HandlerT, CloseReason, ComponentEnv},
-    frame::EventFrame,
-};
+use race_transactor_frames::EventFrame;
+use crate::{common::PipelinePorts, handler::HandlerT, CloseReason, ComponentEnv};
 use tracing::{debug, error, info, warn};
 
 fn print_logs(logs: &[Log], env: &ComponentEnv) {

@@ -1,16 +1,11 @@
-use crate::frame::{EventFrame, SignalFrame};
+use race_transactor_frames::EventFrame;
+use race_transactor_frames::{BridgeToParent, SignalFrame};
 use async_trait::async_trait;
 use race_api::types::GameId;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{info, log::error, warn};
 
 use super::{common::PipelinePorts, CloseReason, Component, ComponentEnv};
-
-#[derive(Debug)]
-pub struct BridgeToParent {
-    tx_to_parent: mpsc::Sender<EventFrame>,
-    rx_from_parent: broadcast::Receiver<EventFrame>,
-}
 
 #[allow(dead_code)]
 pub struct EventBridgeParentContext {

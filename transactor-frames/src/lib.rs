@@ -1,3 +1,5 @@
+use tokio::sync::{mpsc, broadcast};
+
 use race_api::{
     event::{Event, Message},
     types::GameId,
@@ -8,7 +10,11 @@ use race_core::{
     types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, TxState, VoteType},
 };
 
-use crate::component::BridgeToParent;
+#[derive(Debug)]
+pub struct BridgeToParent {
+    pub tx_to_parent: mpsc::Sender<EventFrame>,
+    pub rx_from_parent: broadcast::Receiver<EventFrame>,
+}
 
 #[derive(Debug)]
 pub enum SignalFrame {
@@ -26,6 +32,7 @@ pub enum SignalFrame {
         game_addr: String,
     },
 }
+
 
 #[derive(Debug, Clone)]
 pub enum EventFrame {

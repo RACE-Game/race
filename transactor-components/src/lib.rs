@@ -15,6 +15,7 @@ mod wrapped_transport;
 mod wrapped_storage;
 mod event_bridge;
 mod recorder;
+mod utils;
 
 pub use event_bus::CloseReason;
 pub use broadcaster::{Broadcaster, CheckpointBroadcastFrame};
@@ -34,6 +35,6 @@ pub use wrapped_client::WrappedClient;
 pub use wrapped_handler::WrappedHandler;
 pub use wrapped_transport::WrappedTransport;
 pub use wrapped_storage::WrappedStorage;
-pub use event_bridge::{EventBridgeChild, EventBridgeParent, BridgeToParent};
+pub use event_bridge::{EventBridgeChild, EventBridgeParent};
 pub use refunder::Refunder;
 pub use handler::HandlerT;

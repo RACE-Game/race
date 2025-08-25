@@ -100,6 +100,8 @@ mod tests {
     use race_core::checkpoint::Checkpoint;
 
     use super::*;
+    use race_core::context::Versions;
+    use race_core::types::GameSpec;
 
     #[tokio::test]
     async fn test_insert_and_query() {
@@ -108,7 +110,14 @@ mod tests {
         let settle_version = 10;
         // let storage = LocalDbStorage::try_new("trasnactor-db").unwrap();
         let storage = LocalDbStorage::try_new_mem().unwrap();
-        let checkpoint = Checkpoint::new(0, 1, 1, state).derive_offchain_part();
+        let game_spec = GameSpec {
+            game_addr: game_addr.clone(),
+            game_id: 0,
+            bundle_addr: "".to_string(),
+            max_players: 8,
+        };
+
+        let checkpoint = Checkpoint::new(0, game_spec, Versions::new(0, settle_version), state).derive_offchain_part();
         storage
             .save_checkpoint(SaveCheckpointParams {
                 game_addr: game_addr.clone(),

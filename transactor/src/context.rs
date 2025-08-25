@@ -1,14 +1,15 @@
 use crate::blacklist::Blacklist;
-use crate::component::{CheckpointBroadcastFrame, CloseReason, WrappedStorage, WrappedTransport};
-use crate::frame::SignalFrame;
 use crate::game_manager::{ServingGame, GameManager};
 use race_api::event::{Event, Message};
 use race_core::error::{Error, Result};
 use race_core::encryptor::{EncryptorT, NodePublicKeyRaw};
 use race_core::transport::TransportT;
 use race_core::types::{BroadcastFrame, ServerAccount, Signature};
+use race_transport::TransportBuilder;
 use race_encryptor::Encryptor;
 use race_env::{Config, TransactorConfig};
+use race_transactor_components::{CheckpointBroadcastFrame, CloseReason, WrappedStorage, WrappedTransport};
+use race_transactor_frames::SignalFrame;
 use race_transport::ChainType;
 use tokio::task::JoinHandle;
 use std::sync::Arc;
@@ -36,7 +37,20 @@ impl ApplicationContext {
 
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
-        let transport = Arc::new(WrappedTransport::try_new(&config).await?);
+
+        let chain: &str = &config
+            .transactor
+            .as_ref()
+            .expect("Missing transactor configuration")
+            .chain;
+
+        let transport = TransportBuilder::default()
+            .try_with_chain(chain)?
+            .try_with_config(&config)?
+            .build()
+            .await?;
+
+        let transport = Arc::new(WrappedTransport::try_new(transport).await?);
 
         let storage = Arc::new(WrappedStorage::try_new(&config).await?);
 

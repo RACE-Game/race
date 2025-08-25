@@ -13,7 +13,7 @@ use race_core::{
 use tracing::{info, warn};
 
 use super::{common::{Component, PipelinePorts}, ComponentEnv};
-use crate::frame::EventFrame;
+use race_transactor_frames::EventFrame;
 
 use super::event_bus::CloseReason;
 

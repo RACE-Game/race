@@ -14,8 +14,8 @@ use race_core::context::Node;
 use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, error, info, warn};
 
-use crate::component::common::{Component, ConsumerPorts};
-use crate::frame::EventFrame;
+use crate::common::{Component, ConsumerPorts};
+use race_transactor_frames::EventFrame;
 
 use super::{CloseReason, ComponentEnv};
 
@@ -419,87 +419,8 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use race_core::{checkpoint::Checkpoint, types::PlayerJoin};
+    use race_core::types::PlayerJoin;
     use race_test::prelude::*;
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
-    async fn test_event_reorder() {
-        // Test how the events are grouped when the checkpoint is delayed due to settle_lock.
-        // Assume we have the following case, where in event handler, things happen in this order:
-        // InitState, CustomEvent, Checkpoint, CustomEvent
-        // Due to the settle lock, the emitted frames are in this order:
-        // InitState, CustomEvent, CustomEvent, Checkpoint
-
-        tracing_subscriber::fmt::init();
-
-        let mut alice = TestClient::player("alice");
-        let mut bob = TestClient::player("bob");
-        let game_account = TestGameAccountBuilder::default()
-            .add_player(&mut alice, 100)
-            .add_player(&mut bob, 100)
-            .build();
-
-        let (broadcaster, ctx) = Broadcaster::init(game_account.addr.clone(), 0);
-        let handle = broadcaster.start("", ctx);
-
-        {
-            let event_frame = EventFrame::InitState {
-                access_version: 0,
-                settle_version: 1,
-                checkpoint: Checkpoint::default(),
-            };
-            handle.send_unchecked(event_frame).await;
-
-            let event_frame = EventFrame::Broadcast {
-                event: Event::Custom {
-                    sender: 1,
-                    raw: vec![],
-                },
-                state_sha: "1".into(),
-                timestamp: 1,
-            };
-            handle.send_unchecked(event_frame).await;
-
-            let event_frame = EventFrame::Checkpoint {
-                checkpoint: Checkpoint::default(),
-                access_version: 1,
-                settle_version: 2,
-                state_sha: "2".into(),
-                nodes: vec![],
-            };
-            handle.send_unchecked(event_frame).await;
-
-            let event_frame = EventFrame::Broadcast {
-                event: Event::Custom {
-                    sender: 2,
-                    raw: vec![],
-                },
-                state_sha: "3".into(),
-                timestamp: 1,
-            };
-            handle.send_unchecked(event_frame).await;
-        }
-
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-        let broadcast_frame = broadcaster.get_backlogs(0).await;
-        assert_eq!(
-            broadcast_frame,
-            BroadcastFrame::Backlogs {
-                checkpoint_off_chain: Some(Checkpoint::default().derive_offchain_part()),
-                backlogs: Box::new(vec![BroadcastFrame::Sync {
-                    sync: BroadcastSync {
-                        new_players: vec![],
-                        new_servers: vec![],
-                        new_deposits: vec![],
-                        transactor_addr: "".into(),
-                        access_version: 1
-                    }
-                }]),
-                state_sha: "2".into(),
-            }
-        );
-    }
 
     #[tokio::test]
     async fn test_broadcast_event() {

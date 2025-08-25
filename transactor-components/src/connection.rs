@@ -33,8 +33,10 @@ use race_core::{
 };
 
 use crate::utils::base64_decode;
-use crate::{component::common::Attachable, utils::base64_encode};
-use crate::{frame::EventFrame, utils::current_timestamp};
+use crate::{common::Attachable, utils::base64_encode};
+use crate::utils::current_timestamp;
+
+use race_transactor_frames::EventFrame;
 
 /// A connection to local event bus, for transactor loopback.
 #[allow(dead_code)]

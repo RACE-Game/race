@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use crate::component::{
+use race_transactor_components::{
     Broadcaster, Component, EventBridgeParent, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle, Refunder, Submitter, WrappedClient, WrappedHandler
 };
-use crate::frame::{EventFrame, SignalFrame};
+use race_transactor_frames::{EventFrame, SignalFrame};
 use race_core::error::{Error, Result};
 use race_core::types::{GetCheckpointParams, PlayerDeposit, PlayerJoin, ServerJoin};
 use race_core::context::GameContext;

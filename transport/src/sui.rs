@@ -1693,6 +1693,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_player_profile() {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
@@ -1703,6 +1704,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_seqnum() -> Result<()> {
         let game_id = parse_object_id(TEST_CASH_GAME_ID)?;
         let transport = SuiTransport::try_new(
@@ -1716,6 +1718,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_create_recipient() -> Result<()> {
         let params = make_recipient_params();
         let transport = SuiTransport::try_new(
@@ -1730,6 +1733,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_recipient_object() -> Result<()> {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
@@ -1770,6 +1774,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_recipient_account() -> Result<()> {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
@@ -1808,6 +1813,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_create_registration() -> Result<()> {
         let params = CreateRegistrationParams {
             is_private: false,
@@ -1824,6 +1830,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_registration() -> Result<()> {
         let transport = SuiTransport::try_new(
             SUI_DEVNET_URL.into(),
@@ -1849,6 +1856,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_register_game() -> Result<()> {
         // create game
         let game_params = make_game_params();
@@ -1881,6 +1889,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_unregister_game() -> Result<()> {
         // create game
@@ -1933,6 +1942,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_join_game() -> Result<()> {
         let transport = SuiTransport::try_new(
@@ -1952,6 +1962,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_create_game() -> Result<()> {
         let params = make_game_params();
@@ -1966,6 +1977,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_get_game_account() -> Result<()> {
         // create a game and then try to get it from the chain (devnet)
@@ -1993,6 +2005,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_register_server() -> Result<()> {
         let params = RegisterServerParams {
@@ -2007,6 +2020,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_get_server_account() -> Result<()> {
         // create a server
@@ -2042,6 +2056,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_serve_game() -> Result<()> {
         let params = ServeParams {
@@ -2058,6 +2073,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_close_game_account() -> Result<()> {
         // create a game for deletion purposes
@@ -2076,6 +2092,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_attach_coin_bonus() -> Result<()> {
         let transport = SuiTransport::try_new(
@@ -2096,6 +2113,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_publish_game() -> Result<()> {
         let transport = SuiTransport::try_new(
@@ -2114,6 +2132,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_attach_nft_bonus() -> Result<()> {
         let transport = SuiTransport::try_new(
@@ -2135,6 +2154,7 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_settle_game() -> Result<()> {
         let transport = SuiTransport::try_new(

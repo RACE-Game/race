@@ -1376,7 +1376,7 @@ mod tests {
         let effect = Effect {
             start_game: true,
             stop_game: false,
-            cancel_dispatch: true,
+            cancel_dispatch: true, // cancel_dispatch won't work here, as we also set start_game
             action_timeout: None,
             wait_timeout: Some(1000),
             timestamp: 1234567890,
@@ -1470,7 +1470,7 @@ mod tests {
             .bridge_events
             .clone();
         assert_eq!(bridge_events, effect_bridge_events);
-        assert_eq!(game_context.dispatch, None);
+        assert_eq!(game_context.dispatch, Some(DispatchEvent { timeout: 0, event: Event::GameStart }));
     }
 
     // #[test]

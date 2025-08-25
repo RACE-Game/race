@@ -225,7 +225,8 @@ pub struct Log {
 /// # use race_api::effect::Effect;
 /// use race_api::types::Settle;
 /// let mut effect = Effect::default();
-/// effect.settle(0 /* player_id */, 100 /* amount */, true /* eject */);
+/// effect.withdraw(0 /* player_id */, 100 /* amount */);
+/// effect.eject(0 /* player_id */);
 /// effect.checkpoint();
 /// ```
 /// checkpoint will be made.

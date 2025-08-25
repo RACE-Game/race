@@ -6,9 +6,9 @@ use async_trait::async_trait;
 use race_core::types::{GameAccount, RejectDepositsParams};
 use tracing::{error, info};
 
-use crate::component::common::Component;
-use crate::component::event_bus::CloseReason;
-use crate::frame::EventFrame;
+use crate::common::Component;
+use crate::event_bus::CloseReason;
+use race_transactor_frames::EventFrame;
 use race_core::transport::TransportT;
 
 use super::common::PipelinePorts;

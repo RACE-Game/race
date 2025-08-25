@@ -14,8 +14,6 @@ use race_core::{
         PlayerProfile, RegisterServerParams, RegistrationAccount, ServerAccount, SettleParams,
     },
 };
-use race_env::Config;
-use race_transport::TransportBuilder;
 use tokio::sync::Mutex;
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -55,17 +53,7 @@ pub struct WrappedTransport {
 }
 
 impl WrappedTransport {
-    pub async fn try_new(config: &Config) -> Result<Self> {
-        let chain: &str = &config
-            .transactor
-            .as_ref()
-            .expect("Missing transactor configuration")
-            .chain;
-        let transport = TransportBuilder::default()
-            .try_with_chain(chain)?
-            .try_with_config(config)?
-            .build()
-            .await?;
+    pub async fn try_new(transport: Box<dyn TransportT>) -> Result<Self> {
         let bundle_cache = BundleCache::new();
         Ok(Self {
             inner: transport,

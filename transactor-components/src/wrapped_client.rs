@@ -8,8 +8,8 @@
 
 use std::sync::Arc;
 
-use crate::component::common::{Component, ConsumerPorts};
-use crate::frame::EventFrame;
+use crate::common::{Component, ConsumerPorts};
+use race_transactor_frames::EventFrame;
 use async_trait::async_trait;
 use race_client::Client;
 use race_core::connection::ConnectionT;
@@ -127,7 +127,7 @@ mod tests {
     use race_encryptor::Encryptor;
     use race_test::prelude::*;
 
-    use crate::component::common::PortsHandle;
+    use crate::common::PortsHandle;
 
     use super::*;
 

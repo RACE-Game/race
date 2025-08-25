@@ -1,8 +1,6 @@
 mod utils;
 mod game_manager;
-mod component;
 mod context;
-mod frame;
 mod handle;
 mod reg;
 mod blacklist;

@@ -318,11 +318,17 @@ mod tests {
     fn test_merkle_tree() -> anyhow::Result<()> {
         let mut c = Checkpoint::default();
         let d0 = vec![1];
-        c.set_data(0, d0)?;
+        let game_spec = GameSpec {
+            game_addr: "test".to_string(),
+            bundle_addr: "test".to_string(),
+            game_id: 0,
+            max_players: 6,
+        };
+        c.init_data(0, game_spec.clone(), Versions::new(1, 1), d0)?;
         let d1 = vec![2];
-        c.set_data(0, d1)?;
+        c.init_data(1, game_spec.clone(), Versions::new(1, 1), d1)?;
         let d2 = vec![3];
-        c.set_data(0, d2)?;
+        c.init_data(2, game_spec.clone(), Versions::new(1, 1), d2)?;
         println!("checkpoint: {:?}", c);
         let mt = c.to_merkle_tree();
         let root = mt.root().unwrap();

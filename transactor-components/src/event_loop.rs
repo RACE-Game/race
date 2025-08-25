@@ -5,9 +5,10 @@ use race_api::event::Event;
 use race_core::context::GameContext;
 use tracing::{error, info, warn};
 
-use crate::component::common::{Component, PipelinePorts};
-use crate::component::event_bus::CloseReason;
-use crate::frame::EventFrame;
+use crate::common::{Component, PipelinePorts};
+use crate::event_bus::CloseReason;
+use race_transactor_frames::EventFrame;
+
 use crate::utils::current_timestamp;
 use race_core::types::{ClientMode, GameMode, GamePlayer};
 

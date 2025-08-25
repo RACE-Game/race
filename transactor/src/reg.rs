@@ -16,7 +16,8 @@ use tokio::select;
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
-use crate::{context::ApplicationContext, frame::SignalFrame};
+use race_transactor_frames::SignalFrame;
+use crate::context::ApplicationContext;
 
 /// Register current server.
 pub async fn register_server(config: &Config) -> Result<()> {

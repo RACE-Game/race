@@ -4,10 +4,10 @@ mod validator;
 
 use std::sync::Arc;
 
-use crate::component::{
-    BridgeToParent, Broadcaster, CloseReason, EventBus, WrappedStorage, WrappedTransport,
+use race_transactor_frames::{BridgeToParent, SignalFrame};
+use race_transactor_components::{
+    Broadcaster, CloseReason, EventBus, WrappedStorage, WrappedTransport,
 };
-use crate::frame::SignalFrame;
 use race_core::context::SubGameInit;
 use race_core::error::{Error, Result};
 use race_core::types::ServerAccount;

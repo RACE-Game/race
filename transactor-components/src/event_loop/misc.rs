@@ -5,7 +5,8 @@ use race_api::event::Event;
 use tokio::select;
 use tracing::info;
 
-use crate::{component::common::PipelinePorts, frame::EventFrame, utils::current_timestamp};
+use race_transactor_frames::EventFrame;
+use crate::{common::PipelinePorts, utils::current_timestamp};
 
 pub fn log_execution_context(ctx: &GameContext, evt: &Event) {
     info!("Execution context");

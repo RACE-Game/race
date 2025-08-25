@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use crate::component::{
-    BridgeToParent, Broadcaster, Component, EventBridgeChild, EventBus, EventLoop, LocalConnection, PortsHandle, WrappedClient, WrappedHandler
+use race_transactor_frames::{EventFrame, BridgeToParent};
+use race_transactor_components::{
+    Broadcaster, Component, EventBridgeChild, EventBus, EventLoop, LocalConnection, PortsHandle, WrappedClient, WrappedHandler
 };
-use crate::frame::EventFrame;
 use race_core::error::{Error, Result};
 use race_core::context::{GameContext, SubGameInit};
 use race_core::storage::StorageT;

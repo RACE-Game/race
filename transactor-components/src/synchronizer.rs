@@ -11,14 +11,14 @@ use race_core::error::Error;
 use tokio::select;
 use tokio_stream::StreamExt;
 
-use crate::frame::EventFrame;
+use race_transactor_frames::EventFrame;
 use race_core::{
     transport::TransportT,
     types::{GameAccount, PlayerDeposit, PlayerJoin, ServerJoin},
 };
 use tracing::{error, info, warn};
 
-use crate::component::{common::Component, event_bus::CloseReason};
+use crate::{common::Component, event_bus::CloseReason};
 
 use super::{common::PipelinePorts, ComponentEnv};
 
