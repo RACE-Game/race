@@ -30,6 +30,12 @@ impl<H: GameHandler> TestContext<H> {
         self.join_multi(vec![(player, deposit)])
     }
 
+    /// Let a player leave this game.
+    /// Return the Leave event.
+    pub fn leave(&mut self, player: &TestClient) -> Event {
+        Event::Leave { player_id: player.id() }
+    }
+
     /// Let multiple players join this game.
     /// Return the Join event and the Deposit event.
     pub fn join_multi(&mut self, players_and_deposits: Vec<(&mut TestClient, u64)>) -> (Event, Event) {
