@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use race_transactor_components::{
-    Broadcaster, Component, EventBridgeParent, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle, Refunder, Submitter, WrappedClient, WrappedHandler
+    Broadcaster, Component, EventBridgeParent, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle, Refunder, Submitter, WrappedClient, WrappedHandler, Recorder
 };
 use race_transactor_frames::{EventFrame, SignalFrame};
 use race_core::error::{Error, Result};
@@ -115,6 +115,9 @@ impl TransactorHandle {
         let (bridge, bridge_ctx) = EventBridgeParent::init(signal_tx);
         let mut bridge_handle = bridge.start(&game_account.addr, bridge_ctx);
 
+        let (recorder, recorder_ctx) = Recorder::init(game_account.addr.clone(), false);
+        let mut recorder_handle = recorder.start(&game_account.addr, recorder_ctx);
+
         let (event_loop, event_loop_ctx) = EventLoop::init(
             handler,
             game_context,
@@ -153,6 +156,7 @@ impl TransactorHandle {
         event_bus.attach(&mut event_loop_handle).await;
         event_bus.attach(&mut client_handle).await;
         event_bus.attach(&mut refunder_handle).await;
+        event_bus.attach(&mut recorder_handle).await;
 
         // Dispatch init state
         event_bus

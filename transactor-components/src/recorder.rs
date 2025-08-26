@@ -1,25 +1,39 @@
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use async_trait::async_trait;
+use borsh::{BorshSerialize, BorshDeserialize};
+use race_core::context::Node;
+use race_api::event::Event;
+use race_transactor_frames::EventFrame;
+use std::fs::{File, create_dir};
+use std::io::{Write, BufWriter};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use super::ComponentEnv;
+use super::common::ConsumerPorts;
+use tokio::sync::Mutex;
+use tracing::{info, error};
 
 use crate::common::Component;
 use crate::event_bus::CloseReason;
-use race_transactor_frames::EventFrame;
+use crate::utils::base64_encode;
 
-use tracing::info;
-
-use super::common::ConsumerPorts;
-use super::ComponentEnv;
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+enum Record {
+    Checkpoint {
+        state: Vec<u8>,
+        nodes: Vec<Node>,
+    },
+    Event {
+        event: Event,
+        timestamp: u64,
+    }
+}
 
 trait RecordWriter {
-    fn write(&mut self, event_frame: EventFrame);
-
-    #[allow(unused)]
-    fn dump_records(&self) -> Vec<EventFrame>;
+    fn write(&mut self, record: Record);
 }
 
 struct InMemoryRecordWriter {
-    pub records: Vec<EventFrame>,
+    pub records: Vec<Record>,
 }
 
 impl InMemoryRecordWriter {
@@ -29,12 +43,39 @@ impl InMemoryRecordWriter {
 }
 
 impl RecordWriter for InMemoryRecordWriter {
-    fn write(&mut self, event_frame: EventFrame) {
-        self.records.push(event_frame);
-    }
 
-    fn dump_records(&self) -> Vec<EventFrame> {
-        self.records.clone()
+    fn write(&mut self, record: Record) {
+        self.records.push(record);
+    }
+}
+
+struct FileRecordWriter {
+    pub writer: BufWriter<File>,
+}
+
+impl FileRecordWriter {
+    pub fn try_new(record_file_name: PathBuf) -> std::io::Result<Self> {
+        let file = File::create(record_file_name)?;
+        let writer = BufWriter::new(file);
+        Ok(Self {
+            writer
+        })
+    }
+}
+
+impl FileRecordWriter {
+    fn write_internal(&mut self, record: Record) -> std::io::Result<()> {
+        let s = borsh::to_vec(&record)?;
+        writeln!(&mut self.writer, "{}", base64_encode(&s))?;
+        self.writer.flush()
+    }
+}
+
+impl RecordWriter for FileRecordWriter {
+    fn write(&mut self, record: Record) {
+        if let Err(e) = self.write_internal(record) {
+            error!("Failed to write record: {}", e);
+        }
     }
 }
 
@@ -52,11 +93,20 @@ pub struct RecorderContext {
 impl Recorder {
     pub fn init(
         addr: String,
-        _in_mem: bool,
+        in_mem: bool,
     ) -> (Self, RecorderContext) {
+        let writer: Arc<Mutex<dyn RecordWriter + Send + Sync>>;
 
-        let writer = InMemoryRecordWriter::new();
-        let writer = Arc::new(Mutex::new(writer));
+        if in_mem {
+            writer = Arc::new(Mutex::new(InMemoryRecordWriter::new()))
+        } else {
+            let dir = Path::new("records");
+            if !dir.exists() {
+                create_dir(dir).expect("Failed to create records directory");
+            }
+            let file_path = format!("records/{}", addr);
+            writer = Arc::new(Mutex::new(FileRecordWriter::try_new(file_path.into()).expect("Fail to create record writer")))
+        }
 
         (
            Self { addr, writer: writer.clone() },
@@ -86,43 +136,27 @@ impl Component<ConsumerPorts, RecorderContext> for Recorder {
 
             let mut writer = writer.lock().await;
             match event_frame {
+
+                EventFrame::Broadcast {
+                    event,
+                    timestamp,
+                    ..
+                } => {
+                    let record = Record::Event {
+                        event, timestamp
+                    };
+
+                    writer.write(record);
+                }
+
                 EventFrame::Shutdown => {
-                    writer.write(event_frame);
                     break;
                 }
 
-                _ => {
-                    writer.write(event_frame);
-                }
+                _ => ()
             }
         }
 
         CloseReason::Complete
     }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_recorder() -> anyhow::Result<()> {
-        let (recorder, recorder_ctx) = Recorder::init("test_addr".into(), true);
-        // let mut recorder_handle = recorder.start("test_addr", recorder_ctx);
-
-        let (ports, io, env) = recorder.prepare("test_addr");
-
-        io.send(EventFrame::Empty).await?;
-        io.send(EventFrame::Shutdown).await?;
-
-        let _close_reason = Recorder::run(ports, recorder_ctx, env).await;
-
-        let writer = recorder.writer.lock().await;
-        assert!(matches!(writer.dump_records()[0], EventFrame::Empty));
-        assert!(matches!(writer.dump_records()[1], EventFrame::Shutdown));
-
-        Ok(())
-    }
-
 }
