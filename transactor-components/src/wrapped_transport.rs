@@ -72,24 +72,29 @@ impl TransportT for WrappedTransport {
     ) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>> {
         let interval = self.resub_interval;
         Ok(Box::pin(stream! {
-            let sub = self.inner.subscribe_game_account(addr).await;
+            let mut sub;
 
-            let mut sub = match sub {
-                Ok(sub) => sub,
-                Err(e) => {
-                    yield Err(e);
-                    return;
+            loop {
+                match self.inner.subscribe_game_account(addr).await {
+                    Ok(s) => {
+                        sub = s;
+                        break;
+                    }
+                    Err(e) => {
+                        error!("An error occurred when initializing websocket: {}", e);
+                        continue;
+                    }
                 }
-            };
+            }
 
             loop {
                 let item = sub.next().await;
                 match item {
                     Some(Ok(item)) => {
                         yield Ok(item);
-                    },
+                    }
                     Some(Err(e)) => {
-                        error!("An error occurred in game account subscription, quit sub loop");
+                        error!("An error occured in subscription, quit loop");
                         yield Err(e);
                         return;
                     }

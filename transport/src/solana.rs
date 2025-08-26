@@ -68,8 +68,6 @@ const FEE_CAP: u64 = 20000;
 const PLAYERS_REG_HEAD_LEN: usize = 152;
 const PLAYERS_REG_INIT_LEN: usize = PLAYERS_REG_HEAD_LEN + 4;
 
-const MAX_RETRIES_FOR_GET_PLAYERS_REG: usize = 5;
-
 fn read_keypair(path: PathBuf) -> TransportResult<Keypair> {
     let keypair = solana_sdk::signature::read_keypair_file(path)
         .map_err(|e| TransportError::InvalidKeyfile(e.to_string()))?;
@@ -646,14 +644,15 @@ impl TransportT for SolanaTransport {
         let (payer, payer_pubkey) = self.payer()?;
         let game_account_pubkey = Self::parse_pubkey(&addr)?;
         let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
-        let players = self
-            .internal_get_players_reg_state(
+        let (game_state, players_reg) = self
+            .internal_get_game_state_and_players_reg_state(
+                &game_account_pubkey,
                 &game_state.players_reg_account,
                 game_state.access_version,
                 game_state.settle_version,
             )
-            .await?
-            .players;
+            .await?;
+        let players = players_reg.players;
 
         if game_state.settle_version != params.settle_version {
             return Err(Error::SettleVersionMismatch(
@@ -803,16 +802,16 @@ impl TransportT for SolanaTransport {
         tx.sign(&[payer], blockhash);
         let sig = self.send_transaction(tx)?;
 
-        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
-
-        let players = self
-            .internal_get_players_reg_state(
+        let (game_state, players_reg) = self
+            .internal_get_game_state_and_players_reg_state(
+                &game_account_pubkey,
                 &game_state.players_reg_account,
                 game_state.access_version,
                 game_state.settle_version,
             )
-            .await?
-            .players;
+            .await?;
+
+        let players = players_reg.players;
 
         Ok(SettleResult {
             signature: sig.to_string(),
@@ -1303,27 +1302,28 @@ impl TransportT for SolanaTransport {
                     Ok(x) => x,
                     Err(e) => {
                         error!("Game state deserialization error: {}", e.to_string());
-                        yield(Err(Error::TransportError(e.to_string())));
                         unsub().await;
                         return;
                     }
                 };
 
-                let players = match self.internal_get_players_reg_state(
+                let (game_state, players_reg) = match self.internal_get_game_state_and_players_reg_state(
+                    &game_account_pubkey,
                     &state.players_reg_account,
                     state.access_version,
                     state.settle_version,
                 ).await {
-                    Ok(players_reg) => players_reg.players,
+                    Ok((game_state, players_reg)) => (game_state, players_reg),
                     Err(e) => {
                         error!("Get players reg error: {}", e.to_string());
                         unsub().await;
-                        yield Err(Error::TransportError(e.to_string()));
                         return;
                     }
                 };
 
-                let acc = match state.into_account(addr.clone(), players) {
+                let players = players_reg.players;
+
+                let acc = match game_state.into_account(addr.clone(), players) {
                     Ok(x) => x,
                     Err(e) => {
                         error!("Game account parsing error: {}", e.to_string());
@@ -1340,11 +1340,13 @@ impl TransportT for SolanaTransport {
     async fn get_game_account(&self, addr: &str) -> Result<Option<GameAccount>> {
         let game_account_pubkey = Self::parse_pubkey(addr)?;
         let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
-        let players = self.internal_get_players_reg_state(
+        let (game_state, players_reg) = self.internal_get_game_state_and_players_reg_state(
+            &game_account_pubkey,
             &game_state.players_reg_account,
             game_state.access_version,
             game_state.settle_version
-        ).await?.players;
+        ).await?;
+        let players = players_reg.players;
         Ok(Some(game_state.into_account(addr, players)?))
     }
 
@@ -1688,47 +1690,44 @@ impl SolanaTransport {
 
     /// Get the state of on-chain players registrations of a game
     /// Not for public API usage
-    async fn internal_get_players_reg_state(
+    async fn internal_get_game_state_and_players_reg_state(
         &self,
+        game_account_pubkey: &Pubkey,
         players_reg_account_pubkey: &Pubkey,
         access_version: u64,
         settle_version: u64,
-    ) -> TransportResult<PlayersReg> {
-        let mut retries = 0;
-        loop {
-            if retries == MAX_RETRIES_FOR_GET_PLAYERS_REG {
-                break;
-            }
-            let players_reg_account = self
-                .client
-                .get_account_with_commitment(
-                    players_reg_account_pubkey,
-                    CommitmentConfig::finalized(),
-                )
-                .map_err(|e| TransportError::AccountNotFound(e.to_string()))?
-                .value
-                .ok_or(TransportError::AccountNotFound(players_reg_account_pubkey.to_string()))?;
+    ) -> TransportResult<(GameState, PlayersReg)> {
 
-            let mut players_reg = PlayersReg::try_from_slice(&players_reg_account.data.as_slice())
+        let accounts_result = self.client.get_multiple_accounts_with_commitment(&[
+            *game_account_pubkey,
+            *players_reg_account_pubkey,
+        ], CommitmentConfig::finalized())
+            .map_err(|e| TransportError::GetAccountError(e.to_string()))?
+            .value;
+
+        let game_account_data = accounts_result[0]
+            .as_ref()
+            .map(|acc| &acc.data)
+            .ok_or(TransportError::GameAccountNotFound)?;
+
+        let players_reg_data = accounts_result[1]
+            .as_ref()
+            .map(|acc| &acc.data)
+            .ok_or(TransportError::GameAccountPlayersNotFound)?;
+
+        let game_state = GameState::deserialize(&mut game_account_data.as_slice())
+            .map_err(|_| TransportError::GameStateDeserializeError)?;
+
+        let mut players_reg = PlayersReg::try_from_slice(&players_reg_data.as_slice())
                 .map_err(|_| TransportError::PlayersRegDeserializationError)?;
 
-            if players_reg.access_version == access_version
-                && players_reg.settle_version == settle_version
-            {
-                players_reg.players.retain(|p| p.access_version != 0);
+        if players_reg.access_version == access_version && players_reg.settle_version == settle_version {
+            players_reg.players.retain(|p| p.access_version != 0);
 
-                return Ok(players_reg);
-            }
-            println!("Versions mismatches, PlayersReg: A {} S {}, GameAccount: A {} S {}",
-                     players_reg.access_version, players_reg.settle_version,
-                     access_version, settle_version);
-            retries += 1;
+            return Ok((game_state, players_reg));
         }
-        error!(
-            "Failed to get players_reg_account for {}",
-            players_reg_account_pubkey
-        );
-        Err(TransportError::GameAccountPlayersNotFound)
+
+        Err(TransportError::GameStatePlayersRegVersionMismatch)
     }
 
     /// Get the state of an on-chain game account by its public key

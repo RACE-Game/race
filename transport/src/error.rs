@@ -186,6 +186,12 @@ pub enum TransportError {
 
     #[error("Failed to deserialize players reg")]
     PlayersRegDeserializationError,
+
+    #[error("Failed to get account from RPC: {0}")]
+    GetAccountError(String),
+
+    #[error("The version of game state mismatches the version of players reg")]
+    GameStatePlayersRegVersionMismatch,
 }
 
 pub type TransportResult<T> = std::result::Result<T, TransportError>;
