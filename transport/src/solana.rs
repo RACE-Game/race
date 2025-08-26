@@ -648,8 +648,6 @@ impl TransportT for SolanaTransport {
             .internal_get_game_state_and_players_reg_state(
                 &game_account_pubkey,
                 &game_state.players_reg_account,
-                game_state.access_version,
-                game_state.settle_version,
             )
             .await?;
         let players = players_reg.players;
@@ -806,8 +804,6 @@ impl TransportT for SolanaTransport {
             .internal_get_game_state_and_players_reg_state(
                 &game_account_pubkey,
                 &game_state.players_reg_account,
-                game_state.access_version,
-                game_state.settle_version,
             )
             .await?;
 
@@ -1310,8 +1306,6 @@ impl TransportT for SolanaTransport {
                 let (game_state, players_reg) = match self.internal_get_game_state_and_players_reg_state(
                     &game_account_pubkey,
                     &state.players_reg_account,
-                    state.access_version,
-                    state.settle_version,
                 ).await {
                     Ok((game_state, players_reg)) => (game_state, players_reg),
                     Err(e) => {
@@ -1343,8 +1337,6 @@ impl TransportT for SolanaTransport {
         let (game_state, players_reg) = self.internal_get_game_state_and_players_reg_state(
             &game_account_pubkey,
             &game_state.players_reg_account,
-            game_state.access_version,
-            game_state.settle_version
         ).await?;
         let players = players_reg.players;
         Ok(Some(game_state.into_account(addr, players)?))
@@ -1694,8 +1686,6 @@ impl SolanaTransport {
         &self,
         game_account_pubkey: &Pubkey,
         players_reg_account_pubkey: &Pubkey,
-        access_version: u64,
-        settle_version: u64,
     ) -> TransportResult<(GameState, PlayersReg)> {
 
         let accounts_result = self.client.get_multiple_accounts_with_commitment(&[
@@ -1721,7 +1711,8 @@ impl SolanaTransport {
         let mut players_reg = PlayersReg::try_from_slice(&players_reg_data.as_slice())
                 .map_err(|_| TransportError::PlayersRegDeserializationError)?;
 
-        if players_reg.access_version == access_version && players_reg.settle_version == settle_version {
+        if players_reg.access_version == game_state.access_version
+            && players_reg.settle_version == game_state.settle_version {
             players_reg.players.retain(|p| p.access_version != 0);
 
             return Ok((game_state, players_reg));
