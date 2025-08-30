@@ -682,6 +682,10 @@ impl TransportT for SolanaTransport {
         let mut calc_cu_prize_addrs =
             vec![Pubkey::from_str(&addr).unwrap(), game_state.stake_account];
 
+        // We'll later check this list, to find out empty ATAs.
+        // Empty ATAs must be initialized before we send the settle instruction.
+        let mut ata_token_owner_list = Vec::with_capacity(20);
+
         for settle in settles.iter() {
             ix_settles.push(IxSettle {
                 access_version: settle.player_id,
@@ -714,6 +718,7 @@ impl TransportT for SolanaTransport {
                     let ata = get_associated_token_address(&player.addr, &game_state.token_mint);
                     info!("Settle: add payment receiver ATA: {}", ata);
                     accounts.push(AccountMeta::new(ata, false));
+                    ata_token_owner_list.push((ata.clone(), game_state.token_mint.clone(), player.addr.clone()));
                     calc_cu_prize_addrs.push(ata);
                 }
             }
@@ -756,6 +761,7 @@ impl TransportT for SolanaTransport {
                     calc_cu_prize_addrs.push(bonus_addr);
                     info!("Settle: add bonus receiver: {}", receiver_addr);
                     accounts.push(AccountMeta::new(receiver_addr, false));
+                    ata_token_owner_list.push((receiver_addr.clone(), bonus.token_addr.clone(), player.addr.clone()));
                     calc_cu_prize_addrs.push(receiver_addr);
                 }
             }
@@ -770,6 +776,32 @@ impl TransportT for SolanaTransport {
             awards,
             checkpoint
         );
+
+        info!("Check if all receivers are initialized.");
+        let atas_to_query: Vec<Pubkey> = ata_token_owner_list.iter().map(|(ata, _, _)| {
+            ata.clone()
+        }).collect();
+
+        let accounts_result = self.client.get_multiple_accounts_with_commitment(&atas_to_query, CommitmentConfig::finalized())
+            .map_err(|e| TransportError::GetAccountError(e.to_string()))?
+            .value;
+
+        for (i, acc) in accounts_result.into_iter().enumerate() {
+            if acc.is_none() {
+                let (_, token_addr, player_addr) = ata_token_owner_list[i];
+                info!("ATA missing, initalize it. Player: {} Token: {}", player_addr, token_addr);
+                let open_ata_ix = create_associated_token_account(&payer_pubkey, &player_addr, &token_addr, &spl_token::id());
+                let message = Message::new(
+                    &[open_ata_ix],
+                    Some(&payer.pubkey())
+                );
+                let mut tx = Transaction::new_unsigned(message);
+                let blockhash = self.get_blockhash()?;
+                tx.sign(&[payer], blockhash);
+                let sig = self.send_transaction(tx)?;
+                info!("Open ATA signature: {}", sig);
+            }
+        }
 
         let params = RaceInstruction::Settle {
             params: IxSettleParams {
