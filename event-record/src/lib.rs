@@ -6,20 +6,20 @@
 //! All content are serialized with borsh & base64.
 
 use borsh::{BorshSerialize, BorshDeserialize};
-use race_core::context::Node;
+use race_core::{context::Node, types::{PlayerBalance, GameSpec, EntryType}};
 use race_api::event::Event;
 
 #[derive(Default, Debug, BorshSerialize, BorshDeserialize)]
 pub struct RecordsHeader {
-    pub game_addr: String,
-    pub game_id: usize,
-    pub bundle_addr: String,
+    pub spec: GameSpec,
     pub chain: String,        // solana, sui, facade
+    pub init_data: Vec<u8>,
+    pub entry_type: EntryType,
 }
 
 impl RecordsHeader {
-    pub fn new(game_addr: String, game_id: usize, bundle_addr: String, chain: String) -> Self {
-        Self { game_addr, game_id, bundle_addr, chain }
+    pub fn new(spec: GameSpec, init_data: Vec<u8>, entry_type: EntryType, chain: String) -> Self {
+        Self { spec, init_data, entry_type, chain }
     }
 }
 
@@ -41,6 +41,9 @@ pub enum Record {
     Checkpoint {
         state: Vec<u8>,
         nodes: Vec<Node>,
+        balances: Vec<PlayerBalance>,
+        access_version: u64,
+        settle_version: u64,
     },
     Event {
         event: Event,
@@ -49,9 +52,15 @@ pub enum Record {
 }
 
 impl Record {
-    pub fn checkpoint(state: Vec<u8>, nodes: Vec<Node>) -> Self {
+    pub fn checkpoint(
+        state: Vec<u8>,
+        nodes: Vec<Node>,
+        balances: Vec<PlayerBalance>,
+        access_version: u64,
+        settle_version: u64
+    ) -> Self {
         Self::Checkpoint {
-            state, nodes,
+            state, nodes, balances, access_version, settle_version
         }
     }
 

@@ -1,8 +1,10 @@
 use async_trait::async_trait;
 use borsh::BorshSerialize;
+use race_core::types::GameSpec;
 use race_transactor_frames::EventFrame;
 use race_event_record::{RecordsHeader, Record};
 use race_core::chain::ChainType;
+use race_core::types::EntryType;
 use std::fs::{File, create_dir};
 use std::io::{Write, BufWriter};
 use std::path::{Path, PathBuf};
@@ -86,15 +88,16 @@ pub struct RecorderContext {
 
 impl Recorder {
     pub fn init(
-        game_addr: String,
-        game_id: usize,
-        bundle_addr: String,
+        spec: GameSpec,
+        init_data: Vec<u8>,
+        entry_type: EntryType,
         chain: ChainType,
         in_mem: bool,
     ) -> (Self, RecorderContext) {
         let writer: Arc<Mutex<dyn RecordWriter + Send + Sync>>;
+        let game_id = spec.game_id;
 
-        let header = RecordsHeader::new(game_addr.clone(), game_id, bundle_addr, chain.to_string());
+        let header = RecordsHeader::new(spec.clone(), init_data, entry_type, chain.to_string());
 
         if in_mem {
             writer = Arc::new(Mutex::new(InMemoryRecordWriter::new(header)))
@@ -103,10 +106,10 @@ impl Recorder {
             if !dir.exists() {
                 create_dir(dir).expect("Failed to create records directory");
             }
-            let file_path = if game_id == 0 {
-                format!("records/{}", game_addr)
+            let file_path = if spec.game_id == 0 {
+                format!("records/{}", spec.game_addr)
             } else {
-                format!("records/{}_{}", game_addr, game_id)
+                format!("records/{}_{}", spec.game_addr, spec.game_id)
             };
             writer = Arc::new(Mutex::new(FileRecordWriter::try_new(file_path.into(), header).expect("Fail to create record writer")))
         }
@@ -154,13 +157,16 @@ impl Component<ConsumerPorts, RecorderContext> for Recorder {
                 }
 
                 EventFrame::Checkpoint {
+                    access_version,
+                    settle_version,
                     checkpoint,
                     nodes,
+                    balances,
                     ..
                 } => {
                     if let Some(state) = checkpoint.get_data(game_id) {
                         let record = Record::Checkpoint {
-                            state, nodes
+                            state, nodes, access_version, settle_version, balances,
                         };
 
                         writer.write(record);

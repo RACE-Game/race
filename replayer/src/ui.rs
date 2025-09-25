@@ -85,7 +85,7 @@ pub fn render_controller_ui(context: Arc<ReplayerContext>, header: RecordsHeader
                 ])
                 .split(f.size());
 
-            let header_spans = Text::from(format!("CHAIN: {}\nGAME: {}#{}\nBUNDLE: {}", header.chain, header.game_addr, header.game_id, header.bundle_addr));
+            let header_spans = Text::from(format!("CHAIN: {}\nGAME: {}#{}\nBUNDLE: {}", header.chain, header.spec.game_addr, header.spec.game_id, header.spec.bundle_addr));
 
             let paragraph = Paragraph::new(header_spans)
                 .block(Block::default().title("Info").borders(Borders::ALL))
@@ -96,7 +96,7 @@ pub fn render_controller_ui(context: Arc<ReplayerContext>, header: RecordsHeader
             let items: Vec<ListItem> = records_view_state.records.iter().map(|r| ListItem::new(format!("{}", r))).collect();
 
             let list = List::new(items)
-                .block(Block::default().title("events").borders(Borders::ALL))
+                .block(Block::default().title("Events").borders(Borders::ALL))
                 .style(Style::default().fg(Color::White))
                 .highlight_style(Style::default().fg(Color::Green));
 

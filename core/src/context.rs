@@ -491,6 +491,10 @@ impl GameContext {
         &self.nodes
     }
 
+    pub fn get_game_spec(&self) -> &GameSpec {
+        &self.spec
+    }
+
     pub fn game_addr(&self) -> &str {
         &self.spec.game_addr
     }
@@ -1186,6 +1190,10 @@ impl GameContext {
     pub fn reset(&mut self) {
         self.sub_games.clear();
         self.checkpoint.close_sub_data();
+    }
+
+    pub fn get_balances(&self) -> &[PlayerBalance] {
+        &self.balances
     }
 }
 
