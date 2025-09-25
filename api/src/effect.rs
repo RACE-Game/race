@@ -13,7 +13,7 @@ use crate::{
     prelude::InitAccount,
     random::RandomSpec,
     types::{
-        Award, DecisionId, EntryLock, GameDeposit, GameId, GamePlayer, PlayerBalance, RandomId,
+        Award, EntryLock, GameDeposit, GamePlayer, PlayerBalance,
         Transfer,
     },
 };
@@ -37,20 +37,20 @@ impl Withdraw {
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Assign {
-    pub random_id: RandomId,
+    pub random_id: usize,
     pub player_id: u64,
     pub indices: Vec<usize>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Reveal {
-    pub random_id: RandomId,
+    pub random_id: usize,
     pub indices: Vec<usize>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
 pub struct Release {
-    pub decision_id: DecisionId,
+    pub decision_id: usize,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
@@ -62,7 +62,7 @@ pub struct ActionTimeout {
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SubGame {
-    pub id: GameId,
+    pub id: usize,
     pub bundle_addr: String,
     pub init_account: InitAccount,
 }
@@ -81,7 +81,7 @@ pub struct SubGameLeave {
 
 impl SubGame {
     pub fn try_new<S: BorshSerialize>(
-        id: GameId,
+        id: usize,
         bundle_addr: String,
         max_players: u16,
         init_data: S,
@@ -100,19 +100,19 @@ impl SubGame {
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct EmitBridgeEvent {
-    pub dest: GameId,
+    pub dest: usize,
     pub raw: Vec<u8>,
 }
 
 impl EmitBridgeEvent {
-    pub fn try_new<E: BridgeEvent>(dest: GameId, bridge_event: E) -> HandleResult<Self> {
+    pub fn try_new<E: BridgeEvent>(dest: usize, bridge_event: E) -> HandleResult<Self> {
         Ok(Self {
             dest,
             raw: borsh::to_vec(&bridge_event)?,
         })
     }
 
-    pub fn new_empty(dest: GameId) -> Self {
+    pub fn new_empty(dest: usize) -> Self {
         Self {
             dest,
             raw: vec![]
@@ -239,16 +239,16 @@ pub struct Effect {
     pub stop_game: bool,
     pub cancel_dispatch: bool,
     pub timestamp: u64,
-    pub curr_random_id: RandomId,
-    pub curr_decision_id: DecisionId,
+    pub curr_random_id: usize,
+    pub curr_decision_id: usize,
     pub nodes_count: u16,
     pub asks: Vec<Ask>,
     pub assigns: Vec<Assign>,
     pub reveals: Vec<Reveal>,
     pub releases: Vec<Release>,
     pub init_random_states: Vec<RandomSpec>,
-    pub revealed: HashMap<RandomId, HashMap<usize, String>>,
-    pub answered: HashMap<DecisionId, String>,
+    pub revealed: HashMap<usize, HashMap<usize, String>>,
+    pub answered: HashMap<usize, String>,
     pub is_checkpoint: bool,
     pub withdraws: Vec<Withdraw>,
     pub ejects: Vec<u64>,
@@ -263,7 +263,7 @@ pub struct Effect {
     pub awards: Vec<Award>,
     pub reject_deposits: Vec<u64>,
     pub accept_deposits: Vec<u64>,
-    pub curr_sub_game_id: GameId,
+    pub curr_sub_game_id: usize,
     pub balances: Vec<PlayerBalance>,
 }
 
@@ -274,7 +274,7 @@ impl Effect {
     }
 
     /// Initialize a random state with random spec, return random id.
-    pub fn init_random_state(&mut self, spec: RandomSpec) -> RandomId {
+    pub fn init_random_state(&mut self, spec: RandomSpec) -> usize {
         self.init_random_states.push(spec);
         let random_id = self.curr_random_id;
         self.curr_random_id += 1;
@@ -284,7 +284,7 @@ impl Effect {
     /// Assign some random items to a specific player.
     pub fn assign(
         &mut self,
-        random_id: RandomId,
+        random_id: usize,
         player_id: u64,
         indices: Vec<usize>,
     ) -> HandleResult<()> {
@@ -297,14 +297,14 @@ impl Effect {
     }
 
     /// Reveal some random items to the public.
-    pub fn reveal(&mut self, random_id: RandomId, indices: Vec<usize>) {
+    pub fn reveal(&mut self, random_id: usize, indices: Vec<usize>) {
         self.reveals.push(Reveal { random_id, indices })
     }
 
     /// Return the revealed random items by id.
     ///
     /// Return [`Error::RandomnessNotRevealed`] when invalid random id is given.
-    pub fn get_revealed(&self, random_id: RandomId) -> HandleResult<&HashMap<usize, String>> {
+    pub fn get_revealed(&self, random_id: usize) -> HandleResult<&HashMap<usize, String>> {
         self.revealed
             .get(&random_id)
             .ok_or(HandleError::RandomnessNotRevealed)
@@ -314,7 +314,7 @@ impl Effect {
     ///
     /// Return [`Error::AnswerNotAvailable`] when invalid decision id
     /// is given or the answer is not ready.
-    pub fn get_answer(&self, decision_id: DecisionId) -> HandleResult<&str> {
+    pub fn get_answer(&self, decision_id: usize) -> HandleResult<&str> {
         if let Some(a) = self.answered.get(&decision_id) {
             Ok(a.as_ref())
         } else {
@@ -323,14 +323,14 @@ impl Effect {
     }
 
     /// Ask a player for a decision, return the new decision id.
-    pub fn ask(&mut self, player_id: u64) -> HandleResult<DecisionId> {
+    pub fn ask(&mut self, player_id: u64) -> HandleResult<usize> {
         self.asks.push(Ask { player_id });
         let decision_id = self.curr_decision_id;
         self.curr_decision_id += 1;
         Ok(decision_id)
     }
 
-    pub fn release(&mut self, decision_id: DecisionId) {
+    pub fn release(&mut self, decision_id: usize) {
         self.releases.push(Release { decision_id })
     }
 
@@ -427,7 +427,7 @@ impl Effect {
         bundle_addr: String,
         max_players: u16,
         init_data: D,
-    ) -> HandleResult<GameId> {
+    ) -> HandleResult<usize> {
         if self.curr_sub_game_id == 255 {
             return Err(HandleError::CantLaunchMoreSubGames);
         }
@@ -445,7 +445,7 @@ impl Effect {
     }
 
     /// Return the game_id used for next `launch_sub_game` call.
-    pub fn next_sub_game_id(&self) -> GameId {
+    pub fn next_sub_game_id(&self) -> usize {
         self.curr_sub_game_id
     }
 
@@ -489,7 +489,7 @@ impl Effect {
     }
 
     /// Emit a bridge event.
-    pub fn bridge_event<E: BridgeEvent>(&mut self, dest: GameId, evt: E) -> HandleResult<()> {
+    pub fn bridge_event<E: BridgeEvent>(&mut self, dest: usize, evt: E) -> HandleResult<()> {
         if self.bridge_events.iter().any(|x| x.dest == dest) {
             return Err(HandleError::DuplicatedBridgeEventTarget);
         }
@@ -508,7 +508,7 @@ impl Effect {
     }
 
     /// List bridge events, deserialize raw to event type E.
-    pub fn list_bridge_events<E: BridgeEvent>(&self) -> HandleResult<Vec<(GameId, E)>> {
+    pub fn list_bridge_events<E: BridgeEvent>(&self) -> HandleResult<Vec<(usize, E)>> {
         self.bridge_events
             .iter()
             .map(|ref emit_bridge_event| {

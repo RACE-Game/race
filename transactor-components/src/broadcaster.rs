@@ -7,7 +7,6 @@ use std::sync::Arc;
 use borsh::{BorshSerialize, BorshDeserialize};
 use async_trait::async_trait;
 use race_api::event::Event;
-use race_api::types::GameId;
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::{BroadcastFrame, BroadcastSync, TxState};
 use race_core::context::Node;
@@ -70,7 +69,7 @@ impl EventBackupGroup {
 pub struct BroadcasterContext {
     #[allow(unused)]
     id: String,
-    game_id: GameId,
+    game_id: usize,
     event_backup_groups: Arc<RwLock<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
     checkpoint_tx: broadcast::Sender<CheckpointBroadcastFrame>,
@@ -81,14 +80,14 @@ pub struct Broadcaster {
     #[allow(unused)]
     id: String,
     #[allow(unused)]
-    game_id: GameId,
+    game_id: usize,
     event_backup_groups: Arc<RwLock<LinkedList<EventBackupGroup>>>,
     broadcast_tx: broadcast::Sender<BroadcastFrame>,
     checkpoint_tx: broadcast::Sender<CheckpointBroadcastFrame>,
 }
 
 impl Broadcaster {
-    pub fn init(id: String, game_id: GameId) -> (Self, BroadcasterContext) {
+    pub fn init(id: String, game_id: usize) -> (Self, BroadcasterContext) {
         let event_backup_groups = Arc::new(RwLock::new(LinkedList::new()));
         let (broadcast_tx, broadcast_rx) = broadcast::channel(10);
         let (checkpoint_tx, checkpoint_rx) = broadcast::channel(10);

@@ -186,8 +186,7 @@ fn cli() -> Command {
 
 async fn create_transport(chain: &str, rpc: &str, keyfile: Option<String>) -> Arc<dyn TransportT> {
     let mut builder = TransportBuilder::default()
-        .try_with_chain(chain)
-        .expect("Invalid chain")
+        .with_chain_by_name(chain)
         .with_rpc(rpc);
 
     if let Some(keyfile) = keyfile {

@@ -1,5 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::{error::HandleError, types::{DecisionId, RandomId}};
+use race_api::error::HandleError;
 
 use anyhow;
 
@@ -218,7 +218,7 @@ pub enum Error {
     AnswerNotAvailable,
 
     #[error("Missing decision secret: {0}")]
-    MissingDecisionSecret(DecisionId),
+    MissingDecisionSecret(usize),
 
     #[error("Invalid decision answer")]
     InvalidDecisionAnswer,
@@ -254,7 +254,7 @@ pub enum Error {
     RandomnessNotRevealed,
 
     #[error("Random state not found: {0}")]
-    RandomStateNotFound(RandomId),
+    RandomStateNotFound(usize),
 
     #[error("Wasm execution error: {0}")]
     HandleError(HandleError),

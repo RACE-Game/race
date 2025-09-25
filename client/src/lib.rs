@@ -14,7 +14,7 @@ use race_core::{
     encryptor::EncryptorT,
     secret::SecretState,
     types::{
-        AttachGameParams, Ciphertext, ClientMode, DecisionId, RandomId, SecretIdent, SecretKey,
+        AttachGameParams, Ciphertext, ClientMode, SecretIdent, SecretKey,
         SubmitEventParams,
     },
 };
@@ -29,18 +29,18 @@ use rand::{rngs::OsRng, seq::SliceRandom};
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum OpIdent {
     RandomSecret {
-        random_id: RandomId,
+        random_id: usize,
         to_addr: Option<String>,
         index: usize,
     },
     AnswerSecret {
-        decision_id: DecisionId,
+        decision_id: usize,
     },
     Lock {
-        random_id: RandomId,
+        random_id: usize,
     },
     Mask {
-        random_id: RandomId,
+        random_id: usize,
     },
 }
 
@@ -126,7 +126,7 @@ impl Client {
         Ok(())
     }
 
-    pub fn answer_event(&mut self, decision_id: DecisionId, value: String) -> Result<Event> {
+    pub fn answer_event(&mut self, decision_id: usize, value: String) -> Result<Event> {
         let (ciphertext, digest) = self.secret_state.encrypt_answer(decision_id, value)?;
         Ok(Event::AnswerDecision {
             sender: self.id,
@@ -136,7 +136,7 @@ impl Client {
         })
     }
 
-    pub async fn answer(&mut self, decision_id: DecisionId, value: String) -> Result<()> {
+    pub async fn answer(&mut self, decision_id: usize, value: String) -> Result<()> {
         let event = self.answer_event(decision_id, value)?;
         self.connection
             .submit_event(&self.game_addr, SubmitEventParams { event })
@@ -353,7 +353,7 @@ impl Client {
     pub fn decrypt(
         &self,
         ctx: &GameContext,
-        random_id: RandomId,
+        random_id: usize,
     ) -> Result<HashMap<usize, String>> {
         let random_state = ctx.get_random_state(random_id)?;
         let options = &random_state.options;

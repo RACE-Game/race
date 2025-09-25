@@ -1,7 +1,6 @@
 use race_transactor_frames::EventFrame;
 use race_transactor_frames::{BridgeToParent, SignalFrame};
 use async_trait::async_trait;
-use race_api::types::GameId;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{info, log::error, warn};
 
@@ -25,14 +24,14 @@ pub struct EventBridgeParent {
 }
 
 pub struct EventBridgeChildContext {
-    pub game_id: GameId,
+    pub game_id: usize,
     tx: mpsc::Sender<EventFrame>,
     rx: broadcast::Receiver<EventFrame>,
 }
 
 pub struct EventBridgeChild {
     #[allow(unused)]
-    pub game_id: GameId,
+    pub game_id: usize,
 }
 
 impl EventBridgeParent {
@@ -90,10 +89,10 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
         env: ComponentEnv,
     ) -> CloseReason {
         // We save the pending events here.
-        let mut pending_events: Vec<(GameId, EventFrame)> = Vec::with_capacity(10);
+        let mut pending_events: Vec<(usize, EventFrame)> = Vec::with_capacity(10);
 
         // We save the launching game IDs here.
-        let mut launching_game_ids: Vec<GameId> = Vec::with_capacity(10);
+        let mut launching_game_ids: Vec<usize> = Vec::with_capacity(10);
 
         while let Some((from_bridge, event_frame)) = Self::read_event(&mut ports, &mut ctx.rx).await
         {
@@ -236,7 +235,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
 
 impl EventBridgeChild {
     pub fn init(
-        game_id: GameId,
+        game_id: usize,
         bridge_to_parent: BridgeToParent,
     ) -> (EventBridgeChild, EventBridgeChildContext) {
         (

@@ -52,6 +52,11 @@ pub struct TransactorConfig {
 }
 
 #[derive(Deserialize, Clone)]
+pub struct ReplayerConfig {
+    pub port: u32,
+}
+
+#[derive(Deserialize, Clone)]
 pub struct StorageConfig {
     pub db_file_name: String,
 }
@@ -59,6 +64,7 @@ pub struct StorageConfig {
 #[derive(Deserialize, Clone)]
 pub struct Config {
     pub transactor: Option<TransactorConfig>,
+    pub replayer: Option<ReplayerConfig>,
     pub storage: Option<StorageConfig>,
     pub facade: Option<FacadeConfig>,
     pub solana: Option<SolanaConfig>,

@@ -26,7 +26,7 @@ pub async fn register_server(config: &Config) -> Result<()> {
         .as_ref()
         .ok_or(Error::TransactorConfigMissing)?;
     let transport: Box<dyn TransportT> = TransportBuilder::default()
-        .try_with_chain(transactor_conf.chain.as_str())?
+        .with_chain_by_name(transactor_conf.chain.as_str())
         .try_with_config(config)?
         .build()
         .await?;

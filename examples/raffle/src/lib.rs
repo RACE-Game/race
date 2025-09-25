@@ -55,7 +55,7 @@ impl From<GamePlayer> for Player {
 struct Raffle {
     winner_player_id: Option<u64>,
     players: Vec<Player>,
-    random_id: RandomId,  // We save random id, and we use it to get randomness information in the game progress.
+    random_id: usize,  // We save random id, and we use it to get randomness information in the game progress.
     draw_time: u64,
     prize_pool: u64,
     max_players: u16, // The maximum number of players supported in this game.

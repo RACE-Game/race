@@ -80,11 +80,6 @@ impl Award {
     }
 }
 
-pub type Addr = String;
-pub type Amount = u64;
-pub type RandomId = usize;
-pub type DecisionId = usize;
-pub type GameId = usize;
 pub type Ciphertext = Vec<u8>;
 pub type SecretDigest = Vec<u8>;
 pub type SecretKey = Vec<u8>;
@@ -112,13 +107,13 @@ impl std::fmt::Display for Signature {
 pub struct SecretIdent {
     pub from_addr: String,
     pub to_addr: Option<String>,
-    pub random_id: RandomId,
+    pub random_id: usize,
     pub index: usize,
 }
 
 impl SecretIdent {
     pub fn new_for_assigned<S: Into<String>>(
-        random_id: RandomId,
+        random_id: usize,
         index: usize,
         from_addr: S,
         to_addr: S,
@@ -132,7 +127,7 @@ impl SecretIdent {
     }
 
     pub fn new_for_revealed<S: Into<String>>(
-        random_id: RandomId,
+        random_id: usize,
         index: usize,
         from_addr: S,
     ) -> Self {
@@ -152,13 +147,13 @@ pub enum SecretShare {
     Random {
         from_addr: String,
         to_addr: Option<String>,
-        random_id: RandomId,
+        random_id: usize,
         index: usize,
         secret: Vec<u8>,
     },
     Answer {
         from_addr: String,
-        decision_id: DecisionId,
+        decision_id: usize,
         secret: Vec<u8>,
     },
 }
@@ -198,10 +193,10 @@ impl std::fmt::Display for SecretShare {
 
 impl SecretShare {
     pub fn new_for_random(
-        random_id: RandomId,
+        random_id: usize,
         index: usize,
-        from_addr: Addr,
-        to_addr: Option<Addr>,
+        from_addr: String,
+        to_addr: Option<String>,
         secret: SecretKey,
     ) -> Self {
         SecretShare::Random {
@@ -213,7 +208,7 @@ impl SecretShare {
         }
     }
 
-    pub fn new_for_answer(decision_id: DecisionId, from_addr: Addr, secret: SecretKey) -> Self {
+    pub fn new_for_answer(decision_id: usize, from_addr: String, secret: SecretKey) -> Self {
         SecretShare::Answer {
             decision_id,
             from_addr,

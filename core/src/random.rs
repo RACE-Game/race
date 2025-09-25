@@ -8,7 +8,7 @@ use race_api::random::RandomSpec;
 use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;
 
-use crate::types::{Ciphertext, RandomId, SecretDigest, SecretIdent, SecretKey};
+use crate::types::{Ciphertext, SecretDigest, SecretIdent, SecretKey};
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -194,7 +194,7 @@ pub enum RandomStatus {
 /// RandomState represents the public information for a single randomness.
 #[derive(Default, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, Clone)]
 pub struct RandomState {
-    pub id: RandomId,
+    pub id: usize,
     pub size: usize,
     pub owners: Vec<String>,
     pub options: Vec<String>,
@@ -234,7 +234,7 @@ impl RandomState {
         self.ciphertexts.get_mut(index)
     }
 
-    pub fn try_new(id: RandomId, spec: RandomSpec, owners: &[String]) -> Result<Self> {
+    pub fn try_new(id: usize, spec: RandomSpec, owners: &[String]) -> Result<Self> {
         let options = spec.as_options();
         let size = options.len();
 

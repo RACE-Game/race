@@ -12,8 +12,8 @@ use race_api::event::{CustomEvent, Event};
 use race_api::prelude::InitAccount;
 use race_api::random::RandomSpec;
 use race_api::types::{
-    Award, BalanceChange, Ciphertext, DecisionId, EntryLock, GameId, GamePlayer, GameStatus,
-    PlayerBalance, RandomId, SecretDigest, SecretShare, Settle, Transfer,
+    Award, BalanceChange, Ciphertext, EntryLock, GamePlayer, GameStatus,
+    PlayerBalance, SecretDigest, SecretShare, Settle, Transfer,
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -172,7 +172,7 @@ pub struct SettleDetails {
     pub previous_settle_version: u64,
     pub entry_lock: Option<EntryLock>,
     pub accept_deposits: Vec<u64>,
-    pub settle_locks: HashMap<GameId, u64>,
+    pub settle_locks: HashMap<usize, u64>,
 }
 
 impl SettleDetails {
@@ -263,7 +263,7 @@ pub struct GameContext {
     /// The pending settle details. They are here because the settle is blocked by the settle locks.
     pub(crate) pending_settle_details: Vec<SettleDetails>,
     /// The locks for the under construction settle
-    pub(crate) next_settle_locks: HashMap<GameId, u64>,
+    pub(crate) next_settle_locks: HashMap<usize, u64>,
 }
 
 impl GameContext {
@@ -495,7 +495,7 @@ impl GameContext {
         &self.spec.game_addr
     }
 
-    pub fn game_id(&self) -> GameId {
+    pub fn game_id(&self) -> usize {
         self.spec.game_id
     }
 
@@ -609,7 +609,7 @@ impl GameContext {
     }
 
     /// Get the random state by its id.
-    pub fn get_random_state(&self, id: RandomId) -> Result<&RandomState> {
+    pub fn get_random_state(&self, id: usize) -> Result<&RandomState> {
         if id == 0 {
             return Err(Error::RandomStateNotFound(id));
         }
@@ -620,11 +620,11 @@ impl GameContext {
         }
     }
 
-    pub fn get_random_state_unchecked(&self, id: RandomId) -> &RandomState {
+    pub fn get_random_state_unchecked(&self, id: usize) -> &RandomState {
         &self.random_states[id - 1]
     }
 
-    pub fn get_decision_state_mut(&mut self, id: DecisionId) -> Result<&mut DecisionState> {
+    pub fn get_decision_state_mut(&mut self, id: usize) -> Result<&mut DecisionState> {
         if id == 0 {
             return Err(Error::InvalidDecisionId);
         }
@@ -635,7 +635,7 @@ impl GameContext {
         }
     }
     /// Get the mutable random state by its id.
-    pub fn get_random_state_mut(&mut self, id: RandomId) -> Result<&mut RandomState> {
+    pub fn get_random_state_mut(&mut self, id: usize) -> Result<&mut RandomState> {
         if id == 0 {
             return Err(Error::RandomStateNotFound(id));
         }
@@ -649,7 +649,7 @@ impl GameContext {
     /// Assign random item to a player
     pub fn assign(
         &mut self,
-        random_id: RandomId,
+        random_id: usize,
         player_addr: String,
         indices: Vec<usize>,
     ) -> Result<()> {
@@ -658,19 +658,19 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn reveal(&mut self, random_id: RandomId, indices: Vec<usize>) -> Result<()> {
+    pub fn reveal(&mut self, random_id: usize, indices: Vec<usize>) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
         rnd_st.reveal(indices)?;
         Ok(())
     }
 
-    pub fn release(&mut self, decision_id: DecisionId) -> Result<()> {
+    pub fn release(&mut self, decision_id: usize) -> Result<()> {
         let state = self.get_decision_state_mut(decision_id)?;
         state.release()?;
         Ok(())
     }
 
-    pub fn is_random_ready(&self, random_id: RandomId) -> bool {
+    pub fn is_random_ready(&self, random_id: usize) -> bool {
         match self.get_random_state(random_id) {
             Ok(rnd) => matches!(
                 rnd.status,
@@ -721,14 +721,14 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn has_sub_game(&self, game_id: GameId) -> bool {
+    pub fn has_sub_game(&self, game_id: usize) -> bool {
         self.sub_games
             .iter()
             .find(|sub_game| sub_game.id == game_id)
             .is_some()
     }
 
-    pub fn init_random_state(&mut self, spec: RandomSpec) -> Result<RandomId> {
+    pub fn init_random_state(&mut self, spec: RandomSpec) -> Result<usize> {
         let random_id = self.random_states.len() + 1;
         let owners: Vec<String> = self
             .nodes
@@ -781,7 +781,7 @@ impl GameContext {
     pub fn randomize_and_mask(
         &mut self,
         addr: &str,
-        random_id: RandomId,
+        random_id: usize,
         ciphertexts: Vec<Ciphertext>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
@@ -792,7 +792,7 @@ impl GameContext {
     pub fn lock(
         &mut self,
         addr: &str,
-        random_id: RandomId,
+        random_id: usize,
         ciphertexts_and_tests: Vec<(Ciphertext, Ciphertext)>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
@@ -800,7 +800,7 @@ impl GameContext {
         self.dispatch_randomization_timeout(random_id)
     }
 
-    pub fn dispatch_randomization_timeout(&mut self, random_id: RandomId) -> Result<()> {
+    pub fn dispatch_randomization_timeout(&mut self, random_id: usize) -> Result<()> {
         let no_dispatch = self.dispatch.is_none();
         let rnd_st = self.get_random_state_mut(random_id)?;
         match rnd_st.status.clone() {
@@ -847,7 +847,7 @@ impl GameContext {
 
     pub fn handle_versioned_data(
         &mut self,
-        game_id: GameId,
+        game_id: usize,
         versioned_data: VersionedData,
         is_init: bool,
     ) -> Result<()> {
@@ -899,7 +899,7 @@ impl GameContext {
 
     pub fn add_revealed_random(
         &mut self,
-        random_id: RandomId,
+        random_id: usize,
         revealed: HashMap<usize, String>,
     ) -> Result<()> {
         let rnd_st = self.get_random_state_mut(random_id)?;
@@ -908,12 +908,12 @@ impl GameContext {
             .map_err(|e| Error::InvalidDecryptedValue(e.to_string()))
     }
 
-    pub fn add_revealed_answer(&mut self, decision_id: DecisionId, revealed: String) -> Result<()> {
+    pub fn add_revealed_answer(&mut self, decision_id: usize, revealed: String) -> Result<()> {
         let st = self.get_decision_state_mut(decision_id)?;
         st.add_released(revealed)
     }
 
-    pub fn ask(&mut self, owner: String) -> DecisionId {
+    pub fn ask(&mut self, owner: String) -> usize {
         let id = self.decision_states.len() + 1;
         let st = DecisionState::new(id, owner);
         self.decision_states.push(st);
@@ -922,7 +922,7 @@ impl GameContext {
 
     pub fn answer_decision(
         &mut self,
-        id: DecisionId,
+        id: usize,
         owner: &str,
         ciphertext: Ciphertext,
         digest: SecretDigest,
@@ -931,7 +931,7 @@ impl GameContext {
         st.answer(owner, ciphertext, digest)
     }
 
-    pub fn get_revealed(&self, random_id: RandomId) -> Result<&HashMap<usize, String>> {
+    pub fn get_revealed(&self, random_id: usize) -> Result<&HashMap<usize, String>> {
         let rnd_st = self.get_random_state(random_id)?;
         Ok(&rnd_st.revealed)
     }

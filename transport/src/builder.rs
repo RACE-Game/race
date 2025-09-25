@@ -1,7 +1,7 @@
-use crate::chain_type::ChainType;
 use crate::error::{TransportError, TransportResult};
 use crate::facade;
 use crate::solana;
+use race_core::chain::ChainType;
 use race_core::transport::TransportT;
 use race_env::Config;
 use std::path::PathBuf;
@@ -24,12 +24,12 @@ impl TransportBuilder {
         self
     }
 
-    pub fn try_with_chain<T>(mut self, chain: T) -> TransportResult<Self>
+    pub fn with_chain_by_name<T>(mut self, chain: T) -> Self
     where
-        T: TryInto<ChainType, Error = TransportError>,
+        T: Into<ChainType>,
     {
-        self.chain = Some(chain.try_into()?);
-        Ok(self)
+        self.chain = Some(chain.into());
+        self
     }
 
     pub fn with_rpc<S: Into<String>>(mut self, rpc: S) -> Self {

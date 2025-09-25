@@ -10,12 +10,14 @@ members = [
   "cli",
   "storage",
   "encryptor",
+  "event-record",
   "transport",
   "facade",
   "env",
   "client",
   "test",
   "local-db",
+  "replayer",
   "examples/minimal",
   # "examples/draw-card",
   "examples/raffle",
@@ -32,6 +34,7 @@ race-proc-macro = { path = "proc-macro", version = ">=0.2.6" }
 race-core = { path = "core", version = ">=0.2.6" }
 race-client = { path = "client", version = ">=0.2.6" }
 race-encryptor = { path = "encryptor", version = ">=0.2.6" }
+race-event-record = { path = "event-record", version = ">=0.2.6" }
 race-test = { path = "test", version = ">=0.2.6" }
 race-env = { path = "env", version = "*" }
 race-transactor-components = { path = "transactor-components", version = "*" }
@@ -50,6 +53,7 @@ bcs = "0.1.6"
 chacha20 = "0.9.1"
 chrono = "0.4.24"
 clap = "4.0.26"
+crossterm = "0.25"
 ctr = "0.9.2"
 futures = "0.3.25"
 getrandom = "0.2"
@@ -98,6 +102,7 @@ tower-http = "0.4.4"
 tracing = "0.1.40"
 tracing-appender = "0.2.3"
 tracing-subscriber = "0.3.18"
+tui = "0.19"
 uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 wasmer = "4.4.0"
 

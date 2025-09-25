@@ -14,3 +14,6 @@ address = "Server 1"
 
 [storage]
 db_file_name = "dev/test.1.db"
+
+[replayer]
+port = 32003

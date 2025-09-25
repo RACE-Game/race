@@ -1,5 +1,5 @@
 use crate::{
-    error::HandleError, types::{Ciphertext, DecisionId, GameDeposit, GameId, GamePlayer, RandomId, SecretDigest, SecretShare}
+    error::HandleError, types::{Ciphertext, GameDeposit, GamePlayer, SecretDigest, SecretShare}
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
@@ -45,7 +45,7 @@ pub enum Event {
     /// This event is sent by transactors.
     Mask {
         sender: u64,
-        random_id: RandomId,
+        random_id: usize,
         ciphertexts: Vec<Ciphertext>,
     },
 
@@ -53,14 +53,14 @@ pub enum Event {
     /// This event is sent by transactors.
     Lock {
         sender: u64,
-        random_id: RandomId,
+        random_id: usize,
         ciphertexts_and_digests: Vec<(Ciphertext, SecretDigest)>,
     },
 
     /// All randomness is prepared.
     /// This event is sent by transactor.
     RandomnessReady {
-        random_id: RandomId,
+        random_id: usize,
     },
 
     /// This event is sent when new players joined game.
@@ -112,7 +112,7 @@ pub enum Event {
     /// Answer the decision question with encrypted ciphertext
     AnswerDecision {
         sender: u64,
-        decision_id: DecisionId,
+        decision_id: usize,
         ciphertext: Ciphertext,
         digest: SecretDigest,
     },
@@ -127,14 +127,14 @@ pub enum Event {
 
     /// The custom event from bridge
     Bridge {
-        dest_game_id: GameId,
-        from_game_id: GameId,
+        dest_game_id: usize,
+        from_game_id: usize,
         raw: Vec<u8>,
     },
 
     /// A subgame is ready
     SubGameReady {
-        game_id: GameId,
+        game_id: usize,
         max_players: u16,
         init_data: Vec<u8>,
     },
@@ -234,7 +234,7 @@ impl Event {
         }
     }
 
-    pub fn bridge<E: BridgeEvent>(dest: GameId, from: GameId, e: &E) -> Self {
+    pub fn bridge<E: BridgeEvent>(dest: usize, from: usize, e: &E) -> Self {
         Self::Bridge {
             dest_game_id: dest,
             from_game_id: from,

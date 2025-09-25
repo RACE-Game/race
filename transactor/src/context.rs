@@ -10,7 +10,7 @@ use race_encryptor::Encryptor;
 use race_env::{Config, TransactorConfig};
 use race_transactor_components::{CheckpointBroadcastFrame, CloseReason, WrappedStorage, WrappedTransport};
 use race_transactor_frames::SignalFrame;
-use race_transport::ChainType;
+use race_core::chain::ChainType;
 use tokio::task::JoinHandle;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, watch, Mutex};
@@ -45,7 +45,7 @@ impl ApplicationContext {
             .chain;
 
         let transport = TransportBuilder::default()
-            .try_with_chain(chain)?
+            .with_chain_by_name(chain)
             .try_with_config(&config)?
             .build()
             .await?;
@@ -58,7 +58,7 @@ impl ApplicationContext {
 
         let transactor_config = config.transactor.ok_or(Error::TransactorConfigMissing)?;
 
-        let chain: ChainType = transactor_config.chain.as_str().try_into()?;
+        let chain: ChainType = transactor_config.chain.as_str().into();
 
         info!("Transactor wallet address: {}", transactor_config.address);
 

@@ -4,7 +4,7 @@ use crate::error::{Error, Result};
 
 use crate::{
     encryptor::EncryptorT,
-    types::{Ciphertext, DecisionId, RandomId, SecretDigest, SecretKey},
+    types::{Ciphertext, SecretDigest, SecretKey},
 };
 
 #[derive(Debug)]
@@ -37,8 +37,8 @@ pub struct RandomSecretGroup {
 #[derive(Debug)]
 pub struct SecretState {
     encryptor: Arc<dyn EncryptorT>,
-    random_secrets: HashMap<RandomId, RandomSecretGroup>,
-    decision_secrets: HashMap<DecisionId, SecretKey>,
+    random_secrets: HashMap<usize, RandomSecretGroup>,
+    decision_secrets: HashMap<usize, SecretKey>,
 }
 
 impl SecretState {
@@ -55,7 +55,7 @@ impl SecretState {
         self.decision_secrets.clear();
     }
 
-    pub fn gen_random_secrets(&mut self, random_id: RandomId, size: usize) {
+    pub fn gen_random_secrets(&mut self, random_id: usize, size: usize) {
         let g = RandomSecretGroup {
             size,
             mask: self.encryptor.gen_secret(),
@@ -66,15 +66,15 @@ impl SecretState {
         self.random_secrets.insert(random_id, g);
     }
 
-    pub fn is_random_loaded(&self, random_id: RandomId) -> bool {
+    pub fn is_random_loaded(&self, random_id: usize) -> bool {
         self.random_secrets.contains_key(&random_id)
     }
 
-    pub fn is_decision_loaded(&self, decision_id: DecisionId) -> bool {
+    pub fn is_decision_loaded(&self, decision_id: usize) -> bool {
         self.decision_secrets.contains_key(&decision_id)
     }
 
-    pub fn get_random_lock(&self, random_id: RandomId, index: usize) -> Result<SecretKey> {
+    pub fn get_random_lock(&self, random_id: usize, index: usize) -> Result<SecretKey> {
         if let Some(g) = self.random_secrets.get(&random_id) {
             if let Some(k) = g.locks.get(index) {
                 Ok(k.clone())
@@ -86,7 +86,7 @@ impl SecretState {
         }
     }
 
-    pub fn get_decision_secret(&self, decision_id: DecisionId) -> Option<SecretKey> {
+    pub fn get_decision_secret(&self, decision_id: usize) -> Option<SecretKey> {
         self.decision_secrets
             .get(&decision_id)
             .map(|s| s.to_owned())
@@ -94,7 +94,7 @@ impl SecretState {
 
     pub fn mask(
         &mut self,
-        random_id: RandomId,
+        random_id: usize,
         mut ciphertexts: Vec<Ciphertext>,
     ) -> Result<Vec<Ciphertext>> {
         let g = self
@@ -115,7 +115,7 @@ impl SecretState {
 
     pub fn unmask(
         &mut self,
-        random_id: RandomId,
+        random_id: usize,
         mut ciphertexts: Vec<Ciphertext>,
     ) -> Result<Vec<Ciphertext>> {
         let g = self
@@ -136,7 +136,7 @@ impl SecretState {
 
     pub fn lock(
         &mut self,
-        random_id: RandomId,
+        random_id: usize,
         ciphertexts: Vec<Ciphertext>,
     ) -> Result<Vec<(Ciphertext, SecretDigest)>> {
         let g = self
@@ -162,7 +162,7 @@ impl SecretState {
 
     pub fn encrypt_answer(
         &mut self,
-        decision_id: DecisionId,
+        decision_id: usize,
         answer: String,
     ) -> Result<(Ciphertext, SecretDigest)> {
         let secret = self.encryptor.gen_secret();

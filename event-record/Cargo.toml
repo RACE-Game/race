@@ -1,0 +1,25 @@
+[package]
+name = "race-event-record"
+description = "RACE Event Record"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+readme.workspace = true
+publish = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+race-api.workspace = true
+race-core.workspace = true
+borsh.workspace = true
+
+[dev-dependencies]
+race-test = { path = "../test" }
+project-root = "0.2.2"

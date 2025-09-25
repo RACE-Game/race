@@ -1,9 +1,6 @@
 use tokio::sync::{mpsc, broadcast};
 
-use race_api::{
-    event::{Event, Message},
-    types::GameId,
-};
+use race_api::event::{Event, Message};
 use race_core::{
     checkpoint::{Checkpoint, VersionedData},
     context::{GameContext, SettleDetails, SubGameInit, Node},
@@ -96,15 +93,15 @@ pub enum EventFrame {
     /// checkpoint in the context, it will be sent along with
     /// `checkpoint`.
     SendBridgeEvent {
-        from: GameId,
-        dest: GameId,
+        from: usize,
+        dest: usize,
         event: Event,
         versioned_data: VersionedData,
     },
     /// Similar to `SendBridgeEvent`, but for receiver's event bus.
     RecvBridgeEvent {
-        from: GameId,
-        dest: GameId,
+        from: usize,
+        dest: usize,
         event: Event,
         versioned_data: VersionedData,
     },
@@ -124,7 +121,7 @@ pub enum EventFrame {
 
     /// Subgames send this frame after they made their first checkpoint.
     SubGameReady {
-        game_id: GameId,
+        game_id: usize,
         versioned_data: VersionedData,
         max_players: u16,
         init_data: Vec<u8>,
@@ -132,12 +129,12 @@ pub enum EventFrame {
 
     /// Subgames send this frame when start via recovering from checkpoint.
     SubGameRecovered {
-        game_id: GameId,
+        game_id: usize,
     },
 
     /// Subgame send this frame when it will be shutdown.
     SubGameShutdown {
-        game_id: GameId,
+        game_id: usize,
         versioned_data: VersionedData,
     },
 

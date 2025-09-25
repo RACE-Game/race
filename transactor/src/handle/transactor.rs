@@ -115,7 +115,8 @@ impl TransactorHandle {
         let (bridge, bridge_ctx) = EventBridgeParent::init(signal_tx);
         let mut bridge_handle = bridge.start(&game_account.addr, bridge_ctx);
 
-        let (recorder, recorder_ctx) = Recorder::init(game_account.addr.clone(), false);
+        let (recorder, recorder_ctx) = Recorder::init(game_account.addr.clone(), 0,
+            game_account.bundle_addr.clone(), config.chain.as_str().into(), false);
         let mut recorder_handle = recorder.start(&game_account.addr, recorder_ctx);
 
         let (event_loop, event_loop_ctx) = EventLoop::init(

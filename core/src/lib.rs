@@ -10,3 +10,4 @@ pub mod storage;
 pub mod random;
 pub mod error;
 pub mod decision;
+pub mod chain;

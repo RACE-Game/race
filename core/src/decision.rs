@@ -1,5 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use race_api::{decision::DecisionStatus, types::{DecisionId, SecretKey}};
+use race_api::{decision::DecisionStatus, types::SecretKey};
 
 use crate::{error::{Error, Result}, types::{Ciphertext, SecretDigest}};
 
@@ -11,7 +11,7 @@ pub struct Answer {
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
 pub struct DecisionState {
-    pub id: DecisionId,
+    pub id: usize,
     owner: String,
     status: DecisionStatus,
     answer: Option<Answer>,
@@ -20,7 +20,7 @@ pub struct DecisionState {
 }
 
 impl DecisionState {
-    pub fn new(id: DecisionId, owner: String) -> Self {
+    pub fn new(id: usize, owner: String) -> Self {
         Self {
             id,
             owner,

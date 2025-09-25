@@ -3,7 +3,6 @@ use race_api::{
     effect::{EmitBridgeEvent, Log, SubGame},
     event::Event,
     prelude::InitAccount,
-    types::GameId,
 };
 use race_core::{
     checkpoint::{Checkpoint, VersionedData},
@@ -80,12 +79,12 @@ async fn send_subgame_ready(
         .await;
 }
 
-async fn send_subgame_recovered(game_id: GameId, ports: &PipelinePorts) {
+async fn send_subgame_recovered(game_id: usize, ports: &PipelinePorts) {
     ports.send(EventFrame::SubGameRecovered { game_id }).await;
 }
 
 pub async fn send_subgame_shutdown(
-    game_id: GameId,
+    game_id: usize,
     versioned_data: &VersionedData,
     ports: &PipelinePorts,
 ) {
