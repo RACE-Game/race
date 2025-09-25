@@ -50,6 +50,7 @@ async fn send_checkpoint(
                 settle_version: game_context.settle_version(),
                 state_sha: game_context.state_sha(),
                 nodes: game_context.get_nodes().to_owned(),
+                balances: game_context.get_balances().to_owned(),
             })
             .await;
     }

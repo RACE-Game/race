@@ -228,6 +228,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     checkpoint,
                     state_sha,
                     nodes,
+                    ..
                 } => {
                     info!(
                         "{} Create new history group (via Checkpoint) with access_version = {}, settle_version = {}",

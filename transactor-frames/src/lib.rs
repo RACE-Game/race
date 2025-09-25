@@ -4,7 +4,7 @@ use race_api::event::{Event, Message};
 use race_core::{
     checkpoint::{Checkpoint, VersionedData},
     context::{GameContext, SettleDetails, SubGameInit, Node},
-    types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, TxState, VoteType},
+    types::{PlayerBalance, ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, TxState, VoteType},
 };
 
 #[derive(Debug)]
@@ -67,6 +67,7 @@ pub enum EventFrame {
     Checkpoint {
         checkpoint: Checkpoint,
         nodes: Vec<Node>,
+        balances: Vec<PlayerBalance>,
         access_version: u64,
         settle_version: u64,
         state_sha: String,
