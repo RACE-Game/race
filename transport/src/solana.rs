@@ -6,6 +6,7 @@ use async_stream::stream;
 use constants::*;
 use futures::{Stream, StreamExt};
 use solana_transaction_status::UiTransactionEncoding;
+use tokio::sync::Mutex;
 use std::time::Duration;
 use tracing::{error, info, warn};
 use types::*;
@@ -79,7 +80,8 @@ fn is_native_mint(mint_pubkey: &Pubkey) -> bool {
 }
 
 pub struct SolanaTransport {
-    rpc: String,
+    rpcs: Vec<String>,
+    rpc_index: Mutex<usize>,
     program_id: Pubkey,
     client: RpcClient,
     keypair: Option<Keypair>,
@@ -1276,8 +1278,9 @@ impl TransportT for SolanaTransport {
         &'a self,
         addr: &'a str,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>> {
+
         let ws_rpc = self
-            .rpc
+            .next_rpc_url().await
             .replace("https://", "wss://")
             .replace("http://", "ws://");
         let game_account_pubkey = Self::parse_pubkey(addr)?;
@@ -1565,9 +1568,10 @@ impl SolanaTransport {
         keyfile: Option<PathBuf>,
         skip_preflight: bool,
     ) -> TransportResult<Self> {
+        let rpcs: Vec<String> = rpc.split(',').map(|s| s.trim().to_owned()).collect();
         let keypair = keyfile.map(read_keypair).transpose()?;
         let program_id = Pubkey::from_str(PROGRAM_ID)?;
-        SolanaTransport::try_new_with_program_id(rpc, keypair, program_id, skip_preflight)
+        SolanaTransport::try_new_with_program_id(rpcs, keypair, program_id, skip_preflight)
     }
 
     pub(crate) fn payer(&self) -> TransportResult<(&Keypair, Pubkey)> {
@@ -1579,14 +1583,17 @@ impl SolanaTransport {
     }
 
     pub(crate) fn try_new_with_program_id(
-        rpc: String,
+        rpcs: Vec<String>,
         keypair: Option<Keypair>,
         program_id: Pubkey,
         skip_preflight: bool,
     ) -> TransportResult<Self> {
+        let Some(first_rpc) = rpcs.first() else {
+            panic!("No RPC is specified for Solana transport");
+        };
         println!(
-            "Create Solana transport: RPC: {}, program_id: {:?}",
-            rpc, program_id
+            "Create Solana transport: RPCs: {:?}, program_id: {:?}",
+            rpcs, program_id
         );
         let commitment = if cfg!(test) {
             CommitmentConfig::confirmed()
@@ -1595,17 +1602,25 @@ impl SolanaTransport {
         };
         let debug = skip_preflight;
         let client = RpcClient::new_with_timeout_and_commitment(
-            rpc.clone(),
+            first_rpc.clone(),
             Duration::from_secs(60),
             commitment,
         );
         Ok(Self {
-            rpc,
+            rpcs,
+            rpc_index: Mutex::new(0),
             client,
             keypair,
             program_id,
             debug,
         })
+    }
+
+    async fn next_rpc_url(&self) -> &str {
+        let mut rpc_index = self.rpc_index.lock().await;
+        let current_index = *rpc_index;
+        *rpc_index = (*rpc_index + 1) % self.rpcs.len();
+        &self.rpcs[current_index]
     }
 
     fn parse_pubkey(addr: &str) -> TransportResult<Pubkey> {
