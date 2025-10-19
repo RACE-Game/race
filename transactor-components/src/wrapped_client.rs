@@ -1,10 +1,12 @@
-//! This component will handle the events sharing between
-//! transactors/validators.  Also it will handle the decryption for
-//! hidden information when there are enough secrets available.
-//! If the client is running as Validator mode, it will create the rpc client to
-//! connect to the Transactor.
-//! Following events will be handled by this component:
+//! This component handles the update of game context.  Send events
+//! to transactor (when as a validator) or local event bus (when as a
+//! transactor) when seeing it's at the decryption/encryption step of
+//! game progress.
+//!
+//! Following events will be handled:
 //! - ContextUpdated
+//! - Checkpoint
+//! - Shutdown
 
 use std::sync::Arc;
 

@@ -105,7 +105,7 @@ impl TransactorHandle {
             return Err(Error::GameBundleNotFound);
         };
 
-        let handler = Box::new(WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?);
+        let handler = Box::new(WrappedHandler::load_by_bundle(&bundle_account).await?);
 
         let event_bus = EventBus::new(game_account.addr.clone());
 

@@ -55,7 +55,7 @@ async fn send_checkpoint(
     }
 }
 
-async fn update_local_client(game_context: &GameContext, ports: &PipelinePorts) {
+async fn send_context_updated(game_context: &GameContext, ports: &PipelinePorts) {
     ports
         .send(EventFrame::ContextUpdated {
             context: Box::new(game_context.clone()),
@@ -372,8 +372,10 @@ pub async fn handle_event(
 
             send_checkpoint(checkpoint, game_context, ports).await;
 
-            // Update the local client
-            update_local_client(&game_context, ports).await;
+            // Send ContextUpdated frame to update the local client
+            // The local client sends necessary encryption/decryption
+            // messages to transactor.
+            send_context_updated(&game_context, ports).await;
 
             if client_mode == ClientMode::Transactor && stop_game {
                 let game_id = game_context.game_id();

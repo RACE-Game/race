@@ -7,7 +7,6 @@ use race_api::event::Event;
 pub fn general_handle_event(
     context: &mut GameContext,
     event: &Event,
-    encryptor: &dyn EncryptorT,
 ) -> Result<(), Error> {
     // General event handling
     match event {

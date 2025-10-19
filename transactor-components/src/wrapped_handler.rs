@@ -8,7 +8,6 @@ use race_api::event::Event;
 use race_api::init_account::InitAccount;
 use race_core::error::{Error, Result};
 use race_core::context::{EventEffects, GameContext};
-use race_core::encryptor::EncryptorT;
 use race_core::engine::general_handle_event;
 use race_core::types::GameBundle;
 use race_encryptor::Encryptor;
@@ -30,7 +29,6 @@ fn log_execution_context(effect_bs: &Vec<u8>, event_bs: &Vec<u8>) {
 pub struct WrappedHandler {
     store: Store,
     instance: Instance,
-    encryptor: Arc<dyn EncryptorT>,
 }
 
 impl HandlerT for WrappedHandler {
@@ -40,7 +38,7 @@ impl HandlerT for WrappedHandler {
         event: &Event,
     ) -> Result<EventEffects> {
         let mut new_context = context.clone();
-        general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
+        general_handle_event(&mut new_context, event)?;
         let event_effects = self.custom_handle_event(&mut new_context, event)?;
         swap(context, &mut new_context);
         Ok(event_effects)
@@ -64,7 +62,6 @@ impl WrappedHandler {
     /// Load WASM bundle by game address
     pub async fn load_by_bundle(
         bundle: &GameBundle,
-        encryptor: Arc<dyn EncryptorT>,
     ) -> Result<Self> {
         let mut store = Store::default();
         let module =
@@ -74,7 +71,6 @@ impl WrappedHandler {
         Ok(Self {
             store,
             instance,
-            encryptor,
         })
     }
 
