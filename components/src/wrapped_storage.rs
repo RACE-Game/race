@@ -9,9 +9,13 @@ pub struct WrappedStorage {
 }
 
 impl WrappedStorage {
-    pub async fn try_new(config: &Config) -> Result<Self> {
+    pub async fn try_new(config: &Config, readonly: bool) -> Result<Self> {
         let storage = if let Some(ref storage_config) = config.storage {
-            LocalDbStorage::try_new(&storage_config.db_file_name)?
+            if readonly { // For replayer
+                LocalDbStorage::try_new_readonly(&storage_config.db_file_name)?
+            } else { // For transactor
+                LocalDbStorage::try_new(&storage_config.db_file_name)?
+            }
         } else {
             LocalDbStorage::try_new_mem()?
         };

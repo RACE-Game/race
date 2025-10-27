@@ -8,7 +8,7 @@ use race_core::types::{BroadcastFrame, ServerAccount, Signature};
 use race_transport::TransportBuilder;
 use race_encryptor::Encryptor;
 use race_env::{Config, TransactorConfig};
-use race_transactor_components::{CheckpointBroadcastFrame, CloseReason, WrappedStorage, WrappedTransport};
+use race_components::{CheckpointBroadcastFrame, CloseReason, WrappedStorage, WrappedTransport};
 use race_transactor_frames::SignalFrame;
 use race_core::chain::ChainType;
 use tokio::task::JoinHandle;
@@ -52,7 +52,7 @@ impl ApplicationContext {
 
         let transport = Arc::new(WrappedTransport::try_new(transport).await?);
 
-        let storage = Arc::new(WrappedStorage::try_new(&config).await?);
+        let storage = Arc::new(WrappedStorage::try_new(&config, false).await?);
 
         let encryptor = Arc::new(Encryptor::default());
 

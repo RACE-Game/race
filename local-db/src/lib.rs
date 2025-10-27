@@ -8,7 +8,7 @@ use race_core::{
     storage::StorageT,
     types::{GetCheckpointParams, SaveCheckpointParams},
 };
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, OpenFlags};
 use tokio::sync::Mutex;
 use sha256::digest;
 
@@ -75,6 +75,18 @@ pub fn init_table(conn: &Connection) -> Result<()> {
 impl LocalDbStorage {
     pub fn try_new_mem() -> Result<Self> {
         let conn = Connection::open_in_memory().map_err(|e| Error::StorageError(e.to_string()))?;
+
+        init_table(&conn)?;
+
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+        })
+    }
+
+    pub fn try_new_readonly(db_file_path: &str) -> Result<Self> {
+        let conn =
+            Connection::open_with_flags(db_file_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .map_err(|e| Error::StorageError(e.to_string()))?;
 
         init_table(&conn)?;
 

@@ -5,7 +5,7 @@ mod validator;
 use std::sync::Arc;
 
 use race_transactor_frames::{BridgeToParent, SignalFrame};
-use race_transactor_components::{
+use race_components::{
     Broadcaster, CloseReason, EventBus, WrappedStorage, WrappedTransport,
 };
 use race_core::context::SubGameInit;

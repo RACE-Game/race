@@ -10,7 +10,7 @@ use race_core::{
     connection::ConnectionT,
     context::GameContext,
     secret::SecretState,
-    types::{AttachGameParams, ClientMode, DecisionId, ExitGameParams, SubmitEventParams, DepositStatus},
+    types::{AttachGameParams, ClientMode, ExitGameParams, SubmitEventParams, DepositStatus},
 };
 use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, Mutex};
@@ -200,7 +200,7 @@ impl TestClient {
         }
     }
 
-    pub fn answer(&mut self, decision_id: DecisionId, answer: String) -> Result<Event> {
+    pub fn answer(&mut self, decision_id: usize, answer: String) -> Result<Event> {
         self.client.answer_event(decision_id, answer)
     }
 

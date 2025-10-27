@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use race_transactor_frames::{EventFrame, BridgeToParent};
-use race_transactor_components::{
+use race_components::{
     Broadcaster, Component, EventBridgeChild, EventBus, EventLoop, LocalConnection, PortsHandle, WrappedClient, WrappedHandler
 };
 use race_core::error::{Error, Result};

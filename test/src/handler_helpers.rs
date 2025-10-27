@@ -3,7 +3,6 @@ use std::collections::HashMap;
 
 use race_api::engine::GameHandler;
 use race_api::event::Event;
-use race_api::types::RandomId;
 use race_core::context::{EventEffects, GameContext};
 use race_core::engine::general_handle_event;
 use race_core::error::Result;
@@ -23,7 +22,7 @@ where
     H: GameHandler,
 {
     handler: H,
-    random_results: HashMap<RandomId, HashMap<usize, String>>,
+    random_results: HashMap<usize, HashMap<usize, String>>,
 }
 
 impl<H: GameHandler> TestHandler<H> {
@@ -59,7 +58,7 @@ impl<H: GameHandler> TestHandler<H> {
         Ok(event_effects)
     }
 
-    pub fn set_random_result(&mut self, random_id: RandomId, result: HashMap<usize, String>) {
+    pub fn set_random_result(&mut self, random_id: usize, result: HashMap<usize, String>) {
         self.random_results.insert(random_id, result);
     }
 

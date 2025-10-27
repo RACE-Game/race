@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use race_transactor_components::{
+use race_components::{
     Component, EventBridgeParent, EventBus, EventLoop, PortsHandle, RemoteConnection, Subscriber,
     Voter, WrappedClient, WrappedHandler,
 };

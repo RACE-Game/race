@@ -3,6 +3,9 @@ mod error;
 mod context;
 mod server;
 mod ui;
+mod records_file_loader;
+mod session_manager;
+mod session;
 
 use borsh::BorshDeserialize;
 use clap::{arg, Command};
@@ -13,11 +16,11 @@ use crate::ui::render_controller_ui;
 use crate::utils::base64_decode;
 use race_env::Config;
 use race_event_record::{Record, RecordsHeader};
-use race_transport::builder::TransportBuilder;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::sync::Arc;
 use tracing::info;
+use records_file_loader::load_event_records_from_file;
 
 fn cli() -> Command {
     Command::new("replayer")
@@ -28,40 +31,28 @@ fn cli() -> Command {
         .subcommand(Command::new("play")
             .about("Replay events from a file")
             .arg(arg!(<FILE> "The event records file")))
+        .subcommand(Command::new("run")
+            .about("Run replayer as a web server"))
 }
 
 async fn play(context: ReplayerContext, file: String) -> Result<(), ReplayerError> {
-    let port = context.config.replayer.as_ref().expect("Missing replayer config").port;
+    let event_records = load_event_records_from_file(&context, file.into())?;
 
-    let context = Arc::new(context);
+    let server_handle = run_server(context).await?;
 
-    let mut lines = io::BufReader::new(File::open(file)?).lines();
-    let Some(Ok(header_line)) = lines.next() else {
-        return Err(ReplayerError::MissingHeader);
-    };
-
-    let header = RecordsHeader::try_from_slice(&base64_decode(&header_line)?)?;
-
-    let transport = TransportBuilder::default()
-        .with_chain(header.chain.as_str().into())
-        .try_with_config(&context.config)?
-        .build();
-
-    let mut records = vec![];
-    for ln in lines{
-        let ln = ln?;
-        let v = base64_decode(&ln)?;
-        let r = Record::try_from_slice(&v)?;
-        records.push(r);
-    }
-
-    let server_handle = run_server(context.clone()).await?;
-
-    render_controller_ui(context, header, records)?;
+    // render_controller_ui(context, event_records)?;
 
     server_handle.stop()?;
 
-    return Ok(())
+    Ok(())
+}
+
+async fn run(context: ReplayerContext) -> Result<(), ReplayerError> {
+    let server_handle = run_server(context).await?;
+
+    server_handle.stop()?;
+
+    Ok(())
 }
 
 #[tokio::main]
@@ -75,6 +66,9 @@ pub async fn main() {
         Some(("play", sub_matches)) => {
             let file = sub_matches.get_one::<String>("FILE").expect("required");
             play(context, file.into()).await.expect("An error occurred while playing events");
+        }
+        Some(("run", sub_matches)) => {
+            run(context).await.expect("An error occurred while running as web server");
         }
         _ => {
             panic!("A valid sub command is required");

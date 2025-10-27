@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::io;
 use crate::error::ReplayerError;
 use crate::context::ReplayerContext;
-use race_event_record::{Record, RecordsHeader};
+use race_event_record::{Record, EventRecords};
 use tui::{
     style::{Color, Style},
     backend::CrosstermBackend,
@@ -65,7 +65,8 @@ impl RecordsViewState {
     }
 }
 
-pub fn render_controller_ui(context: Arc<ReplayerContext>, header: RecordsHeader, records: Vec<Record>) -> Result<(), ReplayerError> {
+pub fn render_controller_ui(context: Arc<ReplayerContext>, event_records: EventRecords) -> Result<(), ReplayerError> {
+    let EventRecords { header, records } = event_records;
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;

@@ -6,7 +6,7 @@ use race_core::types::{BroadcastFrame, ClientMode, ServerAccount};
 use race_encryptor::Encryptor;
 use race_env::TransactorConfig;
 use race_transactor_frames::BridgeToParent;
-use race_transactor_components::{CheckpointBroadcastFrame, CloseReason, WrappedStorage, WrappedTransport};
+use race_components::{CheckpointBroadcastFrame, CloseReason, WrappedStorage, WrappedTransport};
 use race_transactor_frames::{EventFrame, SignalFrame};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;

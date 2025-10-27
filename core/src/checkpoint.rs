@@ -1,7 +1,9 @@
 use std::{collections::HashMap, fmt::Display};
 
+use race_api::event::Event;
 use crate::{
-    context::{DispatchEvent, Versions},
+    context::{DispatchEvent, Versions, Node},
+    types::PlayerBalance,
     error::Error,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -24,6 +26,8 @@ pub struct Checkpoint {
     pub data: HashMap<usize, VersionedData>,
     pub proofs: HashMap<usize, Vec<u8>>,
     pub launch_subgames: Vec<SubGame>,
+    pub nodes: Vec<Node>,
+    pub balances: Vec<PlayerBalance>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -35,6 +39,15 @@ pub struct CheckpointOnChain {
     pub access_version: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub struct EventRecord {
+    pub event: Event,
+    pub timestamp: u64,
+    pub sha256: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -42,6 +55,8 @@ pub struct CheckpointOffChain {
     pub data: HashMap<usize, VersionedData>,
     pub proofs: HashMap<usize, Vec<u8>>,
     pub launch_subgames: Vec<SubGame>,
+    pub nodes: Vec<Node>,
+    pub balances: Vec<PlayerBalance>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -54,6 +69,7 @@ pub struct VersionedData {
     pub game_spec: GameSpec,
     pub dispatch: Option<DispatchEvent>,
     pub bridge_events: Vec<EmitBridgeEvent>,
+    pub events: Vec<EventRecord>,
 }
 
 impl VersionedData {
@@ -90,10 +106,13 @@ impl Checkpoint {
                     sha: sha.into(),
                     dispatch: None,
                     bridge_events: vec![],
+                    events: vec![],
                 },
             )]),
             proofs: HashMap::new(),
             launch_subgames: vec![],
+            nodes: vec![],
+            balances: vec![],
         };
         ret.update_root_and_proofs();
         ret
@@ -109,6 +128,8 @@ impl Checkpoint {
             access_version: onchain_part.access_version,
             root: onchain_part.root,
             launch_subgames: offchain_part.launch_subgames,
+            nodes: offchain_part.nodes,
+            balances: offchain_part.balances,
         }
     }
 
@@ -182,6 +203,7 @@ impl Checkpoint {
                     versions,
                     dispatch: None,
                     bridge_events: vec![],
+                    events: vec![],
                 };
                 v.insert(versioned_data);
                 self.update_root_and_proofs();
@@ -301,6 +323,8 @@ impl Checkpoint {
             proofs: self.proofs.clone(),
             data: self.data.clone(),
             launch_subgames: self.launch_subgames.clone(),
+            nodes: self.nodes.clone(),
+            balances: self.balances.clone(),
         }
     }
 

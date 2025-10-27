@@ -1,6 +1,6 @@
 [package]
-name = "race-transactor-components"
-description = "RACE Transactor components"
+name = "race-components"
+description = "RACE system components"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

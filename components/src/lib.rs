@@ -1,4 +1,5 @@
 mod broadcaster;
+mod replayer_control;
 mod common;
 mod connection;
 mod event_bus;
@@ -28,8 +29,8 @@ pub use event_loop::EventLoop;
 pub use submitter::Submitter;
 pub use subscriber::Subscriber;
 pub use synchronizer::GameSynchronizer;
-#[allow(unused)]
 pub use recorder::Recorder;
+pub use replayer_control::ReplayerControl;
 pub use voter::Voter;
 pub use wrapped_client::WrappedClient;
 pub use wrapped_handler::WrappedHandler;

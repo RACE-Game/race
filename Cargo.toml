@@ -6,7 +6,7 @@ members = [
   "proc-macro",
   "transactor",
   "transactor-frames",
-  "transactor-components",
+  "components",
   "cli",
   "storage",
   "encryptor",
@@ -37,7 +37,7 @@ race-encryptor = { path = "encryptor", version = ">=0.2.6" }
 race-event-record = { path = "event-record", version = ">=0.2.6" }
 race-test = { path = "test", version = ">=0.2.6" }
 race-env = { path = "env", version = "*" }
-race-transactor-components = { path = "transactor-components", version = "*" }
+race-components = { path = "components", version = "*" }
 race-transport = { path = "transport", version = "*" }
 race-transactor-frames = { path = "transactor-frames", version = "*" }
 race-storage = { path = "storage", version = "*" }

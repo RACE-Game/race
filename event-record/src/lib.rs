@@ -70,3 +70,17 @@ impl Record {
         }
     }
 }
+
+pub struct EventRecords {
+    pub header: RecordsHeader,
+    pub records: Vec<Record>,
+}
+
+impl EventRecords {
+    pub fn new(
+        header: RecordsHeader,
+        records: Vec<Record>,
+    ) -> Self {
+        Self { header, records }
+    }
+}

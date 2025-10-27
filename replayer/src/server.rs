@@ -1,6 +1,4 @@
 use std::sync::Arc;
-use tracing::info;
-use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
 use tower::ServiceBuilder;
 use tower_http::cors::Any;
@@ -9,6 +7,8 @@ use hyper::Method;
 use std::net::SocketAddr;
 use crate::error::ReplayerError;
 use crate::context::ReplayerContext;
+use tracing::{info, warn, error};
+use serde::{Serialize, Deserialize};
 use jsonrpsee::core::error::Error as RpcError;
 use jsonrpsee::core::StringError;
 use jsonrpsee::server::{ServerHandle, AllowHosts};
@@ -17,12 +17,31 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
 use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage, TrySendError};
 
-fn ping(_: Params<'_>, _: &Arc<ReplayerContext>) -> Result<String, RpcError> {
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct SubscribeEventOptions {
+    game_addr: String,
+    player_addr: String,
+    start_settle_version: Option<u64>, // the starting point, None stands for starting from very beginning.
+}
+
+async fn ping(_: Params<'_>, _: Arc<ReplayerContext>) -> Result<String, RpcError> {
     Ok("pong".to_string())
 }
 
-pub async fn run_server(
+async fn subscribe_event(
+    params: Params<'_>,
+    pending: PendingSubscriptionSink,
     context: Arc<ReplayerContext>,
+) -> Result<(), StringError> {
+
+    let opts = params.parse::<SubscribeEventOptions>()?;
+
+    Ok(())
+}
+
+pub async fn run_server(
+    context: ReplayerContext,
 ) -> Result<ServerHandle, ReplayerError> {
     let port = 11222;
     let cors = CorsLayer::new()
@@ -44,8 +63,15 @@ pub async fn run_server(
 
     let mut module = RpcModule::new(context);
 
-    module.register_method("ping", ping)?;
-//    module.register_method("")?;
+    module.register_async_method("attach_replay", ping)?;
+    module.register_async_method("replay_control", ping)?;
+    module.register_subscription(
+        "subscribe_event",
+        "s_event",
+        "unsubscribe_event",
+        subscribe_event,
+    )?;
+
     let handle = server.start(module)?;
     Ok(handle)
 }

@@ -288,6 +288,5 @@ where
         PortsHandle::from_io(Self::name(), io, join_handle)
     }
 
-
     async fn run(ports: P, context: C, env: ComponentEnv) -> CloseReason;
 }

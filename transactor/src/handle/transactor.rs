@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use race_transactor_components::{
+use race_components::{
     Broadcaster, Component, EventBridgeParent, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle, Refunder, Submitter, WrappedClient, WrappedHandler, Recorder
 };
 use race_transactor_frames::{EventFrame, SignalFrame};

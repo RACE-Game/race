@@ -10,7 +10,7 @@ use race_core::prelude::*;
 #[derive(Serialize, Deserialize)]
 struct Player {
     pub balance: u64,
-    pub decision_id: DecisionId,
+    pub decision_id: usize,
     pub acted: bool,
 }
 

@@ -20,6 +20,9 @@ pub enum ReplayerError {
 
     #[error("Addr parse error: {0}")]
     AddrParseError(std::net::AddrParseError),
+
+    #[error("Replay not exists")]
+    ReplayNotExists,
 }
 
 impl From<IoError> for ReplayerError {
