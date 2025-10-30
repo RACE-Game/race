@@ -49,7 +49,14 @@ EOF
 }
 
 # Make a JSON specification for cash game
-# TITLE TOKEN
+# Arguments
+# - TITLE
+# - TOKEN_ADDR, e.g. FACADE_USDC
+# - MAX_PLAYERS, e.g. 6
+# - SB
+# - BB
+# - ANTE
+# - VARIANT, omaha | holdem
 function make_cash {
 
     local MIN_DEPOSIT=$(($5 * 50))
@@ -67,7 +74,7 @@ function make_cash {
     local json=$(cat <<EOF
 {
     "title": "$1",
-    "bundle": "../race-holdem/target/race_holdem_cash.wasm",
+    "bundle": "../race-holdem/target/race_$7_cash.wasm",
     "token": "$2",
     "maxPlayers": $3,
     "entryType": {
