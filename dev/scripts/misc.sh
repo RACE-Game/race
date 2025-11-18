@@ -26,7 +26,10 @@ function make_tourney {
                              -u16 50 \
                              -u16 10 \
                              -u8 0 \
-                             -s "raceholdemtargetraceholdemmtttablewasm")
+                             -s "raceholdemtargetraceholdemmtttablewasm" \
+                             -u64 30000 \
+                             -u8 10
+          )
 
     local json=$(cat <<EOF
 {
