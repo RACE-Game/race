@@ -460,7 +460,7 @@ async fn recipient_info(addr: &str, transport: Arc<dyn TransportT>) {
 async fn create_reg(transport: Arc<dyn TransportT>) {
     let params = CreateRegistrationParams {
         is_private: false,
-        size: 100,
+        size: 60,
     };
     let addr = transport
         .create_registration(params)
