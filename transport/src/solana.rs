@@ -7,6 +7,7 @@ use constants::*;
 use futures::{Stream, StreamExt};
 use solana_transaction_status::UiTransactionEncoding;
 use tokio::sync::Mutex;
+use tokio::time::timeout;
 use std::time::Duration;
 use tracing::{error, info, warn};
 use types::*;
@@ -65,6 +66,7 @@ mod nft;
 const METAPLEX_PROGRAM_ID: &str = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s";
 
 const FEE_CAP: u64 = 20000;
+const RESTART_SUBSCRIPTION_TIMEOUT_SECS: u64 = 180;
 
 const PLAYERS_REG_HEAD_LEN: usize = 152;
 const PLAYERS_REG_INIT_LEN: usize = PLAYERS_REG_HEAD_LEN + 4;
@@ -1314,7 +1316,9 @@ impl TransportT for SolanaTransport {
                 }
             };
 
-            while let Some(rpc_response) = stream.next().await {
+            while let Ok(Some(rpc_response)) = timeout(
+                Duration::from_secs(RESTART_SUBSCRIPTION_TIMEOUT_SECS), stream.next()
+            ).await {
                 let ui_account: UiAccount = rpc_response.value;
 
                 let Some(data) = ui_account.data.decode() else {
@@ -1363,6 +1367,12 @@ impl TransportT for SolanaTransport {
                 };
                 yield(Ok(acc));
             }
+
+            // We restart subscription regularly to avoid broken connection.
+            // A broken connection is the case where the connection is established,
+            // no error raises, but no further update is delivered.
+            unsub().await;
+            return;
         }))
     }
 
