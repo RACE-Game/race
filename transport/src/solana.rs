@@ -1437,6 +1437,7 @@ impl TransportT for SolanaTransport {
             addr: addr.to_owned(),
             nick: profile_state.nick,
             pfp,
+            credentials: profile_state.credentials,
         }))
     }
 
@@ -1447,6 +1448,7 @@ impl TransportT for SolanaTransport {
         Ok(Some(ServerAccount {
             addr: server_state.owner.to_string(),
             endpoint: server_state.endpoint,
+            credentials: server_state.credentials,
         }))
     }
 

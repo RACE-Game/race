@@ -14,8 +14,9 @@ use jsonrpsee::{core::Error as RpcError, RpcModule};
 use race_api::types::{BalanceChange, PlayerBalance};
 use race_core::error::Error;
 use race_core::types::RecipientSlotShare;
+use race_core::entry_type::EntryType;
 use race_core::types::{
-    DepositParams, EntryType, GameAccount, GameRegistration, PlayerDeposit, PlayerJoin,
+    DepositParams, GameAccount, GameRegistration, PlayerDeposit, PlayerJoin,
     PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin,
     SettleParams, TokenAccount, Vote, VoteParams, VoteType,
 };
@@ -57,7 +58,6 @@ pub struct JoinInstruction {
     position: u16,
     access_version: u64,
     amount: u64,
-    verify_key: String,
 }
 
 #[derive(Deserialize)]
@@ -65,7 +65,6 @@ pub struct JoinInstruction {
 pub struct ServeInstruction {
     game_addr: String,
     server_addr: String,
-    verify_key: String,
 }
 
 #[allow(unused)]
@@ -168,7 +167,6 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         access_version,
         position,
         player_addr,
-        verify_key,
     } = params.one()?;
     let context = context.lock().await;
     if let Some(mut game_account) = context.get_game_account(&game_addr)? {
@@ -222,7 +220,6 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                         addr: player_addr.clone(),
                         position,
                         access_version: game_account.access_version,
-                        verify_key,
                     };
                     let player_deposit = PlayerDeposit {
                         addr: player_addr.clone(),
@@ -256,7 +253,6 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                         addr: player_addr.clone(),
                         position,
                         access_version: game_account.access_version,
-                        verify_key,
                     };
                     println!(
                         "! Join game: player: {}, game: {}, amount: {},  access version: {} -> {}",
@@ -527,7 +523,6 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
     let ServeInstruction {
         game_addr,
         server_addr,
-        verify_key,
     } = params.one()?;
     let context = context.lock().await;
     let mut is_transactor = false;
@@ -568,7 +563,6 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
                 server_addr.clone(),
                 server_account.endpoint.clone(),
                 new_access_version,
-                verify_key,
             ));
         }
     }
@@ -587,7 +581,7 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
 async fn get_balance(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<Vec<u8>> {
     let (player_addr, token_addr) = params.parse::<(String, String)>()?;
     let context = context.lock().await;
-    let mut amount = 0u64;
+    let mut amount = 999999999u64;
     if let Some(player) = context.get_player_info(&player_addr)? {
         if let Some(balance) = player.balances.get(&token_addr) {
             amount = *balance;

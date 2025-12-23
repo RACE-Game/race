@@ -26,7 +26,6 @@ use crate::error::{TransportError, TransportResult};
 pub struct ServeInstruction {
     game_addr: String,
     server_addr: String,
-    verify_key: String,
 }
 
 #[derive(Serialize)]
@@ -104,7 +103,6 @@ impl TransportT for FacadeTransport {
                 rpc_params![ServeInstruction {
                     game_addr: params.game_addr,
                     server_addr: self.addr(),
-                    verify_key: params.verify_key,
                 }],
             )
             .await

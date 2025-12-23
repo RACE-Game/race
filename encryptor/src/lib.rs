@@ -21,6 +21,7 @@ use openssl::{
     pkey::{Private, Public},
     rsa::{Padding, Rsa},
 };
+use race_core::credentials::Credentials;
 use race_core::types::{SecretDigest, SecretKey};
 use race_core::encryptor::{EncryptorError, EncryptorResult, EncryptorT, NodePublicKeyRaw};
 use race_core::types::Signature;
@@ -156,7 +157,13 @@ fn import_rsa_private(raw: &str) -> EncryptorResult<Rsa<Private>> {
     Ok(key)
 }
 
-fn import_rsa_public(raw: &str) -> EncryptorResult<Rsa<Public>> {
+fn import_rsa_public(raw: &[u8]) -> EncryptorResult<Rsa<Public>> {
+    let key = Rsa::public_key_from_der(&raw).map_err(|_| EncryptorError::ImportPublicKeyError)?;
+    Ok(key)
+}
+
+#[allow(unused)]
+fn import_rsa_public_str(raw: &str) -> EncryptorResult<Rsa<Public>> {
     let der = base64_decode(raw)?;
     let key = Rsa::public_key_from_der(&der).map_err(|_| EncryptorError::ImportPublicKeyError)?;
     Ok(key)
@@ -183,7 +190,13 @@ fn import_ec_private(raw: &str) -> EncryptorResult<EcKey<Private>> {
     Ok(key)
 }
 
-fn import_ec_public(raw: &str) -> EncryptorResult<EcKey<Public>> {
+fn import_ec_public(raw: &[u8]) -> EncryptorResult<EcKey<Public>> {
+    let key = EcKey::public_key_from_der(&raw).map_err(|_| EncryptorError::ImportPublicKeyError)?;
+    Ok(key)
+}
+
+#[allow(unused)]
+fn import_ec_public_str(raw: &str) -> EncryptorResult<EcKey<Public>> {
     let der = base64_decode(raw)?;
     let key = EcKey::public_key_from_der(&der).map_err(|_| EncryptorError::ImportPublicKeyError)?;
     Ok(key)
@@ -340,36 +353,49 @@ impl EncryptorT for Encryptor {
         }
     }
 
-    fn add_public_key(&self, addr: String, raw: &NodePublicKeyRaw) -> EncryptorResult<()> {
-        let ec = import_ec_public(&raw.ec)?;
-        let rsa = import_rsa_public(&raw.rsa)?;
+    fn import_credentials(&self, addr: &str, credentials: Credentials) -> EncryptorResult<()> {
+        let ec = import_ec_public(&credentials.ec_public)?;
+        let rsa = import_rsa_public(&credentials.rsa_public)?;
 
         let mut public_keys = self
             .publics
             .lock()
             .map_err(|_| EncryptorError::AddPublicKeyError)?;
 
-        public_keys.insert(addr, NodePublicKey { rsa, ec });
+        public_keys.insert(addr.to_string(), NodePublicKey { rsa, ec });
         Ok(())
     }
+
+    // fn add_public_key(&self, addr: String, raw: &NodePublicKeyRaw) -> EncryptorResult<()> {
+    //     let ec = import_ec_public(&raw.ec)?;
+    //     let rsa = import_rsa_public(&raw.rsa)?;
+
+    //     let mut public_keys = self
+    //         .publics
+    //         .lock()
+    //         .map_err(|_| EncryptorError::AddPublicKeyError)?;
+
+    //     public_keys.insert(addr, NodePublicKey { rsa, ec });
+    //     Ok(())
+    // }
 
     fn digest(&self, text: &[u8]) -> SecretDigest {
         Sha256::digest(text).to_vec()
     }
 
-    fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<NodePublicKeyRaw> {
-        let publics = self
-            .publics
-            .lock()
-            .map_err(|_| EncryptorError::ReadPublicKeyError)?;
-        Ok(match addr {
-            Some(addr) => publics
-                .get(addr)
-                .ok_or(EncryptorError::PublicKeyNotfound)?
-                .try_into()?,
-            None => (&self.private).try_into()?,
-        })
-    }
+    // fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<NodePublicKeyRaw> {
+    //     let publics = self
+    //         .publics
+    //         .lock()
+    //         .map_err(|_| EncryptorError::ReadPublicKeyError)?;
+    //     Ok(match addr {
+    //         Some(addr) => publics
+    //             .get(addr)
+    //             .ok_or(EncryptorError::PublicKeyNotfound)?
+    //             .try_into()?,
+    //         None => (&self.private).try_into()?,
+    //     })
+    // }
 }
 
 #[cfg(test)]
@@ -405,6 +431,19 @@ mod tests {
     //         Ok(HashMap::from([(0, "OcPShKslbZKO5Gc_H-7WF".to_string())]))
     //     );
     // }
+
+    #[test]
+    fn st() -> anyhow::Result<()> {
+        let mut ciphertext = vec![208, 106];
+        let secrets =
+            vec![22,109,18,116,185,237,253,196,132,144,46,195,182,168,247,198,222,131,31,215,50,85,47,55,112,162,217,128,134,239,84,100];
+
+        let encryptor = Encryptor::default();
+        encryptor.apply(&secrets, &mut ciphertext);
+
+        println!("buf: {:?}", ciphertext);
+        Ok(())
+    }
 
     #[test]
     fn test_sign_verify() {
@@ -514,7 +553,7 @@ mod tests {
     fn test_rsa_creation() -> anyhow::Result<()> {
         let rsa = rsa_generate()?;
         let rsa_pub_raw = export_rsa_public(&rsa)?;
-        let rsa_pub = import_rsa_public(&rsa_pub_raw)?;
+        let rsa_pub = import_rsa_public_string(&rsa_pub_raw)?;
         let rsa_pub_raw0 = export_rsa_public(&rsa_pub)?;
         assert_eq!(rsa_pub_raw0, rsa_pub_raw);
         Ok(())

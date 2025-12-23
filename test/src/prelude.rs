@@ -7,6 +7,7 @@ pub use crate::misc::*;
 
 pub use race_core::error::{Error, Result};
 pub use race_api::types::{Settle, Transfer};
-pub use race_core::context::{DispatchEvent, GameContext};
+pub use race_core::context::GameContext;
+pub use race_core::dispatch_event::DispatchEvent;
 pub use race_core::types::{GameAccount, ClientMode};
-pub use race_api::effect::{SubGame, EmitBridgeEvent};
+pub use race_api::effect::{LaunchSubGame, EmitBridgeEvent};

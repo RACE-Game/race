@@ -10,4 +10,5 @@ pub struct PlayerProfile {
     pub addr: String,
     pub nick: String,
     pub pfp: Option<String>,
+    pub credentials: Vec<u8>,
 }

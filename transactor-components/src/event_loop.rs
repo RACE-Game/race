@@ -1,9 +1,14 @@
-use race_api::types::GameDeposit;
+use std::sync::Arc;
 
+use race_api::types::GameDeposit;
 use async_trait::async_trait;
 use race_api::event::Event;
 use race_core::context::GameContext;
+use race_core::game_spec::GameSpec;
+use race_core::encryptor::EncryptorT;
 use tracing::{error, info, warn};
+use race_handler::HandlerManager;
+use race_core::transport::TransportT;
 
 use crate::common::{Component, PipelinePorts};
 use crate::event_bus::CloseReason;
@@ -12,17 +17,17 @@ use race_transactor_frames::EventFrame;
 use crate::utils::current_timestamp;
 use race_core::types::{ClientMode, GameMode, GamePlayer};
 
-use super::handler::HandlerT;
 use super::ComponentEnv;
 
 mod event_handler;
 mod misc;
 
 pub struct EventLoopContext {
-    handler: Box<dyn HandlerT>,
-    game_context: GameContext,
+    game_spec: GameSpec,
     client_mode: ClientMode,
     game_mode: GameMode,
+    encryptor: Arc<dyn EncryptorT>,
+    transport: Arc<dyn TransportT>,
 }
 
 pub struct EventLoop {}
@@ -38,55 +43,76 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         ctx: EventLoopContext,
         env: ComponentEnv,
     ) -> CloseReason {
-        let mut handler = ctx.handler;
-        let mut game_context = ctx.game_context;
+        // Create an empty game context, replace it later with the real one.
+        let mut game_context = GameContext::default();
+        let game_spec = ctx.game_spec;
+        let encryptor = ctx.encryptor;
+
+        let mut handler_manager = HandlerManager::new(ctx.transport);
+
+        let mut handler = match handler_manager.get_handler(&game_spec.bundle_addr).await {
+            Ok(handler) => handler,
+            Err(e) => {
+                return CloseReason::Fault(e)
+            }
+        };
 
         // Read games from event bus
         while let Some(event_frame) =
             misc::read_event(&mut ports, &mut game_context, ctx.client_mode).await
         {
+
             match event_frame {
+                // The first initialization, this runs only once for each game
                 EventFrame::InitState {
                     access_version,
                     settle_version,
-                    ..
+                    nodes,
+                    init_account,
                 } => {
-                    // There are two scenarios for game handler initialization.
-                    //
-                    // Initialize a empty new handler. This is required when we have no checkpoint available.
-                    // An init account is created during the process and is passed to the init_state
-                    // function of the game handler.
-                    //
-                    // Recover from checkpoint. When the checkpoint is available, there's no need to call
-                    // init_state from the game handler.
-                    if !game_context.handler_is_initialized() {
-                        if let Some(close_reason) = event_handler::init_state(
-                            access_version,
-                            settle_version,
-                            &mut *handler,
-                            &mut game_context,
-                            &ports,
-                            ctx.client_mode,
-                            ctx.game_mode,
-                            &env,
-                        )
-                        .await
-                        {
-                            return close_reason;
+                    match event_handler::init_state(
+                        access_version,
+                        settle_version,
+                        nodes,
+                        &mut *handler,
+                        &game_spec,
+                        init_account,
+                        &ports,
+                        ctx.game_mode,
+                        &env,
+                    ).await {
+                        Ok(ctx) => {
+                            game_context = ctx;
                         }
-                    } else {
-                        if let Some(close_reason) = event_handler::recover_from_checkpoint(
-                            &mut game_context,
-                            &ports,
-                            ctx.client_mode,
-                            ctx.game_mode,
-                            &env,
-                        )
-                        .await
-                        {
-                            return close_reason;
+                        Err(e) => {
+                            return CloseReason::Fault(e);
                         }
                     }
+                }
+
+                // The initialization for a game that has a checkpoint.
+                // It's one of these three cases:
+                // 1. The transactor is resuming a game
+                // 2. The validator is initializing a game
+                // 3. The sub game is initializing (sub game is always started with a checkpoint)
+                EventFrame::RecoverCheckpoint {
+                    checkpoint,
+                } => {
+                    match event_handler::recover_from_checkpoint(
+                        &checkpoint,
+                        &ports,
+                        ctx.client_mode,
+                        ctx.game_mode,
+                        &env,
+                    ).await {
+                        Ok(ctx) => {
+                            game_context = ctx;
+                        }
+                        Err(e) => {
+                            return CloseReason::Fault(e);
+                        }
+                    }
+
                 }
 
                 EventFrame::SubSync {
@@ -185,8 +211,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             let event = Event::Join { players };
                             if let Some(close_reason) = event_handler::handle_event(
                                 &mut *handler,
+                                &mut handler_manager,
                                 &mut game_context,
                                 event,
+                                &*encryptor,
                                 &ports,
                                 ctx.client_mode,
                                 ctx.game_mode,
@@ -203,8 +231,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             let event = Event::Deposit { deposits };
                             if let Some(close_reason) = event_handler::handle_event(
                                 &mut *handler,
+                                &mut handler_manager,
                                 &mut game_context,
                                 event,
+                                &*encryptor,
                                 &ports,
                                 ctx.client_mode,
                                 ctx.game_mode,
@@ -220,12 +250,15 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 }
                 EventFrame::PlayerLeaving { player_addr } => {
                     let timestamp = current_timestamp();
+
                     if let Ok(player_id) = game_context.addr_to_id(&player_addr) {
                         let event = Event::Leave { player_id };
                         if let Some(close_reason) = event_handler::handle_event(
                             &mut *handler,
+                            &mut handler_manager,
                             &mut game_context,
                             event,
+                            &*encryptor,
                             &ports,
                             ctx.client_mode,
                             ctx.game_mode,
@@ -254,7 +287,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     {
                         info!("SubGameReady: Update checkpoint for sub game: {}", game_id);
                         if let Err(e) =
-                            game_context.handle_versioned_data(game_id, versioned_data, true)
+                            game_context.init_sub_game_data(versioned_data)
                         {
                             error!(
                                 "{} Failed in handling new sub game's versioned data: {:?}",
@@ -271,8 +304,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         };
                         if let Some(close_reason) = event_handler::handle_event(
                             &mut *handler,
+                            &mut handler_manager,
                             &mut game_context,
                             event,
+                            &*encryptor,
                             &ports,
                             ctx.client_mode,
                             ctx.game_mode,
@@ -299,7 +334,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             game_id
                         );
                         if let Err(e) =
-                            game_context.handle_versioned_data(game_id, versioned_data, false)
+                            game_context.update_sub_game_data(versioned_data)
                         {
                             error!(
                                 "{} SubGameShutdown: Failed in handling new sub game's versioned data: {:?}",
@@ -325,7 +360,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     if game_context.game_id() == 0 && dest == 0 && from != 0 && settle_version > 0 {
                         info!("BridgeEvent: Update checkpoint for sub game: {}", from);
                         if let Err(e) =
-                            game_context.handle_versioned_data(from, versioned_data, false)
+                            game_context.update_sub_game_data(versioned_data)
                         {
                             error!(
                                 "{} Failed in handling new sub game's versioned data: {:?}",
@@ -338,8 +373,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     if let Some(close_reason) = event_handler::handle_event(
                         &mut *handler,
+                        &mut handler_manager,
                         &mut game_context,
                         event,
+                        &*encryptor,
                         &ports,
                         ctx.client_mode,
                         ctx.game_mode,
@@ -354,8 +391,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 EventFrame::SendEvent { event, timestamp } => {
                     if let Some(close_reason) = event_handler::handle_event(
                         &mut *handler,
+                        &mut handler_manager,
                         &mut game_context,
                         event,
+                        &*encryptor,
                         &ports,
                         ctx.client_mode,
                         ctx.game_mode,
@@ -375,8 +414,10 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
                     if let Some(close_reason) = event_handler::handle_event(
                         &mut *handler,
+                        &mut handler_manager,
                         &mut game_context,
                         event,
+                        &*encryptor,
                         &ports,
                         ctx.client_mode,
                         ctx.game_mode,
@@ -402,18 +443,20 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
 
 impl EventLoop {
     pub fn init(
-        handler: Box<dyn HandlerT + Send>,
-        game_context: GameContext,
+        game_spec: GameSpec,
+        encryptor: Arc<dyn EncryptorT>,
+        transport: Arc<dyn TransportT>,
         client_mode: ClientMode,
         game_mode: GameMode,
     ) -> (Self, EventLoopContext) {
         (
             Self {},
             EventLoopContext {
-                handler,
-                game_context,
+                game_spec,
                 client_mode,
                 game_mode,
+                encryptor,
+                transport,
             },
         )
     }

@@ -6,12 +6,15 @@ use crate::prelude::{AsGameContextRef, TestHandler};
 use borsh::BorshSerialize;
 use race_api::engine::GameHandler;
 use race_api::event::Event;
-use race_api::prelude::InitAccount;
 use race_core::error::Result;
 use race_core::checkpoint::{CheckpointOffChain, CheckpointOnChain, VersionedData};
 use race_core::random::RandomState;
-use race_core::types::{ClientMode, EntryLock, EntryType, GameAccount, GameSpec, PlayerDeposit, PlayerJoin, ServerJoin, DepositStatus};
-use race_core::context::{DispatchEvent, EventEffects, GameContext, Versions};
+use race_core::types::{ClientMode, EntryLock, GameAccount, PlayerDeposit, PlayerJoin, ServerJoin, DepositStatus};
+use race_core::game_spec::GameSpec;
+use race_core::entry_type::EntryType;
+use race_core::dispatch_event::DispatchEvent;
+use race_core::versions::Versions;
+use race_core::context::{EventEffects, GameContext};
 
 pub struct TestContext<H>
 where
@@ -142,10 +145,6 @@ impl<H: GameHandler> TestContext<H> {
             e = self.handle_event(event)?;
         }
         Ok(e)
-    }
-
-    pub fn init_account(&self) -> Result<InitAccount> {
-        Ok(self.context.init_account())
     }
 
     pub fn state(&self) -> &H {

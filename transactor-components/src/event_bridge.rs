@@ -168,10 +168,10 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
             } else {
                 // Bridge parent receives event from event bus
                 match event_frame {
-                    EventFrame::LaunchSubGame { sub_game_init } => {
-                        let game_id = sub_game_init.spec.game_id;
+                    EventFrame::LaunchSubGame { checkpoint } => {
+                        let game_id = (*checkpoint).root_data().game_spec.game_id;
                         let f = SignalFrame::LaunchSubGame {
-                            sub_game_init: *sub_game_init,
+                            checkpoint: *checkpoint,
                             bridge_to_parent: BridgeToParent {
                                 rx_from_parent: ctx.tx.subscribe(),
                                 tx_to_parent: ctx.sub_tx.clone(),

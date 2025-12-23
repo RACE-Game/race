@@ -2,7 +2,7 @@ use crate::blacklist::Blacklist;
 use crate::game_manager::{ServingGame, GameManager};
 use race_api::event::{Event, Message};
 use race_core::error::{Error, Result};
-use race_core::encryptor::{EncryptorT, NodePublicKeyRaw};
+use race_core::encryptor::EncryptorT;
 use race_core::transport::TransportT;
 use race_core::types::{BroadcastFrame, ServerAccount, Signature};
 use race_transport::TransportBuilder;
@@ -36,7 +36,6 @@ impl ApplicationContext {
         info!("Initialize application context");
 
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
-
 
         let chain: &str = &config
             .transactor
@@ -93,6 +92,7 @@ impl ApplicationContext {
         Ok((ctx, join_handle))
     }
 
+    // This starts a global event loop for game creation/shutdown/etc.
     pub fn start_signal_loop(&self, mut signal_rx: mpsc::Receiver<SignalFrame>, shutdown_tx: watch::Sender<bool>) -> JoinHandle<()> {
         info!("Starting signal loop");
 
@@ -136,10 +136,10 @@ impl ApplicationContext {
                                 join_handles.push(join_handle);
                             }
                     }
-                    SignalFrame::LaunchSubGame { sub_game_init, bridge_to_parent } => {
+                    SignalFrame::LaunchSubGame { checkpoint, bridge_to_parent } => {
                         if let Some(join_handle) = game_manager_1
                             .launch_sub_game(
-                                sub_game_init,
+                                checkpoint,
                                 bridge_to_parent,
                                 &account_1,
                                 transport_1.clone(),
@@ -177,16 +177,18 @@ impl ApplicationContext {
         })
     }
 
-    pub async fn register_key(&self, player_addr: String, key: NodePublicKeyRaw) -> Result<()> {
-        self.encryptor.add_public_key(player_addr, &key)?;
-        Ok(())
-    }
+    // XXX no longer needed
+    // pub async fn register_key(&self, player_addr: String, key: NodePublicKeyRaw) -> Result<()> {
+    //     self.encryptor.add_public_key(player_addr, &key)?;
+    //     Ok(())
+    // }
 
-    pub fn export_public_key(&self) -> NodePublicKeyRaw {
-        self.encryptor
-            .export_public_key(None)
-            .expect("Export public key failed")
-    }
+    // #[allow(unused)]
+    // pub fn export_public_key(&self) -> NodePublicKeyRaw {
+    //     self.encryptor
+    //         .export_public_key(None)
+    //         .expect("Export public key failed")
+    // }
 
     pub fn verify(&self, arg: &[u8], signature: &Signature) -> Result<()> {
         self.encryptor.verify(arg, signature)?;

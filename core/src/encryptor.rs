@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use crate::types::{SecretKey, SecretDigest, Signature, Ciphertext};
 #[cfg(feature = "serde")]
 use serde::{Serialize, Deserialize};
+use crate::credentials::Credentials;
 
 #[derive(Debug, PartialEq, Eq, Clone, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -84,9 +85,12 @@ impl From<EncryptorError> for crate::error::Error {
 }
 
 pub trait EncryptorT: std::fmt::Debug + Send + Sync {
-    fn add_public_key(&self, addr: String, raw: &NodePublicKeyRaw) -> EncryptorResult<()>;
+    fn import_credentials(&self, addr: &str, credentials: Credentials) -> EncryptorResult<()>;
 
-    fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<NodePublicKeyRaw>;
+    // XXX refactored
+    // fn add_public_key(&self, addr: String, raw: &NodePublicKeyRaw) -> EncryptorResult<()>;
+
+    // fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<NodePublicKeyRaw>;
 
     fn gen_secret(&self) -> SecretKey;
 

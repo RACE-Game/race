@@ -17,7 +17,6 @@ use race_transport::builder::TransportBuilder;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::sync::Arc;
-use tracing::info;
 
 fn cli() -> Command {
     Command::new("replayer")

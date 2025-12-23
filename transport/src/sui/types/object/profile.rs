@@ -6,6 +6,7 @@ pub struct PlayerProfileObject {
     pub id: SuiAddress,
     pub nick: String,
     pub pfp: Option<SuiAddress>,
+    pub credentials: Vec<u8>,
 }
 
 impl PlayerProfileObject {
@@ -17,7 +18,8 @@ impl PlayerProfileObject {
         PlayerProfile {
             addr: self.id.to_string(),
             nick: self.nick,
-            pfp
+            pfp,
+            credentials: self.credentials,
         }
     }
 }

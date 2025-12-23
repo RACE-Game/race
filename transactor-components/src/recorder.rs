@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use borsh::BorshSerialize;
-use race_core::types::GameSpec;
+use race_core::game_spec::GameSpec;
+use race_core::entry_type::EntryType;
+use race_core::chain::ChainType;
 use race_transactor_frames::EventFrame;
 use race_event_record::{RecordsHeader, Record};
-use race_core::chain::ChainType;
-use race_core::types::EntryType;
 use std::fs::{File, create_dir};
 use std::io::{Write, BufWriter};
 use std::path::{Path, PathBuf};
@@ -83,6 +83,7 @@ pub struct Recorder {
 
 pub struct RecorderContext {
     writer: Arc<Mutex<dyn RecordWriter + Send + Sync>>,
+    #[allow(unused)]
     game_id: usize,
 }
 
@@ -136,7 +137,7 @@ impl Component<ConsumerPorts, RecorderContext> for Recorder {
         env: ComponentEnv,
     ) -> CloseReason {
 
-        let RecorderContext { game_id, writer } = ctx;
+        let RecorderContext { writer, .. } = ctx;
 
         while let Some(event_frame) = ports.recv().await {
             info!("{} Handle event frame: {}", env.log_prefix, event_frame);
@@ -157,20 +158,19 @@ impl Component<ConsumerPorts, RecorderContext> for Recorder {
                 }
 
                 EventFrame::Checkpoint {
-                    access_version,
-                    settle_version,
-                    checkpoint,
-                    nodes,
-                    balances,
-                    ..
+                    checkpoint: _,
                 } => {
-                    if let Some(state) = checkpoint.get_data(game_id) {
-                        let record = Record::Checkpoint {
-                            state, nodes, access_version, settle_version, balances,
-                        };
+                    // XXX fix recorder
+                    //
+                    // if let Some(state) = checkpoint.versioned_data(game_id).map(|vd| vd.handler_state) {
+                    //     let nodes = checkpoint.shared_data().nodes.clone();
 
-                        writer.write(record);
-                    }
+                    //     let record = Record::Checkpoint {
+                    //         state, nodes, access_version, settle_version, balances,
+                    //     };
+
+                    //     writer.write(record);
+                    // }
                 }
 
                 EventFrame::Shutdown => {

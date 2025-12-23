@@ -11,4 +11,5 @@ pub struct ServerAccount {
     pub addr: String,
     // The endpoint for transactor server
     pub endpoint: String,
+    pub credentials: Vec<u8>,
 }

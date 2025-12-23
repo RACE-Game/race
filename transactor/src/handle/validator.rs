@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use race_transactor_components::{
     Component, EventBridgeParent, EventBus, EventLoop, PortsHandle, RemoteConnection, Subscriber,
-    Voter, WrappedClient, WrappedHandler,
+    Voter, WrappedClient,
 };
 use race_transactor_frames::{EventFrame, SignalFrame};
-use race_core::context::GameContext;
 use race_core::error::{Error, Result};
 use race_core::storage::StorageT;
 use race_core::transport::TransportT;
@@ -26,7 +25,7 @@ pub struct ValidatorHandle {
 
 impl ValidatorHandle {
     pub async fn try_new(
-        game_addr: &str,
+        game_addr: String,
         server_account: &ServerAccount,
         encryptor: Arc<Encryptor>,
         transport: Arc<dyn TransportT + Send + Sync>,
@@ -35,9 +34,11 @@ impl ValidatorHandle {
         _config: &TransactorConfig,
     ) -> Result<Self> {
         info!("Start game handle for {} with Validator mode", game_addr,);
-        let Some(game_account) = transport.get_game_account(game_addr).await? else {
+        let Some(game_account) = transport.get_game_account(&game_addr).await? else {
             return Err(Error::GameAccountNotFound);
         };
+
+        let game_spec = game_account.derive_game_spec();
 
         let transactor_addr = game_account
             .transactor_addr
@@ -58,28 +59,17 @@ impl ValidatorHandle {
         );
 
         let checkpoint_off_chain = connection.get_checkpoint_off_chain(
-            game_addr,
+            &game_addr,
             CheckpointParams {
                 settle_version: game_account.settle_version,
             },
         ).await?;
 
-        // let checkpoint_off_chain = storage
-        //     .get_checkpoint(GetCheckpointParams {
-        //         game_addr: game_addr.to_owned(),
-        //         settle_version: game_account.settle_version,
-        //     })
-        //     .await?;
-
-        let game_context = GameContext::try_new(&game_account, checkpoint_off_chain)?;
-        let checkpoint = game_context.checkpoint().clone();
-
-        let Some(bundle_account) = transport.get_game_bundle(&game_account.bundle_addr).await?
-        else {
-            return Err(Error::GameBundleNotFound);
+        let Some(checkpoint_off_chain) = checkpoint_off_chain else {
+            return Err(Error::MissingCheckpoint);
         };
 
-        let handler = Box::new(WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?);
+        let checkpoint = checkpoint_off_chain.to_context_checkpoint();
 
         info!("Creating components");
         let event_bus = EventBus::new(game_account.addr.clone());
@@ -88,7 +78,13 @@ impl ValidatorHandle {
         let mut bridge_handle = bridge.start(&game_account.addr, bridge_ctx);
 
         let (event_loop, event_loop_ctx) =
-            EventLoop::init(handler, game_context, ClientMode::Validator, GameMode::Main);
+            EventLoop::init(
+                game_spec,
+                encryptor.clone(),
+                transport.clone(),
+                ClientMode::Validator,
+                GameMode::Main
+            );
         let mut event_loop_handle = event_loop.start(&game_account.addr, event_loop_ctx);
 
         let (subscriber, subscriber_context) =
@@ -115,9 +111,7 @@ impl ValidatorHandle {
 
         // Dispatch init state
         event_bus
-            .send(EventFrame::InitState {
-                access_version: game_account.access_version,
-                settle_version: game_account.settle_version,
+            .send(EventFrame::RecoverCheckpoint {
                 checkpoint,
             })
             .await;

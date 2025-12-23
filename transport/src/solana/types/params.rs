@@ -1,8 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use race_api::types::{BalanceChange, EntryLock};
+use race_core::entry_type::EntryType;
 use race_core::types::{
     AssignRecipientParams, CreateGameAccountParams, CreatePlayerProfileParams,
-    CreateRegistrationParams, EntryType, JoinParams, PublishGameParams,
+    CreateRegistrationParams, JoinParams, PublishGameParams,
     RecipientSlotShareInit, RecipientSlotType,
     RegisterServerParams, ServeParams, Transfer, VoteParams,
     VoteType, Award
@@ -159,7 +160,6 @@ pub struct IxJoinParams {
     pub amount: u64,
     pub access_version: u64,
     pub position: u16,
-    pub verify_key: String,
 }
 
 impl From<JoinParams> for IxJoinParams {
@@ -168,28 +168,23 @@ impl From<JoinParams> for IxJoinParams {
             amount,
             access_version,
             position,
-            verify_key,
             ..
         } = value;
         Self {
             amount,
             access_version,
             position,
-            verify_key,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct IxServeParams {
-    pub verify_key: String,
 }
 
 impl From<ServeParams> for IxServeParams {
-    fn from(value: ServeParams) -> Self {
-        Self {
-            verify_key: value.verify_key,
-        }
+    fn from(_value: ServeParams) -> Self {
+        Self {}
     }
 }
 

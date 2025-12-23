@@ -18,6 +18,7 @@ publish = true
 [dependencies]
 race-api = { workspace = true, features = ["serde"] }
 race-core = { workspace = true, features = ["serde"] }
+race-handler.workspace = true
 race-transactor-components.workspace = true
 race-transactor-frames.workspace = true
 race-transport.workspace = true

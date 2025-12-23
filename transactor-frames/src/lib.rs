@@ -1,11 +1,12 @@
 use tokio::sync::{mpsc, broadcast};
 
 use race_api::event::{Event, Message};
-use race_core::{
-    checkpoint::{Checkpoint, VersionedData},
-    context::{GameContext, SettleDetails, SubGameInit, Node},
-    types::{PlayerBalance, ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, TxState, VoteType},
-};
+use race_api::init_account::InitAccount;
+use race_core::node::Node;
+use race_core::context::{GameContext, SettleDetails};
+use race_core::checkpoint::{ContextCheckpoint, VersionedData};
+use race_core::types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, TxState, VoteType};
+use race_core::credentials::Credentials;
 
 #[derive(Debug)]
 pub struct BridgeToParent {
@@ -20,7 +21,7 @@ pub enum SignalFrame {
         mode: ClientMode,
     },
     LaunchSubGame {
-        sub_game_init: SubGameInit,
+        checkpoint: ContextCheckpoint,
         bridge_to_parent: BridgeToParent,
     },
     #[allow(unused)]
@@ -30,6 +31,14 @@ pub enum SignalFrame {
     },
 }
 
+/// Like PlayerJoin, but with credentials.
+#[derive(Debug, Clone)]
+pub struct PlayerJoinSync {
+    pub addr: String,
+    pub position: u16,
+    pub access_version: u64,
+    pub credentials: Credentials,
+}
 
 #[derive(Debug, Clone)]
 pub enum EventFrame {
@@ -48,10 +57,14 @@ pub enum EventFrame {
     PlayerLeaving {
         player_addr: String,
     },
+    RecoverCheckpoint {
+        checkpoint: ContextCheckpoint,
+    },
     InitState {
         access_version: u64,
         settle_version: u64,
-        checkpoint: Checkpoint,
+        init_account: InitAccount,
+        nodes: Vec<Node>,
     },
     SendEvent {
         event: Event,
@@ -65,12 +78,7 @@ pub enum EventFrame {
         timestamp: u64,
     },
     Checkpoint {
-        checkpoint: Checkpoint,
-        nodes: Vec<Node>,
-        balances: Vec<PlayerBalance>,
-        access_version: u64,
-        settle_version: u64,
-        state_sha: String,
+        checkpoint: ContextCheckpoint,
     },
     Settle {
         settle_details: Box<SettleDetails>,
@@ -109,7 +117,7 @@ pub enum EventFrame {
 
     /// Launch a subgame.
     LaunchSubGame {
-        sub_game_init: Box<SubGameInit>,
+        checkpoint: Box<ContextCheckpoint>,
     },
 
     /// Sync frame for subgames broadcasted from master game.
@@ -158,6 +166,12 @@ impl std::fmt::Display for EventFrame {
                 "InitState, access_version = {}, settle_version = {}",
                 access_version, settle_version
             ),
+            EventFrame::RecoverCheckpoint {
+                ..
+            } => write!(
+                f,
+                "RecoverCheckpoint",
+            ),
             EventFrame::Sync {
                 new_players,
                 new_servers,
@@ -195,11 +209,12 @@ impl std::fmt::Display for EventFrame {
             EventFrame::RecvBridgeEvent { dest, event, .. } => {
                 write!(f, "RecvBridgeEvent: dest {}, event: {}", dest, event)
             }
-            EventFrame::LaunchSubGame { sub_game_init } => {
+            EventFrame::LaunchSubGame { checkpoint } => {
                 write!(
                     f,
                     "LaunchSubGame: {}#{}",
-                    sub_game_init.spec.game_addr, sub_game_init.spec.game_id
+                    checkpoint.root_data.game_spec.game_addr,
+                    checkpoint.root_data.game_spec.game_id,
                 )
             }
             EventFrame::SubSync {

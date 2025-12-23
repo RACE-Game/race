@@ -1,9 +1,3 @@
-//! Synchronize the updates from game account. Currently we use pulls
-//! instead of websocket. Firstly we query the state with confirming
-//! status, if a new state is found, we swtich to query with finalized
-//! status. For confirming query we have 5 seconds as interval, for
-//! finalized query, we use 2 seconds as interval.
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -29,6 +23,7 @@ pub struct GameSynchronizerContext {
 }
 
 async fn maybe_send_sync(
+    transport: Arc<dyn TransportT>,
     prev_access_version: u64,
     game_account: GameAccount,
     ports: &mut PipelinePorts,
@@ -182,7 +177,7 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                     // both cases, we shutdown the game by sending a Shutdown frame.
                     match sub_item {
                         Some(Ok(game_account)) => {
-                            let (new_access_version, close_reason) = maybe_send_sync(prev_access_version, game_account, &mut ports, &env).await;
+                            let (new_access_version, close_reason) = maybe_send_sync(ctx.transport.clone(), prev_access_version, game_account, &mut ports, &env).await;
                             if let Some(close_reason) = close_reason {
                                 return close_reason;
                             }

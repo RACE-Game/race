@@ -256,6 +256,8 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                         ..
                     } = *settle_details;
 
+                    let checkpoint = checkpoint.build_checkpoint();
+
                     let checkpoint_onchain = checkpoint.derive_onchain_part();
                     let checkpoint_offchain = checkpoint.derive_offchain_part();
 

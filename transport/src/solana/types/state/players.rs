@@ -7,7 +7,6 @@ pub struct PlayerJoin {
     pub addr: Pubkey,
     pub position: u16,
     pub access_version: u64,
-    pub verify_key: [u8; 128], // size: 4, data: 128
 }
 
 impl From<PlayerJoin> for race_core::types::PlayerJoin {
@@ -16,7 +15,6 @@ impl From<PlayerJoin> for race_core::types::PlayerJoin {
             addr: value.addr.to_string(),
             position: value.position,
             access_version: value.access_version,
-            verify_key: String::try_from_slice(&value.verify_key).unwrap_or("".to_string())
         }
     }
 }

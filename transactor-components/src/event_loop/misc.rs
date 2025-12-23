@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use race_core::{context::GameContext, types::ClientMode};
+use race_core::context::GameContext;
+use race_core::types::ClientMode;
 use race_api::event::Event;
 use tokio::select;
 use tracing::info;

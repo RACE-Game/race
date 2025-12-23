@@ -16,7 +16,7 @@ use race_api::event::Message;
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
-    AttachGameParams, CheckpointParams, ExitGameParams, Signature, SubmitEventParams,
+    CheckpointParams, ExitGameParams, Signature, SubmitEventParams,
     SubscribeEventParams, SubscribeCheckpointParams
 };
 use tokio_stream::wrappers::BroadcastStream;
@@ -59,24 +59,6 @@ fn parse_params<T: BorshDeserialize>(
         .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
 
     Ok((game_addr, arg, signature))
-}
-
-/// Ask transactor to load game and provide client's public key for further encryption.
-async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
-    let (game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
-
-    info!("Attach to game, signer: {}", signer);
-
-    if !context.game_manager.is_game_loaded(&game_addr).await {
-        return Err(RpcError::Custom("Game not loaded".to_string()));
-    }
-
-    context
-        .register_key(signer, key)
-        .await
-        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
-
-    Ok(())
 }
 
 fn ping(_: Params<'_>, _: &ApplicationContext) -> Result<String, RpcError> {
@@ -343,7 +325,6 @@ pub async fn run_server(
     module.register_method("ping", ping)?;
     module.register_async_method("get_checkpoint", get_checkpoint)?;
     module.register_async_method("get_latest_checkpoints", get_latest_checkpoints)?;
-    module.register_async_method("attach_game", attach_game)?;
     module.register_async_method("get_serving_games", get_serving_games)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;

@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::checkpoint::CheckpointOnChain;
 use race_api::types::{Award, Settle, Transfer};
-use crate::types::{EntryType, VoteType, RecipientSlotOwner, RecipientSlotType};
+use crate::types::{VoteType, RecipientSlotOwner, RecipientSlotType};
+use crate::entry_type::EntryType;
 
 use super::{EntryLock, GameAccount};
 
@@ -87,7 +88,6 @@ pub struct TokenInfo {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ServeParams {
     pub game_addr: String,
-    pub verify_key: String,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone)]
@@ -218,7 +218,6 @@ pub struct JoinParams {
     pub amount: u64,
     pub access_version: u64,
     pub position: u16,
-    pub verify_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

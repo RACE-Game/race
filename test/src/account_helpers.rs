@@ -1,6 +1,7 @@
 use crate::{client_helpers::TestClient, misc::{test_game_addr, test_game_title}};
 use borsh::BorshSerialize;
-use race_core::types::{ClientMode, EntryLock, EntryType, GameAccount, PlayerDeposit, PlayerJoin, ServerJoin, DepositStatus};
+use race_core::types::{ClientMode, EntryLock, GameAccount, PlayerDeposit, PlayerJoin, ServerJoin, DepositStatus};
+use race_core::entry_type::EntryType;
 
 pub struct TestGameAccountBuilder {
     account: GameAccount,
