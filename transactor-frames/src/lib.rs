@@ -31,6 +31,25 @@ pub enum SignalFrame {
     },
 }
 
+/// Like ServerJoin, but with credentials.
+#[derive(Debug, Clone)]
+pub struct ServerJoinSync {
+    pub addr: String,
+    pub endpoint: String,
+    pub access_version: u64,
+    pub credentials: Credentials,
+}
+
+impl From<ServerJoinSync> for ServerJoin {
+    fn from(s: ServerJoinSync) -> Self {
+        Self {
+            addr: s.addr,
+            endpoint: s.endpoint,
+            access_version: s.access_version,
+        }
+    }
+}
+
 /// Like PlayerJoin, but with credentials.
 #[derive(Debug, Clone)]
 pub struct PlayerJoinSync {
@@ -40,13 +59,23 @@ pub struct PlayerJoinSync {
     pub credentials: Credentials,
 }
 
+impl From<PlayerJoinSync> for PlayerJoin {
+    fn from(p: PlayerJoinSync) -> Self {
+        Self {
+            addr: p.addr,
+            position: p.position,
+            access_version: p.access_version,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum EventFrame {
     #[allow(unused)]
     Empty,
     Sync {
-        new_players: Vec<PlayerJoin>,
-        new_servers: Vec<ServerJoin>,
+        new_players: Vec<PlayerJoinSync>,
+        new_servers: Vec<ServerJoinSync>,
         new_deposits: Vec<PlayerDeposit>,
         transactor_addr: String,
         access_version: u64,
@@ -123,8 +152,8 @@ pub enum EventFrame {
     /// Sync frame for subgames broadcasted from master game.
     SubSync {
         access_version: u64,
-        new_players: Vec<PlayerJoin>,
-        new_servers: Vec<ServerJoin>,
+        new_players: Vec<PlayerJoinSync>,
+        new_servers: Vec<ServerJoinSync>,
         transactor_addr: String,
     },
 

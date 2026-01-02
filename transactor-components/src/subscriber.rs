@@ -86,22 +86,28 @@ async fn handle_frame(frame: BroadcastFrame, ports: &mut PipelinePorts, env: &Co
                 "{} Receive Sync broadcast, new_players: {:?}, new_servers: {:?}",
                 env.log_prefix, new_players, new_servers
             );
+
             new_deposits.retain(|d| d.status == DepositStatus::Pending);
-            if let Err(e) = ports
-                .try_send(EventFrame::Sync {
-                    new_players,
-                    new_servers,
-                    new_deposits,
-                    transactor_addr,
-                    access_version,
-                })
-                .await
-            {
-                error!("{} Send update node error: {}", env.log_prefix, e);
-                Some(CloseReason::Complete)
-            } else {
-                None
-            }
+
+            // XXX parse to the version with credentials
+            // if let Err(e) = ports
+            //     .try_send(EventFrame::Sync {
+            //         new_players,
+            //         new_servers,
+            //         new_deposits,
+            //         transactor_addr,
+            //         access_version,
+            //     })
+            //     .await
+            // {
+            //     error!("{} Send update node error: {}", env.log_prefix, e);
+            //     Some(CloseReason::Complete)
+            // } else {
+            //     None
+            // }
+
+            // REMOVE THIS
+            None
         }
 
         BroadcastFrame::Message { .. } => {

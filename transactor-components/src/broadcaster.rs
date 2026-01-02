@@ -352,8 +352,8 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     transactor_addr,
                 } => {
                     let sync = BroadcastSync {
-                        new_players,
-                        new_servers,
+                        new_players: new_players.into_iter().map(|p| p.into()).collect(),
+                        new_servers: new_servers.into_iter().map(|s| s.into()).collect(),
                         new_deposits,
                         access_version,
                         transactor_addr,
@@ -382,8 +382,8 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     transactor_addr,
                 } => {
                     let sync = BroadcastSync {
-                        new_players,
-                        new_servers,
+                        new_players: new_players.into_iter().map(|p| p.into()).collect(),
+                        new_servers: new_servers.into_iter().map(|s| s.into()).collect(),
                         new_deposits: vec![],
                         access_version,
                         transactor_addr,
