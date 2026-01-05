@@ -8,6 +8,7 @@ mod subscriber;
 mod synchronizer;
 mod refunder;
 mod voter;
+mod credential_consolidator;
 mod wrapped_client;
 mod wrapped_transport;
 mod wrapped_storage;
@@ -28,6 +29,7 @@ pub use subscriber::Subscriber;
 pub use synchronizer::GameSynchronizer;
 #[allow(unused)]
 pub use recorder::Recorder;
+pub use credential_consolidator::CredentialConsolidator;
 pub use voter::Voter;
 pub use wrapped_client::WrappedClient;
 pub use wrapped_transport::WrappedTransport;

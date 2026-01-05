@@ -147,7 +147,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     }
                 }
 
-                EventFrame::Sync {
+                EventFrame::SyncWithCredentials {
                     new_players,
                     new_servers,
                     new_deposits,

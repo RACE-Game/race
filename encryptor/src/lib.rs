@@ -366,36 +366,9 @@ impl EncryptorT for Encryptor {
         Ok(())
     }
 
-    // fn add_public_key(&self, addr: String, raw: &NodePublicKeyRaw) -> EncryptorResult<()> {
-    //     let ec = import_ec_public(&raw.ec)?;
-    //     let rsa = import_rsa_public(&raw.rsa)?;
-
-    //     let mut public_keys = self
-    //         .publics
-    //         .lock()
-    //         .map_err(|_| EncryptorError::AddPublicKeyError)?;
-
-    //     public_keys.insert(addr, NodePublicKey { rsa, ec });
-    //     Ok(())
-    // }
-
     fn digest(&self, text: &[u8]) -> SecretDigest {
         Sha256::digest(text).to_vec()
     }
-
-    // fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<NodePublicKeyRaw> {
-    //     let publics = self
-    //         .publics
-    //         .lock()
-    //         .map_err(|_| EncryptorError::ReadPublicKeyError)?;
-    //     Ok(match addr {
-    //         Some(addr) => publics
-    //             .get(addr)
-    //             .ok_or(EncryptorError::PublicKeyNotfound)?
-    //             .try_into()?,
-    //         None => (&self.private).try_into()?,
-    //     })
-    // }
 }
 
 #[cfg(test)]

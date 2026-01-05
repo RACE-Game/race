@@ -4,11 +4,8 @@ use async_trait::async_trait;
 use race_core::error::Error;
 use tokio::select;
 use tokio_stream::StreamExt;
-use std::collections::HashMap;
-use borsh::BorshDeserialize;
-use race_core::credentials::Credentials;
 
-use race_transactor_frames::{EventFrame, PlayerJoinSync, ServerJoinSync};
+use race_transactor_frames::EventFrame;
 use race_core::{
     transport::TransportT,
     types::{GameAccount, PlayerDeposit, PlayerJoin, ServerJoin},
@@ -25,70 +22,7 @@ pub struct GameSynchronizerContext {
     game_addr: String,
 }
 
-async fn fetch_server_with_credentials(
-    server_join: ServerJoin,
-    cached_server_credentials: &mut HashMap<String, Credentials>,
-    transport: Arc<dyn TransportT>,
-) -> ServerJoinSync {
-    if let Some(credentials) = cached_server_credentials.get(&server_join.addr) {
-        return ServerJoinSync {
-            addr: server_join.addr,
-            endpoint: server_join.endpoint,
-            access_version: server_join.access_version,
-            credentials: credentials.clone(),
-        }
-    } else {
-        loop {
-            if let Ok(Some(profile)) = transport.get_player_profile(&server_join.addr).await {
-                let credentials = Credentials::try_from_slice(&profile.credentials).expect("Failed to deserialize Credentials");
-                cached_server_credentials.insert(server_join.addr.clone(), credentials.clone());
-                return ServerJoinSync {
-                    addr: server_join.addr,
-                    endpoint: server_join.endpoint,
-                    access_version: server_join.access_version,
-                    credentials,
-                }
-            } else {
-                error!("Failed to fetch server profile for {}, will retry.", server_join.addr);
-            }
-        }
-    }
-}
-
-async fn fetch_player_with_credentials(
-    player_join: PlayerJoin,
-    cached_player_credentials: &mut HashMap<String, Credentials>,
-    transport: Arc<dyn TransportT>,
-) -> PlayerJoinSync {
-    if let Some(credentials) = cached_player_credentials.get(&player_join.addr) {
-        return PlayerJoinSync {
-            addr: player_join.addr,
-            position: player_join.position,
-            access_version: player_join.access_version,
-            credentials: credentials.clone(),
-        }
-    } else {
-        loop {
-            if let Ok(Some(profile)) = transport.get_player_profile(&player_join.addr).await {
-                let credentials = Credentials::try_from_slice(&profile.credentials).expect("Failed to deserialize Credentials");
-                cached_player_credentials.insert(player_join.addr.clone(), credentials.clone());
-                return PlayerJoinSync {
-                    addr: player_join.addr,
-                    position: player_join.position,
-                    access_version: player_join.access_version,
-                    credentials,
-                }
-            } else {
-                error!("Failed to fetch player profile for {}, will retry.", player_join.addr);
-            }
-        }
-    }
-}
-
 async fn maybe_send_sync(
-    transport: Arc<dyn TransportT>,
-    cached_player_credentials: &mut HashMap<String, Credentials>,
-    cached_server_credentials: &mut HashMap<String, Credentials>,
     prev_access_version: u64,
     game_account: GameAccount,
     ports: &mut PipelinePorts,
@@ -113,22 +47,15 @@ async fn maybe_send_sync(
         env.log_prefix, game_account.access_version, game_account.settle_version,
     );
 
-    let mut new_players: Vec<PlayerJoinSync> = Vec::with_capacity(players.len());
-    let mut new_servers: Vec<ServerJoinSync> = Vec::with_capacity(servers.len());
+    let new_players: Vec<PlayerJoin> = players
+        .into_iter()
+        .filter(|p| p.access_version > prev_access_version)
+        .collect();
 
-    for p in players {
-        if p.access_version > prev_access_version { // We care only new players
-            let player_sync = fetch_player_with_credentials(p, cached_player_credentials, transport.clone()).await;
-            new_players.push(player_sync);
-        }
-    }
-
-    for s in servers {
-        if s.access_version > prev_access_version { // We care only new servers
-            let server_sync = fetch_server_with_credentials(s, cached_server_credentials, transport.clone()).await;
-            new_servers.push(server_sync);
-        }
-    }
+    let new_servers: Vec<ServerJoin> = servers
+        .into_iter()
+        .filter(|s| s.access_version > prev_access_version)
+        .collect();
 
     let new_deposits: Vec<PlayerDeposit> = deposits
         .into_iter()
@@ -216,9 +143,6 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
         ctx: GameSynchronizerContext,
         env: ComponentEnv,
     ) -> CloseReason {
-        let mut cached_player_credentials = HashMap::<String, Credentials>::default();
-        let mut cached_server_credentials = HashMap::<String, Credentials>::default();
-
         let mut prev_access_version = ctx.access_version;
 
         let mut sub = match ctx.transport.subscribe_game_account(&ctx.game_addr).await {
@@ -253,9 +177,6 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                     match sub_item {
                         Some(Ok(game_account)) => {
                             let (new_access_version, close_reason) = maybe_send_sync(
-                                ctx.transport.clone(),
-                                &mut cached_player_credentials,
-                                &mut cached_server_credentials,
                                 prev_access_version,
                                 game_account,
                                 &mut ports,
