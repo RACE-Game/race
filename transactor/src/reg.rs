@@ -16,6 +16,7 @@ use tokio::select;
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
+use race_core::credentials::Credentials;
 use race_transactor_frames::SignalFrame;
 use crate::context::ApplicationContext;
 
@@ -30,10 +31,13 @@ pub async fn register_server(config: &Config) -> Result<()> {
         .try_with_config(config)?
         .build()
         .await?;
+    // Generate credentials based on current wallet private key.
+    let credentials = borsh::to_vec(&Credentials::default()).unwrap();
     info!("Transport built successfully");
     transport
         .register_server(RegisterServerParams {
             endpoint: transactor_conf.endpoint.to_owned(),
+            credentials,
         })
         .await?;
     info!("Server account created");

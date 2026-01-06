@@ -90,6 +90,7 @@ pub struct AddRecipientSlots {
 pub struct RegisterServerInstruction {
     server_addr: String,
     endpoint: String,
+    credentials: Vec<u8>,
 }
 
 #[derive(Deserialize)]
@@ -98,6 +99,7 @@ pub struct CreatePlayerProfileInstruction {
     player_addr: String,
     nick: String,
     pfp: Option<String>,
+    credentials: Vec<u8>,
 }
 
 #[derive(Deserialize)]
@@ -347,10 +349,12 @@ async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rp
     let RegisterServerInstruction {
         server_addr,
         endpoint,
+        credentials,
     } = params.one()?;
     let server = ServerAccount {
         addr: server_addr.clone(),
         endpoint,
+        credentials,
     };
     let context = context.lock().await;
     if context.get_server_account(&server_addr)?.is_none() {
@@ -392,6 +396,7 @@ async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
         player_addr,
         nick,
         pfp,
+        credentials,
     } = params.one()?;
     let context = context.lock().await;
     let player_info = PlayerInfo {
@@ -414,6 +419,7 @@ async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
             addr: player_addr.clone(),
             nick,
             pfp,
+            credentials,
         },
     };
     context.create_player_info(&player_info)?;

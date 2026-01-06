@@ -62,6 +62,7 @@ pub async fn maybe_fetch_player_credentials(
 pub struct CredentialConsolidatorContext {
     transport: Arc<dyn TransportT>,
     encryptor: Arc<dyn EncryptorT>,
+    #[allow(unused)]
     game_addr: String,
 }
 

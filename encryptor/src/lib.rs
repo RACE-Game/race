@@ -11,6 +11,9 @@ use arrayref::array_ref;
 use base64::Engine as _;
 use chacha20::cipher::{KeyIvInit, StreamCipher};
 use chacha20::ChaCha20;
+use openssl::symm::{encrypt, Cipher};
+use openssl::rand::rand_bytes;
+use openssl::pkcs5::pbkdf2_hmac;
 use openssl::bn::BigNum;
 use openssl::ec::{EcGroup, EcKey};
 use openssl::ecdsa::EcdsaSig;
@@ -217,6 +220,47 @@ impl TryInto<NodePublicKeyRaw> for &NodePublicKey {
             ec: export_ec_public(&self.ec)?,
         })
     }
+}
+
+pub fn generate_credentials(
+    original_secret: Vec<u8>,
+) -> EncryptorResult<Credentials> {
+    let rsa = rsa_generate()?;
+    let ec = ec_generate()?;
+
+    let mut salt = [0u8; 16];
+    let mut rsa_iv = [0u8; 12];
+    let mut ec_iv = [0u8; 12];
+
+    rand_bytes(&mut salt).map_err(|_| EncryptorError::KeyGenFailed)?;
+    rand_bytes(&mut rsa_iv).map_err(|_| EncryptorError::KeyGenFailed)?;
+    rand_bytes(&mut ec_iv).map_err(|_| EncryptorError::KeyGenFailed)?;
+
+    let mut key = [0u8; 32];
+    let iterations = 100_000;
+
+    pbkdf2_hmac(&original_secret, &salt, iterations, MessageDigest::sha256(), &mut key)
+        .map_err(|_| EncryptorError::KeyGenFailed)?;
+
+    let rsa_public = rsa.public_key_to_der().map_err(|_| EncryptorError::KeyGenFailed)?;
+    let rsa_private_key_bytes = rsa.private_key_to_der().map_err(|_| EncryptorError::KeyGenFailed)?;
+
+    let ec_public = ec.public_key_to_der().map_err(|_| EncryptorError::KeyGenFailed)?;
+    let ec_private_key_bytes = ec.private_key_to_der().map_err(|_| EncryptorError::KeyGenFailed)?;
+
+    let aes_gcm_cihper = Cipher::aes_256_gcm();
+    let rsa_private_enc = encrypt(aes_gcm_cihper, &key, Some(&rsa_iv), &rsa_private_key_bytes).map_err(|_| EncryptorError::AesEncryptFailed)?;
+    let ec_private_enc = encrypt(aes_gcm_cihper, &key, Some(&ec_iv), &ec_private_key_bytes).map_err(|_| EncryptorError::AesEncryptFailed)?;
+
+    Ok(Credentials {
+        ec_public,
+        rsa_public,
+        salt: salt.into(),
+        ec_iv: ec_iv.into(),
+        rsa_iv: rsa_iv.into(),
+        ec_private_enc,
+        rsa_private_enc,
+    })
 }
 
 #[derive(Debug)]

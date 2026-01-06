@@ -17,6 +17,7 @@ use race_core::transport::TransportT;
 use race_core::types::{
     AddRecipientSlotParams, AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
 };
+
 use serde::Serialize;
 
 use crate::error::{TransportError, TransportResult};
@@ -33,6 +34,7 @@ pub struct ServeInstruction {
 pub struct RegisterServerInstruction {
     server_addr: String,
     endpoint: String,
+    credentials: Vec<u8>,
 }
 
 pub struct FacadeTransport {
@@ -85,7 +87,8 @@ impl TransportT for FacadeTransport {
                 "register_server",
                 rpc_params![RegisterServerInstruction {
                     server_addr: self.addr(),
-                    endpoint: params.endpoint
+                    endpoint: params.endpoint,
+                    credentials: params.credentials,
                 }],
             )
             .await

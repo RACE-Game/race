@@ -95,6 +95,7 @@ pub struct ServeParams {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct RegisterServerParams {
     pub endpoint: String,
+    pub credentials: Vec<u8>,
 }
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]

@@ -107,12 +107,13 @@ pub fn create_player_info(conn: &Connection, player_info: &PlayerInfo) -> Result
 }
 
 pub fn read_player_info(conn: &Connection, player_addr: &str) -> Result<Option<PlayerInfo>> {
-    let mut stmt = conn.prepare("SELECT addr, nick, pfp FROM player_info WHERE addr = ?1")?;
+    let mut stmt = conn.prepare("SELECT addr, nick, pfp, credentials FROM player_info WHERE addr = ?1")?;
     let mut player_iter = stmt.query_map(params![player_addr], |row| {
         Ok(PlayerProfile {
             addr: row.get(0)?,
             nick: row.get(1)?,
             pfp: row.get(2)?,
+            credentials: row.get(3)?,
         })
     })?;
 
@@ -162,8 +163,8 @@ pub fn read_player_info(conn: &Connection, player_addr: &str) -> Result<Option<P
 pub fn update_player_info(conn: &Connection, player_info: &PlayerInfo) -> Result<()> {
     let profile = &player_info.profile;
     conn.execute(
-        "UPDATE player_info SET nick = ?1, pfp = ?2 WHERE addr = ?3",
-        params![profile.nick, profile.pfp, profile.addr],
+        "UPDATE player_info SET nick = ?1, pfp = ?2, credentials = ?3 WHERE addr = ?4",
+        params![profile.nick, profile.pfp, profile.credentials, profile.addr],
     )?;
 
     conn.execute(
@@ -278,7 +279,8 @@ pub fn create_player_tables(conn: &Connection) -> Result<()> {
         "CREATE TABLE IF NOT EXISTS player_info (
             addr TEXT PRIMARY KEY,
             nick TEXT NOT NULL,
-            pfp TEXT
+            pfp TEXT,
+            credentials BLOB
         )",
         [],
     )?;
@@ -887,6 +889,7 @@ pub fn read_server_account(conn: &Connection, addr: &str) -> Result<Option<Serve
         Ok(ServerAccount {
             addr: row.get(0)?,
             endpoint: row.get(1)?,
+            credentials: row.get(2)?,
         })
     })
         .optional()
@@ -914,7 +917,8 @@ pub fn create_server_account_table(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS server_account (
             addr TEXT PRIMARY KEY,
-            endpoint TEXT NOT NULL
+            endpoint TEXT NOT NULL,
+            credentials BLOB
         )",
         [],
     )?;

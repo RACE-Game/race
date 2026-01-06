@@ -1,6 +1,6 @@
 use borsh::{BorshSerialize, BorshDeserialize};
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+#[derive(Default, BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct Credentials {
     pub ec_public: Vec<u8>,
     pub rsa_public: Vec<u8>,
