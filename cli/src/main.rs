@@ -400,7 +400,7 @@ async fn server_info(addr: &str, transport: Arc<dyn TransportT>) {
         .expect("Network error")
     {
         Some(server_account) => {
-            let ServerAccount { addr, endpoint } = server_account;
+            let ServerAccount { addr, endpoint, .. } = server_account;
             println!("Server account: {}", addr);
             println!("Server endpoint: {}", endpoint);
         }

@@ -229,12 +229,10 @@ pub fn generate_credentials(
     let ec = ec_generate()?;
 
     let mut salt = [0u8; 16];
-    let mut rsa_iv = [0u8; 12];
-    let mut ec_iv = [0u8; 12];
+    let mut iv = [0u8; 12];
 
     rand_bytes(&mut salt).map_err(|_| EncryptorError::KeyGenFailed)?;
-    rand_bytes(&mut rsa_iv).map_err(|_| EncryptorError::KeyGenFailed)?;
-    rand_bytes(&mut ec_iv).map_err(|_| EncryptorError::KeyGenFailed)?;
+    rand_bytes(&mut iv).map_err(|_| EncryptorError::KeyGenFailed)?;
 
     let mut key = [0u8; 32];
     let iterations = 100_000;
@@ -249,15 +247,14 @@ pub fn generate_credentials(
     let ec_private_key_bytes = ec.private_key_to_der().map_err(|_| EncryptorError::KeyGenFailed)?;
 
     let aes_gcm_cihper = Cipher::aes_256_gcm();
-    let rsa_private_enc = encrypt(aes_gcm_cihper, &key, Some(&rsa_iv), &rsa_private_key_bytes).map_err(|_| EncryptorError::AesEncryptFailed)?;
-    let ec_private_enc = encrypt(aes_gcm_cihper, &key, Some(&ec_iv), &ec_private_key_bytes).map_err(|_| EncryptorError::AesEncryptFailed)?;
+    let rsa_private_enc = encrypt(aes_gcm_cihper, &key, Some(&iv), &rsa_private_key_bytes).map_err(|_| EncryptorError::AesEncryptFailed)?;
+    let ec_private_enc = encrypt(aes_gcm_cihper, &key, Some(&iv), &ec_private_key_bytes).map_err(|_| EncryptorError::AesEncryptFailed)?;
 
     Ok(Credentials {
         ec_public,
         rsa_public,
         salt: salt.into(),
-        ec_iv: ec_iv.into(),
-        rsa_iv: rsa_iv.into(),
+        iv: iv.into(),
         ec_private_enc,
         rsa_private_enc,
     })
@@ -358,6 +355,15 @@ impl EncryptorT for Encryptor {
             .lock()
             .map_err(|_| EncryptorError::ReadPublicKeyError)?;
 
+        println!("publics: {:?}", publics);
+        println!("message: {:?}", message);
+        println!("signature: {:?}", signature);
+
+        for (addr, p) in publics.iter() {
+            let ec_pub_raw = export_ec_public(&p.ec)?;
+            println!("addr: {}, ec: {:?}", addr, ec_pub_raw);
+        }
+
         let res = match addr {
             Some(addr) => ec_verify(
                 &publics
@@ -382,6 +388,11 @@ impl EncryptorT for Encryptor {
             timestamp,
             signature,
         } = signature;
+
+        println!("signer: {}", signer);
+        println!("timestamp: {}", timestamp);
+        println!("signature: {:?}", signature);
+
         // TODO: We should check timestamp here.
         let message = [message, &u64::to_le_bytes(*timestamp)].concat();
         self.verify_raw(Some(signer), &message, signature)

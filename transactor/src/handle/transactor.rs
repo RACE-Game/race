@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use race_transactor_components::{
-    Broadcaster, Component, EventBridgeParent, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle, Refunder, Submitter, WrappedClient,
+    Broadcaster, Component, EventBridgeParent, EventBus, EventLoop, GameSynchronizer, LocalConnection, PortsHandle, Refunder, Submitter, WrappedClient, CredentialConsolidator,
 };
 use race_transactor_frames::{EventFrame, SignalFrame};
 use race_core::error::{Error, Result};
@@ -152,6 +152,16 @@ impl TransactorHandle {
 
         // let mut recorder_handle = recorder.start(&game_account.addr, recorder_ctx);
 
+        let (credential_consolidator, credential_consolidator_ctx) = CredentialConsolidator::init(
+            transport.clone(),
+            encryptor.clone(),
+            &game_account.addr,
+        );
+        let mut credential_consolidator_handle = credential_consolidator.start(
+            &game_addr,
+            credential_consolidator_ctx
+        );
+
         let (event_loop, event_loop_ctx) = EventLoop::init(
             game_spec,
             encryptor.clone(),
@@ -191,6 +201,7 @@ impl TransactorHandle {
         event_bus.attach(&mut event_loop_handle).await;
         event_bus.attach(&mut client_handle).await;
         event_bus.attach(&mut refunder_handle).await;
+        event_bus.attach(&mut credential_consolidator_handle).await;
         // event_bus.attach(&mut recorder_handle).await;
         event_bus.send(init_frame).await;
 
@@ -213,6 +224,7 @@ impl TransactorHandle {
                 event_loop_handle,
                 client_handle,
                 synchronizer_handle,
+                credential_consolidator_handle,
             ],
             broadcaster,
             bridge_parent: bridge,

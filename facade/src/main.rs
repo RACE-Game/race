@@ -434,10 +434,15 @@ async fn get_profile(
     let addr: String = params.one()?;
     let context = context.lock().await;
     let ret = match context.get_player_info(&addr)? {
-        Some(player_info) => Ok(Some(borsh::to_vec(&player_info.profile).unwrap())),
-        None => Ok(None),
+        Some(player_info) => {
+            println!("? Player profile: {:?}", addr);
+            Ok(Some(borsh::to_vec(&player_info.profile).unwrap()))
+        },
+        None => {
+            println!("E Player profile {:?} not found", addr);
+            Ok(None)
+        },
     };
-    println!("? Player profile: {:?}", addr);
     ret
 }
 

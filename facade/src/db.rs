@@ -83,8 +83,8 @@ pub fn read_stake(conn: &Connection, addr: &str) -> Result<Option<Stake>> {
 pub fn create_player_info(conn: &Connection, player_info: &PlayerInfo) -> Result<()> {
     let profile = &player_info.profile;
     conn.execute(
-        "INSERT INTO player_info (addr, nick, pfp) VALUES (?1, ?2, ?3)",
-        params![profile.addr, profile.nick, profile.pfp],
+        "INSERT INTO player_info (addr, nick, pfp, credentials) VALUES (?1, ?2, ?3, ?4)",
+        params![profile.addr, profile.nick, profile.pfp, profile.credentials],
     )?;
 
     // Assuming a separate table for balances
@@ -877,14 +877,14 @@ pub fn read_recipient_slots(conn: &Connection, recipient_addr: &str) -> Result<V
 
 pub fn create_server_account(conn: &Connection, account: &ServerAccount) -> Result<()> {
     conn.execute(
-        "INSERT INTO server_account (addr, endpoint) VALUES (?1, ?2)",
-        params![account.addr, account.endpoint],
+        "INSERT INTO server_account (addr, endpoint, credentials) VALUES (?1, ?2, ?3)",
+        params![account.addr, account.endpoint, account.credentials],
     )?;
     Ok(())
 }
 
 pub fn read_server_account(conn: &Connection, addr: &str) -> Result<Option<ServerAccount>> {
-    let mut stmt = conn.prepare("SELECT addr, endpoint FROM server_account WHERE addr = ?1")?;
+    let mut stmt = conn.prepare("SELECT addr, endpoint, credentials FROM server_account WHERE addr = ?1")?;
     stmt.query_row(params![addr], |row| {
         Ok(ServerAccount {
             addr: row.get(0)?,

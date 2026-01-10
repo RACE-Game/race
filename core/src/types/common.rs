@@ -22,6 +22,7 @@ pub enum GameMode {
     Sub,
 }
 
+/// Signature for event request.
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Signature {

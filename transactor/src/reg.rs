@@ -31,6 +31,7 @@ pub async fn register_server(config: &Config) -> Result<()> {
         .try_with_config(config)?
         .build()
         .await?;
+    // XXX update here
     // Generate credentials based on current wallet private key.
     let credentials = borsh::to_vec(&Credentials::default()).unwrap();
     info!("Transport built successfully");

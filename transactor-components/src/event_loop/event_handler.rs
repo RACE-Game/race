@@ -48,7 +48,8 @@ async fn send_checkpoint(
     checkpoint: ContextCheckpoint,
     ports: &PipelinePorts,
 ) {
-    let f = EventFrame::Checkpoint {
+    let f =
+        EventFrame::Checkpoint {
         checkpoint,
     };
     ports.send(f).await;
@@ -449,6 +450,7 @@ pub async fn handle_event(
         stop_game,
         logs,
         reject_deposits,
+        checkpoint,
         ..
     } = event_effects;
 
@@ -460,7 +462,10 @@ pub async fn handle_event(
     }
 
     // XXX, where to build this checkpoint.
-    send_checkpoint(new_game_context.checkpoint().clone(), ports).await;
+    // If getting from context a right way?
+    if let Some(checkpoint) = checkpoint {
+        send_checkpoint(checkpoint, ports).await;
+    }
 
     // Update the local client
     update_local_client(&new_game_context, ports).await;

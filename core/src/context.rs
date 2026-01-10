@@ -554,6 +554,8 @@ impl GameContext {
         match rnd_st.status.clone() {
             RandomStatus::Shared => {}
             RandomStatus::Ready => {
+                println!("Dispatch RandomnessReady");
+                println!("Random State: {:?}", self.random_states.get(random_id));
                 self.dispatch_event_instantly(Event::RandomnessReady { random_id });
             }
             RandomStatus::Locking(ref addr) => {
@@ -798,9 +800,6 @@ impl GameContext {
 
         let previous_settle_version = self.settle_version();
 
-        // XXX remove this
-        println!("Random State: {:?}", self.random_states);
-
         if let Some(state) = handler_state {
             self.set_handler_state_raw(state.clone());
             let mut settles = vec![];
@@ -841,6 +840,8 @@ impl GameContext {
             let mut checkpoint: Option<ContextCheckpoint> = None;
 
             if is_checkpoint || is_init {
+
+                println!("is_checkpoint = {}, is_init = {}", is_checkpoint, is_init);
 
                 let shared_data = SharedData::new(self.balances.clone(), self.nodes.clone());
                 let cp = ContextCheckpoint::new(shared_data, self.versioned_data.clone());

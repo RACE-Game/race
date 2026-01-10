@@ -48,15 +48,26 @@ fn parse_params<T: BorshDeserialize>(
     let arg_vec = base64_decode(&arg_base64)?;
     let sig_vec = base64_decode(&sig_base64)?;
 
+    println!("XXX arg_vec: {:?}", arg_vec);
+
     let signature = Signature::try_from_slice(&sig_vec)
-        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+        .map_err(|e| {
+            warn!("Signature deserialization failed");
+            RpcError::Call(CallError::InvalidParams(e.into()))
+        })?;
 
     context
         .verify(&arg_vec, &signature)
-        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+        .map_err(|e| {
+            warn!("Signature verification failed");
+            RpcError::Call(CallError::InvalidParams(e.into()))
+        })?;
 
     let arg = T::try_from_slice(&arg_vec)
-        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+        .map_err(|e| {
+            warn!("Argument deserialization failed");
+            RpcError::Call(CallError::InvalidParams(e.into()))
+        })?;
 
     Ok((game_addr, arg, signature))
 }
@@ -89,7 +100,13 @@ async fn submit_event(
     params: Params<'_>,
     context: Arc<ApplicationContext>,
 ) -> Result<(), RpcError> {
-    let (game_addr, SubmitEventParams { event }, _sig) = parse_params(params, &context)?;
+    let (game_addr, SubmitEventParams { event }, _sig) = match parse_params(params, &context) {
+        Ok(x) => x,
+        Err(e) => {
+            // warn!("Invalid event from client: {:?}", e);
+            return Err(e);
+        }
+    };
 
     info!("Submit event, game_addr: {}, event: {}", game_addr, event);
 

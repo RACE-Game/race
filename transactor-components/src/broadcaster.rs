@@ -314,7 +314,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     state_sha,
                     ..
                 } => {
-                    // info!("{} Broadcaster receive event: {}", env.log_prefix, event);
+                    info!("{} Broadcaster receive event: {}", env.log_prefix, event);
                     let mut event_backup_groups = ctx.event_backup_groups.write().await;
 
                     if let Some(current) = event_backup_groups.back_mut() {
@@ -344,7 +344,7 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                     }
                 }
 
-                EventFrame::Sync {
+                EventFrame::SyncWithCredentials {
                     new_servers,
                     new_players,
                     new_deposits,

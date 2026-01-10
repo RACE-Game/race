@@ -8,7 +8,6 @@ use race_transactor_frames::EventFrame;
 use race_core::credentials::Credentials;
 use race_core::transport::TransportT;
 use race_core::encryptor::EncryptorT;
-use race_core::types::GameAccount;
 use tracing::{info, error};
 use borsh::BorshDeserialize;
 use super::{common::PipelinePorts, ComponentEnv};
@@ -49,6 +48,9 @@ pub async fn maybe_fetch_player_credentials(
         loop {
             if let Ok(Some(profile)) = transport.get_player_profile(player_addr).await {
                 info!("{} Load server credentials: {}", env.log_prefix, player_addr);
+
+                println!("XXX credentials: {:?}", &profile.credentials);
+
                 let credentials = Credentials::try_from_slice(&profile.credentials).expect("Failed to deserialize Credentials");
                 cached_player_credentials.insert(player_addr.to_string(), credentials.clone());
                 return credentials;
@@ -72,14 +74,14 @@ impl CredentialConsolidator {
     pub fn init(
         transport: Arc<dyn TransportT>,
         encryptor: Arc<dyn EncryptorT>,
-        game_account: &GameAccount
+        game_addr: &str,
     ) -> (Self, CredentialConsolidatorContext) {
         (
             Self {},
             CredentialConsolidatorContext {
                 transport,
                 encryptor,
-                game_addr: game_account.addr.clone(),
+                game_addr: game_addr.to_string(),
             },
         )
     }
