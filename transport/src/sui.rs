@@ -1103,6 +1103,11 @@ impl TransportT for SuiTransport {
 
         Ok(Some(recipient_obj.into()))
     }
+
+    async fn generate_secret(&self) -> Result<Vec<u8>> {
+        Ok(vec![])
+    }
+
 }
 
 impl SuiTransport {

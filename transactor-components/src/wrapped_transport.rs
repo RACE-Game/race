@@ -326,6 +326,11 @@ impl TransportT for WrappedTransport {
     async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
         self.inner.recipient_claim(params).await
     }
+
+    async fn generate_secret(&self) -> Result<Vec<u8>> {
+        self.inner.generate_secret().await
+    }
+
 }
 
 #[cfg(test)]

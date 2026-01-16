@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-
+use tokio::time::{sleep, Duration};
 use async_trait::async_trait;
 use race_transactor_frames::EventFrame;
 use race_core::credentials::Credentials;
@@ -31,6 +31,7 @@ pub async fn maybe_fetch_server_credentials(
                 return credentials;
             } else {
                 error!("Failed to fetch server profile for {}, will retry.", server_addr);
+                sleep(Duration::from_secs(5)).await;
             }
         }
     }
@@ -49,13 +50,12 @@ pub async fn maybe_fetch_player_credentials(
             if let Ok(Some(profile)) = transport.get_player_profile(player_addr).await {
                 info!("{} Load server credentials: {}", env.log_prefix, player_addr);
 
-                println!("XXX credentials: {:?}", &profile.credentials);
-
                 let credentials = Credentials::try_from_slice(&profile.credentials).expect("Failed to deserialize Credentials");
                 cached_player_credentials.insert(player_addr.to_string(), credentials.clone());
                 return credentials;
             } else {
                 error!("Failed to fetch player profile for {}, will retry.", player_addr);
+                sleep(Duration::from_secs(5)).await;
             }
         }
     }

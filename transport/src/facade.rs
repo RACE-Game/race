@@ -240,6 +240,11 @@ impl TransportT for FacadeTransport {
 
         return Ok(RejectDepositsResult { signature });
     }
+
+    async fn generate_secret(&self) -> Result<Vec<u8>> {
+        let origin_secret = borsh::to_vec(&self.addr()).unwrap();
+        Ok(origin_secret)
+    }
 }
 
 impl FacadeTransport {

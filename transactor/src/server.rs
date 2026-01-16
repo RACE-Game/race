@@ -44,8 +44,12 @@ fn parse_params<T: BorshDeserialize>(
     params: Params<'_>,
     context: &ApplicationContext,
 ) -> Result<(String, T, Signature), RpcError> {
+
+    println!("XXX parse params 1");
     let (game_addr, arg_base64, sig_base64) = params.parse::<(String, String, String)>()?;
+    println!("XXX parse params 2");
     let arg_vec = base64_decode(&arg_base64)?;
+    println!("XXX parse params 3");
     let sig_vec = base64_decode(&sig_base64)?;
 
     println!("XXX arg_vec: {:?}", arg_vec);

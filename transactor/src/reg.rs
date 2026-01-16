@@ -10,13 +10,13 @@ use race_core::{
     transport::TransportT,
     types::{RegisterServerParams, ServeParams},
 };
+use race_encryptor::generate_credentials;
 use race_env::Config;
 use race_transport::TransportBuilder;
 use tokio::select;
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
-use race_core::credentials::Credentials;
 use race_transactor_frames::SignalFrame;
 use crate::context::ApplicationContext;
 
@@ -31,9 +31,11 @@ pub async fn register_server(config: &Config) -> Result<()> {
         .try_with_config(config)?
         .build()
         .await?;
-    // XXX update here
-    // Generate credentials based on current wallet private key.
-    let credentials = borsh::to_vec(&Credentials::default()).unwrap();
+
+    let secret = transport.generate_secret().await?;
+    let credentials = generate_credentials(secret)?;
+    let credentials = borsh::to_vec(&credentials)?;
+
     info!("Transport built successfully");
     transport
         .register_server(RegisterServerParams {

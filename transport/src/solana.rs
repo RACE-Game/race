@@ -1572,6 +1572,10 @@ impl TransportT for SolanaTransport {
 
         Ok(())
     }
+
+    async fn generate_secret(&self) -> Result<Vec<u8>> {
+        Ok(vec![])
+    }
 }
 
 impl SolanaTransport {
