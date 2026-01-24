@@ -100,7 +100,6 @@ impl TransportT for WrappedTransport {
                     }
                     None => {
                         sub = loop {
-                            info!("Restart subscription after {} seconds", interval);
                             tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
                             let new_sub = self.inner.subscribe_game_account(addr).await;
                             match new_sub {

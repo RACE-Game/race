@@ -80,11 +80,6 @@ async fn send_subgame_ready(
         .await;
 }
 
-#[allow(unused)]
-async fn send_subgame_recovered(game_id: usize, ports: &PipelinePorts) {
-    ports.send(EventFrame::SubGameRecovered { game_id }).await;
-}
-
 pub async fn send_subgame_shutdown(
     game_id: usize,
     versioned_data: &VersionedData,
@@ -211,10 +206,23 @@ async fn launch_sub_game(
 
     launch_sub_game_from_versioned_data(&versioned_data, &shared_data, ports, env).await;
 
+
+    // Send SubGameReady to current event handler.
+    let max_players = versioned_data.game_spec.max_players;
+    let game_id = versioned_data.game_spec.game_id;
+    ports
+        .send(EventFrame::SubGameReady {
+            versioned_data,
+            game_id,
+            max_players,
+            init_data: init_account.data,
+        })
+        .await;
+
+
     Ok(())
 }
 
-// XXX, should we load the bundle here?
 /// Lanuch a subgame from versioned data.
 /// Use this function to send a frame to recover a subgame.
 async fn launch_sub_game_from_versioned_data(
@@ -240,7 +248,6 @@ async fn init_state_with_init_account(
     ports: &PipelinePorts,
     env: &ComponentEnv,
 ) -> Result<Effect, Error> {
-    println!("Initialize handler state with InitAccount: {:?}", init_account);
     let mut effect = match handler.init_state(&init_account) {
         Ok(effect) => {
             print_logs(&effect.logs, env);
@@ -348,14 +355,6 @@ pub async fn recover_from_checkpoint(
             launch_sub_game_from_versioned_data(versioned_data, checkpoint.shared_data(), ports, env).await;
         }
     }
-
-    // let Some(versioned_data) = checkpoint
-    //     .list_versioned_data()
-    //     .iter()
-    //     .find(|vd| vd.game_spec.game_id == game_id) else {
-    //         return Err(Error::InvalidGameId);
-    //     };
-
     let versioned_data = checkpoint.root_data();
 
     // Redispatch all unhandled bridge events.
@@ -368,16 +367,28 @@ pub async fn recover_from_checkpoint(
         ).await;
     }
 
-    // XXX why do this?
-    // game_context.set_dispatch(versioned_data.dispatch.clone());
-
+    // Initialize the game context.
     let game_context = match GameContext::try_new(
         checkpoint.shared_data().to_owned(),
         versioned_data.to_owned(),
     ) {
-        Ok(game_context) => game_context,
+        Ok(mut game_context) => {
+            game_context.set_dispatch(versioned_data.dispatch.clone());
+            game_context
+        }
         Err(e) => return Err(e),
     };
+
+
+    // When we recovered/started a subgame.
+    if game_mode == GameMode::Sub && client_mode == ClientMode::Transactor  {
+        // We should tell the event bridge that we have launched the subgame successfully.
+        let game_id = game_context.game_id();
+        info!("Notify subgame launched: game_id = {}", game_id);
+        ports.send(EventFrame::SubGameLaunched {
+            game_id,
+        }).await;
+    }
 
     Ok(game_context)
 }
@@ -435,11 +446,11 @@ pub async fn handle_event(
     };
 
     // Parse the output effect
-
     let event_effects = match new_game_context.apply_effect(effect) {
         Ok(ee) => ee,
-        Err(_e) => {
+        Err(e) => {
             // The handler encounters an normal error?
+            error!("{} Failed to apply effect to game context: {}", env.log_prefix, e);
             return None;
         }
     };

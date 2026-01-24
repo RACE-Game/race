@@ -355,14 +355,7 @@ impl EncryptorT for Encryptor {
             .lock()
             .map_err(|_| EncryptorError::ReadPublicKeyError)?;
 
-        println!("publics: {:?}", publics);
-        println!("message: {:?}", message);
-        println!("signature: {:?}", signature);
-
-        for (addr, p) in publics.iter() {
-            let ec_pub_raw = export_ec_public(&p.ec)?;
-            println!("addr: {}, ec: {:?}", addr, ec_pub_raw);
-        }
+        println!("publics keys: {:?}", publics.keys());
 
         let res = match addr {
             Some(addr) => ec_verify(
@@ -388,10 +381,6 @@ impl EncryptorT for Encryptor {
             timestamp,
             signature,
         } = signature;
-
-        println!("signer: {}", signer);
-        println!("timestamp: {}", timestamp);
-        println!("signature: {:?}", signature);
 
         // TODO: We should check timestamp here.
         let message = [message, &u64::to_le_bytes(*timestamp)].concat();

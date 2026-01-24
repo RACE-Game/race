@@ -95,7 +95,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                 // 1. The transactor is resuming a game
                 // 2. The validator is initializing a game
                 // 3. The sub game is initializing (sub game is always started with a checkpoint)
-                EventFrame::RecoverCheckpoint {
+                EventFrame::RecoverCheckpointWithCredentials {
                     checkpoint,
                 } => {
                     match event_handler::recover_from_checkpoint(
@@ -121,7 +121,13 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     new_servers,
                     transactor_addr,
                 } => {
+
+                    info!(
+                        "{} handle SubSync, access_version: {}",
+                        env.log_prefix, access_version
+                    );
                     game_context.set_access_version(access_version);
+
                     for server in new_servers.iter() {
                         let mode = if server.addr.eq(&transactor_addr) {
                             ClientMode::Transactor

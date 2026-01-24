@@ -137,8 +137,8 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         ports.send(event_frame).await;
                     }
 
-                    EventFrame::SubGameRecovered { game_id } => {
-                        info!("{} Receives subgame recovered: {}", env.log_prefix, game_id);
+                    EventFrame::SubGameLaunched { game_id } => {
+                        info!("{} Receives subgame launched: {}", env.log_prefix, game_id);
                         // Remove the launching game's ID
                         launching_game_ids.retain(|id| *id != game_id);
                         // Send the pending events, for print log reason, not combine with SubGameReady
@@ -335,8 +335,8 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         }
                     }
 
-                    EventFrame::SubGameRecovered { .. } => {
-                        info!("{} Send SubGameRecovered to parent", env.log_prefix);
+                    EventFrame::SubGameLaunched { .. } => {
+                        info!("{} Send SubGameLaunched to parent", env.log_prefix);
                         if let Err(e) = ctx.tx.send(event_frame).await {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }

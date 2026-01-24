@@ -71,17 +71,10 @@ impl SubGameHandle {
         event_bus.attach(&mut broadcaster_handle).await;
         event_bus.attach(&mut event_loop_handle).await;
 
-        let init_frame = EventFrame::RecoverCheckpoint {
+        let init_frame = EventFrame::RecoverCheckpointWithCredentials {
             checkpoint: checkpoint.clone()
         };
 
-        // XXX the frame will be sent from where the handle is launched.
-        //
-        // let init_state = EventFrame::InitState {
-        //     access_version,
-        //     settle_version,
-        //     checkpoint,
-        // };
         event_bus.send(init_frame).await;
 
         Ok(Self {

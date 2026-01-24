@@ -87,11 +87,6 @@ impl From<EncryptorError> for crate::error::Error {
 pub trait EncryptorT: std::fmt::Debug + Send + Sync {
     fn import_credentials(&self, addr: &str, credentials: Credentials) -> EncryptorResult<()>;
 
-    // XXX refactored
-    // fn add_public_key(&self, addr: String, raw: &NodePublicKeyRaw) -> EncryptorResult<()>;
-
-    // fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<NodePublicKeyRaw>;
-
     fn gen_secret(&self) -> SecretKey;
 
     fn encrypt(&self, addr: Option<&str>, text: &[u8]) -> EncryptorResult<Vec<u8>>;

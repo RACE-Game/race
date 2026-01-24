@@ -106,6 +106,8 @@ impl TransactorHandle {
 
         let init_account = game_account.derive_init_account();
 
+        let mut checkpoint_access_version = 0;
+
         let init_frame = if game_account.settle_version == 0 {
             info!("Initialize game {} for the first time.", game_addr);
             // The game is not initialized, create an InitState frame.
@@ -125,10 +127,12 @@ impl TransactorHandle {
                 nodes,
             }
         } else {
-            info!("Initialize game {} from a checkpoint.", game_addr);
+            info!("Initialize game {} from a checkpoint, settle_version = {}.", game_addr, game_account.settle_version);
             let Some(checkpoint) = checkpoint_off_chain else {
                 return Err(Error::MissingCheckpoint);
             };
+
+            checkpoint_access_version = checkpoint.root_data.versions.access_version;
             // The game is already initialized, create a RecoverCheckpoint frame.
             EventFrame::RecoverCheckpoint {
                 checkpoint: checkpoint.to_context_checkpoint(),
@@ -142,15 +146,6 @@ impl TransactorHandle {
 
         let (bridge, bridge_ctx) = EventBridgeParent::init(signal_tx);
         let mut bridge_handle = bridge.start(&game_addr, bridge_ctx);
-
-        // let (recorder, recorder_ctx) = Recorder::init(
-        //     game_context.get_game_spec().to_owned(),
-        //     game_account.data.clone(),
-        //     game_account.entry_type.clone(),
-        //     config.chain.as_str().into(),
-        //     false);
-
-        // let mut recorder_handle = recorder.start(&game_account.addr, recorder_ctx);
 
         let (credential_consolidator, credential_consolidator_ctx) = CredentialConsolidator::init(
             transport.clone(),
@@ -176,7 +171,7 @@ impl TransactorHandle {
         let mut submitter_handle = submitter.start(&game_account.addr, submitter_ctx);
 
         let (synchronizer, synchronizer_ctx) =
-            GameSynchronizer::init(transport.clone(), &game_account);
+            GameSynchronizer::init(transport.clone(), &game_account.addr, checkpoint_access_version);
 
         let (refunder, refunder_ctx) =
             Refunder::init(&game_account, transport.clone());

@@ -114,8 +114,6 @@ impl SettleDetails {
 pub struct GameContext {
     /// The game specification
     pub(crate) game_spec: GameSpec,
-    /// Contains `settle_version` and `access_version`
-    pub(crate) versions: Versions,
     /// The game status indicating whether the game is running or not. WIP use this variables
     pub(crate) status: GameStatus,
     /// List of nodes serving this game
@@ -149,14 +147,13 @@ impl GameContext {
         let versioned_data_1 = versioned_data.clone();
 
         let VersionedData {
-            handler_state, game_spec, versions, ..
+            handler_state, game_spec, ..
         } = versioned_data;
 
         let state_sha = digest(&handler_state);
 
         Ok(Self {
             game_spec: game_spec.clone(),
-            versions: versions.clone(),
             status: GameStatus::Idle,
             nodes: nodes.clone(),
             balances: balances.clone(),
@@ -293,11 +290,13 @@ impl GameContext {
         ))
     }
 
-    pub fn wait_timeout(&mut self, timeout: u64) {
+    pub fn wait_timeout(&mut self, timeout: u64) -> Result<()> {
+        let dispatch_timeout = self.timestamp.checked_add(timeout).ok_or(Error::MathOverflow)?;
         self.dispatch = Some(DispatchEvent::new(
             Event::WaitingTimeout,
-            self.timestamp + timeout,
+            dispatch_timeout,
         ));
+        Ok(())
     }
 
     pub fn action_timeout(&mut self, player_id: u64, timeout: u64) {
@@ -356,11 +355,11 @@ impl GameContext {
     }
 
     pub fn access_version(&self) -> u64 {
-        self.versions.access_version
+        self.versioned_data.versions.access_version
     }
 
     pub fn settle_version(&self) -> u64 {
-        self.versions.settle_version
+        self.versioned_data.versions.settle_version
     }
 
     /// Get the random state by its id.
@@ -453,7 +452,7 @@ impl GameContext {
     }
 
     pub fn set_access_version(&mut self, access_version: u64) {
-        self.versions.access_version = access_version;
+        self.versioned_data.versions.access_version = access_version;
     }
 
     pub fn take_accept_deposits(&mut self) -> Vec<u64> {
@@ -554,8 +553,6 @@ impl GameContext {
         match rnd_st.status.clone() {
             RandomStatus::Shared => {}
             RandomStatus::Ready => {
-                println!("Dispatch RandomnessReady");
-                println!("Random State: {:?}", self.random_states.get(random_id));
                 self.dispatch_event_instantly(Event::RandomnessReady { random_id });
             }
             RandomStatus::Locking(ref addr) => {
@@ -591,7 +588,7 @@ impl GameContext {
     }
 
     pub fn bump_settle_version(&mut self) -> Result<()> {
-        self.versions.settle_version += 1;
+        self.versioned_data.versions.settle_version += 1;
         Ok(())
     }
 
@@ -762,7 +759,7 @@ impl GameContext {
         } else if let Some(t) = action_timeout {
             self.action_timeout(t.player_id, t.timeout);
         } else if let Some(t) = wait_timeout {
-            self.wait_timeout(t);
+            self.wait_timeout(t)?;
         } else if cancel_dispatch {
             self.cancel_dispatch();
         }
@@ -806,7 +803,7 @@ impl GameContext {
 
             if is_init {
                 self.bump_settle_version()?;
-                self.versioned_data = VersionedData::new(self.game_spec.clone(), self.versions, state);
+                self.versioned_data = VersionedData::new(self.game_spec.clone(), Versions::new(1, 1), state);
                 self.set_game_status(GameStatus::Idle);
             } else if is_checkpoint {
                 let settles_map = build_settles_map(&withdraws, &ejects, &self.balances, &balances);
@@ -816,7 +813,6 @@ impl GameContext {
 
                 self.random_states.clear();
                 self.decision_states.clear();
-                self.bump_settle_version()?;
                 self.versioned_data.set_state_and_bump_version(state);
                 self.set_game_status(GameStatus::Idle);
             }
@@ -840,9 +836,6 @@ impl GameContext {
             let mut checkpoint: Option<ContextCheckpoint> = None;
 
             if is_checkpoint || is_init {
-
-                println!("is_checkpoint = {}, is_init = {}", is_checkpoint, is_init);
-
                 let shared_data = SharedData::new(self.balances.clone(), self.nodes.clone());
                 let cp = ContextCheckpoint::new(shared_data, self.versioned_data.clone());
 
@@ -915,7 +908,7 @@ impl GameContext {
     }
 
     pub fn versions(&self) -> Versions {
-        self.versions
+        self.versioned_data.versions
     }
 
     pub fn get_balances(&self) -> &[PlayerBalance] {
@@ -927,7 +920,6 @@ impl Default for GameContext {
     fn default() -> Self {
         Self {
             game_spec: Default::default(),
-            versions: Default::default(),
             status: GameStatus::Idle,
             nodes: Vec::new(),
             balances: Vec::new(),

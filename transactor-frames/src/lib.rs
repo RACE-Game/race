@@ -58,6 +58,9 @@ pub enum EventFrame {
     RecoverCheckpoint {
         checkpoint: ContextCheckpoint,
     },
+    RecoverCheckpointWithCredentials {
+        checkpoint: ContextCheckpoint,
+    },
     InitState {
         access_version: u64,
         settle_version: u64,
@@ -134,8 +137,8 @@ pub enum EventFrame {
         init_data: Vec<u8>,
     },
 
-    /// Subgames send this frame when start via recovering from checkpoint.
-    SubGameRecovered {
+    /// Notify that the subgame is launched successfully
+    SubGameLaunched {
         game_id: usize,
     },
 
@@ -169,6 +172,12 @@ impl std::fmt::Display for EventFrame {
             } => write!(
                 f,
                 "RecoverCheckpoint",
+            ),
+            EventFrame::RecoverCheckpointWithCredentials {
+                ..
+            } => write!(
+                f,
+                "RecoverCheckpointWithCredentials",
             ),
             EventFrame::Sync {
                 new_players,
@@ -242,8 +251,8 @@ impl std::fmt::Display for EventFrame {
             EventFrame::SubGameReady { game_id, .. } => {
                 write!(f, "SubGameReady, game_id: {}", game_id)
             }
-            EventFrame::SubGameRecovered { game_id } => {
-                write!(f, "SubGameRecovered, game_id: {}", game_id)
+            EventFrame::SubGameLaunched { game_id } => {
+                write!(f, "SubGameLaunched, game_id: {}", game_id)
             }
             EventFrame::SubGameShutdown { game_id, .. } => {
                 write!(f, "SubGameShutdown, game_id: {}", game_id)

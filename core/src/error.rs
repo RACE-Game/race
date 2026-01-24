@@ -336,6 +336,9 @@ pub enum Error {
 
     #[error("Empty reject deposits")]
     EmptyRejectDeposits,
+
+    #[error("Math overflow")]
+    MathOverflow,
 }
 
 #[cfg(feature = "serde")]

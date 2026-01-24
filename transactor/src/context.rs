@@ -177,19 +177,6 @@ impl ApplicationContext {
         })
     }
 
-    // XXX no longer needed
-    // pub async fn register_key(&self, player_addr: String, key: NodePublicKeyRaw) -> Result<()> {
-    //     self.encryptor.add_public_key(player_addr, &key)?;
-    //     Ok(())
-    // }
-
-    // #[allow(unused)]
-    // pub fn export_public_key(&self) -> NodePublicKeyRaw {
-    //     self.encryptor
-    //         .export_public_key(None)
-    //         .expect("Export public key failed")
-    // }
-
     pub fn verify(&self, arg: &[u8], signature: &Signature) -> Result<()> {
         self.encryptor.verify(arg, signature)?;
         Ok(())

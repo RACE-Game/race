@@ -8,6 +8,8 @@ use race_transactor_frames::EventFrame;
 use race_core::credentials::Credentials;
 use race_core::transport::TransportT;
 use race_core::encryptor::EncryptorT;
+use race_core::node::Node;
+use race_core::types::ClientMode;
 use tracing::{info, error};
 use borsh::BorshDeserialize;
 use super::{common::PipelinePorts, ComponentEnv};
@@ -61,6 +63,23 @@ pub async fn maybe_fetch_player_credentials(
     }
 }
 
+pub async fn maybe_fetch_node_credentials(
+    node: &Node,
+    cached_player_credentials: &mut HashMap<String, Credentials>,
+    cached_server_credentials: &mut HashMap<String, Credentials>,
+    transport: Arc<dyn TransportT>,
+    env: &ComponentEnv,
+) -> Credentials {
+    match node.mode {
+        ClientMode::Player => {
+            maybe_fetch_player_credentials(&node.addr, cached_player_credentials, transport, env).await
+        }
+        _ => {
+            maybe_fetch_server_credentials(&node.addr, cached_server_credentials, transport, env).await
+        }
+    }
+}
+
 pub struct CredentialConsolidatorContext {
     transport: Arc<dyn TransportT>,
     encryptor: Arc<dyn EncryptorT>,
@@ -109,6 +128,23 @@ impl Component<PipelinePorts, CredentialConsolidatorContext> for CredentialConso
             match event_frame {
                 EventFrame::Shutdown => {
                     return CloseReason::Complete;
+                }
+                EventFrame::RecoverCheckpoint {
+                    checkpoint
+                }=> {
+                    for n in checkpoint.shared_data.nodes.iter() {
+                        let credentials = maybe_fetch_node_credentials(
+                            n, &mut cached_player_credentials, &mut cached_server_credentials, transport.clone(), &env
+                        ).await;
+
+                        if let Err(e) = encryptor.import_credentials(&n.addr, credentials) {
+                            return CloseReason::Fault(e.into());
+                        }
+                    }
+
+                    ports.send(EventFrame::RecoverCheckpointWithCredentials {
+                        checkpoint
+                    }).await;
                 }
                 EventFrame::Sync {
                     new_players,

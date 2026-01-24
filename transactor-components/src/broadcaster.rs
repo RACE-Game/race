@@ -134,6 +134,7 @@ impl Broadcaster {
             return latest_group.checkpoint_off_chain.clone();
         }
 
+        warn!("Missing the latest checkpoint, the client won't be able to join this game.");
         None
     }
 
@@ -283,6 +284,27 @@ impl Component<ConsumerPorts, BroadcasterContext> for Broadcaster {
                 //         nodes,
                 //     });
                 // }
+
+                EventFrame::RecoverCheckpointWithCredentials { checkpoint } => {
+                    let mut event_backup_groups = ctx.event_backup_groups.write().await;
+
+                    let nodes = checkpoint.shared_data.nodes.clone();
+                    let settle_version = checkpoint.root_data.versions.settle_version;
+                    let access_version = checkpoint.root_data.versions.access_version;
+                    let checkpoint_off_chain = checkpoint.build_checkpoint().derive_offchain_part();
+                    let state_sha = sha256::digest(&checkpoint.root_data.handler_state);
+
+                    info!("{} Create new history group (via RecoverCheckpoint). access_version = {}", env.log_prefix, access_version);
+
+                    event_backup_groups.push_back(EventBackupGroup {
+                        sync: BroadcastSync::new(access_version),
+                        events: LinkedList::new(),
+                        checkpoint_off_chain: Some(checkpoint_off_chain),
+                        state_sha,
+                        settle_version,
+                        nodes,
+                    });
+                }
 
                 EventFrame::TxState { tx_state } => match tx_state {
                     TxState::SettleSucceed { .. } => {

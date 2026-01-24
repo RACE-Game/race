@@ -16,7 +16,7 @@ use race_api::event::Message;
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
-    CheckpointParams, ExitGameParams, Signature, SubmitEventParams,
+    CheckpointParams, LatestCheckpointParams, ExitGameParams, Signature, SubmitEventParams,
     SubscribeEventParams, SubscribeCheckpointParams
 };
 use tokio_stream::wrappers::BroadcastStream;
@@ -44,32 +44,26 @@ fn parse_params<T: BorshDeserialize>(
     params: Params<'_>,
     context: &ApplicationContext,
 ) -> Result<(String, T, Signature), RpcError> {
-
-    println!("XXX parse params 1");
     let (game_addr, arg_base64, sig_base64) = params.parse::<(String, String, String)>()?;
-    println!("XXX parse params 2");
     let arg_vec = base64_decode(&arg_base64)?;
-    println!("XXX parse params 3");
     let sig_vec = base64_decode(&sig_base64)?;
-
-    println!("XXX arg_vec: {:?}", arg_vec);
 
     let signature = Signature::try_from_slice(&sig_vec)
         .map_err(|e| {
-            warn!("Signature deserialization failed");
+            warn!("Signature deserialization failed: {:?}", e);
             RpcError::Call(CallError::InvalidParams(e.into()))
         })?;
 
     context
         .verify(&arg_vec, &signature)
         .map_err(|e| {
-            warn!("Signature verification failed");
+            warn!("Signature verification failed: {:?}", e);
             RpcError::Call(CallError::InvalidParams(e.into()))
         })?;
 
     let arg = T::try_from_slice(&arg_vec)
         .map_err(|e| {
-            warn!("Argument deserialization failed");
+            warn!("Argument deserialization failed: {:?}", e);
             RpcError::Call(CallError::InvalidParams(e.into()))
         })?;
 
@@ -139,6 +133,22 @@ async fn get_checkpoint(
         .transpose()?;
 
     Ok(bs)
+}
+
+async fn get_latest_checkpoint(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<Vec<u8>, RpcError> {
+    let (game_addr, LatestCheckpointParams {}) = parse_params_no_sig(params)?;
+
+    let checkpoint: Option<CheckpointOffChain> = context
+        .game_manager
+        .get_latest_checkpoint(&game_addr)
+        .await
+        .ok()
+        .flatten();
+
+    let bs = borsh::to_vec(&checkpoint).map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
+
+    Ok(bs)
+
 }
 
 async fn get_latest_checkpoints(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<Vec<u8>, RpcError> {
@@ -346,6 +356,7 @@ pub async fn run_server(
     module.register_method("ping", ping)?;
     module.register_async_method("get_checkpoint", get_checkpoint)?;
     module.register_async_method("get_latest_checkpoints", get_latest_checkpoints)?;
+    module.register_async_method("get_latest_checkpoint", get_latest_checkpoint)?;
     module.register_async_method("get_serving_games", get_serving_games)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;

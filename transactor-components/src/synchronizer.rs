@@ -39,6 +39,7 @@ async fn maybe_send_sync(
 
     // Drop duplicated updates
     if access_version <= prev_access_version {
+        println!("Drop this update, {} <= prev {}", access_version, prev_access_version);
         return (prev_access_version, None);
     }
 
@@ -118,14 +119,15 @@ pub struct GameSynchronizer {}
 impl GameSynchronizer {
     pub fn init(
         transport: Arc<dyn TransportT>,
-        game_account: &GameAccount,
+        game_addr: &str,
+        checkpoint_access_version: u64,
     ) -> (Self, GameSynchronizerContext) {
         (
             Self {},
             GameSynchronizerContext {
                 transport,
-                access_version: game_account.access_version,
-                game_addr: game_account.addr.clone(),
+                game_addr: game_addr.to_string(),
+                access_version: checkpoint_access_version,
             },
         )
     }
@@ -144,6 +146,8 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
         env: ComponentEnv,
     ) -> CloseReason {
         let mut prev_access_version = ctx.access_version;
+
+        info!("{} Synchronizer starts with access_version = {}", env.log_prefix, prev_access_version);
 
         let mut sub = match ctx.transport.subscribe_game_account(&ctx.game_addr).await {
             Ok(sub) => sub,

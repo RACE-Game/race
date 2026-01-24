@@ -62,22 +62,8 @@ impl GameManager {
         let game_addr = checkpoint.root_data().game_spec.game_addr.clone();
         let game_id = checkpoint.root_data().game_spec.game_id;
 
-        // XXX fix this log statement
-        //
-        // match &sub_game_init.source {
-        //     race_core::context::SubGameInitSource::FromCheckpoint(ref versioned_data) => {
-        //         info!(
-        //             "LaunchSubGame with Checkpoint: version = {}, bundle = {}",
-        //             versioned_data.versions, sub_game_init.spec.bundle_addr
-        //         );
-        //     }
-        //     race_core::context::SubGameInitSource::FromInitAccount(_, ref versions) => {
-        //         info!(
-        //             "LaunchSubGame with InitAccount: version = {}, bundle = {}",
-        //             versions, sub_game_init.spec.bundle_addr
-        //         );
-        //     }
-        // }
+        info!("Launch sub game, bundle = {}", checkpoint.root_data().game_spec.bundle_addr);
+
         match Handle::try_new_sub_game(
             checkpoint,
             bridge_to_parent,

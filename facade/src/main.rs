@@ -171,6 +171,14 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         player_addr,
     } = params.one()?;
     let context = context.lock().await;
+
+    // Check if the player profile exists?
+    if context.get_player_info(&player_addr)?.is_none() {
+        println!("E Can't join game, profile not found");
+        return Err(custom_error(Error::PlayerProfileNotFound));
+    }
+
+
     if let Some(mut game_account) = context.get_game_account(&game_addr)? {
         let mut stake = context.get_stake(&game_addr)?;
 

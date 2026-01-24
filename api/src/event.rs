@@ -156,7 +156,6 @@ impl std::fmt::Display for Event {
                 )
             }
             Event::ShareSecrets { sender, shares } => {
-                println!("sender: {}, shares: {:?}", sender, shares);
                 let repr = shares
                     .iter()
                     .map(|s| format!("{}", s))

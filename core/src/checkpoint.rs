@@ -131,10 +131,6 @@ impl ContextCheckpoint {
         }
     }
 
-    pub fn set_access_version(&mut self, access_version: u64) {
-        self.root_data.versions.access_version = access_version;
-    }
-
     pub fn shared_data(&self) -> &SharedData {
         &self.shared_data
     }
