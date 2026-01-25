@@ -202,6 +202,10 @@ impl TransportT for DummyTransport {
             signature: "".to_string()
         })
     }
+
+    async fn generate_secret(&self) -> Result<Vec<u8>> {
+        Ok(vec![])
+    }
 }
 
 #[cfg(test)]

@@ -5,12 +5,11 @@ use race_core::error::{Error, Result};
 use race_api::event::{CustomEvent, Event};
 use race_api::types::{GameDeposit, GamePlayer};
 use race_client::Client;
-use race_core::types::{GameAccount, PlayerJoin};
 use race_core::{
     connection::ConnectionT,
     context::GameContext,
     secret::SecretState,
-    types::{AttachGameParams, ClientMode, ExitGameParams, SubmitEventParams, DepositStatus},
+    types::{AttachGameParams, ClientMode, ExitGameParams, SubmitEventParams},
 };
 use race_encryptor::Encryptor;
 use tokio::sync::{mpsc, Mutex};
@@ -106,50 +105,26 @@ impl TestClient {
     pub(crate) fn join(
         &mut self,
         game_context: &mut GameContext,
-        game_account: &mut GameAccount,
         balance: u64,
     ) -> Result<(GamePlayer, GameDeposit)> {
         if self.client.mode != ClientMode::Player {
             panic!("TestClient can only join with Player mode");
         }
 
-        if game_account.players.len() >= game_account.max_players as _ {
-            return Err(Error::GameIsFull(game_account.max_players as _));
+        if game_context.get_nodes().iter().filter(|n| n.mode == ClientMode::Player).count()
+            >= game_context.get_game_spec().max_players as usize {
+            return Err(Error::GameIsFull(game_context.get_game_spec().max_players as _));
         }
 
-        game_account.access_version += 1;
-        let id = game_account.access_version;
+        let access_version = game_context.access_version() + 1;
+        self.set_id(access_version);
+        game_context.add_node(self.client.addr.clone(), access_version, ClientMode::Player);
 
-        let mut position = 0;
-        for i in 0..game_account.max_players {
-            if game_account
-                .players
-                .iter()
-                .find(|p| p.position == i)
-                .is_none()
-            {
-                position = i;
-                break;
-            }
-        }
-
-        game_account.players.push(PlayerJoin {
-            addr: self.client.addr.clone(),
-            position,
-            access_version: id,
-            verify_key: "".into(),
-        });
-        game_account.deposits.push(race_core::types::PlayerDeposit {
-            addr: self.client.addr.clone(),
-            amount: balance,
-            access_version: game_account.access_version,
-            settle_version: game_account.settle_version,
-            status: DepositStatus::Accepted,
-        });
-        self.set_id(id);
-        game_context.add_node(self.client.addr.clone(), id, ClientMode::Player);
-
-        Ok((GamePlayer::new(id, position), GameDeposit::new(id, balance, game_account.access_version)))
+        // XXX We need something to represent the game account
+        // as the accumulator for access_version and positions.
+        // XXX fix position
+        // XXX fix access_version
+        Ok((GamePlayer::new(access_version, 0), GameDeposit::new(access_version, balance, access_version)))
     }
 
     pub fn transactor<S: Into<String>>(addr: S) -> Self {

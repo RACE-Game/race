@@ -587,9 +587,8 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn bump_settle_version(&mut self) -> Result<()> {
+    pub fn bump_settle_version(&mut self) {
         self.versioned_data.versions.settle_version += 1;
-        Ok(())
     }
 
     // Remove all locks with game_id and a version that is smaller than given settle_version
@@ -802,7 +801,7 @@ impl GameContext {
             let mut settles = vec![];
 
             if is_init {
-                self.bump_settle_version()?;
+                self.bump_settle_version();
                 self.versioned_data = VersionedData::new(self.game_spec.clone(), Versions::new(1, 1), state);
                 self.set_game_status(GameStatus::Idle);
             } else if is_checkpoint {

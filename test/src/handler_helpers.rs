@@ -28,6 +28,14 @@ where
 }
 
 impl<H: GameHandler> TestHandler<H> {
+
+    pub fn new_with_handler(
+        handler: H
+    ) -> Self {
+        let random_results = HashMap::default();
+        Self { handler, random_results }
+    }
+
     pub fn init_state(
         context: &mut GameContext,
         init_account: InitAccount,

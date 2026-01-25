@@ -1,6 +1,6 @@
-use std::pin::Pin;
 /// The subscribers
 /// Subscriber used to subscribe events from the transactor.
+use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;

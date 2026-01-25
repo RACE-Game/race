@@ -1,27 +1,26 @@
 use std::collections::HashMap;
 
 use crate::client_helpers::TestClient;
-use crate::misc::{test_game_addr, test_game_title};
 use crate::prelude::{AsGameContextRef, TestHandler};
 use borsh::BorshSerialize;
 use race_api::engine::GameHandler;
 use race_api::event::Event;
+use race_api::types::PlayerBalance;
+use race_api::init_account::InitAccount;
 use race_core::error::Result;
-use race_core::checkpoint::{CheckpointOffChain, CheckpointOnChain, VersionedData};
+use race_core::checkpoint::{VersionedData, SharedData};
 use race_core::random::RandomState;
-use race_core::types::{ClientMode, EntryLock, GameAccount, PlayerDeposit, PlayerJoin, ServerJoin, DepositStatus};
-use race_core::game_spec::GameSpec;
+use race_core::types::ClientMode;
 use race_core::entry_type::EntryType;
 use race_core::dispatch_event::DispatchEvent;
-use race_core::versions::Versions;
 use race_core::context::{EventEffects, GameContext};
+use race_core::node::Node;
 
 pub struct TestContext<H>
 where
     H: GameHandler,
 {
     context: GameContext,
-    account: GameAccount,
     handler: TestHandler<H>,
 }
 
@@ -46,7 +45,7 @@ impl<H: GameHandler> TestContext<H> {
         let mut deposits = vec![];
         for (test_client, deposit) in players_and_deposits.into_iter() {
             let (player, deposit) = test_client
-                .join(&mut self.context, &mut self.account, deposit)
+                .join(&mut self.context, deposit)
                 .expect("Add player to TestContext");
 
             players.push(player);
@@ -184,53 +183,34 @@ impl<H: GameHandler> TestContext<H> {
     }
 }
 
+#[derive(Default)]
 pub struct TestContextBuilder {
-    account: GameAccount,
-}
-
-impl Default for TestContextBuilder {
-    fn default() -> Self {
-        let account = GameAccount {
-            addr: test_game_addr(),
-            title: test_game_title(),
-            bundle_addr: "".into(),
-            owner_addr: "".into(),
-            settle_version: 0,
-            access_version: 0,
-            players: vec![],
-            data_len: 0,
-            data: vec![],
-            transactor_addr: None,
-            servers: vec![],
-            votes: vec![],
-            unlock_time: None,
-            max_players: 6,
-            deposits: vec![],
-            recipient_addr: "".into(),
-            entry_type: EntryType::default(),
-            token_addr: "".into(),
-            checkpoint_on_chain: None,
-            entry_lock: EntryLock::Open,
-            bonuses: vec![],
-            balances: vec![],
-        };
-        TestContextBuilder { account }
-    }
+    shared_data: SharedData,
+    versioned_data: VersionedData,
+    init_data: Option<Vec<u8>>,
 }
 
 impl TestContextBuilder {
     /// Initialize by calling handler's `init_state` without checkpoint.
     pub fn build_with_init_state<H: GameHandler>(self) -> Result<(TestContext<H>, EventEffects)> {
-        let mut context = GameContext::try_new(&self.account, None)
-            .expect("Create game context with initial state api");
-        context.set_node_ready(self.account.access_version);
 
-        let (handler, event_effects) = TestHandler::<H>::init_state(&mut context)?;
+        let Self { shared_data, versioned_data, init_data } = self;
+
+        let Some(init_data) = init_data else {
+            panic!("Missing init data for initialization");
+        };
+
+        let max_players = versioned_data.game_spec.max_players;
+
+        let mut context = GameContext::try_new(shared_data, versioned_data)?;
+
+        let init_account = InitAccount::new(max_players, init_data);
+
+        let (handler, event_effects) = TestHandler::<H>::init_state(&mut context, init_account)?;
 
         Ok((
             TestContext {
                 context,
-                account: self.account,
                 handler,
             },
             event_effects,
@@ -238,62 +218,41 @@ impl TestContextBuilder {
     }
 
     /// Initialize with handler's checkpoint state.
-    pub fn build_with_checkpoint<H: GameHandler>(
+    pub fn build_with_handler<H: GameHandler>(
         mut self,
-        checkpoint: &H,
+        handler: H,
     ) -> Result<(TestContext<H>, EventEffects)> {
-        let mut checkpoint_on_chain = CheckpointOnChain::default();
-        let mut checkpoint_off_chain = CheckpointOffChain::default();
 
-        checkpoint_on_chain.access_version = self.account.access_version;
-        self.account.checkpoint_on_chain = Some(checkpoint_on_chain);
-        let spec = GameSpec {
-            game_addr: self.account.addr.clone(),
-            game_id: 0,
-            bundle_addr: self.account.bundle_addr.clone(),
-            max_players: self.account.max_players,
-        };
+        self.versioned_data.handler_state = borsh::to_vec(&handler)
+            .expect("Failed to serialize hander state");
 
-        checkpoint_off_chain.data.insert(
-            0,
-            VersionedData {
-                id: 0,
-                versions: Versions::new(0, 1),
-                data: borsh::to_vec(checkpoint).expect("Failed to serialize checkpoint"),
-                sha: vec![],
-                game_spec: spec,
-                dispatch: None,
-                bridge_events: vec![],
-            },
-        );
+        let context = GameContext::try_new(self.shared_data, self.versioned_data)?;
 
-        let mut context = GameContext::try_new(&self.account, Some(checkpoint_off_chain))
-            .expect("Create game context with checkpoint state");
-
-        let (handler, event_effects) = TestHandler::<H>::init_state(&mut context)?;
+        let handler = TestHandler::<H>::new_with_handler(handler);
 
         Ok((
             TestContext {
                 context,
-                account: self.account,
                 handler,
             },
-            event_effects,
+            EventEffects::default(),
         ))
     }
 
     pub fn with_max_players(mut self, max_players: u16) -> Self {
-        if max_players < self.account.players.len() as _ {
+        let count_of_added_players = self.shared_data.nodes.iter().filter(|n| n.mode == ClientMode::Player).count();
+        if (max_players as usize) < count_of_added_players {
             panic!("Invalid max_players specified, more players were added");
         }
-        self.account.max_players = max_players;
+        self.versioned_data.game_spec.max_players = max_players;
         self
     }
 
     pub fn with_deposit_amount(mut self, amount: u64) -> Self {
-        self.account.entry_type = EntryType::Ticket {
+        self.versioned_data.game_spec.entry_type = EntryType::Ticket {
             amount,
         };
+
         self
     }
 
@@ -301,7 +260,7 @@ impl TestContextBuilder {
         if max < min {
             panic!("Invalid deposit value, the max must be greater than the min");
         }
-        self.account.entry_type = EntryType::Cash {
+        self.versioned_data.game_spec.entry_type = EntryType::Cash {
             max_deposit: max,
             min_deposit: min,
         };
@@ -312,108 +271,87 @@ impl TestContextBuilder {
         if server.mode().ne(&ClientMode::Transactor) {
             panic!("A test client in TRANSACTOR Mode is required");
         }
-        if self.account.transactor_addr.is_some() {
+        if self.shared_data.nodes.iter().find(|n| n.mode == ClientMode::Transactor).is_some() {
             panic!("Only one transactor is allowed");
         }
         if self
-            .account
-            .servers
+            .shared_data
+            .nodes
             .iter()
-            .find(|s| s.addr.eq(&server.addr()))
+            .find(|n| n.addr.eq(&server.addr()))
             .is_some()
         {
             panic!("Server already added")
         }
-        self.account.transactor_addr = Some(server.addr());
-        self.account.access_version += 1;
-        self.account.servers.insert(
-            0,
-            ServerJoin {
-                addr: server.addr(),
-                endpoint: "".into(),
-                access_version: self.account.access_version,
-                verify_key: "".into(),
-            },
-        );
-        server.set_id(self.account.access_version);
+        self.versioned_data.versions.access_version += 1;
+        self.shared_data.nodes.push(Node::new(server.addr(), self.versioned_data.versions.access_version, ClientMode::Transactor));
+        server.set_id(self.versioned_data.versions.access_version);
         self
     }
 
-    pub fn add_player(self, player: &mut TestClient, deposit: u64) -> Self {
-        let mut position = None;
-        for i in 0..self.account.max_players {
-            if self
-                .account
-                .players
-                .iter()
-                .find(|p| p.position == i)
-                .is_some()
-            {
-                continue;
-            } else {
-                position = Some(i);
-                break;
-            }
-        }
-        if let Some(position) = position {
-            self.add_player_with_position(player, deposit, position)
-        } else {
+    pub fn add_player(mut self, player: &mut TestClient, deposit: u64) -> Self {
+        let count_of_added_players = self.shared_data.nodes.iter().filter(|n| n.mode == ClientMode::Player).count();
+        if count_of_added_players == self.versioned_data.game_spec.max_players as usize {
             panic!("Can't add player, game account is full");
         }
-    }
 
-    pub fn add_player_with_position(
-        mut self,
-        player: &mut TestClient,
-        deposit: u64,
-        position: u16,
-    ) -> Self {
-        if self
-            .account
-            .players
-            .iter()
-            .find(|p| p.addr.eq(&player.addr()))
-            .is_some()
-        {
-            panic!("Player already added")
-        }
-        if player.mode().ne(&ClientMode::Player) {
-            panic!("A test client in PLAYER mode is required");
-        }
-        self.account.access_version += 1;
-        for p in self.account.players.iter() {
-            if p.position == position {
-                panic!("Player position occupied");
-            }
-        }
-        if position >= self.account.max_players {
-            panic!("Player position occupied");
-        }
-        self.account.players.push(PlayerJoin {
-            addr: player.addr(),
-            position,
-            access_version: self.account.access_version,
-            verify_key: "".into(),
-        });
-        self.account.deposits.push(PlayerDeposit {
-            addr: player.addr(),
-            amount: deposit,
-            access_version: self.account.access_version,
-            settle_version: self.account.settle_version,
-            status: DepositStatus::Accepted,
-        });
-        player.set_id(self.account.access_version);
+        self.versioned_data.versions.access_version += 1;
+        self.shared_data.balances.push(PlayerBalance::new(self.versioned_data.versions.access_version, deposit));
+        self.shared_data.nodes.push(Node::new(player.addr(), self.versioned_data.versions.access_version, ClientMode::Player));
+        player.set_id(self.versioned_data.versions.access_version);
         self
     }
 
-    pub fn with_data<T: BorshSerialize>(self, account_data: T) -> Self {
-        let data = borsh::to_vec(&account_data).expect("Serialize data failed");
-        self.with_data_vec(data)
+    // pub fn add_player_with_position(
+    //     mut self,
+    //     player: &mut TestClient,
+    //     deposit: u64,
+    //     position: u16,
+    // ) -> Self {
+    //     if self
+    //         .account
+    //         .players
+    //         .iter()
+    //         .find(|p| p.addr.eq(&player.addr()))
+    //         .is_some()
+    //     {
+    //         panic!("Player already added")
+    //     }
+    //     if player.mode().ne(&ClientMode::Player) {
+    //         panic!("A test client in PLAYER mode is required");
+    //     }
+    //     self.account.access_version += 1;
+    //     for p in self.account.players.iter() {
+    //         if p.position == position {
+    //             panic!("Player position occupied");
+    //         }
+    //     }
+    //     if position >= self.account.max_players {
+    //         panic!("Player position occupied");
+    //     }
+    //     self.account.players.push(PlayerJoin {
+    //         addr: player.addr(),
+    //         position,
+    //         access_version: self.account.access_version,
+    //     });
+    //     self.account.deposits.push(PlayerDeposit {
+    //         addr: player.addr(),
+    //         amount: deposit,
+    //         access_version: self.account.access_version,
+    //         settle_version: self.account.settle_version,
+    //         status: DepositStatus::Accepted,
+    //     });
+    //     player.set_id(self.account.access_version);
+    //     self
+    // }
+
+    pub fn with_init_data<T: BorshSerialize>(self, data: T) -> Self {
+        let data = borsh::to_vec(&data).expect("Serialize data failed");
+        self.with_init_data_vec(data)
     }
 
-    pub fn with_data_vec(mut self, data: Vec<u8>) -> Self {
-        self.account.data_len = data.len() as _;
-        self.account.data = data;
+    pub fn with_init_data_vec(mut self, init_data_vec: Vec<u8>) -> Self {
+        self.init_data = Some(init_data_vec);
         self
     }
 }

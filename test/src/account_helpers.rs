@@ -95,7 +95,6 @@ impl TestGameAccountBuilder {
                 addr: server.addr(),
                 endpoint: "".into(),
                 access_version: self.account.access_version,
-                verify_key: "".into(),
             },
         );
         server.set_id(self.account.access_version);
@@ -120,7 +119,6 @@ impl TestGameAccountBuilder {
             addr: server.addr(),
             endpoint: "".into(),
             access_version: self.account.access_version,
-            verify_key: "".into(),
         });
         server.set_id(self.account.access_version);
         self
@@ -180,7 +178,6 @@ impl TestGameAccountBuilder {
             addr: player.addr(),
             position,
             access_version: self.account.access_version,
-            verify_key: "".into(),
         });
         self.account.deposits.push(PlayerDeposit {
             addr: player.addr(),
