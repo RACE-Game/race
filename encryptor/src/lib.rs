@@ -60,7 +60,7 @@ fn base64_decode(data: &str) -> EncryptorResult<Vec<u8>> {
 }
 
 fn rsa_generate() -> EncryptorResult<Rsa<Private>> {
-    let bits = 1024;
+    let bits = 512;
     Rsa::generate(bits).or(Err(EncryptorError::KeyGenFailed))
 }
 

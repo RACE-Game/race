@@ -150,6 +150,15 @@ impl Component<PipelinePorts, SubscriberContext> for Subscriber {
             ..
         } = ctx;
 
+        // Wait one RecoverCheckpointWithCredentials frame before connecting transactor.
+        // Make sure we have a prepared handler state before the first event.
+        loop {
+            let frame = ports.recv().await;
+            if matches!(frame, Some(EventFrame::RecoverCheckpointWithCredentials { .. })) {
+                break;
+            }
+        }
+
         let mut retries = 0;
         let sub = loop {
             match connection

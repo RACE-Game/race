@@ -73,12 +73,14 @@ impl From<CreateGameAccountParams> for IxCreateGameAccountParams {
 #[derive(Debug, BorshSerialize, BorshDeserialize, Clone)]
 pub struct IxRegisterServerParams {
     pub endpoint: String,
+    pub credentials: Vec<u8>,
 }
 
 impl From<RegisterServerParams> for IxRegisterServerParams {
     fn from(value: RegisterServerParams) -> Self {
         Self {
             endpoint: value.endpoint,
+            credentials: value.credentials,
         }
     }
 }
@@ -159,6 +161,7 @@ pub struct IxSettleParams {
 pub struct IxJoinParams {
     pub amount: u64,
     pub access_version: u64,
+    pub settle_version: u64,
     pub position: u16,
 }
 

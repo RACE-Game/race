@@ -276,7 +276,13 @@ impl TransportT for SolanaTransport {
 
         let server_account_pubkey =
             Pubkey::create_with_seed(&payer_pubkey, SERVER_PROFILE_SEED, &self.program_id)
-                .map_err(|_| TransportError::AddressCreationFailed)?;
+            .map_err(|_| TransportError::AddressCreationFailed)?;
+
+        // Don't register server if it exists
+        if self.client.get_account(&server_account_pubkey).is_ok() {
+            return Err(TransportError::DuplicateServerAccount)?;
+        }
+
         let lamports = self.get_min_lamports(SERVER_ACCOUNT_LEN)?;
 
         let mut ixs = vec![];
@@ -286,22 +292,17 @@ impl TransportT for SolanaTransport {
 
         ixs.push(set_cu_prize_ix);
 
-        if self
-            .client
-            .get_account_data(&server_account_pubkey)
-            .is_err()
-        {
-            let create_server_account_ix = create_account_with_seed(
-                &payer_pubkey,
-                &server_account_pubkey,
-                &payer_pubkey,
-                SERVER_PROFILE_SEED,
-                lamports,
-                SERVER_ACCOUNT_LEN as u64,
-                &self.program_id,
-            );
-            ixs.push(create_server_account_ix);
-        }
+        let create_server_account_ix = create_account_with_seed(
+            &payer_pubkey,
+            &server_account_pubkey,
+            &payer_pubkey,
+            SERVER_PROFILE_SEED,
+            lamports,
+            SERVER_ACCOUNT_LEN as u64,
+            &self.program_id,
+        );
+        ixs.push(create_server_account_ix);
+
 
         let init_or_update_ix = Instruction::new_with_borsh(
             self.program_id,
@@ -311,6 +312,7 @@ impl TransportT for SolanaTransport {
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new(server_account_pubkey, false),
+                AccountMeta::new_readonly(system_program::id(), false),
             ],
         );
 
@@ -1727,7 +1729,6 @@ impl SolanaTransport {
 
     /// Get the state of an on-chain server account by its public key.
     /// Not for public API usage
-    #[allow(dead_code)]
     async fn internal_get_server_state(
         &self,
         server_pubkey: &Pubkey,
