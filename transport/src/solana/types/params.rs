@@ -170,12 +170,14 @@ impl From<JoinParams> for IxJoinParams {
         let JoinParams {
             amount,
             access_version,
+            settle_version,
             position,
             ..
         } = value;
         Self {
             amount,
             access_version,
+            settle_version,
             position,
         }
     }

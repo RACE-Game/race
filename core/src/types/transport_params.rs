@@ -218,6 +218,7 @@ pub struct JoinParams {
     pub game_addr: String,
     pub amount: u64,
     pub access_version: u64,
+    pub settle_version: u64,
     pub position: u16,
 }
 

@@ -39,7 +39,7 @@ async fn maybe_send_sync(
 
     // Drop duplicated updates
     if access_version <= prev_access_version {
-        println!("Drop this update, {} <= prev {}", access_version, prev_access_version);
+        info!("{} Drop update, this version {} < previous version {}", env.log_prefix, access_version, prev_access_version);
         return (prev_access_version, None);
     }
 
@@ -160,6 +160,24 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                 return CloseReason::Fault(Error::GameAccountNotFound);
             }
         };
+
+
+        let account = ctx.transport.get_game_account(&ctx.game_addr).await;
+
+        if let Ok(Some(game_account)) = account {
+            let (new_access_version, close_reason) = maybe_send_sync(
+                prev_access_version,
+                game_account,
+                &mut ports,
+                &env
+            ).await;
+
+            if close_reason.is_some() {
+                error!("{} Failed on the initial query, but the subscription is still available", env.log_prefix);
+            } else {
+                prev_access_version = new_access_version;
+            }
+        }
 
         loop {
             select! {
