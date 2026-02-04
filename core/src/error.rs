@@ -124,6 +124,9 @@ pub enum Error {
     #[error("Not allowed in custom handler")]
     NotAllowedInCustomHandler,
 
+    #[error("Invalid handler state")]
+    InvalidHandlerState,
+
     #[error("Game not served")]
     GameNotServed,
 
@@ -295,6 +298,9 @@ pub enum Error {
     #[error("Invalid player id found when {2}, id: {0}, availables: {1:?}")]
     InvalidPlayerId(u64, Vec<u64>, String),
 
+    #[error("Invalid game id")]
+    InvalidGameId,
+
     #[error("Invalid sub game id")]
     InvalidSubGameId,
 
@@ -330,6 +336,9 @@ pub enum Error {
 
     #[error("Empty reject deposits")]
     EmptyRejectDeposits,
+
+    #[error("Math overflow")]
+    MathOverflow,
 }
 
 #[cfg(feature = "serde")]

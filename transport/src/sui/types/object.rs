@@ -4,7 +4,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use race_core::{
     error::{Error, Result},
     checkpoint::CheckpointOnChain,
-    types::{PlayerProfile, EntryLock, EntryType, GameAccount, GameRegistration, VoteType, RecipientAccount, RecipientSlotType, RecipientSlot, RegistrationAccount, ServerAccount},
+    entry_type::EntryType,
+    types::{PlayerProfile, EntryLock, GameAccount, GameRegistration, VoteType, RecipientAccount, RecipientSlotType, RecipientSlot, RegistrationAccount, ServerAccount},
 };
 use serde::{Serialize, Deserialize};
 use move_core_types::account_address::AccountAddress;

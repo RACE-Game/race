@@ -1,11 +1,11 @@
 use tokio::sync::{mpsc, broadcast};
 
 use race_api::event::{Event, Message};
-use race_core::{
-    checkpoint::{Checkpoint, VersionedData},
-    context::{GameContext, SettleDetails, SubGameInit, Node},
-    types::{PlayerBalance, ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, TxState, VoteType},
-};
+use race_api::init_account::InitAccount;
+use race_core::node::Node;
+use race_core::context::{GameContext, SettleDetails};
+use race_core::checkpoint::{ContextCheckpoint, VersionedData};
+use race_core::types::{ClientMode, PlayerDeposit, PlayerJoin, ServerJoin, TxState, VoteType};
 
 #[derive(Debug)]
 pub struct BridgeToParent {
@@ -20,7 +20,7 @@ pub enum SignalFrame {
         mode: ClientMode,
     },
     LaunchSubGame {
-        sub_game_init: SubGameInit,
+        checkpoint: ContextCheckpoint,
         bridge_to_parent: BridgeToParent,
     },
     #[allow(unused)]
@@ -29,7 +29,6 @@ pub enum SignalFrame {
         game_addr: String,
     },
 }
-
 
 #[derive(Debug, Clone)]
 pub enum EventFrame {
@@ -42,16 +41,31 @@ pub enum EventFrame {
         transactor_addr: String,
         access_version: u64,
     },
+    // Send when credentials of players & servers are loaded
+    SyncWithCredentials {
+        new_players: Vec<PlayerJoin>,
+        new_servers: Vec<ServerJoin>,
+        new_deposits: Vec<PlayerDeposit>,
+        transactor_addr: String,
+        access_version: u64,
+    },
     TxState {
         tx_state: TxState,
     },
     PlayerLeaving {
         player_addr: String,
     },
+    RecoverCheckpoint {
+        checkpoint: ContextCheckpoint,
+    },
+    RecoverCheckpointWithCredentials {
+        checkpoint: ContextCheckpoint,
+    },
     InitState {
         access_version: u64,
         settle_version: u64,
-        checkpoint: Checkpoint,
+        init_account: InitAccount,
+        nodes: Vec<Node>,
     },
     SendEvent {
         event: Event,
@@ -65,12 +79,7 @@ pub enum EventFrame {
         timestamp: u64,
     },
     Checkpoint {
-        checkpoint: Checkpoint,
-        nodes: Vec<Node>,
-        balances: Vec<PlayerBalance>,
-        access_version: u64,
-        settle_version: u64,
-        state_sha: String,
+        checkpoint: ContextCheckpoint,
     },
     Settle {
         settle_details: Box<SettleDetails>,
@@ -109,7 +118,7 @@ pub enum EventFrame {
 
     /// Launch a subgame.
     LaunchSubGame {
-        sub_game_init: Box<SubGameInit>,
+        checkpoint: Box<ContextCheckpoint>,
     },
 
     /// Sync frame for subgames broadcasted from master game.
@@ -128,8 +137,8 @@ pub enum EventFrame {
         init_data: Vec<u8>,
     },
 
-    /// Subgames send this frame when start via recovering from checkpoint.
-    SubGameRecovered {
+    /// Notify that the subgame is launched successfully
+    SubGameLaunched {
         game_id: usize,
     },
 
@@ -158,7 +167,31 @@ impl std::fmt::Display for EventFrame {
                 "InitState, access_version = {}, settle_version = {}",
                 access_version, settle_version
             ),
+            EventFrame::RecoverCheckpoint {
+                ..
+            } => write!(
+                f,
+                "RecoverCheckpoint",
+            ),
+            EventFrame::RecoverCheckpointWithCredentials {
+                ..
+            } => write!(
+                f,
+                "RecoverCheckpointWithCredentials",
+            ),
             EventFrame::Sync {
+                new_players,
+                new_servers,
+                access_version,
+                ..
+            } => write!(
+                f,
+                "Sync, new players: {}, new servers: {}, access version = {}",
+                new_players.len(),
+                new_servers.len(),
+                access_version
+            ),
+            EventFrame::SyncWithCredentials {
                 new_players,
                 new_servers,
                 access_version,
@@ -195,11 +228,12 @@ impl std::fmt::Display for EventFrame {
             EventFrame::RecvBridgeEvent { dest, event, .. } => {
                 write!(f, "RecvBridgeEvent: dest {}, event: {}", dest, event)
             }
-            EventFrame::LaunchSubGame { sub_game_init } => {
+            EventFrame::LaunchSubGame { checkpoint } => {
                 write!(
                     f,
                     "LaunchSubGame: {}#{}",
-                    sub_game_init.spec.game_addr, sub_game_init.spec.game_id
+                    checkpoint.root_data.game_spec.game_addr,
+                    checkpoint.root_data.game_spec.game_id,
                 )
             }
             EventFrame::SubSync {
@@ -217,8 +251,8 @@ impl std::fmt::Display for EventFrame {
             EventFrame::SubGameReady { game_id, .. } => {
                 write!(f, "SubGameReady, game_id: {}", game_id)
             }
-            EventFrame::SubGameRecovered { game_id } => {
-                write!(f, "SubGameRecovered, game_id: {}", game_id)
+            EventFrame::SubGameLaunched { game_id } => {
+                write!(f, "SubGameLaunched, game_id: {}", game_id)
             }
             EventFrame::SubGameShutdown { game_id, .. } => {
                 write!(f, "SubGameShutdown, game_id: {}", game_id)

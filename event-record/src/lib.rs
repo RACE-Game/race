@@ -6,7 +6,10 @@
 //! All content are serialized with borsh & base64.
 
 use borsh::{BorshSerialize, BorshDeserialize};
-use race_core::{context::Node, types::{PlayerBalance, GameSpec, EntryType}};
+use race_core::node::Node;
+use race_core::types::PlayerBalance;
+use race_core::game_spec::GameSpec;
+use race_core::entry_type::EntryType;
 use race_api::event::Event;
 
 #[derive(Default, Debug, BorshSerialize, BorshDeserialize)]

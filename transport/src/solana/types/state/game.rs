@@ -3,7 +3,8 @@ use race_core::error::Error;
 use race_core::types::DepositStatus;
 use race_core::{
     checkpoint::CheckpointOnChain,
-    types::{EntryLock, EntryType, GameAccount, VoteType},
+    entry_type::EntryType,
+    types::{EntryLock, GameAccount, VoteType},
 };
 use solana_sdk::pubkey::Pubkey;
 use crate::solana::types::state::players::PlayerJoin;
@@ -36,7 +37,6 @@ pub struct ServerJoin {
     pub addr: Pubkey,
     pub endpoint: String,
     pub access_version: u64,
-    pub verify_key: String,
 }
 
 impl From<ServerJoin> for race_core::types::ServerJoin {
@@ -45,7 +45,6 @@ impl From<ServerJoin> for race_core::types::ServerJoin {
             addr: value.addr.to_string(),
             endpoint: value.endpoint,
             access_version: value.access_version,
-            verify_key: value.verify_key,
         }
     }
 }

@@ -17,6 +17,7 @@ use race_core::transport::TransportT;
 use race_core::types::{
     AddRecipientSlotParams, AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
 };
+
 use serde::Serialize;
 
 use crate::error::{TransportError, TransportResult};
@@ -26,7 +27,6 @@ use crate::error::{TransportError, TransportResult};
 pub struct ServeInstruction {
     game_addr: String,
     server_addr: String,
-    verify_key: String,
 }
 
 #[derive(Serialize)]
@@ -34,6 +34,7 @@ pub struct ServeInstruction {
 pub struct RegisterServerInstruction {
     server_addr: String,
     endpoint: String,
+    credentials: Vec<u8>,
 }
 
 pub struct FacadeTransport {
@@ -86,7 +87,8 @@ impl TransportT for FacadeTransport {
                 "register_server",
                 rpc_params![RegisterServerInstruction {
                     server_addr: self.addr(),
-                    endpoint: params.endpoint
+                    endpoint: params.endpoint,
+                    credentials: params.credentials,
                 }],
             )
             .await
@@ -104,7 +106,6 @@ impl TransportT for FacadeTransport {
                 rpc_params![ServeInstruction {
                     game_addr: params.game_addr,
                     server_addr: self.addr(),
-                    verify_key: params.verify_key,
                 }],
             )
             .await
@@ -238,6 +239,11 @@ impl TransportT for FacadeTransport {
             .map_err(|e| Error::RpcError(e.to_string()))?;
 
         return Ok(RejectDepositsResult { signature });
+    }
+
+    async fn generate_secret(&self) -> Result<Vec<u8>> {
+        let origin_secret = borsh::to_vec(&self.addr()).unwrap();
+        Ok(origin_secret)
     }
 }
 

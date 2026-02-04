@@ -59,9 +59,10 @@ pub struct ActionTimeout {
     pub timeout: u64,
 }
 
+/// The parameters for launching a new subgame.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct SubGame {
+pub struct LaunchSubGame {
     pub id: usize,
     pub bundle_addr: String,
     pub init_account: InitAccount,
@@ -79,7 +80,7 @@ pub struct SubGameLeave {
     pub player_ids: Vec<u64>,
 }
 
-impl SubGame {
+impl LaunchSubGame {
     pub fn try_new<S: BorshSerialize>(
         id: usize,
         bundle_addr: String,
@@ -255,7 +256,7 @@ pub struct Effect {
     pub handler_state: Option<Vec<u8>>,
     pub error: Option<HandleError>,
     pub transfer: Option<Transfer>,
-    pub launch_sub_games: Vec<SubGame>,
+    pub launch_sub_games: Vec<LaunchSubGame>,
     pub bridge_events: Vec<EmitBridgeEvent>,
     pub is_init: bool,
     pub entry_lock: Option<EntryLock>,
@@ -432,7 +433,7 @@ impl Effect {
             return Err(HandleError::CantLaunchMoreSubGames);
         }
         let sub_game_id = self.curr_sub_game_id;
-        self.launch_sub_games.push(SubGame {
+        self.launch_sub_games.push(LaunchSubGame {
             id: sub_game_id,
             bundle_addr,
             init_account: InitAccount {

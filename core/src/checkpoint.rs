@@ -1,296 +1,77 @@
-use std::{collections::HashMap, fmt::Display};
+///! We have several types of checkpoints
+///!
+///! # CheckpointOnChain
+///! The on-chain part, contains the minimal information that can be
+///! used to verify the off-chain part.
+///!
+///! # CheckpointOffChain
+///! The off-chain part, contains all the necessary information that
+///! is required to recover a game context.
+///!
+///! The information are categorized into two parts, the shared part
+///! (SharedData) and the per-game part(VersionedData).
+///!
+///! # ContextCheckpoint
+///! A temporary checkpoint state used in game context. It is the
+///! off-chain part without the proofs.
+///!
+///! # A note about the access_version.
+///! The access version in master game's VersionedData is identical to the
+///! one in the Checkpoint. It indicates the latest handled version of the player
+///! information including joins & deposits.
 
-use crate::{
-    context::{DispatchEvent, Versions},
-    error::Error,
-};
+mod offchain;
+mod onchain;
+mod versioned_data;
+mod shared_data;
+pub use offchain::CheckpointOffChain;
+pub use onchain::CheckpointOnChain;
+pub use versioned_data::VersionedData;
+pub use shared_data::SharedData;
+use crate::types::ClientMode;
+use crate::error::Error;
 use borsh::{BorshDeserialize, BorshSerialize};
-use rs_merkle::{algorithms::Sha256, proof_serializers::ReverseHashesOrder, Hasher, MerkleTree};
+use rs_merkle::{algorithms::Sha256, proof_serializers::ReverseHashesOrder, MerkleTree};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::types::GameSpec;
-use race_api::effect::{EmitBridgeEvent, SubGame};
+use crate::node::Node;
 
-/// Checkpoint represents the state snapshot of game.
-/// It is used as a submission to the blockchain.
+/// Checkpoint is a combination of CheckpointOnChain and
+/// CheckpointOffChain.  The on-chain part is submitted to the
+/// blockchain through every settlement.  The off-chain part is saved
+/// in the server's local database.  To verify the server provides a
+/// valid data from its local database, a merkle tree proof is
+/// required.
 #[derive(Default, Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct Checkpoint {
     pub root: Vec<u8>,
     pub access_version: u64,
-    pub data: HashMap<usize, VersionedData>,
-    pub proofs: HashMap<usize, Vec<u8>>,
-    pub launch_subgames: Vec<SubGame>,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct CheckpointOnChain {
-    pub root: Vec<u8>,
-    pub size: usize,
-    pub access_version: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct CheckpointOffChain {
-    pub data: HashMap<usize, VersionedData>,
-    pub proofs: HashMap<usize, Vec<u8>>,
-    pub launch_subgames: Vec<SubGame>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct VersionedData {
-    pub id: usize,
-    pub versions: Versions,
-    pub data: Vec<u8>,
-    pub sha: Vec<u8>,
-    pub game_spec: GameSpec,
-    pub dispatch: Option<DispatchEvent>,
-    pub bridge_events: Vec<EmitBridgeEvent>,
-}
-
-impl VersionedData {
-    fn clear_future_events(&mut self) {
-        self.dispatch = None;
-        self.bridge_events.clear();
-    }
-}
-
-impl Display for Checkpoint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = self
-            .data
-            .iter()
-            .map(|(id, vd)| format!("{}#{:?}", id, vd.versions))
-            .collect::<Vec<String>>();
-        write!(f, "{}", s.join(","))
-    }
+    pub root_data: VersionedData,
+    pub shared_data: SharedData,
+    pub proofs: Vec<Vec<u8>>,
 }
 
 impl Checkpoint {
-    pub fn new(id: usize, game_spec: GameSpec, versions: Versions, root_data: Vec<u8>) -> Self {
-        let sha = Sha256::hash(&root_data);
-        let mut ret = Self {
-            root: Vec::new(),
-            access_version: versions.access_version,
-            data: HashMap::from([(
-                id,
-                VersionedData {
-                    id,
-                    game_spec,
-                    versions,
-                    data: root_data,
-                    sha: sha.into(),
-                    dispatch: None,
-                    bridge_events: vec![],
-                },
-            )]),
-            proofs: HashMap::new(),
-            launch_subgames: vec![],
-        };
-        ret.update_root_and_proofs();
-        ret
-    }
-
     pub fn new_from_parts(
         offchain_part: CheckpointOffChain,
         onchain_part: CheckpointOnChain,
     ) -> Self {
         Self {
             proofs: offchain_part.proofs,
-            data: offchain_part.data,
+            root_data: offchain_part.root_data,
             access_version: onchain_part.access_version,
             root: onchain_part.root,
-            launch_subgames: offchain_part.launch_subgames,
+            shared_data: offchain_part.shared_data,
         }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.data.is_empty()
-    }
-
-    pub fn update_root_and_proofs(&mut self) {
-        if !self.data.contains_key(&0) {
-            return;
-        }
-        let merkle_tree = self.to_merkle_tree();
-        let Some(root) = merkle_tree.root() else {
-            // Skip root update as this is not a master checkpoint
-            return;
-        };
-        self.root = root.into();
-        let mut i = 0;
-        while self.data.contains_key(&i) {
-            let proof = merkle_tree.proof(&[i as _]);
-            let proof_bs = proof.serialize::<ReverseHashesOrder>();
-            self.proofs.insert(i, proof_bs);
-            i += 1;
-        }
-    }
-
-    pub fn get_data(&self, id: usize) -> Option<Vec<u8>> {
-        self.data.get(&id).map(|d| d.data.clone())
-    }
-
-    pub fn get_versioned_data(&self, id: usize) -> Option<&VersionedData> {
-        self.data.get(&id)
-    }
-
-    pub fn data(&self, id: usize) -> Vec<u8> {
-        self.get_data(id).unwrap_or_default()
-    }
-
-    pub fn init_versioned_data(&mut self, versioned_data: VersionedData) -> Result<(), Error> {
-        match self.data.entry(versioned_data.id) {
-            std::collections::hash_map::Entry::Occupied(_) => {
-                return Err(Error::CheckpointAlreadyExists);
-            }
-            std::collections::hash_map::Entry::Vacant(v) => {
-                v.insert(versioned_data);
-                self.update_root_and_proofs();
-                Ok(())
-            }
-        }
-    }
-
-    pub fn init_data(
-        &mut self,
-        id: usize,
-        game_spec: GameSpec,
-        versions: Versions,
-        data: Vec<u8>,
-    ) -> Result<(), Error> {
-        match self.data.entry(id) {
-            std::collections::hash_map::Entry::Occupied(_) => {
-                return Err(Error::CheckpointAlreadyExists);
-            }
-            std::collections::hash_map::Entry::Vacant(v) => {
-                let sha = Sha256::hash(&data);
-
-                let versioned_data = VersionedData {
-                    id,
-                    data,
-                    sha: sha.into(),
-                    game_spec,
-                    versions,
-                    dispatch: None,
-                    bridge_events: vec![],
-                };
-                v.insert(versioned_data);
-                self.update_root_and_proofs();
-                Ok(())
-            }
-        }
-    }
-
-    /// Set the data of the checkpoint of game.
-    pub fn set_data(&mut self, id: usize, data: Vec<u8>) -> Result<Versions, Error> {
-        let sha = Sha256::hash(&data);
-        if let Some(old) = self.data.get_mut(&id) {
-            old.data = data;
-            old.versions.settle_version += 1;
-            old.sha = sha.into();
-            let versions = old.versions.clone();
-            self.update_root_and_proofs();
-            Ok(versions)
-        } else {
-            Err(Error::MissingCheckpoint)
-        }
-    }
-
-    pub fn update_versioned_data(&mut self, versioned_data: VersionedData) -> Result<(), Error> {
-        if let Some(old) = self.data.get_mut(&versioned_data.id) {
-            *old = versioned_data;
-            Ok(())
-        } else {
-            Err(Error::MissingCheckpoint)
-        }
-    }
-
-    pub fn set_dispatch_in_versioned_data(
-        &mut self,
-        id: usize,
-        dispatch: Option<DispatchEvent>,
-    ) -> Result<(), Error> {
-        if let Some(versioned_data) = self.data.get_mut(&id) {
-            versioned_data.dispatch = dispatch;
-            Ok(())
-        } else {
-            Err(Error::MissingCheckpoint)
-        }
-    }
-
-    pub fn set_bridge_in_versioned_data(
-        &mut self,
-        id: usize,
-        bridge_events: Vec<EmitBridgeEvent>,
-    ) -> Result<(), Error> {
-        if let Some(versioned_data) = self.data.get_mut(&id) {
-            versioned_data.bridge_events = bridge_events;
-            Ok(())
-        } else {
-            Err(Error::MissingCheckpoint)
-        }
-    }
-
-    pub fn append_launch_subgames(&mut self, subgame: SubGame) {
-        self.launch_subgames.push(subgame);
-    }
-
-    pub fn delete_launch_subgames(&mut self, id: usize) {
-        self.launch_subgames.retain(|subgame| subgame.id != id);
-    }
-
-    pub fn get_launch_subgames(&self) -> Vec<SubGame> {
-        self.launch_subgames.clone()
-    }
-
-    pub fn clear_future_events(&mut self) {
-        self.data.values_mut().for_each(VersionedData::clear_future_events);
-    }
-
-    pub fn list_versioned_data(&self) -> Vec<&VersionedData> {
-        self.data.values().collect()
-    }
-
-    pub fn set_access_version(&mut self, access_version: u64) {
-        self.access_version = access_version;
-    }
-
-    pub fn get_versions(&self, id: usize) -> Option<Versions> {
-        self.data.get(&id).map(|d| d.versions)
-    }
-
-    pub fn get_sha(&self, id: usize) -> Option<[u8; 32]> {
-        self.data
-            .get(&id)
-            .map(|d| d.sha.clone().try_into().expect("Failed to get SHA"))
-    }
-
-    pub fn to_merkle_tree(&self) -> MerkleTree<Sha256> {
-        let mut leaves: Vec<[u8; 32]> = vec![];
-        let mut i = 0;
-        while let Some(vd) = self.data.get(&i) {
-            leaves.push(vd.sha.clone().try_into().expect("Failed to build merkle tree"));
-            i += 1;
-        }
-        MerkleTree::from_leaves(&leaves)
-    }
-
-    pub fn size(&self) -> usize {
-        self.data.len()
     }
 
     pub fn derive_onchain_part(&self) -> CheckpointOnChain {
         CheckpointOnChain {
-            size: self.data.len(),
+            size: self.proofs.len(),
             root: self.root.clone(),
             access_version: self.access_version,
         }
@@ -299,20 +80,125 @@ impl Checkpoint {
     pub fn derive_offchain_part(&self) -> CheckpointOffChain {
         CheckpointOffChain {
             proofs: self.proofs.clone(),
-            data: self.data.clone(),
-            launch_subgames: self.launch_subgames.clone(),
+            root_data: self.root_data.clone(),
+            shared_data: self.shared_data.clone(),
+        }
+    }
+}
+
+impl From<Checkpoint> for ContextCheckpoint {
+    fn from(c: Checkpoint) -> Self {
+        ContextCheckpoint {
+            root_data: c.root_data,
+            shared_data: c.shared_data,
+        }
+    }
+}
+
+/// The off-chain part of the checkpoint without proofs.
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Default)]
+pub struct ContextCheckpoint {
+    pub root_data: VersionedData,
+    pub shared_data: SharedData,
+}
+
+impl ContextCheckpoint {
+
+    pub fn new(shared_data: SharedData, root_data: VersionedData) -> Self {
+        Self { root_data, shared_data }
+    }
+
+    /// Create a new ContextCheckpoint.
+    ///
+    /// Panic when the `init_nodes` do not contain the transactor node.
+    pub fn new_with_init_nodes(init_nodes: Vec<Node>, access_version: u64) -> Self {
+
+        if init_nodes.iter().find(|n| n.mode == ClientMode::Transactor).is_none() {
+            panic!("Can not initialize ContextCheckpoint without a transactor node");
+        }
+
+        let shared_data = SharedData {
+            balances: Vec::default(),
+            nodes: init_nodes,
+        };
+
+        let mut root_data = VersionedData::default();
+        root_data.versions.access_version = access_version;
+
+        Self {
+            shared_data,
+            root_data,
         }
     }
 
-    /// Close all subgame data, leave only the master checkpoint.
-    pub fn close_sub_data(&mut self) {
-        self.data.retain(|k, _| *k == 0);
+    pub fn shared_data(&self) -> &SharedData {
+        &self.shared_data
+    }
+
+    pub fn root_data_mut(&mut self) -> &mut VersionedData {
+        &mut self.root_data
+    }
+
+    pub fn root_data(&self) -> &VersionedData {
+        &self.root_data
+    }
+
+    /// Build a full checkpoint that can be used in settlement.
+    pub fn build_checkpoint(&self) -> Checkpoint {
+        let merkle_tree = self.build_merkle_tree();
+
+        let Some(root) = merkle_tree.root() else {
+            panic!("Failed to build merkle tree, root not found");
+        };
+
+        let mut proofs: Vec<Vec<u8>> = Default::default();
+
+        let root = root.into();
+
+        for i in 0..merkle_tree.leaves_len() {
+            let proof = merkle_tree.proof(&[i as _]);
+            let proof_bs = proof.serialize::<ReverseHashesOrder>();
+            proofs.insert(i, proof_bs);
+        }
+
+        Checkpoint {
+            root,
+            access_version: self.root_data.versions.access_version,
+            root_data: self.root_data.clone(),
+            shared_data: self.shared_data.clone(),
+            proofs,
+        }
+    }
+
+    pub fn sub_checkpoint(&self, game_id: usize) -> Result<ContextCheckpoint, Error> {
+        let shared_data = self.shared_data.clone();
+        let Some(versioned_data) = self.root_data.sub_data.get(&game_id) else {
+            return Err(Error::MissingCheckpoint);
+        };
+        Ok(ContextCheckpoint::new(shared_data, versioned_data.to_owned()))
+    }
+
+    pub fn build_merkle_tree_leaves(&self) -> Vec<[u8; 32]> {
+        let mut leaves: Vec<[u8; 32]> = vec![];
+
+        self.root_data.append_to_merkle_tree_leaves(&mut leaves);
+
+        leaves
+    }
+
+    pub fn build_merkle_tree(&self) -> MerkleTree<Sha256> {
+        let leaves = self.build_merkle_tree_leaves();
+
+        MerkleTree::from_leaves(&leaves)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game_spec::GameSpec;
+    use crate::versions::Versions;
+    use crate::entry_type::EntryType;
 
     #[test]
     fn test_merkle_tree() -> anyhow::Result<()> {
@@ -323,22 +209,24 @@ mod tests {
             bundle_addr: "test".to_string(),
             game_id: 0,
             max_players: 6,
+            entry_type: EntryType::Disabled,
         };
-        c.init_data(0, game_spec.clone(), Versions::new(1, 1), d0)?;
+        c.root_data = VersionedData::new(game_spec.clone(), Versions::new(1, 1), d0);
         let d1 = vec![2];
-        c.init_data(1, game_spec.clone(), Versions::new(1, 1), d1)?;
         let d2 = vec![3];
-        c.init_data(2, game_spec.clone(), Versions::new(1, 1), d2)?;
+        c.root_data.sub_data.insert(1, VersionedData::new(game_spec.clone(), Versions::new(1, 1), d1));
+        c.root_data.sub_data.insert(2, VersionedData::new(game_spec.clone(), Versions::new(1, 1), d2));
         println!("checkpoint: {:?}", c);
-        let mt = c.to_merkle_tree();
+        let c: ContextCheckpoint = c.into();
+        let mt = c.build_merkle_tree();
         let root = mt.root().unwrap();
-        let indices = vec![0];
+        let indices = vec![0, 1, 2];
         let proof = mt.proof(&indices);
         println!("checkpoint: {:?}", c);
         println!("merkle root: {:?}", root);
-        let leaves = vec![c.get_sha(0).unwrap()];
+        let leaves = c.build_merkle_tree_leaves();
         println!("leaves: {:?}", leaves);
-        assert!(proof.verify(root, &indices, &leaves, c.size()));
+        assert!(proof.verify(root, &indices, &leaves, leaves.len()));
         Ok(())
     }
 }

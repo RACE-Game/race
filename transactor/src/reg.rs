@@ -10,6 +10,7 @@ use race_core::{
     transport::TransportT,
     types::{RegisterServerParams, ServeParams},
 };
+use race_encryptor::generate_credentials;
 use race_env::Config;
 use race_transport::TransportBuilder;
 use tokio::select;
@@ -30,10 +31,16 @@ pub async fn register_server(config: &Config) -> Result<()> {
         .try_with_config(config)?
         .build()
         .await?;
+
+    let secret = transport.generate_secret().await?;
+    let credentials = generate_credentials(secret)?;
+    let credentials = borsh::to_vec(&credentials)?;
+
     info!("Transport built successfully");
     transport
         .register_server(RegisterServerParams {
             endpoint: transactor_conf.endpoint.to_owned(),
+            credentials,
         })
         .await?;
     info!("Server account created");
@@ -43,7 +50,6 @@ pub async fn register_server(config: &Config) -> Result<()> {
 /// Start the registration task.
 /// This task will scan the games in registration account, find unserved games and join.
 pub async fn start_reg_task(context: &ApplicationContext) -> JoinHandle<()> {
-    let key = context.export_public_key();
     let blacklist = context.blacklist();
     let mut shutdown_rx = context.get_shutdown_receiver();
 
@@ -89,7 +95,6 @@ pub async fn start_reg_task(context: &ApplicationContext) -> JoinHandle<()> {
                                     // Register to game
                                     let register_result = transport.serve(ServeParams {
                                         game_addr: game_account.addr.clone(),
-                                        verify_key: key.ec.clone(),
                                     }).await;
 
                                     if let Err(e) = register_result {

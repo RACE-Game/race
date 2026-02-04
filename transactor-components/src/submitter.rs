@@ -256,6 +256,8 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                         ..
                     } = *settle_details;
 
+                    let checkpoint = checkpoint.build_checkpoint();
+
                     let checkpoint_onchain = checkpoint.derive_onchain_part();
                     let checkpoint_offchain = checkpoint.derive_offchain_part();
 
@@ -263,13 +265,16 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                         "{} Submitter save checkpoint to storage, settle_version = {}",
                         env.log_prefix, settle_version
                     );
+
+                    let save_checkpoint_params = SaveCheckpointParams {
+                        game_addr: ctx.addr.clone(),
+                        settle_version,
+                        checkpoint: checkpoint_offchain,
+                    };
+
                     let save_checkpoint_result = ctx
                         .storage
-                        .save_checkpoint(SaveCheckpointParams {
-                            game_addr: ctx.addr.clone(),
-                            settle_version,
-                            checkpoint: checkpoint_offchain,
-                        })
+                        .save_checkpoint(save_checkpoint_params)
                         .await;
 
                     if let Err(e) = save_checkpoint_result {

@@ -14,8 +14,9 @@ use jsonrpsee::{core::Error as RpcError, RpcModule};
 use race_api::types::{BalanceChange, PlayerBalance};
 use race_core::error::Error;
 use race_core::types::RecipientSlotShare;
+use race_core::entry_type::EntryType;
 use race_core::types::{
-    DepositParams, EntryType, GameAccount, GameRegistration, PlayerDeposit, PlayerJoin,
+    DepositParams, GameAccount, GameRegistration, PlayerDeposit, PlayerJoin,
     PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount, ServerAccount, ServerJoin,
     SettleParams, TokenAccount, Vote, VoteParams, VoteType,
 };
@@ -57,7 +58,6 @@ pub struct JoinInstruction {
     position: u16,
     access_version: u64,
     amount: u64,
-    verify_key: String,
 }
 
 #[derive(Deserialize)]
@@ -65,7 +65,6 @@ pub struct JoinInstruction {
 pub struct ServeInstruction {
     game_addr: String,
     server_addr: String,
-    verify_key: String,
 }
 
 #[allow(unused)]
@@ -91,6 +90,7 @@ pub struct AddRecipientSlots {
 pub struct RegisterServerInstruction {
     server_addr: String,
     endpoint: String,
+    credentials: Vec<u8>,
 }
 
 #[derive(Deserialize)]
@@ -99,6 +99,7 @@ pub struct CreatePlayerProfileInstruction {
     player_addr: String,
     nick: String,
     pfp: Option<String>,
+    credentials: Vec<u8>,
 }
 
 #[derive(Deserialize)]
@@ -168,9 +169,16 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
         access_version,
         position,
         player_addr,
-        verify_key,
     } = params.one()?;
     let context = context.lock().await;
+
+    // Check if the player profile exists?
+    if context.get_player_info(&player_addr)?.is_none() {
+        println!("E Can't join game, profile not found");
+        return Err(custom_error(Error::PlayerProfileNotFound));
+    }
+
+
     if let Some(mut game_account) = context.get_game_account(&game_addr)? {
         let mut stake = context.get_stake(&game_addr)?;
 
@@ -222,7 +230,6 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                         addr: player_addr.clone(),
                         position,
                         access_version: game_account.access_version,
-                        verify_key,
                     };
                     let player_deposit = PlayerDeposit {
                         addr: player_addr.clone(),
@@ -256,7 +263,6 @@ async fn join(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()>
                         addr: player_addr.clone(),
                         position,
                         access_version: game_account.access_version,
-                        verify_key,
                     };
                     println!(
                         "! Join game: player: {}, game: {}, amount: {},  access version: {} -> {}",
@@ -351,10 +357,12 @@ async fn register_server(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rp
     let RegisterServerInstruction {
         server_addr,
         endpoint,
+        credentials,
     } = params.one()?;
     let server = ServerAccount {
         addr: server_addr.clone(),
         endpoint,
+        credentials,
     };
     let context = context.lock().await;
     if context.get_server_account(&server_addr)?.is_none() {
@@ -396,6 +404,7 @@ async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
         player_addr,
         nick,
         pfp,
+        credentials,
     } = params.one()?;
     let context = context.lock().await;
     let player_info = PlayerInfo {
@@ -418,6 +427,7 @@ async fn create_profile(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
             addr: player_addr.clone(),
             nick,
             pfp,
+            credentials,
         },
     };
     context.create_player_info(&player_info)?;
@@ -432,10 +442,15 @@ async fn get_profile(
     let addr: String = params.one()?;
     let context = context.lock().await;
     let ret = match context.get_player_info(&addr)? {
-        Some(player_info) => Ok(Some(borsh::to_vec(&player_info.profile).unwrap())),
-        None => Ok(None),
+        Some(player_info) => {
+            println!("? Player profile: {:?}", addr);
+            Ok(Some(borsh::to_vec(&player_info.profile).unwrap()))
+        },
+        None => {
+            println!("E Player profile {:?} not found", addr);
+            Ok(None)
+        },
     };
-    println!("? Player profile: {:?}", addr);
     ret
 }
 
@@ -527,7 +542,6 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
     let ServeInstruction {
         game_addr,
         server_addr,
-        verify_key,
     } = params.one()?;
     let context = context.lock().await;
     let mut is_transactor = false;
@@ -568,7 +582,6 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
                 server_addr.clone(),
                 server_account.endpoint.clone(),
                 new_access_version,
-                verify_key,
             ));
         }
     }
@@ -587,7 +600,7 @@ async fn serve(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<()
 async fn get_balance(params: Params<'_>, context: Arc<Mutex<Context>>) -> RpcResult<Vec<u8>> {
     let (player_addr, token_addr) = params.parse::<(String, String)>()?;
     let context = context.lock().await;
-    let mut amount = 0u64;
+    let mut amount = 999999999u64;
     if let Some(player) = context.get_player_info(&player_addr)? {
         if let Some(balance) = player.balances.get(&token_addr) {
             amount = *balance;

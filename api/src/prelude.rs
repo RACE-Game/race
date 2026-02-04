@@ -1,4 +1,4 @@
-pub use crate::effect::{Effect, SubGame};
+pub use crate::effect::{Effect, LaunchSubGame};
 pub use crate::init_account::InitAccount;
 pub use crate::engine::GameHandler;
 pub use crate::error::{HandleError, HandleResult};

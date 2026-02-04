@@ -1,8 +1,8 @@
 use race_api::event::{Event, Message};
 use race_core::checkpoint::CheckpointOffChain;
-use race_core::context::SubGameInit;
 use race_core::error::{Error, Result};
 use race_core::types::{BroadcastFrame, ClientMode, ServerAccount};
+use race_core::checkpoint::ContextCheckpoint;
 use race_encryptor::Encryptor;
 use race_env::TransactorConfig;
 use race_transactor_frames::BridgeToParent;
@@ -50,7 +50,7 @@ impl GameManager {
     /// Load a child game
     pub async fn launch_sub_game(
         &self,
-        sub_game_init: SubGameInit,
+        checkpoint: ContextCheckpoint,
         bridge_to_parent: BridgeToParent,
         server_account: &ServerAccount,
         transport: Arc<WrappedTransport>,
@@ -59,24 +59,13 @@ impl GameManager {
         signal_tx: mpsc::Sender<SignalFrame>,
         config: &TransactorConfig,
     ) -> Option<JoinHandle<CloseReason>> {
-        let game_addr = sub_game_init.spec.game_addr.clone();
-        let game_id = sub_game_init.spec.game_id;
-        match &sub_game_init.source {
-            race_core::context::SubGameInitSource::FromCheckpoint(ref versioned_data) => {
-                info!(
-                    "LaunchSubGame with Checkpoint: version = {}, bundle = {}",
-                    versioned_data.versions, sub_game_init.spec.bundle_addr
-                );
-            }
-            race_core::context::SubGameInitSource::FromInitAccount(_, ref versions) => {
-                info!(
-                    "LaunchSubGame with InitAccount: version = {}, bundle = {}",
-                    versions, sub_game_init.spec.bundle_addr
-                );
-            }
-        }
+        let game_addr = checkpoint.root_data().game_spec.game_addr.clone();
+        let game_id = checkpoint.root_data().game_spec.game_id;
+
+        info!("Launch sub game, bundle = {}", checkpoint.root_data().game_spec.bundle_addr);
+
         match Handle::try_new_sub_game(
-            sub_game_init,
+            checkpoint,
             bridge_to_parent,
             transport,
             encryptor,
@@ -120,22 +109,22 @@ impl GameManager {
     ) -> Option<JoinHandle<CloseReason>> {
         let handle = if mode == ClientMode::Transactor {
             Handle::try_new_transactor(
+                game_addr.clone(),
                 transport,
                 storage,
                 encryptor,
                 server_account,
-                &game_addr,
                 signal_tx.clone(),
                 &config,
             )
                 .await
         } else {
             Handle::try_new_validator(
+                game_addr.clone(),
                 transport,
                 storage,
                 encryptor,
                 server_account,
-                &game_addr,
                 signal_tx.clone(),
                 config,
             )

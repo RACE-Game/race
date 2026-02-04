@@ -1,9 +1,11 @@
 use clap::{arg, Command};
 use prettytable::{row, Table};
+use race_core::error::Result;
+use race_core::entry_type::EntryType;
 use race_core::{
     transport::TransportT,
     types::{
-        AddRecipientSlotParams, CloseGameAccountParams, CreateGameAccountParams, CreateRecipientParams, CreateRegistrationParams, EntryType, PublishGameParams, RecipientClaimParams, RecipientSlotInit, RegisterGameParams, ServerAccount, UnregisterGameParams
+        AddRecipientSlotParams, CloseGameAccountParams, CreateGameAccountParams, CreateRecipientParams, CreateRegistrationParams, PublishGameParams, RecipientClaimParams, RecipientSlotInit, RegisterGameParams, ServerAccount, UnregisterGameParams
     },
 };
 use race_env::{default_keyfile, parse_with_default_rpc};
@@ -12,7 +14,6 @@ use race_storage::{
     metadata::{make_metadata, MetadataT},
 };
 use race_transport::TransportBuilder;
-use race_core::error::Result;
 use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
 use std::{
@@ -399,7 +400,7 @@ async fn server_info(addr: &str, transport: Arc<dyn TransportT>) {
         .expect("Network error")
     {
         Some(server_account) => {
-            let ServerAccount { addr, endpoint } = server_account;
+            let ServerAccount { addr, endpoint, .. } = server_account;
             println!("Server account: {}", addr);
             println!("Server endpoint: {}", endpoint);
         }

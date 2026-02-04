@@ -8,7 +8,6 @@ pub struct PlayerJoin {
     pub addr: SuiAddress,
     pub position: u16,
     pub access_version: u64,
-    pub verify_key: String,
 }
 
 impl From<PlayerJoin> for race_core::types::PlayerJoin {
@@ -17,7 +16,6 @@ impl From<PlayerJoin> for race_core::types::PlayerJoin {
             addr: value.addr.to_string(),
             position: value.position,
             access_version: value.access_version,
-            verify_key: value.verify_key,
         }
     }
 }
@@ -83,7 +81,6 @@ impl From<ServerJoin> for race_core::types::ServerJoin {
             addr: value.addr.to_string(),
             endpoint: value.endpoint,
             access_version: value.access_version,
-            verify_key: value.verify_key,
         }
     }
 }

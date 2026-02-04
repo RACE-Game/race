@@ -14,7 +14,7 @@ use race_core::{
     encryptor::EncryptorT,
     secret::SecretState,
     types::{
-        AttachGameParams, Ciphertext, ClientMode, SecretIdent, SecretKey,
+        Ciphertext, ClientMode, SecretIdent, SecretKey,
         SubmitEventParams,
     },
 };
@@ -95,19 +95,6 @@ impl Client {
             connection,
             id: 0,
         }
-    }
-
-    pub async fn attach_game(&self) -> Result<()> {
-        let key = self.encryptor.export_public_key(None)?;
-        self.connection
-            .attach_game(
-                &self.game_addr,
-                AttachGameParams {
-                    key,
-                    signer: self.addr.clone(),
-                },
-            )
-            .await
     }
 
     pub async fn submit_event(&self, event: Event) -> Result<()> {

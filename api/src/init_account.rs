@@ -13,6 +13,10 @@ pub struct InitAccount {
 }
 
 impl InitAccount {
+    pub fn new(max_players: u16, data: Vec<u8>) -> Self {
+        Self { max_players, data }
+    }
+
     pub fn data<S: BorshDeserialize>(&self) -> Result<S, HandleError> {
         S::try_from_slice(&self.data).or(Err(HandleError::MalformedGameAccountData))
     }

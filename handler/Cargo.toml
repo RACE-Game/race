@@ -1,0 +1,26 @@
+[package]
+name = "race-handler"
+description = "RACE Handler"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+readme.workspace = true
+publish = true
+
+[dependencies]
+race-api = { workspace = true, features = ["serde"] }
+race-core = { workspace = true, features = ["serde"] }
+wasmer.workspace = true
+tracing-appender.workspace = true
+tracing.workspace = true
+borsh.workspace = true
+tokio = { workspace = true, features = ["full"] }
+
+[dev-dependencies]
+race-test.workspace = true

@@ -11,6 +11,9 @@ use arrayref::array_ref;
 use base64::Engine as _;
 use chacha20::cipher::{KeyIvInit, StreamCipher};
 use chacha20::ChaCha20;
+use openssl::symm::{encrypt, Cipher};
+use openssl::rand::rand_bytes;
+use openssl::pkcs5::pbkdf2_hmac;
 use openssl::bn::BigNum;
 use openssl::ec::{EcGroup, EcKey};
 use openssl::ecdsa::EcdsaSig;
@@ -21,6 +24,7 @@ use openssl::{
     pkey::{Private, Public},
     rsa::{Padding, Rsa},
 };
+use race_core::credentials::Credentials;
 use race_core::types::{SecretDigest, SecretKey};
 use race_core::encryptor::{EncryptorError, EncryptorResult, EncryptorT, NodePublicKeyRaw};
 use race_core::types::Signature;
@@ -56,7 +60,7 @@ fn base64_decode(data: &str) -> EncryptorResult<Vec<u8>> {
 }
 
 fn rsa_generate() -> EncryptorResult<Rsa<Private>> {
-    let bits = 1024;
+    let bits = 512;
     Rsa::generate(bits).or(Err(EncryptorError::KeyGenFailed))
 }
 
@@ -156,7 +160,13 @@ fn import_rsa_private(raw: &str) -> EncryptorResult<Rsa<Private>> {
     Ok(key)
 }
 
-fn import_rsa_public(raw: &str) -> EncryptorResult<Rsa<Public>> {
+fn import_rsa_public(raw: &[u8]) -> EncryptorResult<Rsa<Public>> {
+    let key = Rsa::public_key_from_der(&raw).map_err(|_| EncryptorError::ImportPublicKeyError)?;
+    Ok(key)
+}
+
+#[allow(unused)]
+fn import_rsa_public_str(raw: &str) -> EncryptorResult<Rsa<Public>> {
     let der = base64_decode(raw)?;
     let key = Rsa::public_key_from_der(&der).map_err(|_| EncryptorError::ImportPublicKeyError)?;
     Ok(key)
@@ -183,7 +193,13 @@ fn import_ec_private(raw: &str) -> EncryptorResult<EcKey<Private>> {
     Ok(key)
 }
 
-fn import_ec_public(raw: &str) -> EncryptorResult<EcKey<Public>> {
+fn import_ec_public(raw: &[u8]) -> EncryptorResult<EcKey<Public>> {
+    let key = EcKey::public_key_from_der(&raw).map_err(|_| EncryptorError::ImportPublicKeyError)?;
+    Ok(key)
+}
+
+#[allow(unused)]
+fn import_ec_public_str(raw: &str) -> EncryptorResult<EcKey<Public>> {
     let der = base64_decode(raw)?;
     let key = EcKey::public_key_from_der(&der).map_err(|_| EncryptorError::ImportPublicKeyError)?;
     Ok(key)
@@ -204,6 +220,44 @@ impl TryInto<NodePublicKeyRaw> for &NodePublicKey {
             ec: export_ec_public(&self.ec)?,
         })
     }
+}
+
+pub fn generate_credentials(
+    original_secret: Vec<u8>,
+) -> EncryptorResult<Credentials> {
+    let rsa = rsa_generate()?;
+    let ec = ec_generate()?;
+
+    let mut salt = [0u8; 16];
+    let mut iv = [0u8; 12];
+
+    rand_bytes(&mut salt).map_err(|_| EncryptorError::KeyGenFailed)?;
+    rand_bytes(&mut iv).map_err(|_| EncryptorError::KeyGenFailed)?;
+
+    let mut key = [0u8; 32];
+    let iterations = 100_000;
+
+    pbkdf2_hmac(&original_secret, &salt, iterations, MessageDigest::sha256(), &mut key)
+        .map_err(|_| EncryptorError::KeyGenFailed)?;
+
+    let rsa_public = rsa.public_key_to_der().map_err(|_| EncryptorError::KeyGenFailed)?;
+    let rsa_private_key_bytes = rsa.private_key_to_der().map_err(|_| EncryptorError::KeyGenFailed)?;
+
+    let ec_public = ec.public_key_to_der().map_err(|_| EncryptorError::KeyGenFailed)?;
+    let ec_private_key_bytes = ec.private_key_to_der().map_err(|_| EncryptorError::KeyGenFailed)?;
+
+    let aes_gcm_cihper = Cipher::aes_256_gcm();
+    let rsa_private_enc = encrypt(aes_gcm_cihper, &key, Some(&iv), &rsa_private_key_bytes).map_err(|_| EncryptorError::AesEncryptFailed)?;
+    let ec_private_enc = encrypt(aes_gcm_cihper, &key, Some(&iv), &ec_private_key_bytes).map_err(|_| EncryptorError::AesEncryptFailed)?;
+
+    Ok(Credentials {
+        ec_public,
+        rsa_public,
+        salt: salt.into(),
+        iv: iv.into(),
+        ec_private_enc,
+        rsa_private_enc,
+    })
 }
 
 #[derive(Debug)]
@@ -301,6 +355,8 @@ impl EncryptorT for Encryptor {
             .lock()
             .map_err(|_| EncryptorError::ReadPublicKeyError)?;
 
+        println!("publics keys: {:?}", publics.keys());
+
         let res = match addr {
             Some(addr) => ec_verify(
                 &publics
@@ -325,6 +381,7 @@ impl EncryptorT for Encryptor {
             timestamp,
             signature,
         } = signature;
+
         // TODO: We should check timestamp here.
         let message = [message, &u64::to_le_bytes(*timestamp)].concat();
         self.verify_raw(Some(signer), &message, signature)
@@ -340,35 +397,21 @@ impl EncryptorT for Encryptor {
         }
     }
 
-    fn add_public_key(&self, addr: String, raw: &NodePublicKeyRaw) -> EncryptorResult<()> {
-        let ec = import_ec_public(&raw.ec)?;
-        let rsa = import_rsa_public(&raw.rsa)?;
+    fn import_credentials(&self, addr: &str, credentials: Credentials) -> EncryptorResult<()> {
+        let ec = import_ec_public(&credentials.ec_public)?;
+        let rsa = import_rsa_public(&credentials.rsa_public)?;
 
         let mut public_keys = self
             .publics
             .lock()
             .map_err(|_| EncryptorError::AddPublicKeyError)?;
 
-        public_keys.insert(addr, NodePublicKey { rsa, ec });
+        public_keys.insert(addr.to_string(), NodePublicKey { rsa, ec });
         Ok(())
     }
 
     fn digest(&self, text: &[u8]) -> SecretDigest {
         Sha256::digest(text).to_vec()
-    }
-
-    fn export_public_key(&self, addr: Option<&str>) -> EncryptorResult<NodePublicKeyRaw> {
-        let publics = self
-            .publics
-            .lock()
-            .map_err(|_| EncryptorError::ReadPublicKeyError)?;
-        Ok(match addr {
-            Some(addr) => publics
-                .get(addr)
-                .ok_or(EncryptorError::PublicKeyNotfound)?
-                .try_into()?,
-            None => (&self.private).try_into()?,
-        })
     }
 }
 
@@ -405,6 +448,19 @@ mod tests {
     //         Ok(HashMap::from([(0, "OcPShKslbZKO5Gc_H-7WF".to_string())]))
     //     );
     // }
+
+    #[test]
+    fn st() -> anyhow::Result<()> {
+        let mut ciphertext = vec![208, 106];
+        let secrets =
+            vec![22,109,18,116,185,237,253,196,132,144,46,195,182,168,247,198,222,131,31,215,50,85,47,55,112,162,217,128,134,239,84,100];
+
+        let encryptor = Encryptor::default();
+        encryptor.apply(&secrets, &mut ciphertext);
+
+        println!("buf: {:?}", ciphertext);
+        Ok(())
+    }
 
     #[test]
     fn test_sign_verify() {
@@ -514,7 +570,7 @@ mod tests {
     fn test_rsa_creation() -> anyhow::Result<()> {
         let rsa = rsa_generate()?;
         let rsa_pub_raw = export_rsa_public(&rsa)?;
-        let rsa_pub = import_rsa_public(&rsa_pub_raw)?;
+        let rsa_pub = import_rsa_public_string(&rsa_pub_raw)?;
         let rsa_pub_raw0 = export_rsa_public(&rsa_pub)?;
         assert_eq!(rsa_pub_raw0, rsa_pub_raw);
         Ok(())

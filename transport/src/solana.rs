@@ -40,7 +40,7 @@ use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
-use solana_sdk::system_instruction::{self, create_account_with_seed, transfer};
+use solana_sdk::system_instruction::{self, create_account_with_seed};
 use solana_sdk::transaction::Transaction;
 use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack};
 use solana_sdk::{
@@ -57,7 +57,6 @@ use spl_associated_token_account::{
 };
 use spl_token::{
     instruction as spl_token_instruction,
-    instruction::{initialize_account, sync_native},
     state::{Account, Mint},
 };
 
@@ -277,7 +276,13 @@ impl TransportT for SolanaTransport {
 
         let server_account_pubkey =
             Pubkey::create_with_seed(&payer_pubkey, SERVER_PROFILE_SEED, &self.program_id)
-                .map_err(|_| TransportError::AddressCreationFailed)?;
+            .map_err(|_| TransportError::AddressCreationFailed)?;
+
+        // Don't register server if it exists
+        if self.client.get_account(&server_account_pubkey).is_ok() {
+            return Err(TransportError::DuplicateServerAccount)?;
+        }
+
         let lamports = self.get_min_lamports(SERVER_ACCOUNT_LEN)?;
 
         let mut ixs = vec![];
@@ -287,22 +292,17 @@ impl TransportT for SolanaTransport {
 
         ixs.push(set_cu_prize_ix);
 
-        if self
-            .client
-            .get_account_data(&server_account_pubkey)
-            .is_err()
-        {
-            let create_server_account_ix = create_account_with_seed(
-                &payer_pubkey,
-                &server_account_pubkey,
-                &payer_pubkey,
-                SERVER_PROFILE_SEED,
-                lamports,
-                SERVER_ACCOUNT_LEN as u64,
-                &self.program_id,
-            );
-            ixs.push(create_server_account_ix);
-        }
+        let create_server_account_ix = create_account_with_seed(
+            &payer_pubkey,
+            &server_account_pubkey,
+            &payer_pubkey,
+            SERVER_PROFILE_SEED,
+            lamports,
+            SERVER_ACCOUNT_LEN as u64,
+            &self.program_id,
+        );
+        ixs.push(create_server_account_ix);
+
 
         let init_or_update_ix = Instruction::new_with_borsh(
             self.program_id,
@@ -312,6 +312,7 @@ impl TransportT for SolanaTransport {
             vec![
                 AccountMeta::new_readonly(payer_pubkey, true),
                 AccountMeta::new(server_account_pubkey, false),
+                AccountMeta::new_readonly(system_program::id(), false),
             ],
         );
 
@@ -327,102 +328,12 @@ impl TransportT for SolanaTransport {
         Ok(())
     }
 
-    async fn join(&self, params: JoinParams) -> Result<()> {
-        // XXX join is broken now,
-        // but we don't actually need this function
-        let (payer, payer_pubkey) = self.payer()?;
-
-        let player_account_pubkey =
-            Pubkey::create_with_seed(&payer_pubkey, PLAYER_PROFILE_SEED, &self.program_id)
-                .map_err(|_| TransportError::AddressCreationFailed)?;
-
-        let game_account_pubkey = Self::parse_pubkey(&params.game_addr)?;
-        let game_state = self.internal_get_game_state(&game_account_pubkey).await?;
-
-        let mint_pubkey = game_state.token_mint;
-        let payer_ata = get_associated_token_address(&payer_pubkey, &mint_pubkey);
-
-        let is_wsol = mint_pubkey == spl_token::native_mint::id();
-
-        let stake_account_pubkey = game_state.stake_account;
-
-        let (pda, _bump_seed) =
-            Pubkey::find_program_address(&[game_account_pubkey.as_ref()], &self.program_id);
-
-        let mut ixs = vec![];
-
-        let temp_account = Keypair::new();
-        let temp_account_pubkey = temp_account.pubkey();
-        let temp_account_len = Account::LEN;
-        let temp_account_lamports = self.get_min_lamports(temp_account_len)?;
-        let create_temp_account_ix = system_instruction::create_account(
-            &payer_pubkey,
-            &temp_account_pubkey,
-            temp_account_lamports,
-            temp_account_len as u64,
-            &spl_token::id(),
-        );
-        ixs.push(create_temp_account_ix);
-
-        let init_temp_account_ix = initialize_account(
-            &spl_token::id(),
-            &temp_account_pubkey,
-            &mint_pubkey,
-            &payer_pubkey,
-        )
-        .map_err(|_| TransportError::InitInstructionFailed)?;
-        ixs.push(init_temp_account_ix);
-
-        if is_wsol {
-            let amount = params.amount - temp_account_lamports;
-            let transfer_ix = transfer(&payer_pubkey, &temp_account_pubkey, amount);
-            let sync_ix = sync_native(&spl_token::id(), &temp_account_pubkey)
-                .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
-
-            ixs.push(transfer_ix);
-            ixs.push(sync_ix);
-        } else {
-            let spl_transfer_ix = spl_token::instruction::transfer(
-                &spl_token::id(),
-                &payer_ata,
-                &temp_account_pubkey,
-                &payer_pubkey,
-                &[&payer_pubkey],
-                params.amount,
-            )
-            .map_err(|e| TransportError::InstructionCreationError(e.to_string()))?;
-            ixs.push(spl_transfer_ix);
-        }
-
-        let join_game_ix = Instruction::new_with_borsh(
-            self.program_id,
-            &RaceInstruction::JoinGame {
-                params: params.into(),
-            },
-            vec![
-                AccountMeta::new_readonly(payer_pubkey, true),
-                AccountMeta::new_readonly(player_account_pubkey, false),
-                AccountMeta::new(temp_account_pubkey, true),
-                AccountMeta::new(game_account_pubkey, false),
-                AccountMeta::new_readonly(mint_pubkey, false),
-                AccountMeta::new(stake_account_pubkey, false),
-                AccountMeta::new(pda, false),
-                AccountMeta::new_readonly(spl_token::id(), false),
-                AccountMeta::new_readonly(system_program::id(), false),
-            ],
-        );
-        ixs.push(join_game_ix);
-
-        let message = Message::new(&ixs, Some(&payer_pubkey));
-        let mut tx = Transaction::new_unsigned(message);
-        let blockhash = self.get_blockhash()?;
-        tx.sign(&[payer, &temp_account], blockhash);
-        self.send_transaction(tx)?;
-        Ok(())
+    async fn join(&self, _params: JoinParams) -> Result<()> {
+        unimplemented!()
     }
 
     async fn deposit(&self, _params: DepositParams) -> Result<()> {
-        todo!()
+        unimplemented!()
     }
 
     async fn serve(&self, params: ServeParams) -> Result<()> {
@@ -1437,6 +1348,7 @@ impl TransportT for SolanaTransport {
             addr: addr.to_owned(),
             nick: profile_state.nick,
             pfp,
+            credentials: profile_state.credentials,
         }))
     }
 
@@ -1447,6 +1359,7 @@ impl TransportT for SolanaTransport {
         Ok(Some(ServerAccount {
             addr: server_state.owner.to_string(),
             endpoint: server_state.endpoint,
+            credentials: server_state.credentials,
         }))
     }
 
@@ -1569,6 +1482,10 @@ impl TransportT for SolanaTransport {
         self.send_transaction(tx)?;
 
         Ok(())
+    }
+
+    async fn generate_secret(&self) -> Result<Vec<u8>> {
+        Ok(vec![])
     }
 }
 
@@ -1812,7 +1729,6 @@ impl SolanaTransport {
 
     /// Get the state of an on-chain server account by its public key.
     /// Not for public API usage
-    #[allow(dead_code)]
     async fn internal_get_server_state(
         &self,
         server_pubkey: &Pubkey,

@@ -125,6 +125,7 @@ pub enum RaceInstruction {
     /// 7. `[]` The SPL token program
     /// 8. `[]` The system program
     /// (Optional)9. `[]` Other account to receive the payment. For EntryType::Ticket
+    #[allow(unused)]
     JoinGame { params: IxJoinParams },
 
     /// # [11] Publish a game

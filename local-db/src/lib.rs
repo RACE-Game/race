@@ -50,8 +50,19 @@ impl StorageT for LocalDbStorage {
         if let Some(checkpoint_bs) = checkpoint_bs {
             let checkpoint = CheckpointOffChain::try_from_slice(&checkpoint_bs)
                 .map_err(|e| Error::StorageError(e.to_string()))?;
+
+
             Ok(Some(checkpoint))
         } else {
+            let latest_settle_version = conn.query_row(
+                "SELECT MAX(settle_version) FROM game_checkpoints WHERE game_addr = ?1",
+                params![params.game_addr],
+                |row| {
+                    row.get::<_, u64>(0)
+                }).optional();
+
+            println!("Latest available version is {:?}", latest_settle_version);
+
             Ok(None)
         }
     }

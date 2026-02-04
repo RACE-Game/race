@@ -64,7 +64,9 @@ pub fn general_handle_event(
             Ok(())
         }
 
-        Event::Leave { .. } => {
+        Event::Leave { player_id } => {
+            let addr = context.id_to_addr(*player_id)?;
+            context.remove_node(&addr);
             Ok(())
         }
 

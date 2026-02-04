@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use race_transactor_frames::{EventFrame, BridgeToParent};
 use race_transactor_components::{
-    Broadcaster, Component, EventBridgeChild, EventBus, EventLoop, LocalConnection, PortsHandle, WrappedClient, WrappedHandler
+    Broadcaster, Component, EventBridgeChild, EventBus, EventLoop, LocalConnection, PortsHandle, WrappedClient,
 };
-use race_core::error::{Error, Result};
-use race_core::context::{GameContext, SubGameInit};
+use race_core::error::Result;
 use race_core::storage::StorageT;
 use race_core::transport::TransportT;
 use race_core::types::{ClientMode, GameMode, ServerAccount};
+use race_core::checkpoint::ContextCheckpoint;
 use race_encryptor::Encryptor;
 use race_env::TransactorConfig;
 
@@ -24,7 +24,7 @@ pub struct SubGameHandle {
 
 impl SubGameHandle {
     pub async fn try_new(
-        sub_game_init: SubGameInit,
+        checkpoint: ContextCheckpoint,
         bridge_to_parent: BridgeToParent,
         transport: Arc<dyn TransportT + Send + Sync>,
         encryptor: Arc<Encryptor>,
@@ -32,34 +32,25 @@ impl SubGameHandle {
         server_account: &ServerAccount,
         _config: &TransactorConfig,
     ) -> Result<Self> {
-        let game_addr = sub_game_init.spec.game_addr.clone();
-        let game_id = sub_game_init.spec.game_id.clone();
-        let addr = format!("{}:{}", game_addr, game_id);
+        let game_spec = &checkpoint.root_data().game_spec;
+        let addr = format!("{}:{}", game_spec.game_addr, game_spec.game_id);
         let event_bus = EventBus::new(addr.to_string());
 
-        let bundle_account = transport
-            .get_game_bundle(&sub_game_init.spec.bundle_addr)
-            .await?
-            .ok_or(Error::GameBundleNotFound)?;
-
-        let bundle_addr = sub_game_init.spec.bundle_addr.clone();
-
-        // Build an InitAccount
-        let game_context = GameContext::try_new_with_sub_game_spec(sub_game_init)?;
-        let access_version = game_context.access_version();
-        let settle_version = game_context.settle_version();
-        let checkpoint = game_context.checkpoint().clone();
-
-        let handler = Box::new(WrappedHandler::load_by_bundle(&bundle_account, encryptor.clone()).await?);
-
-        let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone(), game_id);
+        let (broadcaster, broadcaster_ctx) = Broadcaster::init(addr.clone(), game_spec.game_id);
         let mut broadcaster_handle = broadcaster.start(&addr, broadcaster_ctx);
 
-        let (bridge, bridge_ctx) = EventBridgeChild::init(game_id, bridge_to_parent);
+        let (bridge, bridge_ctx) = EventBridgeChild::init(game_spec.game_id, bridge_to_parent);
         let mut bridge_handle = bridge.start(&addr, bridge_ctx);
 
         let (event_loop, event_loop_ctx) =
-            EventLoop::init(handler, game_context, ClientMode::Transactor, GameMode::Sub);
+            EventLoop::init(
+                game_spec.clone(),
+                encryptor.clone(),
+                transport.clone(),
+                ClientMode::Transactor,
+                GameMode::Sub
+            );
+
         let mut event_loop_handle = event_loop.start(&addr, event_loop_ctx);
 
         let mut connection = LocalConnection::new(encryptor.clone());
@@ -80,16 +71,15 @@ impl SubGameHandle {
         event_bus.attach(&mut broadcaster_handle).await;
         event_bus.attach(&mut event_loop_handle).await;
 
-        let init_state = EventFrame::InitState {
-            access_version,
-            settle_version,
-            checkpoint,
+        let init_frame = EventFrame::RecoverCheckpointWithCredentials {
+            checkpoint: checkpoint.clone()
         };
-        event_bus.send(init_state).await;
+
+        event_bus.send(init_frame).await;
 
         Ok(Self {
-            addr: format!("{}:{}", game_addr, game_id),
-            bundle_addr,
+            addr: format!("{}:{}", game_spec.game_addr, game_spec.game_id),
+            bundle_addr: checkpoint.root_data().game_spec.bundle_addr.to_owned(),
             event_bus,
             handles: vec![broadcaster_handle, bridge_handle, event_loop_handle],
             broadcaster,

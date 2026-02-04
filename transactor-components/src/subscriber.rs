@@ -1,6 +1,6 @@
-use std::pin::Pin;
 /// The subscribers
 /// Subscriber used to subscribe events from the transactor.
+use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -86,7 +86,9 @@ async fn handle_frame(frame: BroadcastFrame, ports: &mut PipelinePorts, env: &Co
                 "{} Receive Sync broadcast, new_players: {:?}, new_servers: {:?}",
                 env.log_prefix, new_players, new_servers
             );
+
             new_deposits.retain(|d| d.status == DepositStatus::Pending);
+
             if let Err(e) = ports
                 .try_send(EventFrame::Sync {
                     new_players,
@@ -147,6 +149,15 @@ impl Component<PipelinePorts, SubscriberContext> for Subscriber {
             connection,
             ..
         } = ctx;
+
+        // Wait one RecoverCheckpointWithCredentials frame before connecting transactor.
+        // Make sure we have a prepared handler state before the first event.
+        loop {
+            let frame = ports.recv().await;
+            if matches!(frame, Some(EventFrame::RecoverCheckpointWithCredentials { .. })) {
+                break;
+            }
+        }
 
         let mut retries = 0;
         let sub = loop {

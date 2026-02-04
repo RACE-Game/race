@@ -137,11 +137,11 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         ports.send(event_frame).await;
                     }
 
-                    EventFrame::SubGameRecovered { game_id } => {
-                        info!("{} Receives subgame recovered: {}", env.log_prefix, game_id);
+                    EventFrame::SubGameLaunched { game_id } => {
+                        info!("{} Receives subgame launched: {}", env.log_prefix, game_id);
                         // Remove the launching game's ID
                         launching_game_ids.retain(|id| *id != game_id);
-                        // Send the pending events, for print log reason, not combine with SubGameReady
+                        // Send the pending events.
                         let mut i = 0;
                         while i < pending_events.len() {
                             if pending_events[i].0 == game_id {
@@ -168,10 +168,10 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
             } else {
                 // Bridge parent receives event from event bus
                 match event_frame {
-                    EventFrame::LaunchSubGame { sub_game_init } => {
-                        let game_id = sub_game_init.spec.game_id;
+                    EventFrame::LaunchSubGame { checkpoint } => {
+                        let game_id = (*checkpoint).root_data().game_spec.game_id;
                         let f = SignalFrame::LaunchSubGame {
-                            sub_game_init: *sub_game_init,
+                            checkpoint: *checkpoint,
                             bridge_to_parent: BridgeToParent {
                                 rx_from_parent: ctx.tx.subscribe(),
                                 tx_to_parent: ctx.sub_tx.clone(),
@@ -335,8 +335,8 @@ impl Component<PipelinePorts, EventBridgeChildContext> for EventBridgeChild {
                         }
                     }
 
-                    EventFrame::SubGameRecovered { .. } => {
-                        info!("{} Send SubGameRecovered to parent", env.log_prefix);
+                    EventFrame::SubGameLaunched { .. } => {
+                        info!("{} Send SubGameLaunched to parent", env.log_prefix);
                         if let Err(e) = ctx.tx.send(event_frame).await {
                             error!("{} Failed to send: {}", env.log_prefix, e);
                         }

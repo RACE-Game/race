@@ -1,6 +1,7 @@
 use crate::{client_helpers::TestClient, misc::{test_game_addr, test_game_title}};
 use borsh::BorshSerialize;
-use race_core::types::{ClientMode, EntryLock, EntryType, GameAccount, PlayerDeposit, PlayerJoin, ServerJoin, DepositStatus};
+use race_core::types::{ClientMode, EntryLock, GameAccount, PlayerDeposit, PlayerJoin, ServerJoin, DepositStatus};
+use race_core::entry_type::EntryType;
 
 pub struct TestGameAccountBuilder {
     account: GameAccount,
@@ -94,7 +95,6 @@ impl TestGameAccountBuilder {
                 addr: server.addr(),
                 endpoint: "".into(),
                 access_version: self.account.access_version,
-                verify_key: "".into(),
             },
         );
         server.set_id(self.account.access_version);
@@ -119,7 +119,6 @@ impl TestGameAccountBuilder {
             addr: server.addr(),
             endpoint: "".into(),
             access_version: self.account.access_version,
-            verify_key: "".into(),
         });
         server.set_id(self.account.access_version);
         self
@@ -179,7 +178,6 @@ impl TestGameAccountBuilder {
             addr: player.addr(),
             position,
             access_version: self.account.access_version,
-            verify_key: "".into(),
         });
         self.account.deposits.push(PlayerDeposit {
             addr: player.addr(),

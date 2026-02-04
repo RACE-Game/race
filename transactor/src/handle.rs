@@ -8,9 +8,9 @@ use race_transactor_frames::{BridgeToParent, SignalFrame};
 use race_transactor_components::{
     Broadcaster, CloseReason, EventBus, WrappedStorage, WrappedTransport,
 };
-use race_core::context::SubGameInit;
 use race_core::error::{Error, Result};
 use race_core::types::ServerAccount;
+use race_core::checkpoint::ContextCheckpoint;
 use race_encryptor::Encryptor;
 use race_env::TransactorConfig;
 use subgame::SubGameHandle;
@@ -28,11 +28,11 @@ pub enum Handle {
 
 impl Handle {
     pub async fn try_new_transactor(
+        game_addr: String,
         transport: Arc<WrappedTransport>,
         storage: Arc<WrappedStorage>,
         encryptor: Arc<Encryptor>,
         server_account: &ServerAccount,
-        game_addr: &str,
         signal_tx: mpsc::Sender<SignalFrame>,
         config: &TransactorConfig,
     ) -> Result<Self> {
@@ -51,11 +51,11 @@ impl Handle {
     }
 
     pub async fn try_new_validator(
+        game_addr: String,
         transport: Arc<WrappedTransport>,
         storage: Arc<WrappedStorage>,
         encryptor: Arc<Encryptor>,
         server_account: &ServerAccount,
-        game_addr: &str,
         signal_tx: mpsc::Sender<SignalFrame>,
         config: &TransactorConfig,
     ) -> Result<Self> {
@@ -74,7 +74,7 @@ impl Handle {
     }
 
     pub async fn try_new_sub_game(
-        sub_game_init: SubGameInit,
+        checkpoint: ContextCheckpoint,
         bridge_to_parent: BridgeToParent,
         transport: Arc<WrappedTransport>,
         encryptor: Arc<Encryptor>,
@@ -84,7 +84,7 @@ impl Handle {
     ) -> Result<Self> {
         Ok(Self::SubGame(
             SubGameHandle::try_new(
-                sub_game_init,
+                checkpoint,
                 bridge_to_parent,
                 transport,
                 encryptor,

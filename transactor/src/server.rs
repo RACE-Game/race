@@ -16,7 +16,7 @@ use race_api::event::Message;
 use race_core::checkpoint::CheckpointOffChain;
 use race_core::types::SubmitMessageParams;
 use race_core::types::{
-    AttachGameParams, CheckpointParams, ExitGameParams, Signature, SubmitEventParams,
+    CheckpointParams, LatestCheckpointParams, ExitGameParams, Signature, SubmitEventParams,
     SubscribeEventParams, SubscribeCheckpointParams
 };
 use tokio_stream::wrappers::BroadcastStream;
@@ -49,34 +49,25 @@ fn parse_params<T: BorshDeserialize>(
     let sig_vec = base64_decode(&sig_base64)?;
 
     let signature = Signature::try_from_slice(&sig_vec)
-        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+        .map_err(|e| {
+            warn!("Signature deserialization failed: {:?}", e);
+            RpcError::Call(CallError::InvalidParams(e.into()))
+        })?;
 
     context
         .verify(&arg_vec, &signature)
-        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+        .map_err(|e| {
+            warn!("Signature verification failed: {:?}", e);
+            RpcError::Call(CallError::InvalidParams(e.into()))
+        })?;
 
     let arg = T::try_from_slice(&arg_vec)
-        .map_err(|e| RpcError::Call(CallError::InvalidParams(e.into())))?;
+        .map_err(|e| {
+            warn!("Argument deserialization failed: {:?}", e);
+            RpcError::Call(CallError::InvalidParams(e.into()))
+        })?;
 
     Ok((game_addr, arg, signature))
-}
-
-/// Ask transactor to load game and provide client's public key for further encryption.
-async fn attach_game(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<(), RpcError> {
-    let (game_addr, AttachGameParams { signer, key }) = parse_params_no_sig(params)?;
-
-    info!("Attach to game, signer: {}", signer);
-
-    if !context.game_manager.is_game_loaded(&game_addr).await {
-        return Err(RpcError::Custom("Game not loaded".to_string()));
-    }
-
-    context
-        .register_key(signer, key)
-        .await
-        .map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
-
-    Ok(())
 }
 
 fn ping(_: Params<'_>, _: &ApplicationContext) -> Result<String, RpcError> {
@@ -107,7 +98,13 @@ async fn submit_event(
     params: Params<'_>,
     context: Arc<ApplicationContext>,
 ) -> Result<(), RpcError> {
-    let (game_addr, SubmitEventParams { event }, _sig) = parse_params(params, &context)?;
+    let (game_addr, SubmitEventParams { event }, _sig) = match parse_params(params, &context) {
+        Ok(x) => x,
+        Err(e) => {
+            // warn!("Invalid event from client: {:?}", e);
+            return Err(e);
+        }
+    };
 
     info!("Submit event, game_addr: {}, event: {}", game_addr, event);
 
@@ -136,6 +133,22 @@ async fn get_checkpoint(
         .transpose()?;
 
     Ok(bs)
+}
+
+async fn get_latest_checkpoint(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<Vec<u8>, RpcError> {
+    let (game_addr, LatestCheckpointParams {}) = parse_params_no_sig(params)?;
+
+    let checkpoint: Option<CheckpointOffChain> = context
+        .game_manager
+        .get_latest_checkpoint(&game_addr)
+        .await
+        .ok()
+        .flatten();
+
+    let bs = borsh::to_vec(&checkpoint).map_err(|e| RpcError::Call(CallError::Failed(e.into())))?;
+
+    Ok(bs)
+
 }
 
 async fn get_latest_checkpoints(params: Params<'_>, context: Arc<ApplicationContext>) -> Result<Vec<u8>, RpcError> {
@@ -343,7 +356,7 @@ pub async fn run_server(
     module.register_method("ping", ping)?;
     module.register_async_method("get_checkpoint", get_checkpoint)?;
     module.register_async_method("get_latest_checkpoints", get_latest_checkpoints)?;
-    module.register_async_method("attach_game", attach_game)?;
+    module.register_async_method("get_latest_checkpoint", get_latest_checkpoint)?;
     module.register_async_method("get_serving_games", get_serving_games)?;
     module.register_async_method("submit_event", submit_event)?;
     module.register_async_method("submit_message", submit_message)?;

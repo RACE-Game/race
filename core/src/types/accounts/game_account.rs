@@ -2,7 +2,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use race_api::{prelude::InitAccount, types::{EntryLock, PlayerBalance}};
+use crate::entry_type::EntryType;
 use crate::checkpoint::CheckpointOnChain;
+use crate::game_spec::GameSpec;
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -10,32 +12,6 @@ use crate::checkpoint::CheckpointOnChain;
 pub enum VoteType {
     ServerVoteTransactorDropOff,
     ClientVoteTransactorDropOff,
-}
-
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub enum EntryType {
-    /// A player can join the game by sending assets to game account directly
-    #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-    Cash { min_deposit: u64, max_deposit: u64 },
-    /// A player can join the game by pay a ticket.
-    #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-    Ticket { amount: u64 },
-    /// A player can join the game by showing a gate NFT
-    #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-    Gating { collection: String },
-    #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-    Disabled,
-}
-
-impl Default for EntryType {
-    fn default() -> Self {
-        EntryType::Cash {
-            min_deposit: 0,
-            max_deposit: 1000000,
-        }
-    }
 }
 
 /// Represent a player call the join instruction in contract.
@@ -46,7 +22,6 @@ pub struct PlayerJoin {
     pub addr: String,
     pub position: u16,
     pub access_version: u64,
-    pub verify_key: String,
 }
 
 impl std::fmt::Display for PlayerJoin {
@@ -60,13 +35,11 @@ impl PlayerJoin {
         addr: S,
         position: u16,
         access_version: u64,
-        verify_key: String,
     ) -> Self {
         Self {
             addr: addr.into(),
             position,
             access_version,
-            verify_key,
         }
     }
 }
@@ -78,7 +51,6 @@ pub struct ServerJoin {
     pub addr: String,
     pub endpoint: String,
     pub access_version: u64,
-    pub verify_key: String,
 }
 
 impl ServerJoin {
@@ -86,13 +58,11 @@ impl ServerJoin {
         addr: S,
         endpoint: String,
         access_version: u64,
-        verify_key: String,
     ) -> Self {
         Self {
             addr: addr.into(),
             endpoint,
             access_version,
-            verify_key,
         }
     }
 }
@@ -283,10 +253,13 @@ impl GameAccount {
         }
     }
 
-    pub fn derive_checkpoint_init_account(&self) -> InitAccount {
-        InitAccount {
+    pub fn derive_game_spec(&self) -> GameSpec {
+        GameSpec {
+            game_addr: self.addr.clone(),
+            game_id: 0,
+            bundle_addr: self.bundle_addr.clone(),
             max_players: self.max_players,
-            data: self.data.clone(),
+            entry_type: self.entry_type.clone(),
         }
     }
 }

@@ -1,7 +1,4 @@
 use std::sync::Arc;
-use tracing::info;
-use tokio_stream::wrappers::BroadcastStream;
-use tokio_stream::StreamExt;
 use tower::ServiceBuilder;
 use tower_http::cors::Any;
 use tower_http::cors::CorsLayer;
@@ -10,12 +7,8 @@ use std::net::SocketAddr;
 use crate::error::ReplayerError;
 use crate::context::ReplayerContext;
 use jsonrpsee::core::error::Error as RpcError;
-use jsonrpsee::core::StringError;
 use jsonrpsee::server::{ServerHandle, AllowHosts};
-use jsonrpsee::types::error::CallError;
-use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::{server::ServerBuilder, types::Params, RpcModule};
-use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage, TrySendError};
 
 fn ping(_: Params<'_>, _: &Arc<ReplayerContext>) -> Result<String, RpcError> {
     Ok("pong".to_string())

@@ -100,7 +100,6 @@ impl TransportT for WrappedTransport {
                     }
                     None => {
                         sub = loop {
-                            info!("Restart subscription after {} seconds", interval);
                             tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
                             let new_sub = self.inner.subscribe_game_account(addr).await;
                             match new_sub {
@@ -326,6 +325,11 @@ impl TransportT for WrappedTransport {
     async fn recipient_claim(&self, params: RecipientClaimParams) -> Result<()> {
         self.inner.recipient_claim(params).await
     }
+
+    async fn generate_secret(&self) -> Result<Vec<u8>> {
+        self.inner.generate_secret().await
+    }
+
 }
 
 #[cfg(test)]

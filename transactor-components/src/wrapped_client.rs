@@ -16,7 +16,7 @@ use race_core::connection::ConnectionT;
 use race_core::encryptor::EncryptorT;
 use race_core::transport::TransportT;
 use race_core::types::ClientMode;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use super::ComponentEnv;
 use super::event_bus::CloseReason;
@@ -73,9 +73,9 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
 
         let mut client = Client::new(addr, game_addr, mode, transport, encryptor, connection);
 
-        if let Err(e) = client.attach_game().await {
-            warn!("{} Failed to attach to game due to error: {:?}", env.log_prefix, e);
-        }
+        // if let Err(e) = client.attach_game().await {
+        //     warn!("{} Failed to attach to game due to error: {:?}", env.log_prefix, e);
+        // }
 
         let mut res = Ok(());
         'outer: while let Some(event_frame) = ports.recv().await {

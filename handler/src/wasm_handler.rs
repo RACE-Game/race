@@ -1,22 +1,15 @@
-use std::mem::swap;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use borsh::BorshDeserialize;
 use race_api::effect::Effect;
 use race_api::event::Event;
 use race_api::init_account::InitAccount;
 use race_core::error::{Error, Result};
-use race_core::context::{EventEffects, GameContext};
-use race_core::encryptor::EncryptorT;
-use race_core::engine::general_handle_event;
 use race_core::types::GameBundle;
-use race_encryptor::Encryptor;
-use tracing::info;
-use tracing::log::error;
+use tracing::{info, error};
 use wasmer::{imports, Instance, Module, Store, TypedFunction};
 
-use super::HandlerT;
+use crate::handler::HandlerT;
 
 fn log_execution_context(effect_bs: &Vec<u8>, event_bs: &Vec<u8>) {
     info!("Execution context");
@@ -27,44 +20,46 @@ fn log_execution_context(effect_bs: &Vec<u8>, event_bs: &Vec<u8>) {
     info!("=================");
 }
 
-pub struct WrappedHandler {
-    store: Store,
-    instance: Instance,
-    encryptor: Arc<dyn EncryptorT>,
+/// Create a new empty Effect for initialization.
+fn init_effect() -> Effect {
+    Effect {
+        is_init: true,
+        curr_sub_game_id: 1,
+        timestamp: 0,
+        nodes_count: 1,
+        ..Default::default()
+    }
 }
 
-impl HandlerT for WrappedHandler {
+pub struct WasmHandler {
+    store: Store,
+    instance: Instance,
+}
+
+impl HandlerT for WasmHandler {
     fn handle_event(
         &mut self,
-        context: &mut GameContext,
+        effect: &Effect,
         event: &Event,
-    ) -> Result<EventEffects> {
-        let mut new_context = context.clone();
-        general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
-        let event_effects = self.custom_handle_event(&mut new_context, event)?;
-        swap(context, &mut new_context);
-        Ok(event_effects)
+    ) -> Result<Effect> {
+        let effect = self.custom_handle_event(effect, event)?;
+        Ok(effect)
     }
 
     // Initialize game state
     fn init_state(
         &mut self,
-        context: &mut GameContext,
         init_account: &InitAccount,
-    ) -> Result<EventEffects> {
-        let mut new_context = context.clone();
-        new_context.set_timestamp(0);
-        let event_effects = self.custom_init_state(&mut new_context, init_account)?;
-        swap(context, &mut new_context);
-        Ok(event_effects)
+    ) -> Result<Effect> {
+        let effect = self.custom_init_state(init_account)?;
+        Ok(effect)
     }
 }
 
-impl WrappedHandler {
-    /// Load WASM bundle by game address
+impl WasmHandler {
+    /// Load WASM bundle
     pub async fn load_by_bundle(
         bundle: &GameBundle,
-        encryptor: Arc<dyn EncryptorT>,
     ) -> Result<Self> {
         let mut store = Store::default();
         let module =
@@ -74,7 +69,6 @@ impl WrappedHandler {
         Ok(Self {
             store,
             instance,
-            encryptor,
         })
     }
 
@@ -83,22 +77,19 @@ impl WrappedHandler {
     #[allow(dead_code)]
     pub fn load_by_path(path: PathBuf) -> Result<Self> {
         let mut store = Store::default();
-        let encryptor = Arc::new(Encryptor::default());
         let module = Module::from_file(&store, path).expect("Fail to load module");
         let import_object = imports![];
         let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
         Ok(Self {
             store,
             instance,
-            encryptor,
         })
     }
 
     pub fn custom_init_state(
         &mut self,
-        context: &mut GameContext,
         init_account: &InitAccount,
-    ) -> Result<EventEffects> {
+    ) -> Result<Effect> {
 
         let memory = self
             .instance
@@ -115,7 +106,7 @@ impl WrappedHandler {
             .get_typed_function(&self.store, "init_state")
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
-        let effect = context.derive_effect(true);
+        let effect = init_effect();
         let effect_bs =
             borsh::to_vec(&effect).map_err(|e| Error::WasmInitializationError(e.to_string()))?;
         let init_account_bs = borsh::to_vec(&init_account)
@@ -162,20 +153,17 @@ impl WrappedHandler {
         mem_view
             .read(1u64, &mut buf)
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
-        let mut effect = Effect::try_from_slice(&buf)
+        let effect = Effect::try_from_slice(&buf)
             .map_err(|e| Error::WasmInitializationError(e.to_string()))?;
-        if let Some(e) = effect.__take_error() {
-            Err(e.into())
-        } else {
-            context.apply_effect(effect)
-        }
+
+        Ok(effect)
     }
 
     fn custom_handle_event(
         &mut self,
-        context: &mut GameContext,
+        effect: &Effect,
         event: &Event,
-    ) -> Result<EventEffects> {
+    ) -> Result<Effect> {
         let memory = self
             .instance
             .exports
@@ -187,9 +175,8 @@ impl WrappedHandler {
             .get_typed_function(&self.store, "handle_event")
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mem_view = memory.view(&self.store);
-        let effect = context.derive_effect(false);
         let effect_bs =
-            borsh::to_vec(&effect).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
+            borsh::to_vec(effect).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let event_bs =
             borsh::to_vec(&event).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
         let mut offset = 1u32;
@@ -236,14 +223,10 @@ impl WrappedHandler {
         mem_view
             .read(1u64, &mut buf)
             .map_err(|e| Error::WasmExecutionError(e.to_string()))?;
-        let mut effect =
+        let effect =
             Effect::try_from_slice(&buf).map_err(|e| Error::WasmExecutionError(e.to_string()))?;
-        if let Some(e) = effect.__take_error() {
-            error!("Effect: {:?}", effect_bs);
-            Err(e.into())
-        } else {
-            context.apply_effect(effect)
-        }
+
+        Ok(effect)
     }
 }
 
@@ -284,24 +267,10 @@ mod tests {
         (acc, transactor)
     }
 
-    fn make_wrapped_handler() -> WrappedHandler {
+    fn make_wrapped_handler() -> WasmHandler {
         let proj_root = project_root::get_project_root().expect("No project root found");
         let bundle_path = proj_root.join("examples/minimal/minimal.wasm");
-        WrappedHandler::load_by_path(bundle_path).unwrap()
-    }
-
-    #[ignore]
-    #[test]
-    fn test_init_state() {
-        let mut hdlr = make_wrapped_handler();
-        let (game_account, _tx) = setup_game();
-        let mut ctx = GameContext::try_new(&game_account, None).unwrap();
-        let init_account = ctx.init_account();
-        hdlr.init_state(&mut ctx, &init_account).unwrap();
-        assert_eq!(
-            &vec![42u8, 0, 0, 0, 0, 0, 0, 0],
-            ctx.get_handler_state_raw()
-        );
+        WasmHandler::load_by_path(bundle_path).unwrap()
     }
 
     #[ignore]

@@ -22,6 +22,7 @@ pub enum GameMode {
     Sub,
 }
 
+/// Signature for event request.
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Signature {
@@ -38,13 +39,4 @@ impl std::fmt::Display for Signature {
             self.signature, self.signer, self.timestamp
         )
     }
-}
-
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Default, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct GameSpec {
-    pub game_addr: String,
-    pub game_id: usize,
-    pub bundle_addr: String,
-    pub max_players: u16,
 }

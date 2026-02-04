@@ -50,8 +50,9 @@ use race_core::{
     checkpoint::CheckpointOnChain,
     error::{Error, Result},
     transport::TransportT,
+    entry_type::EntryType,
     types::{
-        AddRecipientSlotParams, AssignRecipientParams, Award, BalanceChange, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, EntryLock, EntryType, GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RecipientSlot, RecipientSlotInit, RecipientSlotOwner as CoreRecipientSlotOwner, RecipientSlotShareInit, RecipientSlotType, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, Settle, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams
+        AddRecipientSlotParams, AssignRecipientParams, Award, BalanceChange, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, EntryLock, GameAccount, GameBundle, GameRegistration, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RecipientSlot, RecipientSlotInit, RecipientSlotOwner as CoreRecipientSlotOwner, RecipientSlotShareInit, RecipientSlotType, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, Settle, SettleParams, SettleResult, Transfer, UnregisterGameParams, VoteParams
     }
 };
 
@@ -301,7 +302,6 @@ impl TransportT for SuiTransport {
             })?)?,
             add_input(&mut ptb, new_pure_arg(&params.position)?)?,
             add_input(&mut ptb, new_pure_arg(&params.amount)?)?,
-            add_input(&mut ptb, new_pure_arg(&params.verify_key)?)?,
             arg_coins_vec
         ];
         ptb.command(Command::move_call(
@@ -370,7 +370,6 @@ impl TransportT for SuiTransport {
                     mutable: true
                 }),
                 CallArg::Object(ObjectArg::ImmOrOwnedObject(server_obj_ref)),
-                new_pure_arg(&params.verify_key)?
             ],
             gas_coin.balance,
             gas_price
@@ -1104,6 +1103,11 @@ impl TransportT for SuiTransport {
 
         Ok(Some(recipient_obj.into()))
     }
+
+    async fn generate_secret(&self) -> Result<Vec<u8>> {
+        Ok(vec![])
+    }
+
 }
 
 impl SuiTransport {

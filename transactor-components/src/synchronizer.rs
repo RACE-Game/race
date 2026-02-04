@@ -1,9 +1,3 @@
-//! Synchronize the updates from game account. Currently we use pulls
-//! instead of websocket. Firstly we query the state with confirming
-//! status, if a new state is found, we swtich to query with finalized
-//! status. For confirming query we have 5 seconds as interval, for
-//! finalized query, we use 2 seconds as interval.
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -45,6 +39,7 @@ async fn maybe_send_sync(
 
     // Drop duplicated updates
     if access_version <= prev_access_version {
+        info!("{} Drop update, this version {} < previous version {}", env.log_prefix, access_version, prev_access_version);
         return (prev_access_version, None);
     }
 
@@ -124,14 +119,15 @@ pub struct GameSynchronizer {}
 impl GameSynchronizer {
     pub fn init(
         transport: Arc<dyn TransportT>,
-        game_account: &GameAccount,
+        game_addr: &str,
+        checkpoint_access_version: u64,
     ) -> (Self, GameSynchronizerContext) {
         (
             Self {},
             GameSynchronizerContext {
                 transport,
-                access_version: game_account.access_version,
-                game_addr: game_account.addr.clone(),
+                game_addr: game_addr.to_string(),
+                access_version: checkpoint_access_version,
             },
         )
     }
@@ -151,6 +147,8 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
     ) -> CloseReason {
         let mut prev_access_version = ctx.access_version;
 
+        info!("{} Synchronizer starts with access_version = {}", env.log_prefix, prev_access_version);
+
         let mut sub = match ctx.transport.subscribe_game_account(&ctx.game_addr).await {
             Ok(sub) => sub,
             Err(e) => {
@@ -162,6 +160,24 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                 return CloseReason::Fault(Error::GameAccountNotFound);
             }
         };
+
+
+        let account = ctx.transport.get_game_account(&ctx.game_addr).await;
+
+        if let Ok(Some(game_account)) = account {
+            let (new_access_version, close_reason) = maybe_send_sync(
+                prev_access_version,
+                game_account,
+                &mut ports,
+                &env
+            ).await;
+
+            if close_reason.is_some() {
+                error!("{} Failed on the initial query, but the subscription is still available", env.log_prefix);
+            } else {
+                prev_access_version = new_access_version;
+            }
+        }
 
         loop {
             select! {
@@ -182,7 +198,13 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                     // both cases, we shutdown the game by sending a Shutdown frame.
                     match sub_item {
                         Some(Ok(game_account)) => {
-                            let (new_access_version, close_reason) = maybe_send_sync(prev_access_version, game_account, &mut ports, &env).await;
+                            let (new_access_version, close_reason) = maybe_send_sync(
+                                prev_access_version,
+                                game_account,
+                                &mut ports,
+                                &env
+                            ).await;
+
                             if let Some(close_reason) = close_reason {
                                 return close_reason;
                             }

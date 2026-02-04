@@ -177,4 +177,7 @@ pub trait TransportT: Send + Sync {
 
     /// Get recipient account by its address.
     async fn get_recipient(&self, addr: &str) -> Result<Option<RecipientAccount>>;
+
+    /// Generate a credential secret for server account profile
+    async fn generate_secret(&self) -> Result<Vec<u8>>;
 }

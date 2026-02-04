@@ -84,22 +84,6 @@ pub type Ciphertext = Vec<u8>;
 pub type SecretDigest = Vec<u8>;
 pub type SecretKey = Vec<u8>;
 
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-pub struct Signature {
-    pub signer: String,
-    pub timestamp: u64,
-    pub signature: Vec<u8>,
-}
-
-impl std::fmt::Display for Signature {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "[{:?}](signer: {}, timestamp: {})",
-            self.signature, self.signer, self.timestamp
-        )
-    }
-}
 
 #[derive(Hash, Debug, BorshDeserialize, BorshSerialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
