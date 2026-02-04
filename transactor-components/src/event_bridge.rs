@@ -141,7 +141,7 @@ impl Component<PipelinePorts, EventBridgeParentContext> for EventBridgeParent {
                         info!("{} Receives subgame launched: {}", env.log_prefix, game_id);
                         // Remove the launching game's ID
                         launching_game_ids.retain(|id| *id != game_id);
-                        // Send the pending events, for print log reason, not combine with SubGameReady
+                        // Send the pending events.
                         let mut i = 0;
                         while i < pending_events.len() {
                             if pending_events[i].0 == game_id {

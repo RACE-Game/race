@@ -359,6 +359,7 @@ pub async fn recover_from_checkpoint(
 
     // Redispatch all unhandled bridge events.
     if client_mode == ClientMode::Transactor && !versioned_data.bridge_events.is_empty() {
+        info!("{} Dispatch {} unhandled bridge events", env.log_prefix, versioned_data.bridge_events.len());
         send_bridge_event(
             versioned_data.bridge_events.clone(),
             &versioned_data,
@@ -373,6 +374,9 @@ pub async fn recover_from_checkpoint(
         versioned_data.to_owned(),
     ) {
         Ok(mut game_context) => {
+            if versioned_data.dispatch.is_some() {
+                info!("{} Dispatch unhandled internal event: {:?}", env.log_prefix, versioned_data.dispatch);
+            }
             game_context.set_dispatch(versioned_data.dispatch.clone());
             game_context
         }
@@ -416,19 +420,20 @@ pub async fn handle_event(
 
     new_game_context.set_timestamp(timestamp);
 
-    // Apply general handler
+    // Apply general handler, the event will be skipped, if an error is raised
 
     if let Err(e) = general_handle_event(
         &mut new_game_context, &event, encryptor,
     ) {
-        return Some(CloseReason::Fault(e));
+        warn!("{} General handle event error: {}", env.log_prefix, e.to_string());
+        return None;
     };
 
     // Prepare the input effect, apply it game handler
 
     let effect = new_game_context.derive_effect();
 
-    let effect = match  handler.handle_event(&effect, &event) {
+    let mut effect = match handler.handle_event(&effect, &event) {
         Ok(eff) => eff,
         Err(e) => {
             warn!("{} Handle event error: {}", env.log_prefix, e.to_string());
@@ -444,6 +449,11 @@ pub async fn handle_event(
             }
         }
     };
+
+    if let Some(e) = effect.__take_error() {
+        warn!("{} Handle event error: {}", env.log_prefix, e.to_string());
+        return None;
+    }
 
     // Parse the output effect
     let event_effects = match new_game_context.apply_effect(effect) {

@@ -42,8 +42,6 @@ impl HandlerT for WasmHandler {
         effect: &Effect,
         event: &Event,
     ) -> Result<Effect> {
-        // let mut new_context = context.clone();
-        // general_handle_event(&mut new_context, event, self.encryptor.as_ref())?;
         let effect = self.custom_handle_event(effect, event)?;
         Ok(effect)
     }

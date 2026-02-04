@@ -451,6 +451,10 @@ impl GameContext {
             .push(Node::new_pending(node_addr, access_version, mode))
     }
 
+    pub fn remove_node(&mut self, node_addr: &str) {
+        self.nodes.retain(|n| n.addr.ne(node_addr));
+    }
+
     pub fn set_access_version(&mut self, access_version: u64) {
         self.versioned_data.versions.access_version = access_version;
     }
@@ -612,8 +616,9 @@ impl GameContext {
         Ok(())
     }
 
-    pub fn update_sub_game_data(&mut self, versioned_data: VersionedData) -> Result<()> {
+    pub fn update_sub_game_data(&mut self, mut versioned_data: VersionedData) -> Result<()> {
         let game_id = versioned_data.game_spec.game_id;
+        versioned_data.bridge_events.clear();
         self.versioned_data.update_sub_data(versioned_data.clone())?;
         self.remove_lock_from_pending_settles(game_id, versioned_data.versions.settle_version);
         Ok(())
@@ -817,18 +822,6 @@ impl GameContext {
             }
 
             let dispatch = self.dispatch.clone();
-            // XXX, we save only handler state in checkpoint
-            // we don't save init_account.
-            // so when we create a subgame, we first need to get the initial checkpoint under the master game's context
-            // then deliver the checkpoint to the subgame for intialization.
-            //
-            // Append SubGame to context
-            //
-            // for sub_game in launch_sub_games.iter().cloned() {
-            //     self.sub_games.push(sub_game.clone());
-            //     // Why
-            //     // self.checkpoint_mut().append_launch_subgames(sub_game);
-            // }
             self.versioned_data.set_dispatch(dispatch);
             self.versioned_data.set_bridge_events(bridge_events.clone());
 
