@@ -232,23 +232,17 @@ impl std::fmt::Display for GameStatus {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GamePlayer {
     id: u64,
-    position: u16,
 }
 
 impl GamePlayer {
-    pub fn new(id: u64, position: u16) -> Self {
+    pub fn new(id: u64) -> Self {
         Self {
             id,
-            position,
         }
     }
 
     pub fn id(&self) -> u64 {
         self.id
-    }
-
-    pub fn position(&self) -> u16 {
-        self.position
     }
 }
 

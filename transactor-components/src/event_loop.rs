@@ -186,7 +186,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     let mut deposits: Vec<GameDeposit> = Vec::with_capacity(new_deposits.len());
 
                     for player in new_players.iter() {
-                        players.push(GamePlayer::new(player.access_version, player.position));
+                        players.push(GamePlayer::new(player.access_version));
                         game_context.add_node(
                             player.addr.clone(),
                             player.access_version,
