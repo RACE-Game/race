@@ -119,12 +119,9 @@ impl TestClient {
         let access_version = game_context.access_version() + 1;
         self.set_id(access_version);
         game_context.add_node(self.client.addr.clone(), access_version, ClientMode::Player);
+        game_context.set_access_version(access_version);
 
-        // XXX We need something to represent the game account
-        // as the accumulator for access_version and positions.
-        // XXX fix position
-        // XXX fix access_version
-        Ok((GamePlayer::new(access_version, 0), GameDeposit::new(access_version, balance, access_version)))
+        Ok((GamePlayer::new(access_version), GameDeposit::new(access_version, balance, access_version)))
     }
 
     pub fn transactor<S: Into<String>>(addr: S) -> Self {
