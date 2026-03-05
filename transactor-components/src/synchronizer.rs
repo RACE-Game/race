@@ -39,7 +39,7 @@ async fn maybe_send_sync(
 
     // Drop duplicated updates
     if access_version <= prev_access_version {
-        info!("{} Drop update, this version {} < previous version {}", env.log_prefix, access_version, prev_access_version);
+        info!("{} Drop update, this version({}) is not newer than previous version({})", env.log_prefix, access_version, prev_access_version);
         return (prev_access_version, None);
     }
 
@@ -161,9 +161,8 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
             }
         };
 
-
+        // Do a first query, to handle those transactions made when our transactor is offline.
         let account = ctx.transport.get_game_account(&ctx.game_addr).await;
-
         if let Ok(Some(game_account)) = account {
             let (new_access_version, close_reason) = maybe_send_sync(
                 prev_access_version,
@@ -191,13 +190,16 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                 }
 
                 sub_item = sub.next() => {
-
                     // The retry mechanism is implemented in `WrappedTransport`.  An Ok(Err(..))
                     // means the transport has gave up on reading game state.  The Ok(None) stands
                     // for the end of the stream, which is supposed to be sent after an error.  In
                     // both cases, we shutdown the game by sending a Shutdown frame.
                     match sub_item {
                         Some(Ok(game_account)) => {
+
+                            info!("{} Get account from subscription, access_version = {}, previous access version = {}",
+                                  env.log_prefix, game_account.access_version, prev_access_version);
+
                             let (new_access_version, close_reason) = maybe_send_sync(
                                 prev_access_version,
                                 game_account,
@@ -227,6 +229,7 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
             }
         }
 
+        info!("{} Synchronizer exits.", env.log_prefix);
         return CloseReason::Complete;
     }
 }

@@ -7,7 +7,6 @@ use constants::*;
 use futures::{Stream, StreamExt};
 use solana_transaction_status::UiTransactionEncoding;
 use tokio::sync::Mutex;
-use tokio::time::timeout;
 use std::time::Duration;
 use tracing::{error, info, warn};
 use types::*;
@@ -65,7 +64,6 @@ mod nft;
 const METAPLEX_PROGRAM_ID: &str = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s";
 
 const FEE_CAP: u64 = 20000;
-const RESTART_SUBSCRIPTION_TIMEOUT_SECS: u64 = 180;
 
 const PLAYERS_REG_HEAD_LEN: usize = 152;
 const PLAYERS_REG_INIT_LEN: usize = PLAYERS_REG_HEAD_LEN + 4;
@@ -1233,9 +1231,8 @@ impl TransportT for SolanaTransport {
                 }
             };
 
-            while let Ok(Some(rpc_response)) = timeout(
-                Duration::from_secs(RESTART_SUBSCRIPTION_TIMEOUT_SECS), stream.next()
-            ).await {
+            info!("Start the subscription for {}", addr);
+            while let Some(rpc_response) = stream.next().await {
                 let ui_account: UiAccount = rpc_response.value;
 
                 let Some(data) = ui_account.data.decode() else {
@@ -1259,16 +1256,31 @@ impl TransportT for SolanaTransport {
                     }
                 };
 
-                let (game_state, players_reg) = match self.internal_get_game_state_and_players_reg_state(
-                    &game_account_pubkey,
-                    &state.players_reg_account,
-                ).await {
-                    Ok((game_state, players_reg)) => (game_state, players_reg),
-                    Err(e) => {
-                        error!("Get players reg error: {}", e.to_string());
-                        unsub().await;
-                        return;
-                    }
+                info!("GameState From Sub, versions #A{}#S{}", state.access_version, state.settle_version);
+
+
+                // We have to make sure the we get the data that is as new as the one from subscription
+                // So we keep checking their access_version and settle_version.
+                let (game_state, players_reg) = loop {
+                    match self.internal_get_game_state_and_players_reg_state(
+                        &game_account_pubkey,
+                        &state.players_reg_account,
+                    ).await {
+                        Ok((game_state, players_reg)) => {
+                            info!("GameState From Query, versions #A{}#S{}", game_state.access_version, game_state.settle_version);
+                            if game_state.access_version != state.access_version
+                                || game_state.settle_version != state.settle_version {
+                                    info!("Retry query");
+                                    continue;
+                                }
+                            break (game_state, players_reg)
+                        }
+                        Err(e) => {
+                            error!("Get players reg error: {}", e.to_string());
+                            unsub().await;
+                            return;
+                        }
+                    };
                 };
 
                 let players = players_reg.players;
@@ -1288,6 +1300,7 @@ impl TransportT for SolanaTransport {
             // We restart subscription regularly to avoid broken connection.
             // A broken connection is the case where the connection is established,
             // no error raises, but no further update is delivered.
+            info!("Stop the subscription for {}", addr);
             unsub().await;
             return;
         }))

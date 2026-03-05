@@ -152,7 +152,7 @@ pub async fn start_reg_task(context: &ApplicationContext) -> JoinHandle<()> {
                         }
                     }
                 } else {
-                    warn!("Failed to load registration at {}", addr);
+                    warn!("Failed to load registration at {}, skip it for this time.", addr);
                 }
             }
 
