@@ -1199,13 +1199,19 @@ impl TransportT for SolanaTransport {
         let game_account_pubkey = Self::parse_pubkey(addr)?;
         let addr = addr.to_owned();
 
-        let client = match PubsubClient::new(&ws_rpc).await {
-            Ok(client) => client,
-            Err(e) => {
-                error!("Failed to create PubsubClient due to {:?}", e);
-                return Err(Error::TransportError(e.to_string()));
-            }
-        };
+        let client;
+        loop {
+            match PubsubClient::new(&ws_rpc).await {
+                Ok(c) => {
+                    client = c;
+                    break;
+                }
+                Err(e) => {
+                    error!("Failed to create PubsubClient due to {:?}, will retry.", e);
+                    tokio::time::sleep(Duration::from_secs(10)).await;
+                }
+            };
+        }
 
         Ok(Box::pin(stream! {
             let (mut stream, unsub) = match client
