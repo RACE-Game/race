@@ -230,6 +230,22 @@ struct InternalGuestSessionFinishedRequest {
     timestamp: Option<u64>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct InternalGuestTableResultRecordedRequest {
+    event_id: String,
+    guest_id: String,
+    player_addr: String,
+    game_id: String,
+    result_id: String,
+    entry_value: u64,
+    ending_value: u64,
+    opponent_count: u32,
+    hands_played_in_session: u64,
+    session_duration_seconds: u64,
+    timestamp: Option<u64>,
+}
+
 fn custom_error(e: Error) -> RpcError {
     RpcError::Custom(serde_json::to_string(&e).unwrap())
 }
@@ -577,6 +593,29 @@ async fn internal_guest_session_finished(
         guest_id: request.guest_id,
         player_addr: request.player_addr,
         session_id: request.session_id,
+        hands_played_in_session: request.hands_played_in_session,
+        session_duration_seconds: request.session_duration_seconds,
+        timestamp: request.timestamp.unwrap_or_else(now_millis),
+    };
+    ProductEventService::apply(&mut context, event).map_err(|err| session_error(&err.to_string()))?;
+    Ok(())
+}
+
+async fn internal_guest_table_result_recorded(
+    params: Params<'_>,
+    context: Arc<Mutex<Context>>,
+) -> RpcResult<()> {
+    let request: InternalGuestTableResultRecordedRequest = params.one()?;
+    let mut context = context.lock().await;
+    let event = ProductEvent::GuestTableResultRecorded {
+        event_id: request.event_id,
+        guest_id: request.guest_id,
+        player_addr: request.player_addr,
+        game_id: request.game_id,
+        result_id: request.result_id,
+        entry_value: request.entry_value,
+        ending_value: request.ending_value,
+        opponent_count: request.opponent_count,
         hands_played_in_session: request.hands_played_in_session,
         session_duration_seconds: request.session_duration_seconds,
         timestamp: request.timestamp.unwrap_or_else(now_millis),
@@ -1352,6 +1391,10 @@ async fn run_server_at(context: Context, bind_addr: SocketAddr) -> anyhow::Resul
         "internal_guest_session_finished",
         internal_guest_session_finished,
     )?;
+    module.register_async_method(
+        "internal_guest_table_result_recorded",
+        internal_guest_table_result_recorded,
+    )?;
     module.register_async_method("deposit", deposit)?;
     module.register_async_method("settle", settle)?;
     module.register_async_method("vote", vote)?;
@@ -1763,6 +1806,90 @@ mod tests {
                 + product_rules::HAND_WIN_BONUS
                 + product_rules::SESSION_COMPLETION_XP
         );
+
+        server_handle.stop().unwrap();
+        server_handle.stopped().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_internal_table_result_recorded_updates_stats_and_rating() {
+        let context = Context::in_memory();
+        context.load_default_tokens().unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let bind_addr = listener.local_addr().unwrap();
+        drop(listener);
+        let server_handle = run_server_at(context, bind_addr).await.unwrap();
+
+        let client = HttpClientBuilder::default()
+            .build(format!("http://{bind_addr}"))
+            .unwrap();
+
+        let register_response: GuestRegisterResponse = client
+            .request(
+                "guest_register",
+                rpc_params![GuestRegisterRequest {
+                    nick: "ResultGuest".into(),
+                }],
+            )
+            .await
+            .unwrap();
+
+        client
+            .request::<(), _>(
+                "internal_guest_table_result_recorded",
+                rpc_params![InternalGuestTableResultRecordedRequest {
+                    event_id: "result:event:1".into(),
+                    guest_id: register_response.guest.guest_id.clone(),
+                    player_addr: register_response.guest.player_addr.clone(),
+                    game_id: "table-1".into(),
+                    result_id: "table-result-1".into(),
+                    entry_value: 1_000,
+                    ending_value: 1_300,
+                    opponent_count: 3,
+                    hands_played_in_session: 6,
+                    session_duration_seconds: 420,
+                    timestamp: Some(500),
+                }],
+            )
+            .await
+            .unwrap();
+        client
+            .request::<(), _>(
+                "internal_guest_table_result_recorded",
+                rpc_params![InternalGuestTableResultRecordedRequest {
+                    event_id: "result:event:1".into(),
+                    guest_id: register_response.guest.guest_id.clone(),
+                    player_addr: register_response.guest.player_addr.clone(),
+                    game_id: "table-1".into(),
+                    result_id: "table-result-1".into(),
+                    entry_value: 1_000,
+                    ending_value: 1_300,
+                    opponent_count: 3,
+                    hands_played_in_session: 6,
+                    session_duration_seconds: 420,
+                    timestamp: Some(500),
+                }],
+            )
+            .await
+            .unwrap();
+
+        let me_response: GuestIdentityResponse = client
+            .request(
+                "guest_get_me",
+                rpc_params![GuestSessionRequest {
+                    session_token: register_response.session_token,
+                }],
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(me_response.stats.wins, 1);
+        assert_eq!(me_response.stats.losses, 0);
+        assert_eq!(
+            me_response.rating.rating,
+            1000 + product_rules::STRONG_POSITIVE_RATING_DELTA
+        );
+        assert_eq!(me_response.rating.rank_bucket, "Silver");
 
         server_handle.stop().unwrap();
         server_handle.stopped().await;

@@ -233,6 +233,43 @@ impl ProductStore {
         Ok(())
     }
 
+    pub fn increment_user_wins(&mut self, guest_id: &str) -> anyhow::Result<()> {
+        self.client.execute(
+            "UPDATE user_stats
+             SET wins = wins + 1
+             WHERE guest_id = $1",
+            &[&guest_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn increment_user_losses(&mut self, guest_id: &str) -> anyhow::Result<()> {
+        self.client.execute(
+            "UPDATE user_stats
+             SET losses = losses + 1
+             WHERE guest_id = $1",
+            &[&guest_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_user_rating(&mut self, rating: &UserRating) -> anyhow::Result<()> {
+        self.client.execute(
+            "UPDATE user_rating
+             SET rating = $2,
+                 rank_bucket = $3,
+                 updated_at = $4
+             WHERE guest_id = $1",
+            &[
+                &rating.guest_id,
+                &rating.rating,
+                &rating.rank_bucket,
+                &(rating.updated_at as i64),
+            ],
+        )?;
+        Ok(())
+    }
+
     pub fn read_guest_session_by_token_hash(
         &mut self,
         session_token_hash: &str,

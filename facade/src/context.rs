@@ -5,13 +5,14 @@ use crate::{
         create_game_account, create_game_bundle, create_player_info, create_recipient_account,
         create_server_account, create_stake, create_token_account, create_guest_account,
         create_guest_session, initialize_product_state, list_game_accounts,
-        increment_user_hands_played, insert_product_event_log_entry,
+        increment_user_hands_played, increment_user_losses, increment_user_wins,
+        insert_product_event_log_entry,
         list_token_accounts, prepare_all_tables, read_game_account, read_game_bundle,
         read_player_info, read_recipient_account, read_registration_account, read_server_account,
         read_token_account, read_guest_account_by_guest_id, read_guest_account_by_player_addr,
         read_guest_session_by_token_hash, read_user_progress, read_user_rating, read_user_stats,
         record_user_joined_game, revoke_guest_session, update_game_account,
-        update_user_progress, ProductEventLogEntry,
+        update_user_progress, update_user_rating, ProductEventLogEntry,
         update_player_info, update_recipient_account, update_stake, read_stake, GuestAccount,
         GuestSession, PlayerInfo, Stake, UserProgress, UserRating, UserStats,
     },
@@ -410,6 +411,33 @@ impl Context {
             store.increment_user_hands_played(guest_id)?;
         } else {
             increment_user_hands_played(&self.conn, guest_id)?;
+        }
+        Ok(())
+    }
+
+    pub fn increment_user_wins(&mut self, guest_id: &str) -> anyhow::Result<()> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.increment_user_wins(guest_id)?;
+        } else {
+            increment_user_wins(&self.conn, guest_id)?;
+        }
+        Ok(())
+    }
+
+    pub fn increment_user_losses(&mut self, guest_id: &str) -> anyhow::Result<()> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.increment_user_losses(guest_id)?;
+        } else {
+            increment_user_losses(&self.conn, guest_id)?;
+        }
+        Ok(())
+    }
+
+    pub fn update_user_rating(&mut self, rating: &UserRating) -> anyhow::Result<()> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.update_user_rating(rating)?;
+        } else {
+            update_user_rating(&self.conn, rating)?;
         }
         Ok(())
     }

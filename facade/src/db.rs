@@ -437,6 +437,43 @@ pub fn increment_user_hands_played(conn: &Connection, guest_id: &str) -> Result<
     Ok(())
 }
 
+pub fn increment_user_wins(conn: &Connection, guest_id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE user_stats
+         SET wins = wins + 1
+         WHERE guest_id = ?1",
+        params![guest_id],
+    )?;
+    Ok(())
+}
+
+pub fn increment_user_losses(conn: &Connection, guest_id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE user_stats
+         SET losses = losses + 1
+         WHERE guest_id = ?1",
+        params![guest_id],
+    )?;
+    Ok(())
+}
+
+pub fn update_user_rating(conn: &Connection, rating: &UserRating) -> Result<()> {
+    conn.execute(
+        "UPDATE user_rating
+         SET rating = ?2,
+             rank_bucket = ?3,
+             updated_at = ?4
+         WHERE guest_id = ?1",
+        params![
+            rating.guest_id,
+            rating.rating,
+            rating.rank_bucket,
+            rating.updated_at,
+        ],
+    )?;
+    Ok(())
+}
+
 // Function to create a new stake entry
 pub fn create_stake(conn: &Connection, stake: &Stake) -> Result<()> {
     conn.execute(

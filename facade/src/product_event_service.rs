@@ -2,10 +2,12 @@ use anyhow::{anyhow, Result};
 
 use crate::{
     context::Context,
-    db::{ProductEventLogEntry, UserProgress},
+    db::{ProductEventLogEntry, UserProgress, UserRating},
     product_rules::{
-        level_for_xp, rank_tier_for_level, HAND_PARTICIPATION_XP, HAND_WIN_BONUS,
-        JOIN_XP_BONUS, MIN_HANDS_FOR_SESSION_COMPLETION, MIN_SESSION_DURATION_SECONDS,
+        classify_table_result, level_for_xp, rank_bucket_for_rating, rank_tier_for_level,
+        rating_delta_for_result, TableResultCategory, HAND_PARTICIPATION_XP, HAND_WIN_BONUS,
+        JOIN_XP_BONUS, MIN_HANDS_FOR_RATING, MIN_HANDS_FOR_SESSION_COMPLETION, MIN_OPPONENTS_FOR_RATING,
+        MIN_RATING, MIN_SESSION_DURATION_SECONDS, MIN_SESSION_DURATION_SECONDS_FOR_RATING,
         SESSION_COMPLETION_XP,
     },
 };
@@ -33,6 +35,19 @@ pub enum ProductEvent {
         guest_id: String,
         player_addr: String,
         session_id: String,
+        hands_played_in_session: u64,
+        session_duration_seconds: u64,
+        timestamp: u64,
+    },
+    GuestTableResultRecorded {
+        event_id: String,
+        guest_id: String,
+        player_addr: String,
+        game_id: String,
+        result_id: String,
+        entry_value: u64,
+        ending_value: u64,
+        opponent_count: u32,
         hands_played_in_session: u64,
         session_duration_seconds: u64,
         timestamp: u64,
@@ -141,6 +156,51 @@ impl ProductEventService {
                     xp_delta: SESSION_COMPLETION_XP,
                 })
             }
+            ProductEvent::GuestTableResultRecorded {
+                event_id,
+                guest_id,
+                player_addr,
+                game_id,
+                result_id,
+                entry_value,
+                ending_value,
+                opponent_count,
+                hands_played_in_session,
+                session_duration_seconds,
+                timestamp,
+            } => {
+                validate_guest_identity(context, &guest_id, &player_addr)?;
+                let was_inserted = context.record_product_event_once(ProductEventLogEntry {
+                    event_id,
+                    event_type: format!("guest_table_result_recorded:{game_id}:{result_id}"),
+                    guest_id: guest_id.clone(),
+                    created_at: timestamp,
+                })?;
+                if !was_inserted {
+                    return Ok(ProductEventApplyResult { applied: false, xp_delta: 0 });
+                }
+
+                let result_category = classify_table_result(entry_value, ending_value);
+                match result_category {
+                    TableResultCategory::StrongPositive | TableResultCategory::ModeratePositive => {
+                        context.increment_user_wins(&guest_id)?;
+                    }
+                    TableResultCategory::StrongNegative | TableResultCategory::ModerateNegative => {
+                        context.increment_user_losses(&guest_id)?;
+                    }
+                    TableResultCategory::Neutral => {}
+                }
+
+                if is_rating_eligible(
+                    hands_played_in_session,
+                    session_duration_seconds,
+                    opponent_count,
+                ) {
+                    apply_rating_delta(context, &guest_id, result_category, timestamp)?;
+                }
+
+                Ok(ProductEventApplyResult { applied: true, xp_delta: 0 })
+            }
         }
     }
 }
@@ -175,13 +235,50 @@ fn apply_xp_delta(context: &mut Context, guest_id: &str, xp_delta: u64, timestam
     Ok(())
 }
 
+fn apply_rating_delta(
+    context: &mut Context,
+    guest_id: &str,
+    category: TableResultCategory,
+    timestamp: u64,
+) -> Result<()> {
+    let current = context
+        .get_user_rating(guest_id)?
+        .ok_or_else(|| anyhow!("user-rating-not-found"))?;
+    let delta = rating_delta_for_result(category);
+    let rating = (current.rating + delta).max(MIN_RATING);
+    let rank_bucket = rank_bucket_for_rating(rating).to_string();
+
+    context.update_user_rating(&UserRating {
+        guest_id: guest_id.to_string(),
+        rating,
+        rank_bucket,
+        updated_at: timestamp,
+    })?;
+    Ok(())
+}
+
+fn is_rating_eligible(
+    hands_played_in_session: u64,
+    session_duration_seconds: u64,
+    opponent_count: u32,
+) -> bool {
+    hands_played_in_session >= MIN_HANDS_FOR_RATING
+        && session_duration_seconds >= MIN_SESSION_DURATION_SECONDS_FOR_RATING
+        && opponent_count >= MIN_OPPONENTS_FOR_RATING
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ProductEvent, ProductEventService};
     use crate::{
         context::Context,
-        db::{GuestAccount, PlayerInfo},
-        product_rules::{HAND_PARTICIPATION_XP, HAND_WIN_BONUS, JOIN_XP_BONUS, SESSION_COMPLETION_XP},
+        db::{GuestAccount, PlayerInfo, UserRating},
+        product_rules::{
+            classify_table_result, rank_bucket_for_rating, TableResultCategory,
+            HAND_PARTICIPATION_XP, HAND_WIN_BONUS, JOIN_XP_BONUS,
+            MODERATE_NEGATIVE_RATING_DELTA, MIN_RATING, SESSION_COMPLETION_XP,
+            STRONG_POSITIVE_RATING_DELTA,
+        },
     };
     use race_core::types::PlayerProfile;
     use std::collections::HashMap;
@@ -375,5 +472,207 @@ mod tests {
         assert_eq!(eligible.xp_delta, SESSION_COMPLETION_XP);
         assert!(!duplicate.applied);
         assert_eq!(progress.xp, SESSION_COMPLETION_XP);
+    }
+
+    #[test]
+    fn classifies_table_results() {
+        assert_eq!(
+            classify_table_result(1_000, 1_300),
+            TableResultCategory::StrongPositive
+        );
+        assert_eq!(
+            classify_table_result(1_000, 1_050),
+            TableResultCategory::ModeratePositive
+        );
+        assert_eq!(
+            classify_table_result(1_000, 1_000),
+            TableResultCategory::Neutral
+        );
+        assert_eq!(
+            classify_table_result(1_000, 950),
+            TableResultCategory::ModerateNegative
+        );
+        assert_eq!(
+            classify_table_result(1_000, 700),
+            TableResultCategory::StrongNegative
+        );
+    }
+
+    #[test]
+    fn positive_result_updates_win_and_rating() {
+        let mut context = seed_guest_context();
+
+        let result = ProductEventService::apply(
+            &mut context,
+            ProductEvent::GuestTableResultRecorded {
+                event_id: "result:pos".into(),
+                guest_id: "guest-evt-1".into(),
+                player_addr: "guest_player_evt_1".into(),
+                game_id: "table-1".into(),
+                result_id: "r-pos".into(),
+                entry_value: 1_000,
+                ending_value: 1_300,
+                opponent_count: 3,
+                hands_played_in_session: 6,
+                session_duration_seconds: 420,
+                timestamp: 400,
+            },
+        )
+        .unwrap();
+
+        let stats = context.get_user_stats("guest-evt-1").unwrap().unwrap();
+        let rating = context.get_user_rating("guest-evt-1").unwrap().unwrap();
+
+        assert!(result.applied);
+        assert_eq!(stats.wins, 1);
+        assert_eq!(stats.losses, 0);
+        assert_eq!(rating.rating, 1000 + STRONG_POSITIVE_RATING_DELTA);
+        assert_eq!(rating.rank_bucket, rank_bucket_for_rating(rating.rating));
+    }
+
+    #[test]
+    fn negative_result_updates_loss_and_rating_with_floor() {
+        let mut context = seed_guest_context();
+        context
+            .update_user_rating(&UserRating {
+                guest_id: "guest-evt-1".into(),
+                rating: MIN_RATING,
+                rank_bucket: rank_bucket_for_rating(MIN_RATING).to_string(),
+                updated_at: 399,
+            })
+            .unwrap();
+
+        let result = ProductEventService::apply(
+            &mut context,
+            ProductEvent::GuestTableResultRecorded {
+                event_id: "result:neg".into(),
+                guest_id: "guest-evt-1".into(),
+                player_addr: "guest_player_evt_1".into(),
+                game_id: "table-1".into(),
+                result_id: "r-neg".into(),
+                entry_value: 1_000,
+                ending_value: 950,
+                opponent_count: 3,
+                hands_played_in_session: 6,
+                session_duration_seconds: 420,
+                timestamp: 401,
+            },
+        )
+        .unwrap();
+
+        let stats = context.get_user_stats("guest-evt-1").unwrap().unwrap();
+        let rating = context.get_user_rating("guest-evt-1").unwrap().unwrap();
+
+        assert!(result.applied);
+        assert_eq!(stats.wins, 0);
+        assert_eq!(stats.losses, 1);
+        assert_eq!(rating.rating, MIN_RATING.max(MIN_RATING + MODERATE_NEGATIVE_RATING_DELTA));
+    }
+
+    #[test]
+    fn neutral_result_updates_neither_win_nor_loss_and_leaves_rating() {
+        let mut context = seed_guest_context();
+
+        ProductEventService::apply(
+            &mut context,
+            ProductEvent::GuestTableResultRecorded {
+                event_id: "result:neutral".into(),
+                guest_id: "guest-evt-1".into(),
+                player_addr: "guest_player_evt_1".into(),
+                game_id: "table-1".into(),
+                result_id: "r-neutral".into(),
+                entry_value: 1_000,
+                ending_value: 1_000,
+                opponent_count: 3,
+                hands_played_in_session: 6,
+                session_duration_seconds: 420,
+                timestamp: 402,
+            },
+        )
+        .unwrap();
+
+        let stats = context.get_user_stats("guest-evt-1").unwrap().unwrap();
+        let rating = context.get_user_rating("guest-evt-1").unwrap().unwrap();
+
+        assert_eq!(stats.wins, 0);
+        assert_eq!(stats.losses, 0);
+        assert_eq!(rating.rating, 1000);
+    }
+
+    #[test]
+    fn non_eligible_result_updates_stats_but_not_rating() {
+        let mut context = seed_guest_context();
+
+        ProductEventService::apply(
+            &mut context,
+            ProductEvent::GuestTableResultRecorded {
+                event_id: "result:ineligible".into(),
+                guest_id: "guest-evt-1".into(),
+                player_addr: "guest_player_evt_1".into(),
+                game_id: "table-1".into(),
+                result_id: "r-ineligible".into(),
+                entry_value: 1_000,
+                ending_value: 1_300,
+                opponent_count: 1,
+                hands_played_in_session: 4,
+                session_duration_seconds: 299,
+                timestamp: 403,
+            },
+        )
+        .unwrap();
+
+        let stats = context.get_user_stats("guest-evt-1").unwrap().unwrap();
+        let rating = context.get_user_rating("guest-evt-1").unwrap().unwrap();
+
+        assert_eq!(stats.wins, 1);
+        assert_eq!(rating.rating, 1000);
+    }
+
+    #[test]
+    fn duplicate_result_event_is_ignored() {
+        let mut context = seed_guest_context();
+
+        let first = ProductEventService::apply(
+            &mut context,
+            ProductEvent::GuestTableResultRecorded {
+                event_id: "result:dup".into(),
+                guest_id: "guest-evt-1".into(),
+                player_addr: "guest_player_evt_1".into(),
+                game_id: "table-1".into(),
+                result_id: "r-dup".into(),
+                entry_value: 1_000,
+                ending_value: 1_300,
+                opponent_count: 3,
+                hands_played_in_session: 6,
+                session_duration_seconds: 420,
+                timestamp: 404,
+            },
+        )
+        .unwrap();
+        let second = ProductEventService::apply(
+            &mut context,
+            ProductEvent::GuestTableResultRecorded {
+                event_id: "result:dup".into(),
+                guest_id: "guest-evt-1".into(),
+                player_addr: "guest_player_evt_1".into(),
+                game_id: "table-1".into(),
+                result_id: "r-dup".into(),
+                entry_value: 1_000,
+                ending_value: 1_300,
+                opponent_count: 3,
+                hands_played_in_session: 6,
+                session_duration_seconds: 420,
+                timestamp: 404,
+            },
+        )
+        .unwrap();
+
+        let stats = context.get_user_stats("guest-evt-1").unwrap().unwrap();
+        let rating = context.get_user_rating("guest-evt-1").unwrap().unwrap();
+
+        assert!(first.applied);
+        assert!(!second.applied);
+        assert_eq!(stats.wins, 1);
+        assert_eq!(rating.rating, 1000 + STRONG_POSITIVE_RATING_DELTA);
     }
 }
