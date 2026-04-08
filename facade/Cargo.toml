@@ -35,3 +35,8 @@ getrandom.workspace = true
 clap = { workspace = true, features = ["derive"] }
 rusqlite = { workspace = true, features = ["bundled"] }
 regex.workspace = true
+sha2.workspace = true
+postgres = "=0.19.7"
+tokio-postgres = "=0.7.10"
+postgres-protocol = "=0.6.7"
+postgres-types = "=0.2.8"

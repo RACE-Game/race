@@ -1,14 +1,21 @@
-use std::{fs::File, io::Read};
+use std::{fs::File, io::Read, path::Path};
 
 use crate::{
     db::{
         create_game_account, create_game_bundle, create_player_info, create_recipient_account,
-        create_server_account, create_stake, create_token_account, list_game_accounts,
+        create_server_account, create_stake, create_token_account, create_guest_account,
+        create_guest_session, initialize_product_state, list_game_accounts,
+        increment_user_hands_played, insert_product_event_log_entry,
         list_token_accounts, prepare_all_tables, read_game_account, read_game_bundle,
         read_player_info, read_recipient_account, read_registration_account, read_server_account,
-        read_token_account, update_game_account, update_player_info, update_recipient_account,
-        update_stake, read_stake, PlayerInfo, Stake,
+        read_token_account, read_guest_account_by_guest_id, read_guest_account_by_player_addr,
+        read_guest_session_by_token_hash, read_user_progress, read_user_rating, read_user_stats,
+        record_user_joined_game, revoke_guest_session, update_game_account,
+        update_user_progress, ProductEventLogEntry,
+        update_player_info, update_recipient_account, update_stake, read_stake, GuestAccount,
+        GuestSession, PlayerInfo, Stake, UserProgress, UserRating, UserStats,
     },
+    product_store::ProductStore,
     GameSpec,
 };
 use race_core::types::{
@@ -19,17 +26,52 @@ use rusqlite::Connection;
 
 pub struct Context {
     conn: Connection,
+    product_store: Option<ProductStore>,
 }
 
 impl Default for Context {
     fn default() -> Self {
-        let conn = Connection::open_in_memory().unwrap();
-        prepare_all_tables(&conn).unwrap();
-        Context { conn }
+        Self::in_memory()
     }
 }
 
 impl Context {
+    pub fn in_memory() -> Self {
+        let conn = Connection::open_in_memory().unwrap();
+        prepare_all_tables(&conn).unwrap();
+        Context {
+            conn,
+            product_store: None,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn open_sqlite<P: AsRef<Path>>(db_path: P) -> anyhow::Result<Self> {
+        Self::open_sqlite_with_product_store(db_path, None)
+    }
+
+    pub fn open_sqlite_with_product_store<P: AsRef<Path>>(
+        db_path: P,
+        product_db_url: Option<&str>,
+    ) -> anyhow::Result<Self> {
+        let db_path = db_path.as_ref();
+        if let Some(parent) = db_path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+
+        let conn = Connection::open(db_path)?;
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        prepare_all_tables(&conn)?;
+        let product_store = match product_db_url {
+            Some(url) => Some(ProductStore::connect(url)?),
+            None => None,
+        };
+        Ok(Context { conn, product_store })
+    }
+
     pub fn load_games(&self, spec_paths: &[&str]) -> anyhow::Result<()> {
         for spec_path in spec_paths.iter() {
             self.add_game(spec_path)?;
@@ -77,6 +119,13 @@ impl Context {
             decimals: 9,
             icon: "https://raw.githubusercontent.com/NutsPokerTeam/token-list/main/assets/mainnet/RACE5fnTKB9obGtCusArTQ6hhdNXAtf3HarvJM17rxJ/logo.svg".into(),
             addr: "FACADE_RACE".into(),
+        })?;
+        self.add_token(TokenAccount {
+            name: "Guest Chips".into(),
+            symbol: "GCHIP".into(),
+            decimals: 0,
+            icon: "".into(),
+            addr: "FACADE_GUEST_CHIPS".into(),
         })?;
         Ok(())
     }
@@ -164,6 +213,12 @@ impl Context {
         Ok(())
     }
 
+    #[cfg(test)]
+    pub fn create_stake(&self, stake: &Stake) -> anyhow::Result<()> {
+        create_stake(&self.conn, stake)?;
+        Ok(())
+    }
+
     pub fn create_recipient_account(
         &self,
         recipient_account: &RecipientAccount,
@@ -176,6 +231,25 @@ impl Context {
     pub fn create_player_info(&self, player_info: &PlayerInfo) -> anyhow::Result<()> {
         create_player_info(&self.conn, &player_info)?;
         println!("+ Player profile: {}", player_info.profile.addr);
+        Ok(())
+    }
+
+    pub fn create_guest_account(&mut self, guest_account: &GuestAccount) -> anyhow::Result<()> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.create_guest_account(guest_account)?;
+        } else {
+            create_guest_account(&self.conn, guest_account)?;
+            initialize_product_state(&self.conn, &guest_account.guest_id, guest_account.created_at)?;
+        }
+        Ok(())
+    }
+
+    pub fn create_guest_session(&mut self, guest_session: &GuestSession) -> anyhow::Result<()> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.create_guest_session(guest_session)?;
+        } else {
+            create_guest_session(&self.conn, guest_session)?;
+        }
         Ok(())
     }
 
@@ -201,6 +275,26 @@ impl Context {
 
     pub fn get_player_info(&self, player_addr: &str) -> anyhow::Result<Option<PlayerInfo>> {
         Ok(read_player_info(&self.conn, player_addr)?)
+    }
+
+    pub fn get_guest_account_by_guest_id(
+        &mut self,
+        guest_id: &str,
+    ) -> anyhow::Result<Option<GuestAccount>> {
+        if let Some(store) = self.product_store.as_mut() {
+            return store.read_guest_account_by_guest_id(guest_id);
+        }
+        Ok(read_guest_account_by_guest_id(&self.conn, guest_id)?)
+    }
+
+    pub fn get_guest_session_by_token_hash(
+        &mut self,
+        session_token_hash: &str,
+    ) -> anyhow::Result<Option<GuestSession>> {
+        if let Some(store) = self.product_store.as_mut() {
+            return store.read_guest_session_by_token_hash(session_token_hash);
+        }
+        Ok(read_guest_session_by_token_hash(&self.conn, session_token_hash)?)
     }
 
     #[allow(unused)]
@@ -231,6 +325,92 @@ impl Context {
 
     pub fn update_stake(&self, stake: &Stake) -> anyhow::Result<()> {
         update_stake(&self.conn, &stake)?;
+        Ok(())
+    }
+
+    pub fn revoke_guest_session(
+        &mut self,
+        session_token_hash: &str,
+        revoked_at: u64,
+    ) -> anyhow::Result<()> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.revoke_guest_session(session_token_hash, revoked_at)?;
+        } else {
+            revoke_guest_session(&self.conn, session_token_hash, revoked_at)?;
+        }
+        Ok(())
+    }
+
+    pub fn get_user_progress(&mut self, guest_id: &str) -> anyhow::Result<Option<UserProgress>> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.read_user_progress(guest_id)
+        } else {
+            Ok(read_user_progress(&self.conn, guest_id)?)
+        }
+    }
+
+    pub fn get_guest_account_by_player_addr(
+        &mut self,
+        player_addr: &str,
+    ) -> anyhow::Result<Option<GuestAccount>> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.read_guest_account_by_player_addr(player_addr)
+        } else {
+            Ok(read_guest_account_by_player_addr(&self.conn, player_addr)?)
+        }
+    }
+
+    pub fn get_user_rating(&mut self, guest_id: &str) -> anyhow::Result<Option<UserRating>> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.read_user_rating(guest_id)
+        } else {
+            Ok(read_user_rating(&self.conn, guest_id)?)
+        }
+    }
+
+    pub fn get_user_stats(&mut self, guest_id: &str) -> anyhow::Result<Option<UserStats>> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.read_user_stats(guest_id)
+        } else {
+            Ok(read_user_stats(&self.conn, guest_id)?)
+        }
+    }
+
+    pub fn record_user_joined_game(&mut self, guest_id: &str, now: u64) -> anyhow::Result<()> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.record_user_joined_game(guest_id, now)?;
+        } else {
+            record_user_joined_game(&self.conn, guest_id, now)?;
+        }
+        Ok(())
+    }
+
+    pub fn record_product_event_once(
+        &mut self,
+        entry: ProductEventLogEntry,
+    ) -> anyhow::Result<bool> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.insert_product_event_log_entry(&entry)
+        } else {
+            Ok(insert_product_event_log_entry(&self.conn, &entry)?)
+        }
+    }
+
+    pub fn update_user_progress(&mut self, progress: &UserProgress) -> anyhow::Result<()> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.update_user_progress(progress)?;
+        } else {
+            update_user_progress(&self.conn, progress)?;
+        }
+        Ok(())
+    }
+
+    pub fn increment_user_hands_played(&mut self, guest_id: &str) -> anyhow::Result<()> {
+        if let Some(store) = self.product_store.as_mut() {
+            store.increment_user_hands_played(guest_id)?;
+        } else {
+            increment_user_hands_played(&self.conn, guest_id)?;
+        }
         Ok(())
     }
 
