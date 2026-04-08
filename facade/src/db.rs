@@ -1,5 +1,4 @@
 //! Database related code for facade.
-//! A memory-based instance is preferred.
 
 use std::collections::HashMap;
 
@@ -32,6 +31,70 @@ pub(crate) struct Stake {
     pub amount: u64,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct GuestAccount {
+    pub guest_id: String,
+    pub player_addr: String,
+    pub nick: String,
+    pub status: String,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct GuestSession {
+    pub session_id: String,
+    pub guest_id: String,
+    pub session_token_hash: String,
+    pub created_at: u64,
+    pub expires_at: u64,
+    pub revoked_at: Option<u64>,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug)]
+pub(crate) struct UserProgress {
+    pub guest_id: String,
+    pub rank_tier: String,
+    pub xp: u64,
+    pub level: u32,
+    pub updated_at: u64,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug)]
+pub(crate) struct UserRating {
+    pub guest_id: String,
+    pub rating: i32,
+    pub rank_bucket: String,
+    pub updated_at: u64,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug)]
+pub(crate) struct UserStats {
+    pub guest_id: String,
+    pub hands_played: u64,
+    pub games_played: u64,
+    pub wins: u64,
+    pub losses: u64,
+    pub last_played_at: Option<u64>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ProductEventLogEntry {
+    pub event_id: String,
+    pub event_type: String,
+    pub guest_id: String,
+    pub created_at: u64,
+}
+
+const DEFAULT_RANK_TIER: &str = "Bronze I";
+const DEFAULT_RANK_BUCKET: &str = "Bronze I";
+const DEFAULT_LEVEL: u32 = 1;
+const DEFAULT_XP: u64 = 0;
+const DEFAULT_RATING: i32 = 1000;
+
 // CRUD functions for Stake
 
 pub fn create_stake_table(conn: &Connection) -> Result<()> {
@@ -41,6 +104,372 @@ pub fn create_stake_table(conn: &Connection) -> Result<()> {
             amount INTEGER NOT NULL
         )",
         [],
+    )?;
+    Ok(())
+}
+
+pub fn create_guest_tables(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS guest_account (
+            guest_id TEXT PRIMARY KEY,
+            player_addr TEXT NOT NULL UNIQUE,
+            nick TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS guest_session (
+            session_id TEXT PRIMARY KEY,
+            guest_id TEXT NOT NULL,
+            session_token_hash TEXT NOT NULL UNIQUE,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL,
+            revoked_at INTEGER,
+            FOREIGN KEY (guest_id) REFERENCES guest_account(guest_id)
+        )",
+        [],
+    )?;
+
+    Ok(())
+}
+
+pub fn create_product_state_tables(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS user_progress (
+            guest_id TEXT PRIMARY KEY,
+            rank_tier TEXT NOT NULL,
+            xp INTEGER NOT NULL,
+            level INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (guest_id) REFERENCES guest_account(guest_id)
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS user_rating (
+            guest_id TEXT PRIMARY KEY,
+            rating INTEGER NOT NULL,
+            rank_bucket TEXT NOT NULL,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (guest_id) REFERENCES guest_account(guest_id)
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS user_stats (
+            guest_id TEXT PRIMARY KEY,
+            hands_played INTEGER NOT NULL DEFAULT 0,
+            games_played INTEGER NOT NULL DEFAULT 0,
+            wins INTEGER NOT NULL DEFAULT 0,
+            losses INTEGER NOT NULL DEFAULT 0,
+            last_played_at INTEGER,
+            FOREIGN KEY (guest_id) REFERENCES guest_account(guest_id)
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS product_event_log (
+            event_id TEXT PRIMARY KEY,
+            event_type TEXT NOT NULL,
+            guest_id TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY (guest_id) REFERENCES guest_account(guest_id)
+        )",
+        [],
+    )?;
+
+    Ok(())
+}
+
+pub fn create_guest_account(conn: &Connection, guest_account: &GuestAccount) -> Result<()> {
+    conn.execute(
+        "INSERT INTO guest_account (
+            guest_id, player_addr, nick, status, created_at, updated_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![
+            guest_account.guest_id,
+            guest_account.player_addr,
+            guest_account.nick,
+            guest_account.status,
+            guest_account.created_at,
+            guest_account.updated_at,
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn read_guest_account_by_guest_id(
+    conn: &Connection,
+    guest_id: &str,
+) -> Result<Option<GuestAccount>> {
+    conn.query_row(
+        "SELECT guest_id, player_addr, nick, status, created_at, updated_at
+         FROM guest_account WHERE guest_id = ?1",
+        params![guest_id],
+        |row| {
+            Ok(GuestAccount {
+                guest_id: row.get(0)?,
+                player_addr: row.get(1)?,
+                nick: row.get(2)?,
+                status: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        },
+    )
+    .optional()
+}
+
+pub fn read_guest_account_by_player_addr(
+    conn: &Connection,
+    player_addr: &str,
+) -> Result<Option<GuestAccount>> {
+    conn.query_row(
+        "SELECT guest_id, player_addr, nick, status, created_at, updated_at
+         FROM guest_account WHERE player_addr = ?1",
+        params![player_addr],
+        |row| {
+            Ok(GuestAccount {
+                guest_id: row.get(0)?,
+                player_addr: row.get(1)?,
+                nick: row.get(2)?,
+                status: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        },
+    )
+    .optional()
+}
+
+pub fn create_guest_session(conn: &Connection, guest_session: &GuestSession) -> Result<()> {
+    conn.execute(
+        "INSERT INTO guest_session (
+            session_id, guest_id, session_token_hash, created_at, expires_at, revoked_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![
+            guest_session.session_id,
+            guest_session.guest_id,
+            guest_session.session_token_hash,
+            guest_session.created_at,
+            guest_session.expires_at,
+            guest_session.revoked_at,
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn read_guest_session_by_token_hash(
+    conn: &Connection,
+    session_token_hash: &str,
+) -> Result<Option<GuestSession>> {
+    conn.query_row(
+        "SELECT session_id, guest_id, session_token_hash, created_at, expires_at, revoked_at
+         FROM guest_session WHERE session_token_hash = ?1",
+        params![session_token_hash],
+        |row| {
+            Ok(GuestSession {
+                session_id: row.get(0)?,
+                guest_id: row.get(1)?,
+                session_token_hash: row.get(2)?,
+                created_at: row.get(3)?,
+                expires_at: row.get(4)?,
+                revoked_at: row.get(5)?,
+            })
+        },
+    )
+    .optional()
+}
+
+pub fn revoke_guest_session(
+    conn: &Connection,
+    session_token_hash: &str,
+    revoked_at: u64,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE guest_session
+         SET revoked_at = ?1
+         WHERE session_token_hash = ?2 AND revoked_at IS NULL",
+        params![revoked_at, session_token_hash],
+    )?;
+    Ok(())
+}
+
+pub fn initialize_product_state(conn: &Connection, guest_id: &str, now: u64) -> Result<()> {
+    conn.execute(
+        "INSERT INTO user_progress (guest_id, rank_tier, xp, level, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT (guest_id) DO NOTHING",
+        params![guest_id, DEFAULT_RANK_TIER, DEFAULT_XP, DEFAULT_LEVEL, now],
+    )?;
+    conn.execute(
+        "INSERT INTO user_rating (guest_id, rating, rank_bucket, updated_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (guest_id) DO NOTHING",
+        params![guest_id, DEFAULT_RATING, DEFAULT_RANK_BUCKET, now],
+    )?;
+    conn.execute(
+        "INSERT INTO user_stats (guest_id, hands_played, games_played, wins, losses, last_played_at)
+         VALUES (?1, 0, 0, 0, 0, NULL)
+         ON CONFLICT (guest_id) DO NOTHING",
+        params![guest_id],
+    )?;
+    Ok(())
+}
+
+pub fn read_user_progress(conn: &Connection, guest_id: &str) -> Result<Option<UserProgress>> {
+    conn.query_row(
+        "SELECT guest_id, rank_tier, xp, level, updated_at
+         FROM user_progress WHERE guest_id = ?1",
+        params![guest_id],
+        |row| {
+            Ok(UserProgress {
+                guest_id: row.get(0)?,
+                rank_tier: row.get(1)?,
+                xp: row.get(2)?,
+                level: row.get(3)?,
+                updated_at: row.get(4)?,
+            })
+        },
+    )
+    .optional()
+}
+
+pub fn read_user_rating(conn: &Connection, guest_id: &str) -> Result<Option<UserRating>> {
+    conn.query_row(
+        "SELECT guest_id, rating, rank_bucket, updated_at
+         FROM user_rating WHERE guest_id = ?1",
+        params![guest_id],
+        |row| {
+            Ok(UserRating {
+                guest_id: row.get(0)?,
+                rating: row.get(1)?,
+                rank_bucket: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        },
+    )
+    .optional()
+}
+
+pub fn read_user_stats(conn: &Connection, guest_id: &str) -> Result<Option<UserStats>> {
+    conn.query_row(
+        "SELECT guest_id, hands_played, games_played, wins, losses, last_played_at
+         FROM user_stats WHERE guest_id = ?1",
+        params![guest_id],
+        |row| {
+            Ok(UserStats {
+                guest_id: row.get(0)?,
+                hands_played: row.get(1)?,
+                games_played: row.get(2)?,
+                wins: row.get(3)?,
+                losses: row.get(4)?,
+                last_played_at: row.get(5)?,
+            })
+        },
+    )
+    .optional()
+}
+
+pub fn record_user_joined_game(conn: &Connection, guest_id: &str, now: u64) -> Result<()> {
+    conn.execute(
+        "UPDATE user_stats
+         SET games_played = games_played + 1,
+             last_played_at = ?2
+         WHERE guest_id = ?1",
+        params![guest_id, now],
+    )?;
+    Ok(())
+}
+
+pub fn insert_product_event_log_entry(
+    conn: &Connection,
+    entry: &ProductEventLogEntry,
+) -> Result<bool> {
+    let changed = conn.execute(
+        "INSERT INTO product_event_log (
+            event_id, event_type, guest_id, created_at
+         ) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (event_id) DO NOTHING",
+        params![
+            entry.event_id,
+            entry.event_type,
+            entry.guest_id,
+            entry.created_at,
+        ],
+    )?;
+    Ok(changed > 0)
+}
+
+pub fn update_user_progress(conn: &Connection, progress: &UserProgress) -> Result<()> {
+    conn.execute(
+        "UPDATE user_progress
+         SET rank_tier = ?2,
+             xp = ?3,
+             level = ?4,
+             updated_at = ?5
+         WHERE guest_id = ?1",
+        params![
+            progress.guest_id,
+            progress.rank_tier,
+            progress.xp,
+            progress.level,
+            progress.updated_at,
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn increment_user_hands_played(conn: &Connection, guest_id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE user_stats
+         SET hands_played = hands_played + 1
+         WHERE guest_id = ?1",
+        params![guest_id],
+    )?;
+    Ok(())
+}
+
+pub fn increment_user_wins(conn: &Connection, guest_id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE user_stats
+         SET wins = wins + 1
+         WHERE guest_id = ?1",
+        params![guest_id],
+    )?;
+    Ok(())
+}
+
+pub fn increment_user_losses(conn: &Connection, guest_id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE user_stats
+         SET losses = losses + 1
+         WHERE guest_id = ?1",
+        params![guest_id],
+    )?;
+    Ok(())
+}
+
+pub fn update_user_rating(conn: &Connection, rating: &UserRating) -> Result<()> {
+    conn.execute(
+        "UPDATE user_rating
+         SET rating = ?2,
+             rank_bucket = ?3,
+             updated_at = ?4
+         WHERE guest_id = ?1",
+        params![
+            rating.guest_id,
+            rating.rating,
+            rating.rank_bucket,
+            rating.updated_at,
+        ],
     )?;
     Ok(())
 }
@@ -646,7 +1075,7 @@ pub fn create_registration_account_table(conn: &Connection) -> Result<()> {
 
 pub fn create_token_account(conn: &Connection, account: &TokenAccount) -> Result<()> {
     conn.execute(
-        "INSERT INTO token_account (name, symbol, icon, addr, decimals) VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT OR IGNORE INTO token_account (name, symbol, icon, addr, decimals) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![
             account.name,
             account.symbol,
@@ -929,6 +1358,8 @@ pub fn create_server_account_table(conn: &Connection) -> Result<()> {
 pub fn prepare_all_tables(conn: &Connection) -> Result<()> {
     create_player_tables(conn)?;
     create_nft_table(conn)?;
+    create_guest_tables(conn)?;
+    create_product_state_tables(conn)?;
     create_game_account_table(conn)?;
     create_game_bundle_table(conn)?;
     create_registration_account_table(conn)?;
@@ -941,7 +1372,7 @@ pub fn prepare_all_tables(conn: &Connection) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, fs, time::{SystemTime, UNIX_EPOCH}};
     use rusqlite::{Connection, Result};
     use race_core::types::{GameAccount, PlayerProfile, RecipientAccount, RecipientSlot, TokenAccount};
 
@@ -956,6 +1387,7 @@ mod tests {
             addr: "player1".to_string(),
             nick: "Player One".to_string(),
             pfp: Some("pfp1".to_string()),
+            credentials: vec![1, 2, 3],
         };
         let balances = HashMap::from([("token1".to_string(), 100u64)]);
         let nft = super::Nft {
@@ -1058,6 +1490,126 @@ mod tests {
         let retrieved_recipient_account = super::read_recipient_account(&conn, "recipient1")?;
         assert_eq!(retrieved_recipient_account.unwrap().cap_addr.unwrap(), "cap1");
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_guest_account_and_session_crud() -> Result<()> {
+        let conn = Connection::open_in_memory()?;
+        super::prepare_all_tables(&conn)?;
+
+        let guest_account = super::GuestAccount {
+            guest_id: "guest-1".into(),
+            player_addr: "guest_player_1".into(),
+            nick: "SmokeGuest".into(),
+            status: "active".into(),
+            created_at: 100,
+            updated_at: 100,
+        };
+        let guest_session = super::GuestSession {
+            session_id: "session-1".into(),
+            guest_id: "guest-1".into(),
+            session_token_hash: "token-hash".into(),
+            created_at: 100,
+            expires_at: 200,
+            revoked_at: None,
+        };
+
+        super::create_guest_account(&conn, &guest_account)?;
+        super::create_guest_session(&conn, &guest_session)?;
+
+        let stored_account = super::read_guest_account_by_guest_id(&conn, "guest-1")?.unwrap();
+        assert_eq!(stored_account.player_addr, "guest_player_1");
+
+        let stored_session =
+            super::read_guest_session_by_token_hash(&conn, "token-hash")?.unwrap();
+        assert_eq!(stored_session.guest_id, "guest-1");
+
+        super::revoke_guest_session(&conn, "token-hash", 150)?;
+        let revoked_session =
+            super::read_guest_session_by_token_hash(&conn, "token-hash")?.unwrap();
+        assert_eq!(revoked_session.revoked_at, Some(150));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_guest_data_persists_across_sqlite_reopen() -> Result<()> {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let db_path = std::env::temp_dir().join(format!("race_facade_guest_persist_{unique}.sqlite"));
+        let _ = fs::remove_file(&db_path);
+
+        {
+            let conn = Connection::open(&db_path)?;
+            super::prepare_all_tables(&conn)?;
+
+            let player_info = super::PlayerInfo {
+                balances: HashMap::from([("FACADE_GUEST_CHIPS".to_string(), 1_000_000u64)]),
+                nfts: HashMap::new(),
+                profile: PlayerProfile {
+                    addr: "guest_player_persist".to_string(),
+                    nick: "Persisted Guest".to_string(),
+                    pfp: None,
+                    credentials: vec![7, 8, 9],
+                },
+            };
+            let guest_account = super::GuestAccount {
+                guest_id: "guest-persist".into(),
+                player_addr: "guest_player_persist".into(),
+                nick: "Persisted Guest".into(),
+                status: "active".into(),
+                created_at: 100,
+                updated_at: 100,
+            };
+            let guest_session = super::GuestSession {
+                session_id: "session-persist".into(),
+                guest_id: "guest-persist".into(),
+                session_token_hash: "token-hash-persist".into(),
+                created_at: 100,
+                expires_at: 200,
+                revoked_at: None,
+            };
+
+            super::create_player_info(&conn, &player_info)?;
+            super::create_guest_account(&conn, &guest_account)?;
+            super::create_guest_session(&conn, &guest_session)?;
+        }
+
+        {
+            let conn = Connection::open(&db_path)?;
+            super::prepare_all_tables(&conn)?;
+
+            let stored_account =
+                super::read_guest_account_by_guest_id(&conn, "guest-persist")?.unwrap();
+            assert_eq!(stored_account.player_addr, "guest_player_persist");
+
+            let stored_session =
+                super::read_guest_session_by_token_hash(&conn, "token-hash-persist")?.unwrap();
+            assert_eq!(stored_session.guest_id, "guest-persist");
+
+            let stored_player =
+                super::read_player_info(&conn, "guest_player_persist")?.unwrap();
+            assert_eq!(stored_player.profile.nick, "Persisted Guest");
+            assert_eq!(
+                stored_player.balances.get("FACADE_GUEST_CHIPS").copied(),
+                Some(1_000_000)
+            );
+
+            super::revoke_guest_session(&conn, "token-hash-persist", 150)?;
+        }
+
+        {
+            let conn = Connection::open(&db_path)?;
+            super::prepare_all_tables(&conn)?;
+            let revoked_session =
+                super::read_guest_session_by_token_hash(&conn, "token-hash-persist")?.unwrap();
+            assert_eq!(revoked_session.revoked_at, Some(150));
+        }
+
+        let _ = fs::remove_file(&db_path);
         Ok(())
     }
 }
