@@ -33,8 +33,7 @@ pub async fn read_event(
         // If already passed
         if dispatch.timeout <= timestamp {
             let event = dispatch.event.clone();
-            game_context.cancel_dispatch();
-            return Some(EventFrame::SendServerEvent { event, timestamp });
+            return Some(EventFrame::HandleDispatchEvent { event, timestamp });
         }
         let to = tokio::time::sleep(Duration::from_millis(dispatch.timeout - timestamp));
         select! {
@@ -44,8 +43,7 @@ pub async fn read_event(
             _ = to => {
                 let event = dispatch.event.clone();
                 let timestamp = dispatch.timeout;
-                game_context.cancel_dispatch();
-                Some(EventFrame::SendServerEvent { event, timestamp })
+                Some(EventFrame::HandleDispatchEvent { event, timestamp })
             }
         }
     } else {

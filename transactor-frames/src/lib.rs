@@ -78,6 +78,10 @@ pub enum EventFrame {
         event: Event,
         timestamp: u64,
     },
+    HandleDispatchEvent {
+        event: Event,
+        timestamp: u64,
+    },
     Checkpoint {
         checkpoint: ContextCheckpoint,
     },
@@ -213,6 +217,7 @@ impl std::fmt::Display for EventFrame {
             EventFrame::PlayerLeaving { .. } => write!(f, "PlayerLeaving"),
             EventFrame::SendEvent { event, .. } => write!(f, "SendEvent: {}", event),
             EventFrame::SendServerEvent { event, .. } => write!(f, "SendServerEvent: {}", event),
+            EventFrame::HandleDispatchEvent { event, .. } => write!(f, "HandleDispatchEvent: {}", event),
             EventFrame::Settle { .. } => write!(f, "Settle"),
             EventFrame::Checkpoint { .. } => write!(f, "Checkpoint"),
             EventFrame::Broadcast { event, .. } => write!(f, "Broadcast: {}", event),

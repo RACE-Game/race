@@ -435,6 +435,29 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         return close_reason;
                     }
                 }
+                EventFrame::HandleDispatchEvent { event, timestamp } => {
+                    // Handle the shutdown event from game logic
+                    if matches!(event, Event::Shutdown) {
+                        return CloseReason::Complete;
+                    }
+
+                    if let Some(close_reason) = event_handler::handle_dispatch_event(
+                        &mut *handler,
+                        &mut handler_manager,
+                        &mut game_context,
+                        event,
+                        &*encryptor,
+                        &ports,
+                        ctx.client_mode,
+                        ctx.game_mode,
+                        timestamp,
+                        &env,
+                    )
+                    .await
+                    {
+                        return close_reason;
+                    }
+                }
                 EventFrame::Shutdown => {
                     info!("{} Stopped", env.log_prefix);
                     return CloseReason::Complete;

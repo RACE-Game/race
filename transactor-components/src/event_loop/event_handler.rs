@@ -397,7 +397,7 @@ pub async fn recover_from_checkpoint(
     Ok(game_context)
 }
 
-pub async fn handle_event(
+async fn handle_event_impl(
     handler: &mut dyn HandlerT,
     handler_manager: &mut HandlerManager,
     game_context: &mut GameContext,
@@ -408,6 +408,7 @@ pub async fn handle_event(
     game_mode: GameMode,
     timestamp: u64,
     env: &ComponentEnv,
+    consume_dispatch: bool,
 ) -> Option<CloseReason> {
     info!(
         "{} Handle event: {}, timestamp: {}",
@@ -419,6 +420,9 @@ pub async fn handle_event(
     let mut new_game_context = game_context.clone();
 
     new_game_context.set_timestamp(timestamp);
+    if consume_dispatch {
+        new_game_context.cancel_dispatch();
+    }
 
     // Apply general handler, the event will be skipped, if an error is raised
 
@@ -452,6 +456,7 @@ pub async fn handle_event(
 
     if let Some(e) = effect.__take_error() {
         warn!("{} Handle event error: {}", env.log_prefix, e.to_string());
+        effect.print_logs();
         return None;
     }
 
@@ -527,4 +532,206 @@ pub async fn handle_event(
     *game_context = new_game_context;
 
     None
+}
+
+pub async fn handle_event(
+    handler: &mut dyn HandlerT,
+    handler_manager: &mut HandlerManager,
+    game_context: &mut GameContext,
+    event: Event,
+    encryptor: &dyn EncryptorT,
+    ports: &PipelinePorts,
+    client_mode: ClientMode,
+    game_mode: GameMode,
+    timestamp: u64,
+    env: &ComponentEnv,
+) -> Option<CloseReason> {
+    handle_event_impl(
+        handler,
+        handler_manager,
+        game_context,
+        event,
+        encryptor,
+        ports,
+        client_mode,
+        game_mode,
+        timestamp,
+        env,
+        false,
+    )
+    .await
+}
+
+pub async fn handle_dispatch_event(
+    handler: &mut dyn HandlerT,
+    handler_manager: &mut HandlerManager,
+    game_context: &mut GameContext,
+    event: Event,
+    encryptor: &dyn EncryptorT,
+    ports: &PipelinePorts,
+    client_mode: ClientMode,
+    game_mode: GameMode,
+    timestamp: u64,
+    env: &ComponentEnv,
+) -> Option<CloseReason> {
+    handle_event_impl(
+        handler,
+        handler_manager,
+        game_context,
+        event,
+        encryptor,
+        ports,
+        client_mode,
+        game_mode,
+        timestamp,
+        env,
+        true,
+    )
+    .await
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use borsh::{BorshDeserialize, BorshSerialize};
+    use race_api::{
+        effect::Effect,
+        init_account::InitAccount,
+    };
+    use race_core::{
+        checkpoint::{SharedData, VersionedData},
+        dispatch_event::DispatchEvent,
+        encryptor::tests::DummyEncryptor,
+        game_spec::GameSpec,
+        types::{ClientMode, GameMode},
+    };
+    use race_handler::{HandlerManager, HandlerT};
+    use race_test::prelude::DummyTransport;
+
+    use crate::common::{ComponentEnv, PipelinePorts, Ports};
+
+    use super::*;
+
+    fn clone_effect(effect: &Effect) -> Effect {
+        Effect::try_from_slice(&borsh::to_vec(effect).unwrap()).unwrap()
+    }
+
+    struct FailOnWaitingTimeoutHandler;
+
+    impl HandlerT for FailOnWaitingTimeoutHandler {
+        fn handle_event(&mut self, effect: &Effect, event: &Event) -> race_core::error::Result<Effect> {
+            match event {
+                Event::WaitingTimeout => Err(Error::Custom("expected test failure".into())),
+                _ => Ok(clone_effect(effect)),
+            }
+        }
+
+        fn init_state(&mut self, _init_account: &InitAccount) -> race_core::error::Result<Effect> {
+            Ok(Effect::default())
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_dispatch_event_keeps_pending_dispatch() {
+        let mut game_context = GameContext::try_new(
+            SharedData::new(vec![], vec![]),
+            VersionedData::new(GameSpec::default(), Default::default(), vec![]),
+        )
+        .unwrap();
+        game_context.set_dispatch(Some(DispatchEvent::new(Event::WaitingTimeout, 10)));
+
+        let transport = Arc::new(DummyTransport::default());
+        let mut handler_manager = HandlerManager::new(transport);
+        let mut handler = FailOnWaitingTimeoutHandler;
+        let encryptor = DummyEncryptor::default();
+        let (ports, _) = PipelinePorts::create();
+        let env = ComponentEnv::new("test", "Event Loop");
+
+        let close_reason = handle_dispatch_event(
+            &mut handler,
+            &mut handler_manager,
+            &mut game_context,
+            Event::WaitingTimeout,
+            &encryptor,
+            &ports,
+            ClientMode::Transactor,
+            GameMode::Main,
+            10,
+            &env,
+        )
+        .await;
+
+        assert!(close_reason.is_none());
+        assert_eq!(
+            game_context.get_dispatch(),
+            &Some(DispatchEvent::new(Event::WaitingTimeout, 10))
+        );
+    }
+
+    #[tokio::test]
+    async fn successful_dispatch_event_consumes_pending_dispatch() {
+        struct SuccessHandler;
+
+        impl HandlerT for SuccessHandler {
+            fn handle_event(&mut self, effect: &Effect, _event: &Event) -> race_core::error::Result<Effect> {
+                Ok(clone_effect(effect))
+            }
+
+            fn init_state(&mut self, _init_account: &InitAccount) -> race_core::error::Result<Effect> {
+                Ok(Effect::default())
+            }
+        }
+
+        let mut game_context = GameContext::try_new(
+            SharedData::new(vec![], vec![]),
+            VersionedData::new(GameSpec::default(), Default::default(), vec![]),
+        )
+        .unwrap();
+        game_context.set_dispatch(Some(DispatchEvent::new(Event::WaitingTimeout, 10)));
+
+        let transport = Arc::new(DummyTransport::default());
+        let mut handler_manager = HandlerManager::new(transport);
+        let mut handler = SuccessHandler;
+        let encryptor = DummyEncryptor::default();
+        let (ports, mut ports_io) = PipelinePorts::create();
+        let env = ComponentEnv::new("test", "Event Loop");
+
+        let close_reason = handle_dispatch_event(
+            &mut handler,
+            &mut handler_manager,
+            &mut game_context,
+            Event::WaitingTimeout,
+            &encryptor,
+            &ports,
+            ClientMode::Transactor,
+            GameMode::Main,
+            10,
+            &env,
+        )
+        .await;
+
+        assert!(close_reason.is_none());
+        assert_eq!(game_context.get_dispatch(), &None);
+
+        let mut saw_broadcast = false;
+        let mut saw_context_update = false;
+        while let Ok(Some(frame)) =
+            tokio::time::timeout(std::time::Duration::from_millis(5), ports_io.recv()).await
+        {
+            match frame {
+                EventFrame::Broadcast { event, .. } => {
+                    assert_eq!(event, Event::WaitingTimeout);
+                    saw_broadcast = true;
+                }
+                EventFrame::ContextUpdated { .. } => {
+                    saw_context_update = true;
+                }
+                _ => {}
+            }
+        }
+
+        assert!(saw_broadcast);
+        assert!(saw_context_update);
+    }
 }

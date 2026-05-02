@@ -1268,17 +1268,18 @@ impl TransportT for SolanaTransport {
                     ).await {
                         Ok((game_state, players_reg)) => {
                             info!("GameState From Query, versions #A{}#S{}", game_state.access_version, game_state.settle_version);
-                            if game_state.access_version != state.access_version
-                                || game_state.settle_version != state.settle_version {
-                                    info!("Retry query");
+                            if game_state.access_version < state.access_version
+                                || game_state.settle_version < state.settle_version {
+                                    info!("Not the latest state, retry in 1 sec");
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
                                     continue;
                                 }
                             break (game_state, players_reg)
                         }
                         Err(e) => {
-                            error!("Get players reg error: {}", e.to_string());
-                            unsub().await;
-                            return;
+                            error!("Get players reg error: {}, retry in 1 sec", e.to_string());
+                            tokio::time::sleep(Duration::from_secs(1)).await;
+                            continue;
                         }
                     };
                 };
