@@ -123,6 +123,9 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
 mod tests {
 
     use race_api::prelude::*;
+    use race_core::{checkpoint::SharedData, checkpoint::VersionedData, game_spec::GameSpec};
+    use race_core::node::Node;
+    use race_core::types::ClientMode;
     use race_core::types::ServerAccount;
     use race_encryptor::Encryptor;
     use race_test::prelude::*;
@@ -150,6 +153,7 @@ mod tests {
         let transactor_account = ServerAccount {
             addr: transactor.addr(),
             endpoint: "".into(),
+            credentials: vec![],
         };
         let connection = Arc::new(DummyConnection::default());
         let transport = Arc::new(DummyTransport::default());
@@ -162,7 +166,24 @@ mod tests {
             connection.clone(),
         );
         let handle = client.start(&game_account.addr, client_ctx);
-        let mut context = GameContext::try_new(&game_account, None).unwrap();
+        let nodes = game_account
+            .servers
+            .iter()
+            .map(|s| {
+                let mode = if s.addr == transactor_account.addr {
+                    ClientMode::Transactor
+                } else {
+                    ClientMode::Validator
+                };
+                Node::new(s.addr.clone(), s.access_version, mode)
+            })
+            .collect();
+        let shared_data = SharedData::new(
+            game_account.balances.clone(),
+            nodes,
+        );
+        let versioned_data = VersionedData::new(GameSpec::default(), Default::default(), vec![]);
+        let mut context = GameContext::try_new(shared_data, versioned_data).unwrap();
         context.set_node_ready(game_account.access_version);
         (client, context, handle, connection, transactor)
     }

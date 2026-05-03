@@ -34,7 +34,7 @@ pub struct RecipientSlotInit {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct CreateGameAccountParams {
     pub title: String,
-    pub bundle_addr: String,
+    pub bundle_key: String,
     pub token_addr: String,
     pub max_players: u16,
     pub entry_type: EntryType,

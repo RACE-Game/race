@@ -15,7 +15,7 @@ impl From<GameReg> for GameRegistration {
         GameRegistration {
             title: value.title,
             addr: value.addr.to_string(),
-            bundle_addr: value.bundle_addr.to_string(),
+            bundle_key: value.bundle_addr.to_string(),
             reg_time: value.reg_time
         }
     }

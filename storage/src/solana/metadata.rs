@@ -83,7 +83,7 @@ impl Metadata {
         name: String,
         symbol: String,
         creator: String,
-        bundle_addr: String,
+        bundle_key: String,
     ) -> Result<Self, StorageError> {
         if name.len() > MAX_NAME_LENGTH {
             return Err(StorageError::InvalidNameLength);
@@ -106,7 +106,7 @@ impl Metadata {
                         mime: "image/png".to_string(),
                     },
                     File {
-                        uri: bundle_addr,
+                        uri: bundle_key,
                         mime: "application/wasm".to_string(),
                     },
                 ],

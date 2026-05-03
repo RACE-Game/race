@@ -206,7 +206,7 @@ mod tests {
         let d0 = vec![1];
         let game_spec = GameSpec {
             game_addr: "test".to_string(),
-            bundle_addr: "test".to_string(),
+            bundle_key: "test".to_string(),
             game_id: 0,
             max_players: 6,
             entry_type: EntryType::Disabled,

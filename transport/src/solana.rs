@@ -20,7 +20,7 @@ use race_core::{
     types::{
         AddRecipientSlotParams, AssignRecipientParams, Award, CloseGameAccountParams,
         CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams,
-        CreateRegistrationParams, DepositParams, GameAccount, GameBundle, GameRegistration,
+        CreateRegistrationParams, DepositParams, GameAccount, GameRegistration,
         JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams,
         RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams,
         RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult,
@@ -99,7 +99,7 @@ impl TransportT for SolanaTransport {
         let mut used_keys = vec![];
 
         let (payer, payer_pubkey) = self.payer()?;
-        let bundle_pubkey = Self::parse_pubkey(&params.bundle_addr)?;
+        let bundle_pubkey = Self::parse_pubkey(&params.bundle_key)?;
         used_keys.push(payer_pubkey.clone());
 
         let game_account = Keypair::new();
@@ -1318,47 +1318,47 @@ impl TransportT for SolanaTransport {
         Ok(Some(game_state.into_account(addr, players)?))
     }
 
-    async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
-        let mint_pubkey = Self::parse_pubkey(addr)?;
-        let metaplex_program_id = Pubkey::from_str(METAPLEX_PROGRAM_ID).unwrap();
-
-        let (metadata_account_pubkey, _) = Pubkey::find_program_address(
-            &[
-                b"metadata",
-                metaplex_program_id.as_ref(),
-                mint_pubkey.as_ref(),
-            ],
-            &metaplex_program_id,
-        );
-
-        let metadata_account_data = self
-            .client
-            .get_account_data(&metadata_account_pubkey)
-            .map_err(|e| TransportError::NetworkError(e.to_string()))?;
-        let metadata_account_state =
-            match metadata::Metadata::deserialize(&mut metadata_account_data.as_slice()) {
-                Ok(x) => x,
-                Err(e) => {
-                    error!("Failed to deserialize metadata account: {:?}", e);
-                    return Err(TransportError::MetadataDeserializeError)?;
-                }
-            };
-        let metadata_data = metadata_account_state.data;
-        let uri = metadata_data.uri.trim_end_matches('\0').to_string();
-
-        info!("Fetch wasm game bundle from {}", uri);
-
-        let data = nft::fetch_wasm_from_game_bundle(&uri)
-            .await
-            .map_err(|e| TransportError::NetworkError(e.to_string()))?;
-
-        Ok(Some(GameBundle {
-            addr: addr.to_string(),
-            uri,
-            name: metadata_data.name.trim_end_matches('\0').to_string(),
-            data,
-        }))
-    }
+    // async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
+    //     let mint_pubkey = Self::parse_pubkey(addr)?;
+    //     let metaplex_program_id = Pubkey::from_str(METAPLEX_PROGRAM_ID).unwrap();
+    //
+    //     let (metadata_account_pubkey, _) = Pubkey::find_program_address(
+    //         &[
+    //             b"metadata",
+    //             metaplex_program_id.as_ref(),
+    //             mint_pubkey.as_ref(),
+    //         ],
+    //         &metaplex_program_id,
+    //     );
+    //
+    //     let metadata_account_data = self
+    //         .client
+    //         .get_account_data(&metadata_account_pubkey)
+    //         .map_err(|e| TransportError::NetworkError(e.to_string()))?;
+    //     let metadata_account_state =
+    //         match metadata::Metadata::deserialize(&mut metadata_account_data.as_slice()) {
+    //             Ok(x) => x,
+    //             Err(e) => {
+    //                 error!("Failed to deserialize metadata account: {:?}", e);
+    //                 return Err(TransportError::MetadataDeserializeError)?;
+    //             }
+    //         };
+    //     let metadata_data = metadata_account_state.data;
+    //     let uri = metadata_data.uri.trim_end_matches('\0').to_string();
+    //
+    //     info!("Fetch wasm game bundle from {}", uri);
+    //
+    //     let data = nft::fetch_wasm_from_game_bundle(&uri)
+    //         .await
+    //         .map_err(|e| TransportError::NetworkError(e.to_string()))?;
+    //
+    //     Ok(Some(GameBundle {
+    //         addr: addr.to_string(),
+    //         uri,
+    //         name: metadata_data.name.trim_end_matches('\0').to_string(),
+    //         data,
+    //     }))
+    // }
 
     async fn get_player_profile(&self, addr: &str) -> Result<Option<PlayerProfile>> {
         let wallet_pubkey = Self::parse_pubkey(addr)?;
@@ -1437,7 +1437,7 @@ impl TransportT for SolanaTransport {
                     title: g.title.clone(),
                     addr: g.addr.to_string(),
                     reg_time: g.reg_time,
-                    bundle_addr: g.bundle_addr.to_string(),
+                    bundle_key: g.bundle_key.to_string(),
                 })
                 .collect(),
         }))
@@ -1879,7 +1879,7 @@ mod tests {
         let addr = transport
             .create_game_account(CreateGameAccountParams {
                 title: "16-CHAR_GAME_TIL".to_string(),
-                bundle_addr: "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_owned(),
+                bundle_key: "6CGkN7T2JXdh9zpFumScSyRtBcyMzBM4YmhmnrYPQS5w".to_owned(),
                 token_addr: NATIVE_MINT.to_string(),
                 max_players: 9,
                 data: Vec::<u8>::new(),

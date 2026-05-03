@@ -262,7 +262,8 @@ mod tests {
 
         // Use vec to simulate game accounts
         transport.simulate_states(vec![ga_1.clone(), ga_0.clone(), ga_1.clone()]);
-        let (synchronizer, ctx) = GameSynchronizer::init(transport.clone(), &ga_0);
+        let (synchronizer, ctx) =
+            GameSynchronizer::init(transport.clone(), &ga_0.addr, ga_0.access_version);
         let mut handle = synchronizer.start("synchronizer", ctx);
         let frame = handle.recv_unchecked().await.unwrap();
 
@@ -270,13 +271,11 @@ mod tests {
             addr: "bob".into(),
             position: 1,
             access_version: 3,
-            verify_key: "".into(),
         }];
         let expected_new_servers = vec![ServerJoin {
             addr: "bar".into(),
             endpoint: "".into(),
             access_version: 4,
-            verify_key: "".into(),
         }];
         let expected_transactor_addr = "foo".to_string();
         let expected_access_version = 4;

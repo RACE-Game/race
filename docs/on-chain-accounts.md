@@ -14,7 +14,7 @@ in Race Protocol and will be frequently updated by both players and servers.
 
 ### Bundle Address and Game Data
 
-Each game account is bound to one type of game, specified in `bundle_addr`,
+Each game account is bound to one type of game, specified in `bundle_key`,
 which is immutable.  Each game has its own definitions for various game
 properties.  For example, in a Texas Hold'em poker game, it can have: small
 blind, big blind, ant, etc.  Properties will be serialized and stored in `data`.

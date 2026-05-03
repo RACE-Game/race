@@ -6,7 +6,7 @@ use solana_sdk::pubkey::Pubkey;
 pub struct GameReg {
     pub title: String, // max: 16 chars
     pub addr: Pubkey,
-    pub bundle_addr: Pubkey,
+    pub bundle_key: Pubkey,
     pub reg_time: u64,
 }
 

@@ -490,7 +490,6 @@ mod tests {
                     addr: "Alice".into(),
                     position: 0,
                     access_version: 10,
-                    verify_key: "alice".into(),
                 }
                 .into()],
                 access_version: 10,

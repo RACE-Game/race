@@ -17,6 +17,7 @@ publish = true
 race-api = { workspace = true, features = ["serde"] }
 race-core = { workspace = true, features = ["serde"] }
 wasmer.workspace = true
+reqwest.workspace = true
 tracing-appender.workspace = true
 tracing.workspace = true
 borsh.workspace = true

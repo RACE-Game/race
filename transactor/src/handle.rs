@@ -4,7 +4,7 @@ mod validator;
 
 use std::sync::Arc;
 
-use race_transactor_frames::{BridgeToParent, SignalFrame};
+use race_transactor_frames::{BridgeToParent, SignalFrame, EventFrame};
 use race_transactor_components::{
     Broadcaster, CloseReason, EventBus, WrappedStorage, WrappedTransport,
 };
@@ -13,10 +13,11 @@ use race_core::types::ServerAccount;
 use race_core::checkpoint::ContextCheckpoint;
 use race_encryptor::Encryptor;
 use race_env::TransactorConfig;
+use tokio::sync::mpsc::unbounded_channel;
 use subgame::SubGameHandle;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tracing::error;
+use tracing::{error, warn};
 use transactor::TransactorHandle;
 use validator::ValidatorHandle;
 
@@ -124,35 +125,94 @@ impl Handle {
         }
     }
 
-    pub fn bundle_addr(&self) -> String {
+    pub fn bundle_key(&self) -> String {
         match self {
-            Handle::Transactor(h) => h.bundle_addr.clone(),
-            Handle::Validator(h) => h.bundle_addr.clone(),
-            Handle::SubGame(h) => h.bundle_addr.clone(),
+            Handle::Transactor(h) => h.bundle_key.clone(),
+            Handle::Validator(h) => h.bundle_key.clone(),
+            Handle::SubGame(h) => h.bundle_key.clone(),
         }
     }
 
     /// Wait handle until it's shutted down.  A
     /// [SignalFrame::RemoveGame] will be sent through `signal_tx`.
     pub fn wait(&mut self, signal_tx: mpsc::Sender<SignalFrame>) -> JoinHandle<CloseReason> {
-        let handles = match self {
-            Handle::Transactor(ref mut x) => &mut x.handles,
-            Handle::Validator(ref mut x) => &mut x.handles,
-            Handle::SubGame(ref mut x) => &mut x.handles,
+        let (handles, event_bus, addr) = match self {
+            Handle::Transactor(ref mut x) => (&mut x.handles, x.event_bus.clone(), x.addr.clone()),
+            Handle::Validator(ref mut x) => (&mut x.handles, x.event_bus.clone(), x.addr.clone()),
+            Handle::SubGame(ref mut x) => (&mut x.handles, x.event_bus.clone(), x.addr.clone()),
         };
         if handles.is_empty() {
             panic!("Some where else is waiting");
         }
         let handles = std::mem::take(handles);
-        let addr = self.addr();
         tokio::spawn(async move {
-            let mut close_reason = CloseReason::Complete;
+            let (exit_tx, mut exit_rx) = unbounded_channel();
+            let expected_components = handles.len();
+
             for h in handles.into_iter() {
-                let cr = h.wait().await;
-                if let CloseReason::Fault(_) = cr {
-                    close_reason = cr
+                let exit_tx = exit_tx.clone();
+                let component_id = h.id.clone();
+                tokio::spawn(async move {
+                    let close_reason = h.wait().await;
+                    let _ = exit_tx.send((component_id, close_reason));
+                });
+            }
+            drop(exit_tx);
+
+            let mut close_reason = CloseReason::Complete;
+            let mut shutdown_sent = true;
+
+            if let Some((component_id, first_reason)) = exit_rx.recv().await {
+                match &first_reason {
+                    CloseReason::Fault(err) => {
+                        warn!(
+                            "Game {} component {} exited with fault: {}. Send shutdown to remaining components.",
+                            addr,
+                            component_id,
+                            err
+                        );
+                        close_reason = first_reason.clone();
+                    }
+                    CloseReason::Complete => {
+                        warn!(
+                            "Game {} component {} exited unexpectedly with Complete. Send shutdown to remaining components.",
+                            addr,
+                            component_id,
+                        );
+                    }
+                }
+
+                event_bus.send(EventFrame::Shutdown).await;
+
+                for _ in 1..expected_components {
+                    let Some((component_id, reason)) = exit_rx.recv().await else {
+                        break;
+                    };
+                    match &reason {
+                        CloseReason::Fault(err) => {
+                            warn!(
+                                "Game {} component {} exited with fault during shutdown: {}",
+                                addr,
+                                component_id,
+                                err
+                            );
+                            close_reason = reason;
+                        }
+                        CloseReason::Complete => {
+                            if !shutdown_sent {
+                                warn!(
+                                    "Game {} component {} exited unexpectedly with Complete.",
+                                    addr,
+                                    component_id,
+                                );
+                                shutdown_sent = true;
+                                event_bus.send(EventFrame::Shutdown).await;
+                            }
+                        }
+                    }
                 }
             }
+
             if let Err(e) = signal_tx
                 .send(SignalFrame::RemoveGame { game_addr: addr })
                 .await

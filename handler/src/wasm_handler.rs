@@ -57,13 +57,15 @@ impl HandlerT for WasmHandler {
 }
 
 impl WasmHandler {
-    /// Load WASM bundle
     pub async fn load_by_bundle(
         bundle: &GameBundle,
     ) -> Result<Self> {
         let mut store = Store::default();
         let module =
-            Module::from_binary(&store, &bundle.data).or(Err(Error::MalformedGameBundle))?;
+            Module::from_binary(&store, &bundle.data).map_err(|e| {
+                error!("WasmHander: failed to initialize wasm handler: {}", e.to_string());
+                Error::MalformedGameBundle
+            })?;
         let import_object = imports![];
         let instance = Instance::new(&mut store, &module, &import_object).expect("Init failed");
         Ok(Self {

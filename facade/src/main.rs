@@ -108,7 +108,7 @@ pub struct CreateGameAccountInstruction {
     wallet_addr: String,
     game_addr: String,
     title: String,
-    bundle_addr: String,
+    bundle_key: String,
     token_addr: String,
     max_players: u16,
     entry_type: EntryType,
@@ -117,21 +117,6 @@ pub struct CreateGameAccountInstruction {
 
 fn custom_error(e: Error) -> RpcError {
     RpcError::Custom(serde_json::to_string(&e).unwrap())
-}
-
-async fn get_game_bundle(
-    params: Params<'_>,
-    context: Arc<Mutex<Context>>,
-) -> RpcResult<Option<Vec<u8>>> {
-    let addr: String = params.one()?;
-
-    let context = context.lock().await;
-    if let Some(bundle) = context.get_game_bundle(&addr)? {
-        Ok(borsh::to_vec(&bundle).ok())
-    } else {
-        println!("? get_game_bundle, addr: {}, not found", addr);
-        Ok(None)
-    }
 }
 
 async fn get_registration_info(
@@ -146,8 +131,8 @@ async fn get_registration_info(
         .map(|g| GameRegistration {
             title: g.title,
             addr: g.addr,
+            bundle_key: g.bundle_key,
             reg_time: 0,
-            bundle_addr: g.bundle_addr,
         })
         .collect();
     Ok(Some(
@@ -376,7 +361,7 @@ async fn create_account(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
         wallet_addr,
         game_addr,
         title,
-        bundle_addr,
+        bundle_key,
         token_addr,
         max_players,
         entry_type,
@@ -386,7 +371,7 @@ async fn create_account(params: Params<'_>, context: Arc<Mutex<Context>>) -> Rpc
     let game_account = GameAccount {
         addr: game_addr.clone(),
         title,
-        bundle_addr,
+        bundle_key,
         token_addr,
         owner_addr: wallet_addr,
         entry_type,
@@ -917,7 +902,6 @@ async fn run_server(context: Context) -> anyhow::Result<ServerHandle> {
     let mut module = RpcModule::new(context);
     module.register_async_method("get_account_info", get_account_info)?;
     module.register_async_method("get_server_info", get_server_info)?;
-    module.register_async_method("get_game_bundle", get_game_bundle)?;
     module.register_async_method("get_registration_info", get_registration_info)?;
     module.register_async_method("get_balance", get_balance)?;
     module.register_async_method("get_player_info", get_player_info)?;
@@ -954,9 +938,6 @@ async fn main() -> anyhow::Result<()> {
     context.load_default_tokens()?;
     if let Some(game_spec_paths) = matches.get_many::<String>("game") {
         context.load_games(&game_spec_paths.map(String::as_str).collect::<Vec<&str>>())?;
-    }
-    if let Some(bundle_paths) = matches.get_many::<String>("bundle") {
-        context.load_bundles(&bundle_paths.map(String::as_str).collect::<Vec<&str>>())?;
     }
     let server_handle = run_server(context).await?;
     server_handle.stopped().await;

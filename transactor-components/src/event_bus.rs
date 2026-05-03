@@ -2,13 +2,18 @@ use std::sync::Arc;
 
 use race_core::error::Error;
 use tokio::sync::{mpsc, watch, Mutex};
+use tokio::time::{timeout, Duration, Instant};
 use tracing::{error, warn};
 
 use crate::common::Attachable;
 use race_transactor_frames::EventFrame;
 use crate::utils::addr_shorthand;
 
+const EVENT_BUS_SLOW_SEND_WARN_MS: u64 = 200;
+const EVENT_BUS_BLOCKED_SEND_WARN_MS: u64 = 2_000;
+
 /// An event bus that passes the events between different components.
+#[derive(Clone)]
 pub struct EventBus {
     #[allow(unused)]
     addr: String,
@@ -30,14 +35,77 @@ impl EventBus {
                 let txs = attached_txs.lock().await;
                 for (id, t) in txs.iter() {
                     if !t.is_closed() {
-                        if let Err(e) = t.send(msg.clone()).await {
-                            warn!(
-                                "[{}] Failed to send message: {} to component: {} due to error: {}",
-                                addr_1,
-                                msg,
-                                id,
-                                e
-                            );
+                        let send_start = Instant::now();
+                        let warn_after = Duration::from_millis(EVENT_BUS_SLOW_SEND_WARN_MS);
+                        let blocked_after = Duration::from_millis(EVENT_BUS_BLOCKED_SEND_WARN_MS);
+
+                        match timeout(warn_after, t.send(msg.clone())).await {
+                            Ok(Ok(_)) => {}
+                            Ok(Err(e)) => {
+                                warn!(
+                                    "[{}] Failed to send message: {} to component: {} due to error: {}",
+                                    addr_1,
+                                    msg,
+                                    id,
+                                    e
+                                );
+                            }
+                            Err(_) => {
+                                warn!(
+                                    "[{}] Slow event bus delivery: event {} to component {} has been blocked for {} ms",
+                                    addr_1,
+                                    msg,
+                                    id,
+                                    send_start.elapsed().as_millis()
+                                );
+
+                                match timeout(blocked_after, t.send(msg.clone())).await {
+                                    Ok(Ok(_)) => {
+                                        warn!(
+                                            "[{}] Event bus delivery recovered: event {} to component {} finished after {} ms",
+                                            addr_1,
+                                            msg,
+                                            id,
+                                            send_start.elapsed().as_millis()
+                                        );
+                                    }
+                                    Ok(Err(e)) => {
+                                        warn!(
+                                            "[{}] Failed to send message after blocking: {} to component: {} due to error: {}",
+                                            addr_1,
+                                            msg,
+                                            id,
+                                            e
+                                        );
+                                    }
+                                    Err(_) => {
+                                        warn!(
+                                            "[{}] Event bus appears blocked: event {} to component {} is still waiting after {} ms",
+                                            addr_1,
+                                            msg,
+                                            id,
+                                            send_start.elapsed().as_millis()
+                                        );
+                                        if let Err(e) = t.send(msg.clone()).await {
+                                            warn!(
+                                                "[{}] Failed to send message after extended blocking: {} to component: {} due to error: {}",
+                                                addr_1,
+                                                msg,
+                                                id,
+                                                e
+                                            );
+                                        } else {
+                                            warn!(
+                                                "[{}] Event bus delivery finally completed: event {} to component {} after {} ms",
+                                                addr_1,
+                                                msg,
+                                                id,
+                                                send_start.elapsed().as_millis()
+                                            );
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

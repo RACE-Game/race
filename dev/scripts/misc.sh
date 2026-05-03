@@ -26,7 +26,7 @@ function make_tourney {
                              -u16 50 \
                              -u16 10 \
                              -u8 0 \
-                             -s "raceholdemtargetraceholdemmtttablewasm" \
+                             -s "http://localhost:8000/race_holdem_mtt.wasm" \
                              -u64 30000 \
                              -u8 10
           )
@@ -77,7 +77,7 @@ function make_cash {
     local json=$(cat <<EOF
 {
     "title": "$1",
-    "bundle": "../race-holdem/target/race_$7_cash.wasm",
+    "bundle": "http://localhost:8000/race_$7_cash.wasm",
     "token": "$2",
     "maxPlayers": $3,
     "entryType": {
@@ -113,7 +113,7 @@ function make_ltmtt {
 			  -u8 50 \
 			  -u8 30 \
 			  -u8 20 \
-			  -s "raceholdemtargetraceholdemmtttablewasm")
+			  -s "http://localhost:8000/race_holdem_mtt_table.wasm")
 
     local json=$(cat <<EOF
 {

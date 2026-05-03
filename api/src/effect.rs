@@ -64,7 +64,7 @@ pub struct ActionTimeout {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LaunchSubGame {
     pub id: usize,
-    pub bundle_addr: String,
+    pub bundle_key: String,
     pub init_account: InitAccount,
 }
 
@@ -83,13 +83,13 @@ pub struct SubGameLeave {
 impl LaunchSubGame {
     pub fn try_new<S: BorshSerialize>(
         id: usize,
-        bundle_addr: String,
+        bundle_key: String,
         max_players: u16,
         init_data: S,
     ) -> HandleResult<Self> {
         Ok(Self {
             id,
-            bundle_addr,
+            bundle_key,
             init_account: InitAccount {
                 max_players,
                 data: borsh::to_vec(&init_data)?,
@@ -419,13 +419,13 @@ impl Effect {
     /// Launches a new sub-game instance with specified parameters.
     ///
     /// # Parameters
-    /// - `bundle_addr`: Address of the bundle associated with the sub-game.
+    /// - `bundle_key`: Address of the bundle associated with the sub-game.
     /// - `max_players`: Maximum number of players allowed in the sub-game.
     ///    The players in sub-game is managed by its master game, `max_players` is here for compatibility.
     /// - `init_data`: Initialization data for the sub-game. Must implement the `BorshSerialize` trait.
     pub fn launch_sub_game<D: BorshSerialize>(
         &mut self,
-        bundle_addr: String,
+        bundle_key: String,
         max_players: u16,
         init_data: D,
     ) -> HandleResult<usize> {
@@ -435,7 +435,7 @@ impl Effect {
         let sub_game_id = self.curr_sub_game_id;
         self.launch_sub_games.push(LaunchSubGame {
             id: sub_game_id,
-            bundle_addr,
+            bundle_key,
             init_account: InitAccount {
                 max_players,
                 data: borsh::to_vec(&init_data)?,

@@ -24,12 +24,12 @@ use crate::utils::current_timestamp;
 #[serde(rename_all = "camelCase")]
 pub struct ServingGame {
     addr: String,
-    bundle_addr: String,
+    bundle_key: String,
 }
 
 impl ServingGame {
-    pub fn new(addr: String, bundle_addr: String) -> Self {
-        Self { addr, bundle_addr }
+    pub fn new(addr: String, bundle_key: String) -> Self {
+        Self { addr, bundle_key }
     }
 }
 
@@ -62,7 +62,7 @@ impl GameManager {
         let game_addr = checkpoint.root_data().game_spec.game_addr.clone();
         let game_id = checkpoint.root_data().game_spec.game_id;
 
-        info!("Launch sub game, bundle = {}", checkpoint.root_data().game_spec.bundle_addr);
+        info!("Launch sub game, bundle = {}", checkpoint.root_data().game_spec.bundle_key);
 
         match Handle::try_new_sub_game(
             checkpoint,
@@ -158,7 +158,7 @@ impl GameManager {
     pub async fn get_serving_games(&self) -> Vec<ServingGame> {
         let games = self.games.read().await;
 
-        games.iter().map(|(addr, handle)| ServingGame::new(addr.to_owned(), handle.bundle_addr())).collect()
+        games.iter().map(|(addr, handle)| ServingGame::new(addr.to_owned(), handle.bundle_key())).collect()
     }
 
     pub async fn is_game_loaded(&self, game_addr: &str) -> bool {

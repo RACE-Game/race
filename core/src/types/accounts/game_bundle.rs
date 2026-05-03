@@ -6,8 +6,6 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GameBundle {
-    pub addr: String,
-    pub uri: String,
-    pub name: String,
+    pub key: String,
     pub data: Vec<u8>,
 }

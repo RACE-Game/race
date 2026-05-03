@@ -223,7 +223,7 @@ pub struct Bonus {
 pub struct GameAccount {
     pub addr: String,
     pub title: String,
-    pub bundle_addr: String,
+    pub bundle_key: String,
     pub token_addr: String,
     pub owner_addr: String,
     pub settle_version: u64,
@@ -257,7 +257,7 @@ impl GameAccount {
         GameSpec {
             game_addr: self.addr.clone(),
             game_id: 0,
-            bundle_addr: self.bundle_addr.clone(),
+            bundle_key: self.bundle_key.clone(),
             max_players: self.max_players,
             entry_type: self.entry_type.clone(),
         }

@@ -1,10 +1,10 @@
-use std::{fs::File, io::Read};
+use std::fs::File;
 
 use crate::{
     db::{
-        create_game_account, create_game_bundle, create_player_info, create_recipient_account,
+        create_game_account, create_player_info, create_recipient_account,
         create_server_account, create_stake, create_token_account, list_game_accounts,
-        list_token_accounts, prepare_all_tables, read_game_account, read_game_bundle,
+        list_token_accounts, prepare_all_tables, read_game_account,
         read_player_info, read_recipient_account, read_registration_account, read_server_account,
         read_token_account, update_game_account, update_player_info, update_recipient_account,
         update_stake, read_stake, PlayerInfo, Stake,
@@ -12,7 +12,7 @@ use crate::{
     GameSpec,
 };
 use race_core::types::{
-    GameAccount, GameBundle, RecipientAccount, RegistrationAccount, ServerAccount, TokenAccount,
+    GameAccount, RecipientAccount, RegistrationAccount, ServerAccount, TokenAccount,
 };
 use regex::Regex;
 use rusqlite::Connection;
@@ -33,13 +33,6 @@ impl Context {
     pub fn load_games(&self, spec_paths: &[&str]) -> anyhow::Result<()> {
         for spec_path in spec_paths.iter() {
             self.add_game(spec_path)?;
-        }
-        Ok(())
-    }
-
-    pub fn load_bundles(&self, bundle_paths: &[&str]) -> anyhow::Result<()> {
-        for bundle_path in bundle_paths.iter() {
-            self.add_bundle(bundle_path)?;
         }
         Ok(())
     }
@@ -87,23 +80,6 @@ impl Context {
         Ok(())
     }
 
-    pub fn add_bundle(&self, bundle_path: &str) -> anyhow::Result<()> {
-        let re = Regex::new(r"[^a-zA-Z0-9]").unwrap();
-        let bundle_addr = re.replace_all(&bundle_path, "").into_owned();
-        let mut f = File::open(bundle_path).expect(&format!("Bundle {} not found", &bundle_path));
-        let mut data = vec![];
-        f.read_to_end(&mut data).unwrap();
-        let bundle = GameBundle {
-            addr: bundle_addr.clone(),
-            name: bundle_addr.clone(),
-            uri: "".into(),
-            data,
-        };
-        create_game_bundle(&self.conn, &bundle)?;
-        println!("+ Bundle: {}", bundle_addr);
-        Ok(())
-    }
-
     pub fn add_game(&self, spec_path: &str) -> anyhow::Result<()> {
         let f = File::open(spec_path).expect("Spec file not found");
         let GameSpec {
@@ -116,23 +92,13 @@ impl Context {
         } = serde_json::from_reader(f).expect(&format!("Invalid spec file: {}", spec_path));
 
         let re = Regex::new(r"[^a-zA-Z0-9]").unwrap();
-        let bundle_addr = re.replace_all(&bundle, "").into_owned();
         let game_addr = re.replace_all(&spec_path, "").into_owned();
         let recipient_addr = format!("{}_recipient", game_addr);
-        let mut f = File::open(&bundle).expect(&format!("Bundle {} not found", &bundle));
-        let mut data = vec![];
-        f.read_to_end(&mut data).unwrap();
-        let bundle = GameBundle {
-            addr: bundle_addr.clone(),
-            name: bundle_addr.clone(),
-            uri: "".into(),
-            data,
-        };
         let game = GameAccount {
             addr: game_addr.clone(),
             title,
             token_addr: token.to_owned(),
-            bundle_addr: bundle_addr.clone(),
+            bundle_key: bundle.to_string(),
             data_len: spec_data.len() as u32,
             data: spec_data,
             max_players,
@@ -147,13 +113,12 @@ impl Context {
             addr: recipient_addr.clone(),
             ..Default::default()
         };
-        create_game_bundle(&self.conn, &bundle)?;
         create_game_account(&self.conn, &game)?;
         create_stake(&self.conn, &stake)?;
         create_recipient_account(&self.conn, &recipient)?;
         println!("! Load game from `{}`", spec_path);
         println!("+ Game: {}", game_addr);
-        println!("+ Bundle: {}", bundle_addr);
+        println!("+ Bundle: {}", bundle);
 
         Ok(())
     }
@@ -177,10 +142,6 @@ impl Context {
         create_player_info(&self.conn, &player_info)?;
         println!("+ Player profile: {}", player_info.profile.addr);
         Ok(())
-    }
-
-    pub fn get_game_bundle(&self, addr: &str) -> anyhow::Result<Option<GameBundle>> {
-        Ok(read_game_bundle(&self.conn, addr)?)
     }
 
     pub fn get_stake(&self, addr: &str) -> anyhow::Result<Stake> {

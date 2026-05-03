@@ -8,7 +8,6 @@ use race_core::game_spec::GameSpec;
 use race_core::encryptor::EncryptorT;
 use tracing::{error, info, warn};
 use race_handler::HandlerManager;
-use race_core::transport::TransportT;
 
 use crate::common::{Component, PipelinePorts};
 use crate::event_bus::CloseReason;
@@ -27,7 +26,6 @@ pub struct EventLoopContext {
     client_mode: ClientMode,
     game_mode: GameMode,
     encryptor: Arc<dyn EncryptorT>,
-    transport: Arc<dyn TransportT>,
 }
 
 pub struct EventLoop {}
@@ -48,9 +46,9 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         let game_spec = ctx.game_spec;
         let encryptor = ctx.encryptor;
 
-        let mut handler_manager = HandlerManager::new(ctx.transport);
+        let mut handler_manager = HandlerManager::new();
 
-        let mut handler = match handler_manager.get_handler(&game_spec.bundle_addr).await {
+        let mut handler = match handler_manager.get_handler(&game_spec.bundle_key).await {
             Ok(handler) => handler,
             Err(e) => {
                 return CloseReason::Fault(e)
@@ -474,7 +472,6 @@ impl EventLoop {
     pub fn init(
         game_spec: GameSpec,
         encryptor: Arc<dyn EncryptorT>,
-        transport: Arc<dyn TransportT>,
         client_mode: ClientMode,
         game_mode: GameMode,
     ) -> (Self, EventLoopContext) {
@@ -485,7 +482,6 @@ impl EventLoop {
                 client_mode,
                 game_mode,
                 encryptor,
-                transport,
             },
         )
     }
@@ -493,73 +489,21 @@ impl EventLoop {
 
 #[cfg(test)]
 mod tests {
-
-    use borsh::{BorshDeserialize, BorshSerialize};
-    use race_api::{event::BridgeEvent, prelude::InitAccount};
-    use race_core::error::Result;
-    use race_core::{checkpoint::VersionedData, context::EventEffects};
+    use race_core::types::{ClientMode, GameMode};
 
     use super::*;
 
-    #[derive(BorshSerialize, BorshDeserialize)]
-    struct EmptyBridgeEvent {}
+    #[test]
+    fn event_loop_context_keeps_modes() {
+        let ctx = EventLoopContext {
+            game_spec: GameSpec::default(),
+            client_mode: ClientMode::Transactor,
+            game_mode: GameMode::Main,
+            encryptor: Arc::new(race_encryptor::Encryptor::default()),
+            transport: Arc::new(race_test::prelude::DummyTransport::default()),
+        };
 
-    impl BridgeEvent for EmptyBridgeEvent {}
-
-    struct TestHandlerForBridgeEvent {}
-
-    impl HandlerT for TestHandlerForBridgeEvent {
-        fn init_state(
-            &mut self,
-            _context: &mut GameContext,
-            _init_account: &InitAccount,
-        ) -> Result<EventEffects> {
-            Ok(EventEffects::default())
-        }
-
-        fn handle_event(
-            &mut self,
-            context: &mut GameContext,
-            _event: &Event,
-        ) -> Result<EventEffects> {
-            let mut ef = context.derive_effect(false);
-            ef.checkpoint();
-            ef.bridge_event(0, EmptyBridgeEvent {})?;
-            let ee = context.apply_effect(ef);
-            ee
-        }
-    }
-
-    #[ignore]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 10)]
-    async fn test_event_loop_receive_bridge_event() {
-        let handler = TestHandlerForBridgeEvent {};
-        let game_context = GameContext::default();
-
-        let (event_loop, event_loop_ctx) = EventLoop::init(
-            Box::new(handler),
-            game_context,
-            ClientMode::Transactor,
-            GameMode::Main,
-        );
-        let mut event_loop_handle = event_loop.start("fake addresses", event_loop_ctx);
-        let mut vd1 = VersionedData::default();
-        vd1.id = 1;
-        event_loop_handle
-            .send_unchecked(EventFrame::RecvBridgeEvent {
-                from: 1,
-                dest: 0,
-                event: Event::Bridge {
-                    dest_game_id: 0,
-                    from_game_id: 1,
-                    raw: vec![],
-                },
-                versioned_data: vd1,
-            })
-            .await;
-        println!("Sent!");
-        let recv = event_loop_handle.recv_unchecked().await;
-        println!("{recv:?}");
-        assert!(false);
+        assert!(matches!(ctx.client_mode, ClientMode::Transactor));
+        assert!(matches!(ctx.game_mode, GameMode::Main));
     }
 }

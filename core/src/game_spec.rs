@@ -9,7 +9,7 @@ use crate::entry_type::EntryType;
 pub struct GameSpec {
     pub game_addr: String,
     pub game_id: usize,
-    pub bundle_addr: String,
+    pub bundle_key: String,
     pub max_players: u16,
     pub entry_type: EntryType,
 }

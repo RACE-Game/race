@@ -15,7 +15,7 @@ use race_env::TransactorConfig;
 #[allow(dead_code)]
 pub struct SubGameHandle {
     pub(crate) addr: String,
-    pub(crate) bundle_addr: String,
+    pub(crate) bundle_key: String,
     pub(crate) event_bus: EventBus,
     pub(crate) handles: Vec<PortsHandle>,
     pub(crate) broadcaster: Broadcaster,
@@ -46,7 +46,6 @@ impl SubGameHandle {
             EventLoop::init(
                 game_spec.clone(),
                 encryptor.clone(),
-                transport.clone(),
                 ClientMode::Transactor,
                 GameMode::Sub
             );
@@ -79,9 +78,9 @@ impl SubGameHandle {
 
         Ok(Self {
             addr: format!("{}:{}", game_spec.game_addr, game_spec.game_id),
-            bundle_addr: checkpoint.root_data().game_spec.bundle_addr.to_owned(),
+            bundle_key: checkpoint.root_data().game_spec.bundle_key.to_owned(),
             event_bus,
-            handles: vec![broadcaster_handle, bridge_handle, event_loop_handle],
+            handles: vec![client_handle, broadcaster_handle, bridge_handle, event_loop_handle],
             broadcaster,
             bridge_child: bridge,
         })

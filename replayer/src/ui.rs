@@ -85,7 +85,7 @@ pub fn render_controller_ui(context: Arc<ReplayerContext>, header: RecordsHeader
                 ])
                 .split(f.size());
 
-            let header_spans = Text::from(format!("CHAIN: {}\nGAME: {}#{}\nBUNDLE: {}", header.chain, header.spec.game_addr, header.spec.game_id, header.spec.bundle_addr));
+            let header_spans = Text::from(format!("CHAIN: {}\nGAME: {}#{}\nBUNDLE: {}", header.chain, header.spec.game_addr, header.spec.game_id, header.spec.bundle_key));
 
             let paragraph = Paragraph::new(header_spans)
                 .block(Block::default().title("Info").borders(Borders::ALL))

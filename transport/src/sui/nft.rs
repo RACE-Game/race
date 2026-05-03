@@ -20,9 +20,7 @@ pub struct BundleObject {
 impl BundleObject {
     pub fn into_bundle(self, data: Vec<u8>) -> GameBundle {
         GameBundle {
-            addr: self.id.to_hex_uncompressed(),
-            uri: self.uri,
-            name: self.name,
+            key: "".to_string(),
             data
         }
     }

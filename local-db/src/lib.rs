@@ -124,7 +124,7 @@ mod tests {
         let game_spec = GameSpec {
             game_addr: game_addr.clone(),
             game_id: 0,
-            bundle_addr: "".to_string(),
+            bundle_key: "".to_string(),
             max_players: 8,
         };
 

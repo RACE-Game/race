@@ -6241,6 +6241,7 @@ dependencies = [
  "race-api",
  "race-core",
  "race-test",
+ "reqwest 0.11.27",
  "tokio",
  "tracing",
  "tracing-appender",

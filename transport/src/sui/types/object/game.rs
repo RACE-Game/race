@@ -233,7 +233,7 @@ impl GameObject {
             addr: id.to_hex_uncompressed(),
             title,
             settle_version,
-            bundle_addr: bundle_addr.to_string(),
+            bundle_key: bundle_addr.to_string(),
             token_addr,
             owner_addr: owner.to_string(),
             access_version,

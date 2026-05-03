@@ -10,14 +10,11 @@ use race_core::types::{
 use race_core::{
     transport::TransportT,
     types::{
-        CloseGameAccountParams, CreateGameAccountParams, GameAccount, GameBundle, JoinParams,
+        CloseGameAccountParams, CreateGameAccountParams, GameAccount, JoinParams,
         PlayerProfile, RegisterServerParams, RegistrationAccount, ServerAccount, SettleParams,
     },
 };
-use tokio::sync::Mutex;
-use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio_stream::StreamExt;
 use tracing::{error, info};
@@ -25,39 +22,16 @@ use tracing::{error, info};
 const DEFAULT_RETRY_INTERVAL: u64 = 10;
 const DEFAULT_RESUB_INTERVAL: u64 = 5;
 
-pub struct BundleCache {
-    bundles: Arc<Mutex<HashMap<String, GameBundle>>>,
-}
-
-impl BundleCache {
-    pub fn new() -> Self {
-        Self {
-            bundles: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    pub async fn add_cache(&self, bundle: GameBundle) {
-        self.bundles.lock().await.insert(bundle.addr.clone(), bundle);
-    }
-
-    pub async fn get_cache(&self, addr: &str) -> Option<GameBundle> {
-        self.bundles.lock().await.get(addr).map(ToOwned::to_owned)
-    }
-}
-
 pub struct WrappedTransport {
     pub(crate) inner: Box<dyn TransportT>,
     retry_interval: u64,
     resub_interval: u64,
-    bundle_cache: BundleCache,
 }
 
 impl WrappedTransport {
     pub async fn try_new(transport: Box<dyn TransportT>) -> Result<Self> {
-        let bundle_cache = BundleCache::new();
         Ok(Self {
             inner: transport,
-            bundle_cache,
             retry_interval: DEFAULT_RETRY_INTERVAL,
             resub_interval: DEFAULT_RESUB_INTERVAL,
         })
@@ -146,21 +120,6 @@ impl TransportT for WrappedTransport {
 
     async fn deposit(&self, params: DepositParams) -> Result<()> {
         self.inner.deposit(params).await
-    }
-
-    async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
-        if let Some(game_bundle) = self.bundle_cache.get_cache(addr).await {
-            info!("Use game bundle from cache: {}", addr);
-            return Ok(Some(game_bundle));
-        } else {
-            let r = self.inner.get_game_bundle(addr).await;
-            if let Ok(Some(game_bundle)) = r {
-                self.bundle_cache.add_cache(game_bundle.clone()).await;
-                return Ok(Some(game_bundle))
-            } else {
-                return r
-            }
-        }
     }
 
     async fn get_server_account(&self, addr: &str) -> Result<Option<ServerAccount>> {
@@ -350,7 +309,6 @@ mod tests {
             inner: Box::new(t),
             retry_interval: 1,
             resub_interval: 1,
-            bundle_cache: BundleCache::new(),
         };
         let r = wt
             .settle_game(SettleParams {
@@ -383,7 +341,6 @@ mod tests {
             inner: Box::new(t),
             retry_interval: 1,
             resub_interval: 1,
-            bundle_cache: BundleCache::new(),
         };
         let r = wt
             .settle_game(SettleParams {

@@ -87,7 +87,6 @@ impl TransportT for SuiTransport {
             return Err(TransportError::InvalidNameLength(params.title))?;
         }
         let payer = self.active_addr;
-        let bundle_addr = parse_account_addr(&params.bundle_addr)?;
         let recipient_addr = parse_account_addr(&params.recipient_addr)?;
         let mut ptb = PTB::new();
         let module = new_identifier("game")?;
@@ -121,7 +120,7 @@ impl TransportT for SuiTransport {
                      Error::TransportError(e.to_string()))?;
         let create_game_args = vec![
             add_input(&mut ptb, new_pure_arg(&params.title)?)?,
-            add_input(&mut ptb, new_pure_arg(&bundle_addr)?)?,
+            // add_input(&mut ptb, new_pure_arg(&bundle_addr)?)?,
             add_input(&mut ptb, new_pure_arg(&payer)?)?,
             add_input(&mut ptb, new_pure_arg(&recipient_addr)?)?,
             add_input(&mut ptb, new_pure_arg(&params.token_addr)?)?,
@@ -1042,18 +1041,18 @@ impl TransportT for SuiTransport {
         }))
     }
 
-    async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
-        let bundle_id = parse_object_id(addr)?;
-        let bundle_obj = self.get_move_object::<nft::BundleObject>(bundle_id).await?;
-        let uri: &str = bundle_obj.uri.trim_end_matches('\0');
-
-        info!("Fetch wasm game bundle from {}", uri);
-        let data = nft::fetch_wasm_from_game_bundle(uri)
-            .await
-            .map_err(|e| TransportError::NetworkError(e.to_string()))?;
-
-        Ok(Some(bundle_obj.into_bundle(data)))
-    }
+    // async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>> {
+    //     let bundle_id = parse_object_id(addr)?;
+    //     let bundle_obj = self.get_move_object::<nft::BundleObject>(bundle_id).await?;
+    //     let uri: &str = bundle_obj.uri.trim_end_matches('\0');
+    //
+    //     info!("Fetch wasm game bundle from {}", uri);
+    //     let data = nft::fetch_wasm_from_game_bundle(uri)
+    //         .await
+    //         .map_err(|e| TransportError::NetworkError(e.to_string()))?;
+    //
+    //     Ok(Some(bundle_obj.into_bundle(data)))
+    // }
 
     async fn get_player_profile(&self, addr: &str) -> Result<Option<PlayerProfile>> {
         info!("Get player profile for {}", addr);

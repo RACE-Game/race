@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use borsh::BorshSerialize;
 use race_core::types::{
-    GameAccount, GameBundle, PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount,
+    GameAccount, PlayerProfile, RecipientAccount, RecipientSlot, RegistrationAccount,
     ServerAccount, TokenAccount,
 };
 use rusqlite::{params, Connection, OptionalExtension, Result};
@@ -328,7 +328,7 @@ pub fn create_player_tables(conn: &Connection) -> Result<()> {
 pub fn create_game_account(conn: &Connection, game_account: &GameAccount) -> Result<usize> {
     conn.execute(
         "INSERT INTO game_account (
-            addr, title, bundle_addr, token_addr, owner_addr, settle_version, access_version,
+            addr, title, bundle_key, token_addr, owner_addr, settle_version, access_version,
             transactor_addr, unlock_time, max_players, data_len, data, entry_type, recipient_addr,
             players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses, balances
         ) VALUES (
@@ -337,7 +337,7 @@ pub fn create_game_account(conn: &Connection, game_account: &GameAccount) -> Res
         params![
             game_account.addr,
             game_account.title,
-            game_account.bundle_addr,
+            game_account.bundle_key,
             game_account.token_addr,
             game_account.owner_addr,
             game_account.settle_version,
@@ -364,7 +364,7 @@ pub fn create_game_account(conn: &Connection, game_account: &GameAccount) -> Res
 // Read a GameAccount by address
 pub fn read_game_account(conn: &Connection, addr: &str) -> Result<Option<GameAccount>> {
     let mut stmt = conn.prepare(
-        "SELECT addr, title, bundle_addr, token_addr, owner_addr, settle_version, access_version,
+        "SELECT addr, title, bundle_key, token_addr, owner_addr, settle_version, access_version,
         transactor_addr, unlock_time, max_players, data_len, data, entry_type, recipient_addr,
         players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses, balances
         FROM game_account WHERE addr = ?",
@@ -375,7 +375,7 @@ pub fn read_game_account(conn: &Connection, addr: &str) -> Result<Option<GameAcc
             Ok(GameAccount {
                 addr: row.get(0)?,
                 title: row.get(1)?,
-                bundle_addr: row.get(2)?,
+                bundle_key: row.get(2)?,
                 token_addr: row.get(3)?,
                 owner_addr: row.get(4)?,
                 settle_version: row.get(5)?,
@@ -405,7 +405,7 @@ pub fn read_game_account(conn: &Connection, addr: &str) -> Result<Option<GameAcc
 
 pub fn list_game_accounts(conn: &Connection) -> Result<Vec<GameAccount>> {
     let mut stmt = conn.prepare(
-        "SELECT addr, title, bundle_addr, token_addr, owner_addr, settle_version, access_version,
+        "SELECT addr, title, bundle_key, token_addr, owner_addr, settle_version, access_version,
         transactor_addr, unlock_time, max_players, data_len, data, entry_type, recipient_addr,
         players, deposits, servers, votes, checkpoint_on_chain, entry_lock, bonuses, balances
         FROM game_account",
@@ -415,7 +415,7 @@ pub fn list_game_accounts(conn: &Connection) -> Result<Vec<GameAccount>> {
         Ok(GameAccount {
             addr: row.get(0)?,
             title: row.get(1)?,
-            bundle_addr: row.get(2)?,
+            bundle_key: row.get(2)?,
             token_addr: row.get(3)?,
             owner_addr: row.get(4)?,
             settle_version: row.get(5)?,
@@ -450,14 +450,14 @@ pub fn list_game_accounts(conn: &Connection) -> Result<Vec<GameAccount>> {
 pub fn update_game_account(conn: &Connection, game_account: &GameAccount) -> Result<usize> {
     conn.execute(
         "UPDATE game_account SET
-            title = ?, bundle_addr = ?, token_addr = ?, owner_addr = ?, settle_version = ?,
+            title = ?, bundle_key = ?, token_addr = ?, owner_addr = ?, settle_version = ?,
             access_version = ?, transactor_addr = ?, unlock_time = ?, max_players = ?, data_len = ?,
             data = ?, entry_type = ?, recipient_addr = ?, players = ?, deposits = ?, servers = ?,
             votes = ?, checkpoint_on_chain = ?, entry_lock = ?, balances = ?
         WHERE addr = ?",
         params![
             game_account.title,
-            game_account.bundle_addr,
+            game_account.bundle_key,
             game_account.token_addr,
             game_account.owner_addr,
             game_account.settle_version,
@@ -493,7 +493,7 @@ pub fn create_game_account_table(conn: &Connection) -> Result<()> {
         "CREATE TABLE IF NOT EXISTS game_account (
             addr TEXT PRIMARY KEY,
             title TEXT NOT NULL,
-            bundle_addr TEXT NOT NULL,
+            bundle_key TEXT NOT NULL,
             token_addr TEXT NOT NULL,
             owner_addr TEXT NOT NULL,
             settle_version INTEGER NOT NULL,
@@ -519,49 +519,6 @@ pub fn create_game_account_table(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub fn create_game_bundle(conn: &Connection, game_bundle: &GameBundle) -> Result<usize> {
-    conn.execute(
-        "INSERT OR IGNORE INTO game_bundle (addr, uri, name, data) VALUES (?, ?, ?, ?)",
-        params![
-            game_bundle.addr,
-            game_bundle.uri,
-            game_bundle.name,
-            game_bundle.data
-        ],
-    )
-}
-
-// Read a GameBundle by uri
-pub fn read_game_bundle(conn: &Connection, addr: &str) -> Result<Option<GameBundle>> {
-    let mut stmt = conn.prepare("SELECT addr, uri, name, data FROM game_bundle WHERE addr = ?")?;
-
-    let game_bundle = stmt
-        .query_row(params![addr], |row| {
-            Ok(GameBundle {
-                addr: row.get(0)?,
-                uri: row.get(1)?,
-                name: row.get(2)?,
-                data: row.get(3)?,
-            })
-        })
-        .optional()?;
-
-    Ok(game_bundle)
-}
-
-#[allow(unused)]
-pub fn create_game_bundle_table(conn: &Connection) -> Result<()> {
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS game_bundle (
-            addr TEXT NOT NULL PRIMARY KEY,
-            uri TEXT NOT NULL,
-            name TEXT NOT NULL,
-            data BLOB
-        )",
-        params![],
-    )?;
-    Ok(())
-}
 
 // CRUD functions for RegistrationAccount
 
@@ -930,7 +887,6 @@ pub fn prepare_all_tables(conn: &Connection) -> Result<()> {
     create_player_tables(conn)?;
     create_nft_table(conn)?;
     create_game_account_table(conn)?;
-    create_game_bundle_table(conn)?;
     create_registration_account_table(conn)?;
     create_token_account_table(conn)?;
     create_recipient_account_table(conn)?;

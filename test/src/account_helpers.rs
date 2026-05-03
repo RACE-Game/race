@@ -12,7 +12,7 @@ impl Default for TestGameAccountBuilder {
         let account = GameAccount {
             addr: test_game_addr(),
             title: test_game_title(),
-            bundle_addr: "".into(),
+            bundle_key: "".into(),
             owner_addr: "".into(),
             settle_version: 0,
             access_version: 0,

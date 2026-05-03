@@ -164,7 +164,7 @@ async fn do_send_settlements(
 /// Use this function to initialize a subgame.
 // pub struct LaunchSubGame {
 //     pub id: usize,
-//     pub bundle_addr: String,
+//     pub bundle_key: String,
 //     pub init_account: InitAccount,
 // }
 async fn launch_sub_game(
@@ -177,16 +177,16 @@ async fn launch_sub_game(
 ) -> Result<(), Error> {
 
     let LaunchSubGame {
-        id, bundle_addr, init_account
+        id, bundle_key, init_account
     } = launch_sub_game;
 
     // Create a temporary handler to initialize the first checkpoint state.
-    let mut handler = handler_manager.get_handler(&bundle_addr).await?;
+    let mut handler = handler_manager.get_handler(&bundle_key).await?;
 
     let game_spec = GameSpec {
         game_addr,
         game_id: id,
-        bundle_addr,
+        bundle_key,
         max_players: init_account.max_players,
         entry_type: EntryType::Disabled, // Subgame's entry type is always disabled
     };
@@ -594,7 +594,7 @@ pub async fn handle_dispatch_event(
 mod tests {
     use std::sync::Arc;
 
-    use borsh::{BorshDeserialize, BorshSerialize};
+    use borsh::BorshDeserialize;
     use race_api::{
         effect::Effect,
         init_account::InitAccount,
@@ -602,10 +602,10 @@ mod tests {
     use race_core::{
         checkpoint::{SharedData, VersionedData},
         dispatch_event::DispatchEvent,
-        encryptor::tests::DummyEncryptor,
         game_spec::GameSpec,
         types::{ClientMode, GameMode},
     };
+    use race_encryptor::Encryptor;
     use race_handler::{HandlerManager, HandlerT};
     use race_test::prelude::DummyTransport;
 
@@ -644,7 +644,7 @@ mod tests {
         let transport = Arc::new(DummyTransport::default());
         let mut handler_manager = HandlerManager::new(transport);
         let mut handler = FailOnWaitingTimeoutHandler;
-        let encryptor = DummyEncryptor::default();
+        let encryptor = Encryptor::default();
         let (ports, _) = PipelinePorts::create();
         let env = ComponentEnv::new("test", "Event Loop");
 
@@ -693,7 +693,7 @@ mod tests {
         let transport = Arc::new(DummyTransport::default());
         let mut handler_manager = HandlerManager::new(transport);
         let mut handler = SuccessHandler;
-        let encryptor = DummyEncryptor::default();
+        let encryptor = Encryptor::default();
         let (ports, mut ports_io) = PipelinePorts::create();
         let env = ComponentEnv::new("test", "Event Loop");
 

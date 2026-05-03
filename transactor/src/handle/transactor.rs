@@ -18,7 +18,7 @@ use tracing::info;
 #[allow(dead_code)]
 pub struct TransactorHandle {
     pub(crate) addr: String,
-    pub(crate) bundle_addr: String,
+    pub(crate) bundle_key: String,
     pub(crate) handles: Vec<PortsHandle>,
     pub(crate) event_bus: EventBus,
     pub(crate) broadcaster: Broadcaster,
@@ -160,7 +160,6 @@ impl TransactorHandle {
         let (event_loop, event_loop_ctx) = EventLoop::init(
             game_spec,
             encryptor.clone(),
-            transport.clone(),
             ClientMode::Transactor,
             GameMode::Main,
         );
@@ -211,13 +210,15 @@ impl TransactorHandle {
 
         Ok(Self {
             addr: game_account.addr.clone(),
-            bundle_addr: game_account.bundle_addr.clone(),
+            bundle_key: game_account.bundle_key.clone(),
             event_bus,
             handles: vec![
                 broadcaster_handle,
+                bridge_handle,
                 submitter_handle,
                 event_loop_handle,
                 client_handle,
+                refunder_handle,
                 synchronizer_handle,
                 credential_consolidator_handle,
             ],

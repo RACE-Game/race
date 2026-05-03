@@ -1,7 +1,7 @@
 use std::pin::Pin;
 
 use crate::types::{
-    AddRecipientSlotParams, AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, GameBundle, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
+    AddRecipientSlotParams, AssignRecipientParams, CloseGameAccountParams, CreateGameAccountParams, CreatePlayerProfileParams, CreateRecipientParams, CreateRegistrationParams, DepositParams, GameAccount, JoinParams, PlayerProfile, PublishGameParams, RecipientAccount, RecipientClaimParams, RegisterGameParams, RegisterServerParams, RegistrationAccount, RejectDepositsParams, RejectDepositsResult, ServeParams, ServerAccount, SettleParams, SettleResult, UnregisterGameParams, VoteParams
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -18,14 +18,14 @@ pub trait TransportT: Send + Sync {
     /// # Arguments
     /// * `max_players` - The maximum number of players in this game. Please note,
     ///   not all games require a full room to start.
-    /// * `bundle_addr` - The address of game bundle NFT.
+    /// * `bundle_key` - The address of game bundle NFT.
     /// * `data` - The borsh serialization of game specific data. The layout should be
     ///   game independent. It is used to describe the basic game properties,
     ///   and is considered to be immutable.
     ///
     /// # Returns
     /// * [`Error::InvalidMaxPlayers`] when invalid `max_players` is provided.
-    /// * [`Error::GameBundleNotFound`] when invalid `bundle_addr` is provided.
+    /// * [`Error::GameBundleNotFound`] when invalid `bundle_key` is provided.
     /// * [`Error::RpcError`] when the RPC invocation failed.
     async fn create_game_account(&self, params: CreateGameAccountParams) -> Result<String>;
 
@@ -162,9 +162,6 @@ pub trait TransportT: Send + Sync {
     /// stream. Therefore the stream should yield an error when it's meaningless to continue the
     /// subscription.
     async fn subscribe_game_account<'a>(&'a self, addr: &'a str) -> Result<Pin<Box<dyn Stream<Item = Result<GameAccount>> + Send + 'a>>>;
-
-    /// Get game bundle account by its address.
-    async fn get_game_bundle(&self, addr: &str) -> Result<Option<GameBundle>>;
 
     /// Get player profile account by its address.
     async fn get_player_profile(&self, addr: &str) -> Result<Option<PlayerProfile>>;

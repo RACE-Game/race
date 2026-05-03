@@ -13,10 +13,10 @@ pub fn make_metadata(
     name: String,
     symbol: String,
     creator_addr: String,
-    bundle_addr: String,
+    bundle_key: String,
 ) -> Result<impl MetadataT, StorageError> {
     match chain {
-        "solana" => Metadata::try_new(name, symbol, creator_addr, bundle_addr),
+        "solana" => Metadata::try_new(name, symbol, creator_addr, bundle_key),
         _ => Err(StorageError::UnsupportedChain(chain.into())),
     }
 }

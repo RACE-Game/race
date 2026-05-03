@@ -2,12 +2,14 @@ use serde::Deserialize;
 
 use crate::error::{TransportError, TransportResult};
 
+#[allow(unused)]
 #[derive(Deserialize, Debug)]
 pub struct PropertyFiles {
     pub uri: String,
     pub r#type: String,
 }
 
+#[allow(unused)]
 #[derive(Deserialize, Debug)]
 pub struct GameBundleProperties {
     pub files: Vec<PropertyFiles>,
@@ -15,6 +17,7 @@ pub struct GameBundleProperties {
     pub category: String,
 }
 
+#[allow(unused)]
 #[derive(Deserialize, Debug)]
 pub struct GameBundleNftMetadata {
     #[allow(unused)]
@@ -24,6 +27,7 @@ pub struct GameBundleNftMetadata {
     pub properties: GameBundleProperties,
 }
 
+#[allow(unused)]
 pub async fn fetch_wasm_from_game_bundle(uri: &str) -> TransportResult<Vec<u8>> {
     let client = reqwest::Client::new();
     let m: GameBundleNftMetadata = client.get(uri).send().await?.json().await?;

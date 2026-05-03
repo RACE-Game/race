@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 pub struct GameRegistration {
     pub title: String,
     pub addr: String,
+    pub bundle_key: String,
     pub reg_time: u64,
-    pub bundle_addr: String,
 }
 
 #[derive(Debug, Default, Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq)]

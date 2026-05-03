@@ -110,7 +110,7 @@ pub struct GameState {
     // game name displayed on chain
     pub title: String,
     // addr to the game core logic program on Arweave
-    pub bundle_addr: Pubkey,
+    pub bundle_key: String,
     // addr to the account that holds all players' deposits
     pub stake_account: Pubkey,
     // game owner who created this game account
@@ -157,7 +157,7 @@ impl GameState {
     pub fn into_account<S: Into<String>>(self, addr: S, players: Vec<PlayerJoin>) -> Result<GameAccount, Error> {
         let GameState {
             title,
-            bundle_addr,
+            bundle_key,
             owner,
             token_mint,
             transactor_addr,
@@ -196,7 +196,7 @@ impl GameState {
             addr: addr.into(),
             title,
             settle_version,
-            bundle_addr: bundle_addr.to_string(),
+            bundle_key: bundle_key.to_string(),
             token_addr: token_mint.to_string(),
             owner_addr: owner.to_string(),
             access_version,

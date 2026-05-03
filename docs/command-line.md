@@ -34,7 +34,7 @@ race-cli create-game /path/to/game.spec.json
 {
   "title": "<GAME TITLE>",
   "reg_addr": "<REPLACE WITH THE REGISTRATION ADDRESS>",
-  "bundle_addr": "<REPLACE WITH THE BUNDLE ADDRESS>",
+  "bundle_key": "<REPLACE WITH THE BUNDLE ADDRESS>",
   "token_addr": "<REPLACE WITH THE TOKEN ADDRESS>",
   "max_players": <number>,
   "min_deposit": <number>,
