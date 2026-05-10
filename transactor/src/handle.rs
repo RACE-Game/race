@@ -4,7 +4,7 @@ mod validator;
 
 use std::sync::Arc;
 
-use race_transactor_frames::{BridgeToParent, SignalFrame, EventFrame};
+use race_transactor_frames::{BridgeToParent, SignalFrame};
 use race_transactor_components::{
     Broadcaster, CloseReason, EventBus, WrappedStorage, WrappedTransport,
 };
@@ -136,10 +136,10 @@ impl Handle {
     /// Wait handle until it's shutted down.  A
     /// [SignalFrame::RemoveGame] will be sent through `signal_tx`.
     pub fn wait(&mut self, signal_tx: mpsc::Sender<SignalFrame>) -> JoinHandle<CloseReason> {
-        let (handles, event_bus, addr) = match self {
-            Handle::Transactor(ref mut x) => (&mut x.handles, x.event_bus.clone(), x.addr.clone()),
-            Handle::Validator(ref mut x) => (&mut x.handles, x.event_bus.clone(), x.addr.clone()),
-            Handle::SubGame(ref mut x) => (&mut x.handles, x.event_bus.clone(), x.addr.clone()),
+        let (handles, addr) = match self {
+            Handle::Transactor(ref mut x) => (&mut x.handles, x.addr.clone()),
+            Handle::Validator(ref mut x) => (&mut x.handles, x.addr.clone()),
+            Handle::SubGame(ref mut x) => (&mut x.handles, x.addr.clone()),
         };
         if handles.is_empty() {
             panic!("Some where else is waiting");
@@ -160,13 +160,12 @@ impl Handle {
             drop(exit_tx);
 
             let mut close_reason = CloseReason::Complete;
-            let mut shutdown_sent = true;
 
             if let Some((component_id, first_reason)) = exit_rx.recv().await {
                 match &first_reason {
                     CloseReason::Fault(err) => {
                         warn!(
-                            "Game {} component {} exited with fault: {}. Send shutdown to remaining components.",
+                            "Game {} component {} exited with fault: {}.",
                             addr,
                             component_id,
                             err
@@ -175,14 +174,12 @@ impl Handle {
                     }
                     CloseReason::Complete => {
                         warn!(
-                            "Game {} component {} exited unexpectedly with Complete. Send shutdown to remaining components.",
+                            "Game {} component {} exited unexpectedly with Complete.",
                             addr,
                             component_id,
                         );
                     }
                 }
-
-                event_bus.send(EventFrame::Shutdown).await;
 
                 for _ in 1..expected_components {
                     let Some((component_id, reason)) = exit_rx.recv().await else {
@@ -198,17 +195,7 @@ impl Handle {
                             );
                             close_reason = reason;
                         }
-                        CloseReason::Complete => {
-                            if !shutdown_sent {
-                                warn!(
-                                    "Game {} component {} exited unexpectedly with Complete.",
-                                    addr,
-                                    component_id,
-                                );
-                                shutdown_sent = true;
-                                event_bus.send(EventFrame::Shutdown).await;
-                            }
-                        }
+                        CloseReason::Complete => {}
                     }
                 }
             }

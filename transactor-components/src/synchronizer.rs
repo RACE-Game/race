@@ -105,6 +105,7 @@ async fn maybe_send_sync(
 
         // When other channels are closed
         if ports.try_send(frame).await.is_err() {
+            ports.send(EventFrame::Shutdown).await;
             return (prev_access_version, Some(CloseReason::Complete));
         }
     }
@@ -157,6 +158,7 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
                     env.log_prefix,
                     e.to_string()
                 );
+                ports.send(EventFrame::Shutdown).await;
                 return CloseReason::Fault(Error::GameAccountNotFound);
             }
         };
@@ -173,9 +175,9 @@ impl Component<PipelinePorts, GameSynchronizerContext> for GameSynchronizer {
 
             if close_reason.is_some() {
                 error!("{} Failed on the initial query, but the subscription is still available", env.log_prefix);
-            } else {
-                prev_access_version = new_access_version;
+                return close_reason.unwrap();
             }
+            prev_access_version = new_access_version;
         }
 
         loop {

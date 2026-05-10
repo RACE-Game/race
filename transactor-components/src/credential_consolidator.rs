@@ -138,6 +138,7 @@ impl Component<PipelinePorts, CredentialConsolidatorContext> for CredentialConso
                         ).await;
 
                         if let Err(e) = encryptor.import_credentials(&n.addr, credentials) {
+                            ports.send(EventFrame::Shutdown).await;
                             return CloseReason::Fault(e.into());
                         }
                     }
@@ -156,6 +157,7 @@ impl Component<PipelinePorts, CredentialConsolidatorContext> for CredentialConso
                     for p in new_players.iter() {
                         let credentials = maybe_fetch_player_credentials(&p.addr, &mut cached_player_credentials, transport.clone(), &env).await;
                         if let Err(e) = encryptor.import_credentials(&p.addr, credentials) {
+                            ports.send(EventFrame::Shutdown).await;
                             return CloseReason::Fault(e.into());
                         }
                     }
@@ -163,6 +165,7 @@ impl Component<PipelinePorts, CredentialConsolidatorContext> for CredentialConso
                     for s in new_servers.iter() {
                         let credentials = maybe_fetch_server_credentials(&s.addr, &mut cached_server_credentials, transport.clone(), &env).await;
                         if let Err(e) = encryptor.import_credentials(&s.addr, credentials) {
+                            ports.send(EventFrame::Shutdown).await;
                             return CloseReason::Fault(e.into());
                         }
                     }

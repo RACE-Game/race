@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use race_core::error::Error;
-use tokio::sync::{mpsc, watch, Mutex};
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::{timeout, Duration, Instant};
 use tracing::{error, warn};
 
@@ -19,12 +19,10 @@ pub struct EventBus {
     addr: String,
     tx: mpsc::Sender<EventFrame>,
     attached_txs: Arc<Mutex<Vec<(String, mpsc::Sender<EventFrame>)>>>,
-    close_rx: watch::Receiver<bool>,
 }
 
 impl EventBus {
     pub fn new(addr: String) -> Self {
-        let (close_tx, close_rx) = watch::channel(false);
         let (tx, mut rx) = mpsc::channel::<EventFrame>(32);
         let txs: Arc<Mutex<Vec<(String, mpsc::Sender<EventFrame>)>>> = Arc::new(Mutex::new(vec![]));
         let attached_txs = txs.clone();
@@ -109,17 +107,12 @@ impl EventBus {
                         }
                     }
                 }
-                if matches!(msg, EventFrame::Shutdown) {
-                    close_tx.send(true).unwrap();
-                    break;
-                }
             }
         });
         Self {
             addr,
             tx,
             attached_txs: txs,
-            close_rx,
         }
     }
 
@@ -127,29 +120,15 @@ impl EventBus {
     where
         T: Attachable,
     {
-        let mut close_rx = self.close_rx.clone();
         if let Some(mut rx) = attachable.output() {
             let tx = self.tx.clone();
             tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        _ = close_rx.changed() => {
-                            break;
-                        }
-                        msg = rx.recv() => {
-                            if let Some(msg) = msg {
-                                match tx.send(msg).await {
-                                    Ok(_) => (),
-                                    Err(e) => {
-                                        error!("Failed to send event: {:?}", e);
-                                        warn!("Shutdown event bus");
-                                        return;
-                                    }
-                                }
-
-                            } else {
-                                break;
-                            }
+                while let Some(msg) = rx.recv().await {
+                    match tx.send(msg).await {
+                        Ok(_) => (),
+                        Err(e) => {
+                            error!("Failed to send event: {:?}", e);
+                            return;
                         }
                     }
                 }
@@ -287,6 +266,50 @@ mod tests {
 
         let n = c.get_n();
 
+        c_handle.wait().await;
+
+        let n = n.lock().await;
+        assert_eq!(*n, 2);
+    }
+
+    #[derive(Default)]
+    struct ShutdownThenSyncProducer {}
+
+    #[async_trait]
+    impl Component<ProducerPorts, TestProducerCtx> for ShutdownThenSyncProducer {
+        fn name() -> &'static str {
+            "ShutdownThenSyncProducer"
+        }
+
+        async fn run(ports: ProducerPorts, _ctx: TestProducerCtx, _env: ComponentEnv) -> CloseReason {
+            ports.send(EventFrame::Shutdown).await;
+            ports.send(EventFrame::Sync {
+                new_players: vec![],
+                new_servers: vec![],
+                new_deposits: vec![],
+                transactor_addr: "".into(),
+                access_version: 1,
+            }).await;
+            CloseReason::Complete
+        }
+    }
+
+    #[tokio::test]
+    async fn shutdown_does_not_stop_event_bus() {
+        let p = ShutdownThenSyncProducer::default();
+        let p_ctx = TestProducerCtx::default();
+        let (c, c_ctx) = TestConsumer::init();
+        let eb = EventBus::default();
+
+        let mut p_handle = p.start("producer", p_ctx,);
+        let mut c_handle = c.start("consumer", c_ctx);
+
+        eb.attach(&mut p_handle).await;
+        eb.attach(&mut c_handle).await;
+
+        let n = c.get_n();
+
+        p_handle.wait().await;
         c_handle.wait().await;
 
         let n = n.lock().await;

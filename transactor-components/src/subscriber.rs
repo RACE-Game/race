@@ -153,9 +153,14 @@ impl Component<PipelinePorts, SubscriberContext> for Subscriber {
         // Wait one RecoverCheckpointWithCredentials frame before connecting transactor.
         // Make sure we have a prepared handler state before the first event.
         loop {
-            let frame = ports.recv().await;
-            if matches!(frame, Some(EventFrame::RecoverCheckpointWithCredentials { .. })) {
-                break;
+            match ports.recv().await {
+                Some(EventFrame::RecoverCheckpointWithCredentials { .. }) => break,
+                Some(EventFrame::Shutdown) => {
+                    info!("{} Stopped", env.log_prefix);
+                    return CloseReason::Complete;
+                }
+                Some(_) => (),
+                None => return CloseReason::Complete,
             }
         }
 
@@ -179,6 +184,7 @@ impl Component<PipelinePorts, SubscriberContext> for Subscriber {
                                 vote_type: VoteType::ServerVoteTransactorDropOff,
                             })
                             .await;
+                        ports.send(EventFrame::Shutdown).await;
 
                         warn!("{} Shutdown subscriber", env.log_prefix);
                         return CloseReason::Complete;
@@ -215,6 +221,7 @@ impl Component<PipelinePorts, SubscriberContext> for Subscriber {
                     };
 
                     if let Some(close_reason) = *Pin::into_inner(handle_frame(frame, &mut ports, &env).await) {
+                        ports.send(EventFrame::Shutdown).await;
                         return close_reason;
                     }
                 }
@@ -228,6 +235,7 @@ impl Component<PipelinePorts, SubscriberContext> for Subscriber {
                 vote_type: VoteType::ServerVoteTransactorDropOff,
             })
             .await;
+        ports.send(EventFrame::Shutdown).await;
 
         return CloseReason::Complete;
     }

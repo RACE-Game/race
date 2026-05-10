@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use crate::common::{Component, ConsumerPorts};
+use crate::common::{Component, PipelinePorts};
 use race_transactor_frames::EventFrame;
 use async_trait::async_trait;
 use race_client::Client;
@@ -56,12 +56,12 @@ impl WrappedClient {
 }
 
 #[async_trait]
-impl Component<ConsumerPorts, ClientContext> for WrappedClient {
+impl Component<PipelinePorts, ClientContext> for WrappedClient {
     fn name() -> &'static str {
         "Client"
     }
 
-    async fn run(mut ports: ConsumerPorts, ctx: ClientContext, env: ComponentEnv) -> CloseReason {
+    async fn run(mut ports: PipelinePorts, ctx: ClientContext, env: ComponentEnv) -> CloseReason {
         let ClientContext {
             addr,
             game_addr,
@@ -78,6 +78,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
         // }
 
         let mut res = Ok(());
+        let mut should_shutdown = false;
         'outer: while let Some(event_frame) = ports.recv().await {
             match event_frame {
                 EventFrame::ContextUpdated { ref context } => {
@@ -85,7 +86,9 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                         Ok(events) => {
                             for event in events.into_iter() {
                                 // info!("Connection send event: {}", event);
-                                if let Err(_e) = client.submit_event(event).await {
+                                if let Err(e) = client.submit_event(event).await {
+                                    error!("{} Client failed to submit event: {:?}", env.log_prefix, e);
+                                    should_shutdown = true;
                                     break 'outer;
                                 }
                             }
@@ -96,6 +99,7 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                         Err(e) => {
                             error!("{} Client error: {:?}", env.log_prefix, e);
                             res = Err(e);
+                            should_shutdown = true;
                             break 'outer;
                         }
                     }
@@ -110,6 +114,10 @@ impl Component<ConsumerPorts, ClientContext> for WrappedClient {
                 }
                 _ => (),
             }
+        }
+
+        if should_shutdown {
+            ports.send(EventFrame::Shutdown).await;
         }
 
         return match res {

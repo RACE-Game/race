@@ -30,6 +30,16 @@ pub struct EventLoopContext {
 
 pub struct EventLoop {}
 
+async fn return_with_shutdown_if_fault(
+    ports: &PipelinePorts,
+    close_reason: CloseReason,
+) -> CloseReason {
+    if matches!(&close_reason, CloseReason::Fault(_)) {
+        ports.send(EventFrame::Shutdown).await;
+    }
+    close_reason
+}
+
 #[async_trait]
 impl Component<PipelinePorts, EventLoopContext> for EventLoop {
     fn name() -> &'static str {
@@ -51,6 +61,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
         let mut handler = match handler_manager.get_handler(&game_spec.bundle_key).await {
             Ok(handler) => handler,
             Err(e) => {
+                ports.send(EventFrame::Shutdown).await;
                 return CloseReason::Fault(e)
             }
         };
@@ -83,6 +94,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             game_context = ctx;
                         }
                         Err(e) => {
+                            ports.send(EventFrame::Shutdown).await;
                             return CloseReason::Fault(e);
                         }
                     }
@@ -107,6 +119,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             game_context = ctx;
                         }
                         Err(e) => {
+                            ports.send(EventFrame::Shutdown).await;
                             return CloseReason::Fault(e);
                         }
                     }
@@ -227,7 +240,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             )
                             .await
                             {
-                                return close_reason;
+                                return return_with_shutdown_if_fault(&ports, close_reason).await;
                             }
                         }
                         // Send new deposits
@@ -247,7 +260,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                             )
                             .await
                             {
-                                return close_reason;
+                                return return_with_shutdown_if_fault(&ports, close_reason).await;
                             }
                         }
                     }
@@ -271,7 +284,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         )
                         .await
                         {
-                            return close_reason;
+                            return return_with_shutdown_if_fault(&ports, close_reason).await;
                         }
                     } else {
                         error!(
@@ -320,7 +333,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                         )
                         .await
                         {
-                            return close_reason;
+                            return return_with_shutdown_if_fault(&ports, close_reason).await;
                         }
                     }
                 }
@@ -389,7 +402,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     )
                     .await
                     {
-                        return close_reason;
+                        return return_with_shutdown_if_fault(&ports, close_reason).await;
                     }
                 }
                 EventFrame::SendEvent { event, timestamp } => {
@@ -407,12 +420,13 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     )
                     .await
                     {
-                        return close_reason;
+                        return return_with_shutdown_if_fault(&ports, close_reason).await;
                     }
                 }
                 EventFrame::SendServerEvent { event, timestamp } => {
                     // Handle the shutdown event from game logic
                     if matches!(event, Event::Shutdown) {
+                        ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Complete;
                     }
 
@@ -430,12 +444,13 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     )
                     .await
                     {
-                        return close_reason;
+                        return return_with_shutdown_if_fault(&ports, close_reason).await;
                     }
                 }
                 EventFrame::HandleDispatchEvent { event, timestamp } => {
                     // Handle the shutdown event from game logic
                     if matches!(event, Event::Shutdown) {
+                        ports.send(EventFrame::Shutdown).await;
                         return CloseReason::Complete;
                     }
 
@@ -453,7 +468,7 @@ impl Component<PipelinePorts, EventLoopContext> for EventLoop {
                     )
                     .await
                     {
-                        return close_reason;
+                        return return_with_shutdown_if_fault(&ports, close_reason).await;
                     }
                 }
                 EventFrame::Shutdown => {

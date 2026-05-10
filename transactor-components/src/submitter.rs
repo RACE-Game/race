@@ -230,6 +230,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                             p.send(EventFrame::TxState { tx_state }).await;
                         }
                         Err(e) => {
+                            p.send(EventFrame::Shutdown).await;
                             return CloseReason::Fault(e);
                         }
                     }
@@ -283,6 +284,7 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                             env.log_prefix,
                             e.to_string()
                         );
+                        ports.send(EventFrame::Shutdown).await;
                         break;
                     }
 
@@ -306,23 +308,29 @@ impl Component<PipelinePorts, SubmitterContext> for Submitter {
                             env.log_prefix,
                             e.to_string()
                         );
+                        ports.send(EventFrame::Shutdown).await;
+                        break;
                     }
                 }
                 EventFrame::Shutdown => {
                     info!("{} Stopped", env.log_prefix);
-                    drop(queue_tx);
                     break;
                 }
                 _ => (),
             }
         }
 
-        join_handle.await.unwrap_or_else(|e| {
+        drop(queue_tx);
+        let close_reason = join_handle.await.unwrap_or_else(|e| {
             CloseReason::Fault(Error::InternalError(format!(
                 "Submitter await join handle error: {}",
                 e
             )))
-        })
+        });
+        if matches!(&close_reason, CloseReason::Fault(_)) {
+            ports.send(EventFrame::Shutdown).await;
+        }
+        close_reason
     }
 }
 
