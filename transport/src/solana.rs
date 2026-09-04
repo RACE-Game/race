@@ -1697,7 +1697,7 @@ impl SolanaTransport {
         let players_reg_data = accounts_result[1]
             .as_ref()
             .map(|acc| &acc.data)
-            .ok_or(TransportError::GameAccountPlayersNotFound)?;
+            .ok_or(TransportError::GameAccountPlayersNotFound(game_account_pubkey.to_string()))?;
 
         let game_state = GameState::deserialize(&mut game_account_data.as_slice())
             .map_err(|_| TransportError::GameStateDeserializeError)?;

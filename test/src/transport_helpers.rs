@@ -1,11 +1,10 @@
 use std::{
-    io::Read, ops::Deref, pin::Pin, sync::{Arc, Mutex}
+    ops::Deref, pin::Pin, sync::{Arc, Mutex}
 };
 
 use async_trait::async_trait;
 use async_stream::stream;
 use futures::Stream;
-use base64::prelude::Engine;
 use race_core::types::{AddRecipientSlotParams, AssignRecipientParams, CreateRecipientParams, RecipientAccount, RecipientClaimParams, SettleResult};
 use race_core::error::{Error, Result};
 #[allow(unused_imports)]
@@ -97,26 +96,6 @@ impl TransportT for DummyTransport {
         } else {
             let game_account = states.remove(0);
             Ok(Some(game_account))
-        }
-    }
-
-    async fn get_game_bundle(&self, addr_q: &str) -> Result<Option<GameBundle>> {
-        let addr: String = "TEST".into();
-        if addr.eq(addr_q) {
-            let mut f = std::fs::File::open("../examples/minimal/minimal.wasm").unwrap();
-            let mut buf = vec![];
-            f.read_to_end(&mut buf).unwrap();
-            let base64 = base64::prelude::BASE64_STANDARD;
-            let data = base64.encode(buf);
-            // FIXME: complete fields
-            Ok(Some(GameBundle {
-                addr: "".into(),
-                uri: "".into(),
-                name: "".into(),
-                data: vec![],
-            }))
-        } else {
-            Ok(None)
         }
     }
 

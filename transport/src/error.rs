@@ -181,8 +181,8 @@ pub enum TransportError {
     #[error("Cannot get object: {0}")]
     GetObjectError(String),
 
-    #[error("Game account players not found")]
-    GameAccountPlayersNotFound,
+    #[error("Game account players not found: {0}")]
+    GameAccountPlayersNotFound(String),
 
     #[error("Failed to deserialize players reg")]
     PlayersRegDeserializationError,
