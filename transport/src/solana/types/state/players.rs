@@ -22,6 +22,7 @@ impl From<PlayerJoin> for race_core::types::PlayerJoin {
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[derive(BorshDeserialize, BorshSerialize, Clone, Debug)]
 pub struct PlayersReg {
+    pub discriminator: u8,
     pub access_version: u64,
     pub settle_version: u64,
     pub size: usize,
