@@ -254,11 +254,12 @@ impl TransportT for SolanaTransport {
         let close_game_ix =
             Instruction::new_with_borsh(self.program_id, &RaceInstruction::CloseGameAccount, keys);
 
+        let set_cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(1200000);
         let fee =
             self.get_recent_prioritization_fees(&[game_account_pubkey, stake_account_pubkey])?;
         let set_cu_prize_ix = ComputeBudgetInstruction::set_compute_unit_price(fee);
 
-        let message = Message::new(&[set_cu_prize_ix, close_game_ix], Some(&payer.pubkey()));
+        let message = Message::new(&[set_cu_limit_ix, set_cu_prize_ix, close_game_ix], Some(&payer.pubkey()));
         let mut tx = Transaction::new_unsigned(message);
         let blockhash = self.get_blockhash()?;
         tx.sign(&[payer], blockhash);
