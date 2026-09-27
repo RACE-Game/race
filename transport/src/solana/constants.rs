@@ -1,5 +1,5 @@
 pub const PROGRAM_ID: &str = "C3u1cTJGKP5XzPCvLgQydGWE7aR3x3o5KL8YooFfY4RN";
-pub const PLAYER_PROFILE_SEED: &str = "race-player-2000";
+pub const PLAYER_PROFILE_SEED: &str = "race-player-3000";
 pub const SERVER_PROFILE_SEED: &str = "race-server-2000";
 pub const PROFILE_ACCOUNT_LEN: usize = 130;
 pub const SERVER_ACCOUNT_LEN: usize = 108;
